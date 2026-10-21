@@ -10,7 +10,7 @@ import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { ownConnection } from "../providers/connections";
 import { providerCall } from "../providers/trpc";
-import { boundSink, pushSinks } from "../sync/extraSinks";
+import { boundSink, pushSinks, sinksSoon } from "../sync/extraSinks";
 
 const meta = () => ({ signal: AbortSignal.timeout(20_000), correlationId: `sink-ui-${Date.now()}` });
 const target = z.object({ remoteId: z.string().min(1).max(200), name: z.string().max(300), path: z.array(z.object({ remoteId: z.string().max(200), name: z.string().max(300) })).max(10) });
@@ -84,7 +84,7 @@ export const sinksRouter = createRouter({
         activityId: input.activityId,
       });
       await db.update(worklogSinks).set({ state: "pending", lastError: null }).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed")));
-      void pushSinks(ctx.user.id).catch(() => undefined);
+      sinksSoon(ctx.user.id);
       return { ok: true };
     }),
 
