@@ -83,6 +83,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { BrandMark } from "@/components/app/BrandMark";
 import { BRAND_SHORT } from "@/lib/brand";
+import { pageQueriesOf } from "@/lib/pageQueries";
 import { surface, surfaceFace } from "@/components/app/surface";
 
 /** Opens the focus view; shown only while a timer exists. */
@@ -592,7 +593,7 @@ export function AppLayout() {
               {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays.
                   Outside the page's keyed box, so they outlive a navigation: the page on screen
                   stays until the next one's code is there (the router navigates in a transition). */}
-              <ErrorBoundary resetKey={location.pathname} onRetry={() => queryClient.removeQueries({ type: "inactive" })}>
+              <ErrorBoundary resetKey={location.pathname} onRetry={() => pageQueriesOf(queryClient).dropInactive(location.pathname)}>
                 <Suspense fallback={<PageSpinner />}>
                   <div
                     key={location.pathname}

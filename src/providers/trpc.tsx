@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
 import { getLocale } from "@/i18n";
 import { deviceId } from "@/lib/device";
+import { pageQueriesOf } from "@/lib/pageQueries";
 import { APP_BUILD_CHANGED, APP_BUILD_HEADER, APP_BUILD_META } from "@contracts/appBuild";
 
 /** The build this page's code comes from; none in development. */
@@ -84,6 +85,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Which page read what, from the first page on (a page that fails reads its own afresh on Retry).
+pageQueriesOf(queryClient);
 
 /** Each mutation the server answered tells the module host what happened (WP-17). */
 const appEventsLink: TRPCLink<AppRouter> = () => ({ op, next }) =>
