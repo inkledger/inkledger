@@ -240,6 +240,59 @@ test("filling a hole: once a piece is logged, its cuts stay where they are", () 
     assert.equal(await page.locator("[data-cut]").count(), 1);
   }));
 
+test("filling a hole in parallel: a lane under the strip logs an overlapping span on another issue, its empty pieces are not sent", () =>
+  withApp({}, async ({ page, base }) => {
+    // What the sheet sends, answered as the server would.
+    const sent = [];
+    await page.route(/\/api\/trpc\/worklogs\.create/, async route => {
+      const body = JSON.parse(route.request().postData() ?? "{}");
+      const input = body[0]?.json ?? body.json;
+      sent.push(input);
+      const made = { id: 900 + sent.length, issueKey: input.issueKey, remoteId: `wl-${sent.length}`, timeSpentSeconds: input.seconds, comment: "" };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
+    });
+    await page.goto(base + "/");
+    const hole = page.getByRole("button", { name: /Log missing time/ }).first();
+    // Before the work day starts there is no hole yet: nothing to test.
+    const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    if (!found) return;
+    await hole.click();
+    const strip = page.getByRole("group", { name: /Strip of time to log/ });
+    await strip.waitFor();
+    await page.waitForTimeout(500);
+    // A lane added and taken away again leaves the hole as it was.
+    await page.getByRole("button", { name: "In parallel" }).click();
+    await page.getByRole("button", { name: "Remove lane" }).click();
+    assert.equal(await page.getByRole("group", { name: /Parallel lane/ }).count(), 0);
+
+    await page.getByRole("button", { name: "In parallel" }).click();
+    const lane = page.getByRole("group", { name: /Parallel lane 2/ });
+    await lane.waitFor();
+    // The whole hole on one issue; the middle of it, at the same time, on another.
+    await page.getByRole("button", { name: /^Choose the issue…/ }).first().click();
+    await page.keyboard.type("DEMO-101");
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Enter");
+    const box = await lane.boundingBox();
+    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height / 2);
+    await page.mouse.click(box.x + box.width * 0.7, box.y + box.height / 2);
+    const section = page.getByRole("region", { name: /Parallel lane 2/ });
+    assert.equal(await section.getByRole("listitem").count(), 3);
+    await section.getByRole("button", { name: /Choose the issue \(empty/ }).nth(1).click();
+    await page.keyboard.type("DEMO-102");
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Enter");
+    await page.getByText(/in parallel$/).waitFor();
+    await page.getByRole("button", { name: "Log 2 worklogs" }).click();
+    await page.getByText("2 worklogs created").waitFor();
+    // Only the two pieces with an issue; the parallel one inside the other, at the same time.
+    assert.deepEqual(sent.map(w => w.issueKey), ["DEMO-101", "DEMO-102"]);
+    const span = w => [Date.parse(w.started), Date.parse(w.started) + w.seconds * 1000];
+    const [a0, a1] = span(sent[0]);
+    const [b0, b1] = span(sent[1]);
+    assert.ok(b0 > a0 && b1 < a1, "the parallel span lies inside the other one");
+  }));
+
 test("discarding a timer asks first: its time would be lost", () =>
   withApp(
     {

@@ -54,3 +54,35 @@ export function segments(gap: TimeSpan, cuts: number[]): TimeSpan[] {
     seconds: Math.round((b - bounds[i]) / 1000),
   }));
 }
+
+// ---------- Lanes (work done in parallel) ----------
+
+/**
+ * One strip of the hole: its cuts and a piece for each segment between them.
+ * The first lane is the hole itself; more lanes run under it for work done at
+ * the same time, so any set of spans (overlapping or not) is lanes with some
+ * pieces left empty (an empty piece is not logged).
+ */
+export type Lane<P> = { cuts: number[]; pieces: P[] };
+
+/** New cuts on a lane: the piece split by an added cut gives its copy `fresh(piece)`. */
+export function withCuts<P>(lane: Lane<P>, next: number[], fresh: (p: P) => P): Lane<P> {
+  if (next.length <= lane.cuts.length) return { ...lane, cuts: next };
+  const added = next.find(c => !lane.cuts.includes(c));
+  const k = added === undefined ? -1 : next.indexOf(added);
+  const pieces = k < 0 ? lane.pieces : [...lane.pieces.slice(0, k + 1), fresh(lane.pieces[k]), ...lane.pieces.slice(k + 1)];
+  return { cuts: next, pieces };
+}
+
+/** Cut `k` taken away: the merged piece keeps the left one, or the right one when `keep(left)` says it is empty. */
+export function withoutCut<P>(lane: Lane<P>, k: number, keep: (p: P) => boolean): Lane<P> {
+  return {
+    cuts: lane.cuts.filter((_, i) => i !== k),
+    pieces: [...lane.pieces.slice(0, k), keep(lane.pieces[k]) ? lane.pieces[k] : lane.pieces[k + 1], ...lane.pieces.slice(k + 2)],
+  };
+}
+
+/** Every span a piece holds (`taken`), lane after lane, in time order within a lane. */
+export function takenSpans<P>(gap: TimeSpan, lanes: Lane<P>[], taken: (p: P) => boolean): TimeSpan[] {
+  return lanes.flatMap(l => segments(gap, l.cuts).filter((_, i) => l.pieces[i] !== undefined && taken(l.pieces[i])));
+}

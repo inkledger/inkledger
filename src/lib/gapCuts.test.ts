@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addCut, cutLongest, moveCut, segments } from "./gapCuts";
+import { addCut, cutLongest, moveCut, segments, takenSpans, withCuts, withoutCut } from "./gapCuts";
 
 const at = (h: number, m = 0) => new Date(2026, 9, 12, h, m).getTime();
 const gap = { start: new Date(at(9)), seconds: 2 * 3600 }; // 9:00–11:00
@@ -29,5 +29,28 @@ describe("gap cuts", () => {
   it("cuts the longest piece in half", () => {
     expect(cutLongest(gap, [])).toEqual([at(10)]);
     expect(cutLongest(gap, [at(9, 20)])).toEqual([at(9, 20), at(10, 10)]);
+  });
+});
+
+describe("gap lanes", () => {
+  type P = { key: string | null; done?: boolean };
+  const fresh = (p: P): P => ({ ...p, done: false });
+  const lane = { cuts: [at(10)], pieces: [{ key: "A-1" }, { key: null }] as P[] };
+
+  it("an added cut splits its piece, the copy fresh; a removed cut merges, keeping the left piece unless it is empty", () => {
+    const cut = withCuts(lane, [at(9, 30), at(10)], fresh);
+    expect(cut.pieces).toEqual([{ key: "A-1" }, { key: "A-1", done: false }, { key: null }]);
+    expect(withCuts(lane, [], fresh)).toEqual({ cuts: [], pieces: lane.pieces });
+    expect(withoutCut(lane, 0, p => !!p.key).pieces).toEqual([{ key: "A-1" }]);
+    expect(withoutCut({ cuts: [at(10)], pieces: [{ key: null }, { key: "B-2" }] }, 0, p => !!p.key).pieces).toEqual([{ key: "B-2" }]);
+  });
+
+  it("the spans taken in every lane, overlapping ones included", () => {
+    const parallel = { cuts: [at(9, 30), at(10, 30)], pieces: [{ key: null }, { key: "B-2" }, { key: null }] as P[] };
+    const spans = takenSpans(gap, [lane, parallel], p => !!p.key);
+    expect(spans.map(s => [new Date(s.start).getHours() * 60 + new Date(s.start).getMinutes(), s.seconds / 60])).toEqual([
+      [9 * 60, 60],
+      [9 * 60 + 30, 60],
+    ]);
   });
 });
