@@ -1,14 +1,24 @@
-// Boots the production bundle (dist/boot.js) on a random port with a temp
+// Boots the production bundle (dist/boot.js) on a free port with a temp
 // database and checks health, SPA fallback, asset caching and headers.
 // Run after `pnpm build`.
 import { spawn } from "node:child_process";
 import { request } from "node:http";
+import { createServer } from "node:net";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
-const port = 40000 + Math.floor(Math.random() * 10000);
+// A port the system has just handed out: a random one could be another app's
+// (the Docker stacks'), and the checks would run against it.
+const port = await new Promise((resolve, reject) => {
+  const probe = createServer();
+  probe.once("error", reject);
+  probe.listen(0, "127.0.0.1", () => {
+    const { port } = probe.address();
+    probe.close(() => resolve(port));
+  });
+});
 const dir = mkdtempSync(join(tmpdir(), "ikl-smoke-"));
 const base = `http://127.0.0.1:${port}`;
 
