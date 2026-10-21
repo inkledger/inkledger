@@ -26,7 +26,10 @@ test("a page whose code never arrives: one reload by itself, then the shell stay
     });
     let loads = 0;
     page.on("load", () => loads++);
+    const reloaded = page.waitForEvent("load");
     await sidebarLink(page, "/reports").click();
+    // The first failure reloads by itself (main.tsx); the alert is read on the reloaded page only.
+    await reloaded;
     const alert = page.getByRole("alert").filter({ hasText: "Something went wrong" });
     await alert.waitFor();
     // main.tsx reloads once by itself (a redeploy's stale chunk); failing again within 10 s, the page says so.
@@ -83,6 +86,34 @@ test("a page that throws while drawing: the shell stays, retry draws it again, l
   } finally {
     // An answer still being bent must not outlive the page.
     await app.page.unrouteAll({ behavior: "ignoreErrors" });
+    await app.stop();
+  }
+});
+
+test("a page's code on its way: the page on screen stays until it is there, no spinner in between", async () => {
+  const app = await start();
+  try {
+    const { page, context } = app;
+    await page.goto(app.base + "/");
+    await sidebarLink(page, "/reports").waitFor();
+    const dashboard = page.locator("main h1").first();
+    const before = await dashboard.innerText();
+    // The Reports page's code takes a while to come.
+    const chunk = u => /\/assets\/Reports-[\w-]+\.js$/.test(new URL(u).pathname);
+    let release = () => {};
+    const held = new Promise(r => (release = r));
+    await context.route(chunk, async route => {
+      await held;
+      return route.continue();
+    });
+    await sidebarLink(page, "/reports").click();
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator("main [role=status]").filter({ hasText: "Loading" }).count(), 0, "no spinner in place of the page");
+    assert.equal(await dashboard.innerText(), before, "the page on screen stays");
+    release();
+    await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();
+    await context.unroute(chunk);
+  } finally {
     await app.stop();
   }
 });

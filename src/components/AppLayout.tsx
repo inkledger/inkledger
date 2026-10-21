@@ -589,17 +589,19 @@ export function AppLayout() {
               <ReconnectBanner />
               <FirstTrackerBanner />
               <OutboxBanner />
-              <div
-                key={location.pathname}
-                className="motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
-              >
-                {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays. */}
-                <ErrorBoundary resetKey={location.pathname} onRetry={() => queryClient.removeQueries({ type: "inactive" })}>
-                  <Suspense fallback={<PageSpinner />}>
+              {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays.
+                  Outside the page's keyed box, so they outlive a navigation: the page on screen
+                  stays until the next one's code is there (the router navigates in a transition). */}
+              <ErrorBoundary resetKey={location.pathname} onRetry={() => queryClient.removeQueries({ type: "inactive" })}>
+                <Suspense fallback={<PageSpinner />}>
+                  <div
+                    key={location.pathname}
+                    className="motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
+                  >
                     <Outlet />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
+                  </div>
+                </Suspense>
+              </ErrorBoundary>
             </main>
           </div>
           {/* Add-on modules' anchor on the panel's bottom-left corner: zero size,
