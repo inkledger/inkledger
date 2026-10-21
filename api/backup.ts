@@ -142,6 +142,52 @@ function run(bin: string, args: string[], childEnv: NodeJS.ProcessEnv = process.
   });
 }
 
+/**
+ * The database emptied, then the dump, in one transaction: the database is the backup's.
+ * (pg_restore --clean drops only what the backup holds: a table added since, with a key
+ * on one of its tables, made it fail.) The dump comes as SQL from pg_restore and goes
+ * into psql; if pg_restore fails halfway, psql is stopped before its input ends, so
+ * nothing is committed.
+ */
+const EMPTY_DATABASE = "DROP SCHEMA IF EXISTS drizzle CASCADE;\nDROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n";
+
+function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const restoreBin = process.env.PG_RESTORE_BIN ?? "pg_restore";
+    const psqlBin = process.env.PSQL_BIN ?? "psql";
+    const dump = spawn(restoreBin, ["--no-owner", "--file=-", file], { stdio: ["ignore", "pipe", "pipe"], env: target.env });
+    const psql = spawn(psqlBin, ["--no-psqlrc", "--quiet", "--single-transaction", "--set=ON_ERROR_STOP=1", `--dbname=${target.url}`], {
+      stdio: ["pipe", "ignore", "pipe"],
+      env: target.env,
+    });
+    let err = "";
+    let failed = false;
+    const fail = (e: Error) => {
+      if (failed) return;
+      failed = true;
+      dump.kill();
+      psql.kill();
+      reject(e);
+    };
+    dump.stderr.on("data", (d) => (err += String(d)));
+    psql.stderr.on("data", (d) => (err += String(d)));
+    dump.on("error", fail);
+    psql.on("error", fail);
+    psql.stdin.on("error", () => undefined); // psql gone: its exit says why
+    psql.stdin.write(EMPTY_DATABASE);
+    dump.stdout.pipe(psql.stdin, { end: false });
+    dump.on("close", (code) => {
+      if (code === 0) psql.stdin.end();
+      else fail(new Error(err.trim() || t("server.backup.exitedWith", { bin: restoreBin, code: code ?? "?" })));
+    });
+    psql.on("close", (code) => {
+      if (failed) return;
+      if (code === 0) resolve();
+      else fail(new Error(err.trim() || t("server.backup.exitedWith", { bin: psqlBin, code: code ?? "?" })));
+    });
+  });
+}
+
 let running: Promise<string> | null = null;
 
 /** One backup now (never two at once); returns the file name. */
@@ -184,12 +230,7 @@ export async function restoreBackup(name: string): Promise<{ safety: string }> {
   restoring = name;
   try {
     const safety = await runBackup();
-    const target = pgTarget();
-    await run(
-      process.env.PG_RESTORE_BIN ?? "pg_restore",
-      ["--clean", "--if-exists", "--no-owner", "--single-transaction", `--dbname=${target.url}`, file],
-      target.env,
-    );
+    await restoreInto(pgTarget(), file);
     // A backup from an older version lacks the newest columns: bring it up to date.
     await migrateDb();
     return { safety };

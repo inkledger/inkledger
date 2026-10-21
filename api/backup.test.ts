@@ -12,16 +12,24 @@ fs.writeFileSync(
   `#!/bin/sh\nfor a in "$@"; do case "$a" in --file=*) echo dump > "\${a#--file=}";; esac; done\n`,
   { mode: 0o755 },
 );
-// Like the real one: a missing file fails. Also records the password env.
+// Like the real one: a missing file fails. Also records the password env, and
+// writes the dump as SQL on stdout (FAKE_RESTORE_FAIL: dies halfway through).
 fs.writeFileSync(
   path.join(BIN, "pg_restore"),
-  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\n`,
+  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_FAIL" ] && { echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
+  { mode: 0o755 },
+);
+// psql: records its arguments and what it was fed; "committed" only once its input ended.
+fs.writeFileSync(
+  path.join(BIN, "psql"),
+  `#!/bin/sh\necho "$@ pw=$PGPASSWORD" > "${DIR}/psql-args.txt"\ncat > "${DIR}/psql-input.sql"\necho committed >> "${DIR}/psql-input.sql"\n`,
   { mode: 0o755 },
 );
 process.env.DATABASE_URL = ":memory:";
 process.env.BACKUP_DIR = DIR;
 process.env.PG_DUMP_BIN = path.join(BIN, "pg_dump");
 process.env.PG_RESTORE_BIN = path.join(BIN, "pg_restore");
+process.env.PSQL_BIN = path.join(BIN, "psql");
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi);
 
@@ -73,10 +81,35 @@ describe("backups on disk", () => {
     await new Promise((r) => setTimeout(r, 1100)); // a new second → a new file name
     const { safety } = await b.restoreBackup("inkledger-20200102-000000.dump");
     expect(safety).not.toBe(newest.name);
-    expect(fs.readFileSync(path.join(DIR, "restored.txt"), "utf8")).toMatch(/--clean .*inkledger-20200102-000000\.dump/);
+    // The dump goes in whole, in one transaction, over an emptied database: a backup from
+    // before a migration that added a table must not trip over that table (it can't be
+    // dropped by --clean, which only knows what the backup holds).
+    const restored = fs.readFileSync(path.join(DIR, "restored.txt"), "utf8");
+    expect(restored).toMatch(/--file=- .*inkledger-20200102-000000\.dump/);
+    expect(restored).not.toContain("--clean");
+    const psqlArgs = fs.readFileSync(path.join(DIR, "psql-args.txt"), "utf8");
+    expect(psqlArgs).toContain("--single-transaction");
+    expect(psqlArgs).toContain("ON_ERROR_STOP=1");
+    const fed = fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8");
+    expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeGreaterThanOrEqual(0);
+    expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeLessThan(fed.indexOf("-- the dump's SQL"));
+    expect(fed).toMatch(/-- end of dump\ncommitted/);
     // The oldest of `keep` files: the safety backup must not prune it away.
     expect(fs.existsSync(path.join(DIR, "inkledger-20200102-000000.dump"))).toBe(true);
     await expect(b.restoreBackup("../etc/passwd")).rejects.toThrow(/Invalid backup/);
+  });
+
+  it("a dump that breaks halfway is never committed: psql is stopped before its input ends", async () => {
+    const b = await import("./backup");
+    fs.rmSync(path.join(DIR, "psql-input.sql"), { force: true });
+    process.env.FAKE_RESTORE_FAIL = "1";
+    try {
+      await expect(b.restoreBackup("inkledger-20200102-000000.dump")).rejects.toThrow(/broken archive/);
+    } finally {
+      delete process.env.FAKE_RESTORE_FAIL;
+    }
+    const fed = fs.existsSync(path.join(DIR, "psql-input.sql")) ? fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8") : "";
+    expect(fed).not.toContain("committed");
   });
 
   it("a folder that can't be written is an error, not a crash", async () => {
