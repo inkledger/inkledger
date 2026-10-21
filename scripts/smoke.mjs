@@ -122,6 +122,10 @@ try {
   // The registry held to the contract at start (a broken adapter stops the server); it writes to no tracker.
   check(/Read-only/.test(out), "the server says it writes to no tracker");
 } finally {
+  // Gone before its database folder goes; one that doesn't stop is killed.
+  const exited = new Promise((r) => server.once("exit", r));
   server.kill("SIGTERM");
+  const gone = await Promise.race([exited.then(() => true), new Promise((r) => setTimeout(r, 5000, false))]);
+  if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
