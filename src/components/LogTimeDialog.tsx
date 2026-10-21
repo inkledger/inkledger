@@ -256,7 +256,7 @@ function LogTimeForm({
         ...payload,
         ...(worklog.id !== undefined
           ? { id: worklog.id }
-          : { issueKey, remoteId: worklog.remoteId }),
+          : { issueKey, remoteId: worklog.remoteId, connectionId: conn ?? undefined }),
       });
     else create.mutate({ ...payload, issueKey, connectionId, fromTimer });
   };
