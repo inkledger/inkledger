@@ -35,12 +35,13 @@ export function PeriodSummary({
   colorOf,
   pending,
   celebrate = false,
-  goalSeconds,
+  loggedSeconds,
 }: {
   label: string;
+  /** The hours worked: parallel work once (what counts towards the goal) */
   totalSeconds: number;
-  /** What counts towards the goal when it isn't the total logged (clock time: parallel work once) */
-  goalSeconds?: number;
+  /** The entries' sum, when parallel work makes it more than the hours worked */
+  loggedSeconds?: number;
   targetSeconds: number;
   legend: { project: string; seconds: number; color: ProjectColor }[];
   issues: IssueTotal[];
@@ -56,10 +57,15 @@ export function PeriodSummary({
       <p className="mt-2 font-display text-display tabular">
         <CountUpDuration seconds={totalSeconds} />
       </p>
+      {loggedSeconds !== undefined && loggedSeconds > totalSeconds && (
+        <p className="mt-1 text-body-sm text-muted-foreground">
+          {t("views.dashboard.timeline.parallel", { logged: formatDurationLong(loggedSeconds), clock: formatDurationLong(totalSeconds) })}
+        </p>
+      )}
 
       <GoalProgress
         className="mt-4"
-        totalSeconds={goalSeconds ?? totalSeconds}
+        totalSeconds={totalSeconds}
         targetSeconds={targetSeconds}
         pending={pending}
         celebrate={celebrate}

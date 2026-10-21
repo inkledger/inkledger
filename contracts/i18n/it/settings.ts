@@ -189,11 +189,6 @@ export const settings: Shape<typeof en> = {
     autosave: "Le modifiche si salvano da sole.",
   },
   schedule: {
-    goalTitle: "Obiettivi",
-    goalDescription: "Cosa conta per gli obiettivi del giorno e della settimana.",
-    goalKeywords: "obiettivo goal orologio parallelo loggato",
-    goalClock: "Conta il tempo a orologio",
-    goalClockHint: "Il lavoro in parallelo conta una volta, per le ore che ha preso; spento, ogni worklog conta per intero.",
     fromStart: "Dall'inizio",
     fromDate: "Dal {date}",
     day: {

@@ -6,6 +6,7 @@ import { getDb } from "../queries/connection";
 import { clientContainers, clients, connections, containers, issues, worklogs } from "@db/schema";
 import { providerName } from "@contracts/providerNames";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
+import { realSecondsByDay, realSecondsTotal } from "@contracts/placement";
 import { t } from "@contracts/i18n";
 import { issueOfWorklog, worklogScope } from "../queries/worklogScope";
 
@@ -78,6 +79,17 @@ async function trackerNames(userId: number): Promise<Map<number, string>> {
   return new Map(rows.map((c) => [c.id, c.label || providerName(c.type)]));
 }
 
+/**
+ * A range's hours: worked (parallel work once, realSeconds) and logged (the
+ * entries' sum, what the rows add up to); they differ only by parallel work.
+ */
+function hoursOf(logs: { started: Date; seconds: number }[]): { totalSeconds: number; loggedSeconds: number } {
+  return {
+    totalSeconds: realSecondsTotal(logs.map((w) => ({ start: w.started, seconds: w.seconds }))),
+    loggedSeconds: logs.reduce((a, w) => a + w.seconds, 0),
+  };
+}
+
 const bySecondsDesc = (a: Row, b: Row) => b.seconds - a.seconds || a.key.localeCompare(b.key);
 
 export const reportsRouter = createRouter({
@@ -98,17 +110,19 @@ export const reportsRouter = createRouter({
         ...scoped.where,
       ];
       const query = { unsupported: scoped.unsupported };
+      const logs = await db
+        .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
+        .from(worklogs)
+        .where(and(...baseConds));
+      const hours = hoursOf(logs);
 
       if (input.groupBy === "day") {
-        const logs = await db
-          .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
-          .from(worklogs)
-          .where(and(...baseConds));
+        // A day's hours are the hours worked that day (parallel work once).
+        const worked = realSecondsByDay(logs.map((w) => ({ start: w.started, seconds: w.seconds })));
         const byDay = new Map<string, { seconds: number; entries: number }>();
         for (const w of logs) {
           const key = dayKey(w.started);
-          const acc = byDay.get(key) ?? { seconds: 0, entries: 0 };
-          acc.seconds += w.seconds;
+          const acc = byDay.get(key) ?? { seconds: worked.get(key) ?? 0, entries: 0 };
           acc.entries += 1;
           byDay.set(key, acc);
         }
@@ -119,7 +133,7 @@ export const reportsRouter = createRouter({
           groupBy: input.groupBy,
         query,
           rows,
-          totalSeconds: rows.reduce((a, r) => a + r.seconds, 0),
+          ...hours,
           totalEntries: rows.reduce((a, r) => a + r.entries, 0),
         };
       }
@@ -158,7 +172,7 @@ export const reportsRouter = createRouter({
             tracker: r.connectionId !== null ? (names.get(r.connectionId) ?? "") : "",
             container: r.container,
           })),
-          totalSeconds: rows.reduce((a, r) => a + r.seconds, 0),
+          ...hours,
           totalEntries: rows.reduce((a, r) => a + r.entries, 0),
         };
       }
@@ -183,7 +197,7 @@ export const reportsRouter = createRouter({
           groupBy: input.groupBy,
         query,
           rows: rows.map((r) => ({ key: r.group || "none", label: r.name || t("server.reports.noClient"), seconds: r.seconds, entries: r.entries })),
-          totalSeconds: rows.reduce((a, r) => a + r.seconds, 0),
+          ...hours,
           totalEntries: rows.reduce((a, r) => a + r.entries, 0),
         };
       }
@@ -211,7 +225,7 @@ export const reportsRouter = createRouter({
           seconds: r.seconds,
           entries: r.entries,
         })),
-        totalSeconds: rows.reduce((a, r) => a + r.seconds, 0),
+        ...hours,
         totalEntries: rows.reduce((a, r) => a + r.entries, 0),
       };
     }),
@@ -266,6 +280,7 @@ export const reportsRouter = createRouter({
       add(total, w);
     }
     const rangeIssues = [...total.values()].sort(bySecondsDesc);
+    const worked = realSecondsByDay(logs.map((w) => ({ start: w.started, seconds: w.seconds })));
     return {
       days: [...days.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
@@ -273,13 +288,15 @@ export const reportsRouter = createRouter({
           const rows = [...m.values()].sort(bySecondsDesc);
           return {
             day,
-            seconds: rows.reduce((a, r) => a + r.seconds, 0),
+            // The hours worked that day; its issues keep their own (they may run in parallel).
+            seconds: worked.get(day) ?? 0,
+            loggedSeconds: rows.reduce((a, r) => a + r.seconds, 0),
             entries: rows.reduce((a, r) => a + r.entries, 0),
             issues: rows,
           };
         }),
       issues: rangeIssues,
-      totalSeconds: rangeIssues.reduce((a, r) => a + r.seconds, 0),
+      ...hoursOf(logs),
       totalEntries: rangeIssues.reduce((a, r) => a + r.entries, 0),
       query: { unsupported: scoped.unsupported },
     };

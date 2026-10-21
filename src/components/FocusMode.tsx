@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { issueId } from "@/lib/issues";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { t } from "@/i18n";
+import { workedSeconds } from "@/lib/worked";
 
 type PipApi = {
   requestWindow(opts: { width: number; height: number }): Promise<Window>;
@@ -251,7 +252,8 @@ function GoalRing({ issueKey }: { issueKey: string }) {
   const { targetFor } = useWorkSchedule();
   const target = targetFor(today);
   const logged = useMemo(
-    () => (logs.data ?? []).reduce((a, w) => a + w.timeSpentSeconds, 0),
+    // The hours worked today: parallel work once.
+    () => workedSeconds(logs.data ?? []),
     [logs.data]
   );
 

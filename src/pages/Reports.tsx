@@ -347,6 +347,10 @@ export default function Reports() {
                 { label: t("pages.reports.daysWorked"), value: String(workedDays) },
                 countStat(t("pages.reports.issues"), byIssue),
                 countStat(t("pages.reports.projects"), byProject),
+                // Parallel work: the entries add up to more than the hours worked.
+                ...(data.loggedSeconds > data.totalSeconds
+                  ? [{ label: t("pages.reports.parallel"), value: formatDuration(data.loggedSeconds - data.totalSeconds) }]
+                  : []),
               ]}
             />
           )}

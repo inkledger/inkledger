@@ -171,6 +171,7 @@ export const pages = {
     period: "Period",
     total: "Total",
     entries: "Entries",
+    parallel: "In parallel",
     avgPerDay: "Avg/day",
     daysWorked: "Days worked",
     issues: "Issues",

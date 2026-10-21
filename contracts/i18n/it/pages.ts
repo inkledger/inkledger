@@ -172,6 +172,7 @@ export const pages: Shape<typeof en> = {
     period: "Periodo",
     total: "Totale",
     entries: "Registrazioni",
+    parallel: "In parallelo",
     avgPerDay: "Media/giorno",
     daysWorked: "Giorni lavorati",
     issues: "Issue",

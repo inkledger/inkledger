@@ -10,7 +10,7 @@ import {
   type WorkSchedule,
 } from "@contracts/workSchedule";
 import { projectOf, type ProjectColor } from "@/lib/projectColors";
-import { clockSeconds, lanesOf } from "@contracts/placement";
+import { lanesOf, realSeconds } from "@contracts/placement";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { t, dateFormat } from "@/i18n";
@@ -134,7 +134,7 @@ export function DayTimeline({
   const missingTotal = missing.reduce((a, g) => a + g.seconds, 0);
   // Work in parallel: what was logged against how long the day took.
   const logged = entries.reduce((a, e) => a + e.seconds, 0);
-  const clock_ = clockSeconds(entries);
+  const clock_ = realSeconds(entries);
 
   return (
     <figure className="m-0">

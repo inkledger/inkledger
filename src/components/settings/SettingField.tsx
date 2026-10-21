@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
-type NumericField = Exclude<keyof SettingsData, "notifyEnabled" | "overlapPolicy" | "goalBasis">;
+type NumericField = Exclude<keyof SettingsData, "notifyEnabled" | "overlapPolicy">;
 
 /** Parses "7,5" / "7.5"; null when not a finite number. */
 function parseDecimal(text: string): number | null {

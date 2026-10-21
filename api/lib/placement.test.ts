@@ -147,8 +147,35 @@ describe("time logged in parallel", () => {
   });
 
   it("clock time counts parallel time once", async () => {
-    const { clockSeconds } = await import("@contracts/placement");
-    expect(clockSeconds([b(9, 0, 60), b(9, 30, 60), b(14, 0, 30)])).toBe(120 * 60);
-    expect(clockSeconds([])).toBe(0);
+    const { realSeconds } = await import("@contracts/placement");
+    expect(realSeconds([b(9, 0, 60), b(9, 30, 60), b(14, 0, 30)])).toBe(120 * 60);
+    expect(realSeconds([])).toBe(0);
+  });
+});
+
+describe("hours worked (parallel work once)", () => {
+  const b = (d: number, h: number, m: number, minutes: number, s = 0) => ({ start: at(d, h, m, s), seconds: minutes * MIN });
+
+  it("a day without parallel work is the plain sum, touching pieces included (rounded to the minute)", async () => {
+    const { realSeconds } = await import("@contracts/placement");
+    const day = [b(FRI, 9, 0, 60), b(FRI, 10, 0, 30), b(FRI, 14, 0, 45)];
+    expect(realSeconds(day)).toBe(135 * MIN);
+    // A piece rounded up overlaps the next by 30 s: still the sum.
+    expect(realSeconds([b(FRI, 9, 0, 61), b(FRI, 10, 0, 30, 30)])).toBe(91 * MIN);
+    expect(realSeconds([])).toBe(0);
+  });
+
+  it("parallel work counts once: what runs past the others, any order, any nesting", async () => {
+    const { realSeconds } = await import("@contracts/placement");
+    expect(realSeconds([b(FRI, 10, 0, 60), b(FRI, 10, 0, 60)])).toBe(60 * MIN);
+    expect(realSeconds([b(FRI, 9, 30, 60), b(FRI, 9, 0, 60)])).toBe(90 * MIN);
+    expect(realSeconds([b(FRI, 9, 0, 120), b(FRI, 9, 30, 30), b(FRI, 10, 30, 60)])).toBe(150 * MIN);
+  });
+
+  it("by local day, and over many days the sum of each day's", async () => {
+    const { realSecondsByDay, realSecondsTotal } = await import("@contracts/placement");
+    const items = [b(FRI, 9, 0, 60), b(FRI, 9, 0, 60), b(FRI + 1, 9, 0, 30)];
+    expect([...realSecondsByDay(items).values()]).toEqual([60 * MIN, 30 * MIN]);
+    expect(realSecondsTotal(items)).toBe(90 * MIN);
   });
 });

@@ -83,6 +83,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TrashDialog } from "@/components/timesheet/TrashDialog";
+import { workedSeconds } from "@/lib/worked";
 
 type View = "week" | "month";
 
@@ -241,7 +242,9 @@ export default function Timesheet() {
     const days = view === "week" ? weekDays : monthCells.filter(c => c.inMonth);
     return days.flatMap(d => byDay.get(d.key) ?? []);
   }, [view, weekDays, monthCells, byDay]);
-  const periodTotal = periodLogs.reduce((a, w) => a + w.timeSpentSeconds, 0);
+  // The hours worked (parallel work once); the entries' sum beside it when they differ.
+  const periodTotal = workedSeconds(periodLogs);
+  const periodLogged = periodLogs.reduce((a, w) => a + w.timeSpentSeconds, 0);
   const target = (
     view === "week" ? weekDays : monthCells.filter(c => c.inMonth)
   ).reduce((a, d) => a + targetFor(d.date), 0);
@@ -292,6 +295,7 @@ export default function Timesheet() {
               project,
               seconds,
             })),
+            worked: workedSeconds(byDay.get(c.key) ?? []),
           };
         }),
     [monthCells, byDay]
@@ -302,10 +306,7 @@ export default function Timesheet() {
     const totals = days.map(d => ({
       date: d.date,
       key: d.key,
-      seconds: (byDay.get(d.key) ?? []).reduce(
-        (a, w) => a + w.timeSpentSeconds,
-        0
-      ),
+      seconds: workedSeconds(byDay.get(d.key) ?? []),
     }));
     const under = totals.filter(
       d =>
@@ -509,7 +510,7 @@ export default function Timesheet() {
         action: t("pages.timesheet.deleteAction"),
       };
     const entries = byDay.get(confirm.key) ?? [];
-    const total = entries.reduce((a, w) => a + w.timeSpentSeconds, 0);
+    const total = workedSeconds(entries);
     return {
       title: t("pages.timesheet.duplicateTitle"),
       body: t("pages.timesheet.duplicateBody", {
@@ -654,6 +655,7 @@ export default function Timesheet() {
             <PeriodSummary
               label={periodLabel}
               totalSeconds={periodTotal}
+              loggedSeconds={periodLogged}
               targetSeconds={target}
               legend={legend}
               issues={issueTotals}

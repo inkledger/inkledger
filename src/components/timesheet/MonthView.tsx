@@ -4,6 +4,7 @@ import type { TimesheetLog } from "./WeekView";
 import { Meter } from "@/components/app/Meter";
 import { goalTone } from "@/lib/goalTone";
 import { t, dateFormat } from "@/i18n";
+import { workedSeconds } from "@/lib/worked";
 
 /** Monday-first short weekday names, in the current language. */
 const weekdays = () =>
@@ -36,8 +37,8 @@ export function MonthView({
   todayKey,
   onOpenDay,
 }: Props) {
-  const totalOf = (key: string) =>
-    (byDay.get(key) ?? []).reduce((a, w) => a + w.timeSpentSeconds, 0);
+  // The hours worked that day: parallel work once.
+  const totalOf = (key: string) => workedSeconds(byDay.get(key) ?? []);
 
   return (
     <>

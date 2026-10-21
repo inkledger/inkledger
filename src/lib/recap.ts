@@ -1,6 +1,7 @@
 import { addDays, dayKey, startOfWeek } from "@contracts/time";
 import { projectOf } from "@/lib/projectColors";
 import { issueId } from "@/lib/issues";
+import { workedByDay, workedSeconds } from "@/lib/worked";
 
 export type RecapLog = {
   issueKey: string;
@@ -50,18 +51,15 @@ export function weekRecap(
   const prevEnd = addDays(prevStart, elapsedDays);
   const weekEnd = addDays(weekStart, 7);
 
-  const perDay = new Map<string, number>();
   const byIssue = new Map<string, { key: string; connectionId?: number | null; seconds: number }>();
   const byProject = new Map<string, number>();
-  let total = 0;
-  let prevTotal = 0;
+  const week: RecapLog[] = [];
+  const prev: RecapLog[] = [];
 
   for (const w of logs) {
     const at = new Date(w.started);
     if (at >= weekStart && at < weekEnd) {
-      total += w.timeSpentSeconds;
-      const k = dayKey(at);
-      perDay.set(k, (perDay.get(k) ?? 0) + w.timeSpentSeconds);
+      week.push(w);
       const id = issueId(w);
       const entry = byIssue.get(id) ?? { key: w.issueKey, connectionId: w.connectionId, seconds: 0 };
       entry.seconds += w.timeSpentSeconds;
@@ -69,9 +67,13 @@ export function weekRecap(
       const p = projectOf(w.issueKey);
       byProject.set(p, (byProject.get(p) ?? 0) + w.timeSpentSeconds);
     } else if (at >= prevStart && at < prevEnd) {
-      prevTotal += w.timeSpentSeconds;
+      prev.push(w);
     }
   }
+  // The hours worked, day by day: parallel work once (issues and projects keep their own).
+  const perDay = workedByDay(week);
+  const total = [...perDay.values()].reduce((a, s) => a + s, 0);
+  const prevTotal = workedSeconds(prev);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const seconds = days.map(d => perDay.get(dayKey(d)) ?? 0);

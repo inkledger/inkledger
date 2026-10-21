@@ -8,6 +8,13 @@
       "when": 1792551290865,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792573510883,
+      "tag": "0001_drop_goal_basis",
+      "breakpoints": true
     }
   ]
 }

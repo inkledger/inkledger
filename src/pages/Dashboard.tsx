@@ -1,5 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { clockSeconds } from "@contracts/placement";
+import { realSecondsByDay } from "@contracts/placement";
 import { useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
 import {
@@ -204,17 +204,12 @@ export default function Dashboard() {
       day.set(project, (day.get(project) ?? 0) + w.timeSpentSeconds);
       byDay.set(key, day);
     }
-    const total = [...byIssue.values()].reduce((a, b) => a + b.seconds, 0);
-    // Clock time: each day's entries counted once where they run in parallel.
-    const blocks = new Map<string, { start: Date; seconds: number }[]>();
-    for (const w of logs.data ?? []) {
-      const k = dayKey(new Date(w.started));
-      blocks.set(k, [...(blocks.get(k) ?? []), { start: new Date(w.started), seconds: w.timeSpentSeconds }]);
-    }
-    const clock = [...blocks.values()].reduce((a, d) => a + clockSeconds(d), 0);
-    return { byIssue, byDay, total, clock, ...rankProjects(byProject) };
+    const logged = [...byIssue.values()].reduce((a, b) => a + b.seconds, 0);
+    // The hours worked: each day's entries counted once where they run in parallel.
+    const worked = realSecondsByDay((logs.data ?? []).map(w => ({ start: new Date(w.started), seconds: w.timeSpentSeconds })));
+    const total = [...worked.values()].reduce((a, s) => a + s, 0);
+    return { byIssue, byDay, worked, total, logged, ...rankProjects(byProject) };
   }, [logs.data]);
-  const goalBasis = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data?.goalBasis;
 
   // Targets come from the work schedule in force on each day.
   const { forDay, targetFor, targetBetween } = useWorkSchedule();
@@ -291,6 +286,7 @@ export default function Dashboard() {
         derived.byDay.get(dayKey(day)) ?? new Map<string, number>()
       ).entries(),
     ].map(([project, seconds]) => ({ project, seconds })),
+    worked: derived.worked.get(dayKey(day)),
   }));
 
   const tasksCollapsed = useCollapsedColumns("dashboard");
@@ -645,7 +641,8 @@ export default function Dashboard() {
                 <PeriodSummary
                   label={periodLabel}
                   totalSeconds={derived.total}
-                  goalSeconds={goalBasis === "clock" ? derived.clock : undefined}
+                  // The day's timeline says it already.
+                  loggedSeconds={range.kind === "day" ? undefined : derived.logged}
                   targetSeconds={target}
                   legend={derived.legend}
                   issues={issueTotals}

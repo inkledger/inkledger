@@ -8,6 +8,8 @@ export type DayStack = {
   day: Date;
   /** Seconds per project, any order */
   parts: { project: string; seconds: number }[];
+  /** The day's hours worked when work ran in parallel (less than the parts' sum): the bar's height, its parts in proportion */
+  worked?: number;
 };
 
 /**
@@ -36,7 +38,8 @@ export function PeriodBars({
 }) {
   const today = dayKey(useToday());
   const pendingSeconds = pending?.pending ?? 0;
-  const totals = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
+  const sums = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
+  const totals = stacks.map((s, i) => s.worked ?? sums[i]);
   const targets = stacks.map(s => targetFor(s.day));
   const max = Math.max(
     Math.max(0, ...targets) * 1.15,
@@ -98,7 +101,7 @@ export function PeriodBars({
                           "w-full border-t border-background/70 first:border-t-0",
                           colorOf(p.project).fill
                         )}
-                        style={{ height: `${(p.seconds / max) * 100}%` }}
+                        style={{ height: `${((sums[i] > total ? (p.seconds * total) / sums[i] : p.seconds) / max) * 100}%` }}
                       />
                     ))}
                 </div>

@@ -11,6 +11,7 @@ import { Meter } from "@/components/app/Meter";
 import { goalTone } from "@/lib/goalTone";
 import { t, dateFormat } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
+import { workedSeconds } from "@/lib/worked";
 
 export type TimesheetLog = {
   id: number;
@@ -100,7 +101,8 @@ export function WeekView({
     <ol className="stagger grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
       {days.map(day => {
         const entries = byDay.get(day.key) ?? [];
-        const total = entries.reduce((a, w) => a + w.timeSpentSeconds, 0);
+        // The hours worked that day: parallel work once.
+        const total = workedSeconds(entries);
         const isToday = day.key === todayKey;
         const label = `${weekday().format(day.date)} ${dayMonth().format(day.date)}`;
         return (

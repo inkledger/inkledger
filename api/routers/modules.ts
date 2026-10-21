@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, gte, not, like, sql } from "drizzle-orm";
+import { and, count, eq, gte, not, like } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can } from "../queries/accounts";
@@ -10,7 +10,7 @@ import { FILE_MAX_BYTES, FILE_TYPES, moduleIdSchema, PROGRESS_FILE_FORMAT, STORA
 import { deleteModuleFile, getModuleFile, putModuleFile, removeModuleFiles } from "../modules/files";
 import { env } from "../lib/env";
 import { startOfWeek } from "@contracts/time";
-import { instant, localDateOf, timeZone } from "@contracts/values";
+import { realSecondsByDay, realSecondsTotal } from "@contracts/placement";
 import { geocode, weatherAt } from "../weather/openMeteo";
 import { t } from "@contracts/i18n";
 import { extraKey } from "../modules/keys";
@@ -360,25 +360,26 @@ export const modulesRouter = createRouter({
       return geocode(input.query, input.language);
     }),
 
-  /** For the host API: hours this user logged since the module started counting (see sinceOf). */
+  /** For the host API: hours this user worked (parallel work once) since the module started counting (see sinceOf). */
   totals: use.input(z.object({ moduleId: moduleIdSchema })).query(async ({ ctx, input }) => {
     await requireActive(input.moduleId);
     const db = getDb();
     const since = await sinceOf(db, ctx.user.id, input.moduleId);
     // This week, from Monday or from since if later (a module installed mid-week).
     const weekFrom = new Date(Math.max(startOfWeek(new Date()).getTime(), since));
-    const [row] = await db
-      .select({
-        total: sql<number>`coalesce(sum(${worklogs.timeSpentSeconds}), 0)`,
-        week: sql<number>`coalesce(sum(${worklogs.timeSpentSeconds}) filter (where ${worklogs.started} >= ${weekFrom.getTime()}), 0)`,
-      })
+    const rows = await db
+      .select({ start: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogs)
       .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, new Date(since))));
-    return { lifetimeLoggedSeconds: Number(row?.total ?? 0), weekLoggedSeconds: Number(row?.week ?? 0), since };
+    return {
+      lifetimeLoggedSeconds: realSecondsTotal(rows),
+      weekLoggedSeconds: realSecondsTotal(rows.filter((r) => r.start >= weekFrom)),
+      since,
+    };
   }),
 
   /**
-   * For the host API: the hours this user logged each day (their local day),
+   * For the host API: the hours this user worked each day (their local day, parallel work once),
    * from `since` (epoch ms) on, never before the module started counting.
    * Days with nothing logged are left out.
    */
@@ -390,13 +391,8 @@ export const modulesRouter = createRouter({
       .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogs)
       .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, new Date(from))));
-    // The server runs in the user's zone (api/lib/tz.ts).
-    const zone = timeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    const days = new Map<string, number>();
-    for (const r of rows) {
-      const d = localDateOf(instant(r.started.getTime()), zone);
-      days.set(d, (days.get(d) ?? 0) + r.seconds);
-    }
+    // The server runs in the user's zone (api/lib/tz.ts): its local days are the user's.
+    const days = realSecondsByDay(rows.map((r) => ({ start: r.started, seconds: r.seconds })));
     return [...days].sort(([a], [b]) => a.localeCompare(b)).map(([date, seconds]) => ({ date, seconds }));
   }),
 });

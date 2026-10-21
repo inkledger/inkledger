@@ -175,21 +175,31 @@ export function lanesOf<T extends Block>(items: T[]): { item: T; lane: number; l
   return out.sort((a, b) => a.i - b.i).map(({ item, lane, lanes }) => ({ item, lane, lanes }));
 }
 
-/** Clock time of blocks (their union): what the day took, counted once however many ran in parallel. */
-export function clockSeconds(items: Block[]): number {
-  const sorted = [...items].sort((a, b) => a.start.getTime() - b.start.getTime());
+/**
+ * The hours worked: entries done at the same time count once. Parallel work
+ * (an entry overlapping another by more than the tolerance) adds only what
+ * runs past the others; entries that just touch (pieces rounded to the
+ * minute) add in full, so a day without parallel work is the plain sum.
+ */
+export function realSeconds(items: Block[]): number {
+  const sorted = [...items].sort((a, b) => a.start.getTime() - b.start.getTime() || endMs(a) - endMs(b));
   let total = 0;
-  let from = -Infinity;
   let to = -Infinity;
   for (const b of sorted) {
     const a = b.start.getTime();
     const e = endMs(b);
-    if (a > to) {
-      if (to > from) total += to - from;
-      from = a;
-      to = e;
-    } else to = Math.max(to, e);
+    total += a > to - OVERLAP_TOLERANCE_MS ? e - a : Math.max(0, e - to);
+    to = Math.max(to, e);
   }
-  if (to > from) total += to - from;
   return Math.round(total / 1000);
 }
+
+/** realSeconds of each local day (an entry belongs to the day it starts on). */
+export function realSecondsByDay(items: Block[]): Map<string, number> {
+  const days = new Map<string, Block[]>();
+  for (const b of items) days.set(dayKey(b.start), [...(days.get(dayKey(b.start)) ?? []), b]);
+  return new Map([...days].map(([k, d]) => [k, realSeconds(d)]));
+}
+
+/** realSeconds over many days: the sum of each day's. */
+export const realSecondsTotal = (items: Block[]) => [...realSecondsByDay(items).values()].reduce((a, s) => a + s, 0);

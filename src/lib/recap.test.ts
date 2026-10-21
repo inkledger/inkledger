@@ -32,6 +32,15 @@ describe("weekRecap", () => {
     expect(r.perDay.map(d => d.seconds / H)).toEqual([8, 8, 0, 2, 0, 0, 0]);
   });
 
+  it("work done in parallel counts once in the totals; each issue and project keeps its own", () => {
+    const parallel = [...logs, { issueKey: "MAGA-9", started: at(12), timeSpentSeconds: 2 * H }];
+    const r = weekRecap(parallel, now, weekdays8h);
+    expect(r.total).toBe(18 * H);
+    expect(r.perDay.map(d => d.seconds / H)).toEqual([8, 8, 0, 2, 0, 0, 0]);
+    expect(r.topProject).toEqual({ key: "DEMO", seconds: 13 * H });
+    expect(weekRecap([...parallel, { issueKey: "MAGA-9", started: at(6), timeSpentSeconds: 10 * H }], now, weekdays8h).prevTotal).toBe(10 * H);
+  });
+
   it("has no delta when last week is empty", () => {
     expect(weekRecap(logs.slice(0, 4), now, weekdays8h).deltaPct).toBeNull();
   });

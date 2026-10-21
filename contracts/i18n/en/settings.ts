@@ -188,11 +188,6 @@ export const settings = {
     autosave: "Changes save automatically.",
   },
   schedule: {
-    goalTitle: "Goals",
-    goalDescription: "What counts towards the daily and weekly goals.",
-    goalKeywords: "goal target clock parallel logged",
-    goalClock: "Count clock time",
-    goalClockHint: "Work done in parallel counts once, as the hours it took; off, every worklog counts in full.",
     fromStart: "From the start",
     fromDate: "From {date}",
     day: {

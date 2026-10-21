@@ -542,7 +542,6 @@ export const settings = pgTable("settings", {
    */
   overlapPolicy: text("overlap_policy").notNull().default("warn"),
   /** What meets the goals: time logged (parallel work counts twice) or clock time (counted once) */
-  goalBasis: text("goal_basis").notNull().default("logged"),
   /** Night on the Dashboard: a module's light dims the page after dark (1) or never (0) */
   dashboardNight: integer("dashboard_night").notNull().default(1),
 });

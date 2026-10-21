@@ -118,23 +118,30 @@ describe("worklogs and stats", () => {
     expect(report.rows.map((r) => r.key)).toEqual(["GHOST"]);
   });
 
-  it("goals by clock time: work in parallel counts once, today and in the last days", async () => {
+  it("hours worked: work in parallel counts once, today and in the last days; per project each its own", async () => {
     (await q("DELETE FROM worklogs"));
     const today = new Date();
     today.setHours(0, 5, 0, 0);
-    // 00:05–01:05 and 00:35–01:35 in parallel: 2 h logged, 1.5 h of clock.
+    // 00:05–01:05 and 00:35–01:35 in parallel: 2 h logged, 1.5 h worked.
     await insertLog("PAR-1", today, 3600);
     await insertLog("PAR-2", new Date(today.getTime() + 1800_000), 3600);
+    const stats = await caller.stats.dashboard();
+    expect(stats.todaySeconds).toBe(5400);
+    expect(stats.perDay.at(-1)?.seconds).toBe(5400);
+    expect(stats.perProject.reduce((a, p) => a + p.seconds, 0)).toBe(7200);
+    // Reports: the total and each day worked once, each issue its own hours, the logged sum beside.
+    const { dayKey } = await import("@contracts/time");
+    const range = { from: dayKey(today), to: dayKey(today) };
+    const byDay = await caller.reports.generate({ ...range, groupBy: "day" });
+    expect([byDay.totalSeconds, byDay.loggedSeconds, byDay.rows[0].seconds, byDay.rows[0].entries]).toEqual([5400, 7200, 5400, 2]);
+    const byIssue = await caller.reports.generate({ ...range, groupBy: "issue" });
+    expect([byIssue.totalSeconds, byIssue.rows.map((r) => r.seconds)]).toEqual([5400, [3600, 3600]]);
+    const daily = await caller.reports.daily(range);
+    expect([daily.totalSeconds, daily.loggedSeconds, daily.days[0].seconds, daily.days[0].loggedSeconds]).toEqual([5400, 7200, 5400, 7200]);
+    // Without parallel work, the plain sum as always.
+    (await q("DELETE FROM worklogs WHERE issue_key = 'PAR-2'"));
+    await insertLog("PAR-2", new Date(today.getTime() + 3600_000), 3600);
     expect((await caller.stats.dashboard()).todaySeconds).toBe(7200);
-    await caller.settings.update({ goalBasis: "clock" });
-    try {
-      const clock = await caller.stats.dashboard();
-      expect(clock.goalBasis).toBe("clock");
-      expect(clock.todaySeconds).toBe(5400);
-      expect(clock.perDay.at(-1)?.seconds).toBe(5400);
-    } finally {
-      await caller.settings.update({ goalBasis: "logged" });
-    }
   });
 
   it("logging a restarted timer subtracts the logged time; a stopped one is cleared", async () => {

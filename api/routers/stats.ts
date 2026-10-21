@@ -5,8 +5,7 @@ import { getDb } from "../queries/connection";
 import { containers, issues, worklogs } from "@db/schema";
 import { addDays, dayKey, startOfDay, startOfWeek } from "@contracts/time";
 import { issueOfWorklog, projectGroup, worklogProjectKey } from "./reports";
-import { clockSeconds } from "@contracts/placement";
-import { getSettings } from "./settings";
+import { realSecondsByDay, realSecondsTotal } from "@contracts/placement";
 
 export const statsRouter = createRouter({
   dashboard: protectedProcedure.query(async ({ ctx }) => {
@@ -19,62 +18,23 @@ export const statsRouter = createRouter({
     const todayStart = startOfDay(now);
     const tomorrowStart = addDays(todayStart, 1);
 
-    const sumWhere = async (from: Date, to: Date) => {
-      const conds = [
-        eq(worklogs.userId, ctx.user.id),
-        gte(worklogs.started, from),
-        lt(worklogs.started, to),
-      ];
-      const rows = await db
-        .select({ total: sql<number>`coalesce(sum(${worklogs.timeSpentSeconds}), 0)` })
-        .from(worklogs)
-        .where(and(...conds));
-      return rows[0]?.total ?? 0;
-    };
-
-    // Goals by clock time: each day's union of entries (parallel work once).
-    const basis = (await getSettings(ctx.user.id)).goalBasis === "clock" ? "clock" : "logged";
-    const clockBetween = async (from: Date, to: Date) => {
-      const rows = await db
-        .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
+    // The hours worked: each day's entries, parallel work counted once (realSeconds).
+    const entriesBetween = (from: Date, to: Date) =>
+      db
+        .select({ start: worklogs.started, seconds: worklogs.timeSpentSeconds })
         .from(worklogs)
         .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, from), lt(worklogs.started, to)));
-      const days = new Map<string, { start: Date; seconds: number }[]>();
-      for (const r of rows) {
-        const k = dayKey(r.started);
-        days.set(k, [...(days.get(k) ?? []), { start: r.started, seconds: r.seconds }]);
-      }
-      return days;
-    };
-    const total = (days: Map<string, { start: Date; seconds: number }[]>) => [...days.values()].reduce((a, d) => a + clockSeconds(d), 0);
-    const [todaySec, weekSec, monthSec] =
-      basis === "clock"
-        ? await Promise.all([clockBetween(todayStart, tomorrowStart), clockBetween(weekStart, weekEnd), clockBetween(monthStart, monthEnd)]).then((d) => d.map(total))
-        : await Promise.all([sumWhere(todayStart, tomorrowStart), sumWhere(weekStart, weekEnd), sumWhere(monthStart, monthEnd)]);
+    const [todaySec, weekSec, monthSec] = await Promise.all(
+      [
+        [todayStart, tomorrowStart],
+        [weekStart, weekEnd],
+        [monthStart, monthEnd],
+      ].map(async ([from, to]) => realSecondsTotal(await entriesBetween(from, to))),
+    );
 
     // Hours per local day over the last 14 days
     const rangeStart = addDays(startOfDay(now), -13);
-    const recent = await db
-      .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
-      .from(worklogs)
-      .where(
-        and(
-          eq(worklogs.userId, ctx.user.id),
-          gte(worklogs.started, rangeStart),
-          lt(worklogs.started, tomorrowStart),
-        ),
-      );
-    const byDay = new Map<string, number>();
-    if (basis === "clock") {
-      const grouped = new Map<string, { start: Date; seconds: number }[]>();
-      for (const w of recent) grouped.set(dayKey(w.started), [...(grouped.get(dayKey(w.started)) ?? []), { start: w.started, seconds: w.seconds }]);
-      for (const [k, items] of grouped) byDay.set(k, clockSeconds(items));
-    } else {
-      for (const w of recent) {
-        const key = dayKey(w.started);
-        byDay.set(key, (byDay.get(key) ?? 0) + w.seconds);
-      }
-    }
+    const byDay = realSecondsByDay(await entriesBetween(rangeStart, tomorrowStart));
     const perDay = Array.from({ length: 14 }, (_, i) => {
       const key = dayKey(addDays(rangeStart, i));
       return { date: key, seconds: byDay.get(key) ?? 0 };
@@ -116,7 +76,6 @@ export const statsRouter = createRouter({
     const totalIssues = byCategory.reduce((acc, r) => acc + r.count, 0);
 
     return {
-      goalBasis: basis,
       todaySeconds: todaySec,
       weekSeconds: weekSec,
       monthSeconds: monthSec,

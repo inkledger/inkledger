@@ -55,6 +55,7 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { missingSpans } from "@contracts/workSchedule";
 import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
+import { workedSeconds } from "@/lib/worked";
 
 const time = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 type Draft = {
@@ -140,7 +141,8 @@ function DayReviewBody() {
   const [running, setRunning] = useState(false);
 
   const target = targetFor(today);
-  const logged = (logs.data ?? []).reduce((a, w) => a + w.timeSpentSeconds, 0);
+  // The hours worked today: parallel work once.
+  const logged = workedSeconds(logs.data ?? []);
 
   // Working time of today's schedule covered neither by worklogs nor by
   // timers (each up to its stop), breaks excluded.

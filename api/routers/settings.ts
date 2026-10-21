@@ -91,7 +91,6 @@ export const settingsRouter = createRouter({
         allowedLinkDomains: z.array(domainInput).max(200).optional(),
         backdropVisibility: z.enum(BACKDROP_VISIBILITY).optional(),
         overlapPolicy: z.enum(["warn", "block"]).optional(),
-        goalBasis: z.enum(["logged", "clock"]).optional(),
         dashboardNight: z.boolean().optional(),
       }),
     )
