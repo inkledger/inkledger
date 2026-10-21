@@ -103,95 +103,100 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   let log = "";
   server.stdout.on("data", d => (log += d));
   server.stderr.on("data", d => (log += d));
-  const base = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 150; i++) {
-    try {
-      if ((await fetch(`${base}/api/health`)).ok) break;
-    } catch {
-      // not up yet
-    }
-    await new Promise(r => setTimeout(r, 100));
-  }
-  // The server has applied the migrations: seed through our own connection.
-  const client = new pg.Client({ connectionString: dbUrl.toString(), connectionTimeoutMillis: 15_000, query_timeout: 60_000 });
-  await client.connect();
-  const db = { q: sqlHelper(client) };
-  const now = Date.now();
-  const cookie = randomBytes(32).toString("base64url");
-  // bare: the server as it started (its "admin" with the default password), nobody signed in.
-  if (!bare) {
-  // Mario, signed in, is the server's admin (in place of the one it starts with).
-  await db.q("DELETE FROM users");
-  await db.q(
-    "INSERT INTO users (id, username, password_hash, role, email, display_name, created_at) VALUES (1,?,?,?,?,?,?)",
-    "mrossi", null, "admin", "mrossi", "Mario Rossi", now,
-  );
-  // His Jira (connection 1): what his issues below live on.
-  await db.q(
-    "INSERT INTO connections (id, user_id, type, base_url, remote_account_id, display_name, options, encrypted_secret, legacy, created_at) VALUES (1, 1, 'jira', ?, 'mrossi', 'Mario Rossi', ?, ?, 1, ?)",
-    "https://jira.example.it", JSON.stringify({ deployment: "server", authType: "basic", username: "mrossi" }), encrypt("x"), now,
-  );
-  await db.q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?,?,?,?)",
-    createHash("sha256").update(cookie).digest("hex"), 1, now + 86400000, now);
-  // Jira must look synced, or the app runs a first sync on open.
-  await db.q("INSERT INTO sync_state (user_id, last_sync_at, last_full_sync_at) VALUES (1, ?, ?)", now, now);
-  const addIssue = (key, summary, favorite = 0) =>
-    db.q(
-      `INSERT INTO issues (user_id, jira_id, key, summary, status, status_category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at, favorite)
-       VALUES (1, ?, ?, ?, 'To Do', 'To Do', ?, 'Project', 'Task', 'Medium', '[]', 'mrossi', ?, ?, ?)`,
-      key, key, summary, key.split("-")[0], `https://jira.example.it/browse/${key}`, now, favorite,
-    );
-  for (let i = 1; i <= 12; i++) await addIssue(`DEMO-${100 + i}`, `Test task number ${i}`);
-  await addIssue("SHOP-7", "Test favorite", 1);
-  await db.q("INSERT INTO pinboards (id, user_id, name, position, created_at) VALUES (1, 1, 'My board', 0, ?)", now);
-  }
-  // Explicit ids above: a test's own rows continue after them.
-  await syncSequences(client);
+  let client = null;
+  let browser = null;
   try {
+    const base = `http://127.0.0.1:${port}`;
+    // Up, or the test fails here (seeding a database still migrating would fail less clearly).
+    for (let i = 0; ; i++) {
+      try {
+        if ((await fetch(`${base}/api/health`)).ok) break;
+      } catch {
+        // not up yet
+      }
+      if (i === 300) throw new Error(`the server did not start in 30 s:\n${log}`);
+      await new Promise(r => setTimeout(r, 100));
+    }
+    // The server has applied the migrations: seed through our own connection.
+    client = new pg.Client({ connectionString: dbUrl.toString(), connectionTimeoutMillis: 15_000, query_timeout: 60_000 });
+    await client.connect();
+    const db = { q: sqlHelper(client) };
+    const now = Date.now();
+    const cookie = randomBytes(32).toString("base64url");
+    // bare: the server as it started (its "admin" with the default password), nobody signed in.
+    if (!bare) {
+    // Mario, signed in, is the server's admin (in place of the one it starts with).
+    await db.q("DELETE FROM users");
+    await db.q(
+      "INSERT INTO users (id, username, password_hash, role, email, display_name, created_at) VALUES (1,?,?,?,?,?,?)",
+      "mrossi", null, "admin", "mrossi", "Mario Rossi", now,
+    );
+    // His Jira (connection 1): what his issues below live on.
+    await db.q(
+      "INSERT INTO connections (id, user_id, type, base_url, remote_account_id, display_name, options, encrypted_secret, legacy, created_at) VALUES (1, 1, 'jira', ?, 'mrossi', 'Mario Rossi', ?, ?, 1, ?)",
+      "https://jira.example.it", JSON.stringify({ deployment: "server", authType: "basic", username: "mrossi" }), encrypt("x"), now,
+    );
+    await db.q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?,?,?,?)",
+      createHash("sha256").update(cookie).digest("hex"), 1, now + 86400000, now);
+    // Jira must look synced, or the app runs a first sync on open.
+    await db.q("INSERT INTO sync_state (user_id, last_sync_at, last_full_sync_at) VALUES (1, ?, ?)", now, now);
+    const addIssue = (key, summary, favorite = 0) =>
+      db.q(
+        `INSERT INTO issues (user_id, jira_id, key, summary, status, status_category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at, favorite)
+         VALUES (1, ?, ?, ?, 'To Do', 'To Do', ?, 'Project', 'Task', 'Medium', '[]', 'mrossi', ?, ?, ?)`,
+        key, key, summary, key.split("-")[0], `https://jira.example.it/browse/${key}`, now, favorite,
+      );
+    for (let i = 1; i <= 12; i++) await addIssue(`DEMO-${100 + i}`, `Test task number ${i}`);
+    await addIssue("SHOP-7", "Test favorite", 1);
+    await db.q("INSERT INTO pinboards (id, user_id, name, position, created_at) VALUES (1, 1, 'My board', 0, ?)", now);
+    }
+    // Explicit ids above: a test's own rows continue after them.
+    await syncSequences(client);
     await seed?.(db);
     await syncSequences(client);
+
+    browser = await chromium.launch({ executablePath: chromiumPath() });
+    const context = await browser.newContext({
+      viewport: viewport ?? { width: 1400, height: 900 },
+      timezoneId: "Europe/Rome",
+      locale: "en-US",
+      ...(userAgent ? { userAgent, isMobile: true, hasTouch: true } : {}),
+    });
+    if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", e => errors.push(String(e)));
+    return {
+      base,
+      dir,
+      page,
+      context,
+      db,
+      errors,
+      log: () => log,
+      async stop() {
+        await browser.close().catch(() => {});
+        const exited = new Promise(r => server.once("exit", r));
+        server.kill("SIGTERM");
+        const gone = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 5000, false))]);
+        // A server that outlives its test would hold the whole run open.
+        if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+        await client.end();
+        await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+        await admin.end();
+        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      },
+    };
   } catch (e) {
-    // A seed that fails must not leave the server and the database behind (the run would hang).
-    server.kill("SIGKILL");
-    await client.end();
-    await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
-    await admin.end();
+    // Whatever fails from here on must not leave the server, the browser or the database behind (the run would hang).
+    await browser?.close().catch(() => {});
+    if (server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
+    await client?.end().catch(() => {});
+    await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`).catch(() => {});
+    await admin.end().catch(() => {});
     rmSync(dir, { recursive: true, force: true });
     throw e;
   }
-
-  const browser = await chromium.launch({ executablePath: chromiumPath() });
-  const context = await browser.newContext({
-    viewport: viewport ?? { width: 1400, height: 900 },
-    timezoneId: "Europe/Rome",
-    locale: "en-US",
-    ...(userAgent ? { userAgent, isMobile: true, hasTouch: true } : {}),
-  });
-  if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
-  const page = await context.newPage();
-  const errors = [];
-  page.on("pageerror", e => errors.push(String(e)));
-  return {
-    base,
-    dir,
-    page,
-    context,
-    db,
-    errors,
-    log: () => log,
-    async stop() {
-      await browser.close();
-      const exited = new Promise(r => server.once("exit", r));
-      server.kill("SIGTERM");
-      const gone = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 5000, false))]);
-      // A server that outlives its test would hold the whole run open.
-      if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
-      await client.end();
-      await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
-      await admin.end();
-      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    },
-  };
 }
 
 /** A port the system has just handed out, so free right now. */
