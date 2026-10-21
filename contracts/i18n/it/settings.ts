@@ -699,7 +699,7 @@ export const settings: Shape<typeof en> = {
       menu: "Server",
       title: "{name} sui tuoi server",
       hint: "Una licenza funziona su pochi server alla volta: lo Store li conta. Liberane uno qui per usarla su un altro.",
-      notRequired: "Questo server non ha bisogno di attivazione (sviluppo, o una chiave di test fidata).",
+      notRequired: "Questo server non ha bisogno di attivazione (una chiave di test fidata).",
       activeUntil: "Attiva su questo server, si rinnova da sola prima del {date}.",
       grace: "Non è stato possibile raggiungere lo Store per rinnovarla: resta attiva fino al {date}.",
       notActive: "Non attiva su questo server.",

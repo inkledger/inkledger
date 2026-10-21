@@ -4,9 +4,11 @@
 // activation key, valid 90 days and renewed before it ends. At most a few
 // servers per licence at a time (the store counts them).
 //
-// Not needed: in development and tests (not production), or when a trusted
-// extra key is set (MODULES_TRUST_EXTRA_KEY), so test modules and the dev
-// server never take a slot. Without the activation key in this build (keys.ts
+// Needed on every real server, development included: a licence that was only
+// signed (never activated by the store) must not unlock anything, or anyone
+// running a dev server could make their own. Not needed under unit tests that
+// don't ask for it, or when a trusted extra key is set (MODULES_TRUST_EXTRA_KEY,
+// e2e and studio servers with their own test modules). Without the activation key in this build (keys.ts
 // ACTIVATION_KEYS empty) nothing can be checked: activation is not asked and
 // the server says so at start.
 import { verifyEnvelope } from "../vendor/seal/envelope";
@@ -32,9 +34,9 @@ export type ActivationPayload = { lic: string; product: string; inst: string; ia
 /** The activation keys trusted: the build's; under Vitest, a test's own (TEST_ACTIVATION_KEY) too. */
 const activationKeys = (): string[] => [...ACTIVATION_KEYS, ...(process.env.VITEST && process.env.TEST_ACTIVATION_KEY ? [process.env.TEST_ACTIVATION_KEY] : [])];
 
-/** Whether this server must hold an activation for its licences (under Vitest: when a test asks, TEST_ACTIVATION_REQUIRED). */
+/** Whether this server must hold an activation for its licences: always, but under Vitest only when a test asks (TEST_ACTIVATION_REQUIRED). */
 export const activationRequired = () =>
-  (env.isProduction || (!!process.env.VITEST && process.env.TEST_ACTIVATION_REQUIRED === "1")) && !extraKey() && activationKeys().length > 0;
+  (!process.env.VITEST || process.env.TEST_ACTIVATION_REQUIRED === "1") && !extraKey() && activationKeys().length > 0;
 
 /** A token from the store, checked: its signature, version and shape (not yet whose it is). */
 export function readActivation(token: string): ActivationPayload | null {

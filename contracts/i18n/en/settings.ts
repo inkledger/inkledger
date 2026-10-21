@@ -698,7 +698,7 @@ export const settings = {
       menu: "Servers",
       title: "{name} on your servers",
       hint: "A licence works on a few servers at a time: the store counts them. Free one here to use the licence on another.",
-      notRequired: "This server doesn’t need an activation (development, or a trusted test key).",
+      notRequired: "This server doesn’t need an activation (a trusted test key).",
       activeUntil: "Active on this server, renewed by itself before {date}.",
       grace: "The store couldn’t be reached to renew it: still active until {date}.",
       notActive: "Not active on this server.",
