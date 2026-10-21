@@ -26,6 +26,9 @@ import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
 import { allowedHostsNow } from "./lib/serverHosts";
 import { beginShutdown } from "./lib/shutdown";
+import { registerEventRoutes } from "./events";
+import { closeAllStreams } from "./lib/userEvents";
+import { purgeTimerOps } from "./routers/timers";
 import { startSyncScheduler } from "./syncScheduler";
 import { settleInFlightSyncs } from "./routers/issues";
 import { startBackupScheduler } from "./backup";
@@ -109,6 +112,7 @@ registerDownloadRoutes(app);
 registerModuleRoutes(app);
 registerStoreRoutes(app);
 registerHookRoutes(app);
+registerEventRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -134,7 +138,7 @@ if (env.isProduction) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   purge();
@@ -162,6 +166,8 @@ if (env.isProduction) {
     // No new sync from now on; a sync cut mid-write would leave the outbox /
     // issues half updated, so the running ones finish first.
     beginShutdown();
+    // Open event streams would keep server.close waiting forever.
+    closeAllStreams();
     // Bounded: a pass stuck on Jira must not hold the exit until the hard kill.
     const atMost = (p: Promise<unknown> | undefined, ms: number) =>
       Promise.race([p, new Promise<void>((resolve) => setTimeout(resolve, ms).unref())]);

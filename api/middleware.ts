@@ -8,6 +8,7 @@ import { serverBuild } from "./lib/appBuild";
 import { APP_BUILD_CHANGED, APP_BUILD_HEADER } from "@contracts/appBuild";
 import { JiraApiError } from "./jira/client";
 import { ProviderError } from "./providers/core/errors";
+import { TimerConflictError } from "./lib/timerConflict";
 import { getDb } from "./queries/connection";
 import { sessions } from "@db/schema";
 import { clearedSessionCookies } from "./lib/session";
@@ -25,6 +26,8 @@ const t = initTRPC.context<TrpcContext>().create({
     // A provider's refusal by field (a transition's fields): the form marks them.
     const fields = error.cause instanceof ProviderError ? error.cause.fields : undefined;
     if (fields) return { ...shape, data: { ...shape.data, fields } };
+    // A timer held by another device, or changed meanwhile: who, since when, to say it and offer a take-over.
+    if (error.cause instanceof TimerConflictError) return { ...shape, data: { ...shape.data, timer: error.cause.info } };
     // Input the server refused: words for people, never the validator's JSON;
     // the fields it named go along for the form to mark.
     if (error.cause instanceof ZodError) {

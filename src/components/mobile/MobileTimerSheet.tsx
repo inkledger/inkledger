@@ -6,7 +6,7 @@ import { useTimers } from "@/hooks/useTimers";
 import { useTimerLogQueue } from "@/lib/timerLog";
 import { quickStart } from "@/lib/quickStart";
 import { focusMode } from "@/lib/flag";
-import { TimerControls } from "@/components/TimerControls";
+import { TimerControls, TimerWhere } from "@/components/TimerControls";
 import { TimerNote } from "@/components/TimerNote";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +78,7 @@ export function MobileTimerSheet({
               <div className="[&_button]:h-11 [&_button]:w-11 [&_button_svg]:h-5 [&_button_svg]:w-5 [&_.tabular]:text-body">
                 <TimerControls issueKey={timer.issueKey} connectionId={timer.connectionId} />
               </div>
+              <TimerWhere issueKey={timer.issueKey} connectionId={timer.connectionId} />
               {i === 0 && (
                 <TimerNote key={issueId(timer)} issueKey={timer.issueKey} connectionId={timer.connectionId} note={timer.note} />
               )}

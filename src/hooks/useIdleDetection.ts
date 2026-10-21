@@ -74,7 +74,8 @@ export function useIdleDetection(): {
   const settings = trpc.settings.get.useQuery();
   const threshold = settings.data?.idleMinutes ?? 10;
   const { timers } = useTimers();
-  const running = timers.find(t => t.state === "running");
+  // Away from this device says nothing of a timer another device runs.
+  const running = timers.find(t => t.state === "running" && !t.heldElsewhere);
   const runningKey = running?.issueKey ?? null;
   const runningConnection = running?.connectionId;
   const [away, setAway] = useState<AwayPeriod | null>(null);

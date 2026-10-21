@@ -9,7 +9,7 @@ import { and, desc, eq, getTableColumns, gte, inArray, isNotNull, like, lt, not,
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { randomUUID } from "node:crypto";
-import { outbox, timers, worklogs, worklogSinks, worklogTrash, type Connection, type User } from "@db/schema";
+import { outbox, worklogs, worklogSinks, worklogTrash, type Connection, type User } from "@db/schema";
 import type { TrackerType } from "@contracts/providers";
 import {
   fetchWorklogs,
@@ -24,7 +24,7 @@ import {
 } from "@contracts/time";
 import { assertWeekOpen } from "./weeks";
 import { conflictMessage, overlapping } from "@contracts/placement";
-import { consumeTimerSeconds } from "./timers";
+import { claimTimerSeconds } from "./timers";
 import { withOutboxLock } from "./outbox";
 import { getSettings } from "./settings";
 import { TRASH_DAYS, withDeleteReason } from "../queries/trash";
@@ -497,26 +497,20 @@ export const worklogsRouter = createRouter({
       const { seconds, started } = parseLogInput(input);
       await assertWeekOpen(ctx.user.id, started);
       return withWriteLock(ctx.user.id, async () => {
-        // A timer's time is logged once: gone means another flow logged it.
-        if (input.fromTimer) {
-          const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
-          const timer = await getDb()
-            .select({ id: timers.id })
-            .from(timers)
-            .where(and(eq(timers.userId, ctx.user.id), eq(timers.connectionId, conn.id), eq(timers.issueKey, input.issueKey)))
-            .limit(1);
-          if (!timer[0]) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: t("server.worklogs.timerLogged", { key: input.issueKey }),
-            });
-          }
-        }
         await assertNoOverlap(ctx.user.id, { start: started, seconds });
-        const saved = await createWorklog(ctx.user, input, seconds, started);
-        // A stopped timer is cleared; one restarted meanwhile keeps running,
-        // minus the time just logged.
-        if (input.fromTimer) await consumeTimerSeconds(ctx.user.id, input.issueKey, seconds, new Date(), saved.connectionId);
+        // A timer's time is logged once: it is taken under the database lock
+        // before the worklog is written, so two devices logging it at once
+        // can't both succeed (gone means another flow logged it). A stopped
+        // timer is cleared; one restarted meanwhile keeps running minus this
+        // time. If the worklog then fails, the time goes back to the timer.
+        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId) : null;
+        if (input.fromTimer && !claim) {
+          throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.timerLogged", { key: input.issueKey }) });
+        }
+        const saved = await createWorklog(ctx.user, input, seconds, started).catch(async (e: unknown) => {
+          await claim?.undo();
+          throw e;
+        });
         // Its time goes to the user's time sinks too, in the background.
         await markForSinks(ctx.user.id, saved.id);
         sinksSoon(ctx.user.id);

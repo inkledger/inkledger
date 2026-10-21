@@ -132,6 +132,12 @@ export function toJiraStarted(date: Date): string {
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
+/** Local clock time of `date` as "HH:MM". */
+export function clockTime(date: Date | number): string {
+  const d = new Date(date);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 /** Local calendar day of `date` as "YYYY-MM-DD". */
 export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;

@@ -24,9 +24,9 @@ export function timerAlertText(
  */
 export function useTimerAlerts() {
   const settings = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 });
+  // The same query as everywhere (events refresh it); polled in the background too, slowly.
   const timers = trpc.timers.list.useQuery(undefined, {
     refetchInterval: 60_000,
-    // Keep stopped/discarded timers in sync while the tab is in background.
     refetchIntervalInBackground: true,
   });
   const alertedFor = useRef<Set<string>>(new Set());
@@ -54,6 +54,8 @@ export function useTimerAlerts() {
         alertedFor.current.delete(t.issueKey);
         continue;
       }
+      // Its own device alerts for it: one notice, not one per device.
+      if (t.heldElsewhere) continue;
       const elapsed = t.elapsedSeconds + Math.max(0, now - fetchedAt) / 1000;
       if (elapsed >= threshold && !alertedFor.current.has(t.issueKey)) {
         alertedFor.current.add(t.issueKey);

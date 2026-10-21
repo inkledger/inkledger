@@ -505,6 +505,17 @@ export const timers = pgTable(
     pausedAt: ms("paused_at"),
     /** What the user is doing; becomes the worklog comment */
     note: text("note").notNull().default(""),
+    /**
+     * The device (x-device-id) that controls the timer while it runs: others
+     * see it and take it over only on purpose. Null: no device known.
+     */
+    ownerDevice: text("owner_device"),
+    /** How the owner is shown to the others ("Chrome · macOS") */
+    ownerLabel: text("owner_label").notNull().default(""),
+    /** The owner's lease, renewed by its heartbeat; past it the timer is orphaned (anyone may take it) */
+    leaseUntil: ms("lease_until"),
+    /** Bumped on every change of state or owner: a client acting on an older view is refused */
+    epoch: integer("epoch").notNull().default(0),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -513,6 +524,26 @@ export const timers = pgTable(
       .$defaultFn(() => new Date()),
   },
   (t) => [uniqueIndex("uq_timers_connection_issue").on(t.userId, t.connectionId, t.issueKey)],
+);
+
+/**
+ * Timer actions already done, by the id the client gave them: a retry or a
+ * double click answers the first result instead of acting twice. Kept a day.
+ */
+export const timerOps = pgTable(
+  "timer_ops",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    opId: text("op_id").notNull(),
+    /** The JSON answer of the first run */
+    result: text("result").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.opId] }), index("idx_timer_ops_created").on(t.createdAt)],
 );
 
 export const settings = pgTable("settings", {

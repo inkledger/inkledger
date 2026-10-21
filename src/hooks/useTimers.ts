@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useLiveState } from "@/lib/liveEvents";
 
 /** Current time, refreshed every second while `active`. */
 function useNow(active: boolean): number {
@@ -12,9 +13,14 @@ function useNow(active: boolean): number {
   return now;
 }
 
-/** Timers of the user; `fetchedAt` anchors the live ticking. */
+/**
+ * Timers of the user; `fetchedAt` anchors the live ticking. Events bring
+ * changes at once (useLiveSync); the poll is the fallback, quicker while the
+ * event stream is down.
+ */
 export function useTimers() {
-  const q = trpc.timers.list.useQuery(undefined, { refetchInterval: 15_000 });
+  const live = useLiveState();
+  const q = trpc.timers.list.useQuery(undefined, { refetchInterval: live === "live" ? 15_000 : 5_000, refetchOnWindowFocus: true });
   return { timers: q.data ?? [], fetchedAt: q.dataUpdatedAt, query: q };
 }
 

@@ -16,6 +16,7 @@ import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrackerSites } from "@/hooks/useConnections";
 import { useHotkeys, useMouseHistoryButtons } from "@/hooks/useHotkeys";
+import { useLiveSync } from "@/hooks/useLiveSync";
 import { useTimerAlerts } from "@/hooks/useTimerAlerts";
 import { useNativeBridge } from "@/hooks/useNativeBridge";
 import { isNative } from "@/lib/native";
@@ -493,6 +494,7 @@ export function AppLayout() {
   useHotkeys();
   useMouseHistoryButtons(isNative());
   useTimerAlerts();
+  useLiveSync();
   useNativeBridge();
   useDayEndReminder();
   useNotificationAlerts();

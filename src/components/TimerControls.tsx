@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Pause, Play, Square, X } from "lucide-react";
+import { ArrowLeftRight, Pause, Play, Square, X } from "lucide-react";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
 import { TimerNote } from "@/components/TimerNote";
-import { formatHMS } from "@contracts/time";
+import { clockTime, formatHMS } from "@contracts/time";
+import { useLiveState } from "@/lib/liveEvents";
+import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -51,9 +53,11 @@ export function TimerControls({
   connectionId?: number | null;
 }) {
   const provider = useProviderName();
-  const { timer, fetchedAt, running, paused, pending, ...act } =
+  const { timer, fetchedAt, running, paused, pending, heldElsewhere, ...act } =
     useTimerActions(issueKey, connectionId);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [confirmingTakeOver, setConfirmingTakeOver] = useState(false);
+  const owner = timer?.ownerLabel || t("ui.timer.anotherDevice");
 
   return (
     <div
@@ -80,7 +84,25 @@ export function TimerControls({
           />
         </span>
       )}
-      {!running ? (
+      {heldElsewhere ? (
+        // Another device controls it: here it can only be taken over, on purpose.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("ui.timer.takeOverFor", { key: issueKey })}
+              disabled={pending}
+              onClick={() => setConfirmingTakeOver(true)}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t("ui.timer.elsewhere", { device: owner, time: timer?.runningSince ? clockTime(timer.runningSince) : "" })}
+          </TooltipContent>
+        </Tooltip>
+      ) : !running ? (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -107,7 +129,7 @@ export function TimerControls({
           <Pause className="h-4 w-4" />
         </Button>
       )}
-      {timer && (
+      {timer && !heldElsewhere && (
         <>
           <Button
             variant="ghost"
@@ -133,6 +155,18 @@ export function TimerControls({
           )}
         </>
       )}
+      <AlertDialog open={confirmingTakeOver} onOpenChange={setConfirmingTakeOver}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("ui.timer.takeOverTitle", { key: issueKey })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("ui.timer.takeOverBody", { device: owner })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={act.takeOver}>{t("ui.timer.takeOver")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -149,6 +183,41 @@ export function TimerControls({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * Where a running timer is controlled from, said plainly: another device
+ * (since when, what taking over does), or a device gone silent (free to
+ * take), and whether this page is in sync. Nothing when it runs here.
+ */
+export function TimerWhere({ issueKey, connectionId, className }: { issueKey: string; connectionId?: number | null; className?: string }) {
+  const { timers } = useTimers();
+  const live = useLiveState();
+  const timer = timers.find(x => x.issueKey === issueKey && (connectionId == null || x.connectionId === connectionId));
+  if (!timer || timer.state !== "running" || (!timer.heldElsewhere && !timer.orphaned)) return null;
+  const device = timer.ownerLabel || t("ui.timer.anotherDevice");
+  return (
+    <div role="status" className={cn("grid gap-0.5 rounded-md border bg-muted/50 px-3 py-2 text-body-sm", className)}>
+      {timer.heldElsewhere ? (
+        <>
+          <p className="font-medium">
+            {t("ui.timer.elsewhere", { device, time: timer.runningSince ? clockTime(timer.runningSince) : "" })}
+          </p>
+          <p className="text-muted-foreground">{t("ui.timer.elsewhereHint")}</p>
+        </>
+      ) : (
+        <p>
+          {t("ui.timer.orphaned", {
+            device,
+            time: timer.leaseUntil ? clockTime(timer.leaseUntil.getTime() - TIMER_LEASE_MS) : "",
+          })}
+        </p>
+      )}
+      <p className={cn("text-caption", live === "live" ? "text-muted-foreground" : "text-warning")}>
+        {live === "live" ? t("ui.timer.syncLive") : live === "offline" ? t("ui.timer.syncOffline") : t("ui.timer.syncConnecting")}
+      </p>
     </div>
   );
 }

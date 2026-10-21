@@ -146,6 +146,11 @@ export const server: Shape<typeof en> = {
     boardFull: "La lavagna è piena.",
     nameRequired: "Dai un nome alla lavagna",
   },
+  timers: {
+    held: "Il timer di {key} è in corso su {device}: prendine il controllo per agire da qui.",
+    anotherDevice: "un altro dispositivo",
+    moved: "Il timer di {key} è cambiato su un altro dispositivo: ecco com'è ora.",
+  },
   worklogs: {
     noTimeHere: "Questo tracker non tiene tempo suo.",
     locked: "Questo worklog è bloccato sul suo tracker (approvato, fatturato o in un periodo chiuso): va cambiato lì.",

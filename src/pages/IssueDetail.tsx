@@ -33,7 +33,7 @@ import {
   LogTimeDialog,
   type EditableWorklog,
 } from "@/components/LogTimeDialog";
-import { TimerControls } from "@/components/TimerControls";
+import { TimerControls, TimerWhere } from "@/components/TimerControls";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Chip } from "@/components/app/Chip";
@@ -502,6 +502,8 @@ export default function IssueDetail({
         <PanelSection className="border-b xl:border-b-0 xl:border-r">
           {/* Project, status and priority in one compact row: no decorative
               cover taking vertical space under the fixed header. */}
+          {/* The timer runs on another device (or one gone silent): said here, with what to do. */}
+          <TimerWhere issueKey={i.key} connectionId={i.connectionId} className="mb-3" />
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <ProjectAvatar
               project={i.projectKey || i.key}

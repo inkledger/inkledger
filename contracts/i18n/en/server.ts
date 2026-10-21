@@ -145,6 +145,11 @@ export const server = {
     boardFull: "The board is full.",
     nameRequired: "Give the board a name",
   },
+  timers: {
+    held: "The timer of {key} runs on {device}: take it over to act here.",
+    anotherDevice: "another device",
+    moved: "The timer of {key} changed on another device: here is how it is now.",
+  },
   worklogs: {
     noTimeHere: "This tracker keeps no time of its own.",
     locked: "This worklog is locked on its tracker (approved, invoiced or in a closed period): change it there.",
