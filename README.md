@@ -81,7 +81,7 @@ Each person connects their own trackers; none is "the base". Jira (Cloud, Server
 - **English and Italian** UI, light and dark themes, compact or comfortable density, a theme colour picker
 
 **Add-ons**
-- **Add-on modules**: signed packages from the in-app store (Settings → Store), such as [Kanbunny](docs/kanbunny/README.md), a desk bunny that lives with your work, [Desk Radio](docs/deskradio/README.md), a lo-fi cassette radio, [Stitch](docs/stitch/README.md), a cross-stitch hoop that fills with your week, and [Bonsai](docs/bonsai/README.md), a tree that grows with your work (see [Add-on modules](#add-on-modules)). Modules are in private beta
+- **Add-on modules**: signed packages from the in-app store (Settings → Store), such as [Kanbunny](docs/kanbunny/README.md), a desk bunny that lives with your work, [Desk Radio](docs/deskradio/README.md), a lo-fi cassette radio, [Stitch](docs/stitch/README.md), a cross-stitch hoop that fills with your week, [Bonsai](docs/bonsai/README.md), a tree that grows with your work, and [Shadow](docs/shadow/README.md), real shadows from the sky where you are (see [Add-on modules](#add-on-modules)). Modules are in private beta
 
 ## Screenshots
 
@@ -208,6 +208,7 @@ Licences follow the [module terms](docs/modules-terms.md). The store and, when a
 | **Stitch** | An embroidery hoop on your dashboard: the hours you log this week stitch a cross-stitch pattern, finished exactly at your weekly goal. Closed tickets add gold, every week joins a collection and any week saves as a picture. | [Overview, video and PDF](docs/stitch/README.md) |
 | **City Window** | A train window behind your Dashboard: painted worlds roll past under the real sky and weather where you are, every closed ticket lights a window and your daily goal brings a station with fireworks. In beta. | [Overview and pictures](docs/citywindow/README.md) |
 | **Bonsai** | A maple bonsai on your dashboard, path traced like a photograph: the hours you log make it grow, closed tickets bring buds and flowers, your daily goal makes it bloom, through the real seasons. In beta. | [Overview and pictures](docs/bonsai/README.md) |
+| **Shadow** | Real shadows across the whole app: buttons, cards, menus and the panel cast a shadow away from the sun or the moon where you are, long at dawn and sunset, short at noon, faint by moonlight, none on a dark night. Nothing animates. | [Overview and pictures](docs/shadow/README.md) |
 
 These modules are in free release: request a licence from the store.
 

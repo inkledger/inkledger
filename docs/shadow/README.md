@@ -1,6 +1,21 @@
-# Shadow
+<h1 align="center">Shadow</h1>
 
-Real shadows across inkledger, from the sky where you are.
+<p align="center"><i>Real shadows across inkledger, from the sky where you are</i></p>
+
+<p align="center">
+  <img src="shadow-poster.webp" alt="Shadow: a Quick stats card casting a long shadow under a low sun" width="100%">
+</p>
+
+<p align="center">
+  <a href="#screenshots"><b>Screenshots</b></a> ·
+  <a href="../../README.md#add-on-modules">Back to inkledger</a>
+</p>
+
+Shadow is an [add-on module](../../README.md#add-on-modules) for inkledger.
+
+<p align="center">
+  <img src="store/gallery-0-loop.avif" alt="A day on the dashboard from 06:30 to 22:00: shadows lean right in the morning, shorten at noon, lean left in the afternoon, vanish at dusk and come back faint under the moon" width="100%">
+</p>
 
 Every surface of the interface (buttons, chips, cards, menus, dialogs, the main panel)
 stands at its own height and casts a shadow away from the light:
@@ -14,6 +29,22 @@ stands at its own height and casts a shadow away from the light:
 - **Clouds.** With the weather on, an overcast sky softens and lightens every shadow.
 
 The place is estimated from your browser's time zone.
+
+## Screenshots
+
+One Thursday in Rome (29 October), the same dashboard:
+
+| | |
+|---|---|
+| ![08:00, a low sun in the east: shadows fall to the right](screenshots/morning.webp) | ![12:00, short and sharp](screenshots/noon.webp) |
+| ![16:00, a low sun in the west: shadows fall to the left](screenshots/evening.webp) | ![21:30, faint cool shadows under the moon, the panel dimmed](screenshots/moon.webp) |
+| ![16:00 in the dark theme](screenshots/evening-dark.webp) | |
+
+## Install
+
+1. **Request a licence.** In inkledger, open **Settings → Store** and press **Request licence** next to Shadow. Shadow is in free release.
+2. **Wait for the approval.** Once the request is approved, inkledger installs and activates the module by itself.
+3. **Look around.** Every page now has the light of the hour where you are.
 
 ## How it behaves
 
