@@ -14,6 +14,7 @@ import { isAuthoredBy, PENDING_PREFIX, rowFromJira, upsertLocal } from "./router
 import { upsertIssue } from "./routers/issues";
 import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
+import { creationInFlight } from "./sync/timeWrites";
 
 /** How far back the first import reaches. */
 export const WORKLOG_HISTORY_DAYS = 365;
@@ -185,7 +186,8 @@ async function dropMissing(userId: number, connectionId: number, issueKey: strin
   if (!gone.length) return 0;
   const removed = await getDb()
     .delete(worklogs)
-    .where(and(eq(worklogs.userId, userId), eq(worklogs.connectionId, connectionId), eq(worklogs.issueKey, issueKey), inArray(worklogs.remoteId, gone)))
+    // One still being created (its answer on the way) stays, whatever the read said.
+    .where(and(eq(worklogs.userId, userId), eq(worklogs.connectionId, connectionId), eq(worklogs.issueKey, issueKey), inArray(worklogs.remoteId, gone), not(creationInFlight())))
     .returning({ id: worklogs.id });
   return removed.length;
 }

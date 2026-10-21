@@ -33,7 +33,7 @@ import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { t } from "@contracts/i18n";
 import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
-import { contractTime, createThrough, deleteThrough, updateThrough } from "../sync/timeWrites";
+import { contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
 
 const timeFields = {
   /** Whole seconds: what the app sends (a typed "1d" is resolved on the device, by the work schedule) */
@@ -474,6 +474,8 @@ export const worklogsRouter = createRouter({
             eq(worklogs.connectionId, user.connectionId),
             eq(worklogs.issueKey, input.issueKey),
             not(like(worklogs.remoteId, `${PENDING_PREFIX}%`)),
+            // One still being created (its answer on the way) stays too.
+            not(creationInFlight()),
             ...(keep.length > 0 ? [notInArray(worklogs.remoteId, keep)] : []),
           ),
         );

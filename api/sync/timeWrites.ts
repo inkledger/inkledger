@@ -3,7 +3,7 @@
 // can't be reached, queued in the outbox and replayed in order later. For
 // Jira the calls are the ones its own path made (jira-gate.test.ts).
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import type { TimeZone } from "@contracts/values";
@@ -130,6 +130,14 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
  * entry is free again (every call has its own, shorter timeout).
  */
 export const CLAIM_TTL_MS = 5 * 60_000;
+
+/**
+ * A worklog still being created on its tracker: its row "new-…", younger than
+ * a claim's lease (every call has a shorter timeout). A sync that doesn't see
+ * it on the tracker yet must leave it be (its answer is on the way); older, its
+ * process died mid-create and a sync may drop it.
+ */
+export const creationInFlight = (now = Date.now()): SQL => sql`(${worklogs.remoteId} like 'new-%' and ${worklogs.syncedAt} > ${now - CLAIM_TTL_MS})`;
 
 /** How long before queueing a timed-out create may have been stored by the service. */
 const ADOPT_WINDOW_MS = 5 * 60_000;

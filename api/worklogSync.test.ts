@@ -140,4 +140,16 @@ describe("worklogs from Jira", () => {
     await me.worklogs.reimport();
     expect(await mine()).toEqual([]);
   });
+
+  it("a worklog still being created (its answer on the way) survives a pass that doesn't see it on Jira; one left by a dead process doesn't", async () => {
+    const { CLAIM_TTL_MS } = await import("./sync/timeWrites");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const add = (remoteId: string, syncedAt: number) =>
+      q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'PRJ-1', ?, 600, ?, 'creating', ?)", user.id, conn.id, remoteId, now - DAY, syncedAt);
+    await add("new-young", Date.now());
+    await add("new-dead", Date.now() - CLAIM_TTL_MS - 60_000);
+    await me.worklogs.reimport();
+    expect((await q<{ id: string }>("SELECT jira_worklog_id id FROM worklogs WHERE comment = 'creating'")).map((r) => r.id)).toEqual(["new-young"]);
+    await q("DELETE FROM worklogs WHERE comment = 'creating'");
+  });
 });

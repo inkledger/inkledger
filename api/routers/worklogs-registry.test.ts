@@ -15,7 +15,11 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 /** Jira, reachable or not. */
 let offline = false;
 let nextId = 1;
-const remote = new Map<string, { id: string; started: string; timeSpentSeconds: number; created: string }>();
+/** Set: Jira holds the next worklog POST until released (an answer still on its way). */
+let holdPost: { started: () => void; until: Promise<void> } | null = null;
+const remote = new Map<string, { id: string; issue?: string; started: string; timeSpentSeconds: number; created: string }>();
+/** The issue a worklog URL is about, as Jira scopes its worklog lists. */
+const issueIn = (url: string) => /\/issue\/([A-Z0-9_]+-\d+)\/worklog/.exec(url)?.[1];
 
 vi.stubGlobal(
   "fetch",
@@ -36,12 +40,21 @@ vi.stubGlobal(
       return json({ ...w, author: { accountId: "acc-1" } });
     }
     if (/\/worklog(\?.*)?$/.test(url) && method === "POST") {
+      if (holdPost) {
+        const h = holdPost;
+        holdPost = null;
+        h.started();
+        await h.until;
+      }
       const body = JSON.parse(String(init?.body)) as { timeSpentSeconds: number; started: string };
-      const w = { id: `wl-${nextId++}`, ...body, created: new Date().toISOString() };
+      const w = { id: `wl-${nextId++}`, issue: issueIn(url), ...body, created: new Date().toISOString() };
       remote.set(w.id, w);
       return json({ ...w, author: { accountId: "acc-1" } });
     }
-    if (/\/worklog(\?.*)?$/.test(url)) return json({ worklogs: [...remote.values()].map((w) => ({ ...w, author: { accountId: "acc-1" } })), total: remote.size, startAt: 0, maxResults: 1000 });
+    if (/\/worklog(\?.*)?$/.test(url)) {
+      const mine = [...remote.values()].filter((w) => !w.issue || w.issue === issueIn(url));
+      return json({ worklogs: mine.map((w) => ({ ...w, author: { accountId: "acc-1" } })), total: mine.length, startAt: 0, maxResults: 1000 });
+    }
     return json({ errorMessages: [`unmocked ${method} ${url}`] }, 500);
   }),
 );
@@ -147,5 +160,33 @@ describe("the worklog registry", () => {
     offline = false;
     expect(await caller.outbox.retry()).toMatchObject({ synced: 1, remaining: 0 });
     await caller.worklogs.delete({ id: queued.id });
+  });
+
+  it("a sync of the issue while a new worklog's answer is still on its way leaves it be: it lands once, no error, no copy", async () => {
+    let release: () => void = () => undefined;
+    let posting: () => void = () => undefined;
+    const inFlight = new Promise<void>((r) => (posting = r));
+    holdPost = { started: posting, until: new Promise<void>((r) => (release = r)) };
+    const creating = caller.worklogs.create({ issueKey: "RACE-1", seconds: 1500, started: "2026-10-20T10:00:00+02:00", comment: "racing" });
+    await inFlight;
+    // Jira doesn't have it yet: the issue's sync runs right now.
+    await caller.worklogs.syncIssue({ issueKey: "RACE-1" });
+    release();
+    const saved = await creating;
+    expect(saved.remoteId).toMatch(/^wl-/);
+    const rows = await q<{ id: number; jira_worklog_id: string }>("SELECT id, jira_worklog_id FROM worklogs WHERE comment = 'racing'");
+    expect(rows).toEqual([{ id: saved.id, jira_worklog_id: saved.remoteId }]);
+    expect([...remote.values()].filter((w) => w.timeSpentSeconds === 1500)).toHaveLength(1);
+  });
+
+  it("a creation that never finished (its process died) doesn't linger: past the claim's lease a sync drops it", async () => {
+    const { CLAIM_TTL_MS } = await import("../sync/timeWrites");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", userId);
+    const old = Date.now() - CLAIM_TTL_MS - 60_000;
+    await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'RACE-2', 'new-orphan', 600, ?, 'orphan', ?)", userId, conn.id, Date.now(), old);
+    await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'RACE-2', 'new-young', 600, ?, 'young', ?)", userId, conn.id, Date.now(), Date.now());
+    await caller.worklogs.syncIssue({ issueKey: "RACE-2" });
+    expect((await q<{ comment: string }>("SELECT comment FROM worklogs WHERE issue_key = 'RACE-2' ORDER BY comment")).map((r) => r.comment)).toEqual(["young"]);
+    await q("DELETE FROM worklogs WHERE issue_key = 'RACE-2'");
   });
 });
