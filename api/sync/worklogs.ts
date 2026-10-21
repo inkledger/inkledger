@@ -204,6 +204,8 @@ export async function syncEntries(
         const ours = known ? undefined : await ownUnconfirmed(conn, w.issue.key, { started: values.started, seconds: values.timeSpentSeconds });
         if (known) {
           const [local] = await db.select().from(worklogs).where(eq(worklogs.id, known.worklogId));
+          // A service that keeps only the day: the clock time here stands while the day is the same.
+          if (local && w.dayOnly && localDateOf(instant(local.started.getTime()), opts.zone) === localDateOf(instant(values.started.getTime()), opts.zone)) values.started = local.started;
           const differs = !!local && (local.timeSpentSeconds !== values.timeSpentSeconds || local.started.getTime() !== values.started.getTime() || local.comment !== values.comment);
           if (local && differs && (await hasOwnChange(local.id, conn.id, known))) {
             // Changed on both sides: kept as it is here, the service's version beside it, until the user picks.

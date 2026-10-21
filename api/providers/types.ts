@@ -326,6 +326,8 @@ export type RemoteWorklog = {
   locked?: { cause: LockCause; message?: string } | null;
   /** What can be done to it now: authoritative for operations (never true when locked), a snapshot nonetheless */
   editable: { update: boolean; delete: boolean };
+  /** The service keeps only the day (a session's clock time is a guess): a known entry keeps its own start that day */
+  dayOnly?: boolean;
 };
 
 /** What a new or changed entry says. billable/activity/onBehalf only where the capabilities allow (checked by the core). */

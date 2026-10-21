@@ -152,14 +152,14 @@ export async function glPages<T>(c: GitLabCreds, path: string, maxPages = 50): P
   return out;
 }
 
-/** GraphQL answers 200 with `errors`: a query is a read, though it is a POST. */
-export async function gql<T>(c: GitLabCreds, operationName: string, query: string, variables: Record<string, unknown>): Promise<T> {
+/** GraphQL answers 200 with `errors`: a query is a read, though it is a POST; a mutation a write. */
+export async function gql<T>(c: GitLabCreds, operationName: string, query: string, variables: Record<string, unknown>, intent: "read" | "write" = "read"): Promise<T> {
   const res = await safeFetch({
     site: c.apiBase,
     network: networkOf(c.apiBase),
     url: graphqlUrl(c.apiBase),
     init: { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", "PRIVATE-TOKEN": c.token }, body: JSON.stringify({ operationName, query, variables }) },
-    intent: "read",
+    intent,
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (!res.ok) throw await refused(res);
@@ -178,6 +178,9 @@ export const ISSUE_BY_ID = `query IssueById($id: IssueID!) { issue(id: $id) { id
 const TIMELOG_FIELDS = `id spentAt timeSpent summary user { id username } issue { id iid webUrl project { id fullPath } }`;
 export const ISSUE_TIMELOGS = `query IssueTimelogs($id: IssueID!, $after: String) { issue(id: $id) { timelogs(first: 100, after: $after) { nodes { ${TIMELOG_FIELDS} } pageInfo { hasNextPage endCursor } } } }`;
 export const USER_TIMELOGS = `query UserTimelogs($username: String!, $startDate: Time!, $endDate: Time!, $after: String) { timelogs(username: $username, startDate: $startDate, endDate: $endDate, first: 100, after: $after) { nodes { ${TIMELOG_FIELDS} } pageInfo { hasNextPage endCursor } } }`;
+
+export const TIMELOG_CREATE = `mutation TimelogCreate($input: TimelogCreateInput!) { timelogCreate(input: $input) { timelog { ${TIMELOG_FIELDS} } errors } }`;
+export const TIMELOG_DELETE = `mutation TimelogDelete($input: TimelogDeleteInput!) { timelogDelete(input: $input) { errors } }`;
 
 export type GitLabTimelog = {
   id: string;

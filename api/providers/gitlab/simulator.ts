@@ -9,7 +9,9 @@
 // - system notes mixed into the notes; quick actions (/close) in a note run instead of being kept;
 // - subscribing twice answers 304; label events of a deleted label have label: null;
 // - GraphQL answers 200 with errors; its startDate/endDate on a bare date snap to UTC days;
-// - self-managed sites send avatars as paths on their own site.
+// - self-managed sites send avatars as paths on their own site;
+// - a 13.6 server (version "13.6") has no timelogs in GraphQL to read or write: /spend in a note logs
+//   time, and leaves a system note "added 1h 30m of time spent at 2026-10-21" (a day as 8 hours).
 import type { GitLabIssue, GitLabLabelEvent, GitLabMilestoneEvent, GitLabNote, GitLabStateEvent, GitLabUser } from "./client";
 import { gidOf } from "./client";
 
@@ -39,7 +41,11 @@ export type SimIssue = {
 type SimProject = { id: number; path: string; access: boolean; deletedLabels: Set<string> };
 type SimTimelog = { id: number; issueId: number; user: number; at: number; seconds: number; summary: string };
 
-export function gitlabSimulator(apiBase = "https://gitlab.com/api/v4", me: GitLabUser = { id: 77, username: "mrossi", name: "Mario Rossi", avatar_url: "https://secure.gravatar.com/avatar/77" }) {
+export function gitlabSimulator(
+  apiBase = "https://gitlab.com/api/v4",
+  me: GitLabUser = { id: 77, username: "mrossi", name: "Mario Rossi", avatar_url: "https://secure.gravatar.com/avatar/77" },
+  o: { version?: "13.6" | "16" } = {},
+) {
   const token = "glpat-simulated";
   const web = apiBase.replace(/\/api\/v4$/, "");
   const selfHosted = new URL(apiBase).hostname !== "gitlab.com";
@@ -56,7 +62,7 @@ export function gitlabSimulator(apiBase = "https://gitlab.com/api/v4", me: GitLa
   let past = Date.now() - 3 * 3_600_000;
   const earlier = () => (past += 1000);
   const iso = (ms: number) => new Date(ms).toISOString();
-  const state = { exhausted: false, calls: 0, revoked: false };
+  const state: { exhausted: boolean; calls: number; revoked: boolean; version: "13.6" | "16" } = { exhausted: false, calls: 0, revoked: false, version: o.version ?? "16" };
 
   const project = (path: string, o: { access?: boolean } = {}) => {
     const known = [...projects.values()].find((p) => p.path === path);
@@ -179,10 +185,33 @@ export function gitlabSimulator(apiBase = "https://gitlab.com/api/v4", me: GitLa
     deleteLabel(path: string, name: string) {
       project(path).deletedLabels.add(name);
     },
+    /** Time logged on the web with /spend, by anyone. */
+    spend: (i: SimIssue, line: string, by = 78) => spend(i, line, by),
     /** The user loses (or regains) access to a project: 404 for it and everything in it. */
     access(path: string, on: boolean) {
       project(path, { access: on });
     },
+  };
+
+  /** GitLab's own way of writing a length: a day is 8 hours, a week 5 days. */
+  const spoken = (seconds: number) => {
+    const parts: string[] = [];
+    let rest = seconds;
+    for (const [unit, size] of [["w", 144_000], ["d", 28_800], ["h", 3600], ["m", 60], ["s", 1]] as const) {
+      if (rest >= size) parts.push(`${Math.floor(rest / size)}${unit}`);
+      rest %= size;
+    }
+    return parts.join(" ");
+  };
+  /** "/spend 1h30m 2026-10-21", "/spend -30m": time (on a day, else today) and the system note that says so. */
+  const spend = (i: SimIssue, line: string, by = me.id) => {
+    const m = /^\/spend\s+(-?)((?:\d+(?:w|d|h|m|s))+)(?:\s+(\d{4}-\d{2}-\d{2}))?\s*$/.exec(line.trim());
+    if (!m) return;
+    const sizes: Record<string, number> = { w: 144_000, d: 28_800, h: 3600, m: 60, s: 1 };
+    const seconds = [...m[2].matchAll(/(\d+)([wdhms])/g)].reduce((a, [, n, u]) => a + Number(n) * sizes[u], 0);
+    const at = m[3] ? Date.parse(`${m[3]}T12:00:00Z`) : now();
+    timelog(i, { seconds: m[1] ? -seconds : seconds, at, user: by });
+    system(i, `${m[1] ? "subtracted" : "added"} ${spoken(seconds)} of time spent${m[3] ? ` at ${m[3]}` : ""}`, by);
   };
 
   const timelog = (i: SimIssue, o: { seconds: number; at: number; user?: number; summary?: string }) => {
@@ -326,6 +355,7 @@ export function gitlabSimulator(apiBase = "https://gitlab.com/api/v4", me: GitLa
             ran++;
             if (c[1] === "close") setState(i, "closed");
             if (c[1] === "reopen") setState(i, "opened");
+            if (c[1] === "spend") spend(i, line);
           }
         }
         const rest = kept.join("\n").trim();
@@ -388,6 +418,31 @@ export function gitlabSimulator(apiBase = "https://gitlab.com/api/v4", me: GitLa
   function graphql(req: { operationName?: string; variables?: Record<string, unknown> }): Response {
     const v = req.variables ?? {};
     const out = (data: unknown) => json({ data });
+    const old = state.version === "13.6";
+    const missing = (field: string, type: string) => json({ errors: [{ message: `Field '${field}' doesn't exist on type '${type}'` }] });
+    if (req.operationName === "TimeMode") {
+      const fields = (names: string[]) => ({ fields: names.map((name) => ({ name })) });
+      return out({ q: fields(["currentUser", "issue", "project", ...(old ? [] : ["timelogs"])]), m: fields(["createNote", ...(old ? [] : ["timelogCreate", "timelogDelete"])]) });
+    }
+    if (old && (req.operationName === "IssueTimelogs" || req.operationName === "UserTimelogs")) return missing("timelogs", req.operationName === "IssueTimelogs" ? "Issue" : "Query");
+    if (old && (req.operationName === "TimelogCreate" || req.operationName === "TimelogDelete")) return missing(req.operationName === "TimelogCreate" ? "timelogCreate" : "timelogDelete", "Mutation");
+    if (req.operationName === "TimelogCreate") {
+      const input = (v.input ?? {}) as { issuableId?: string; timeSpent?: string; spentAt?: string; summary?: string };
+      const i = issues.find((x) => x.id === gidNumber(input.issuableId));
+      if (!i || !visible(i)) return json({ errors: [{ message: "The resource that you are attempting to access does not exist or you don't have permission to perform this action" }] });
+      const seconds = Number(/^(\d+)s$/.exec(input.timeSpent ?? "")?.[1] ?? NaN);
+      const at = Date.parse(input.spentAt ?? "");
+      if (!(seconds > 0) || Number.isNaN(at)) return out({ timelogCreate: { timelog: null, errors: ["Time spent can't be blank"] } });
+      if (at > Date.now()) return out({ timelogCreate: { timelog: null, errors: ["Spent at can't be a future date and time."] } });
+      return out({ timelogCreate: { timelog: node(timelog(i, { seconds, at, summary: input.summary ?? "" })), errors: [] } });
+    }
+    if (req.operationName === "TimelogDelete") {
+      const id = gidNumber((v.input as { id?: string } | undefined)?.id);
+      const k = timelogs.findIndex((t) => t.id === id);
+      if (k < 0) return json({ data: { timelogDelete: null }, errors: [{ message: "The resource that you are attempting to access does not exist or you don't have permission to perform this action" }] });
+      timelogs.splice(k, 1);
+      return out({ timelogDelete: { errors: [] } });
+    }
     if (req.operationName === "IssueById" || req.operationName === "IssueTimelogs") {
       const i = issues.find((x) => x.id === gidNumber(v.id));
       const ok = i && visible(i) ? i : null;

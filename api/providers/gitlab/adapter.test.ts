@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { timeZone } from "@contracts/values";
+import { instant, timeZone } from "@contracts/values";
 import { markdown } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
 import { trackerConformance } from "../conformance/suite";
 import { gitlabSimulator } from "./simulator";
 import { gitlabProvider, gitlabWebhook, withoutQuickActions, type GitLabOptions } from "./adapter";
+import { entriesOfNotes, forgetTimeMode, parseDuration, parseSpendNote, spendDuration } from "./legacyTime";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(async () => [{ address: "172.65.251.78", family: 4 }]),
@@ -15,8 +16,10 @@ const WORKFLOW: GitLabOptions = {
   workflow: { scope: "workflow", categories: { todo: "todo", doing: "doing", review: "doing", done: "done", wontdo: "cancelled" } },
 };
 
-function simulated(o: { apiBase?: string; options?: unknown; token?: string } = {}) {
-  const sim = gitlabSimulator(o.apiBase);
+function simulated(o: { apiBase?: string; options?: unknown; token?: string; version?: "13.6" | "16" } = {}) {
+  const sim = gitlabSimulator(o.apiBase, undefined, { version: o.version });
+  // What a server can do is kept an hour per address: each test's server is a new one.
+  forgetTimeMode({ apiBase: sim.apiBase, token: "" });
   sim.add("acme/web", "Login fails on Safari", { description: "Steps:\n\n1. open\n2. **fail**", due: "2026-11-05" });
   sim.add("acme/web", "Export to CSV", { labels: ["bug"] });
   sim.add("acme/platform/api", "Rate limit headers", { type: "task" });
@@ -329,9 +332,8 @@ describe("gitlab, watching and history", () => {
 });
 
 describe("gitlab, time", () => {
-  const day = 86_400_000;
 
-  it("reads timelogs of an issue (all authors), as read-only sessions", async () => {
+  it("reads timelogs of an issue (all authors), as sessions that can be deleted", async () => {
     const { b, sim } = simulated();
     const i = sim.issues[0];
     const at = Date.parse("2026-10-14T08:30:00Z");
@@ -339,15 +341,118 @@ describe("gitlab, time", () => {
     sim.timelog(i, { seconds: 600, at: at + 3_600_000, user: 78 });
     const list = await b.worklogs!.list(meta(), ref(i, "acme/web#1"));
     expect(list.map((w) => [w.span, w.comment, w.authorRemoteId, w.editable])).toEqual([
-      [{ kind: "session", start: at, seconds: 5400 }, "debugging", String(sim.me.id), { update: false, delete: false }],
-      [{ kind: "session", start: at + 3_600_000, seconds: 600 }, "", "78", { update: false, delete: false }],
+      [{ kind: "session", start: at, seconds: 5400 }, "debugging", String(sim.me.id), { update: false, delete: true }],
+      [{ kind: "session", start: at + 3_600_000, seconds: 600 }, "", "78", { update: false, delete: true }],
     ]);
     expect(list[0].issue).toMatchObject({ remoteId: String(i.id), key: "acme/web#1", container: { remoteId: String(i.projectId) } });
-    // Read only until timelogCreate with spentAt is shown to work.
-    expect(b.worklogs!.create).toBeUndefined();
+    // No update: delete and log again.
     expect(b.worklogs!.update).toBeUndefined();
-    expect(b.worklogs!.delete).toBeUndefined();
   });
+
+  it("logs and deletes with timelogCreate/timelogDelete on a newer server, the day and clock time kept", async () => {
+    const { b, sim } = simulated();
+    const i = sim.issues[0];
+    const start = Date.now() - 2 * 3_600_000;
+    const w = await b.worklogs!.create!(meta(), ref(i, "acme/web#1"), { time: { kind: "session", start: instant(start), seconds: 2700 }, comment: "review" }, { idempotencyKey: "k1" });
+    expect(w).toMatchObject({ span: { kind: "session", start: Math.floor(start / 1000) * 1000, seconds: 2700 }, comment: "review", authorRemoteId: String(sim.me.id) });
+    expect(sim.timelogs.map((t) => [t.seconds, t.summary])).toEqual([[2700, "review"]]);
+    // No note was written for it.
+    expect(i.notes.filter((n) => /spend|time spent/.test(n.body))).toEqual([]);
+    await b.worklogs!.delete!(meta(), ref(i, "acme/web#1"), w.remoteId, {});
+    expect(sim.timelogs).toEqual([]);
+    // Deleting it again is what was asked.
+    await b.worklogs!.delete!(meta(), ref(i, "acme/web#1"), w.remoteId, {});
+  });
+});
+
+describe("gitlab, time on an older server (13.6: no timelogs in GraphQL)", () => {
+  const today = (h: number, m = 0) => {
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+  const dayOf = (ms: number) => {
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  it("logs with a /spend note on the entry's day, and the system note it leaves is the entry", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    const start = Math.min(today(0, 30), Date.now() - 6 * 3_600_000);
+    const w = await b.worklogs!.create!(meta(), ref(i, "acme/web#1"), { time: { kind: "session", start: instant(start), seconds: 5400 }, comment: "" }, { idempotencyKey: "k1" });
+    // The clock time asked for comes back; the server keeps the day.
+    expect(w).toMatchObject({ remoteId: expect.stringMatching(/^n\d+$/), span: { kind: "session", start, seconds: 5400 }, dayOnly: true, editable: { update: false, delete: true } });
+    expect(i.notes.filter((n) => n.system).map((n) => n.body)).toEqual([`added 1h 30m of time spent at ${dayOf(start)}`]);
+    // A note of only the command leaves no comment.
+    expect(i.notes.filter((n) => !n.system)).toEqual([]);
+    const list = await b.worklogs!.list(meta(), ref(i, "acme/web#1"));
+    expect(list.map((x) => [x.remoteId, x.span.seconds, x.dayOnly])).toEqual([[w.remoteId, 5400, true]]);
+  });
+
+  it("a comment goes in the same note, above the command, its own lines starting with / kept as text", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    await b.worklogs!.create!(meta(), ref(i, "acme/web#1"), { time: { kind: "session", start: instant(Date.now() - 60_000), seconds: 900 }, comment: "fixed\n/close" }, { idempotencyKey: "k1" });
+    expect(i.state).toBe("opened");
+    expect(i.notes.filter((n) => !n.system).map((n) => n.body)).toEqual(["fixed\n\\/close"]);
+  });
+
+  it("deletes by spending the same time back on its day; the feed then leaves it out", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    const r = ref(i, "acme/web#1");
+    const start = Date.now() - 3_600_000;
+    const a = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(start), seconds: 600 }, comment: "" }, { idempotencyKey: "a" });
+    const twin = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(start + 60_000), seconds: 600 }, comment: "" }, { idempotencyKey: "b" });
+    expect(twin.remoteId).not.toBe(a.remoteId);
+    await b.worklogs!.delete!(meta(), r, twin.remoteId, {});
+    expect(i.notes.filter((n) => n.system).map((n) => n.body.split(" ")[0])).toEqual(["added", "added", "subtracted"]);
+    expect((await b.worklogs!.list(meta(), r)).map((w) => w.remoteId)).toEqual([a.remoteId]);
+    // Gone already: nothing more is spent back.
+    await b.worklogs!.delete!(meta(), r, twin.remoteId, {});
+    expect(i.notes.filter((n) => n.system)).toHaveLength(3);
+  });
+
+  it("the feed reads the notes of the user's issues touched in the window, everyone's entries (the core keeps the user's)", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    await b.worklogs!.create!(meta(), ref(i, "acme/web#1"), { time: { kind: "session", start: instant(Date.now() - 60_000), seconds: 1200 }, comment: "" }, { idempotencyKey: "k" });
+    sim.outside.spend(i, "/spend 2h", 78);
+    const feed = await readPass((q) => b.worklogs!.changed!(meta(), q), null);
+    expect(feed.items.map((w) => [w.authorRemoteId, w.span.seconds])).toEqual([
+      [String(sim.me.id), 1200],
+      ["78", 7200],
+    ]);
+    expect(feed.checkpoint).not.toBeNull();
+  });
+
+  it("follows the server when it is upgraded: timelogs once its schema has them", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    const r = ref(i, "acme/web#1");
+    const old = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(Date.now() - 60_000), seconds: 300 }, comment: "" }, { idempotencyKey: "a" });
+    sim.state.version = "16";
+    forgetTimeMode({ apiBase: sim.apiBase, token: "" });
+    const fresh = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(Date.now() - 30_000), seconds: 300 }, comment: "" }, { idempotencyKey: "b" });
+    expect(fresh.remoteId).toMatch(/^\d+$/);
+    // One logged by note before the upgrade is still taken back by note.
+    await b.worklogs!.delete!(meta(), r, old.remoteId, {});
+    expect(i.notes.filter((n) => n.system).at(-1)?.body).toMatch(/^subtracted 5m of time spent at /);
+  });
+
+  it("a newer call answered 'doesn't exist' reads the schema again next time (a downgrade, a restore)", async () => {
+    const { b, sim } = simulated();
+    const r = ref(sim.issues[0], "acme/web#1");
+    await b.worklogs!.list(meta(), r);
+    sim.state.version = "13.6";
+    expect(await errorOf(b.worklogs!.list(meta(), r))).toMatchObject({ message: expect.stringContaining("doesn't exist") });
+    expect(await b.worklogs!.list(meta(), r)).toEqual([]);
+  });
+});
+
+describe("gitlab, time feed", () => {
+  const day = 86_400_000;
 
   it("the feed re-reads a window of the user's own entries by their date, in whole UTC days (not a rolling 30x24 hours)", async () => {
     const { b, sim } = simulated();
@@ -390,6 +495,36 @@ describe("gitlab, time", () => {
     const { b, sim } = simulated();
     vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => (String(input).endsWith("/graphql") ? new Response(JSON.stringify({ errors: [{ message: "Field 'timelogs' doesn't exist" }] }), { status: 200 }) : sim.fetch(input, init)));
     expect(await errorOf(b.worklogs!.list(meta(), ref(sim.issues[0], "acme/web#1")))).toMatchObject({ kind: "invalid", message: expect.stringContaining("timelogs") });
+  });
+});
+
+describe("gitlab, time notes", () => {
+  it("reads lengths as GitLab writes them (a day of 8 hours, a week of 5 days)", () => {
+    expect(parseDuration("1h 30m")).toBe(5400);
+    expect(parseDuration("1d 1h")).toBe(9 * 3600);
+    expect(parseDuration("1w")).toBe(40 * 3600);
+    expect(parseDuration("1mo 2s")).toBe(160 * 3600 + 2);
+    expect(parseDuration("soon")).toBeNull();
+    expect(spendDuration(5400)).toBe("1h30m");
+    expect(spendDuration(9 * 3600 + 5)).toBe("9h5s");
+  });
+
+  it("tells time notes from the others", () => {
+    expect(parseSpendNote("added 1h 30m of time spent at 2026-10-21")).toEqual({ kind: "added", seconds: 5400, date: "2026-10-21" });
+    expect(parseSpendNote("subtracted 30m of time spent")).toEqual({ kind: "subtracted", seconds: 1800, date: null });
+    expect(parseSpendNote("removed time spent")).toEqual({ kind: "reset" });
+    expect(parseSpendNote("changed the description")).toBeNull();
+  });
+
+  it("an entry taken back is the latest of the same person, length and day; a reset takes them all", () => {
+    const issue = { id: 1, iid: 1, project_id: 2, references: { full: "a/b#1" } } as Parameters<typeof entriesOfNotes>[0];
+    const u = (id: number) => ({ id, username: `u${id}` });
+    const n = (id: number, body: string, by = 1, system = true) => ({ id, body, author: u(by), created_at: `2026-10-21T0${id}:00:00Z`, updated_at: "", system });
+    const ids = (notes: ReturnType<typeof n>[]) => entriesOfNotes(issue, notes).map((e) => e.remoteId);
+    expect(ids([n(1, "added 1h of time spent at 2026-10-20"), n(2, "added 1h of time spent at 2026-10-20"), n(3, "added 1h of time spent at 2026-10-20", 2), n(4, "subtracted 1h of time spent at 2026-10-20")])).toEqual(["n1", "n3"]);
+    expect(ids([n(1, "added 1h of time spent at 2026-10-20"), n(2, "removed time spent"), n(3, "added 30m of time spent at 2026-10-20")])).toEqual(["n3"]);
+    // A comment that reads like one is not.
+    expect(ids([n(1, "added 1h of time spent at 2026-10-20", 1, false)])).toEqual([]);
   });
 });
 

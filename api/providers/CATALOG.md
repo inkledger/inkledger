@@ -36,7 +36,7 @@ It shows the **most a service's adapter declares**. A given connection may have 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | jira | built | itemState (workflow) | read, apply | text, jql | readWrite (adf, jira-wiki) | session, update native, delete; feed incremental with removals; reconcile by period | listed | create, types | none reported | signal: issueChanged, issueRemoved, commentAdded, worklogChanged, worklogRemoved |
 | github | built | boolean (direct) | read, apply | text, github | readWrite (gfm) | local | listed | assign, labels, create, edit | none reported | signal: issueChanged, issueRemoved, commentAdded |
-| gitlab | experimental | boolean (direct), labelSet (direct) | read, apply | text | readWrite (glfm) | session, read only; feed window by entry date 30d; reconcile by period | from issues | none | transferred | signal: issueChanged, commentAdded |
+| gitlab | experimental | boolean (direct), labelSet (direct) | read, apply | text | readWrite (glfm) | session, update recreate, delete; feed window by entry date 30d; reconcile by period | from issues | none | transferred | signal: issueChanged, commentAdded |
 | azure | experimental | itemState (allowedList) | read, apply | text, wiql | readWrite (html) | counter (revision) | from issues | none | deleted | signal: issueChanged, issueRemoved, commentAdded |
 | gitea | experimental | boolean (direct), labelSet (direct), column (move) | read, apply | text | readWrite (gfm) | session, update recreate, delete; feed window by entry date 30d; reconcile by period | from issues | none | none reported | signal: issueChanged, commentAdded |
 | linear | experimental | itemState (direct) | read, apply | text | readWrite (commonmark) | local | from issues | none | deleted, movedOut | signal: issueChanged, issueRemoved, commentAdded |
@@ -225,7 +225,7 @@ A service with `feed none` can still sync when it supports period reconciliation
 | --- | --- | --- |
 | jira | `/issue/{k}/worklog` CRUD; `/worklog/updated`, `/worklog/deleted`, `/worklog/list` | The updated/deleted feeds take `since` and return the next one: a real cursor, deletions included. |
 | tempo | `/4/worklogs` | Takes `issueId`, not the key. PUT replaces the whole record. `updatedFrom` filters by change (verify: tempo-updated-from). |
-| gitlab | GraphQL `timelogs`, `timelogCreate` (verify: gitlab-timelog), `timelogDelete` | No update; no future dates. |
+| gitlab | GraphQL `timelogs`, `timelogCreate` (verify: gitlab-timelog), `timelogDelete`; before 14/15, `/spend` notes and their system notes | No update; no future dates. On a server without timelogs only the day is kept (`dayOnly`). |
 | gitea | `/issues/{i}/times` | Plus a stopwatch; no update. |
 | youtrack | `/issues/{id}/timeTracking/workItems`; `/api/workItems?updatedStart=` | A change filter across issues; work item types are activities. |
 | openproject | `/api/v3/time_entries` with an `updatedAt` filter | ISO durations, activities, entries for others, `lockVersion`. |

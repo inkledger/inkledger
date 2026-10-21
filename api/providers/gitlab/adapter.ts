@@ -3,7 +3,8 @@
 // number is the project's own `iid`; the id behind remoteId is the instance's);
 // their status is the service's own opened/closed, and optionally one scoped
 // label set (workflow::doing) the connection's options give categories to.
-// Time is read from timelogs (GraphQL), never written yet (spike gitlab-timelog).
+// Time two ways, by what the server has: timelogs through GraphQL (14+ reads,
+// 15+ writes), else /spend notes and the system notes they leave (legacyTime.ts).
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { timingSafeEqual, createHash } from "node:crypto";
 import { z } from "zod";
@@ -47,7 +48,10 @@ import {
   type GitLabTimelog,
   type GitLabUser,
   type TimelogPage,
+  TIMELOG_CREATE,
+  TIMELOG_DELETE,
 } from "./client";
+import { createByNote, deleteByNote, forgetTimeMode, isNoteEntry, listByNotes, timeModeOf } from "./legacyTime";
 
 const MD = ["paragraph", "emphasis", "strong", "code", "codeBlock", "link", "list", "heading", "quote", "table", "image"] as const;
 
@@ -69,14 +73,14 @@ export const gitlabCapabilities: TrackerCapabilities = {
   // Open/closed and scoped labels; Premium work item statuses (verify: gitlab-statuses) only once shown
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "labelSet", transitions: "direct" }] },
   // timelogs: no update (delete and log again), no future dates; feed by re-reading a window.
-  // Writing on a chosen day, timelogCreate with spentAt (verify: gitlab-timelog): read only until then.
+  // timelogCreate with spentAt on 15+, a /spend note with its day before (verify: gitlab-timelog).
   // A moved issue keeps moved_to_id: a transfer with its successor.
   time: {
     mode: "entries",
     entries: {
       model: "entries",
       shape: "session",
-      write: { mode: "none" },
+      write: { mode: "entry", update: "recreate", delete: true },
       feed: { kind: "window", by: "entryDate", days: 30, overlapDays: 2 },
       reconcile: { kind: "period" },
       billable: { read: false, write: false },
@@ -303,13 +307,22 @@ function toRemoteWorklog(t: GitLabTimelog): RemoteWorklog {
     authorRemoteId: idOfGid(t.user.id),
     createdAt: null,
     updatedAt: null,
-    // Read only until timelogCreate with spentAt is shown to work (gitlab-timelog).
-    editable: { update: false, delete: false },
+    editable: { update: false, delete: true },
   };
 }
 
 /** The UTC day an instant falls on (GraphQL's startDate/endDate snap to UTC days, not the user's). */
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/** A call that only a newer server answers: one that answers it isn't there reads the server's schema again next time. */
+async function modern<T>(c: GitLabCreds, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    if (e instanceof ProviderError && /doesn't exist on type/.test(e.message)) forgetTimeMode(c);
+    throw e;
+  }
+}
 
 // ---------- Quick actions ----------
 
@@ -521,10 +534,14 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
   worklogs: {
     async list(x, ref) {
       const c = await credsOf(x);
+      if (!(await timeModeOf(c)).readTimelogs) {
+        const i = await locate(c, ref);
+        return i ? listByNotes(c, i) : [];
+      }
       const out: RemoteWorklog[] = [];
       let after: string | null = null;
       for (let n = 0; n < 50; n++) {
-        const r: { issue: { timelogs: TimelogPage } | null } = await gql(c, "IssueTimelogs", ISSUE_TIMELOGS, { id: gidOf("Issue", ref.remoteId), after });
+        const r: { issue: { timelogs: TimelogPage } | null } = await modern(c, () => gql(c, "IssueTimelogs", ISSUE_TIMELOGS, { id: gidOf("Issue", ref.remoteId), after }));
         if (!r.issue) return out;
         out.push(...r.issue.timelogs.nodes.map(toRemoteWorklog));
         if (!r.issue.timelogs.pageInfo.hasNextPage) break;
@@ -536,6 +553,17 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
       const c = await credsOf(x);
       // Only validated: a window is always read whole (an entry can be dated before it was logged).
       decodeCheckpoint<Since>(x.conn, "worklogs", V, q.since);
+      if (!(await timeModeOf(c)).readTimelogs) {
+        // No timelogs to ask for: the notes of the user's issues touched in the window (logging time touches its issue).
+        const now = Date.now();
+        const since = new Date(now - (WINDOW_DAYS + 1) * DAY_MS).toISOString();
+        const lists = await Promise.all(
+          (["assigned_to_me", "created_by_me"] as const).map((scope) => glPages<GitLabIssue>(c, `/issues?${new URLSearchParams({ scope, state: "all", updated_after: since, order_by: "updated_at", sort: "desc" }).toString()}`, 5)),
+        );
+        const issues = [...new Map(lists.flat().map((i) => [i.id, i])).values()];
+        const items = (await Promise.all(issues.map((i) => listByNotes(c, i)))).flat();
+        return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: now } satisfies Since) };
+      }
       const pageAt =
         decodePageToken<TimelogPageAt>(x.conn, "worklogs", V, q.since, q.page) ??
         ((now: number): TimelogPageAt => ({
@@ -547,12 +575,37 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
           at: now,
         }))(Date.now());
       const username = pageAt.username || (await glOk<GitLabUser>(c, "/user")).username;
-      const r = await gql<{ timelogs: TimelogPage }>(c, "UserTimelogs", USER_TIMELOGS, { username, startDate: pageAt.from, endDate: pageAt.to, after: pageAt.after });
+      const r = await modern(c, () => gql<{ timelogs: TimelogPage }>(c, "UserTimelogs", USER_TIMELOGS, { username, startDate: pageAt.from, endDate: pageAt.to, after: pageAt.after }));
       const items = r.timelogs.nodes.map(toRemoteWorklog);
       if (r.timelogs.pageInfo.hasNextPage) {
         return { last: false, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, { ...pageAt, username, after: r.timelogs.pageInfo.endCursor } satisfies TimelogPageAt) };
       }
       return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: pageAt.at } satisfies Since) };
+    },
+    async create(x, ref, w) {
+      if (w.time.kind !== "session") throw new ProviderError("invalid", `GitLab keeps time with a start, not a ${w.time.kind}`);
+      const c = await credsOf(x);
+      const i = await mustLocate(c, ref);
+      if (!(await timeModeOf(c)).writeTimelogs) {
+        return createByNote(c, i, x.conn.remoteAccountId, { seconds: w.time.seconds, start: w.time.start, comment: w.comment }, withoutQuickActions);
+      }
+      const input = { issuableId: gidOf("Issue", i.id), timeSpent: `${w.time.seconds}s`, spentAt: new Date(w.time.start).toISOString(), summary: w.comment };
+      const r = await modern(c, () => gql<{ timelogCreate: { timelog: GitLabTimelog | null; errors: string[] } }>(c, "TimelogCreate", TIMELOG_CREATE, { input }, "write"));
+      if (!r.timelogCreate.timelog) throw new ProviderError("invalid", `GitLab: ${r.timelogCreate.errors.join("; ") || "no timelog made"}`);
+      return toRemoteWorklog(r.timelogCreate.timelog);
+    },
+    async delete(x, ref, id) {
+      const c = await credsOf(x);
+      // An entry logged by note is taken back by note, whatever the server writes now.
+      if (isNoteEntry(id)) {
+        const i = await locate(c, ref);
+        if (i) await deleteByNote(c, i, id);
+        return;
+      }
+      const r = await modern(c, () => gql<{ timelogDelete: { errors: string[] } | null }>(c, "TimelogDelete", TIMELOG_DELETE, { input: { id: gidOf("Timelog", id) } }, "write"));
+      const errors = r.timelogDelete?.errors ?? [];
+      // Already gone is what was asked.
+      if (errors.length && !errors.some((e) => /not found|doesn't exist|does not exist/i.test(e))) throw new ProviderError("invalid", `GitLab: ${errors.join("; ")}`);
     },
   },
 

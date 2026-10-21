@@ -98,7 +98,7 @@ The GitLab adapter (`api/providers/gitlab/`, status `experimental`) was written 
     - Current: `boolean` + `labelSet` only.
     - If passes: add `itemState` where the plan has it. If fails: stays.
 13. **`gitlab-timelog`**: `timelogCreate` with `spentAt` (an entry on a chosen day), and deleting one.
-    - Current: time is read only; `worklogs.create/update/delete` do not exist.
+    - Current: two ways, chosen by the server's GraphQL schema (`legacyTime.ts`, kept an hour per server): `Query.timelogs` to read (14+), `timelogCreate`/`timelogDelete` to write (15+); without them, `/spend <length> <day>` in a note logs, `/spend -<length> <day>` takes back, and the system notes ("added 1h 30m of time spent at 2026-10-21") are the entries (`n<note id>`, day only). Seen on a real 13.6.1-ee: no `Query.timelogs`, no timelog mutation, `Timelog` only under `Group.timelogs` (off there); system note text and the quick action's 202 not yet checked by a real write.
     - If passes: write `entry`, update `recreate`, delete. If fails: stays read only.
 14. **`gitlab-rate-headers`**: 429 and `RateLimit-*` agree. The probe reads `RateLimit-Limit` (per minute on gitlab.com) as `perHour = limit × 60`, `origin: detected`; self-managed may send none.
     - Current: a 429 waits `Retry-After`, else `RateLimit-Reset`, else a minute.
@@ -1432,7 +1432,7 @@ In **Current**, `—` means no implementation choice is enabled before the spike
 | github-projects | pending | GitHub token from the device login: user-owned Projects v2 status readable and writable | GitHub Projects status | `boolean` source only (open/closed with reason) | fine-grained PAT for project status | classic PAT documented for project status only |
 | github-transfer | pending | GitHub: a transferred issue as reconciliation sees it (301, new node id), and how its successor is found | GitHub adapter | gone `transfer: none` (found as `missing`) | `transfer: withSuccessor` | stays `none` |
 | gitlab-statuses | pending | GitLab Premium: work item statuses readable and settable through GraphQL | GitLab adapter | `boolean` + `labelSet` | add `itemState` (where the plan has it) | stays `boolean` + `labelSet` |
-| gitlab-timelog | pending | GitLab: `timelogCreate` with `spentAt` (an entry on a chosen day) | GitLab adapter | time read only | write: entry, update `recreate`, delete | stays read only |
+| gitlab-timelog | pending | GitLab: `timelogCreate` with `spentAt` (an entry on a chosen day); on 13.x, `/spend` notes | GitLab adapter | write: entry, update `recreate`, delete (timelogs, or notes) | nothing changes | back to read only |
 | gitlab-rate-headers | pending | GitLab: 429 responses and `RateLimit-*` headers agree | GitLab adapter | — | throttle from headers | throttle from 429 and `Retry-After` only |
 | tempo-updated-from | pending | Tempo Cloud: `updatedFrom` as a monotonic, persistable watermark (separate token, Jira worklog id mirror checked alongside) | Tempo | feed window by change, 7 days | feed incremental, no removals | stays a window |
 | tempo-rate-limit | pending | Tempo: the published budget and its scope (token, user, account) | Tempo | no budget declared (429 and `Retry-After` only) | `typicalRateLimit` with the figure; scope in the limiter's configuration | stays undeclared |

@@ -129,6 +129,30 @@ describe("worklog registry against any service, through the contract", () => {
     expect(await sink(w.id)).toMatchObject({ state: "synced" });
   });
 
+  it("a service that keeps only the day (dayOnly): the clock time here stands that day; another day moves it", async () => {
+    const { b, conn } = await setup();
+    const { pushCreate, syncEntries } = await import("./worklogs");
+    const w = await local(1800, "mine");
+    await pushCreate(b, conn, w, ref, meta, zone);
+    // Its clock time a guess, as GitLab 13 notes give it: first later the same day, then on the next.
+    let shift = 3 * 3_600_000;
+    const dayOnly = {
+      ...b,
+      worklogs: {
+        ...b.worklogs!,
+        changed: async (m: typeof meta, q: Parameters<NonNullable<typeof b.worklogs>["changed"] & object>[1]) => {
+          const p = await b.worklogs!.changed!(m, q);
+          return { ...p, items: p.items.map((x) => ({ ...x, dayOnly: true, span: x.span.kind === "session" ? { ...x.span, start: (x.span.start + shift) as never } : x.span })) };
+        },
+      },
+    } as typeof b;
+    await syncEntries(dayOnly, conn, { since: null, meta, budget: unlimited, zone });
+    expect(await q("SELECT started FROM worklogs WHERE id = ?", w.id)).toEqual([{ started: w.started.getTime() }]);
+    shift = 24 * 3_600_000;
+    await syncEntries(dayOnly, conn, { since: null, meta, budget: unlimited, zone });
+    expect(await q("SELECT started FROM worklogs WHERE id = ?", w.id)).toEqual([{ started: w.started.getTime() + shift }]);
+  });
+
   it("changed on both sides: kept here, the service's version beside it (conflict); unchanged here: the service wins; locked there: said", async () => {
     const { b, conn, fake } = await setup();
     const { pushCreate, syncEntries } = await import("./worklogs");
