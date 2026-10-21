@@ -769,6 +769,11 @@ export const settings: Shape<typeof en> = {
       hintOn: "Spegnila per te, su tutti i dispositivi",
       hintOff: "Riaccendila",
     },
+    layout: {
+      label: "Dimensione schede",
+      large: "Grandi",
+      compact: "Compatte",
+    },
     buy: "Acquista",
     back: "Indietro",
     details: "Dettagli",

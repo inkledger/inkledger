@@ -250,3 +250,35 @@ test("a licence downloads as a file, is removed, and comes back from that file",
     },
     db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify([license()]), Date.now()),
   ));
+
+test("the compact layout shows small tiles, survives a reload, and a tile opens its sheet", () =>
+  withStore(
+    {
+      items: [
+        item({ hero: "STUB/img/hero.png", badge: "new" }),
+        ...["one", "two", "three", "four"].map((id, i) =>
+          item({ id, product: `inkledger.${id}`, name: { en: `Mod ${i + 1}`, it: `Mod ${i + 1}` }, mode: i % 2 ? "paid" : "request" }),
+        ),
+      ],
+    },
+    async ({ page }) => {
+      const list = page.locator("[data-store-layout]");
+      assert.equal(await list.getAttribute("data-store-layout"), "large");
+      await page.getByRole("radio", { name: "Compact" }).click();
+      assert.equal(await list.getAttribute("data-store-layout"), "compact");
+      // Four tiles to a row on a wide window, so a tile is well under half the list's width.
+      const listBox = await list.boundingBox();
+      const tileBox = await page.locator('[data-store-item="hello"]').boundingBox();
+      assert.ok(tileBox && listBox && tileBox.width < listBox.width / 3, `tile ${tileBox?.width} of ${listBox?.width}`);
+      if (process.env.E2E_SHOTS) await page.locator("#store-modules").screenshot({ path: join(process.env.E2E_SHOTS, "store-compact.png") });
+
+      await page.reload();
+      await page.locator('[data-store-item="hello"]').waitFor();
+      assert.equal(await list.getAttribute("data-store-layout"), "compact");
+      const tile = page.locator('[data-store-item="hello"]');
+      await tile.getByRole("button", { name: "Request licence" }).waitFor();
+      await page.locator('[data-store-item="two"]').getByRole("button", { name: "€2.99" }).waitFor();
+      await tile.getByRole("button", { name: "Details of Hello" }).click();
+      await page.getByRole("dialog").getByText("Says hello in the sidebar.").first().waitFor();
+    },
+  ));

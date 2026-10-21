@@ -768,6 +768,11 @@ export const settings = {
       hintOn: "Turn it off for you, on every device",
       hintOff: "Turn it back on",
     },
+    layout: {
+      label: "Card size",
+      large: "Large",
+      compact: "Compact",
+    },
     buy: "Buy",
     back: "Back",
     details: "Details",

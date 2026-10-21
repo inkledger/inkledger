@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileKey, Store } from "lucide-react";
+import { FileKey, Grid3x3, LayoutGrid, Store } from "lucide-react";
 import { toast } from "sonner";
 import type { ModuleListEntry } from "@contracts/modules";
 import { LICENSE_FILE_EXTENSION, type StoreEntry } from "@contracts/store";
@@ -9,6 +9,8 @@ import { modulesDisabled, setModulesDisabled } from "@/modules/loader";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { cn } from "@/lib/utils";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +24,29 @@ import { ManageBadge } from "./store/ManageBadge";
 import { StoreImage } from "./store/StoreImage";
 
 const POLL_MS = 10_000;
+const LAYOUT_KEY = "ikl-store-layout";
+
+type Layout = "large" | "compact";
+
+/** Large cards or a compact grid of small tiles: per device, like the density. */
+function useLayout(): [Layout, (l: Layout) => void] {
+  const [layout, setLayout] = useState<Layout>(() => {
+    try {
+      return localStorage.getItem(LAYOUT_KEY) === "compact" ? "compact" : "large";
+    } catch {
+      return "large";
+    }
+  });
+  const set = (l: Layout) => {
+    try {
+      localStorage.setItem(LAYOUT_KEY, l);
+    } catch {
+      /* storage unavailable: still applies for this visit */
+    }
+    setLayout(l);
+  };
+  return [layout, set];
+}
 
 /**
  * Settings → Store: every module in one place. The catalog the store Worker
@@ -34,6 +59,7 @@ export function StoreSection() {
   const catalog = trpc.store.catalog.useQuery(undefined, { retry: false });
   const local = trpc.modules.list.useQuery();
   const [open, setOpen] = useState<{ product: string; view: StoreView } | null>(null);
+  const [layout, setLayout] = useLayout();
   const entries = catalog.data?.entries ?? [];
   const waiting = entries.some(e => e.pending?.status === "pending");
 
@@ -77,7 +103,20 @@ export function StoreSection() {
         title={t("settings.store.title")}
         description={t("settings.store.description")}
         keywords={t("settings.store.keywords")}
-        actions={<RestoreLicence />}
+        actions={
+          <>
+            <SegmentedControl
+              label={t("settings.store.layout.label")}
+              value={layout}
+              onChange={setLayout}
+              options={[
+                { value: "large", label: t("settings.store.layout.large"), icon: LayoutGrid },
+                { value: "compact", label: t("settings.store.layout.compact"), icon: Grid3x3 },
+              ]}
+            />
+            <RestoreLicence />
+          </>
+        }
       >
         {catalog.error ? (
           <ErrorState message={catalog.error.message} onRetry={() => void catalog.refetch()} />
@@ -87,12 +126,22 @@ export function StoreSection() {
           <p className="text-body-sm text-muted-foreground">{t("settings.store.empty")}</p>
         ) : null}
         {(entries.length > 0 || others.length > 0) && (
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {entries.map(e => (
-              <StoreCard key={e.product} entry={e} locale={locale} onOpen={show(e.product)} />
-            ))}
+          <ul data-store-layout={layout} className={layout === "compact" ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : "grid gap-4 sm:grid-cols-2"}>
+            {entries.map(e =>
+              layout === "compact" ? (
+                <StoreTile key={e.product} entry={e} locale={locale} onOpen={show(e.product)} />
+              ) : (
+                <StoreCard key={e.product} entry={e} locale={locale} onOpen={show(e.product)} />
+              )
+            )}
             {others.map(m => (
-              <LocalCard key={m.id} module={m} locale={locale} licensed={(local.data?.licenses ?? []).some(l => l.product === m.product)} />
+              <LocalCard
+                key={m.id}
+                module={m}
+                locale={locale}
+                licensed={(local.data?.licenses ?? []).some(l => l.product === m.product)}
+                className={layout === "compact" ? "col-span-2" : undefined}
+              />
             ))}
           </ul>
         )}
@@ -149,13 +198,58 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
   );
 }
 
+/** The compact grid's tile: the picture, the name, and what can be done (the sheet has the rest). */
+function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Locale; onOpen: (view: StoreView) => void }) {
+  const name = nameOf(e, locale);
+  return (
+    <li data-store-item={e.id} className="flex flex-col overflow-hidden rounded-lg border bg-card">
+      <button
+        type="button"
+        onClick={() => onOpen("details")}
+        aria-label={t("settings.store.openDetails", { name })}
+        className="group relative block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        <StoreImage src={e.hero ?? e.image} className="aspect-[16/10] w-full transition-transform duration-300 group-hover:scale-[1.02]" />
+        {e.badge && (
+          <span className="absolute left-2 top-2">
+            <BadgeChip badge={e.badge} />
+          </span>
+        )}
+      </button>
+      <div className="flex flex-1 flex-col gap-2 p-2.5">
+        <p className="truncate text-body-sm font-medium" title={name}>
+          {name}
+        </p>
+        <div className="mt-auto flex flex-wrap items-center gap-1.5">
+          {e.mode === "paid" || e.licensed ? (
+            <span className="mr-auto" />
+          ) : (
+            <PriceTag entry={e} locale={locale} className="mr-auto text-caption font-medium tabular" />
+          )}
+          <Action entry={e} locale={locale} onOpen={onOpen} />
+        </div>
+      </div>
+    </li>
+  );
+}
+
 /** A module installed here that the store does not list: only its status and management. */
-function LocalCard({ module: m, locale, licensed }: { module: ModuleListEntry; locale: Locale; licensed: boolean }) {
+function LocalCard({
+  module: m,
+  locale,
+  licensed,
+  className,
+}: {
+  module: ModuleListEntry;
+  locale: Locale;
+  licensed: boolean;
+  className?: string;
+}) {
   const name = loc(m.name, locale);
   const hasSettings = useModuleOffers(m.id, "settings");
   const [settings, setSettings] = useState(false);
   return (
-    <li data-store-item={m.id} className="flex items-center gap-3 rounded-xl border bg-card p-4">
+    <li data-store-item={m.id} className={cn("flex items-center gap-3 rounded-xl border bg-card p-4", className)}>
       <StoreImage className="h-12 w-12 shrink-0 rounded-lg" />
       <p className="min-w-0 flex-1">
         <span className="block truncate font-medium">{name}</span>
