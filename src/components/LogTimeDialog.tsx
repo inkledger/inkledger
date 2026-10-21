@@ -159,9 +159,14 @@ function LogTimeForm({
 
   // A typed "1d" is the work schedule's day (of the day being logged).
   const { targetFor } = useWorkSchedule();
-  const parsed = parseDurationToSeconds(timeSpent, {
-    daySeconds: targetFor(placementDay ?? (started ? new Date(started) : openedAt)),
-  });
+  // An untouched duration is the stored one: the field shows whole minutes,
+  // and saving its rounding would change an edit of the comment alone.
+  const parsed =
+    worklog && timeSpent === durationInput(worklog.timeSpentSeconds)
+      ? worklog.timeSpentSeconds
+      : parseDurationToSeconds(timeSpent, {
+          daySeconds: targetFor(placementDay ?? (started ? new Date(started) : openedAt)),
+        });
   const tooLong = !!parsed && parsed > MAX_WORKLOG_SECONDS;
   const invalid =
     timeSpent.trim().length > 0 && (!parsed || parsed <= 0 || tooLong);

@@ -54,3 +54,29 @@ test("time logged on a GitHub issue stays in inkledger, said as such", () =>
     assert.equal(rows[0].time_spent_seconds, 1800);
     assert.match(rows[0].jira_worklog_id, /^local-/);
   }));
+
+test("editing only the comment keeps an entry's exact seconds (the field shows whole minutes)", () =>
+  withApp(
+    {
+      seed: async db => {
+        await githubIssue(db);
+        const y = new Date(Date.now() - 86_400_000);
+        y.setHours(10, 0, 0, 0);
+        await db.q(
+          "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, ?, 'acme/web#1', 'local-exact', ?, 3725, 'first', 1)",
+          github, y.getTime(),
+        );
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(`${base}/issues/${github}/I_1`);
+      await page.getByRole("button", { name: "Edit worklog" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByLabel("Comment").fill("only the comment");
+      await dialog.getByRole("button", { name: "Update" }).click();
+      await dialog.waitFor({ state: "detached" });
+      await page.getByText("Time entry updated").first().waitFor();
+      const [row] = await db.q("SELECT time_spent_seconds, comment FROM worklogs");
+      assert.deepEqual(row, { time_spent_seconds: 3725, comment: "only the comment" });
+    },
+  ));
