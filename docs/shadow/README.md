@@ -24,8 +24,7 @@ stands at its own height and casts a shadow away from the light:
   from the east: the left in the northern hemisphere, the right in the southern (the screen
   faces the equator).
 - **The moon.** Faint, cool shadows by moonlight, as strong as its phase. A night with neither
-  sun nor moon up has no shadows at all, and the main panel dims a little
-  (**Night on the Dashboard** in Settings → Appearance turns the dimming off).
+  sun nor moon up has no shadows at all. Only the shadows change: the page keeps its colours.
 - **Clouds.** With the weather on, an overcast sky softens and lightens every shadow.
 
 The place is estimated from your browser's time zone.
@@ -37,7 +36,7 @@ One Thursday in Rome (29 October), the same dashboard:
 | | |
 |---|---|
 | ![08:00, a low sun in the east: shadows fall to the right](screenshots/morning.webp) | ![12:00, short and sharp](screenshots/noon.webp) |
-| ![16:00, a low sun in the west: shadows fall to the left](screenshots/evening.webp) | ![21:30, faint cool shadows under the moon, the panel dimmed](screenshots/moon.webp) |
+| ![16:00, a low sun in the west: shadows fall to the left](screenshots/evening.webp) | ![21:30, faint cool shadows under the moon](screenshots/moon.webp) |
 | ![16:00 in the dark theme](screenshots/evening-dark.webp) | |
 
 ## Install
