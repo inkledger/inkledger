@@ -120,6 +120,8 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     await push();
     expect((await sinkEntries()).map((e) => e.comment)).toContain("held");
     expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE worklog_id = ?", made.id)).toEqual([{ n: 1 }]);
+    // Tied to its issue too: a day-totals sink recounts that tracker's day only.
+    expect(await q("SELECT i.key, i.connection_id = w.connection_id AS same FROM outbox o JOIN issues i ON i.id = o.item_id JOIN worklogs w ON w.id = o.worklog_id WHERE o.worklog_id = ?", made.id)).toEqual([{ key: "FAKE-1", same: true }]);
     // Not shown as queued to the user while held.
     expect((await caller.outbox.list()).filter((o) => o.kind === "delete")).toEqual([]);
     // The tracker deleted it and the process died before anything else: the database alone makes the sink's delete due.

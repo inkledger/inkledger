@@ -113,10 +113,12 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
     .from(worklogSinks)
     .innerJoin(connections, eq(connections.id, worklogSinks.sinkConnectionId))
     .where(and(eq(worklogSinks.worklogId, w.id), sql`${worklogSinks.remoteId} IS NOT NULL`, inArray(connections.type, TIME_SINK_TYPES.filter(BESIDE))));
+  // Its issue, so a day-totals sink recounts its own tracker's day only (a key may be on two trackers).
+  const [item] = w.connectionId === null ? [] : await db.select({ id: issues.id }).from(issues).where(and(eq(issues.userId, w.userId), eq(issues.connectionId, w.connectionId), eq(issues.key, w.issueKey))).limit(1);
   const values = rows.flatMap((r) =>
     !r.remoteId || r.sink === w.connectionId
       ? []
-      : [{ userId: w.userId, connectionId: r.sink, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, worklogId: w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started }],
+      : [{ userId: w.userId, connectionId: r.sink, itemId: item?.id ?? null, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, worklogId: w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started }],
   );
   await db.transaction(async (tx) => {
     await tx.delete(outbox).where(and(heldSinkDelete, eq(outbox.worklogId, w.id)));
@@ -299,14 +301,18 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
         if (!g) continue;
         try {
           if (b.capabilities.entries.model === "dayTotals") {
-            // A day's total without the deleted worklog (0 removes the day).
-            const { ref } = await refOf({ connectionId: null, userId: g.userId, issueKey: g.issueKey });
+            // A day's total without the deleted worklog (0 removes the day): its own
+            // tracker's time only, as its issue (item_id) says; a delete from before that
+            // was kept goes by the key, as then.
+            const [item] = g.itemId === null ? [] : await db.select({ connectionId: issues.connectionId }).from(issues).where(eq(issues.id, g.itemId));
+            const tracker = item?.connectionId ?? null;
+            const { ref } = await refOf({ connectionId: tracker, userId: g.userId, issueKey: g.issueKey });
             const zone = connOf(sink).timeZone;
             const day = localDateOf(instant((g.started ?? new Date()).getTime()), zone);
             const rest = await db
               .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
               .from(worklogs)
-              .where(and(eq(worklogs.userId, g.userId), eq(worklogs.issueKey, g.issueKey)));
+              .where(and(eq(worklogs.userId, g.userId), eq(worklogs.issueKey, g.issueKey), ...(tracker === null ? [] : [eq(worklogs.connectionId, tracker)])));
             const total = rest.filter((x) => localDateOf(instant(x.started.getTime()), zone) === day).reduce((a, x) => a + x.seconds, 0);
             await b.entries.setDayTotal!(meta(), ref, null, day, total, { idempotencyKey: `del:${g.id}` });
           } else if (b.entries.delete) {
