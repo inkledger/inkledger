@@ -91,6 +91,8 @@ describe("backups on disk", () => {
     expect(psqlArgs).toContain("--single-transaction");
     expect(psqlArgs).toContain("ON_ERROR_STOP=1");
     const fed = fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8");
+    // Quiet: a failure's message starts with its cause, not one "drop cascades to" notice per table.
+    expect(fed.startsWith("SET client_min_messages = warning;")).toBe(true);
     expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeGreaterThanOrEqual(0);
     expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeLessThan(fed.indexOf("-- the dump's SQL"));
     expect(fed).toMatch(/-- end of dump\ncommitted/);

@@ -147,9 +147,9 @@ function run(bin: string, args: string[], childEnv: NodeJS.ProcessEnv = process.
  * (pg_restore --clean drops only what the backup holds: a table added since, with a key
  * on one of its tables, made it fail.) The dump comes as SQL from pg_restore and goes
  * into psql; if pg_restore fails halfway, psql is stopped before its input ends, so
- * nothing is committed.
+ * nothing is committed. Notices are left out: a failure's message starts with its cause.
  */
-const EMPTY_DATABASE = "DROP SCHEMA IF EXISTS drizzle CASCADE;\nDROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n";
+const EMPTY_DATABASE = "SET client_min_messages = warning;\nDROP SCHEMA IF EXISTS drizzle CASCADE;\nDROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n";
 
 function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: string): Promise<void> {
   return new Promise((resolve, reject) => {
