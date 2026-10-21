@@ -6,7 +6,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { start } from "./harness.mjs";
 
-test("while the day is being logged, the summary shows what is being logged", async () => {
+// Its own timeout: just after midnight it first waits up to 6 minutes (see below).
+test("while the day is being logged, the summary shows what is being logged", { timeout: 600_000 }, async () => {
   // The block must fit today (it never starts before midnight): just after midnight,
   // minutes instead of half hours, and at least the few minutes they need.
   const midnight = new Date().setHours(0, 0, 0, 0);

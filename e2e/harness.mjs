@@ -76,13 +76,15 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   // A database that stops answering fails the test, never holds the whole run.
   const admin = new pg.Client({ connectionString: adminUrl(), connectionTimeoutMillis: 15_000, query_timeout: 60_000 });
   const dbName = `ikl_e2e_${process.pid}_${randomBytes(4).toString("hex")}`;
+  let connected = false;
   try {
     await admin.connect();
+    connected = true;
     await admin.query(`CREATE DATABASE "${dbName}"`);
   } catch (e) {
     // No database to work on: nothing left open or behind either (one made after a
-    // timeout gave up on it goes too).
-    await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`).catch(() => {});
+    // timeout gave up on it goes too, when the server still answers).
+    if (connected) await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`).catch(() => {});
     await admin.end().catch(() => {});
     rmSync(dir, { recursive: true, force: true });
     throw e;
