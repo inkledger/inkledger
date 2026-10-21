@@ -669,11 +669,17 @@ export const pinboards = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
+    /**
+     * The bucket the board belongs to: shown only while that bucket is on.
+     * Null: a board for every bucket. A deleted bucket leaves its boards to
+     * every bucket (nothing pinned is lost).
+     */
+    bucketId: integer("bucket_id").references(() => buckets.id, { onDelete: "set null" }),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_pinboards_user").on(t.userId)],
+  (t) => [index("idx_pinboards_user").on(t.userId), index("idx_pinboards_bucket").on(t.bucketId)],
 );
 
 export type Pinboard = typeof pinboards.$inferSelect;

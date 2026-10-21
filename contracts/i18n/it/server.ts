@@ -132,6 +132,7 @@ export const server: Shape<typeof en> = {
   pinboard: {
     defaultBoard: "La mia lavagna",
     boardNotFound: "Lavagna non trovata",
+    bucketNotFound: "Bucket non trovato",
     noteNotFound: "Post-it non trovato",
     maxBoards: {
       one: "Al massimo {count} lavagne.",

@@ -1,10 +1,10 @@
-import { issuesInBucket } from "../queries/buckets";
+import { activeBucket, issuesInBucket } from "../queries/buckets";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, eq, isNull, max, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { issueNotes, issues, pinboardNotes, pinboards } from "@db/schema";
+import { buckets, issueNotes, issues, pinboardNotes, pinboards } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import {
@@ -35,6 +35,23 @@ async function nextZ(boardId: number): Promise<number> {
   return (r?.z ?? 0) + 1;
 }
 
+/** Which tracker the board shows: one connection, or every one (0 or none). */
+const scopeInput = { connectionId: z.number().int().nonnegative().optional() };
+
+/**
+ * The post-its the board shows, for its list and its counts alike (one filter,
+ * so the two never differ): free notes always; an issue's when it is in the
+ * device's bucket and, when one is chosen, on that tracker. Joined with issues.
+ */
+async function pinScope(userId: number, deviceId: string | undefined, connectionId?: number): Promise<SQL | undefined> {
+  const inBucket = await issuesInBucket(userId, deviceId);
+  const onTracker = connectionId ? eq(pinboardNotes.connectionId, connectionId) : undefined;
+  const issueShown = and(inBucket, onTracker);
+  return issueShown ? or(isNull(pinboardNotes.issueKey), issueShown) : undefined;
+}
+
+const pinnedIssue = and(eq(issues.userId, pinboardNotes.userId), eq(issues.connectionId, pinboardNotes.connectionId), eq(issues.key, pinboardNotes.issueKey));
+
 /** The user's boards, creating the first one on demand. */
 async function boardsOf(userId: number) {
   const db = getDb();
@@ -50,6 +67,36 @@ async function boardsOf(userId: number) {
     rows = await read();
   }
   return rows;
+}
+
+/**
+ * The boards this device shows: with a bucket on, that bucket's and the ones
+ * for every bucket; with none, all of them. A board of another bucket is
+ * never shown under a bucket, so the filter never leaks foreign boards.
+ */
+async function visibleBoards(userId: number, deviceId: string | undefined) {
+  const [boards, bucket] = await Promise.all([boardsOf(userId), activeBucket(userId, deviceId)]);
+  return { bucket, boards: bucket === null ? boards : boards.filter((b) => b.bucketId === null || b.bucketId === bucket) };
+}
+
+/**
+ * The asked board when this device shows it, else its first shown one, else
+ * the asked one anyway (pinning from a page with no board in the bucket). A
+ * board that is not the user's is NOT_FOUND, never swapped for one of theirs.
+ */
+async function shownBoard(userId: number, deviceId: string | undefined, boardId?: number) {
+  const asked = await resolveBoard(userId, boardId);
+  const { boards } = await visibleBoards(userId, deviceId);
+  return boards.find((b) => b.id === asked.id) ?? boards[0] ?? asked;
+}
+
+/** A bucket of the user (a board's scope), or NOT_FOUND. */
+async function ownBucket(userId: number, bucketId: number) {
+  const [row] = await getDb()
+    .select({ id: buckets.id })
+    .from(buckets)
+    .where(and(eq(buckets.id, bucketId), eq(buckets.userId, userId)));
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.bucketNotFound") });
 }
 
 /** A board of the user: the asked one, else the first. */
@@ -81,20 +128,60 @@ async function own(userId: number, id: number) {
 }
 
 export const pinboardRouter = createRouter({
-  /** The user's boards with their note counts (the first is created if none). */
-  boards: protectedProcedure.query(async ({ ctx }) => {
-    const boards = await boardsOf(ctx.user.id);
-    const counts = await getDb()
-      .select({ boardId: pinboardNotes.boardId, n: count() })
-      .from(pinboardNotes)
-      .where(eq(pinboardNotes.userId, ctx.user.id))
-      .groupBy(pinboardNotes.boardId);
-    const by = new Map(counts.map((c) => [c.boardId, c.n]));
-    return boards.map((b) => ({ id: b.id, name: boardDisplayName(b.name), count: by.get(b.id) ?? 0 }));
+  /**
+   * The boards this device shows (visibleBoards), each with its scope, the
+   * post-its it shows now (bucket and tracker: see pinScope) and those the
+   * filter hides; the first board is created if the user has none.
+   */
+  boards: protectedProcedure.input(z.object(scopeInput).optional()).query(async ({ ctx, input }) => {
+    const { boards } = await visibleBoards(ctx.user.id, ctx.deviceId);
+    const scope = await pinScope(ctx.user.id, ctx.deviceId, input?.connectionId);
+    const ids = boards.map((b) => b.id);
+    const counts = ids.length
+      ? await getDb()
+          .select({
+            boardId: pinboardNotes.boardId,
+            all: count(),
+            shown: scope ? sql<number>`count(*) filter (where ${scope})`.mapWith(Number) : count(),
+          })
+          .from(pinboardNotes)
+          .leftJoin(issues, pinnedIssue)
+          .where(and(eq(pinboardNotes.userId, ctx.user.id), inArray(pinboardNotes.boardId, ids)))
+          .groupBy(pinboardNotes.boardId)
+      : [];
+    const by = new Map(counts.map((c) => [c.boardId, c]));
+    const names = new Map(
+      (await getDb().select({ id: buckets.id, name: buckets.name }).from(buckets).where(eq(buckets.userId, ctx.user.id))).map((b) => [b.id, b.name]),
+    );
+    return boards.map((b) => {
+      const c = by.get(b.id);
+      return {
+        id: b.id,
+        name: boardDisplayName(b.name),
+        bucket: b.bucketId === null ? null : { id: b.bucketId, name: names.get(b.bucketId) ?? "" },
+        count: c?.shown ?? 0,
+        hidden: (c?.all ?? 0) - (c?.shown ?? 0),
+      };
+    });
   }),
 
-  createBoard: protectedProcedure.input(z.object({ name: boardName })).mutation(async ({ ctx, input }) => {
+  /** Moves a board to one bucket, or to every bucket (null). */
+  setBoardScope: protectedProcedure
+    .input(z.object({ id: boardIdInput, bucketId: z.number().int().positive().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const b = await resolveBoard(ctx.user.id, input.id);
+      if (input.bucketId !== null) await ownBucket(ctx.user.id, input.bucketId);
+      await getDb().update(pinboards).set({ bucketId: input.bucketId }).where(eq(pinboards.id, b.id));
+      return { ok: true };
+    }),
+
+  /** A new board: in the device's bucket unless told otherwise (null: every bucket). */
+  createBoard: protectedProcedure
+    .input(z.object({ name: boardName, bucketId: z.number().int().positive().nullable().optional() }))
+    .mutation(async ({ ctx, input }) => {
     const boards = await boardsOf(ctx.user.id);
+    const bucketId = input.bucketId === undefined ? await activeBucket(ctx.user.id, ctx.deviceId) : input.bucketId;
+    if (bucketId !== null) await ownBucket(ctx.user.id, bucketId);
     if (boards.length >= MAX_BOARDS) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.maxBoards", { count: MAX_BOARDS }) });
     }
@@ -104,6 +191,7 @@ export const pinboardRouter = createRouter({
         userId: ctx.user.id,
         name: input.name,
         position: Math.max(0, ...boards.map((b) => b.position)) + 1,
+        bucketId,
       })
       .returning({ id: pinboards.id });
     return { id: row.id };
@@ -135,11 +223,11 @@ export const pinboardRouter = createRouter({
 
   /** Every post-it of a board, with the issue as known in the catalog. */
   list: protectedProcedure
-    .input(z.object({ boardId: boardIdInput.optional() }).optional())
+    .input(z.object({ boardId: boardIdInput.optional(), ...scopeInput }).optional())
     .query(async ({ ctx, input }) => {
-      const board = await resolveBoard(ctx.user.id, input?.boardId);
-      // The device's bucket: issues outside it step off the board (free notes stay).
-      const inBucket = await issuesInBucket(ctx.user.id, ctx.deviceId);
+      const board = await shownBoard(ctx.user.id, ctx.deviceId, input?.boardId);
+      // The device's bucket and the tracker chosen: issues outside them step off the board (free notes stay).
+      const scope = await pinScope(ctx.user.id, ctx.deviceId, input?.connectionId);
       const rows = await getDb()
         .select({
           note: pinboardNotes,
@@ -150,12 +238,9 @@ export const pinboardRouter = createRouter({
           noteCreatedAt: issueNotes.createdAt,
         })
         .from(pinboardNotes)
-        .leftJoin(
-          issues,
-          and(eq(issues.userId, pinboardNotes.userId), eq(issues.connectionId, pinboardNotes.connectionId), eq(issues.key, pinboardNotes.issueKey)),
-        )
+        .leftJoin(issues, pinnedIssue)
         .leftJoin(issueNotes, eq(issueNotes.id, pinboardNotes.issueNoteId))
-        .where(and(eq(pinboardNotes.userId, ctx.user.id), eq(pinboardNotes.boardId, board.id), inBucket ? or(isNull(pinboardNotes.issueKey), inBucket) : undefined))
+        .where(and(eq(pinboardNotes.userId, ctx.user.id), eq(pinboardNotes.boardId, board.id), scope))
         .orderBy(asc(pinboardNotes.z), asc(pinboardNotes.id));
       return rows.map((r) => ({
         ...r.note,
@@ -187,7 +272,7 @@ export const pinboardRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const board = await resolveBoard(ctx.user.id, input.boardId);
+      const board = await shownBoard(ctx.user.id, ctx.deviceId, input.boardId);
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : undefined;
       const mine = await db
         .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
@@ -243,7 +328,7 @@ export const pinboardRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const n = await ownIssueNote(ctx.user.id, input.noteId);
-      const board = await resolveBoard(ctx.user.id, input.boardId);
+      const board = await shownBoard(ctx.user.id, ctx.deviceId, input.boardId);
       const mine = await db
         .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
         .from(pinboardNotes)
@@ -347,6 +432,7 @@ export const pinboardRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Undo puts it back where it was, whatever the device shows now.
       const board = await resolveBoard(ctx.user.id, input.boardId);
       if (input.issueNoteId) await ownIssueNote(ctx.user.id, input.issueNoteId);
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : null;

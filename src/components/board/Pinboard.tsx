@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   Focus,
+  FolderInput,
   Maximize2,
   Minimize2,
   Pencil,
@@ -67,9 +68,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useBuckets } from "@/hooks/useBuckets";
 import { ErrorState } from "@/components/app/States";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -120,8 +127,11 @@ export function Pinboard({
   className,
   onClose,
   resizable = true,
+  connectionId,
 }: {
   className?: string;
+  /** The tracker the Board shows (none or 0: every one): its notes, and its counts. */
+  connectionId?: number;
   /** Where it lives in a sheet (small screens): closing closes the sheet. */
   onClose?: () => void;
   /** Widen/narrow the Board's panel; off where it is not that panel. */
@@ -132,11 +142,17 @@ export function Pinboard({
   const panel = usePinboardPanel();
   const provider = useProviderName();
   const storedBoard = usePinboardBoardId();
-  const boardsQuery = trpc.pinboard.boards.useQuery();
+  // Lists and counts with one filter: what the Board shows (the device's bucket, its tracker).
+  const scope = connectionId ? { connectionId } : undefined;
+  const boardsQuery = trpc.pinboard.boards.useQuery(scope);
   const boards = boardsQuery.data ?? [];
+  // Under a bucket: its own boards, then those for every bucket (others never show).
+  const { buckets, active: bucket } = useBuckets();
+  const own = bucket ? boards.filter(b => b.bucket?.id === bucket.id) : boards;
+  const shared = bucket ? boards.filter(b => b.bucket === null) : [];
   const board = boards.find(b => b.id === storedBoard) ?? boards[0];
   const boardId = board?.id;
-  const listInput = { boardId };
+  const listInput = { boardId, ...scope };
   const list = trpc.pinboard.list.useQuery(listInput, { enabled: boardId !== undefined });
   const [zoom, setZoom] = useState(1);
   const [over, setOver] = useState(false);
@@ -317,19 +333,24 @@ export function Pinboard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-60">
-            <DropdownMenuLabel>{t("views.board.pinboard.boards")}</DropdownMenuLabel>
-            {boards.map(b => (
-              <DropdownMenuItem key={b.id} onSelect={() => pinboardBoard.set(b.id)}>
-                <Check
-                  className={cn("h-4 w-4", b.id !== boardId && "opacity-0")}
-                  aria-hidden
-                />
-                <span className="truncate">{b.name}</span>
-                <span className="ml-auto text-caption text-muted-foreground tabular">
-                  {b.count}
-                </span>
-              </DropdownMenuItem>
+            <DropdownMenuLabel>
+              {bucket ? t("views.board.pinboard.inBucket", { bucket: bucket.name }) : t("views.board.pinboard.boards")}
+            </DropdownMenuLabel>
+            {own.map(b => (
+              <BoardItem key={b.id} b={b} current={b.id === boardId} tag={!bucket && b.bucket ? b.bucket.name : null} />
             ))}
+            {bucket && own.length === 0 && (
+              <p className="px-2 py-1.5 text-body-sm text-muted-foreground">{t("views.board.pinboard.noneInBucket")}</p>
+            )}
+            {shared.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>{t("views.board.pinboard.everyBucket")}</DropdownMenuLabel>
+                {shared.map(b => (
+                  <BoardItem key={b.id} b={b} current={b.id === boardId} tag={t("views.board.pinboard.allTag")} />
+                ))}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setNaming("create")}>
               <Plus className="h-4 w-4" /> {t("views.board.pinboard.newBoard")}
@@ -337,6 +358,35 @@ export function Pinboard({
             <DropdownMenuItem disabled={!board} onSelect={() => setNaming("rename")}>
               <Pencil className="h-4 w-4" /> {t("views.board.pinboard.rename")}
             </DropdownMenuItem>
+            {board && buckets.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FolderInput className="h-4 w-4" /> {t("views.board.pinboard.scope")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-56">
+                  <DropdownMenuRadioGroup
+                    value={String(board.bucket?.id ?? "all")}
+                    onValueChange={v => {
+                      const bucketId = v === "all" ? null : Number(v);
+                      void utils.client.pinboard.setBoardScope
+                        .mutate({ id: board.id, bucketId })
+                        .then(() => {
+                          const name = bucketId === null ? null : buckets.find(x => x.id === bucketId)?.name;
+                          toast.success(name ? t("views.board.pinboard.movedTo", { name: board.name, bucket: name }) : t("views.board.pinboard.movedToAll", { name: board.name }));
+                          return refresh();
+                        }, fail);
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="all">{t("views.board.pinboard.everyBucket")}</DropdownMenuRadioItem>
+                    {buckets.map(x => (
+                      <DropdownMenuRadioItem key={x.id} value={String(x.id)}>
+                        <span className="truncate">{x.name}</span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuItem
               disabled={boards.length < 2}
               onSelect={() => setConfirmDelete(true)}
@@ -400,6 +450,13 @@ export function Pinboard({
         </span>
       </div>
 
+      {board && board.hidden > 0 && (
+        <p className="shrink-0 px-1.5 text-caption text-muted-foreground">
+          {bucket
+            ? t("views.board.pinboard.hiddenByBucket", { count: board.hidden, bucket: bucket.name })
+            : t("views.board.pinboard.hiddenByTracker", { count: board.hidden })}
+        </p>
+      )}
       <div className="paper-board relative min-h-0 flex-1 overflow-hidden rounded-xl border">
         <div
           ref={scroller}
@@ -482,7 +539,19 @@ export function Pinboard({
                   transformOrigin: "0 0",
                 }}
               >
-                {notes.length === 0 && !list.isPending && (
+                {!board && boardsQuery.isSuccess && bucket && (
+                  <div className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
+                    <span className="note-tape" aria-hidden />
+                    <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
+                      <p className="font-display text-heading">{t("views.board.pinboard.noneInBucketTitle", { bucket: bucket.name })}</p>
+                      <p className="mt-1 text-body-sm opacity-80">{t("views.board.pinboard.noneInBucketHint")}</p>
+                      <Button size="sm" className="mt-3" onClick={() => setNaming("create")}>
+                        <Plus className="h-4 w-4" /> {t("views.board.pinboard.newBoard")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {board && notes.length === 0 && !list.isPending && (
                   <div className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
                     <span className="note-tape" aria-hidden />
                     <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
@@ -592,9 +661,10 @@ export function Pinboard({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("views.board.pinboard.deleteTitle", { name: board?.name ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {notes.length === 0
+              {/* Every note, the ones the filter hides too: they go with the board. */}
+              {(board ? board.count + board.hidden : 0) === 0
                 ? t("views.board.pinboard.deleteEmpty")
-                : t("views.board.pinboard.deleteNotes", { count: notes.length })}{" "}
+                : t("views.board.pinboard.deleteNotes", { count: board ? board.count + board.hidden : 0 })}{" "}
               {t("views.board.pinboard.deleteJira", { provider })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -620,6 +690,18 @@ export function Pinboard({
         </AlertDialogContent>
       </AlertDialog>
     </section>
+  );
+}
+
+/** One board in the switcher: its name, where it belongs when that is worth saying, and its notes. */
+function BoardItem({ b, current, tag }: { b: { id: number; name: string; count: number }; current: boolean; tag: string | null }) {
+  return (
+    <DropdownMenuItem onSelect={() => pinboardBoard.set(b.id)}>
+      <Check className={cn("h-4 w-4", !current && "opacity-0")} aria-hidden />
+      <span className="truncate">{b.name}</span>
+      {tag && <span className="shrink-0 rounded-sm bg-muted px-1 text-caption text-muted-foreground">{tag}</span>}
+      <span className="ml-auto text-caption text-muted-foreground tabular">{b.count}</span>
+    </DropdownMenuItem>
   );
 }
 

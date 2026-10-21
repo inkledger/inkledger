@@ -150,7 +150,8 @@ export default function Board() {
   const panel = usePinboardPanel();
   const mobileBoard = pinboardSheet.useValue();
   const boardId = usePinboardBoardId();
-  const pinBoards = trpc.pinboard.boards.useQuery().data ?? [];
+  // The badge counts what the pinboard shows: the bucket's and the chosen tracker's post-its.
+  const pinBoards = trpc.pinboard.boards.useQuery(view.connection ? { connectionId: view.connection } : undefined).data ?? [];
   const pinned =
     (pinBoards.find(b => b.id === boardId) ?? pinBoards[0])?.count ?? 0;
 
@@ -717,6 +718,7 @@ export default function Board() {
                 "hidden shrink-0 lg:flex",
                 panel === "wide" ? "w-[62%]" : "w-[420px]"
               )}
+              connectionId={view.connection}
             />
           )}
         </div>
@@ -735,6 +737,7 @@ export default function Board() {
           <Pinboard
             className="min-h-0 flex-1"
             onClose={() => pinboardSheet.set(false)}
+            connectionId={view.connection}
           />
         </SheetContent>
       </Sheet>

@@ -239,3 +239,87 @@ test("a tracker that answers but has no issues for the user still has its tab, s
       assert.equal(await tabs.getByRole("tab").count(), 3);
     },
   ));
+
+let pinBoard = 0;
+test("the pinboard counts what it shows: the tracker chosen on the board narrows its notes and its count alike", () =>
+  withApp(
+    {
+      seed: async db => {
+        await seed(db);
+        const now = Date.now();
+        const [{ id: board }] = await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Main', 0, ?) RETURNING id", now);
+        pinBoard = board;
+        const pin = (key, connectionId, x) =>
+          db.q(
+            "INSERT INTO pinboard_notes (user_id, board_id, issue_key, connection_id, note, x, y, z, created_at, updated_at) VALUES (1, ?, ?, ?, ?, ?, 40, ?, ?, ?)",
+            board, key, connectionId, key ? "" : "free note", x, x, now, now,
+          );
+        await pin("DEMO-101", 1, 40);
+        await pin("acme/web#1", github, 260);
+        await pin(null, null, 480);
+      },
+    },
+    async ({ page, base }) => {
+      await page.addInitScript(id => {
+        localStorage.setItem("ikl-pinboard-panel", "closed");
+        localStorage.setItem("ikl-pinboard-board", String(id));
+      }, pinBoard);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(base + "/board");
+      await page.getByRole("button", { name: "Open the pinboard (3 notes)" }).waitFor();
+      await page.getByRole("button", { name: /^Board shows/ }).click();
+      await page.getByRole("menuitemradio", { name: "Side projects" }).click();
+      const rail = page.getByRole("button", { name: "Open the pinboard (2 notes)" });
+      await rail.waitFor();
+      await rail.click();
+      // The free note and the GitHub issue; Jira's is off the board with its tracker.
+      await page.getByText("free note").waitFor();
+      await page.getByText("acme/web#1").first().waitFor();
+      assert.equal(await page.locator(".paper-board").getByText("DEMO-101").count(), 0);
+    },
+  ));
+
+test("under a bucket, the pinboard switcher leaves other buckets' boards out and says what the filter hides", () =>
+  withApp(
+    {
+      seed: async db => {
+        await seed(db);
+        const now = Date.now();
+        const bucket = async name => (await db.q("INSERT INTO buckets (user_id, name, position, query, created_at) VALUES (1, ?, 0, '', ?) RETURNING id", name, now))[0].id;
+        const side = await bucket("Side");
+        const jira = await bucket("Jira work");
+        await db.q("INSERT INTO bucket_sources (bucket_id, connection_id) VALUES (?, ?), (?, 1)", side, github, jira);
+        const board = async (name, bucketId, position) =>
+          (await db.q("INSERT INTO pinboards (user_id, name, position, bucket_id, created_at) VALUES (1, ?, ?, ?, ?) RETURNING id", name, position, bucketId, now))[0].id;
+        pinBoard = await board("Main", null, 0);
+        await board("Sprint", jira, 1);
+        await board("Weekend", side, 2);
+        const pin = (key, connectionId, x) =>
+          db.q(
+            "INSERT INTO pinboard_notes (user_id, board_id, issue_key, connection_id, note, x, y, z, created_at, updated_at) VALUES (1, ?, ?, ?, '', ?, 40, ?, ?, ?)",
+            pinBoard, key, connectionId, x, x, now, now,
+          );
+        await pin("DEMO-101", 1, 40);
+        await pin("acme/web#1", github, 260);
+      },
+    },
+    async ({ page, base }) => {
+      await page.addInitScript(id => {
+        localStorage.setItem("ikl-pinboard-panel", "open");
+        localStorage.setItem("ikl-pinboard-board", String(id));
+      }, pinBoard);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(base + "/board");
+      await page.getByRole("button", { name: /^Board shows/ }).click();
+      await page.getByRole("menuitemradio", { name: "Side", exact: true }).click();
+      await page.getByText("1 note hidden: outside “Side”").waitFor();
+      await page.getByRole("button", { name: /^Pinboard: Main/ }).click();
+      const menu = page.getByRole("menu");
+      await menu.getByText("In “Side”").waitFor();
+      await menu.getByRole("menuitem", { name: /Weekend/ }).waitFor();
+      await menu.getByText("For every bucket").waitFor();
+      await menu.getByRole("menuitem", { name: /Main\s*All/ }).waitFor();
+      assert.equal(await menu.getByRole("menuitem", { name: /Sprint/ }).count(), 0, "another bucket's board stays out");
+      await page.keyboard.press("Escape");
+    },
+  ));

@@ -131,6 +131,7 @@ export const server = {
   pinboard: {
     defaultBoard: "My board",
     boardNotFound: "Board not found",
+    bucketNotFound: "Bucket not found",
     noteNotFound: "Note not found",
     maxBoards: {
       one: "At most {count} board.",

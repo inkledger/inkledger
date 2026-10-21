@@ -110,3 +110,118 @@ describe("buckets, per device", () => {
     expect((await pad.pinboard.list()).map((n) => n.issueKey ?? n.note)).toEqual(["ONE-1", "TWO-1", "call the client"]);
   });
 });
+
+describe("pinboard, as the board shows it", () => {
+  type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
+  const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
+
+  it("counts exactly the post-its it lists, for every bucket and tracker: free notes always, an issue not synced yet only outside a bucket", async () => {
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('pin', 'Pin', ?) RETURNING id", Date.now());
+    const conn = async (host: string) =>
+      (await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, encrypted_secret, created_at) VALUES (?, 'jira', ?, 'me', 'x', ?) RETURNING id", u.id, `https://${host}`, Date.now()))[0].id;
+    const a = await conn("pin-a.example");
+    const b = await conn("pin-b.example");
+    for (const [c, key] of [[a, "AAA-1"], [b, "BBB-1"]] as const) {
+      await q(
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, assignee_id, url, synced_at) VALUES (?, ?, ?, ?, 's', 'To Do', ?, ?, 'me', 'u', ?)",
+        u.id, c, `id-${key}`, key, key.slice(0, 3), key.slice(0, 3), Date.now(),
+      );
+    }
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await getDb().select().from(users).where(eq(users.id, u.id));
+    const device: Caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null, deviceId: "device-pin-1" });
+    await device.pinboard.add({ issueKey: "AAA-1", connectionId: a });
+    await device.pinboard.add({ issueKey: "BBB-1", connectionId: b });
+    await device.pinboard.add({ issueKey: "AAA-404", connectionId: a });
+    await device.pinboard.add({ note: "free" });
+
+    const shown = async (connectionId?: number) => {
+      const scope = connectionId ? { connectionId } : undefined;
+      const list = (await device.pinboard.list(scope)).map((n) => n.issueKey ?? "free").sort();
+      const [board] = await device.pinboard.boards(scope);
+      expect(board.count).toBe(list.length);
+      return list;
+    };
+    expect(await shown()).toEqual(["AAA-1", "AAA-404", "BBB-1", "free"]);
+    expect(await shown(b)).toEqual(["BBB-1", "free"]);
+    // An issue not synced here yet still belongs to its tracker.
+    expect(await shown(a)).toEqual(["AAA-1", "AAA-404", "free"]);
+    const { id } = await device.buckets.save({ name: "B only", sources: [{ connectionId: b, containerId: null }] });
+    await device.buckets.setActive({ id });
+    expect(await shown()).toEqual(["BBB-1", "free"]);
+    expect(await shown(a)).toEqual(["free"]);
+    // What the filter keeps out is counted apart, never lost: 4 post-its, 2 shown.
+    expect((await device.pinboard.boards())[0]).toMatchObject({ count: 2, hidden: 2, bucket: null });
+    await device.buckets.setActive({ id: null });
+    expect((await device.pinboard.boards())[0]).toMatchObject({ count: 4, hidden: 0 });
+  });
+});
+
+describe("pinboards for one bucket, or for every bucket", () => {
+  type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
+  const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
+  let device: Caller;
+  let other: Caller;
+  let conn = 0;
+
+  beforeAll(async () => {
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const caller = async (name: string, deviceId: string) => {
+      const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES (?, ?, ?) RETURNING id", name, name, Date.now());
+      const [user] = await getDb().select().from(users).where(eq(users.id, u.id));
+      return { id: u.id, caller: appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null, deviceId }) };
+    };
+    const me = await caller("scoped", "device-scope-1");
+    device = me.caller;
+    other = (await caller("intruder", "device-scope-2")).caller;
+    conn = (await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, encrypted_secret, created_at) VALUES (?, 'jira', 'https://scope.example', 'me', 'x', ?) RETURNING id", me.id, Date.now()))[0].id;
+  });
+
+  const names = async (c: Caller) => (await c.pinboard.boards()).map((b) => `${b.name}${b.bucket ? `@${b.bucket.name}` : ""}`);
+
+  it("under a bucket only its boards and the shared ones show; without one, all, with where they belong", async () => {
+    const work = await device.buckets.save({ name: "Work", sources: [{ connectionId: conn, containerId: null }] });
+    const home = await device.buckets.save({ name: "Home", sources: [{ connectionId: conn, containerId: null }] });
+    const [first] = await device.pinboard.boards();
+    await device.buckets.setActive({ id: work.id });
+    // A new board belongs to the device's bucket by default; null asks for every bucket.
+    const sprint = await device.pinboard.createBoard({ name: "Sprint" });
+    await device.pinboard.createBoard({ name: "Ideas", bucketId: null });
+    await device.buckets.setActive({ id: home.id });
+    const garden = await device.pinboard.createBoard({ name: "Garden" });
+    expect(await names(device)).toEqual([`${first.name}`, "Ideas", "Garden@Home"]);
+    await device.buckets.setActive({ id: work.id });
+    expect(await names(device)).toEqual([`${first.name}`, "Sprint@Work", "Ideas"]);
+    await device.buckets.setActive({ id: null });
+    expect(await names(device)).toEqual([`${first.name}`, "Sprint@Work", "Ideas", "Garden@Home"]);
+
+    // A board of another bucket asked by id (a stale choice on this device) gives the first one shown.
+    await device.buckets.setActive({ id: work.id });
+    expect((await device.pinboard.add({ boardId: garden.id, note: "rake" })).boardId).toBe(first.id);
+    expect((await device.pinboard.list({ boardId: garden.id })).map((n) => n.note)).toContain("rake");
+    await device.buckets.setActive({ id: null });
+    expect((await device.pinboard.list({ boardId: garden.id })).map((n) => n.note)).not.toContain("rake");
+
+    // Moving between scopes, and a deleted bucket leaving its boards to every bucket.
+    await device.pinboard.setBoardScope({ id: garden.id, bucketId: null });
+    await device.pinboard.setBoardScope({ id: sprint.id, bucketId: home.id });
+    expect(await names(device)).toEqual([`${first.name}`, "Sprint@Home", "Ideas", "Garden"]);
+    await device.buckets.delete({ id: home.id });
+    expect(await names(device)).toEqual([`${first.name}`, "Sprint", "Ideas", "Garden"]);
+  });
+
+  it("a board's bucket must be the user's own", async () => {
+    const mine = await device.buckets.save({ name: "Mine", sources: [{ connectionId: conn, containerId: null }] });
+    const [theirs] = await other.pinboard.boards();
+    await expect(other.pinboard.setBoardScope({ id: theirs.id, bucketId: mine.id })).rejects.toThrow(/Bucket not found/);
+    await expect(other.pinboard.createBoard({ name: "Spy", bucketId: mine.id })).rejects.toThrow(/Bucket not found/);
+    const [board] = await device.pinboard.boards();
+    await expect(other.pinboard.setBoardScope({ id: board.id, bucketId: null })).rejects.toThrow(/not found/i);
+  });
+});
