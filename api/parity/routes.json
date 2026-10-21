@@ -1,0 +1,15 @@
+[
+  "*",
+  "/",
+  "/board",
+  "/info",
+  "/install",
+  "/invite/:token",
+  "/issues",
+  "/issues/:connectionId/:remoteId",
+  "/issues/:key",
+  "/login",
+  "/reports",
+  "/settings/:section?",
+  "/timesheet"
+]

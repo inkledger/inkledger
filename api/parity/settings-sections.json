@@ -1,0 +1,132 @@
+{
+  "categories": [
+    {
+      "id": "account",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "connections",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "buckets",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "clients",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "users",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageUsers"
+    },
+    {
+      "id": "schedule",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "timers",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "notifications",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "appearance",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "links",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "backup",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageBackups"
+    },
+    {
+      "id": "servers",
+      "nativeOnly": true,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
+      "id": "devices",
+      "nativeOnly": true,
+      "desktopOnly": true,
+      "permission": "manageServer"
+    },
+    {
+      "id": "store",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageStore"
+    },
+    {
+      "id": "permissions",
+      "nativeOnly": true,
+      "desktopOnly": false,
+      "permission": null
+    }
+  ],
+  "legacy": [
+    [
+      "aspetto",
+      "appearance"
+    ],
+    [
+      "dispositivi",
+      "devices"
+    ],
+    [
+      "extras",
+      "store"
+    ],
+    [
+      "link",
+      "links"
+    ],
+    [
+      "notifiche",
+      "notifications"
+    ],
+    [
+      "orario",
+      "schedule"
+    ],
+    [
+      "permessi",
+      "permissions"
+    ],
+    [
+      "server",
+      "servers"
+    ],
+    [
+      "timer",
+      "timers"
+    ]
+  ]
+}

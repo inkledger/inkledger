@@ -30,6 +30,7 @@
     "db:generate": "drizzle-kit generate",
     "user:reset": "tsx api/cli.ts reset-password",
     "catalog:matrix": "tsx api/providers/catalogMatrixCli.ts",
+    "parity:update": "tsx api/parity/cli.ts",
     "db:check": "drizzle-kit check"
   },
   "dependencies": {

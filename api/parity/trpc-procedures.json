@@ -1,0 +1,742 @@
+[
+  {
+    "path": "auth.acceptInvite",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.activate",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.changePassword",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.forget",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.invite",
+    "type": "query"
+  },
+  {
+    "path": "auth.login",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.logout",
+    "type": "mutation"
+  },
+  {
+    "path": "auth.me",
+    "type": "query"
+  },
+  {
+    "path": "auth.remembered",
+    "type": "query"
+  },
+  {
+    "path": "auth.resume",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.get",
+    "type": "query"
+  },
+  {
+    "path": "backup.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.run",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.update",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.delete",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.list",
+    "type": "query"
+  },
+  {
+    "path": "buckets.reorder",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.save",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.setActive",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.setBoardMode",
+    "type": "mutation"
+  },
+  {
+    "path": "buckets.sources",
+    "type": "query"
+  },
+  {
+    "path": "buckets.statuses",
+    "type": "query"
+  },
+  {
+    "path": "clients.delete",
+    "type": "mutation"
+  },
+  {
+    "path": "clients.list",
+    "type": "query"
+  },
+  {
+    "path": "clients.save",
+    "type": "mutation"
+  },
+  {
+    "path": "clients.suggestions",
+    "type": "query"
+  },
+  {
+    "path": "connections.addJira",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.allowWrites",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.archive",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.catalog",
+    "type": "query"
+  },
+  {
+    "path": "connections.connectToken",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.containers",
+    "type": "query"
+  },
+  {
+    "path": "connections.githubPoll",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.githubStart",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.list",
+    "type": "query"
+  },
+  {
+    "path": "connections.reconnectJira",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.reconnectToken",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.rename",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.setExcluded",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.setOption",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.setWebhook",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.standIn",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.test",
+    "type": "mutation"
+  },
+  {
+    "path": "connections.webhook",
+    "type": "query"
+  },
+  {
+    "path": "info.addHosts",
+    "type": "mutation"
+  },
+  {
+    "path": "info.get",
+    "type": "query"
+  },
+  {
+    "path": "info.setAccess",
+    "type": "mutation"
+  },
+  {
+    "path": "issueNotes.add",
+    "type": "mutation"
+  },
+  {
+    "path": "issueNotes.list",
+    "type": "query"
+  },
+  {
+    "path": "issueNotes.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "issueNotes.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "issueNotes.update",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.addComment",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.all",
+    "type": "query"
+  },
+  {
+    "path": "issues.allSize",
+    "type": "query"
+  },
+  {
+    "path": "issues.assign",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.assignable",
+    "type": "query"
+  },
+  {
+    "path": "issues.attachments",
+    "type": "query"
+  },
+  {
+    "path": "issues.cleanup",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.comments",
+    "type": "query"
+  },
+  {
+    "path": "issues.createIn",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.createTargets",
+    "type": "query"
+  },
+  {
+    "path": "issues.createTypes",
+    "type": "query"
+  },
+  {
+    "path": "issues.description",
+    "type": "query"
+  },
+  {
+    "path": "issues.edit",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.get",
+    "type": "query"
+  },
+  {
+    "path": "issues.history",
+    "type": "query"
+  },
+  {
+    "path": "issues.import",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.labelOptions",
+    "type": "query"
+  },
+  {
+    "path": "issues.list",
+    "type": "query"
+  },
+  {
+    "path": "issues.locate",
+    "type": "query"
+  },
+  {
+    "path": "issues.manageable",
+    "type": "query"
+  },
+  {
+    "path": "issues.markSeen",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.open",
+    "type": "query"
+  },
+  {
+    "path": "issues.otherFields",
+    "type": "query"
+  },
+  {
+    "path": "issues.remoteLinks",
+    "type": "query"
+  },
+  {
+    "path": "issues.reorderFavorites",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.search",
+    "type": "query"
+  },
+  {
+    "path": "issues.searchOn",
+    "type": "query"
+  },
+  {
+    "path": "issues.setHidden",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.setLabels",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.sync",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.syncConnection",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.syncStatus",
+    "type": "query"
+  },
+  {
+    "path": "issues.toggleFavorite",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.transition",
+    "type": "mutation"
+  },
+  {
+    "path": "issues.transitions",
+    "type": "query"
+  },
+  {
+    "path": "issues.watch",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.acceptToken",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.activate",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.activation",
+    "type": "query"
+  },
+  {
+    "path": "modules.deactivate",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.exportLicense",
+    "type": "query"
+  },
+  {
+    "path": "modules.exportProgress",
+    "type": "query"
+  },
+  {
+    "path": "modules.fileDelete",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.fileGet",
+    "type": "query"
+  },
+  {
+    "path": "modules.filePut",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.geocode",
+    "type": "query"
+  },
+  {
+    "path": "modules.historyDaily",
+    "type": "query"
+  },
+  {
+    "path": "modules.importProgress",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.list",
+    "type": "query"
+  },
+  {
+    "path": "modules.offlineCode",
+    "type": "query"
+  },
+  {
+    "path": "modules.removeLicense",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.setEnabled",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.storageDelete",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.storageGet",
+    "type": "query"
+  },
+  {
+    "path": "modules.storageSet",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.totals",
+    "type": "query"
+  },
+  {
+    "path": "modules.uninstall",
+    "type": "mutation"
+  },
+  {
+    "path": "modules.weather",
+    "type": "query"
+  },
+  {
+    "path": "notifications.count",
+    "type": "query"
+  },
+  {
+    "path": "notifications.createTest",
+    "type": "mutation"
+  },
+  {
+    "path": "notifications.dismiss",
+    "type": "mutation"
+  },
+  {
+    "path": "notifications.dismissAll",
+    "type": "mutation"
+  },
+  {
+    "path": "notifications.list",
+    "type": "query"
+  },
+  {
+    "path": "outbox.discard",
+    "type": "mutation"
+  },
+  {
+    "path": "outbox.list",
+    "type": "query"
+  },
+  {
+    "path": "outbox.retry",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.add",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.boards",
+    "type": "query"
+  },
+  {
+    "path": "pinboard.createBoard",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.deleteBoard",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.link",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.list",
+    "type": "query"
+  },
+  {
+    "path": "pinboard.pinNote",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.renameBoard",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.setBoardScope",
+    "type": "mutation"
+  },
+  {
+    "path": "pinboard.update",
+    "type": "mutation"
+  },
+  {
+    "path": "ping",
+    "type": "query"
+  },
+  {
+    "path": "queries.clearRecent",
+    "type": "mutation"
+  },
+  {
+    "path": "queries.delete",
+    "type": "mutation"
+  },
+  {
+    "path": "queries.list",
+    "type": "query"
+  },
+  {
+    "path": "queries.save",
+    "type": "mutation"
+  },
+  {
+    "path": "queries.used",
+    "type": "mutation"
+  },
+  {
+    "path": "reports.daily",
+    "type": "query"
+  },
+  {
+    "path": "reports.generate",
+    "type": "query"
+  },
+  {
+    "path": "settings.get",
+    "type": "query"
+  },
+  {
+    "path": "settings.update",
+    "type": "mutation"
+  },
+  {
+    "path": "sinks.activities",
+    "type": "query"
+  },
+  {
+    "path": "sinks.map",
+    "type": "mutation"
+  },
+  {
+    "path": "sinks.mappings",
+    "type": "query"
+  },
+  {
+    "path": "sinks.push",
+    "type": "mutation"
+  },
+  {
+    "path": "sinks.targets",
+    "type": "query"
+  },
+  {
+    "path": "sinks.unmap",
+    "type": "mutation"
+  },
+  {
+    "path": "stats.dashboard",
+    "type": "query"
+  },
+  {
+    "path": "store.catalog",
+    "type": "query"
+  },
+  {
+    "path": "store.checkout",
+    "type": "mutation"
+  },
+  {
+    "path": "store.dismiss",
+    "type": "mutation"
+  },
+  {
+    "path": "store.install",
+    "type": "mutation"
+  },
+  {
+    "path": "store.pending",
+    "type": "query"
+  },
+  {
+    "path": "store.requestLicense",
+    "type": "mutation"
+  },
+  {
+    "path": "store.restoreLicense",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.discard",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.heartbeat",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.list",
+    "type": "query"
+  },
+  {
+    "path": "timers.pause",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.setNote",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.start",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.stop",
+    "type": "mutation"
+  },
+  {
+    "path": "timers.trim",
+    "type": "mutation"
+  },
+  {
+    "path": "users.invite",
+    "type": "mutation"
+  },
+  {
+    "path": "users.list",
+    "type": "query"
+  },
+  {
+    "path": "users.reinvite",
+    "type": "mutation"
+  },
+  {
+    "path": "users.resetPassword",
+    "type": "mutation"
+  },
+  {
+    "path": "users.setAccess",
+    "type": "mutation"
+  },
+  {
+    "path": "users.setDisabled",
+    "type": "mutation"
+  },
+  {
+    "path": "weeks.close",
+    "type": "mutation"
+  },
+  {
+    "path": "weeks.list",
+    "type": "query"
+  },
+  {
+    "path": "weeks.reopen",
+    "type": "mutation"
+  },
+  {
+    "path": "weeks.status",
+    "type": "query"
+  },
+  {
+    "path": "workSchedule.list",
+    "type": "query"
+  },
+  {
+    "path": "workSchedule.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "workSchedule.save",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.create",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.delete",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.list",
+    "type": "query"
+  },
+  {
+    "path": "worklogs.reimport",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.resolveConflict",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.syncIssue",
+    "type": "mutation"
+  },
+  {
+    "path": "worklogs.team",
+    "type": "query"
+  },
+  {
+    "path": "worklogs.trash",
+    "type": "query"
+  },
+  {
+    "path": "worklogs.update",
+    "type": "mutation"
+  }
+]
