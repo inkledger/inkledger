@@ -57,6 +57,9 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
     await dialog.waitFor({ state: "detached" });
     await page.getByText("Time entry updated").first().waitFor();
     assert.deepEqual(await entries(db), [{ connection_id: github, comment: "edited", time_spent_seconds: 60 }]);
+    // The copy ends now and never starts before midnight: a few minutes into the day at least.
+    const sinceMidnight = Date.now() - todayAt(0, 0);
+    if (sinceMidnight < 3 * 60_000) await page.waitForTimeout(3 * 60_000 - sinceMidnight);
     await page.getByRole("button", { name: /^Duplicate .* to today$/ }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Duplicate" }).click();
     await page.getByText("1 worklog duplicated to today").waitFor();
