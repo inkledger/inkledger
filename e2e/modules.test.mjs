@@ -290,7 +290,16 @@ test("on a phone a module gets a row in More and a dock on the tab bar that cove
     const bar = await page.getByRole("navigation", { name: "Quick sections" }).boundingBox();
     const d = await dock.boundingBox();
     assert.ok(d.y + d.height <= bar.y + 1, JSON.stringify({ d, bar }));
-    // The page's last row scrolls clear of the docked control.
+    // The page's last row scrolls clear of the docked control. The shell (and the dock) is up
+    // before the page has drawn all it reads: scroll to the end once the page stops growing.
+    await page.locator("main h1").first().waitFor();
+    let height = -1;
+    for (let i = 0; i < 20; i++) {
+      const now = await page.evaluate(() => document.body.scrollHeight);
+      if (now === height) break;
+      height = now;
+      await page.waitForTimeout(150);
+    }
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     const main = await page.locator("main").boundingBox();
     const docked = await dock.boundingBox();
