@@ -153,6 +153,25 @@ describe("worklog registry against any service, through the contract", () => {
     expect(await q("SELECT started FROM worklogs WHERE id = ?", w.id)).toEqual([{ started: w.started.getTime() + shift }]);
   });
 
+  it("an entry the service keeps by day only comes in at 09:00 in the connection's zone, whatever the server's", async () => {
+    const { b, conn } = await setup();
+    const { syncEntries } = await import("./worklogs");
+    await b.worklogs!.create!(meta, ref, { time: { kind: "session", start: Date.UTC(2026, 9, 21, 12) as never, seconds: 900 }, comment: "by day" }, { idempotencyKey: "by-day" });
+    const byDay = {
+      ...b,
+      worklogs: {
+        ...b.worklogs!,
+        changed: async (m: typeof meta, q: Parameters<NonNullable<typeof b.worklogs>["changed"] & object>[1]) => {
+          const p = await b.worklogs!.changed!(m, q);
+          return { ...p, items: p.items.map((x) => ({ ...x, span: { kind: "date" as const, date: "2026-10-21" as never, seconds: x.span.seconds } })) };
+        },
+      },
+    } as typeof b;
+    await syncEntries(byDay, conn, { since: null, meta, budget: unlimited, zone });
+    const [row] = await q<{ started: number }>("SELECT started FROM worklogs WHERE comment = 'by day'");
+    expect(new Date(row.started).toISOString()).toBe("2026-10-21T07:00:00.000Z");
+  });
+
   it("changed on both sides: kept here, the service's version beside it (conflict); unchanged here: the service wins; locked there: said", async () => {
     const { b, conn, fake } = await setup();
     const { pushCreate, syncEntries } = await import("./worklogs");

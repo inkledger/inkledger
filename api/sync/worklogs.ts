@@ -8,7 +8,7 @@
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
-import { instant, localDateOf, type TimeZone } from "@contracts/values";
+import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import type { BoundTracker, CallMeta } from "../providers/core/bind";
@@ -125,11 +125,7 @@ export async function pushDelete(b: BoundTracker, conn: Pick<Connection, "id">, 
 
 /** A date entry's start: 09:00 in the connection's zone (only its day is known). */
 function startOf(span: RemoteWorklog["span"], zone: TimeZone): Date {
-  if (span.kind === "session") return new Date(span.start);
-  const [y, m, d] = span.date.split("-").map(Number);
-  const guess = Date.UTC(y, m - 1, d, 9);
-  const offset = new Date(guess).getTime() - new Date(new Date(guess).toLocaleString("en-US", { timeZone: zone })).getTime();
-  return new Date(guess + offset);
+  return new Date(span.kind === "session" ? span.start : instantAtLocal(span.date, 9, zone));
 }
 
 /** Two entries are the same time: same length, starts within a minute (a create whose answer was lost, read back). */

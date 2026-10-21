@@ -69,6 +69,29 @@ export function localDateOf(at: Instant, zone: TimeZone): LocalDate {
   return localDate(new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at)));
 }
 
+/** How far a zone's clocks are from UTC at an instant (Rome in summer: +2 h), in ms. */
+function zoneOffsetMs(at: number, zone: TimeZone): number {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      .formatToParts(new Date(at))
+      .map((x) => [x.type, Number(x.value)]),
+  ) as Record<string, number>;
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(at / 1000) * 1000;
+}
+
+/**
+ * The instant a wall-clock hour of a day has in a zone (09:00 in Rome that
+ * day), the same whatever zone this process runs in. An hour a clock change
+ * skips lands an hour later; one it repeats is the first.
+ */
+export function instantAtLocal(day: LocalDate, hour: number, zone: TimeZone): Instant {
+  const [y, m, d] = day.split("-").map(Number);
+  const wall = Date.UTC(y, m - 1, d) + hour * 3_600_000;
+  // The offset where the wall time falls, read twice: once at a guess, then at the answer (DST).
+  const guess = wall - zoneOffsetMs(wall, zone);
+  return instant(wall - zoneOffsetMs(guess, zone));
+}
+
 /** A JSON value (what may be kept from a service's payload). */
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
 
