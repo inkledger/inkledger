@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/app/States";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LanSharing } from "@/components/settings/LanSharing";
 import { DeviceAccess } from "@/components/settings/DeviceAccess";
+import { surface } from "@/components/app/surface";
 
 /**
  * Desktop app: add a phone or another computer. Steps and a QR to the
@@ -68,11 +69,13 @@ export function DevicesSection() {
               </Step>
             </Steps>
             <figure className="grid justify-items-center gap-2 self-start">
-              <QrCode
-                value={link}
-                label={t("settings.lan.qrLabel", { url: link })}
-                className="h-44 w-44"
-              />
+              <span {...surface("picture")} className="flex rounded-lg">
+                <QrCode
+                  value={link}
+                  label={t("settings.lan.qrLabel", { url: link })}
+                  className="h-44 w-44"
+                />
+              </span>
               <figcaption className="text-caption text-muted-foreground">
                 {t("settings.lan.scan")}
               </figcaption>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { surface } from "@/components/app/surface";
 import { Send } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { initials, relativeTime } from "@/lib/initials";
@@ -108,7 +109,7 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
                   icon={false}
                   className="h-9 w-9"
                 />
-                <div className="min-w-0 flex-1 rounded-xl border bg-background px-3.5 py-2.5">
+                <div {...surface("card")} className="min-w-0 flex-1 rounded-xl border bg-background px-3.5 py-2.5">
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-semibold">{c.author}</span>
                     {c.isMine && <Chip>{t("views.issue.comments.you")}</Chip>}

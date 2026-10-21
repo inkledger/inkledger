@@ -10,6 +10,7 @@ import { useSettingsSaving } from "@/hooks/useSettingsForm";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 /**
  * Settings as a menu of categories and one category at a time (like the
@@ -120,6 +121,7 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
     <NavLink
       to={`/settings/${c.id}`}
       aria-current={active ? "page" : undefined}
+      {...surface("nav", { current: true, edge: false })}
       className={cn(
         "group flex min-w-0 items-center gap-3 rounded-md px-3 py-2 outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/40",
         active && "lg:bg-primary-soft lg:text-primary-strong"
@@ -127,6 +129,7 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
     >
       <span
         aria-hidden
+        {...surface("picture")}
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground",
           active && "lg:bg-card lg:text-primary-strong"

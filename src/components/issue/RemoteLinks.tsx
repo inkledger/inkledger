@@ -1,4 +1,5 @@
 import { Link2 } from "lucide-react";
+import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
 import { PanelSection } from "@/components/app/Panel";
 import { ExternalLink } from "@/components/app/ExternalLink";
@@ -17,7 +18,7 @@ export function RemoteLinks({ issueKey, connectionId }: { issueKey: string; conn
       <ul className="grid gap-2">
         {links.data.map(l => (
           <li key={l.id} className="flex min-w-0 items-start gap-2.5">
-            <span aria-hidden className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <span aria-hidden {...surface("picture")} className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
               <Link2 className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0">

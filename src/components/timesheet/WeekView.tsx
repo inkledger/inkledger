@@ -8,6 +8,7 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
 import { Meter } from "@/components/app/Meter";
+import { surface } from "@/components/app/surface";
 import { goalTone } from "@/lib/goalTone";
 import { t, dateFormat } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
@@ -54,6 +55,7 @@ export function DayProgress({
       pending={pendingSeconds}
       running={pending?.running}
       tone={goalTone(pct)}
+      lit
       label={label}
       valueNow={pct}
     />
@@ -108,6 +110,7 @@ export function WeekView({
         return (
           <li
             key={day.key}
+            {...(entries.length === 0 && !isToday ? surface("glass") : surface("card"))}
             className={cn(
               "flex min-w-0 flex-col rounded-xl border p-2.5",
               isToday
@@ -162,6 +165,7 @@ export function WeekView({
                     type="button"
                     onClick={() => onAdd(day.date)}
                     aria-label={t("views.timesheet.week.logOn", { label })}
+                    {...surface("glass")}
                     className="flex h-16 w-full items-center justify-center rounded-lg border border-dashed border-transparent text-muted-foreground/60 transition-colors hover:border-border hover:bg-card/60 hover:text-foreground focus-visible:border-border"
                   >
                     <Plus className="h-4 w-4" aria-hidden />
@@ -174,6 +178,7 @@ export function WeekView({
                 return (
                   <li
                     key={w.id}
+                    {...surface("card")}
                     className="min-w-0 rounded-xl border bg-card p-2"
                   >
                     <div className="flex items-center gap-1.5">

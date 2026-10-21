@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
+    // surface: none — a sunk field: it never casts
     <textarea
       data-slot="textarea"
       className={cn(

@@ -40,6 +40,8 @@ function Tab({ to }: { to: string }) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }}
       className={({ isActive }) => cn(CELL, isActive && ACTIVE)}
+      // Stands out only while it is the current page (aria-current, set by NavLink).
+      {...surface("nav", { current: true, edge: false })}
     >
       <span className="relative">
         <Icon className="h-5 w-5" aria-hidden />
@@ -47,6 +49,7 @@ function Tab({ to }: { to: string }) {
           <span
             aria-hidden
             className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-primary-strong ring-2 ring-canvas"
+            {...surface("chip")}
           />
         )}
       </span>
@@ -130,7 +133,7 @@ export function MobileTabBar() {
       <nav
         aria-label={t("ui.layout.tabBar")}
         data-tab-bar
-        {...surface("ground")}
+        {...surface("glass")}
         className={cn(
           "fixed inset-x-0 bottom-0 z-30 border-t bg-canvas/90 backdrop-blur lg:hidden [html[data-keyboard]_&]:hidden",
           "pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
@@ -154,6 +157,7 @@ export function MobileTabBar() {
             aria-current={inMore ? "page" : undefined}
             onClick={() => setMoreOpen(true)}
             className={cn(CELL, inMore && ACTIVE)}
+            {...surface("nav", { current: true, edge: false })}
           >
             <Ellipsis className="h-5 w-5" aria-hidden />
             <span className="max-w-full truncate">{t("ui.layout.more")}</span>

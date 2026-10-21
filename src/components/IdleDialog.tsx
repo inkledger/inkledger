@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { dateFormat, t } from "@/i18n";
 import { issueId } from "@/lib/issues";
+import { surface } from "@/components/app/surface";
 
 const time = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 
@@ -45,7 +46,7 @@ export function IdleDialog() {
     <Dialog open onOpenChange={o => !o && dismiss()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+          <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong" {...surface("picture")}>
             <Coffee className="h-5 w-5" aria-hidden />
           </span>
           <DialogTitle>{t("ui.idle.title", { duration: formatDuration(away.seconds) })}</DialogTitle>

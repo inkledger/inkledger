@@ -1,4 +1,5 @@
 import { attachmentUrl } from "@/lib/attachments";
+import { surface, surfaceFace } from "@/components/app/surface";
 import { useId, useRef, useState } from "react";
 import {
   File as FileIcon,
@@ -60,6 +61,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
   return (
     <div className="grid gap-4">
       <div
+        {...surface("glass")}
         onDragOver={e => {
           e.preventDefault();
           setDragging(true);
@@ -106,7 +108,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
             aria-valuemin={0}
             aria-valuemax={100}
           >
-            <Meter value={progress} max={100} animate />
+            <Meter value={progress} max={100} animate lit />
             <p className="mt-1 text-caption text-muted-foreground tabular">
               {progress}%
             </p>
@@ -138,8 +140,9 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
             const Icon = iconFor(a.mimeType);
             const isImage = a.mimeType.startsWith("image/") && a.hasThumbnail;
             return (
-              <li key={a.id}>
+              <li key={a.id} {...surface("card", { role: "wrap" })} className="rounded-xl">
                 <button
+                  {...surfaceFace()}
                   type="button"
                   onClick={() => setViewing(index)}
                   aria-label={t("views.issue.attachments.open", { name: a.filename })}

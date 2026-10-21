@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { surface, surfaceFace } from "@/components/app/surface";
 import { issueId } from "@/lib/issues";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { t } from "@/i18n";
@@ -86,8 +87,10 @@ export function FocusMode() {
   return (
     <>
       <Dialog open={open} onOpenChange={focusMode.set}>
+        {/* surface: none — full screen, not a floating box */}
         <DialogContent
           showCloseButton={false}
+          cast={false}
           aria-describedby={undefined}
           className="left-0 top-0 flex h-full w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-canvas p-0 shadow-none sm:max-w-none data-[state=open]:zoom-in-100"
         >
@@ -135,7 +138,8 @@ function FocusOverlay({ onPip }: { onPip?: () => void }) {
 
       <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 pb-10">
         {timer ? (
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="w-full max-w-xl rounded-2xl shadow-sm" {...surface("card", { elevation: 2, role: "wrap" })}>
+            <div className="overflow-hidden rounded-2xl border bg-card" {...surfaceFace()}>
             <div className={cn("grain h-28", coverClass(timer.issueKey))} />
             <div className="-mt-10 grid justify-items-center gap-5 px-6 pb-8 text-center">
               <GoalRing issueKey={timer.issueKey} />
@@ -156,6 +160,7 @@ function FocusOverlay({ onPip }: { onPip?: () => void }) {
                 inputClassName="border py-2 text-center text-body-sm"
               />
               <FocusActions issueKey={timer.issueKey} connectionId={timer.connectionId} />
+            </div>
             </div>
           </div>
         ) : (
@@ -264,7 +269,7 @@ function GoalRing({ issueKey }: { issueKey: string }) {
   const p = pending.pending / scale;
 
   return (
-    <div className="relative h-56 w-56 rounded-full bg-card p-2 shadow-sm">
+    <div className="relative h-56 w-56 rounded-full bg-card p-2 shadow-sm" {...surface("card")}>
       <svg
         viewBox="0 0 200 200"
         className="h-full w-full -rotate-90"

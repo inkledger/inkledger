@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Tone = "ok" | "warn" | "off" | "info";
 
@@ -200,7 +201,7 @@ function PermissionRow({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border p-3">
+    <div {...surface("card")} className="rounded-lg border p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">{title}</span>
         <span

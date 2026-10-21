@@ -129,6 +129,7 @@ export function NotificationItem({
           style.tone
         )}
         aria-hidden
+        {...surface("picture")}
       >
         <Icon className="h-4 w-4" />
       </span>

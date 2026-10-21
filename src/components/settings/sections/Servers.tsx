@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
 
@@ -194,7 +195,7 @@ function ProfileRow({
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate font-medium">{p.name}</span>
             {inUse && (
-              <span className="shrink-0 rounded-full bg-primary-soft px-2 text-caption font-medium text-primary-strong">
+              <span {...surface("chip")} className="shrink-0 rounded-full bg-primary-soft px-2 text-caption font-medium text-primary-strong">
                 {t("settings.servers.inUse")}
               </span>
             )}

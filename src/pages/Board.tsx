@@ -19,6 +19,7 @@ import { statusCategoryDotTone } from "@/lib/jira";
 import { cn } from "@/lib/utils";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { recentFinished } from "@/lib/boardDone";
+import { surface } from "@/components/app/surface";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelSection } from "@/components/app/Panel";
 import { Input } from "@/components/ui/input";
@@ -393,6 +394,7 @@ export default function Board() {
         >
           <button
             type="button"
+            {...surface("control")}
             onClick={() => toggleCollapsed(col.id)}
             title={t("pages.board.expandTitle", { status: col.title })}
             aria-label={t("pages.board.expandLabel", { status: col.title, count: items.length })}
@@ -423,7 +425,7 @@ export default function Board() {
         )}
         {...dropHandlers}
       >
-        <div className="mb-2 flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
+        <div {...surface("card")} className="mb-2 flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
           {dot}
           <h2 className="truncate">{col.title}</h2>
           <span className="text-muted-foreground tabular">{items.length}</span>
@@ -447,10 +449,10 @@ export default function Board() {
         </div>
         <div
           data-scroll-key={`board-col-${col.id}`}
-          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-y-auto max-lg:max-h-[70dvh]"
+          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-y-auto -mx-2 px-2 max-lg:max-h-[70dvh]"
         >
           {shown.length === 0 && (
-            <div className="grid justify-items-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center text-caption text-muted-foreground">
+            <div {...surface("glass")} className="grid justify-items-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center text-caption text-muted-foreground">
               <span aria-hidden className="block h-10 w-12">
                 <Illustration kind="inbox" className="origin-top-left scale-50" />
               </span>
@@ -529,6 +531,7 @@ export default function Board() {
                   key={lane.connectionId ?? "all"}
                   type="button"
                   role="tab"
+                  {...surface("control", { on, edge: false })}
                   id={`board-tab-${lane.connectionId}`}
                   aria-selected={on}
                   aria-controls="board-lane"
@@ -567,7 +570,7 @@ export default function Board() {
               {lane.columns.map(renderColumn)}
               {mode === "custom" && unmapped.length > 0 && (
                 <section aria-label={t("pages.board.unmapped")} className="flex min-w-[280px] flex-1 basis-0 flex-col rounded-xl opacity-80">
-                  <div className="mb-2 rounded-lg border border-dashed px-2.5 py-1.5 text-body-sm font-medium text-muted-foreground">
+                  <div {...surface("glass")} className="mb-2 rounded-lg border border-dashed px-2.5 py-1.5 text-body-sm font-medium text-muted-foreground">
                     {t("pages.board.unmapped")} <span className="tabular">{unmapped.length}</span>
                   </div>
                   <div className="grid content-start gap-2">
@@ -698,6 +701,7 @@ export default function Board() {
           {panel === "closed" ? (
             <button
               type="button"
+              {...surface("control")}
               onClick={() => pinboardPanel.set("open")}
               aria-label={t("pages.board.openPinboardLabel", { count: pinned })}
               title={t("pages.board.openPinboardTitle")}

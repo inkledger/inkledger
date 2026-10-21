@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Source = { connectionId: number; containerId: number | null };
 type BoardMode = "lanes" | "category" | "custom";
@@ -78,6 +79,7 @@ function ColumnsEditor({ connectionIds, columns, onChange }: { connectionIds: nu
                 <label key={s.status} className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-2 text-body-sm">
                   <span className="truncate">{s.status}</span>
                   <select
+                    {...surface("control")}
                     className="h-8 rounded-md border bg-background px-2 text-body-sm"
                     aria-label={t("settings.buckets.statusColumn", { status: s.status })}
                     value={where(conn, s.status)}
@@ -96,9 +98,9 @@ function ColumnsEditor({ connectionIds, columns, onChange }: { connectionIds: nu
           );
         })}
       {columns.length > 0 && (
-        <div aria-label={t("settings.buckets.preview")} className="flex gap-2 overflow-x-auto rounded-lg border bg-muted/30 p-2">
+        <div aria-label={t("settings.buckets.preview")} {...surface("ground")} className="flex gap-2 overflow-x-auto rounded-lg border bg-muted/30 p-2">
           {columns.map((col, i) => (
-            <div key={i} className="min-w-28 flex-1 rounded-md border bg-card p-1.5">
+            <div key={i} {...surface("card")} className="min-w-28 flex-1 rounded-md border bg-card p-1.5">
               <p className="truncate text-caption font-semibold">{col.name}</p>
               <ul className="mt-1 grid gap-0.5 text-caption text-muted-foreground">
                 {Object.entries(col.statuses).flatMap(([conn, list]) => list.map(s => <li key={`${conn}:${s}`} className="truncate">{s}</li>))}
@@ -179,7 +181,7 @@ function BucketForm({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       </div>
       <div className="grid gap-2">
         <Label htmlFor="bucket-board">{t("settings.buckets.boardMode")}</Label>
-        <select id="bucket-board" className="h-9 rounded-md border bg-background px-2 text-body-sm" value={boardMode} onChange={e => setBoardMode(e.target.value as BoardMode)}>
+        <select id="bucket-board" {...surface("control")} className="h-9 rounded-md border bg-background px-2 text-body-sm" value={boardMode} onChange={e => setBoardMode(e.target.value as BoardMode)}>
           <option value="lanes">{t("pages.board.modeLanes")}</option>
           <option value="category">{t("pages.board.modeCategory")}</option>
           <option value="custom">{t("pages.board.modeCustom")}</option>

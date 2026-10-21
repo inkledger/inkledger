@@ -1,4 +1,5 @@
 import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
 import { issuePath } from "@/lib/issues";
 import { useConnections } from "@/hooks/useConnections";
@@ -42,6 +43,7 @@ function WhichIssue({ issueKey, candidates }: { issueKey: string; candidates: { 
           <li key={c.connectionId}>
             <Link
               to={issuePath({ key: c.key, connectionId: c.connectionId, remoteId: c.remoteId })}
+              {...surface("card")}
               className="block rounded-lg border bg-card p-3 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             >
               <span className="block truncate text-body-sm font-medium">{c.summary}</span>

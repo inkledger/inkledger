@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MODULE_TERMS_URL } from "@contracts/store";
 import { ExternalLink } from "@/components/app/ExternalLink";
 import { formatPrice, nameOf, type Locale } from "./format";
+import { surface } from "@/components/app/surface";
 
 /** The request and payment steps of the product sheet. */
 
@@ -38,7 +39,7 @@ export function PanelHeader({
           {t("settings.store.back")}
         </Button>
       )}
-      <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+      <span {...surface("picture")} className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <SheetTitle className="font-display text-title">{title}</SheetTitle>
@@ -202,6 +203,7 @@ export function PayPanel({ entry, locale, onBack }: { entry: StoreEntry; locale:
               <label
                 key={m.id}
                 data-method={m.id}
+                {...surface("control", { on: method === m.id })}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border p-3 transition-colors",
                   m.available ? "cursor-pointer hover:bg-muted/60" : "cursor-not-allowed opacity-60",

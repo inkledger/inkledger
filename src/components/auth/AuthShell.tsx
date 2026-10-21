@@ -30,6 +30,7 @@ export function AuthShell({ heading, intro, children, footer }: { heading: strin
         </div>
       </aside>
       <main className="flex items-center justify-center py-4 lg:p-8">
+        {/* surface: none — outside the app stage */}
         <div className="w-full max-w-md rounded-xl border bg-card p-6">
           <div className="mb-4 flex justify-end">
             <LanguagePicker />

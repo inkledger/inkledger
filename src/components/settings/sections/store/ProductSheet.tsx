@@ -28,6 +28,7 @@ import { ModuleSlot } from "@/modules/ModuleHost";
 import { useModuleOffers } from "@/modules/context";
 import { loc, nameOf, type Locale } from "./format";
 import { PriceTag } from "./PriceTag";
+import { surface } from "@/components/app/surface";
 
 const ICONS: Record<StoreIcon, LucideIcon> = {
   carrot: Carrot,
@@ -134,7 +135,7 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
                 const Icon = ICONS[h.icon];
                 return (
                   <li key={n} className="flex gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+                    <span {...surface("picture")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
                       <Icon className="h-4 w-4" aria-hidden />
                     </span>
                     <span className="min-w-0">

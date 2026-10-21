@@ -708,6 +708,7 @@ export default function IssueDetail({
           />
           {pct !== null && (
             <Meter
+              lit
               value={pct}
               max={100}
               tone={pct >= 100 ? "bg-danger" : "bg-primary"}

@@ -44,6 +44,17 @@ export const SURFACES = {
     floating: false,
     cost: "low",
   },
+  note: {
+    about: "A paper note on the pinboard: its curled-paper shadow is part of the drawing, so nothing adds another",
+    cast: true,
+    maxElevation: 1,
+    shape: "rect",
+    effects: [],
+    translucent: false,
+    bakedShadow: true,
+    floating: false,
+    cost: "low",
+  },
   bar: {
     about: "A data bar, block or meter on a chart or timeline",
     cast: true,

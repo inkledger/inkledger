@@ -16,6 +16,7 @@ import { Chip } from "@/components/app/Chip";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 /**
  * Base colour picker: everything else (primary, neutrals tint, chart accents,
@@ -157,6 +158,7 @@ export function ThemeColorPicker() {
               type="button"
               role="radio"
               aria-checked={active}
+              {...surface("control")}
               title={p.name}
               onClick={() => choose(p.hex)}
               className={cn(
@@ -186,6 +188,7 @@ export function ThemeColorPicker() {
           <label htmlFor={`${id}-pick`} className="text-caption font-medium">
             {t("settings.theme.custom")}
           </label>
+          {/* surface: none — colour input is a sunk field */}
           <input
             id={`${id}-pick`}
             type="color"
@@ -226,7 +229,8 @@ export function ThemeColorPicker() {
       </div>
 
       {/* Live sample of the derived palette */}
-      <div aria-hidden className="overflow-hidden rounded-xl border bg-card">
+      <div aria-hidden {...surface("card", { role: "wrap" })} className="rounded-xl">
+      <div {...surfaceFace()} className="overflow-hidden rounded-xl border bg-card">
         <div className="grain cover-sunset h-14" />
         <div className="grid gap-3 p-4">
           <div className="flex items-center gap-2">
@@ -235,28 +239,32 @@ export function ThemeColorPicker() {
             <Chip variant="dot" tone="info">
               {t("settings.theme.sampleNormal")}
             </Chip>
-            <span className="ml-auto rounded-md bg-action px-2.5 py-1 text-caption font-medium text-action-foreground">
+            <span {...surface("control")} className="ml-auto rounded-md bg-action px-2.5 py-1 text-caption font-medium text-action-foreground">
               {t("settings.theme.sampleLog")}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-3/5 rounded-full bg-primary" />
+          <div {...surface("bar", { role: "wrap" })} className="h-2 rounded-full">
+            <div {...surfaceFace()} className="h-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-3/5 rounded-full bg-primary" />
+            </div>
           </div>
           <div className="flex h-8 gap-1.5">
-            <span className="flex-[5] rounded-md bg-chart-focus" />
-            <span className="stripes-pending flex-[2] rounded-md" />
-            <span className="flex-[3] rounded-md bg-chart-other" />
-            <span className="flex-[2] rounded-md bg-chart-break" />
+            <span {...surface("bar")} className="flex-[5] rounded-md bg-chart-focus" />
+            <span {...surface("glass")} className="stripes-pending flex-[2] rounded-md" />
+            <span {...surface("bar")} className="flex-[3] rounded-md bg-chart-other" />
+            <span {...surface("bar")} className="flex-[2] rounded-md bg-chart-break" />
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[0, 2, 4].map(n => (
               <span
                 key={n}
+                {...surface("picture")}
                 className={cn("grain h-10 rounded-lg", `cover-${n}`)}
               />
             ))}
           </div>
         </div>
+      </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

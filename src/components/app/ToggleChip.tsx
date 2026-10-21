@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 /**
  * Tonal on/off chip (aria-pressed): duration presets (`md`) and view
@@ -17,6 +18,8 @@ export function ToggleChip({
     <button
       type="button"
       aria-pressed={pressed}
+      // Stands out when it has a ground of its own: pressed, or the small filters' (always opaque).
+      {...surface("control", { on: pressed || size === "sm" })}
       className={cn(
         "rounded-md border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
         size === "md"

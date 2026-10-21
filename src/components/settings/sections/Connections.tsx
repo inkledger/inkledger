@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Shown = inferRouterOutputs<AppRouter>["connections"]["list"][number];
 
@@ -324,6 +325,7 @@ function AddDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
                   <button
                     type="button"
                     disabled={!ready}
+                    {...surface("control")}
                     onClick={() => c.how && setPicked({ type: c.type, name: c.name, how: c.how, asksAddress: c.asksAddress, verified: c.status !== "experimental" })}
                     className="flex w-full flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-default disabled:opacity-55 disabled:hover:bg-transparent"
                   >
@@ -414,9 +416,9 @@ function SinkMappings({ id }: { id: number }) {
           </li>
         ))}
       </ul>
-      <div className="grid gap-2 rounded-lg border p-2">
+      <div {...surface("card")} className="grid gap-2 rounded-lg border p-2">
         <Label htmlFor={`sink-container-${id}`} className="text-caption">{t("settings.connections.sink.for")}</Label>
-        <select id={`sink-container-${id}`} className="h-8 rounded-md border bg-background px-2 text-body-sm" value={container ?? ""} onChange={e => setContainer(e.target.value ? Number(e.target.value) : null)}>
+        <select id={`sink-container-${id}`} {...surface("control")} className="h-8 rounded-md border bg-background px-2 text-body-sm" value={container ?? ""} onChange={e => setContainer(e.target.value ? Number(e.target.value) : null)}>
           <option value="">{t("settings.connections.sink.everything")}</option>
           {(mappings.data?.containers ?? []).map(x => (
             <option key={x.id} value={x.id}>
@@ -427,7 +429,7 @@ function SinkMappings({ id }: { id: number }) {
         {activities.data && activities.data.items.length > 0 && (
           <>
             <Label htmlFor={`sink-activity-${id}`} className="text-caption">{t("settings.connections.sink.activity")}</Label>
-            <select id={`sink-activity-${id}`} className="h-8 rounded-md border bg-background px-2 text-body-sm" value={activity ?? ""} onChange={e => setActivity(e.target.value || null)}>
+            <select id={`sink-activity-${id}`} {...surface("control")} className="h-8 rounded-md border bg-background px-2 text-body-sm" value={activity ?? ""} onChange={e => setActivity(e.target.value || null)}>
               {activities.data.required === "no" && <option value="">—</option>}
               {activities.data.items.map(a => (
                 <option key={a.id} value={a.id}>
@@ -612,14 +614,14 @@ function ConnectionCard({ c, onReconnect }: { c: Shown; onReconnect: () => void 
   const title = c.label || c.host;
   return (
     <li className="flex items-center gap-3 py-3">
-      <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+      <span aria-hidden {...surface("picture")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
         <Plug className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-body-sm font-medium">
           {title}
           <span className="ml-2 text-caption font-normal text-muted-foreground">{c.name}</span>
-          {!c.verified && <span className="ml-2 rounded-sm bg-warning-soft px-1.5 py-0.5 text-caption font-medium text-warning">{t("settings.connections.badgeUnverified")}</span>}
+          {!c.verified && <span {...surface("chip")} className="ml-2 rounded-sm bg-warning-soft px-1.5 py-0.5 text-caption font-medium text-warning">{t("settings.connections.badgeUnverified")}</span>}
         </p>
         <p className="truncate text-caption text-muted-foreground">
           {[

@@ -39,6 +39,7 @@ import { SettingsDisclosure } from "@/components/settings/SettingsGroup";
 import { weekSeconds } from "@/lib/weekSeconds";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const hhmm = (min: number) =>
   `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
@@ -250,6 +251,7 @@ export function WorkScheduleEditor() {
                     {d.breaks.map((b, k) => (
                       <span
                         key={k}
+                        {...surface("chip")}
                         className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5"
                       >
                         <span className="text-caption text-muted-foreground">

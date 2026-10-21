@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { dateFormat, t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Account = inferRouterOutputs<AppRouter>["users"]["list"][number];
 type Access = { role: Role; permissions: Permission[] };
@@ -86,7 +87,11 @@ function HandOver({ shown, onClose }: { shown: { title: string; hint: string; va
               </Button>
             </div>
             {/* A link to open on a phone: its camera reads it (the server sends no mail). */}
-            {shown.qr && <QrCode value={shown.value} label={shown.title} className="mx-auto mt-2 h-44 w-44" />}
+            {shown.qr && (
+              <span {...surface("picture")} className="mx-auto mt-2 flex w-fit rounded-lg">
+                <QrCode value={shown.value} label={shown.title} className="h-44 w-44" />
+              </span>
+            )}
           </>
         )}
       </DialogContent>

@@ -1,4 +1,5 @@
 import { AlertTriangle, CloudOff, Lock } from "lucide-react";
+import { surface } from "@/components/app/surface";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Chip } from "@/components/app/Chip";
@@ -50,7 +51,7 @@ export function WorklogSinkState({ worklogId, sink, provider }: { worklogId: num
         </span>
       )}
       {sink.state === "conflict" && sink.remote && (
-        <div role="group" aria-label={t("views.worklogSink.conflictLabel")} className="mt-1 grid w-full gap-1.5 rounded-lg border border-warning/40 bg-warning/5 p-2 text-body-sm">
+        <div role="group" aria-label={t("views.worklogSink.conflictLabel")} {...surface("glass")} className="mt-1 grid w-full gap-1.5 rounded-lg border border-warning/40 bg-warning/5 p-2 text-body-sm">
           <p className="flex items-center gap-1.5 font-medium">
             <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
             {t("views.worklogSink.conflict", { provider })}

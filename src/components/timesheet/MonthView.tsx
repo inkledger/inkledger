@@ -2,6 +2,7 @@ import { formatDuration } from "@contracts/time";
 import { cn } from "@/lib/utils";
 import type { TimesheetLog } from "./WeekView";
 import { Meter } from "@/components/app/Meter";
+import { surface } from "@/components/app/surface";
 import { goalTone } from "@/lib/goalTone";
 import { t, dateFormat } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
@@ -27,7 +28,7 @@ type Props = {
 
 function Fill({ seconds, target }: { seconds: number; target: number }) {
   const pct = target > 0 ? (seconds / target) * 100 : 0;
-  return <Meter value={seconds} max={target} tone={goalTone(pct)} size="xs" />;
+  return <Meter value={seconds} max={target} tone={goalTone(pct)} size="xs" lit />;
 }
 
 export function MonthView({
@@ -53,6 +54,7 @@ export function MonthView({
                 <button
                   type="button"
                   onClick={() => onOpenDay(c.date)}
+                  {...surface("control")}
                   className={cn(
                     "flex w-full flex-col gap-1.5 rounded-xl border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                     c.key === todayKey &&
@@ -98,6 +100,7 @@ export function MonthView({
                 key={c.key}
                 type="button"
                 onClick={() => onOpenDay(c.date)}
+                {...surface("control", { on: c.inMonth })}
                 aria-label={`${long().format(c.date)}: ${
                   total > 0 ? formatDuration(total) : t("views.timesheet.month.noEntries")
                 }`}

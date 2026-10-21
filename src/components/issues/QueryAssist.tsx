@@ -1,4 +1,5 @@
 import { formatQuery, parseQuery, type QueryExpr, type QueryTerm } from "@contracts/query";
+import { surface } from "@/components/app/surface";
 import { fieldCompletions } from "@/lib/queryAssist";
 import { ToggleChip } from "@/components/app/ToggleChip";
 import { t, useLocale } from "@/i18n";
@@ -45,6 +46,7 @@ export function QueryAssist({ value, onChange }: { value: string; onChange: (val
               role="option"
               aria-selected={false}
               onClick={() => complete(n)}
+              {...surface("chip")}
               className="rounded-md border bg-card px-2 py-0.5 text-caption font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             >
               {n}:

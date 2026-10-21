@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 /**
  * Info: this server's addresses, the apps it offers, and how to reach it
@@ -109,7 +110,7 @@ export default function Info() {
 function Address({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground" {...surface("picture")}>
         {icon}
       </span>
       <div className="min-w-0 flex-1">

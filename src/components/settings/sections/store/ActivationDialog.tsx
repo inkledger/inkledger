@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dateFormat, t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const day = () => dateFormat({ dateStyle: "medium" });
 
@@ -77,9 +78,11 @@ export function ActivationDialog({ product, name, open, onOpenChange }: { produc
               </div>
             )}
             {code.data && (
-              <div className="grid gap-2 rounded-lg border p-3">
+              <div {...surface("card")} className="grid gap-2 rounded-lg border p-3">
                 <p className="text-caption text-muted-foreground">{t("settings.store.activation.offlineHint", { page: code.data.page })}</p>
-                <QrCode value={code.data.code} label={t("settings.store.activation.code")} className="mx-auto h-40 w-40" />
+                <span {...surface("picture")} className="mx-auto flex w-fit rounded-lg">
+                  <QrCode value={code.data.code} label={t("settings.store.activation.code")} className="h-40 w-40" />
+                </span>
                 <Textarea readOnly value={code.data.code} aria-label={t("settings.store.activation.code")} className="text-caption" rows={3} />
                 <Textarea value={pasted} onChange={e => setPasted(e.target.value)} placeholder={t("settings.store.activation.pastePlaceholder")} aria-label={t("settings.store.activation.paste")} rows={3} />
                 <Button size="sm" disabled={pasted.trim().length < 10 || accept.isPending} onClick={() => accept.mutate({ product, token: pasted })}>

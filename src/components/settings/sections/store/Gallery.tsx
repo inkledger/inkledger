@@ -4,6 +4,7 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Lightbox } from "./Lightbox";
 import { StoreImage } from "./StoreImage";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 export type Slide = { src?: string; caption: string };
 
@@ -43,7 +44,8 @@ export function Gallery({ slides }: { slides: Slide[] }) {
       onPointerLeave={() => setHover(false)}
       className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className="relative aspect-[16/10] overflow-hidden rounded-xl border bg-muted">
+      <div {...surface("card", { role: "wrap" })} className="rounded-xl">
+      <div {...surfaceFace()} className="relative aspect-[16/10] overflow-hidden rounded-xl border bg-muted">
         {slides.map((s, n) => (
           <button
             key={n}
@@ -59,7 +61,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
             )}
           >
             <StoreImage src={s.src} alt={n === i ? s.caption : ""} className="h-full w-full" />
-            <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+            <span {...surface("glass")} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/85 text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
               <Expand className="h-4 w-4" aria-hidden />
             </span>
           </button>
@@ -68,7 +70,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
           <>
             <GalleryArrow side="left" onClick={() => go(-1)} />
             <GalleryArrow side="right" onClick={() => go(1)} />
-            <span className="absolute bottom-2 right-2 rounded-md bg-background/85 px-1.5 text-caption tabular text-muted-foreground">
+            <span {...surface("glass")} className="absolute bottom-2 right-2 rounded-md bg-background/85 px-1.5 text-caption tabular text-muted-foreground">
               {t("settings.store.gallery.position", { n: i + 1, total: slides.length })}
             </span>
           </>
@@ -85,6 +87,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
           />
         )}
       </div>
+      </div>
       <p className="mt-2 min-h-5 text-body-sm text-muted-foreground" aria-live={autoplay && !paused ? "off" : "polite"}>
         {slides[i]?.caption}
       </p>
@@ -97,6 +100,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
               aria-label={t("settings.store.gallery.show", { n: n + 1 })}
               aria-current={n === i}
               onClick={() => setIndex(n)}
+              {...surface("control")}
               className={cn(
                 "shrink-0 overflow-hidden rounded-md border-2 transition-opacity",
                 n === i ? "border-primary" : "border-transparent opacity-70 hover:opacity-100"
@@ -119,6 +123,7 @@ function GalleryArrow({ side, onClick }: { side: "left" | "right"; onClick: () =
       type="button"
       aria-label={t(side === "left" ? "settings.store.gallery.prev" : "settings.store.gallery.next")}
       onClick={onClick}
+      {...surface("glass")}
       className={cn(
         "absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm transition-colors hover:bg-background",
         side === "left" ? "left-2" : "right-2"

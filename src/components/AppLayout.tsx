@@ -482,6 +482,7 @@ function MobileBell() {
         <span
           aria-hidden
           className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary-strong"
+          {...surface("chip")}
         />
       )}
     </Button>
@@ -532,7 +533,7 @@ export function AppLayout() {
 
         {/* Phones and tablets: sections and the timer live in the tab bar;
             the header keeps what is reached from anywhere. */}
-        <header {...surface("ground")} className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
+        <header {...surface("glass")} className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
           <Link
             to="/"
             aria-label={t("ui.layout.homeLink")}

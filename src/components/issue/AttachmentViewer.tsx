@@ -1,4 +1,5 @@
 import { attachmentUrl } from "@/lib/attachments";
+import { surface } from "@/components/app/surface";
 import {
   ChevronLeft,
   ChevronRight,
@@ -123,7 +124,7 @@ export function AttachmentViewer({
                 </a>
               </Button>
             </div>
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-muted">
+            <div {...surface("ground")} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-muted">
               {kind === "image" ? (
                 <img
                   src={src}

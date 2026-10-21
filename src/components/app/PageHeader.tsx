@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { surface } from "@/components/app/surface";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { cn } from "@/lib/utils";
 import { BackButton, Breadcrumb } from "@/components/app/Breadcrumb";
@@ -53,6 +54,8 @@ export function PageHeader({
   return (
     <div
       ref={ref}
+      // The sticky header is ground; over the Dashboard backdrop (bg-card/[0.97]) it is near see-through but stays ground.
+      {...surface("ground", { on: sticky })}
       className={cn(
         "flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
         sticky && "lg:sticky lg:top-0 lg:z-20 lg:bg-card",

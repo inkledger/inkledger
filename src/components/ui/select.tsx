@@ -32,6 +32,7 @@ function SelectTrigger({
   size?: "sm" | "default";
 }) {
   return (
+    // surface: none — a sunk field: it never casts
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}

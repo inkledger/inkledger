@@ -55,6 +55,7 @@ export default function Install() {
           </div>
         </header>
 
+        {/* surface: none — outside the app stage */}
         <section className="rounded-xl border bg-card p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="font-medium">{t("pages.install.whichDevice")}</p>

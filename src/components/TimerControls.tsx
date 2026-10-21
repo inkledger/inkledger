@@ -200,7 +200,7 @@ export function TimerWhere({ issueKey, connectionId, className }: { issueKey: st
   if (!timer || timer.state !== "running" || (!timer.heldElsewhere && !timer.orphaned)) return null;
   const device = timer.ownerLabel || t("ui.timer.anotherDevice");
   return (
-    <div role="status" className={cn("grid gap-0.5 rounded-md border bg-muted/50 px-3 py-2 text-body-sm", className)}>
+    <div role="status" {...surface("glass")} className={cn("grid gap-0.5 rounded-md border bg-muted/50 px-3 py-2 text-body-sm", className)}>
       {timer.heldElsewhere ? (
         <>
           <p className="font-medium">

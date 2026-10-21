@@ -1,4 +1,5 @@
 import { Layers, X } from "lucide-react";
+import { surface } from "@/components/app/surface";
 import { useBuckets } from "@/hooks/useBuckets";
 import { t } from "@/i18n";
 
@@ -8,7 +9,7 @@ export function BucketChip() {
   if (!active) return null;
   return (
     <div className="mb-3 flex">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft py-1 pl-2.5 pr-1 text-caption font-medium text-primary-strong">
+      <span {...surface("chip")} className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft py-1 pl-2.5 pr-1 text-caption font-medium text-primary-strong">
         <Layers className="h-3.5 w-3.5" aria-hidden />
         {t("ui.buckets.chip", { name: active.name })}
         <button

@@ -22,6 +22,7 @@ import { loc, nameOf, type Locale } from "./store/format";
 import { PriceTag } from "./store/PriceTag";
 import { ManageBadge } from "./store/ManageBadge";
 import { StoreImage } from "./store/StoreImage";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 const POLL_MS = 10_000;
 const LAYOUT_KEY = "ikl-store-layout";
@@ -161,7 +162,8 @@ export function StoreSection() {
 function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Locale; onOpen: (view: StoreView) => void }) {
   const name = nameOf(e, locale);
   return (
-    <li data-store-item={e.id} className="flex flex-col overflow-hidden rounded-xl border bg-card">
+    <li data-store-item={e.id} {...surface("card", { role: "wrap" })} className="rounded-xl">
+     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-xl border bg-card">
       <button
         type="button"
         onClick={() => onOpen("details")}
@@ -194,6 +196,7 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
           <Action entry={e} locale={locale} onOpen={onOpen} />
         </div>
       </div>
+     </div>
     </li>
   );
 }
@@ -202,7 +205,8 @@ function StoreCard({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
 function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Locale; onOpen: (view: StoreView) => void }) {
   const name = nameOf(e, locale);
   return (
-    <li data-store-item={e.id} className="flex flex-col overflow-hidden rounded-lg border bg-card">
+    <li data-store-item={e.id} {...surface("card", { role: "wrap" })} className="rounded-lg">
+     <div {...surfaceFace()} className="flex h-full flex-col overflow-hidden rounded-lg border bg-card">
       <button
         type="button"
         onClick={() => onOpen("details")}
@@ -229,6 +233,7 @@ function StoreTile({ entry: e, locale, onOpen }: { entry: StoreEntry; locale: Lo
           <Action entry={e} locale={locale} onOpen={onOpen} />
         </div>
       </div>
+     </div>
     </li>
   );
 }
@@ -249,8 +254,8 @@ function LocalCard({
   const hasSettings = useModuleOffers(m.id, "settings");
   const [settings, setSettings] = useState(false);
   return (
-    <li data-store-item={m.id} className={cn("flex items-center gap-3 rounded-xl border bg-card p-4", className)}>
-      <StoreImage className="h-12 w-12 shrink-0 rounded-lg" />
+    <li data-store-item={m.id} {...surface("card")} className={cn("flex items-center gap-3 rounded-xl border bg-card p-4", className)}>
+      <StoreImage picture className="h-12 w-12 shrink-0 rounded-lg" />
       <p className="min-w-0 flex-1">
         <span className="block truncate font-medium">{name}</span>
         <span className="text-caption text-muted-foreground tabular">{t("settings.store.version", { version: m.version })}</span>

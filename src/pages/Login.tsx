@@ -133,6 +133,7 @@ export default function Login() {
     <AuthShell heading={t("pages.login.heading")} intro={t("pages.login.intro")} footer={profilesNav}>
       {who && !manual ? (
         <div className="grid gap-3">
+          {/* surface: none — outside the app stage */}
           <div className="flex items-center gap-3 rounded-lg border p-3">
             <span
               aria-hidden

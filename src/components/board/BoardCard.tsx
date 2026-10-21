@@ -10,6 +10,7 @@ import { priorityLabel, priorityTone } from "@/lib/jira";
 import { relevanceText, issuePath } from "@/lib/issues";
 import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
+import { surface } from "@/components/app/surface";
 import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
 import { t, dateFormat } from "@/i18n";
@@ -79,6 +80,7 @@ export function BoardCard({
   return (
     <div
       draggable
+      {...surface("card")}
       onPointerEnter={onPrefetch}
       onFocus={onPrefetch}
       onTouchStart={() => {

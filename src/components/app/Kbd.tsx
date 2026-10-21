@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 /** A key or shortcut hint: inline in menus and footers, `lg` in the shortcuts list. */
 export function Kbd({
@@ -8,6 +9,7 @@ export function Kbd({
 }: React.ComponentProps<"kbd"> & { size?: "sm" | "lg" }) {
   return (
     <kbd
+      {...surface("chip")}
       className={cn(
         "rounded border bg-muted",
         size === "sm"

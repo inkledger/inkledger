@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { surface } from "@/components/app/surface";
 
 /** Numbered steps (install guides). */
 export function Steps({ children }: { children: ReactNode }) {
@@ -10,6 +11,7 @@ export function Step({ n, title, children }: { n: number; title: string; childre
     <li className="flex gap-3">
       <span
         aria-hidden
+        {...surface("chip")}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-body-sm font-semibold text-primary-strong"
       >
         {n}

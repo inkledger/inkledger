@@ -7,6 +7,7 @@ import { useStartTimer } from "@/hooks/useStartTimer";
 import { SidebarSection } from "@/components/app/SidebarSection";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 /**
  * Favorites in their manual order, one click away: open the issue, or ▶ to
@@ -47,6 +48,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
               to={issuePath(i)}
               onClick={onNavigate}
               title={`${i.key} · ${i.summary}`}
+              {...surface("nav", { current: true, edge: false })}
               className={cn(
                 "flex min-w-0 items-center gap-2 rounded-md py-1 pl-3 pr-8 text-caption text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
                 "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong"

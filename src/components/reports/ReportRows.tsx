@@ -144,6 +144,7 @@ export function ReportRows({
                   max={max}
                   tone="bg-chart-focus"
                   size="lg"
+                  lit
                 />
               </td>
               <td className="whitespace-nowrap py-3 pr-4 font-medium tabular">
@@ -173,6 +174,7 @@ export function ReportRows({
               max={max}
               tone="bg-chart-focus"
               size="lg"
+              lit
             />
           </li>
         ))}

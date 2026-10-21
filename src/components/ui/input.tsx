@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
+    // surface: none — a sunk field: it never casts
     <input
       type={type}
       data-slot="input"

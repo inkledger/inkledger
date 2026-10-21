@@ -9,6 +9,7 @@ import { Step, Steps } from "@/components/app/Steps";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const isLoopback = (host: string) => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(host);
 
@@ -102,7 +103,9 @@ export function LanSharing() {
           </Steps>
           {status.welcome && (
             <figure className="grid justify-items-center gap-2 self-start">
-              <QrCode value={status.welcome} label={t("settings.lan.qrLabel", { url: status.welcome })} className="h-44 w-44" />
+              <span {...surface("picture")} className="flex rounded-lg">
+                <QrCode value={status.welcome} label={t("settings.lan.qrLabel", { url: status.welcome })} className="h-44 w-44" />
+              </span>
               <figcaption className="text-caption text-muted-foreground">{t("settings.lan.scan")}</figcaption>
             </figure>
           )}

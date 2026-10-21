@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Draft = { id?: number; name: string; aliases: string[]; containerIds: number[] };
 
@@ -118,7 +119,7 @@ export function ClientsSection() {
       }
     >
       {asked && suggestions.data && (
-        <div className="mb-4 grid gap-2 rounded-lg border p-3">
+        <div {...surface("card")} className="mb-4 grid gap-2 rounded-lg border p-3">
           <p className="text-body-sm font-medium">{t("settings.clients.suggested")}</p>
           {suggestions.data.length === 0 ? (
             <p className="text-caption text-muted-foreground">{t("settings.clients.noSuggestion")}</p>

@@ -93,6 +93,7 @@ export function IssuePicker({
   return (
     <Popover open={open} onOpenChange={toggle}>
       <PopoverTrigger asChild>
+        {/* surface: none — a sunk field: it never casts */}
         <button
           ref={trigger}
           id={id}

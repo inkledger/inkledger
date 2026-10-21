@@ -50,6 +50,7 @@ import { GoalProgress } from "@/components/dashboard/PeriodSummary";
 import { SectionLabel } from "@/components/app/PageHeader";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 import { toast } from "sonner";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { missingSpans } from "@contracts/workSchedule";
@@ -282,7 +283,7 @@ function DayReviewBody() {
   return (
     <>
       <SheetHeader className="border-b p-5">
-        <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong">
+        <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong" {...surface("picture")}>
           <Sunset className="h-5 w-5" aria-hidden />
         </span>
         <SheetTitle className="font-display text-title">
@@ -331,6 +332,7 @@ function DayReviewBody() {
                       "grid min-w-0 gap-2 rounded-lg border p-3 transition-opacity",
                       (!d.include || st === "done") && "opacity-60"
                     )}
+                    {...surface("card")}
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <Checkbox
@@ -393,7 +395,7 @@ function DayReviewBody() {
                   key={g.start.getTime()}
                   className="flex items-center gap-3 py-2.5"
                 >
-                  <span className="stripes-idle h-8 w-1.5 shrink-0 rounded-full" />
+                  <span className="stripes-idle h-8 w-1.5 shrink-0 rounded-full" {...surface("glass")} />
                   <span className="text-body-sm tabular">
                     {time().format(g.start)} –{" "}
                     {time().format(

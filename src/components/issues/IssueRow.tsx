@@ -23,6 +23,7 @@ import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/app/Chip";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
@@ -226,6 +227,7 @@ function KeyLink({ issue }: { issue: IssueItem }) {
         {issue.unread && (
           <span
             title={t("views.issues.row.newSinceVisit")}
+            {...surface("chip")}
             className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary-strong ring-2 ring-card"
           >
             <span className="sr-only">{t("views.issues.row.news")}</span>

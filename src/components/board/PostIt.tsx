@@ -11,6 +11,7 @@ import { formatDate } from "@contracts/time";
 import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 
@@ -112,6 +113,7 @@ export function PostIt({
       tabIndex={0}
       aria-label={`${isNote && n.issueKey ? t("views.board.postit.noteOn", { key: n.issueKey }) : t("views.board.postit.label", { name: n.issueKey ?? t("views.board.postit.free") })}${body ? `: ${body}` : ""}`}
       data-postit
+      {...surface("note")}
       data-dragging={drag ? "" : undefined}
       className={cn(
         "note-shadow absolute left-0 top-0 touch-none select-none rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2",
@@ -182,7 +184,7 @@ export function PostIt({
         }
       }}
     >
-      {isNote ? <span className="note-pin" aria-hidden /> : <span className="note-tape" data-tone={TONE[color]} aria-hidden />}
+      {isNote ? <span className="note-pin" aria-hidden /> : <span {...surface("glass")} className="note-tape" data-tone={TONE[color]} aria-hidden />}
       <div className="note-paper grain flex h-full flex-col overflow-hidden rounded-sm">
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 pb-2 pt-4">
           {isNote && n.issueKey ? (
@@ -266,6 +268,7 @@ export function PostIt({
               type="button"
               aria-label={t("views.board.postit.tape", { n: i + 1 })}
               aria-pressed={c === color}
+              {...surface("chip")}
               onClick={() => onColor(c)}
               className={cn(
                 "h-3 w-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/40",

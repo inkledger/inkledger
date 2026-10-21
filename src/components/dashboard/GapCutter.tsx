@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { surface } from "@/components/app/surface";
 import { t, dateFormat } from "@/i18n";
 
 const clock = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
@@ -304,6 +305,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
           "relative cursor-crosshair select-none rounded-lg bg-muted outline-none",
           parallel ? "mt-1.5 h-12" : "h-16"
         )}
+        {...surface("ground")}
         onPointerMove={e => {
           const d = drag.current;
           if (d !== null) {
@@ -336,6 +338,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
                 left: `calc(${pct(s.start.getTime())}% + 2px)`,
                 width: `calc(${(s.seconds * 1000 * 100) / total}% - 4px)`,
               }}
+              {...(color ? surface("bar") : surface("glass"))}
             >
               {color && (
                 <span
@@ -410,6 +413,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
       <li
         key={s.start.getTime()}
         className="grid gap-2 rounded-lg border bg-card p-3"
+        {...surface("card")}
       >
         <div className="flex items-center gap-2">
           <span className="text-body-sm tabular">
@@ -480,7 +484,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
           const grows = neighbourOf(p);
           if (grows && p.extend) {
             return (
-              <div className="flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-body-sm">
+              <div className="flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-body-sm" {...surface("control")}>
                 <MoveHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 <ProjectAvatar project={projectOf(grows.issueKey)} size="xs" />
                 <span className="min-w-0 truncate">{extendLabel(p.extend)}</span>
@@ -524,6 +528,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
             "flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-left text-body-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60",
             !p.issueKey && "border-dashed text-muted-foreground"
           )}
+          {...(p.issueKey ? surface("control") : surface("glass"))}
         >
           {p.issueKey ? (
             <>

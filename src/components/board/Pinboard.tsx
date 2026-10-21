@@ -81,6 +81,7 @@ import { ErrorState } from "@/components/app/States";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useProviderName } from "@/hooks/useConnections";
+import { surface } from "@/components/app/surface";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 
@@ -457,7 +458,7 @@ export function Pinboard({
             : t("views.board.pinboard.hiddenByTracker", { count: board.hidden })}
         </p>
       )}
-      <div className="paper-board relative min-h-0 flex-1 overflow-hidden rounded-xl border">
+      <div {...surface("ground")} className="paper-board relative min-h-0 flex-1 overflow-hidden rounded-xl border">
         <div
           ref={scroller}
           tabIndex={0}
@@ -540,8 +541,8 @@ export function Pinboard({
                 }}
               >
                 {!board && boardsQuery.isSuccess && bucket && (
-                  <div className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
-                    <span className="note-tape" aria-hidden />
+                  <div {...surface("note")} className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
+                    <span {...surface("glass")} className="note-tape" aria-hidden />
                     <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
                       <p className="font-display text-heading">{t("views.board.pinboard.noneInBucketTitle", { bucket: bucket.name })}</p>
                       <p className="mt-1 text-body-sm opacity-80">{t("views.board.pinboard.noneInBucketHint")}</p>
@@ -552,8 +553,8 @@ export function Pinboard({
                   </div>
                 )}
                 {board && notes.length === 0 && !list.isPending && (
-                  <div className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
-                    <span className="note-tape" aria-hidden />
+                  <div {...surface("note")} className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
+                    <span {...surface("glass")} className="note-tape" aria-hidden />
                     <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
                       <p className="font-display text-heading">{board?.name ?? t("views.board.pinboard.yourBoard")}</p>
                       <p className="mt-1 text-body-sm opacity-80">
@@ -620,6 +621,7 @@ export function Pinboard({
               />
               <button
                 type="button"
+                {...surface("chip")}
                 onClick={() => reveal(nearest)}
                 aria-label={t("views.board.pinboard.beyondLabel", { count: e.count, edge: edgeLabel(edge) })}
                 title={t("views.board.pinboard.beyond", { count: e.count, edge: edgeLabel(edge) })}
@@ -699,7 +701,7 @@ function BoardItem({ b, current, tag }: { b: { id: number; name: string; count: 
     <DropdownMenuItem onSelect={() => pinboardBoard.set(b.id)}>
       <Check className={cn("h-4 w-4", !current && "opacity-0")} aria-hidden />
       <span className="truncate">{b.name}</span>
-      {tag && <span className="shrink-0 rounded-sm bg-muted px-1 text-caption text-muted-foreground">{tag}</span>}
+      {tag && <span {...surface("chip")} className="shrink-0 rounded-sm bg-muted px-1 text-caption text-muted-foreground">{tag}</span>}
       <span className="ml-auto text-caption text-muted-foreground tabular">{b.count}</span>
     </DropdownMenuItem>
   );

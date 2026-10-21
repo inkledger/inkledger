@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { ModuleSlot } from "@/modules/ModuleHost";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const TILE =
   "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -65,6 +66,7 @@ export function MobileMoreSheet({
                 key={to}
                 to={to}
                 onClick={() => onOpenChange(false)}
+                {...surface("control")}
                 className={cn(
                   TILE,
                   "aria-[current=page]:border-primary/40 aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong"
@@ -82,6 +84,7 @@ export function MobileMoreSheet({
                 // After the sheet lets go of focus, so the pinboard keeps it.
                 requestAnimationFrame(() => togglePinboard(pathname));
               }}
+              {...surface("control")}
               className={TILE}
             >
               <Pin className="h-5 w-5 -rotate-12" aria-hidden />
@@ -95,7 +98,7 @@ export function MobileMoreSheet({
             <SidebarFavorites onNavigate={() => onOpenChange(false)} />
           </div>
 
-          <div className="grid divide-y rounded-xl border bg-card">
+          <div className="grid divide-y rounded-xl border bg-card" {...surface("card")}>
             <button
               type="button"
               onClick={() => sync.mutate()}

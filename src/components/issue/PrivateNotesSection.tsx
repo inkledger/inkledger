@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { surface } from "@/components/app/surface";
 import { useNavigate } from "react-router";
 import { Lock, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -150,7 +151,7 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
             const edited = new Date(n.updatedAt).getTime() - created.getTime() > 60_000;
             const isEditing = editing?.id === n.id;
             return (
-              <li key={n.id} className="note-paper grain rounded-lg px-3.5 py-2.5" data-private-note={n.id}>
+              <li key={n.id} {...surface("card")} className="note-paper grain rounded-lg px-3.5 py-2.5" data-private-note={n.id}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <time
                     dateTime={created.toISOString()}

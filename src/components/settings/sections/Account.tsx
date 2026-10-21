@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 export function AccountSection() {
   const provider = useProviderName();
@@ -60,12 +61,15 @@ export function AccountSection() {
         keywords={`${t("settings.account.profileKeywords")} ${t("settings.account.signInKeywords")}`}
       >
         <div className="flex items-center gap-4">
-          <Avatar className="h-12 w-12">
-            {user?.avatarUrl && <AvatarImage src="/api/me/avatar" alt="" />}
-            <AvatarFallback className="bg-primary-soft font-medium text-primary-strong">
-              {user ? initials(user.displayName) : "?"}
-            </AvatarFallback>
-          </Avatar>
+          {/* The avatar clips its picture: it stands on a wrapper. */}
+          <span {...surface("picture", { role: "wrap" })} className="shrink-0 rounded-full">
+            <Avatar {...surfaceFace()} className="h-12 w-12">
+              {user?.avatarUrl && <AvatarImage src="/api/me/avatar" alt="" />}
+              <AvatarFallback className="bg-primary-soft font-medium text-primary-strong">
+                {user ? initials(user.displayName) : "?"}
+              </AvatarFallback>
+            </Avatar>
+          </span>
           <div className="min-w-0">
             <p className="truncate font-semibold">{user?.displayName ?? "—"}</p>
             <p className="truncate text-body-sm text-muted-foreground">

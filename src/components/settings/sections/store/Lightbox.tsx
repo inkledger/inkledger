@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StoreImage } from "./StoreImage";
 import type { Slide } from "./Gallery";
+import { surface } from "@/components/app/surface";
 
 const SWIPE_PX = 50;
 
@@ -34,6 +35,7 @@ export function Lightbox({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        cast={false}
         aria-roledescription="carousel"
         onCloseAutoFocus={ev => {
           const back = returnTo?.current;
@@ -69,6 +71,7 @@ export function Lightbox({
           )}
           <DialogClose
             aria-label={t("common.close")}
+            {...surface("glass")}
             className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background"
           >
             <X className="h-5 w-5" aria-hidden />
@@ -90,6 +93,7 @@ function Arrow({ side, onClick }: { side: "left" | "right"; onClick: () => void 
       type="button"
       aria-label={t(side === "left" ? "settings.store.gallery.prev" : "settings.store.gallery.next")}
       onClick={onClick}
+      {...surface("glass")}
       className={cn(
         "absolute top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background",
         side === "left" ? "left-3" : "right-3"

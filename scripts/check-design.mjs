@@ -77,6 +77,44 @@ for (const file of walkAll(ROOT)) {
     });
 }
 
+// Every box that stands out (rounded, bordered, opaque or with a shadow) is a
+// surface, so a module drawing on surfaces (Shadow) reaches the whole app: it
+// spreads surface()/surfaceFace() (glass or ground when it must not cast), or
+// says why not on the line above: `// surface: none — <why>`.
+const OPAQUE = /\b(?:bg-(?:card|background|muted|popover|canvas|primary-soft|accent)(?![\w/-])|shadow-(?:xs|sm|md|lg|xl|2xl))/;
+const BORDERED = /(?<![\w-])border(?:-[0-9]|-dashed|-y|-x|-t|-b|-l|-r)?(?![\w-])/;
+const ROUNDED = /\brounded(?:-[a-z0-9[\]]+)?\b/;
+/** The JSX opening tags of a file, with the line each starts on. */
+function* tags(text) {
+  for (const m of text.matchAll(/<([A-Z][\w.]*|[a-z][\w-]*)[\s>]/g)) {
+    let depth = 0;
+    let quote = null;
+    let i = m.index + m[0].length - 1;
+    for (; i < text.length; i++) {
+      const c = text[i];
+      if (quote) {
+        if (c === quote && text[i - 1] !== "\\") quote = null;
+      } else if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0) break;
+    }
+    yield { tag: text.slice(m.index, i + 1), line: text.slice(0, m.index).split("\n").length };
+  }
+}
+for (const file of walkAll(ROOT)) {
+  const text = readFileSync(file, "utf8");
+  const lines = text.split("\n");
+  for (const { tag, line } of tags(text)) {
+    if (!/className=/.test(tag) || /\bsurface(?:Face)?\(/.test(tag)) continue;
+    if (!(ROUNDED.test(tag) && BORDERED.test(tag) && OPAQUE.test(tag))) continue;
+    const above = lines.slice(Math.max(0, line - 3), line - 1).join("\n");
+    if (/surface: none/.test(above)) continue;
+    problems++;
+    console.log(`${relative(process.cwd(), file)}:${line}  a box that stands out without surface()  → surface()/surfaceFace(), or // surface: none — <why>`);
+  }
+}
+
 if (problems > 0) {
   console.log(`\n✖ ${problems} design-system violation(s)`);
   process.exit(1);

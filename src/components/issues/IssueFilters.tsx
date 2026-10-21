@@ -7,6 +7,7 @@ import {
   Star,
   UserX,
 } from "lucide-react";
+import { surface } from "@/components/app/surface";
 import { Input } from "@/components/ui/input";
 import { QueryMenu } from "@/components/issues/QueryMenu";
 import { QueryAssist } from "@/components/issues/QueryAssist";
@@ -105,7 +106,7 @@ export function IssueFilters({
   const hv = filters.hiddenView;
   return (
     // Sticks under the page header while the list scrolls (desktop).
-    <div className="mb-4 grid gap-2.5 lg:sticky lg:top-[var(--page-header-h,0px)] lg:z-10 lg:-mt-2 lg:mb-1 lg:bg-card lg:pb-3 lg:pt-2">
+    <div {...surface("ground")} className="mb-4 grid gap-2.5 lg:sticky lg:top-[var(--page-header-h,0px)] lg:z-10 lg:-mt-2 lg:mb-1 lg:bg-card lg:pb-3 lg:pt-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-full flex-1 sm:min-w-56">
           <Search

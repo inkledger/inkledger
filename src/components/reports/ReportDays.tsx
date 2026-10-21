@@ -4,6 +4,7 @@ import { rowLabel, splitLabel, type ReportRow } from "@/lib/reportLabel";
 import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { Meter } from "@/components/app/Meter";
+import { surface } from "@/components/app/surface";
 import { ReportRows } from "@/components/reports/ReportRows";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
@@ -54,6 +55,7 @@ function DayCard({
   return (
     <section
       aria-label={label}
+      {...surface("card")}
       className="rounded-xl border bg-card px-4 py-3"
     >
       <header className="grid gap-2">
@@ -75,6 +77,7 @@ function DayCard({
           marker={target > 0 ? target : undefined}
           tone="bg-chart-focus"
           size="sm"
+          lit
         />
       </header>
       <ul className="mt-1 divide-y">

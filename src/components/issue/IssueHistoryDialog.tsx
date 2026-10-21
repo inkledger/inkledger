@@ -5,6 +5,7 @@ import {
   Pencil,
   Sparkles,
 } from "lucide-react";
+import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
 import { issueHistory, useIssueHistoryKey } from "@/lib/issueHistory";
 import { relevanceText } from "@/lib/issues";
@@ -101,6 +102,7 @@ function HistoryBody({ issueKey }: { issueKey: string }) {
                 <li key={`${e.kind}-${e.at}-${i}`} className="relative">
                   <span
                     aria-hidden
+                    {...surface("chip")}
                     className={cn(
                       "absolute -left-[1.85rem] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border bg-card text-muted-foreground",
                       i === 0 &&

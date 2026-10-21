@@ -128,6 +128,7 @@ function AlertDialogAction({
 }) {
   return (
     <AlertDialogPrimitive.Action
+      {...surface("control")}
       className={cn(
         buttonVariants({ variant: destructive ? "destructive" : "default" }),
         className
@@ -143,6 +144,7 @@ function AlertDialogCancel({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
   return (
     <AlertDialogPrimitive.Cancel
+      {...surface("control")}
       className={cn(buttonVariants({ variant: "outline" }), className)}
       {...props}
     />

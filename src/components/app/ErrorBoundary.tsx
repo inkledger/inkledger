@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { RotateCcw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 type Props = {
   children: ReactNode;
@@ -42,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
         role="alert"
         className="flex min-h-[60vh] items-center justify-center p-4"
       >
-        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border bg-card px-6 py-8 text-center">
+        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border bg-card px-6 py-8 text-center" {...surface("card")}>
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-primary-strong">
             <TriangleAlert className="h-5 w-5" aria-hidden />
           </span>
