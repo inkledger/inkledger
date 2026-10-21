@@ -813,6 +813,7 @@ export const settings = {
     licensed: "Licensed",
     soon: "Coming soon",
     unsupported: "Needs a newer inkledger",
+    newerNeedsHost: "Newer version: update inkledger to get it",
     needs: {
       webgl2: "Needs WebGL2",
       webgl2Why: "This module is drawn on the graphics card with WebGL2, which this browser or device doesn't offer (or has turned off). Open inkledger in a recent Chrome, Edge, Firefox or Safari with hardware acceleration on to install it.",

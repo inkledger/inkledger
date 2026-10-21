@@ -154,7 +154,8 @@ describe("module store", () => {
     await caller.modules.uninstall({ id: "hello" });
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ installed: null, installedVersion: null, licensed: true });
     expect(await caller.store.install({ product: "inkledger.hello" })).toEqual({ id: "hello", version: "1.0.0" });
-    expect(worker.calls.at(-1)).toMatchObject({ path: "/bundle/inkledger.hello", body: { license: expect.any(String) } });
+    // The store is told what this inkledger runs, to answer with a build that loads here.
+    expect(worker.calls.at(-1)).toMatchObject({ path: "/bundle/inkledger.hello", body: { license: expect.any(String), host: { api: 1, slots: expect.arrayContaining(["sidebar-footer"]) } } });
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ installed: { state: "active" }, installedVersion: "1.0.0", outdated: false });
     await expect(caller.store.install({ product: "inkledger.future" })).rejects.toThrow(/No licence/);
   });
@@ -195,6 +196,31 @@ describe("module store", () => {
     const { forgetCatalog } = await import("./client");
     await forgetCatalog();
     expect((await caller.store.catalog()).entries[0]).toMatchObject({ installedVersion: "1.0.0", outdated: true });
+  });
+
+  it("a rebuild of the same version is an update; the newest build this inkledger runs is the one offered", async () => {
+    const { forgetCatalog } = await import("./client");
+    const { buildOf } = await import("../modules/registry");
+    const installed = buildOf((JSON.parse(bundle()) as { signature: string }).signature);
+    const b = (version: string, build: string, api = 1, slots = ["sidebar-footer"]) => ({ version, hostApi: { min: api, max: api }, slots, build });
+
+    worker.items = [item({ builds: [b("1.0.0", installed)] })];
+    await forgetCatalog();
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ version: "1.0.0", outdated: false, supported: true, needsNewerHost: false });
+
+    worker.items = [item({ builds: [b("1.0.0", "f".repeat(32))] })];
+    await forgetCatalog();
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ version: "1.0.0", outdated: true });
+
+    // 2.0.0 needs host API 2, 1.5.0 a slot this inkledger lacks: 1.0.0 stays, nothing to install.
+    worker.items = [item({ version: "2.0.0", builds: [b("2.0.0", "a".repeat(32), 2), b("1.5.0", "c".repeat(32), 1, ["warp-drive"]), b("1.0.0", installed)] })];
+    await forgetCatalog();
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ version: "1.0.0", outdated: false, supported: true, needsNewerHost: true });
+
+    worker.items = [item({ builds: [b("2.0.0", "a".repeat(32), 2)] })];
+    await forgetCatalog();
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ supported: false, needsNewerHost: true });
+    await forgetCatalog();
   });
 
   it("a declined request is shown until dismissed", async () => {

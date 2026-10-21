@@ -219,10 +219,59 @@ describe("add-on modules", () => {
     expect((await caller.modules.list()).modules[0].status).toMatchObject({ state: "invalid" });
   });
 
-  it("an unsupported host API version is not loaded", async () => {
-    await upload(bundle({ "index.js": ENTRY }, { hostApi: { min: 2, max: 3 } }));
+  it("an unsupported host API version is never installed, and one already there is not loaded", async () => {
+    const future = bundle({ "index.js": ENTRY }, { hostApi: { min: 2, max: 3 } });
+    expect(await (await upload(future)).json()).toEqual({ ok: false, reason: "incompatible-host" });
+    // As an older inkledger left it on disk (the server was downgraded).
+    fs.mkdirSync(path.join(DIR, "hello"));
+    fs.writeFileSync(path.join(DIR, "hello/manifest.json"), JSON.stringify(future.manifest));
+    fs.writeFileSync(path.join(DIR, "hello/manifest.sig"), String(future.signature));
+    fs.writeFileSync(path.join(DIR, "hello/index.js"), ENTRY);
     await (await import("./registry")).addLicense(license("inkledger.hello"));
     expect((await caller.modules.list()).modules[0].status).toEqual({ state: "unsupported-host-api" });
+  });
+
+  it("an update this inkledger can't run never replaces the working module", async () => {
+    await upload(bundle());
+    await (await import("./registry")).addLicense(license("inkledger.hello"));
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { version: "2.0.0", hostApi: { min: 2, max: 2 } }))).json()).toEqual({ ok: false, reason: "incompatible-host" });
+    const [m] = (await caller.modules.list()).modules;
+    expect(m).toMatchObject({ version: "1.0.0", status: { state: "active" } });
+  });
+
+  it("a licence holds for every version of its product, older or newer than when it was bought", async () => {
+    const { addLicense } = await import("./registry");
+    await addLicense(license("inkledger.hello", KEY, { issued: Date.parse("2026-01-01") }));
+    for (const version of ["1.0.0", "2.3.0", "10.0.1"]) {
+      expect(await (await upload(bundle({ "index.js": ENTRY }, { version }), "?force=1")).json()).toMatchObject({ ok: true, version });
+      expect((await caller.modules.list()).modules[0]).toMatchObject({ version, status: { state: "active" } });
+    }
+    expect(await (await upload(bundle(), "?force=1")).json()).toMatchObject({ ok: true, version: "1.0.0" });
+    expect((await caller.modules.list()).modules[0].status).toEqual({ state: "active" });
+  });
+
+  it("a rebuild keeps its version but not its build id", async () => {
+    await upload(bundle());
+    const first = (await caller.modules.list()).modules[0].build;
+    await upload(bundle({ "index.js": `${ENTRY}// fix\n` }));
+    const second = (await caller.modules.list()).modules[0];
+    expect(second.version).toBe("1.0.0");
+    expect(first).toMatch(/^[0-9a-f]{32}$/);
+    expect(second.build).not.toBe(first);
+  });
+
+  it("licence issuers only grow: every key that ever signed a sold licence stays trusted", async () => {
+    const { LICENSE_ISSUERS, LICENSE_KEYS } = await import("./keys");
+    // Fingerprints of the issuer keys shipped so far; a rotation adds, never removes.
+    const shipped = {
+      publisher: "MCowBQYDK2VwAyEA1etNGb4TL2Eeu60uWvKF9YvAvz3s0dXPL/rAhXx7OQQ=",
+      store: "MCowBQYDK2VwAyEAMc/6TUxBGEtXwPo0Bv99lIeWTIRSjAGIjM/5slACI8g=",
+      inbox: "MCowBQYDK2VwAyEAZYHt7yKtYAV5zl3nWxmoyR9LWCXFkjVbCA1GoVGCj/E=",
+    };
+    for (const [name, body] of Object.entries(shipped)) {
+      expect(LICENSE_ISSUERS[name as keyof typeof LICENSE_ISSUERS], name).toContain(body);
+      expect(LICENSE_KEYS.some((k) => k.includes(body)), name).toBe(true);
+    }
   });
 
   it("storage: per module, only while active, with limits", async () => {

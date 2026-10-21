@@ -12,6 +12,7 @@ import {
   SIGNATURE_FILE,
   licensePayloadSchema,
   moduleIdSchema,
+  runsHere,
   moduleManifestSchema,
   type LicensePayload,
   type ModuleListEntry,
@@ -56,8 +57,15 @@ function readTree(dir: string): Files {
 }
 
 export type CheckedPackage =
-  | { ok: true; manifest: ModuleManifest; files: Files; packageHash: string }
+  | { ok: true; manifest: ModuleManifest; files: Files; packageHash: string; build: string }
   | { ok: false; reason: string; id?: string; manifest?: ModuleManifest };
+
+/**
+ * Which build a package is: a rebuild keeps its version (modules stay 1.0.0
+ * in beta) but never its signature. The store computes the same from the
+ * bundle it serves, so "an update is there" needs no version bump.
+ */
+export const buildOf = (signature: string) => sha256hex(Buffer.from(signature.trim())).slice(0, 32);
 
 /** The full check of a package given as bytes (installed folder or upload). */
 export function checkPackage(files: Files, signature: string): CheckedPackage {
@@ -85,7 +93,7 @@ export function checkPackage(files: Files, signature: string): CheckedPackage {
     reserved: RESERVED,
   });
   if (!r.ok) return { ok: false, reason: r.reason, manifest };
-  return { ok: true, manifest, files, packageHash: sha256hex(Buffer.from(canonicalJSON(json))).slice(0, 32) };
+  return { ok: true, manifest, files, packageHash: sha256hex(Buffer.from(canonicalJSON(json))).slice(0, 32), build: buildOf(signature) };
 }
 
 function readInstalled(id: string): CheckedPackage {
@@ -212,6 +220,7 @@ export async function listModules(): Promise<ModuleListEntry[]> {
       status,
       entryUrl: active ? `${MODULES_PATH}/${id}/${checked.packageHash}/${checked.manifest.entry}` : null,
       integrity: active ? integrityOf(checked.files.get(checked.manifest.entry) ?? Buffer.alloc(0)) : null,
+      build: checked.ok ? checked.build : null,
     };
   });
 }
@@ -252,7 +261,9 @@ export const older = (a: string, b: string) => {
 /**
  * Installs an uploaded bundle (seal pack): verified in memory first, then
  * written beside the modules and renamed into place, so a half-written module
- * never exists. An older version than the installed one is refused.
+ * never exists. An older version than the installed one is refused, and so is
+ * one this inkledger cannot run: an update never replaces a working module
+ * with one that would stop.
  */
 export function installBundle(body: string, opts: { allowDowngrade?: boolean } = {}): InstallResult {
   if (Buffer.byteLength(body) > BUNDLE_MAX_BYTES) return { ok: false, reason: "too-large" };
@@ -276,6 +287,7 @@ export function installBundle(body: string, opts: { allowDowngrade?: boolean } =
   const checked = checkPackage(tree, signature);
   if (!checked.ok) return { ok: false, reason: checked.reason };
   const { id, version } = checked.manifest;
+  if (!runsHere(checked.manifest)) return { ok: false, reason: "incompatible-host" };
   const current = readInstalled(id);
   if (current.ok && older(version, current.manifest.version) && !opts.allowDowngrade) {
     return { ok: false, reason: "older-version" };

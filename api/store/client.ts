@@ -1,3 +1,4 @@
+import { HOST_API_VERSION, SLOT_IDS } from "@contracts/modules";
 import { storeCatalogSchema, type PaymentMethod, type StoreItem } from "@contracts/store";
 import { env } from "../lib/env";
 import { getServerSetting, setServerSetting } from "../lib/serverSettings";
@@ -107,10 +108,16 @@ export async function tokenStatus(kind: "request" | "paid", token: string): Prom
 
 /** The signed bundle for whoever holds a licence of the product (reinstall, update). */
 export async function bundleForLicense(product: string, license: string, activation?: string): Promise<string> {
-  return (await postJson(`/bundle/${product}`, { license, ...(activation ? { activation } : {}) })).text();
+  return (await postJson(`/bundle/${product}`, { license, host: HOST, ...(activation ? { activation } : {}) })).text();
 }
 
 /** The signed bundle (.iklmod JSON) for a licensed token. */
 export async function downloadBundle(product: string, token: string): Promise<string> {
-  return (await call(`/download/${product}?token=${encodeURIComponent(token)}`)).text();
+  return (await call(`/download/${product}?token=${encodeURIComponent(token)}&api=${HOST.api}&slots=${HOST.slots.join(",")}`)).text();
 }
+
+/**
+ * What this inkledger runs, sent with every bundle request: the store answers
+ * with the newest build that fits, never one that would not load here.
+ */
+const HOST = { api: HOST_API_VERSION, slots: [...SLOT_IDS] };

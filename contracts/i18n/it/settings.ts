@@ -814,6 +814,7 @@ export const settings: Shape<typeof en> = {
     licensed: "Licenza attiva",
     soon: "In arrivo",
     unsupported: "Serve un inkledger più recente",
+    newerNeedsHost: "Nuova versione: aggiorna inkledger per averla",
     needs: {
       webgl2: "Serve WebGL2",
       webgl2Why: "Questo modulo è disegnato dalla scheda grafica con WebGL2, che questo browser o dispositivo non offre (o ha disattivato). Apri inkledger in un Chrome, Edge, Firefox o Safari recente con l'accelerazione hardware attiva per installarlo.",

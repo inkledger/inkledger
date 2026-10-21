@@ -1,8 +1,8 @@
 import { activateNew, tokenFor } from "../modules/activation";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { HOST_API_VERSION } from "@contracts/modules";
-import { LICENSE_FILE_FORMAT, mediaUrl, type StoreCatalog, type StoreEntry, type StorePending } from "@contracts/store";
+import { runsHere } from "@contracts/modules";
+import { LICENSE_FILE_FORMAT, mediaUrl, pickBuild, type StoreCatalog, type StoreEntry, type StorePending } from "@contracts/store";
 import { t, type MessageKey } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { env } from "../lib/env";
@@ -65,6 +65,13 @@ function storeFailure(e: unknown): never {
 
 const product = z.string().regex(/^inkledger\.[a-z0-9-]+$/);
 
+/**
+ * Whether a build replaces what is installed: a newer version, or the same
+ * version rebuilt (modules stay 1.0.0 in beta, a fix still has to arrive).
+ */
+const isUpdate = (installed: { version: string; build: string | null }, b: { version: string; build: string }) =>
+  older(installed.version, b.version) || (installed.version === b.version && !!b.build && !!installed.build && b.build !== installed.build);
+
 type Settled = { next: Stored | null; installed: boolean };
 
 /** One pending entry against the Worker: installed (gone), kept, updated or dropped. */
@@ -94,16 +101,19 @@ export const storeRouter = createRouter({
     const entries = items.map((item): StoreEntry => {
       const installed = modules.find((m) => m.product === item.product);
       const p = pending.find((x) => x.product === item.product);
+      const { build, newerElsewhere } = pickBuild(item, runsHere, older);
       return {
         ...item,
+        version: build?.version ?? item.version,
         image: item.image ? mediaUrl(item.id, "image") : undefined,
         hero: item.hero ? mediaUrl(item.id, "hero") : undefined,
         gallery: item.gallery?.map((g, i) => ({ src: mediaUrl(item.id, `${i}`), caption: g.caption })),
         installed: installed?.status ?? null,
         installedVersion: installed?.version ?? null,
-        outdated: installed ? older(installed.version, item.version) : false,
+        outdated: !!installed && !!build && isUpdate(installed, build),
         licensed: products.has(item.product),
-        supported: item.hostApi.min <= HOST_API_VERSION && HOST_API_VERSION <= item.hostApi.max,
+        supported: build !== null,
+        needsNewerHost: newerElsewhere,
         pending: p ? publicPending(p) : null,
       };
     });

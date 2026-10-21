@@ -50,6 +50,22 @@ export const storeItemSchema = z.object({
     .optional(),
   gallery: z.array(z.object({ src: z.url(), caption: localized })).max(STORE_GALLERY_MAX).optional(),
   badge: z.enum(["new", "beta", "free"]).optional().catch(undefined),
+  /**
+   * Every published build of the module, newest or not, with what it needs
+   * from the host: each inkledger installs the latest one it can run, so an
+   * update never breaks a module someone paid for. Missing from older stores.
+   */
+  builds: z
+    .array(
+      z.object({
+        version: z.string(),
+        hostApi: z.object({ min: z.number().int(), max: z.number().int() }),
+        slots: z.array(z.string()),
+        build: z.string(),
+      }),
+    )
+    .optional()
+    .catch(undefined),
   // Unknown future requirements are dropped (this inkledger can't check them).
   requires: z
     .array(z.string())
@@ -109,7 +125,20 @@ export type StoreEntry = Omit<StoreItem, "image" | "hero" | "gallery"> & {
   licensed: boolean;
   /** This inkledger can run the module's host API. */
   supported: boolean;
+  /** A newer build exists that needs a newer inkledger (this one keeps the latest it can run). */
+  needsNewerHost: boolean;
   pending: StorePending | null;
 };
+
+export type StoreBuild = NonNullable<StoreItem["builds"]>[number];
+
+/** The newest build this inkledger can run (`runs`), and whether a newer one needs a newer host. */
+export function pickBuild(item: StoreItem, runs: (b: StoreBuild) => boolean, older: (a: string, b: string) => boolean): { build: StoreBuild | null; newerElsewhere: boolean } {
+  const all = item.builds ?? [{ version: item.version, hostApi: item.hostApi, slots: [], build: "" }];
+  const newest = (xs: StoreBuild[]) => xs.reduce<StoreBuild | null>((a, b) => (a && !older(a.version, b.version) ? a : b), null);
+  const build = newest(all.filter(runs));
+  const top = newest(all);
+  return { build, newerElsewhere: !!top && (!build || older(build.version, top.version)) };
+}
 
 export type StoreCatalog = { enabled: boolean; entries: StoreEntry[] };

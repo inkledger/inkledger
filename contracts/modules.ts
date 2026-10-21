@@ -61,6 +61,10 @@ export const licensePayloadSchema = z.object({
 });
 export type LicensePayload = z.infer<typeof licensePayloadSchema>;
 
+/** Whether a manifest runs on this inkledger: its host API range and every slot it names. */
+export const runsHere = (m: { hostApi: { min: number; max: number }; slots: readonly string[] }): boolean =>
+  m.hostApi.min <= HOST_API_VERSION && HOST_API_VERSION <= m.hostApi.max && m.slots.every((s) => (SLOT_IDS as readonly string[]).includes(s));
+
 export type ModuleStatus =
   | { state: "active" }
   | { state: "needs-license" }
@@ -81,6 +85,8 @@ export type ModuleListEntry = {
   entryUrl: string | null;
   /** SRI of the entry ("sha256-…"), only when active. */
   integrity: string | null;
+  /** Which build this is (a rebuild keeps its version): hex of the signature's hash, 32 chars. */
+  build: string | null;
 };
 
 export const MODULES_PATH = "/api/modules";

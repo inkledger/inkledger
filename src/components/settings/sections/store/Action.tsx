@@ -120,6 +120,10 @@ export function Action({
       </Button>
     );
   }
+  // The installed build is the newest this inkledger runs; a newer one waits for an inkledger update.
+  if (e.licensed && e.installed?.state === "active" && e.needsNewerHost) {
+    return both(<Chip variant="dot" tone="neutral">{t("settings.store.newerNeedsHost")}</Chip>);
+  }
   // Active, or licensed but refused: the badge says it and manages it.
   if (e.installed?.state === "active" || e.licensed) return both(null);
   if (!e.supported) return both(<Chip variant="dot" tone="warning">{t("settings.store.unsupported")}</Chip>);
