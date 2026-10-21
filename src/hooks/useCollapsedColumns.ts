@@ -25,25 +25,22 @@ export function useCollapsedColumns(scope?: string) {
       ),
     [all, prefix]
   );
+  // Saves of the list go one after another (a scope of their own): a later one can't
+  // reach the server before an earlier one and be overwritten by it.
   const save = trpc.settings.update.useMutation({
-    onMutate: async ({ collapsedColumns }) => {
-      await utils.settings.get.cancel();
-      const previous = utils.settings.get.getData();
-      if (previous && collapsedColumns)
-        utils.settings.get.setData(undefined, {
-          ...previous,
-          collapsedColumns,
-        });
-      return { previous };
-    },
-    onError: (e, _v, ctx) => {
-      if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
+    scope: { id: "settings.collapsedColumns" },
+    onError: e => {
       toast.error(t("ui.columns.saveFailed", { message: e.message }));
     },
+    // Whatever happened, the server's list is the one shown next.
+    onSettled: () => utils.settings.get.invalidate(),
   });
   const toggle = (column: string) => {
     const id = prefix + column;
-    const next = all.includes(id) ? all.filter(c => c !== id) : [...all, id];
+    // From the latest list (not this render's): two toggles in a row both count.
+    const current = utils.settings.get.getData()?.collapsedColumns ?? all;
+    const next = current.includes(id) ? current.filter(c => c !== id) : [...current, id];
+    utils.settings.get.setData(undefined, prev => (prev ? { ...prev, collapsedColumns: next } : prev));
     save.mutate({ collapsedColumns: next });
   };
   return { collapsed, toggle };

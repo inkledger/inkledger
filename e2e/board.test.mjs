@@ -127,6 +127,37 @@ test("a column collapses and stays collapsed after a reload", () =>
     await page.locator('[data-lane="1"]').getByRole("region", { name: "Fatto", exact: true }).waitFor();
   }));
 
+test("two columns collapsed in a row both stay collapsed, whatever order their saves reach the server", () =>
+  withApp({ seed }, async ({ page, base }) => {
+    await page.addInitScript(() => localStorage.setItem("ikl-board-mode", "lanes"));
+    await page.goto(base + "/board");
+    const lane = page.locator('[data-lane="1"]');
+    await lane.getByRole("button", { name: "Collapse Fatto" }).waitFor();
+    // The first save held on its way: a later one could reach the server before it.
+    let release = () => {};
+    const held = new Promise(r => (release = r));
+    let seen = 0;
+    let first = () => {};
+    const firstSent = new Promise(r => (first = r));
+    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("settings.update"), async route => {
+      if (seen++ === 0) {
+        first();
+        await held;
+      }
+      return route.continue();
+    });
+    await lane.getByRole("button", { name: "Collapse Fatto" }).click();
+    await firstSent;
+    await lane.getByRole("button", { name: "Collapse In corso" }).click();
+    await page.waitForTimeout(500);
+    release();
+    await page.waitForTimeout(1500);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await page.reload();
+    await page.locator('[data-lane="1"]').getByRole("region", { name: "Fatto (collapsed)" }).waitFor();
+    await page.locator('[data-lane="1"]').getByRole("region", { name: "In corso (collapsed)" }).waitFor({ timeout: 3000 });
+  }));
+
 test("by category, and from the card's menu (keyboard, long press): only where its tracker can take it", () =>
   withApp({ seed }, async ({ page, base }) => {
     const sent = [];
