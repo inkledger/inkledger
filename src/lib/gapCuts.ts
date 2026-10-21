@@ -86,3 +86,33 @@ export function withoutCut<P>(lane: Lane<P>, k: number, keep: (p: P) => boolean)
 export function takenSpans<P>(gap: TimeSpan, lanes: Lane<P>[], taken: (p: P) => boolean): TimeSpan[] {
   return lanes.flatMap(l => segments(gap, l.cuts).filter((_, i) => l.pieces[i] !== undefined && taken(l.pieces[i])));
 }
+
+// ---------- Neighbours (extend instead of a tiny new worklog) ----------
+
+/** A worklog next to a hole that can grow into it. */
+export type Neighbour = { id: number; issueKey: string; connectionId: number; start: number; seconds: number; comment: string };
+
+/** Within this, a worklog touches the hole (its pieces are rounded to the minute). */
+const TOUCH_MS = 59_000;
+
+/**
+ * The worklogs a hole could extend: `before` ends where it starts, `after`
+ * starts where it ends (the closest of each, within the tolerance); those
+ * that can't change (locked on their tracker, in conflict) are left out.
+ */
+export function gapNeighbours<W extends Neighbour & { editable: boolean }>(
+  logs: readonly W[],
+  gap: TimeSpan
+): { before: W | null; after: W | null } {
+  const from = gap.start.getTime();
+  const to = endMs(gap);
+  const open = logs.filter(w => w.editable && w.seconds > 0);
+  const closest = (list: W[], at: (w: W) => number, target: number) =>
+    list
+      .filter(w => Math.abs(at(w) - target) <= TOUCH_MS)
+      .sort((a, b) => Math.abs(at(a) - target) - Math.abs(at(b) - target))[0] ?? null;
+  return {
+    before: closest(open, w => w.start + w.seconds * 1000, from),
+    after: closest(open, w => w.start, to),
+  };
+}

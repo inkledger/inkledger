@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Loader2,
+  MoveHorizontal,
   Maximize2,
   Rows2,
   Scissors,
@@ -18,7 +19,7 @@ import { trpc } from "@/lib/trpc";
 import { quickStart, type PickedIssue } from "@/lib/quickStart";
 import { timerLog } from "@/lib/timerLog";
 import { realSeconds } from "@contracts/placement";
-import { addCut, moveCut, segments, takenSpans, withCuts, withoutCut, CUT_JUMP_MS, CUT_STEP_MS, type Lane } from "@/lib/gapCuts";
+import { addCut, moveCut, segments, takenSpans, withCuts, withoutCut, CUT_JUMP_MS, CUT_STEP_MS, type Lane, type Neighbour } from "@/lib/gapCuts";
 import { projectColor, projectOf } from "@/lib/projectColors";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { Kbd } from "@/components/app/Kbd";
@@ -43,7 +44,14 @@ type Piece = {
   connectionId?: number;
   comment: string;
   status: "idle" | "saving" | "done" | "error";
+  /** Instead of a new worklog, the one next to the hole grows into it (first piece: the one before; last: the one after). */
+  extend?: "before" | "after";
 };
+
+type Neighbours = { before: Neighbour | null; after: Neighbour | null };
+const NO_NEIGHBOURS: Neighbours = { before: null, after: null };
+/** A piece that will be logged: on an issue, or by extending a neighbour. */
+const taken = (p: Piece) => !!p.issueKey || !!p.extend;
 
 const blank = (): Piece => ({ issueKey: null, comment: "", status: "idle" });
 const endOf = (s: TimeSpan) => new Date(s.start.getTime() + s.seconds * 1000);
@@ -57,9 +65,12 @@ const endOf = (s: TimeSpan) => new Date(s.start.getTime() + s.seconds * 1000);
  */
 export function GapCutter({
   gap,
+  neighbours = NO_NEIGHBOURS,
   onOpenChange,
 }: {
   gap: TimeSpan | null;
+  /** The worklogs touching the hole, which its first / last piece can extend */
+  neighbours?: Neighbours;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -72,6 +83,7 @@ export function GapCutter({
           <GapCutterBody
             key={gap.start.getTime()}
             gap={gap}
+            neighbours={neighbours}
             onDone={() => onOpenChange(false)}
           />
         )}
@@ -80,7 +92,7 @@ export function GapCutter({
   );
 }
 
-function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
+function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours: Neighbours; onDone: () => void }) {
   const utils = trpc.useUtils();
   const invalidate = useInvalidateWorklogs();
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
@@ -141,8 +153,15 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
     return addCut(gap, cuts, longest.start.getTime() + (longest.seconds * 1000) / 2);
   };
 
+  /** Only the hole's first piece extends the worklog before, only its last the one after (a split or merge moves them). */
+  const keepEnds = (l: Lane<Piece>): Lane<Piece> => ({
+    ...l,
+    pieces: l.pieces.map((p, i) =>
+      (p.extend === "before" && i !== 0) || (p.extend === "after" && i !== l.pieces.length - 1) ? { ...p, extend: undefined } : p
+    ),
+  });
   const setLane = (li: number, f: (l: Lane<Piece>) => Lane<Piece>) =>
-    setLanes(ls => ls.map((l, j) => (j === li ? f(l) : l)));
+    setLanes(ls => ls.map((l, j) => (j === li ? (li === 0 ? keepEnds(f(l)) : f(l)) : l)));
   /** Apply new cuts, splitting / merging the pieces in step. */
   const applyCuts = (li: number, next: number[], focus = false) => {
     if (focus) {
@@ -154,7 +173,7 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
   const removeCut = (li: number, k: number) => {
     if (cutLocked(li, k)) return;
     // The merged piece keeps the left issue, or the right one if the left had none.
-    setLane(li, l => withoutCut(l, k, p => !!p.issueKey));
+    setLane(li, l => withoutCut(l, k, taken));
   };
   const patch = (li: number, i: number, v: Partial<Piece>) =>
     setLane(li, l => ({ ...l, pieces: l.pieces.map((x, k) => (k === i ? { ...x, ...v } : x)) }));
@@ -170,46 +189,77 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
     quickStart.pick(apply, label);
 
   const ready = lanes.flatMap((l, li) =>
-    l.pieces.filter((p, i) => p.issueKey && p.status !== "done" && segsOf(li)[i])
+    l.pieces.filter((p, i) => taken(p) && p.status !== "done" && segsOf(li)[i])
   );
+  const neighbourOf = (p: Piece) => (p.extend ? neighbours[p.extend] : null);
+  /** The sides piece `i` of the hole may extend now (a side another piece took is gone). */
+  const extendable = (li: number, i: number): ("before" | "after")[] => {
+    if (li !== 0) return [];
+    const used = new Set(lanes[0].pieces.flatMap(p => (p.extend ? [p.extend] : [])));
+    const sides: ("before" | "after")[] = [];
+    if (i === 0 && neighbours.before && !used.has("before")) sides.push("before");
+    if (i === segs.length - 1 && neighbours.after && !used.has("after")) sides.push("after");
+    return sides;
+  };
+  const extendLabel = (side: "before" | "after") => {
+    const n = neighbours[side];
+    if (!n) return "";
+    return side === "before"
+      ? t("views.dashboard.gap.extendBefore", { key: n.issueKey, time: clock().format(n.start + n.seconds * 1000) })
+      : t("views.dashboard.gap.extendAfter", { key: n.issueKey, time: clock().format(n.start) });
+  };
   // The hours the hole gets: alone, its assigned pieces; with lanes, their union (parallel work counts once).
   const assigned =
     lanes.length === 1
-      ? segs.reduce((a, s, i) => a + (lanes[0].pieces[i]?.issueKey ? s.seconds : 0), 0)
-      : realSeconds(takenSpans(gap, lanes, p => !!p.issueKey));
+      ? segs.reduce((a, s, i) => a + (lanes[0].pieces[i] && taken(lanes[0].pieces[i]) ? s.seconds : 0), 0)
+      : realSeconds(takenSpans(gap, lanes, taken));
 
-  const logAll = async () => {
+  const logAll = async (from: Lane<Piece>[] = lanes) => {
     setSaving(true);
     let ok = 0;
+    let grown = 0;
     let failed = false;
     const done = new Set(
-      lanes.flatMap((l, li) => l.pieces.flatMap((p, i) => (p.status === "done" ? [`${li}:${i}`] : [])))
+      from.flatMap((l, li) => l.pieces.flatMap((p, i) => (p.status === "done" ? [`${li}:${i}`] : [])))
     );
-    run: for (let li = 0; li < lanes.length; li++) {
-      const laneSegs = segsOf(li);
+    run: for (let li = 0; li < from.length; li++) {
+      const laneSegs = segments(gap, from[li].cuts);
       for (let i = 0; i < laneSegs.length; i++) {
-        const p = lanes[li].pieces[i];
-        if (!p?.issueKey || p.status === "done") continue;
+        const p = from[li].pieces[i];
+        if (!p || !taken(p) || p.status === "done") continue;
         patch(li, i, { status: "saving" });
+        // Whole minutes (Jira's unit), rounded, never under one: a piece
+        // may touch its neighbour by < 30s, within the overlap tolerance.
+        const seconds = Math.max(60, Math.round(laneSegs[i].seconds / 60) * 60);
+        const n = neighbourOf(p);
         try {
-          await utils.client.worklogs.create.mutate({
-            issueKey: p.issueKey,
-            connectionId: p.connectionId,
-            // Whole minutes (Jira's unit), rounded, never under one: a piece
-            // may touch its neighbour by < 30s, within the overlap tolerance.
-            seconds: Math.max(60, Math.round(laneSegs[i].seconds / 60) * 60),
-            started: laneSegs[i].start.toISOString(),
-            comment: p.comment.trim(),
-            fromTimer: false,
-          });
-          ok++;
+          if (n) {
+            // The neighbour grows into the piece: the one before keeps its start, the one after starts earlier; its comment stays.
+            await utils.client.worklogs.update.mutate({
+              id: n.id,
+              seconds: n.seconds + seconds,
+              started: new Date(p.extend === "before" ? n.start : laneSegs[i].start.getTime()).toISOString(),
+              comment: n.comment,
+            });
+            grown++;
+          } else if (p.issueKey) {
+            await utils.client.worklogs.create.mutate({
+              issueKey: p.issueKey,
+              connectionId: p.connectionId,
+              seconds,
+              started: laneSegs[i].start.toISOString(),
+              comment: p.comment.trim(),
+              fromTimer: false,
+            });
+            ok++;
+          }
           done.add(`${li}:${i}`);
           patch(li, i, { status: "done" });
         } catch (e) {
           failed = true;
           patch(li, i, { status: "error" });
           toast.error(
-            `${p.issueKey}: ${e instanceof Error ? e.message : String(e)}`
+            `${n?.issueKey ?? p.issueKey}: ${e instanceof Error ? e.message : String(e)}`
           );
           break run; // stop: what is left stays here to retry
         }
@@ -217,15 +267,20 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
     }
     setSaving(false);
     invalidate();
-    if (ok > 0) {
+    if (ok > 0 || grown > 0) {
       toast.success(
-        t("views.dashboard.gap.created", { count: ok })
+        [
+          ok > 0 ? t("views.dashboard.gap.created", { count: ok }) : null,
+          grown > 0 ? t("views.dashboard.gap.extended", { count: grown }) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
       );
     }
     // Whole hole logged: close. Pieces left without an issue stay to finish later;
     // an empty piece of a parallel lane is simply not logged.
-    const holeDone = segs.every((_, i) => done.has(`0:${i}`));
-    const lanesDone = lanes.every((l, li) => li === 0 || l.pieces.every((p, i) => !p.issueKey || done.has(`${li}:${i}`)));
+    const holeDone = segments(gap, from[0].cuts).every((_, i) => done.has(`0:${i}`));
+    const lanesDone = from.every((l, li) => li === 0 || l.pieces.every((p, i) => !taken(p) || done.has(`${li}:${i}`)));
     if (!failed && holeDone && lanesDone) onDone();
   };
 
@@ -262,7 +317,8 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
         }}
       >
         {laneSegs.map((s, i) => {
-          const key = lane.pieces[i]?.issueKey;
+          const grows = lane.pieces[i] ? neighbourOf(lane.pieces[i]) : null;
+          const key = lane.pieces[i]?.issueKey ?? grows?.issueKey;
           const color = key ? projectColor(projectOf(key)) : null;
           return (
             <div
@@ -286,6 +342,7 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
                   className={cn("absolute inset-y-0 left-0 w-1.5", color.fill)}
                 />
               )}
+              {grows && <MoveHorizontal className="mr-1 h-3 w-3 shrink-0" aria-hidden />}
               <span className="truncate">
                 {key ?? formatDuration(s.seconds)}
               </span>
@@ -419,12 +476,47 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
             )}
           </span>
         </div>
+        {(() => {
+          const grows = neighbourOf(p);
+          if (grows && p.extend) {
+            return (
+              <div className="flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-2 text-body-sm">
+                <MoveHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <ProjectAvatar project={projectOf(grows.issueKey)} size="xs" />
+                <span className="min-w-0 truncate">{extendLabel(p.extend)}</span>
+                {p.status !== "done" && !saving && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="ml-auto"
+                    aria-label={t("views.dashboard.gap.extendCancel")}
+                    onClick={() => patch(li, i, { extend: undefined, status: "idle" })}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            );
+          }
+          const sides = p.status === "done" || saving || p.issueKey ? [] : extendable(li, i);
+          return sides.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {sides.map(side => (
+                <Button key={side} variant="outline" size="sm" onClick={() => patch(li, i, { extend: side, status: "idle" })}>
+                  <MoveHorizontal className="h-3.5 w-3.5" />
+                  {extendLabel(side)}
+                </Button>
+              ))}
+            </div>
+          ) : null;
+        })()}
+        {!p.extend && (
         <button
           type="button"
           disabled={p.status === "done" || saving}
           onClick={() =>
             pick(
-              ({ key, connectionId }) => patch(li, i, { issueKey: key, connectionId, status: "idle" }),
+              ({ key, connectionId }) => patch(li, i, { issueKey: key, connectionId, extend: undefined, status: "idle" }),
               t("views.dashboard.gap.logOnPrompt", { from: clock().format(s.start), to: clock().format(endOf(s)) })
             )
           }
@@ -447,6 +539,7 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
             t("views.dashboard.gap.chooseIssue")
           )}
         </button>
+        )}
         {p.issueKey && p.status !== "done" && (
           <Input
             value={p.comment}
@@ -528,7 +621,7 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
                     ({ key, connectionId }) =>
                       setLane(0, l => ({
                         ...l,
-                        pieces: l.pieces.map(x => (x.status === "done" ? x : { ...x, issueKey: key, connectionId })),
+                        pieces: l.pieces.map(x => (x.status === "done" ? x : { ...x, issueKey: key, connectionId, extend: undefined })),
                       })),
                     t("views.dashboard.gap.assignAllPrompt")
                   )
@@ -586,6 +679,26 @@ function GapCutterBody({ gap, onDone }: { gap: TimeSpan; onDone: () => void }) {
             <> · {t("views.dashboard.gap.parallel", { duration: formatDuration(parallelSeconds) })}</>
           )}
         </span>
+        {lanes.length === 1 && segs.length === 1 && !taken(lanes[0].pieces[0]) && !saving && (
+          <span className="flex flex-wrap gap-1.5">
+            {extendable(0, 0).map(side => (
+              <Button
+                key={side}
+                variant="outline"
+                title={extendLabel(side)}
+                onClick={() => {
+                  // In one click: the whole hole goes to that neighbour.
+                  const next = [{ ...lanes[0], pieces: [{ ...lanes[0].pieces[0], extend: side }] }];
+                  setLanes(next);
+                  void logAll(next);
+                }}
+              >
+                <MoveHorizontal className="h-4 w-4" />
+                {t("views.dashboard.gap.extendOne", { key: neighbours[side]!.issueKey })}
+              </Button>
+            ))}
+          </span>
+        )}
         <Button
           className="ml-auto"
           disabled={ready.length === 0 || saving}

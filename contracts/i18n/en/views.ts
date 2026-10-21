@@ -95,6 +95,11 @@ export const views = {
       emptyPiece: "Leave {from}–{to} empty (not logged)",
       emptyPieceHint: "Not logged",
       parallel: "{duration} in parallel",
+      extendBefore: "Extend {key} (ends {time})",
+      extendAfter: "Extend {key} (starts {time})",
+      extendCancel: "Don't extend: choose an issue instead",
+      extendOne: "Extend {key}",
+      extended: { one: "1 worklog extended", other: "{count} worklogs extended" },
     },
   },
   timesheet: {

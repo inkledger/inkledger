@@ -84,6 +84,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
 import { ModuleSlot } from "@/modules/ModuleHost";
 import { isClosed, isWaiting } from "@contracts/categories";
+import { gapNeighbours } from "@/lib/gapCuts";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun },
@@ -276,6 +277,26 @@ export default function Dashboard() {
       ? missingSpans(range.from, daySchedule, [...timelineEntries, ...pausedSpans], new Date())
       : [];
   const [gap, setGap] = useState<TimeSpan | null>(null);
+  // The worklogs next to the hole, which it can extend instead of a tiny new one.
+  const neighbours = useMemo(
+    () =>
+      gap
+        ? gapNeighbours(
+            (logs.data ?? []).map(w => ({
+              id: w.id,
+              issueKey: w.issueKey,
+              connectionId: w.connectionId,
+              start: new Date(w.started).getTime(),
+              seconds: w.timeSpentSeconds,
+              comment: w.comment,
+              // Locked on its tracker or in conflict there: left as it is.
+              editable: !w.sink.locked && w.sink.state !== "conflict",
+            })),
+            gap
+          )
+        : { before: null, after: null },
+    [gap, logs.data]
+  );
   // "Log time" logs on the day on screen, not always on today.
   const logDay = dayView && !range.isCurrent ? range.from : undefined;
 
@@ -768,7 +789,7 @@ export default function Dashboard() {
           <QuickLog day={logDay} onLogged={() => setLogOpen(false)} />
         </DialogContent>
       </Dialog>
-      <GapCutter gap={gap} onOpenChange={open => !open && setGap(null)} />
+      <GapCutter gap={gap} neighbours={neighbours} onOpenChange={open => !open && setGap(null)} />
     </>
   );
 }

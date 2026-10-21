@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addCut, cutLongest, moveCut, segments, takenSpans, withCuts, withoutCut } from "./gapCuts";
+import { addCut, cutLongest, gapNeighbours, moveCut, segments, takenSpans, withCuts, withoutCut } from "./gapCuts";
 
 const at = (h: number, m = 0) => new Date(2026, 9, 12, h, m).getTime();
 const gap = { start: new Date(at(9)), seconds: 2 * 3600 }; // 9:00–11:00
@@ -52,5 +52,21 @@ describe("gap lanes", () => {
       [9 * 60, 60],
       [9 * 60 + 30, 60],
     ]);
+  });
+});
+
+describe("gap neighbours", () => {
+  const w = (id: number, h: number, m: number, minutes: number, editable = true) => ({ id, issueKey: `A-${id}`, connectionId: 1, start: at(h, m), seconds: minutes * 60, comment: "", editable });
+
+  it("the worklog ending where the hole starts, and the one starting where it ends", () => {
+    const r = gapNeighbours([w(1, 8, 0, 60), w(2, 11, 0, 30), w(3, 12, 0, 30)], gap);
+    expect([r.before?.id, r.after?.id]).toEqual([1, 2]);
+  });
+
+  it("within the tolerance (minutes rounded), never further; locked ones left out", () => {
+    const near = gapNeighbours([{ ...w(1, 8, 0, 60), seconds: 60 * 60 - 30 }, { ...w(2, 11, 0, 30), start: at(11) + 40_000 }], gap);
+    expect([near.before?.id, near.after?.id]).toEqual([1, 2]);
+    expect(gapNeighbours([w(1, 8, 0, 58), w(2, 11, 2, 30)], gap)).toEqual({ before: null, after: null });
+    expect(gapNeighbours([w(1, 8, 0, 60, false)], gap).before).toBeNull();
   });
 });

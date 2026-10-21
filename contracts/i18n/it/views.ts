@@ -100,6 +100,11 @@ export const views: Shape<typeof en> = {
       emptyPiece: "Lascia {from}–{to} vuoto (non registrato)",
       emptyPieceHint: "Non registrare",
       parallel: "{duration} in parallelo",
+      extendBefore: "Estendi {key} (finisce alle {time})",
+      extendAfter: "Estendi {key} (inizia alle {time})",
+      extendCancel: "Non estendere: scegli un'issue",
+      extendOne: "Estendi {key}",
+      extended: { one: "1 worklog esteso", other: "{count} worklog estesi" },
     },
   },
   timesheet: {

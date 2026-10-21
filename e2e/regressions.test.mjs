@@ -293,6 +293,64 @@ test("filling a hole in parallel: a lane under the strip logs an overlapping spa
     assert.ok(b0 > a0 && b1 < a1, "the parallel span lies inside the other one");
   }));
 
+test("filling a hole by extending the worklog before or after it, never a tiny new one", () => {
+  const today = h => {
+    const d = new Date();
+    d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0);
+    return d.getTime();
+  };
+  return withApp(
+    {
+      seed: async db => {
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-before', ?, 1800, 'morning', 1)", today(9));
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-102', 'w-after', ?, 1800, 'review', 1)", today(9.75));
+      },
+    },
+    async ({ page, base }) => {
+      // The hole 9:30–9:45 exists on a working day once the morning is past.
+      const hole = page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ });
+      const sent = [];
+      await page.route(/\/api\/trpc\/worklogs\.update/, async route => {
+        const body = JSON.parse(route.request().postData() ?? "{}");
+        const input = body[0]?.json ?? body.json;
+        sent.push(input);
+        const made = { id: input.id, issueKey: "DEMO-101", timeSpentSeconds: input.seconds, comment: input.comment };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
+      });
+      await page.goto(base + "/");
+      const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
+      if (!found) return;
+      await hole.click();
+      await page.getByRole("group", { name: /Strip of time to log/ }).waitFor();
+      // Both neighbours on offer; the one-click way extends the one before.
+      await page.getByRole("button", { name: "Extend DEMO-102 (starts 09:45)" }).waitFor();
+      await page.getByRole("button", { name: "Extend DEMO-101", exact: true }).click();
+      await page.getByText("1 worklog extended").waitFor();
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].seconds, 1800 + 900, "the gap added to it");
+      assert.equal(Date.parse(sent[0].started), today(9), "its start kept");
+      assert.equal(sent[0].comment, "morning", "its comment kept");
+
+      // Cut in two: the first half to the one before, the second to the one after (it starts earlier).
+      await page.reload();
+      await hole.click();
+      const strip = page.getByRole("group", { name: /Strip of time to log/ });
+      await strip.waitFor();
+      await page.waitForTimeout(300);
+      const box = await strip.boundingBox();
+      await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
+      await page.getByRole("button", { name: "Extend DEMO-101 (ends 09:30)" }).click();
+      await page.getByRole("button", { name: "Extend DEMO-102 (starts 09:45)" }).click();
+      await page.getByRole("button", { name: "Log 2 worklogs" }).click();
+      await page.getByText("2 worklogs extended").waitFor();
+      const after = sent.at(-1);
+      assert.equal(after.comment, "review");
+      assert.ok(Date.parse(after.started) < today(9.75) && Date.parse(after.started) > today(9.5), "starts inside the hole");
+      assert.equal(after.seconds, 1800 + (today(9.75) - Date.parse(after.started)) / 1000);
+    },
+  );
+});
+
 test("discarding a timer asks first: its time would be lost", () =>
   withApp(
     {
