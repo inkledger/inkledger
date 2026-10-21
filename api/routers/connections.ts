@@ -318,15 +318,16 @@ export const connectionsRouter = createRouter({
     const apiBase = "https://api.github.com";
     const me = await providerCall(() => ghOk<GitHubUser>({ apiBase, token: r.token }, "/user"));
     const db = getDb();
-    const values = { baseUrl: apiBase, remoteAccountId: String(me.id), displayName: me.name || me.login, avatarUrl: me.avatar_url ?? null, options: "{}", status: "ok" };
+    const values = { baseUrl: apiBase, remoteAccountId: String(me.id), displayName: me.name || me.login, avatarUrl: me.avatar_url ?? null, status: "ok" };
     const [mine] = await db
       .select()
       .from(connections)
       .where(and(eq(connections.userId, ctx.user.id), eq(connections.type, "github"), eq(connections.baseUrl, apiBase), eq(connections.remoteAccountId, values.remoteAccountId)))
       .limit(1);
+    // The same account signed in again (a reconnect): its options (repositories left out…) stay.
     const [saved] = mine
       ? await db.update(connections).set({ ...values, archivedAt: null, ...(r.label ? { label: r.label } : {}) }).where(eq(connections.id, mine.id)).returning()
-      : await db.insert(connections).values({ userId: ctx.user.id, type: "github", label: r.label, encryptedSecret: "", ...values }).returning();
+      : await db.insert(connections).values({ userId: ctx.user.id, type: "github", label: r.label, encryptedSecret: "", options: "{}", ...values }).returning();
     await storeSecret(saved.id, r.token);
     await forgetProbes(saved.id);
     return { state: "done" as const, connection: await shown(saved) };

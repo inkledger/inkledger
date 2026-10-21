@@ -22,4 +22,14 @@ describe("credentials sealed again at start", () => {
     // Nothing left to do the next time.
     expect(await resealCredentials(getDb())).toBe(0);
   });
+
+  it("a connection marked unreadable that opens now works again; a refused login stays refused", async () => {
+    const { getDb, q } = await import("./connection");
+    const { encrypt } = await import("../lib/crypto");
+    const { resealCredentials } = await import("./credentials");
+    await q("INSERT INTO connections (id, user_id, type, base_url, remote_account_id, options, encrypted_secret, status, created_at) VALUES (4, 1, 'jira', 'https://s4.example', 'me', '{}', ?, 'unreadable', 0)", encrypt("back"));
+    await q("INSERT INTO connections (id, user_id, type, base_url, remote_account_id, options, encrypted_secret, status, created_at) VALUES (5, 1, 'jira', 'https://s5.example', 'me', '{}', ?, 'auth_failed', 0)", encrypt("refused"));
+    await resealCredentials(getDb());
+    expect(await q("SELECT id, status FROM connections WHERE id IN (4, 5) ORDER BY id")).toEqual([{ id: 4, status: "ok" }, { id: 5, status: "auth_failed" }]);
+  });
 });

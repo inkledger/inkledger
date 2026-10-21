@@ -141,6 +141,17 @@ describe("Settings → Connections: GitHub by its own login", () => {
     expect(await keys()).toEqual(["acme/web#1", "acme/web#2"]);
   });
 
+  it("a connection GitHub stopped accepting, signed in again, works again and keeps its options", async () => {
+    const conn = (await caller.connections.list()).find((c) => c.label === "Side projects")!;
+    await caller.connections.setExcluded({ id: conn.id, keys: ["acme/empty"] });
+    const { q } = await import("../queries/connection");
+    await q("UPDATE connections SET status = 'auth_failed' WHERE id = ?", conn.id);
+    const again = await signIn("gho_test", "");
+    expect(again).toMatchObject({ state: "done", connection: { id: conn.id, status: "ok" } });
+    expect((await caller.connections.containers({ id: conn.id })).find((c) => c.key === "acme/empty")?.excluded).toBe(true);
+    await caller.connections.setExcluded({ id: conn.id, keys: [] });
+  });
+
   it("manages issues from the app: assignees, labels, title and body, new issues in a repository", async () => {
     const key = "acme/web#2";
     expect(await caller.issues.manageable({ key })).toEqual({ assign: true, labels: true, create: true, edit: true, types: false });

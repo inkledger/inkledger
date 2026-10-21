@@ -89,7 +89,10 @@ export function openSecret(payload: string, connectionId: number): { plain: stri
   const sealed = payload.startsWith(SEALED);
   const parts = (sealed ? payload.slice(SEALED.length) : payload).split(".");
   if (parts.length !== 3) throw new Error("Malformed encrypted payload");
-  const keys = credentialKeys();
+  // The older format was sealed with sha256 of the old SESSION_SECRET, whatever it looks like:
+  // CREDENTIALS_KEY_OLD given as that secret opens it (64 hex chars included, read raw for sealed ones).
+  const legacy = !sealed && env.credentialsKeyOld ? [createHash("sha256").update(env.credentialsKeyOld).digest()] : [];
+  const keys = [...credentialKeys(), ...legacy];
   for (const [i, key] of keys.entries()) {
     try {
       return { plain: openWith(key, parts, sealed ? aadOf(connectionId) : null), fresh: sealed && i === 0 };
