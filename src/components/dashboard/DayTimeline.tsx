@@ -14,6 +14,7 @@ import { lanesOf, realSeconds } from "@contracts/placement";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { t, dateFormat } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 export type TimelineEntry = {
   id: string;
@@ -138,7 +139,7 @@ export function DayTimeline({
 
   return (
     <figure className="m-0">
-      <div data-lit-ground className="relative h-56 overflow-hidden rounded-lg bg-muted/30">
+      <div {...surface("ground")} className="relative h-56 overflow-hidden rounded-lg bg-muted/30">
         {ticks.slice(1, -1).map(h => (
           <div
             key={h}
@@ -191,8 +192,8 @@ export function DayTimeline({
           <div
             key={b.id}
             title={`${b.issueKey} · ${formatDurationLong(b.seconds)}${b.summary ? ` · ${b.summary}` : ""}`}
-            // The running one is see-through stripes: not lit (its shadow would show through).
-            data-lit={b.live ? undefined : "1"}
+            // The running one is see-through stripes: glass, no shadow (it would show through).
+            {...(b.live ? surface("glass") : surface("bar"))}
             className={cn(
               "absolute flex rounded-md",
               b.lanes === 1 && "bottom-6 top-3",
@@ -236,7 +237,7 @@ export function DayTimeline({
             <span
               key={b.id}
               aria-hidden
-              data-lit={b.live ? undefined : "1"}
+              {...(b.live ? surface("glass") : surface("bar"))}
               className={cn(
                 "absolute inset-y-0 rounded-sm",
                 b.live ? "stripes-pending stripes-live" : b.color.fill

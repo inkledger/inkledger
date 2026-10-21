@@ -3,6 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-body-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-fast active:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -54,7 +55,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      data-lit={variant === "default" || variant === "outline" || variant === "destructive" ? "1" : undefined}
+      {...surface("control", { on: variant === "default" || variant === "outline" || variant === "destructive" })}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

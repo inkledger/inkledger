@@ -12,6 +12,7 @@ import { MobileMoreSheet } from "@/components/mobile/MobileMoreSheet";
 import { ModuleSlot } from "@/modules/ModuleHost";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const CELL =
   "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -68,7 +69,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
   const timer = timers.find(t => t.state === "running") ?? timers[0];
   const elapsed = useElapsed(timer?.state ?? "paused", timer?.elapsedSeconds ?? 0, fetchedAt);
   // Raised by its offset, not a transform: a transform would make it its own
-  // layer and the light's shadow (data-lit) would fall on its face.
+  // layer and a light's shadow would fall on its face.
   const round =
     "relative -top-3 flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring/60";
 
@@ -78,7 +79,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
         type="button"
         aria-label={t("ui.layout.startTimer")}
         onClick={() => quickStart.set(true)}
-        data-lit="1"
+        {...surface("control")}
         className={cn(round, "bg-primary text-primary-foreground active:bg-primary-strong")}
       >
         <Play className="h-5 w-5 translate-x-px" fill="currentColor" aria-hidden />
@@ -96,7 +97,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
         time: hms,
       })}
       onClick={onOpen}
-      data-lit="1"
+      {...surface("control")}
       className={cn(round, "border bg-card active:bg-accent")}
     >
       <TimerRing running={running} className="h-5 w-5" />
@@ -129,7 +130,7 @@ export function MobileTabBar() {
       <nav
         aria-label={t("ui.layout.tabBar")}
         data-tab-bar
-        data-lit-ground
+        {...surface("ground")}
         className={cn(
           "fixed inset-x-0 bottom-0 z-30 border-t bg-canvas/90 backdrop-blur lg:hidden [html[data-keyboard]_&]:hidden",
           "pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"

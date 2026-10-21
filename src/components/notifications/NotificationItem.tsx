@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
 import { issuePath } from "@/lib/issues";
+import { surface } from "@/components/app/surface";
 
 export type NotificationRow =
   inferRouterOutputs<AppRouter>["notifications"]["list"][number];
@@ -116,7 +117,7 @@ export function NotificationItem({
   const Icon = style.icon;
   return (
     <li
-      data-lit="1"
+      {...surface("card")}
       className={cn(
         "group flex min-w-0 items-center gap-3 rounded-lg border bg-card p-3 transition-shadow hover:shadow-sm",
         className

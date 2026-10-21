@@ -4,6 +4,7 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -59,6 +60,7 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        {...surface("dialog", { elevation: 3 })}
         data-side={side}
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",

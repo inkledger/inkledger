@@ -1,4 +1,4 @@
-// Stands on the day timeline, lights the Dashboard, and hides its desk card
+// Stands on the day timeline and hides its desk card
 // (like the Bonsai): the desk must not stay as an empty section. Its shape
 // (a square at the bottom left) takes clicks; the timeline under the rest does.
 export default {
@@ -22,7 +22,6 @@ export default {
         window.__perchHits++;
         host.openSettings?.();
       });
-      host.ambient?.({ x: 0.6, y: 0.8, strength: 1.2, from: -1, tint: [255, 200, 150], veil: 0.08 });
       window.__perchSettings = () => host.openSettings?.();
       // A picture through the server cache: put, then read back.
       window.__perchFile = async () => {
@@ -30,8 +29,6 @@ export default {
         const back = await host.files.get("tree|1");
         return [back?.size, back?.type, (await host.files.get("missing")) === null];
       };
-      window.__perchLight = on => host.ambient?.(on ? { x: -0.5, y: 0.9, strength: 1, from: 1, tint: [200, 210, 255], veil: 0.05 } : null);
-      window.__perchNight = dim => host.ambient?.({ x: -0.3, y: 1, strength: 0.5, from: 1, tint: [128, 146, 206], veil: 0.06, dim });
       return () => {
         unhit?.();
         box.remove();

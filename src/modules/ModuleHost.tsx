@@ -7,16 +7,14 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import { useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { createHub, type Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
-import type { Ambient, SlotId } from "./types";
+import type { SlotId } from "./types";
 import { ModulesContext } from "./context";
-import { canLight, GLIDE_MS, lightStage } from "./light";
 import type { BackdropVisibility } from "@contracts/modules";
 
 
@@ -122,123 +120,9 @@ const BOX: Partial<Record<SlotId, string>> = {
   // Standing on the day timeline's entries, at the bar's left end (DayTimeline
   // places it): a transparent picture; only its shape is clickable (host.hitArea).
   "dashboard-perch": "pointer-events-none absolute inset-0 [&_*]:!pointer-events-none",
+  // App-wide and unseen (a module's light over every page): mounted once, never with a page.
+  "app-stage": "hidden",
 };
-
-const reducedMotion = () =>
-  typeof matchMedia === "function" &&
-  matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** The veil's colour in coarse steps: it is the one part that repaints, so only when the colour visibly moves. */
-const veilTint = (t: Ambient["tint"]) =>
-  t.map(c => Math.min(255, Math.round(c / 6) * 6)).join(" ");
-
-/**
- * A module's light over the Dashboard (host.ambient): every surface marked
- * `data-lit` stands out of the page with a shadow away from the light
- * (lightStage), and a faint veil comes in from the light's side. Both glide
- * on the compositor; nothing restyles the page.
- */
-export function DashboardAmbient() {
-  const ctx = useContext(ModulesContext);
-  const [given, setLight] = useState<Ambient | null>(null);
-  // Night turned off (Settings → Appearance): the light without its dark.
-  const night = (trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data?.dashboardNight ?? 1) === 1;
-  const light = useMemo(() => (given && !night ? { ...given, dim: 0 } : given), [given, night]);
-  const anchor = useRef<HTMLSpanElement>(null);
-  const veil = useRef<HTMLDivElement>(null);
-  const dark = useRef<HTMLDivElement>(null);
-  const stage = useRef<ReturnType<typeof lightStage> | null>(null);
-  const [lit, setLit] = useState(false);
-  // The night covers the whole panel, its sticky header too: drawn in the panel, over the page that scrolls in it.
-  const [panel, setPanel] = useState<HTMLElement | null>(null);
-  useEffect(() => ctx?.hub.ambient(setLight), [ctx]);
-  useEffect(() => {
-    // The whole app shell is the stage (sidebar, header, panel); the page only lights while the Dashboard is open.
-    const root = anchor.current?.closest<HTMLElement>("[data-lit-stage]");
-    if (!light) {
-      // Fades out; a light coming back meanwhile picks the stage up again (and this never settles).
-      void stage.current?.off().then(() => {
-        stage.current = null;
-        setLit(false);
-      });
-      return;
-    }
-    if (!root || !canLight()) return;
-    stage.current ??= lightStage(root, reducedMotion);
-    stage.current.set(light);
-    setPanel(root.querySelector<HTMLElement>("[data-lit-panel]"));
-    setLit(true);
-  }, [light]);
-  useEffect(() => () => stage.current?.stop(), []);
-  // The veil: one picture slid and faded on the compositor towards the light's side.
-  useEffect(() => {
-    const el = veil.current;
-    if (!el) return;
-    const to: Keyframe = {
-      transform: `translateX(${((light?.from ?? 0) * 27.7).toFixed(2)}%)`,
-      opacity: light?.veil ?? 0,
-    };
-    const was = el.getAnimations()[0];
-    const from: Keyframe = was
-      ? {
-          transform: getComputedStyle(el).transform,
-          opacity: getComputedStyle(el).opacity,
-        }
-      : { ...to, opacity: 0 };
-    was?.cancel();
-    el.animate([from, to], {
-      duration: reducedMotion() ? 1 : GLIDE_MS,
-      easing: "ease-in-out",
-      fill: "forwards",
-    });
-  }, [lit, light?.from, light?.veil]);
-  // The night: the moon's blue over the panel, as deep as the hour is dark.
-  const dim = Math.min(1, Math.max(0, light?.dim ?? 0));
-  useEffect(() => {
-    const el = dark.current;
-    if (!el) return;
-    const was = el.getAnimations()[0];
-    const from = was ? getComputedStyle(el).opacity : "0";
-    was?.cancel();
-    el.animate([{ opacity: from }, { opacity: dim.toFixed(3) }], {
-      duration: reducedMotion() ? 1 : GLIDE_MS,
-      easing: "ease-in-out",
-      fill: "forwards",
-    });
-  }, [lit, dim]);
-  const tint = light ? veilTint(light.tint) : null;
-  const [lastTint, setLastTint] = useState(tint);
-  if (tint && tint !== lastTint) setLastTint(tint);
-  return (
-    <>
-      <span ref={anchor} hidden />
-      {lit &&
-        panel &&
-        createPortal(
-          <div aria-hidden className="pointer-events-none absolute inset-0 z-30 overflow-clip rounded-2xl">
-            <div ref={dark} data-dashboard-night className="dashboard-night absolute inset-0 opacity-0" />
-          </div>,
-          panel
-        )}
-      {lit && lastTint && (
-        <div
-          aria-hidden
-          data-dashboard-light
-          className="pointer-events-none absolute inset-0 z-10 overflow-clip rounded-2xl"
-        >
-          {/* The light's source is outside the page, past the side it comes from: 2.24 panels wide, slid by up to 62% of one. */}
-          <div
-            ref={veil}
-            className="absolute inset-y-0 -left-[62%] -right-[62%] opacity-0 will-change-transform"
-            style={{
-              background: `radial-gradient(ellipse 42.4% 85% at 50% -10%, rgb(${lastTint}), rgb(${lastTint} / 0) 72%)`,
-            }}
-          />
-        </div>
-      )}
-    </>
-  );
-}
 
 /** The Dashboard's backdrop: fills the panel behind the page, veiled so text stays readable. */
 // The user's "Backdrop visibility" (Settings → Appearance): blur and veil.

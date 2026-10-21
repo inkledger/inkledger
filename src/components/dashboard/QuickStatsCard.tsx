@@ -2,6 +2,7 @@ import { Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { t } from "@/i18n";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 export type Stat = {
   label: string;
@@ -30,8 +31,8 @@ export function QuickStatsCard({
   extra?: Stat[];
 }) {
   return (
-    <div data-lit="2" data-lit-wrap className="rounded-xl">
-      <div data-lit-face className="overflow-hidden rounded-xl border bg-card">
+    <div {...surface("card", { elevation: 2, role: "wrap" })} className="rounded-xl">
+      <div {...surfaceFace()} className="overflow-hidden rounded-xl border bg-card">
         <div className={cn("grain h-24 px-4 pt-3", cover)}>
           <h2 className="font-display text-heading text-cover-title">
             {title}
@@ -41,7 +42,7 @@ export function QuickStatsCard({
           {stats.map(s => (
             <div
               key={s.label}
-              data-lit="1"
+              {...surface("card")}
               className="relative rounded-lg bg-card px-3 py-2.5 shadow-xs"
             >
               <dt className="truncate text-body-sm text-muted-foreground">

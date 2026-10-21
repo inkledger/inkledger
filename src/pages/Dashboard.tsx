@@ -82,7 +82,7 @@ import {
 import { toast } from "sonner";
 import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
-import { DashboardAmbient, ModuleSlot } from "@/modules/ModuleHost";
+import { ModuleSlot } from "@/modules/ModuleHost";
 import { isClosed, isWaiting } from "@contracts/categories";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }[] => [
@@ -409,7 +409,6 @@ export default function Dashboard() {
   return (
     <>
       <ModuleSlot id="dashboard-overlay" />
-      <DashboardAmbient />
       <PageHeader
         sticky
         title={title}

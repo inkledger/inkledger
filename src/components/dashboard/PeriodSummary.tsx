@@ -12,6 +12,7 @@ import { Meter } from "@/components/app/Meter";
 import { goalTone } from "@/lib/goalTone";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 export type IssueTotal = {
   issueKey: string;
@@ -75,9 +76,9 @@ export function PeriodSummary({
         <>
           {/* Split by project: a slim segmented bar, same weight as the goal bar. */}
           {/* The bar clips its segments: it stands on a wrapper. */}
-          <div data-lit="1" data-lit-wrap className="mt-6 rounded-full">
+          <div {...surface("bar", { role: "wrap" })} className="mt-6 rounded-full">
           <div
-            data-lit-face
+            {...surfaceFace()}
             className="flex h-2 gap-0.5 overflow-hidden rounded-full"
             aria-hidden
           >
@@ -95,8 +96,8 @@ export function PeriodSummary({
               <li key={l.project} className="flex items-center gap-1.5">
                 <span
                   aria-hidden
-                  // "Other" is see-through: not lit.
-                  data-lit={l.color.fill.includes("/") ? undefined : "1"}
+                  // "Other" is see-through: glass, no shadow.
+                  {...(l.color.fill.includes("/") ? surface("glass") : surface("chip"))}
                   className={cn("h-3 w-3 rounded-xs", l.color.fill)}
                 />
                 {l.project}

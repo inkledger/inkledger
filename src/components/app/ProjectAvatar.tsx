@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { coverClass } from "@/lib/cover";
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 const SIZES = {
   xs: "h-6 w-6 text-2xs",
@@ -51,8 +52,8 @@ export function ProjectAvatar({
       style={
         transitionName ? { viewTransitionName: transitionName } : undefined
       }
-      // Under a module's light the round avatars stand out (the large banner keeps its grain).
-      data-lit={size === "lg" ? undefined : "1"}
+      // Under a light the round avatars stand out (the large banner keeps its grain).
+      {...surface("picture", { on: size !== "lg" })}
       className={cn(
         // Only the banner clips (its grain); the round ones round their picture instead, so their shadow shows.
         "relative flex shrink-0 items-center justify-center rounded-full font-semibold",

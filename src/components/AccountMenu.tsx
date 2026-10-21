@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { BucketMenu } from "@/components/BucketMenu";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 /** The signed-in user: avatar, name and email, opening server and sign-out. */
 export function AccountMenu({
@@ -51,8 +52,8 @@ export function AccountMenu({
           )}
         >
           {/* The avatar clips its picture: it stands on a wrapper. */}
-          <span data-lit="1" data-lit-wrap className="shrink-0 rounded-full">
-          <Avatar data-lit-face className="h-9 w-9">
+          <span {...surface("picture", { role: "wrap" })} className="shrink-0 rounded-full">
+          <Avatar {...surfaceFace()} className="h-9 w-9">
             {user?.avatarUrl && <AvatarImage src="/api/me/avatar" alt="" />}
             <AvatarFallback className="bg-primary-soft text-caption font-semibold text-primary-strong">
               {user?.displayName?.slice(0, 2).toUpperCase() ?? "?"}

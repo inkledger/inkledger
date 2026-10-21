@@ -55,6 +55,28 @@ for (const file of walk(ROOT)) {
     }
   });
 }
+// Surfaces (src/components/app/surface.ts) are marked only through the typed
+// helper, ui primitives included: a hand-written attribute would escape the
+// catalog's kinds and elevations. The stage and the panel are the shell's.
+const SURFACE_ATTR = /\bdata-(?:lit(?:-[a-z]+)?|surface(?:-(?:role|edge|current))?|elev)(?=[\s=>{])/g;
+function* walkAll(dir) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) yield* walkAll(p);
+    else if (p.endsWith(".tsx")) yield p;
+  }
+}
+for (const file of walkAll(ROOT)) {
+  readFileSync(file, "utf8")
+    .split("\n")
+    .forEach((line, i) => {
+      for (const m of line.matchAll(SURFACE_ATTR)) {
+        problems++;
+        console.log(`${relative(process.cwd(), file)}:${i + 1}  ${m[0]}  → mark surfaces with surface()/surfaceFace() (components/app/surface.ts)`);
+      }
+    });
+}
+
 if (problems > 0) {
   console.log(`\n✖ ${problems} design-system violation(s)`);
   process.exit(1);

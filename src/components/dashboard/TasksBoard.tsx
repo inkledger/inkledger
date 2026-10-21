@@ -12,6 +12,7 @@ import { Chip, Dot } from "@/components/app/Chip";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
+import { surface } from "@/components/app/surface";
 
 export type TaskIssue = {
   /** Its connection (a key may be on two) */
@@ -48,7 +49,7 @@ function TaskCard({
   return (
     <Link
       to={issuePath(issue)}
-      data-lit="1"
+      {...surface("card")}
       className="block rounded-xl border bg-card p-2.5 transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm"
     >
       <p className="line-clamp-2 text-body-sm font-semibold leading-snug">
@@ -98,7 +99,7 @@ export function TasksBoard({
             aria-expanded={false}
             aria-label={t("views.dashboard.tasks.expandColumn", { title: col.title, total: col.total })}
             title={t("views.dashboard.tasks.expand", { title: col.title })}
-            data-lit="1"
+            {...surface("control")}
             className="flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-11 sm:flex-col sm:px-0 sm:py-3"
           >
             <ChevronsLeftRight
@@ -113,7 +114,7 @@ export function TasksBoard({
           </button>
         ) : (
           <div key={col.title} className="min-w-0 flex-1 basis-0">
-            <div data-lit="1" className="mb-2 flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
+            <div {...surface("card")} className="mb-2 flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
               <Dot tone={col.tone} />
               <span className="truncate">{col.title}</span>
               <span className="text-muted-foreground tabular">{col.total}</span>

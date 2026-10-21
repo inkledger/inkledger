@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 /** ‹ Today › grouped control for period navigation. */
 export function PeriodNav({
@@ -17,7 +18,7 @@ export function PeriodNav({
   todayLabel?: string;
 }) {
   return (
-    <div data-lit="1" className="flex items-center rounded-lg border bg-background">
+    <div {...surface("card")} className="flex items-center rounded-lg border bg-background">
       <Button
         variant="ghost"
         size="icon"

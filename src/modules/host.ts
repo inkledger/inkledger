@@ -5,8 +5,8 @@ import { expectedSeconds, scheduleFor, workBounds } from "@contracts/workSchedul
 import { onAppEvent } from "./appEvents";
 import { getLocale } from "@/i18n";
 import { hitAreas } from "./hit";
+import { SURFACES } from "@/components/app/surface";
 import type {
-  Ambient,
   HostApiV1,
   HostEventName,
   HostEvents,
@@ -56,23 +56,6 @@ function store<T>(initial: T) {
   };
 }
 
-const clamp = (x: unknown, a: number, b: number, d: number) =>
-  typeof x === "number" && Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : d;
-
-/** A module's light, within what the page can carry. */
-export function clampAmbient(l: Ambient): Ambient {
-  const tint = (Array.isArray(l.tint) ? l.tint : []).slice(0, 3);
-  return {
-    x: clamp(l.x, -1.5, 1.5, 0),
-    y: clamp(l.y, -0.5, 1.5, 1),
-    strength: clamp(l.strength, 0.4, 1.6, 1),
-    from: clamp(l.from, -1, 1, 0),
-    tint: [0, 1, 2].map(i => Math.round(clamp(tint[i], 0, 255, 255))) as [number, number, number],
-    veil: clamp(l.veil, 0, 0.14, 0),
-    dim: clamp(l.dim, 0, 1, 0),
-  };
-}
-
 const toBase64 = async (b: Blob) => {
   const bytes = new Uint8Array(await b.arrayBuffer());
   let s = "";
@@ -97,7 +80,7 @@ export function priorityRank(name: string): number | null {
 
 const TOKENS = ["primary", "foreground", "muted", "card", "border", "background", "ring"] as const;
 
-function readTheme(): ThemeState {
+function readTheme(night = true): ThemeState {
   const root = document.documentElement;
   const css = getComputedStyle(root);
   const tokens = Object.fromEntries(
@@ -107,6 +90,7 @@ function readTheme(): ThemeState {
     mode: root.classList.contains("dark") ? "dark" : "light",
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     tokens,
+    night,
   };
 }
 
@@ -115,8 +99,9 @@ export type Hub = ReturnType<typeof createHub>;
 export function createHub(queryClient: QueryClient, utils: Utils) {
   const timer = store<TimerState>({ state: "idle", issueKey: null });
   const today = store<TodayState>({ loggedSeconds: 0, goalSeconds: null, workTime: false });
-  const theme = store<ThemeState>(readTheme());
-  const ambient = store<{ owner: string; light: Ambient } | null>(null);
+  // Night on the Dashboard as the person set it (Settings → Appearance); on by default.
+  const nightOf = () => (utils.settings.get.getData()?.dashboardNight ?? 1) === 1;
+  const theme = store<ThemeState>(readTheme(nightOf()));
   // The module whose settings sheet is open (ModuleSettingsSheet).
   const settingsOf = store<string | null>(null);
   const listeners = new Map<HostEventName, Set<(d: never) => void>>();
@@ -131,6 +116,9 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   let goalDay = "";
 
   const look = () => {
+    // Only the night preference may have changed in the cache (no style read on every look).
+    const night = nightOf();
+    if (theme.get().night !== night) theme.set({ ...theme.get(), night });
     const timers = utils.timers.list.getData();
     if (timers) {
       const running = timers.find(t => t.state === "running");
@@ -212,10 +200,10 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     look();
   }, 60_000);
 
-  const themeObserver = new MutationObserver(() => theme.set(readTheme()));
+  const themeObserver = new MutationObserver(() => theme.set(readTheme(nightOf())));
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const onMotion = () => theme.set(readTheme());
+  const onMotion = () => theme.set(readTheme(nightOf()));
   motion.addEventListener("change", onMotion);
   const unsubFocus = focusMode.subscribe(() => emit("focus-mode", { on: focusMode.get() }));
 
@@ -227,8 +215,6 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     /** Which module's settings sheet is open; close with null. */
     settingsOpen: (fn: (moduleId: string | null) => void) => settingsOf.subscribe(fn),
     closeSettings: () => settingsOf.set(null),
-    /** The Dashboard's light, if a module set one. */
-    ambient: (fn: (light: Ambient | null) => void) => ambient.subscribe(v => fn(v?.light ?? null)),
 
     /** The API one module gets in one slot. */
     apiFor(moduleId: string, slot: SlotId): { api: HostApiV1; dispose: () => void } {
@@ -271,14 +257,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         weather: ({ lat, lon }) => utils.modules.weather.fetch({ moduleId, lat, lon }, { staleTime: 10 * 60_000 }),
         geocode: query =>
           utils.modules.geocode.fetch({ moduleId, query, language: getLocale() === "it" ? "it" : "en" }),
-        ambient(light) {
-          if (disposed) return;
-          const mine = `${moduleId}:${slot}`;
-          if (!light) {
-            if (ambient.get()?.owner === mine) ambient.set(null);
-            return;
-          }
-          ambient.set({ owner: mine, light: clampAmbient(light) });
+        // Since the Shadow module the host draws no light: kept so older modules still load.
+        ambient() {},
+        surfaces: { catalog: () => SURFACES },
+        stage: {
+          root: () => document.querySelector<HTMLElement>("[data-surface-stage]"),
+          panel: () => document.querySelector<HTMLElement>("[data-surface-panel]"),
         },
         openSettings() {
           if (!disposed) settingsOf.set(moduleId);
@@ -338,7 +322,6 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         api,
         dispose: () => {
           disposed = true;
-          if (ambient.get()?.owner === `${moduleId}:${slot}`) ambient.set(null);
           [...owned].forEach(off => off());
         },
       };

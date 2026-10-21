@@ -4,6 +4,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 function Popover({
   ...props
@@ -31,6 +32,7 @@ function PopoverContent({
     <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
+        {...surface("menu", { elevation: 2 })}
         align={align}
         sideOffset={sideOffset}
         className={cn(

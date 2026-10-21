@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 const SIZE = {
   xs: "h-1",
@@ -60,7 +61,7 @@ export function Meter({
     : { "aria-hidden": true };
   const track = (
     <div
-      data-lit-face={lit ? "" : undefined}
+      {...surfaceFace({ on: lit })}
       className={cn(
         "relative flex overflow-hidden rounded-full bg-muted",
         SIZE[size],
@@ -96,7 +97,7 @@ export function Meter({
     </div>
   );
   return lit ? (
-    <div data-lit="1" data-lit-wrap className="rounded-full">
+    <div {...surface("bar", { role: "wrap" })} className="rounded-full">
       {track}
     </div>
   ) : (

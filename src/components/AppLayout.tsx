@@ -80,6 +80,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { BrandMark } from "@/components/app/BrandMark";
 import { BRAND_SHORT } from "@/lib/brand";
+import { surface, surfaceFace } from "@/components/app/surface";
 
 /** Opens the focus view; shown only while a timer exists. */
 function ActiveTimerFocusButton() {
@@ -168,7 +169,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           type="button"
           onClick={() => commandPalette.set(true)}
           aria-label={collapsed ? t("ui.layout.search") : undefined}
-          data-lit="1"
+          {...surface("control")}
           className={cn(
             "flex items-center gap-2 rounded-md border border-border/80 bg-background py-1.5 text-body-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             collapsed ? "mx-auto h-8 w-10 justify-center px-0" : "px-3"
@@ -207,7 +208,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           {inbox > 0 && (
             <span
               aria-hidden
-              data-lit="1"
+              {...surface("chip")}
               className={cn(
                 "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
                 collapsed
@@ -236,10 +237,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                   to={to}
                   end={to === "/"}
                   aria-label={collapsed ? label : undefined}
-                  // Stands out only while current (index.css); keeps its own ::before bar.
-                  data-lit="1"
-                  data-lit-current=""
-                  data-lit-edge="off"
+                  // Stands out only while current; keeps its own ::before bar.
+                  {...surface("nav", { current: true, edge: false })}
                   className={cn(
                     "relative flex items-center gap-2.5 rounded-md py-1.5 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
                     "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
@@ -255,7 +254,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                   {to === "/issues" && unread > 0 && (
                     <span
                       title={t("ui.layout.issuesWithNews", { count: unread })}
-                      data-lit="1"
+                      {...surface("chip")}
                       className={cn(
                         "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
                         collapsed
@@ -510,7 +509,9 @@ export function AppLayout() {
   return (
     <TooltipProvider delayDuration={200}>
       <ModulesProvider>
-      <div data-lit-stage className="min-h-dvh bg-canvas">
+      <div data-surface-stage className="min-h-dvh bg-canvas">
+        {/* App-wide modules (the Shadow's light): mounted once, never with a page. */}
+        <ModuleSlot id="app-stage" />
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2"
@@ -519,7 +520,7 @@ export function AppLayout() {
         </a>
 
         <aside
-          data-lit-ground
+          {...surface("ground")}
           className={cn(
             // Never scrolls: only the favorites list inside does.
             "fixed inset-y-0 left-0 hidden overflow-hidden transition-[width] duration-slow lg:block",
@@ -531,7 +532,7 @@ export function AppLayout() {
 
         {/* Phones and tablets: sections and the timer live in the tab bar;
             the header keeps what is reached from anywhere. */}
-        <header data-lit-ground className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
+        <header {...surface("ground")} className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
           <Link
             to="/"
             aria-label={t("ui.layout.homeLink")}
@@ -564,15 +565,14 @@ export function AppLayout() {
           {/* Desktop: the panel stays put (rounded, same top margin) and scrolls inside, so a
               sticky page header stays at its top. Mobile: the window scrolls. */}
           {/* On the Dashboard an add-on may paint a scene behind the page: the panel turns see-through. */}
-          {/* Under a module's light the panel stands out of the page (desktop only: index.css). */}
-          <div data-lit="3" data-lit-wrap data-lit-panel className="group/panel relative rounded-2xl">
+          {/* Under a light (Shadow module) the panel stands out of the page. */}
+          <div {...surface("panel", { elevation: 3, role: "wrap" })} data-surface-panel className="group/panel relative rounded-2xl">
             {location.pathname === "/" && <DashboardBackdrop />}
             <main
               id="main"
               ref={mainRef}
-              data-lit-face
               // No edge light over the whole panel: it scrolls, a line would scroll with it.
-              data-lit-edge="off"
+              {...surfaceFace({ edge: false })}
               className={cn(
                 "relative min-h-[calc(100dvh_-_2rem_-_var(--bottom-nav-h))] overflow-clip rounded-2xl border bg-card shadow-xs lg:h-[calc(100dvh-2rem)] lg:min-h-0 lg:overflow-y-auto",
                 "group-has-[[data-module-slot=dashboard-backdrop]]/panel:bg-transparent",

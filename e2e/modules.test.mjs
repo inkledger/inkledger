@@ -29,7 +29,7 @@ function bundle(id) {
     product: `inkledger.${id}`,
     entry: "index.js",
     hostApi: { min: 1, max: 1 },
-    slots: { edge: ["panel-edge"], widget: ["dashboard-widget"], perch: ["dashboard-perch", "dashboard-widget", "settings"], scene: ["dashboard-backdrop", "dashboard-action"], kit: ["settings", "sidebar-footer", "sidebar-rail", "mobile-more", "mobile-dock"] }[id] ?? ["sidebar-footer"],
+    slots: { edge: ["panel-edge"], widget: ["dashboard-widget"], perch: ["dashboard-perch", "dashboard-widget", "settings"], stage: ["app-stage"], scene: ["dashboard-backdrop", "dashboard-action"], kit: ["settings", "sidebar-footer", "sidebar-rail", "mobile-more", "mobile-dock"] }[id] ?? ["sidebar-footer"],
     name: { en: id, it: id },
     files: { "index.js": sha256hex(code) },
   };
@@ -336,7 +336,7 @@ test("backdrop visibility (Settings → Appearance) changes how much of the scen
     assert.equal(await level(), "scenic", "saved for the user");
   }));
 
-test("a module stands on the day timeline's entries, never in the way of a click, and lights the Dashboard; a hidden card leaves no desk", () =>
+test("a module stands on the day timeline's entries, never in the way of a click; a hidden card leaves no desk", () =>
   withModules({ modules: ["perch"], seed: licensed("perch"), path: "/" }, async ({ page }) => {
     const perch = page.getByTestId("module-perch");
     await perch.waitFor();
@@ -363,108 +363,44 @@ test("a module stands on the day timeline's entries, never in the way of a click
     await page.getByRole("dialog").getByText("Perch options here").waitFor();
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
-    // The light: every surface of the screen (sidebar, header, panel, bars,
-    // chips) stands out with a shadow away from it (its ::after, glided by
-    // Web Animations, then left at rest as plain style); a veil shows;
-    // switched off, all back to plain.
-    const light = () =>
-      page.evaluate(() => {
-        const tile = document.querySelector("main [data-lit]");
-        const m = new DOMMatrix(tile ? getComputedStyle(tile, "::after").transform : "none");
-        // A shadow drawn: its ::after is visible.
-        const lit = sel => {
-          const el = document.querySelector(sel);
-          return !!el && Number(getComputedStyle(el, "::after").opacity) > 0.2;
-        };
-        const current = document.querySelector('aside a[aria-current="page"]');
-        return {
-          on: !!document.querySelector("[data-lit-stage][data-lit-on]"),
-          veil: !!document.querySelector("[data-dashboard-light]"),
-          side: Math.sign(m.m41),
-          tile: lit("main [data-lit]"),
-          panel: lit("[data-lit-panel]"),
-          sidebar: lit("aside [data-lit]"),
-          option: lit('[role="radio"][aria-checked="true"]'),
-          goal: lit("[data-lit-wrap]:has(> [role=progressbar])"),
-          // The current page's own indicator bar stays (no edge light over it).
-          bar: !!current && getComputedStyle(current, "::before").opacity === "1",
-          // At rest no animation is left (no extra layers between glides).
-          gliding: (document.querySelector("[data-lit-stage]")?.getAnimations({ subtree: true }) ?? []).filter(a => a.constructor === Animation && a.effect?.pseudoElement).length,
-          rootVars: [...document.documentElement.style].filter(p => p.startsWith("--light") || p === "--sun-a").length,
-        };
-      });
-    // Settled: the glides are over (their animations gone), no fixed wait.
-    const settled = () =>
-      page.waitForFunction(() => {
-        const stage = document.querySelector("[data-lit-stage][data-lit-on]");
-        return !!stage && stage.getAnimations({ subtree: true }).filter(a => a.constructor === Animation && a.effect?.pseudoElement).length === 0 && Number(getComputedStyle(stage.querySelector("main [data-lit]"), "::after").opacity) > 0.2;
-      });
-    await settled();
-    assert.deepEqual(await light(), { on: true, veil: true, side: 1, tile: true, panel: true, sidebar: true, option: true, goal: true, bar: true, gliding: 0, rootVars: 0 });
-    // A surface that becomes lit (an item turning current) comes into the light; one that stops, leaves it.
-    await page.evaluate(() => document.querySelector("main h1")?.setAttribute("data-lit", "1"));
-    await page.waitForFunction(() => {
-      const h = document.querySelector("main h1");
-      return Number(h?.style.getPropertyValue("--lit-a")) > 0.2 && Number(getComputedStyle(h, "::after").opacity) > 0.2;
-    });
-    await page.evaluate(() => document.querySelector("main h1")?.removeAttribute("data-lit"));
-    await page.waitForFunction(() => document.querySelector("main h1")?.style.getPropertyValue("--lit-a") === "");
-    // From the other side: the shadows glide over and end up leaning left.
-    await page.evaluate(() => window.__perchLight(true));
-    await page.waitForFunction(() => {
-      const tile = document.querySelector("main [data-lit]");
-      const anims = (document.querySelector("[data-lit-stage][data-lit-on]")?.getAnimations({ subtree: true }) ?? []).filter(a => a.constructor === Animation && a.effect?.pseudoElement);
-      return tile && new DOMMatrix(getComputedStyle(tile, "::after").transform).m41 < 0 && anims.length === 0;
-    });
-    assert.equal((await light()).side, -1);
-    await page.evaluate(() => window.__perchLight(false));
-    await page.waitForFunction(() => !document.querySelector("[data-lit-on]") && !document.querySelector("[data-dashboard-light]"));
-    assert.deepEqual(
-      await page.evaluate(() => {
-        const stage = document.querySelector("[data-lit-stage]");
-        return [stage?.getAnimations({ subtree: true }).filter(a => a.constructor === Animation && a.effect?.pseudoElement).length, [...(stage?.querySelectorAll("[data-lit]") ?? [])].filter(el => el.style.getPropertyValue("--lit-a")).length];
-      }),
-      [0, 0]
-    );
-    // Leaving the Dashboard takes the light away too.
-    await page.evaluate(() => window.__perchLight(true));
-    await page.getByRole("link", { name: "Issues" }).first().click();
-    await page.waitForURL(/\/issues/);
-    await page.waitForFunction(() => !document.querySelector("[data-lit-on]") && !document.querySelector("[data-dashboard-light]"));
   }));
 
-test("night on the Dashboard: the moon's blue as deep as the hour is dark, cool and softer shadows; off in Appearance, the page stays as by day", () =>
-  withModules({ modules: ["perch"], seed: licensed("perch"), path: "/" }, async ({ page, base }) => {
-    await page.getByTestId("module-perch").waitFor();
-    await page.waitForSelector("[data-lit-stage][data-lit-on]");
-    const night = () =>
-      page.evaluate(() => {
-        const stage = document.querySelector("[data-lit-stage]");
-        const veil = document.querySelector("[data-dashboard-night]");
-        return {
-          dark: veil ? Math.round(Number(getComputedStyle(veil).opacity) * 10) / 10 : null,
-          cool: stage?.hasAttribute("data-lit-night") ?? false,
-          // Softer at night (×1.6); by day only by the light's lean.
-          soft: Number(stage?.style.getPropertyValue("--lit-blur") || 1) > 1.5,
-        };
+test("an app-wide module mounts once for every page, and reads the surface catalog and the stage; the host draws no light of its own", () =>
+  withModules({ modules: ["stage"], seed: licensed("stage"), path: "/" }, async ({ page, base }) => {
+    await page.waitForFunction(() => window.__stageMounts === 1);
+    const seen = await page.evaluate(() => {
+      const { catalog, root, panel } = window.__stage();
+      const kinds = Object.keys(catalog ?? {});
+      // Every surface on the screen is a kind the catalog knows, at an elevation it allows.
+      const bad = [...document.querySelectorAll("[data-surface]")].filter(el => {
+        const p = catalog[el.getAttribute("data-surface")];
+        const e = Number(el.getAttribute("data-elev") ?? 0);
+        return !p || e > p.maxElevation || (e > 0 && !p.cast);
       });
-    await page.evaluate(() => window.__perchNight(1));
-    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector("[data-dashboard-night]")).opacity) > 0.99, null, { timeout: 10_000 });
-    assert.deepEqual(await night(), { dark: 1, cool: true, soft: true });
-    await page.evaluate(() => window.__perchNight(0));
-    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector("[data-dashboard-night]")).opacity) < 0.01, null, { timeout: 10_000 });
-    assert.deepEqual(await night(), { dark: 0, cool: false, soft: false });
-
+      return {
+        kinds: ["control", "card", "panel", "menu", "dialog", "ground", "glass"].every(k => kinds.includes(k)),
+        panelCasts: catalog.panel.cast,
+        root,
+        panel,
+        bad: bad.length,
+        marked: document.querySelectorAll("[data-surface]").length > 10,
+        // The old light (host.ambient) draws nothing any more.
+        leftovers: document.querySelectorAll("[data-lit], [data-lit-on], [data-dashboard-light], [data-dashboard-night]").length,
+      };
+    });
+    assert.deepEqual(seen, { kinds: true, panelCasts: true, root: true, panel: true, bad: 0, marked: true, leftovers: 0 });
+    // Pages come and go; the module stays mounted (no restart of what it draws).
+    for (const name of ["Issues", "Board", "Dashboard"]) {
+      await page.getByRole("link", { name }).first().click();
+      await page.waitForTimeout(200);
+    }
+    assert.equal(await page.evaluate(() => window.__stageMounts), 1);
+    // Night as the person set it reaches the module.
+    assert.equal(await page.evaluate(() => window.__stageNight), true);
     await page.goto(base + "/settings/appearance");
     const toggle = page.getByRole("switch", { name: "Night on the Dashboard" });
-    assert.equal(await toggle.getAttribute("aria-checked"), "true");
     await Promise.all([page.waitForResponse(r => r.url().includes("settings.update")), toggle.click()]);
-    await page.goto(base + "/");
-    await page.getByTestId("module-perch").waitFor();
-    await page.waitForSelector("[data-lit-stage][data-lit-on]");
-    await page.evaluate(() => window.__perchNight(1));
-    await page.waitForTimeout(3000);
-    assert.deepEqual(await night(), { dark: 0, cool: false, soft: false });
+    await page.waitForFunction(() => window.__stageNight === false);
   }));
 
 test("a dashboard widget gets its own card below the dashboard, inside the panel", async () => {

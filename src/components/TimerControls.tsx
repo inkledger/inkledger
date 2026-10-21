@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
+import { surface } from "@/components/app/surface";
 
 /** Live ticking elapsed time, "h:mm:ss". */
 export function TickingElapsed({
@@ -231,7 +232,7 @@ export function ActiveTimerChip({ className }: { className?: string }) {
   return (
     <Link
       to={issuePath({ key: timer.issueKey, connectionId: timer.connectionId })}
-      data-lit="1"
+      {...surface("control")}
       className={cn(
         "flex items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-body-sm font-medium transition-colors hover:bg-accent",
         className
@@ -330,7 +331,7 @@ export function ActiveTimerRailButton() {
         <Link
           to={issuePath({ key: timer.issueKey, connectionId: timer.connectionId })}
           aria-label={label}
-          data-lit="1"
+          {...surface("control")}
           className="mx-auto flex w-12 flex-col items-center gap-1 rounded-md border bg-background py-1.5 transition-colors hover:bg-accent"
         >
           <TimerRing running={running} />

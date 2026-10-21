@@ -3,6 +3,7 @@ import { useNotificationList } from "@/hooks/useNotificationList";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 /**
  * "For you": new work and changes that need attention (assigned, critical,
@@ -17,7 +18,7 @@ export function InboxCard() {
       title={
         <span className="flex min-w-0 items-center gap-2">
           {t("views.dashboard.inbox.title")}
-          <span data-lit="1" className="rounded-full bg-primary-soft px-2 text-caption font-semibold text-primary-strong tabular">
+          <span {...surface("chip")} className="rounded-full bg-primary-soft px-2 text-caption font-semibold text-primary-strong tabular">
             {items.length}
           </span>
         </span>

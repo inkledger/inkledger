@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/jira";
+import { surface } from "@/components/app/surface";
 
 const TONES: Record<Tone, string> = {
   neutral: "bg-muted text-muted-foreground",
@@ -36,7 +37,7 @@ export function Chip({
   const dot = variant === "dot";
   return (
     <span
-      data-lit="1"
+      {...surface("chip")}
       className={cn(
         "inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm px-1.5 text-caption font-medium",
         dot ? "bg-muted text-foreground/75" : TONES[tone],

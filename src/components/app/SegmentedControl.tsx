@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { surface } from "@/components/app/surface";
 
 /** Pill segmented control (radio group semantics, arrow-key navigable). */
 export function SegmentedControl<T extends string>({
@@ -31,8 +32,8 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      // Under a module's light the chosen option stands out of the group.
-      data-lit-ground
+      // Under a light the chosen option stands out of the group.
+      {...surface("ground")}
       className={cn(
         "inline-flex items-center gap-0.5 rounded-lg border bg-muted/70 p-0.5",
         className
@@ -55,7 +56,7 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
-            data-lit={active ? "1" : undefined}
+            {...surface("control", { on: active })}
             // With no selection the first option keeps the group reachable.
             tabIndex={active || (!hasValue && i === 0) ? 0 : -1}
             onClick={() => onChange(v)}

@@ -3,6 +3,7 @@ import { dayKey, formatDurationLong } from "@contracts/time";
 import type { ProjectColor } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
 import { t, dateFormat } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 export type DayStack = {
   day: Date;
@@ -52,7 +53,7 @@ export function PeriodBars({
   return (
     <figure className="m-0">
       <div
-        data-lit-ground
+        {...surface("ground")}
         className={cn(
           "rounded-lg bg-muted/30 px-2 pb-2",
           compact ? "h-24 pt-3" : "h-52 pt-6"
@@ -67,8 +68,8 @@ export function PeriodBars({
               <div
                 key={dayKey(s.day)}
                 title={`${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}`}
-                // A day with no goal is see-through: not lit.
-                data-lit={target > 0 ? "1" : undefined}
+                // A day with no goal is see-through: glass, no shadow.
+                {...(target > 0 ? surface("bar") : surface("glass"))}
                 className={cn(
                   "relative h-full flex-1 rounded-md",
                   target > 0 ? "bg-muted" : "bg-muted/60"

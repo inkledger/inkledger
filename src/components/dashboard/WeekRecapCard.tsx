@@ -5,6 +5,7 @@ import { PeriodBars } from "@/components/dashboard/PeriodBars";
 import { CountUpDuration } from "@/components/dashboard/PeriodSummary";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { surface } from "@/components/app/surface";
 
 const CHART_COLOR = () => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" });
 
@@ -46,7 +47,7 @@ export function WeekRecapCard({
           <CountUpDuration seconds={recap.total} />
         </p>
         <p
-          data-lit="1"
+          {...surface("chip")}
           className={cn(
             "mt-2 inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-caption font-medium",
             d !== null && d > 0

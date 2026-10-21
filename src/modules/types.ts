@@ -25,7 +25,43 @@ export type ThemeState = {
   /** Resolved CSS colors of the design tokens. */
   /** CSS colours; `ring` is the focus outline colour. */
   tokens: Record<"primary" | "foreground" | "muted" | "card" | "border" | "background" | "ring", string>;
+  /** The person wants night on the Dashboard (Settings → Appearance). Optional: older hosts don't say. */
+  night?: boolean;
 };
+
+/**
+ * The interface's surfaces, as the host describes them (whether or not any
+ * module draws on them). Every element that may take an effect is marked by
+ * the host's typed helper with `data-surface="<kind>"` and, for those that
+ * stand out, `data-elev="1|2|3"` (how high above what it stands on).
+ * Optional markers: `data-surface-role` ("wrap": casts for a face that clips;
+ * "face": the visible top of a wrap), `data-surface-edge="off"` (no lit top
+ * edge), `data-surface-current` (counts only while aria-current="page").
+ */
+export type SurfaceShape = "rect" | "pill" | "alpha";
+export type SurfaceEffect = "cast" | "contact" | "edge";
+export type SurfaceProfile = {
+  /** What it is, in a few words. */
+  about: string;
+  /** May cast a shadow on what it stands on. */
+  cast: boolean;
+  /** Highest elevation allowed (0: never stands out). */
+  maxElevation: 0 | 1 | 2 | 3;
+  /** Its outline: a box (rounded or not), a pill, or a picture's own silhouette (alpha). */
+  shape: SurfaceShape;
+  /** Effects that make sense on it. */
+  effects: readonly SurfaceEffect[];
+  /** See-through by design: never a cast shadow under it (it would show through as a box). */
+  translucent: boolean;
+  /** Its picture already carries a shadow: no second one. */
+  bakedShadow: boolean;
+  /** Floats over the page in its own layer (menus, dialogs), outside the panel. */
+  floating: boolean;
+  /** How much a change of light costs it: how big it is and how many there are. */
+  cost: "low" | "medium" | "high";
+};
+/** The catalog: every kind of surface the host marks, by name. */
+export type SurfaceCatalog = Readonly<Record<string, SurfaceProfile>>;
 
 /** Which issue, unambiguously: its key on its connection (two trackers may share a key). */
 export type IssueRef = { connectionId: number; key: string };
@@ -120,10 +156,18 @@ export type HostApiV1 = {
   geocode(query: string): Promise<HostPlace[]>;
   on<E extends HostEventName>(event: E, fn: (detail: HostEvents[E]) => void): () => void;
   /**
-   * Light the Dashboard (null: back to the theme's). Optional: hosts before it
-   * don't have it, so check before calling. One light at a time: the last call wins.
+   * @deprecated Since the Shadow module: the host draws no light of its own any
+   * more and ignores this (kept so modules built before still load).
    */
   ambient?(light: Ambient | null): void;
+  /** The catalog of surfaces (see SurfaceCatalog). Optional: older hosts don't have it. */
+  surfaces?: { catalog(): SurfaceCatalog };
+  /**
+   * Where the interface lives: `root`, the app shell holding every surface
+   * (menus and dialogs float outside it, in the document); `panel`, the main
+   * panel, or null. Optional: older hosts don't have it.
+   */
+  stage?: { root(): HTMLElement | null; panel(): HTMLElement | null };
   /** Opens this module's settings (its `settings` slot) in a sheet over the page. Optional, like `ambient`. */
   openSettings?(): void;
   /**
