@@ -80,7 +80,9 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     await admin.connect();
     await admin.query(`CREATE DATABASE "${dbName}"`);
   } catch (e) {
-    // No database to work on: nothing left open or behind either.
+    // No database to work on: nothing left open or behind either (one made after a
+    // timeout gave up on it goes too).
+    await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`).catch(() => {});
     await admin.end().catch(() => {});
     rmSync(dir, { recursive: true, force: true });
     throw e;
@@ -188,10 +190,14 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
         const gone = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 5000, false))]);
         // A server that outlives its test would hold the whole run open.
         if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
-        await client.end();
-        await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
-        await admin.end();
-        rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        try {
+          await client.end();
+          await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+        } finally {
+          // Even when the drop fails (and the test with it): no connection or folder left open.
+          await admin.end().catch(() => {});
+          rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
       },
     };
   } catch (e) {
