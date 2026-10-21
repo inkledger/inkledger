@@ -109,6 +109,26 @@ function sayReadOnly(e: ProviderError, type: ProviderType): ProviderError {
   return new ProviderError("readOnly", text, { cause: e });
 }
 
+/**
+ * One call's credentials refused (401) is not yet the connection's: a service
+ * may refuse one endpoint while the token still opens the rest. The identity
+ * call (verify) settles it once: still accepted, the refusal is that call's
+ * alone (forbidden, the connection stays usable); refused too, it is the
+ * connection's (auth, marked to reconnect upstream). Said in the log either way.
+ */
+async function confirmRefused(e: ProviderError, name: string, type: ProviderType, connectionId: number, verify: (() => Promise<unknown>) | undefined): Promise<ProviderError> {
+  if (e.kind !== "auth" || name === "verify" || !verify) return e;
+  const said = `[provider] refused: connection ${connectionId} (${type}) ${name}, ${e.status ?? "no status"} "${e.message}"`;
+  try {
+    await verify();
+  } catch (v) {
+    console.warn(`${said}; verify refused too (${v instanceof Error ? v.message : String(v)}): waits to be reconnected`);
+    return e;
+  }
+  console.warn(`${said}; verify still accepted: this call only`);
+  return new ProviderError("forbidden", e.message, { status: e.status, cause: e });
+}
+
 export function bindTracker<T extends TrackerType, O>(p: TrackerProvider<T, O>, stored: StoredConn<T>): BoundTracker {
   let options: O;
   try {
@@ -126,7 +146,9 @@ export function bindTracker<T extends TrackerType, O>(p: TrackerProvider<T, O>, 
         try {
           result = await fn({ conn, signal: m.signal, correlationId: m.correlationId }, ...args);
         } catch (e) {
-          throw originate(sayReadOnly(normalizeError(e, m.signal), stored.type), stored.id);
+          const err = sayReadOnly(normalizeError(e, m.signal), stored.type);
+          const verify = () => p.verify({ conn, signal: m.signal, correlationId: m.correlationId });
+          throw originate(await confirmRefused(err, name, stored.type, stored.id, verify), stored.id);
         }
         checker(p, name, args)?.(result);
         return scrub(name, result, m);
@@ -206,7 +228,8 @@ export function bindSink<T extends TimeSinkType, O>(p: TimeSinkProvider<T, O>, s
         try {
           result = await fn({ conn, signal: m.signal, correlationId: m.correlationId }, ...args);
         } catch (err) {
-          throw sayReadOnly(normalizeError(err, m.signal), stored.type);
+          const e = sayReadOnly(normalizeError(err, m.signal), stored.type);
+          throw await confirmRefused(e, name, stored.type, stored.id, () => p.verify({ conn, signal: m.signal, correlationId: m.correlationId }));
         }
         check(name, result);
         return result;

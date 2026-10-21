@@ -85,3 +85,29 @@ describe("github, as the layer sees it", () => {
     expect((err as { rateLimit?: { retryAfterMs?: number } }).rateLimit?.retryAfterMs).toBeGreaterThan(60_000);
   });
 });
+
+describe("github, a refused call", () => {
+  const refusing = (sim: ReturnType<typeof githubSimulator>, refuse: (url: string) => boolean) =>
+    vi.stubGlobal("fetch", async (input: Request | URL | string, init?: RequestInit) =>
+      refuse(String(input instanceof Request ? input.url : input)) ? Response.json({ message: "Bad credentials" }, { status: 401 }) : sim.fetch(input, init));
+
+  it("one endpoint's 401 while the token still opens /user is that call's alone: the connection stays usable", async () => {
+    const { sim, conn } = simulated();
+    refusing(sim, (url) => url.includes("/user/repos"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "forbidden", status: 401, message: "GitHub: Bad credentials" });
+    expect(warn.mock.calls.flat().join(" ")).toMatch(/connection 7 \(github\) containers, 401 .*verify still accepted/);
+    warn.mockRestore();
+  });
+
+  it("a token refused everywhere, /user too, waits to be reconnected", async () => {
+    const { sim, conn } = simulated();
+    refusing(sim, () => true);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "auth", status: 401 });
+    expect(warn.mock.calls.flat().join(" ")).toMatch(/verify refused too/);
+    warn.mockRestore();
+  });
+});
