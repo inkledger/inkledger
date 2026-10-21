@@ -18,23 +18,17 @@ import { bindSink, type BoundSink } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
 import { connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
-import { jiraWorklogIdOf } from "../providers/tempo/adapter";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
 import { withDeleteReason } from "../queries/trash";
 import { linkSink, timeInput } from "./worklogs";
+import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
 import { CLAIM_TTL_MS } from "./timeWrites";
 
 const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `sink-${Date.now()}` });
 const SINKS = new Set<string>(TIME_SINK_TYPES);
-/**
- * Sinks that stand in for one tracker connection: which one (from their
- * options) and the tracker's own id of an entry they filed.
- */
-export const COMPANIONS: Partial<Record<TimeSinkType, { tracker: TrackerType; option: string; trackerIdOf: (r: RemoteWorklog) => string | null }>> = {
-  tempo: { tracker: "jira", option: "jiraConnectionId", trackerIdOf: jiraWorklogIdOf },
-};
+export { COMPANIONS } from "./companions";
 const BESIDE = (type: string) => SINKS.has(type) && !COMPANIONS[type as TimeSinkType];
 
 const optionsOf = (c: Connection): Record<string, unknown> => {

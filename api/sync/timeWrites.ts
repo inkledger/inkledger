@@ -3,8 +3,9 @@
 // can't be reached, queued in the outbox and replayed in order later. For
 // Jira the calls are the ones its own path made (jira-gate.test.ts).
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
-import { issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
+import { and, asc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { connections, issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
+import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import type { TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
@@ -133,11 +134,14 @@ export const CLAIM_TTL_MS = 5 * 60_000;
 
 /**
  * A worklog still being created on its tracker: its row "new-…", younger than
- * a claim's lease (every call has a shorter timeout). A sync that doesn't see
- * it on the tracker yet must leave it be (its answer is on the way); older, its
- * process died mid-create and a sync may drop it.
+ * a claim's lease (every call has a shorter timeout), or filed through a sink
+ * standing in for the tracker (Tempo) that hasn't taken it yet, however long
+ * that takes. A sync that doesn't see it on the tracker must leave it be (its
+ * answer, or its push, is on the way); otherwise its process died mid-create
+ * and a sync may drop it.
  */
-export const creationInFlight = (now = Date.now()): SQL => sql`(${worklogs.remoteId} like 'new-%' and ${worklogs.syncedAt} > ${now - CLAIM_TTL_MS})`;
+export const creationInFlight = (now = Date.now()): SQL =>
+  sql`(${worklogs.remoteId} like 'new-%' and (${worklogs.syncedAt} > ${now - CLAIM_TTL_MS} or exists (select 1 from ${worklogSinks} join ${connections} on ${connections.id} = ${worklogSinks.sinkConnectionId} where ${worklogSinks.worklogId} = ${worklogs.id} and ${inArray(connections.type, COMPANION_TYPES)} and ${worklogSinks.state} <> 'synced')))`;
 
 /** How long before queueing a timed-out create may have been stored by the service. */
 const ADOPT_WINDOW_MS = 5 * 60_000;

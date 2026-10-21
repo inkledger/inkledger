@@ -152,4 +152,26 @@ describe("worklogs from Jira", () => {
     expect((await q<{ id: string }>("SELECT jira_worklog_id id FROM worklogs WHERE comment = 'creating'")).map((r) => r.id)).toEqual(["new-young"]);
     await q("DELETE FROM worklogs WHERE comment = 'creating'");
   });
+
+  it("one filed through a sink standing in for Jira (Tempo), still waiting there, stays however old: its push isn't lost", async () => {
+    const { CLAIM_TTL_MS } = await import("./sync/timeWrites");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const [tempo] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'tempo', 'https://api.tempo.io', 'acc-1', ?, 'x', 1) RETURNING id", user.id, JSON.stringify({ jiraConnectionId: conn.id }));
+    const [w] = await q<{ id: number }>(
+      "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'PRJ-1', 'new-via-tempo', 600, ?, 'via tempo', ?) RETURNING id",
+      user.id, conn.id, now - DAY, Date.now() - CLAIM_TTL_MS - 3_600_000,
+    );
+    await q("INSERT INTO worklog_sinks (worklog_id, sink_connection_id, state) VALUES (?, ?, 'pending')", w.id, tempo.id);
+    // A dead creation still waiting on a sink beside Jira (Harvest), not standing in for it: dropped as before.
+    const [harvest] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'harvest', 'https://api.harvestapp.com', 'h', '{}', 'x', 1) RETURNING id", user.id);
+    const [dead] = await q<{ id: number }>(
+      "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'PRJ-1', 'new-dead-beside', 600, ?, 'beside', ?) RETURNING id",
+      user.id, conn.id, now - DAY, Date.now() - CLAIM_TTL_MS - 3_600_000,
+    );
+    await q("INSERT INTO worklog_sinks (worklog_id, sink_connection_id, state) VALUES (?, ?, 'pending')", dead.id, harvest.id);
+    await me.worklogs.reimport();
+    expect((await q<{ id: string }>("SELECT jira_worklog_id id FROM worklogs WHERE comment IN ('via tempo', 'beside') ORDER BY comment")).map((r) => r.id)).toEqual(["new-via-tempo"]);
+    await q("DELETE FROM worklogs WHERE comment = 'via tempo'");
+    await q("DELETE FROM connections WHERE id IN (?, ?)", tempo.id, harvest.id);
+  });
 });
