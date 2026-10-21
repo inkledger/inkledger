@@ -874,6 +874,8 @@ export default function IssueDetail({
                         title={w.sink.locked ? t("views.worklogSink.locked", { provider }) : undefined}
                         onClick={() =>
                           setEditing({
+                            id: w.id,
+                            connectionId: issue.data?.connectionId,
                             remoteId: w.remoteId,
                             timeSpentSeconds: w.timeSpentSeconds,
                             started: new Date(w.started),
@@ -922,6 +924,7 @@ export default function IssueDetail({
       {editing && (
         <LogTimeDialog
           issueKey={key}
+          connectionId={issue.data?.connectionId}
           worklog={editing}
           open
           onOpenChange={o => {
@@ -953,7 +956,7 @@ export default function IssueDetail({
               destructive
               onClick={() => {
                 if (deleting)
-                  del.mutate({ issueKey: key, remoteId: deleting });
+                  del.mutate({ issueKey: key, remoteId: deleting, connectionId: issue.data?.connectionId });
               }}
             >
               {t("pages.issueDetail.delete")}

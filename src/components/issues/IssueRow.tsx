@@ -94,7 +94,8 @@ function HistoryLink({
 
 type RowProps = {
   issue: IssueItem;
-  onLog: (key: string) => void;
+  /** With the issue's connection: its key may be on two trackers. */
+  onLog: (key: string, connectionId?: number) => void;
   pin?: PinProps;
   /** Keyboard selection (j / k). */
   selected?: boolean;
@@ -122,7 +123,7 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
         size="icon-sm"
         aria-label={t("views.issues.row.logTimeOn", { key: issue.key })}
         title={t("views.issues.row.logTime")}
-        onClick={() => onLog(issue.key)}
+        onClick={() => onLog(issue.key, issue.connectionId)}
       >
         <Clock className="h-4 w-4" />
       </Button>

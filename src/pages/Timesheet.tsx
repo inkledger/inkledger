@@ -356,10 +356,8 @@ export default function Timesheet() {
     let reason = "";
     for (const w of targets) {
       try {
-        await del.mutateAsync({
-          issueKey: w.issueKey,
-          remoteId: w.remoteId,
-        });
+        // By its id: its key may be on two trackers.
+        await del.mutateAsync({ id: w.id });
       } catch (e) {
         failed.push(w);
         reason ||= e instanceof Error ? e.message : String(e);
@@ -415,6 +413,7 @@ export default function Timesheet() {
       for (const { w, seconds } of blocks) {
         await create.mutateAsync({
           issueKey: w.issueKey,
+          connectionId: w.connectionId ?? undefined,
           seconds,
           started: new Date(cursor).toISOString(),
           comment: w.comment,
@@ -797,7 +796,10 @@ export default function Timesheet() {
         <LogTimeDialog
           key={editing.id}
           issueKey={editing.issueKey}
+          connectionId={editing.connectionId ?? undefined}
           worklog={{
+            id: editing.id,
+            connectionId: editing.connectionId,
             remoteId: editing.remoteId,
             timeSpentSeconds: editing.timeSpentSeconds,
             started: new Date(editing.started),

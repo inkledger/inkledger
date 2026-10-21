@@ -139,7 +139,7 @@ export default function Issues() {
 
   const [trackerSearchOpen, setTrackerSearchOpen] = useState(false);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
-  const [logKey, setLogKey] = useState<string | null>(null);
+  const [logging, setLogging] = useState<{ key: string; connectionId?: number } | null>(null);
 
   // Any filter change restarts from page 1.
   const updateFilters = (patch: Partial<IssueFilterState>) => {
@@ -245,7 +245,7 @@ export default function Issues() {
     };
   }, [all.data, today]);
 
-  const openLog = useCallback((key: string) => setLogKey(key), [setLogKey]);
+  const openLog = useCallback((key: string, connectionId?: number) => setLogging({ key, connectionId }), [setLogging]);
   const unreadCount = useUnreadCount();
   const issues = useMemo(() => data?.issues ?? [], [data]);
 
@@ -522,13 +522,14 @@ export default function Issues() {
         </aside>
       </PanelRow>
 
-      {logKey && (
+      {logging && (
         <LogTimeDialog
-          key={logKey}
-          issueKey={logKey}
+          key={`${logging.connectionId ?? ""}:${logging.key}`}
+          issueKey={logging.key}
+          connectionId={logging.connectionId}
           open
           onOpenChange={o => {
-            if (!o) setLogKey(null);
+            if (!o) setLogging(null);
           }}
         />
       )}
