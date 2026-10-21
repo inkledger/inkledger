@@ -71,6 +71,15 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
   });
 
+  it("\"Send now\" sends a delete that background passes no longer try (past the attempts cap)", async () => {
+    const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
+    await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', 'gone-1', ?, 1)", userId, sinkId, MAX_OUTBOX_ATTEMPTS);
+    await push();
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE jira_worklog_id = 'gone-1'")).toEqual([{ n: 1 }]);
+    await caller.sinks.push({ id: sinkId });
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE jira_worklog_id = 'gone-1'")).toEqual([{ n: 0 }]);
+  });
+
   it("an integration not verified yet keeps its work pending until writes are allowed", async () => {
     fakes.sinkStatus = "experimental";
     try {
