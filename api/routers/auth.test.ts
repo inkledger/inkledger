@@ -271,6 +271,25 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(k.users.reinvite({ id: pend.id })).resolves.toBeTruthy();
     });
 
+    it("a link a manager made stops working once the account outgrows the manager, or has a password", async () => {
+      await account("keeper2", { permissions: '["manageUsers","useModules"]' });
+      const k = appRouter.createCaller(await session({ username: "keeper2" }));
+      const a = appRouter.createCaller(await admin());
+      const token = (link: string) => link.split("/invite/")[1];
+      // Promoted after the link was made: the manager's link can't open an admin.
+      const promoted = await k.users.invite({ username: "newbie", displayName: "Newbie", role: "member", permissions: [] });
+      await a.users.setAccess({ id: promoted.user.id, role: "admin", permissions: [] });
+      await expect(appRouter.createCaller(anon()).auth.invite({ token: token(promoted.link) })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token: token(promoted.link), password: "the manager's choice" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      // Given a password meanwhile (a reset): no link sets another one.
+      const reset = await a.users.invite({ username: "resetlater", displayName: "R", role: "member", permissions: [] });
+      await a.users.resetPassword({ id: reset.user.id });
+      await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token: token(reset.link), password: "someone else's" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      // Within the manager's reach, its link still works.
+      const fine = await k.users.invite({ username: "fine", displayName: "Fine", role: "member", permissions: ["useModules"] });
+      await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token: token(fine.link), password: "fine's own password" })).resolves.toMatchObject({ username: "fine" });
+    });
+
     it("a new invite link is only for an account that hasn't set its password: an active one can't be taken over by one", async () => {
       const active = await account("settled");
       await expect(appRouter.createCaller(await admin()).users.reinvite({ id: active.id })).rejects.toMatchObject({ code: "FORBIDDEN" });

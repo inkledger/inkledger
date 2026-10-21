@@ -9,7 +9,7 @@ import { PERMISSIONS } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById } from "../queries/accounts";
+import { createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById, within } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
 import { assertFreeUsername } from "./auth";
 
@@ -41,9 +41,7 @@ const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.a
  * hand one to an account it controls, or take over a bigger one (a reset, a link).
  */
 function assertWithin(me: User, granted: { role: string; permissions: readonly string[] }) {
-  if (roleOf(me) === "admin") return;
-  const mine = permissionsOf(me);
-  if (granted.role === "admin" || granted.permissions.some((p) => !(mine as readonly string[]).includes(p))) throw notAllowed();
+  if (!within(me, granted)) throw notAllowed();
 }
 
 async function target(id: number, me: User): Promise<User> {

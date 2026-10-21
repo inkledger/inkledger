@@ -23,6 +23,13 @@ export function permissionsOf(user: Pick<User, "role" | "permissions">): Permiss
 
 export const can = (user: Pick<User, "role" | "permissions">, permission: Permission) => permissionsOf(user).includes(permission);
 
+/** `granted` is within what `by` holds: an admin holds anything; anyone else never admin, nor a power it lacks. */
+export function within(by: Pick<User, "role" | "permissions">, granted: { role: string; permissions: readonly string[] }): boolean {
+  if (roleOf(by) === "admin") return true;
+  const mine: readonly string[] = permissionsOf(by);
+  return granted.role !== "admin" && granted.permissions.every((p) => mine.includes(p));
+}
+
 /** Permissions as stored: known ones only, in a stable order. */
 export const storedPermissions = (granted: readonly unknown[]) => JSON.stringify(PERMISSIONS.filter((p) => granted.some((g) => isPermission(g) && g === p)));
 
@@ -92,16 +99,24 @@ export async function createInvite(userId: number, createdBy: number | null): Pr
   return { token, expiresAt };
 }
 
-/** The user an invite token is for, while unused and unexpired. */
+/**
+ * The user an invite token is for, while unused and unexpired; and only while the link
+ * still does what it was made for: the account has no password yet, and whoever made
+ * the link could still give it the access it has now (else a manager's link, kept, would
+ * open an account promoted since).
+ */
 export async function inviteUser(token: string): Promise<{ inviteId: string; user: User } | null> {
   const id = hashToken(token);
   const [row] = await getDb()
-    .select({ user: users })
+    .select({ user: users, createdBy: invites.createdBy })
     .from(invites)
     .innerJoin(users, eq(invites.userId, users.id))
-    .where(and(eq(invites.id, id), isNull(invites.usedAt), gt(invites.expiresAt, new Date()), isNull(users.disabledAt)))
+    .where(and(eq(invites.id, id), isNull(invites.usedAt), gt(invites.expiresAt, new Date()), isNull(users.disabledAt), isNull(users.passwordHash)))
     .limit(1);
-  return row ? { inviteId: id, user: row.user } : null;
+  if (!row) return null;
+  const maker = row.createdBy === null ? null : await userById(row.createdBy);
+  if (maker && !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user) })) return null;
+  return { inviteId: id, user: row.user };
 }
 
 /** Uses up an invite: true only for the first caller (two tabs can't both set a password). */
