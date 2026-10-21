@@ -26,11 +26,16 @@ test("while the day is being logged, the summary shows what is being logged", as
     await sheet.waitFor();
     // The timer runs on while the sheet is open: 20 more minutes on the server, read by the next poll.
     await app.db.q("UPDATE timers SET started_at = started_at - ? WHERE issue_key = 'DEMO-101'", 20 * 60_000);
-    await page.waitForTimeout(16_000);
+    // The next poll asked after that change (5–15 s), and its answer.
+    const asked = await page.waitForRequest(r => new URL(r.url()).pathname.includes("timers.list"), { timeout: 30_000 });
+    await (await asked.response())?.finished();
+    await page.waitForTimeout(300);
     await sheet.getByRole("button", { name: /^Log 1 to / }).click();
     const confirm = page.getByRole("alertdialog");
     await confirm.waitFor();
     const logged = (await confirm.locator("li .tabular").first().innerText()).trim();
+    // The live length, not the one the sheet opened with: otherwise this proves nothing.
+    assert.equal(logged, "50 min");
     // The save held on its way to the server.
     let release = () => {};
     const held = new Promise(r => (release = r));
