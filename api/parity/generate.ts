@@ -199,8 +199,7 @@ class Materializer {
     const props = c.getPropertiesOfType(t).slice().sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const p of props) {
       const optional = (p.flags & ts.SymbolFlags.Optional) !== 0;
-      const decl = p.valueDeclaration ?? p.declarations?.[0];
-      const readonly = decl ? (ts.getCombinedModifierFlags(decl) & ts.ModifierFlags.Readonly) !== 0 : false;
+      const readonly = isReadonlyProperty(p);
       const key = /^[A-Za-z_$][\w$]*$/.test(p.name) ? p.name : JSON.stringify(p.name);
       parts.push(`${readonly ? "readonly " : ""}${key}${optional ? "?" : ""}: ${this.print(c.getTypeOfSymbol(p), `${at}.${p.name}`)}`);
     }
@@ -419,4 +418,23 @@ export async function inventories(): Promise<Record<string, string>> {
     "api/parity/settings-sections.json": json(settingsSections()),
     "api/parity/i18n-keys.json": json(await i18nKeys()),
   };
+}
+
+/**
+ * A property's readonly: on its declaration, or, for one a mapped type made
+ * (Readonly<…>, `{ readonly [K in …] }`, `-readonly`), on the symbol itself,
+ * where only the compiler's check flags tell (not in its public types: checked
+ * to be there, so a TypeScript without them fails here, never prints less).
+ */
+function isReadonlyProperty(p: ts.Symbol): boolean {
+  if ((p.flags & ts.SymbolFlags.Transient) !== 0) {
+    const internal = ts as unknown as { getCheckFlags?: (s: ts.Symbol) => number; CheckFlags?: { Readonly?: number } };
+    const flag = internal.CheckFlags?.Readonly;
+    if (!internal.getCheckFlags || flag === undefined) throw new Error("parity: this TypeScript has no getCheckFlags to tell a mapped property's readonly");
+    if ((internal.getCheckFlags(p) & flag) !== 0) return true;
+    const mapped = (internal.CheckFlags as { Mapped?: number }).Mapped;
+    if (mapped !== undefined && (internal.getCheckFlags(p) & mapped) !== 0) return false;
+  }
+  const decl = p.valueDeclaration ?? p.declarations?.[0];
+  return decl ? (ts.getCombinedModifierFlags(decl) & ts.ModifierFlags.Readonly) !== 0 : false;
 }

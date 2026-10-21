@@ -32,6 +32,11 @@ describe("materializing a type", () => {
     expect(materializeSource(src, "T")).toBe('{ a?: Date | undefined; m: Map<string, number>; readonly r: readonly [number, (string | undefined)?]; z: ("a" | "b")[] }');
   });
 
+  it("keeps readonly on properties a mapped type made so", () => {
+    const src = `type Base = { a: number; b?: string }; export type T = { r: Readonly<Base>; m: { readonly [K in "x" | "y"]: number }; w: { -readonly [K in keyof Readonly<Base>]: Base[K] } };`;
+    expect(materializeSource(src, "T")).toBe("{ m: { readonly x: number; readonly y: number }; r: { readonly a: number; readonly b?: string | undefined }; w: { a: number; b?: string | undefined } }");
+  });
+
   it("names a recursive type instead of looping", () => {
     const src = `export type Node = { kind: "text"; text: string } | { kind: "list"; children: Node[] };`;
     expect(materializeSource(src, "Node")).toBe('type Rec1 = { children: Rec1[]; kind: "list" } | { kind: "text"; text: string };\nRec1');
