@@ -5,6 +5,7 @@
 // The core only ever calls bound adapters.
 import { SINK_CALLS, SINK_GROUPS, TRACKER_CALLS, TRACKER_GROUPS } from "./operations";
 import { originate } from "./origin";
+import { LruCache } from "../../lib/lruCache";
 import { inCall, type CallMeta } from "./context";
 import { normalizeError, ProviderError, readOnlyCauseOf } from "./errors";
 import { t } from "@contracts/i18n";
@@ -109,20 +110,40 @@ function sayReadOnly(e: ProviderError, type: ProviderType): ProviderError {
   return new ProviderError("readOnly", text, { cause: e });
 }
 
+/** How long one connection's verdict (verify accepted or refused) stands for the 401s that follow. */
+export const REFUSAL_VERDICT_MS = 60_000;
+
+/** One verify per connection at a time, its verdict kept a minute: a burst of 401s asks the service once, not once each. */
+const verdicts = new LruCache<number, "accepted" | "refused">({ maxEntries: 1000, ttlMs: REFUSAL_VERDICT_MS });
+
+/** Tests: forget the verdicts. */
+export const forgetRefusalVerdicts = () => verdicts.clear();
+
 /**
  * One call's credentials refused (401) is not yet the connection's: a service
  * may refuse one endpoint while the token still opens the rest. The identity
- * call (verify) settles it once: still accepted, the refusal is that call's
- * alone (forbidden, the connection stays usable); refused too, it is the
- * connection's (auth, marked to reconnect upstream). Said in the log either way.
+ * call (verify) settles it, once per connection for a minute however many
+ * calls were refused meanwhile (a basic-auth server may lock an account that
+ * is hammered with bad credentials): still accepted, the refusal is that
+ * call's alone (forbidden, the connection stays usable); refused too, it is
+ * the connection's (auth, marked to reconnect upstream). A call its caller
+ * gave up on asks nothing. Said in the log either way.
  */
-async function confirmRefused(e: ProviderError, name: string, type: ProviderType, connectionId: number, verify: (() => Promise<unknown>) | undefined): Promise<ProviderError> {
-  if (e.kind !== "auth" || name === "verify" || !verify) return e;
+async function confirmRefused(e: ProviderError, name: string, type: ProviderType, connectionId: number, verify: (() => Promise<unknown>) | undefined, signal: AbortSignal): Promise<ProviderError> {
+  if (e.kind !== "auth" || name === "verify" || !verify || signal.aborted) return e;
   const said = `[provider] refused: connection ${connectionId} (${type}) ${name}, ${e.status ?? "no status"} "${e.message}"`;
-  try {
-    await verify();
-  } catch (v) {
-    console.warn(`${said}; verify refused too (${v instanceof Error ? v.message : String(v)}): waits to be reconnected`);
+  let why = "";
+  const verdict = await verdicts.load(connectionId, async () => {
+    try {
+      await verify();
+      return "accepted";
+    } catch (v) {
+      why = ` (${v instanceof Error ? v.message : String(v)})`;
+      return "refused";
+    }
+  });
+  if (verdict !== "accepted") {
+    console.warn(`${said}; verify refused too${why}: waits to be reconnected`);
     return e;
   }
   console.warn(`${said}; verify still accepted: this call only`);
@@ -148,7 +169,7 @@ export function bindTracker<T extends TrackerType, O>(p: TrackerProvider<T, O>, 
         } catch (e) {
           const err = sayReadOnly(normalizeError(e, m.signal), stored.type);
           const verify = () => p.verify({ conn, signal: m.signal, correlationId: m.correlationId });
-          throw originate(await confirmRefused(err, name, stored.type, stored.id, verify), stored.id);
+          throw originate(await confirmRefused(err, name, stored.type, stored.id, verify, m.signal), stored.id);
         }
         checker(p, name, args)?.(result);
         return scrub(name, result, m);
@@ -229,7 +250,7 @@ export function bindSink<T extends TimeSinkType, O>(p: TimeSinkProvider<T, O>, s
           result = await fn({ conn, signal: m.signal, correlationId: m.correlationId }, ...args);
         } catch (err) {
           const e = sayReadOnly(normalizeError(err, m.signal), stored.type);
-          throw await confirmRefused(e, name, stored.type, stored.id, () => p.verify({ conn, signal: m.signal, correlationId: m.correlationId }));
+          throw await confirmRefused(e, name, stored.type, stored.id, () => p.verify({ conn, signal: m.signal, correlationId: m.correlationId }), m.signal);
         }
         check(name, result);
         return result;

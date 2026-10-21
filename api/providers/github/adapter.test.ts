@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { timeZone } from "@contracts/values";
-import { bindTracker } from "../core/bind";
+import { bindTracker, forgetRefusalVerdicts } from "../core/bind";
 import { readPass } from "../core/paging";
 import { trackerConformance } from "../conformance/suite";
 import { githubSimulator } from "./simulator";
@@ -87,6 +87,7 @@ describe("github, as the layer sees it", () => {
 });
 
 describe("github, a refused call", () => {
+  beforeEach(() => forgetRefusalVerdicts());
   const refusing = (sim: ReturnType<typeof githubSimulator>, refuse: (url: string) => boolean) =>
     vi.stubGlobal("fetch", async (input: Request | URL | string, init?: RequestInit) =>
       refuse(String(input instanceof Request ? input.url : input)) ? Response.json({ message: "Bad credentials" }, { status: 401 }) : sim.fetch(input, init));
@@ -99,6 +100,37 @@ describe("github, a refused call", () => {
     await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "forbidden", status: 401, message: "GitHub: Bad credentials" });
     expect(warn.mock.calls.flat().join(" ")).toMatch(/connection 7 \(github\) containers, 401 .*verify still accepted/);
     warn.mockRestore();
+  });
+
+  it("a burst of refused calls asks /user once, not once each (a basic-auth server may lock the account)", async () => {
+    const { conn } = simulated();
+    let identity = 0;
+    vi.stubGlobal("fetch", async (input: Request | URL | string) => {
+      if (String(input instanceof Request ? input.url : input).endsWith("/user")) identity++;
+      return Response.json({ message: "Bad credentials" }, { status: 401 });
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    const all = await Promise.allSettled(Array.from({ length: 5 }, () => b.containers!(meta())));
+    expect(all.every((r) => r.status === "rejected" && (r.reason as { kind: string }).kind === "auth")).toBe(true);
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "auth" });
+    expect(identity).toBe(1);
+    warn.mockRestore();
+  });
+
+  it("a call its caller gave up on asks nothing", async () => {
+    const { conn } = simulated();
+    let identity = 0;
+    vi.stubGlobal("fetch", async (input: Request | URL | string) => {
+      if (String(input instanceof Request ? input.url : input).endsWith("/user")) identity++;
+      return Response.json({ message: "Bad credentials" }, { status: 401 });
+    });
+    const b = bindTracker(githubProvider, conn);
+    const gaveUp = new AbortController();
+    const call = b.containers!({ signal: gaveUp.signal, correlationId: "t" });
+    gaveUp.abort();
+    await expect(call).rejects.toBeDefined();
+    expect(identity).toBe(0);
   });
 
   it("a token refused everywhere, /user too, waits to be reconnected", async () => {
