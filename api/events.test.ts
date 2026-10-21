@@ -55,4 +55,26 @@ describe("GET /api/events", () => {
     await until("never");
     expect(streamCount()).toBe(0);
   });
+  it("a stream whose session ends (signed out, turned off, reset) gets nothing more and closes", async () => {
+    const { publish, streamCount } = await import("./lib/userEvents");
+    const { userFromRequest } = await import("./context");
+    const { user, sessionId } = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+    const res = await app.request("/api/events", { headers: { cookie } });
+    const reader = res.body!.getReader();
+    const text = new TextDecoder();
+    let got = "";
+    let closed = false;
+    const read = async () => {
+      const { value, done } = await reader.read();
+      if (done) closed = true;
+      else got += text.decode(value);
+    };
+    while (!got.includes("event: hello")) await read();
+    const { q } = await import("./queries/connection");
+    await q("DELETE FROM sessions WHERE id = ?", sessionId);
+    publish(user!.id, { type: "timers", epoch: 42 });
+    while (!closed) await read();
+    expect(got).not.toContain('"epoch":42');
+    expect(streamCount()).toBe(0);
+  });
 });

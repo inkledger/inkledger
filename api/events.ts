@@ -37,11 +37,20 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
         () => done(),
       );
       stream.onAbort(() => done());
+      // The session can end while the stream is open (signed out, turned off, a reset):
+      // then nothing more goes out, and the stream closes.
+      const signedIn = async () => {
+        const now = await restUser(c.req.raw);
+        return "user" in now && now.user.id === userId;
+      };
       try {
         await stream.writeSSE({ event: "hello", data: JSON.stringify({ build: serverBuild() ?? null }) });
         while (!stream.aborted && !stream.closed) {
           // What arrived while writing goes out before waiting again.
-          for (const e of queue.splice(0)) await stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
+          if (queue.length > 0) {
+            if (!(await signedIn())) break;
+            for (const e of queue.splice(0)) await stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
+          }
           const next = await Promise.race([
             ended.then(() => "end" as const),
             new Promise<"tick">((resolve) => setTimeout(() => resolve("tick"), KEEPALIVE_MS).unref()),
@@ -51,7 +60,10 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
             }),
           ]);
           if (next === "end") break;
-          if (next === "tick") await stream.write(": keepalive\n\n");
+          if (next === "tick") {
+            if (!(await signedIn())) break;
+            await stream.write(": keepalive\n\n");
+          }
         }
       } finally {
         unsubscribe();
