@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Home screen web app on iPhone: full screen, own name. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ikl" />
+    <meta name="description" content="inkledger: your time, from every tracker, in order." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F3F3F2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0E0E0F" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>inkledger</title>
+    <script>
+      // Renamed app (was "tempo"): the preferences saved under the old keys
+      // move over once, before anything reads them.
+      try {
+        for (var i = localStorage.length - 1; i >= 0; i--) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf("tempo-") === 0) {
+            var nk = "ikl-" + k.slice(6);
+            if (localStorage.getItem(nk) === null) localStorage.setItem(nk, localStorage.getItem(k));
+            localStorage.removeItem(k);
+          }
+        }
+      } catch (e) {}
+      try {
+        var d = localStorage.getItem("ikl-density");
+        if (d === "comfortable" || d === "compact") document.documentElement.dataset.density = d;
+        var css = localStorage.getItem("ikl-theme-css");
+        if (css) {
+          var s = document.createElement("style");
+          s.id = "theme-vars";
+          s.textContent = css;
+          document.head.appendChild(s);
+        }
+      } catch (e) {}
+      // Dark/light before first paint (next-themes "theme" key), so dark
+      // users never see a light flash. Blocked storage = follow the system.
+      var t = null;
+      try {
+        t = localStorage.getItem("theme");
+      } catch (e) {}
+      try {
+        var dark =
+          t === "dark" ||
+          (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.classList.add(dark ? "dark" : "light");
+        root.style.colorScheme = dark ? "dark" : "light";
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

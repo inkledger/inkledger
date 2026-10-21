@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>inkledger</title>
+    <style>
+      /* Same tokens, fonts and shapes as the app (src/index.css): this page
+         is shown before any server is open, so it can't load the app's CSS. */
+      @font-face {
+        font-family: "Inter Variable";
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(fonts/inter-latin-wght-normal.woff2) format("woff2");
+      }
+      @font-face {
+        font-family: "Inter Tight Variable";
+        font-weight: 100 900;
+        font-display: swap;
+        src: url(fonts/inter-tight-latin-wght-normal.woff2) format("woff2");
+      }
+      :root {
+        color-scheme: light dark;
+        --canvas: 16.2 11.5% 95.1%;
+        --card: 0 0% 100%;
+        --foreground: 16.3 7% 8.7%;
+        --muted: 16.2 13.8% 95.9%;
+        --muted-foreground: 16.3 4.6% 41.9%;
+        --accent: 16.3 12.7% 92.9%;
+        --border: 16.3 10.7% 91.6%;
+        --input: 16.3 9% 85.2%;
+        --primary-strong: 16.6 26% 43.5%;
+        --primary-soft: 16.3 100% 94.7%;
+        --action: 16.6 37% 20.2%;
+        --action-foreground: 16.3 45.9% 97.5%;
+        --danger: 4 46% 45%;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --canvas: 16.3 10.9% 5.2%;
+          --card: 16.3 8.7% 8.7%;
+          --foreground: 16.3 14% 93.6%;
+          --muted: 16.3 6.4% 12.3%;
+          --muted-foreground: 16.3 4.8% 57.5%;
+          --accent: 16.3 6.8% 14.2%;
+          --border: 16.3 6.5% 15.2%;
+          --input: 16.3 6.3% 22.1%;
+          --primary-strong: 16.5 35.5% 65.4%;
+          --primary-soft: 16.6 31.2% 15.3%;
+          --action: 16.4 51.7% 85.2%;
+          --action-foreground: 16.4 17.1% 8.8%;
+          --danger: 5 55% 72%;
+        }
+      }
+      * { box-sizing: border-box; min-width: 0; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        background: hsl(var(--canvas));
+        color: hsl(var(--foreground));
+        font: 14px/1.45 "Inter Variable", -apple-system, system-ui, sans-serif;
+        font-feature-settings: "cv11", "ss01", "calt";
+        padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+        display: grid;
+        place-items: start center;
+      }
+      main {
+        width: min(520px, 100%);
+        margin-top: 6vh;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: 16px;
+        box-shadow: 0 1px 2px hsl(16 10% 10% / 0.04);
+        overflow: hidden;
+      }
+      header { padding: 20px 24px 16px; border-bottom: 1px solid hsl(var(--border)); }
+      .back {
+        display: inline-flex; align-items: center; gap: 4px; margin: 0 0 12px -4px; padding: 2px 4px;
+        color: hsl(var(--muted-foreground)); font: inherit; font-size: 13px; background: none; border: 0;
+        border-radius: 6px; cursor: pointer;
+      }
+      .back:hover { color: hsl(var(--foreground)); }
+      .brand { display: flex; align-items: center; gap: 10px; }
+      .mark {
+        width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+        background: hsl(var(--action)); color: hsl(var(--action-foreground));
+      }
+      h1 {
+        margin: 0; font: 600 22px/1.2 "Inter Tight Variable", "Inter Variable", system-ui, sans-serif;
+        letter-spacing: -0.015em;
+      }
+      .lead { margin: 6px 0 0; color: hsl(var(--muted-foreground)); }
+      section { padding: 16px 24px; border-bottom: 1px solid hsl(var(--border)); }
+      section:last-child { border-bottom: 0; }
+      h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid hsl(var(--border)); }
+      li:first-child { border-top: 0; padding-top: 0; }
+      .who { flex: 1; }
+      .name { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+      .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .meta { color: hsl(var(--muted-foreground)); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge {
+        flex-shrink: 0; font-size: 11px; font-weight: 500; border-radius: 999px; padding: 0 8px;
+        background: hsl(var(--primary-soft)); color: hsl(var(--primary-strong));
+      }
+      button, .btn {
+        font: inherit; font-weight: 500; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+        border: 1px solid hsl(var(--input)); background: hsl(var(--card)); color: hsl(var(--foreground));
+      }
+      button:hover { background: hsl(var(--accent)); }
+      button.primary { background: hsl(var(--action)); color: hsl(var(--action-foreground)); border-color: transparent; }
+      button.primary:hover { filter: brightness(0.95); }
+      button.icon { width: 32px; padding: 0; border-color: transparent; background: none; color: hsl(var(--muted-foreground)); }
+      button.icon:hover { background: hsl(var(--accent)); color: hsl(var(--danger)); }
+      button[disabled] { opacity: 0.55; cursor: default; }
+      :focus-visible { outline: 2px solid hsl(var(--primary-strong) / 0.5); outline-offset: 2px; }
+      label { display: block; font-weight: 500; margin: 0 0 6px; }
+      .opt { color: hsl(var(--muted-foreground)); font-weight: 400; }
+      input {
+        width: 100%; height: 36px; padding: 0 12px; border-radius: 8px; font: inherit;
+        border: 1px solid hsl(var(--input)); background: transparent; color: inherit;
+      }
+      .field + .field { margin-top: 12px; }
+      .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+      .hint { margin: 8px 0 0; font-size: 12px; color: hsl(var(--muted-foreground)); }
+      .error { color: hsl(var(--danger)); }
+      .empty { color: hsl(var(--muted-foreground)); margin: 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <button id="back" class="back" type="button" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span id="back-label" data-i18n="back">Back</span>
+        </button>
+        <div class="brand">
+          <span class="mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </span>
+          <h1 id="title">Server</h1>
+        </div>
+        <p id="lead" class="lead" data-i18n="lead">Each server has its own Jira and its own user.</p>
+      </header>
+
+      <section id="list-section" hidden>
+        <h2 data-i18n="yours">Your servers</h2>
+        <ul id="profiles" aria-label="Server"></ul>
+      </section>
+
+      <section>
+        <h2 id="add-title" data-i18n="add">Add a server</h2>
+        <form id="form">
+          <div class="field">
+            <label for="name"><span data-i18n="name">Name</span> <span class="opt" data-i18n="optional">(optional)</span></label>
+            <input id="name" autocomplete="off" data-i18n-placeholder="name_ph" placeholder="e.g. Work, Client X" />
+          </div>
+          <div class="field">
+            <label for="url" data-i18n="address">Address</label>
+            <input id="url" autocomplete="url" inputmode="url" autocapitalize="off" spellcheck="false" required placeholder="localhost:PORT" />
+            <p id="where" class="hint" data-i18n="where">On this computer: localhost and the server's port, no Tailscale needed. On another: its Tailscale or local network name.</p>
+          </div>
+          <p id="status" class="hint" role="status"></p>
+          <div class="row">
+            <button id="go" class="primary" type="submit" data-i18n="go">Add and open</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    <script>
+      const { invoke } = window.__TAURI__.core;
+      const $ = id => document.getElementById(id);
+      const DICT = {
+        en: {
+          back: "Back", lead: "Each server has its own Jira and its own user.", yours: "Your servers",
+          add: "Add a server", first: "Connect the first server", name: "Name", optional: "(optional)",
+          name_ph: "e.g. Work, Client X", address: "Address",
+          where: "On this computer: localhost and the server's port, no Tailscale needed. On another: its Tailscale or local network name.",
+          where_mobile: "The name of the computer running inkledger (Tailscale or local network): find it in the desktop app, Settings → Devices.",
+          go: "Add and open", connecting: "Connecting…",
+          stuck: "The server responds but the page did not open. Try again.",
+          last: "last used", open: "Open", remove: "Remove",
+          remove_named: "Remove {name}",
+          confirm_remove: "Remove “{name}”? The server and its data are not touched.",
+          missing_name: "The server computer's name is missing: for example my-computer.{host} (Tailscale → that computer → DNS name).",
+          back_to: "Back to {name}", connecting_to: "Connecting to {name}…",
+          cant_open: "Can't open {name}: try again or pick another.",
+        },
+        it: {
+          back: "Torna indietro", lead: "Ogni server ha il suo Jira e il suo utente.", yours: "I tuoi server",
+          add: "Aggiungi un server", first: "Collega il primo server", name: "Nome", optional: "(facoltativo)",
+          name_ph: "es. Lavoro, Cliente X", address: "Indirizzo",
+          where: "Su questo computer: localhost e la porta del server, senza Tailscale. Su un altro: il suo nome Tailscale o di rete locale.",
+          where_mobile: "Il nome del computer su cui gira inkledger (Tailscale o rete locale): lo trovi nell'app desktop, Impostazioni → Dispositivi.",
+          go: "Aggiungi e apri", connecting: "Collegamento…",
+          stuck: "Il server risponde ma la pagina non si è aperta. Riprova.",
+          last: "ultimo usato", open: "Apri", remove: "Rimuovi",
+          remove_named: "Rimuovi {name}",
+          confirm_remove: "Rimuovere «{name}»? Il server e i suoi dati non vengono toccati.",
+          missing_name: "Manca il nome del computer del server: per esempio my-computer.{host} (Tailscale → quel computer → nome DNS).",
+          back_to: "Torna a {name}", connecting_to: "Collegamento a {name}…",
+          cant_open: "Non riesco ad aprire {name}: riprova o scegline un altro.",
+        },
+      };
+      let locale = "en";
+      const t = (key, vars = {}) =>
+        Object.entries(vars).reduce((s, [k, v]) => s.replace(`{${k}}`, v), DICT[locale][key] ?? DICT.en[key]);
+      // Static texts follow the language; the rest is written by t() when shown.
+      function applyStatic() {
+        document.documentElement.lang = locale;
+        document.querySelectorAll("[data-i18n]").forEach(n => (n.textContent = t(n.dataset.i18n)));
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(n => (n.placeholder = t(n.dataset.i18nPlaceholder)));
+        if (isPhone) $("where").textContent = t("where_mobile");
+      }
+      const isPhone = /android|iphone|ipad/i.test(navigator.userAgent);
+      const params = new URLSearchParams(location.search);
+      const hostOf = url => url.replace(/^https?:\/\//, "");
+      // On a phone "localhost" is the phone itself: only the server computer's name works.
+      if (isPhone) {
+        $("url").placeholder = "my-computer.tailXXXX.ts.net";
+      }
+      const status = (text, error) => {
+        $("status").textContent = text;
+        $("status").className = "hint" + (error ? " error" : "");
+      };
+      const busy = on => document.querySelectorAll("button").forEach(b => (b.disabled = on));
+      const normalize = raw => {
+        const v = raw.trim();
+        if (v.includes("://")) return v;
+        const host = v.split(/[/:]/)[0];
+        const local = host === "localhost" || /^[\d.]+$/.test(host) || host.endsWith(".local") || v.startsWith("[");
+        return (local ? "http://" : "https://") + v;
+      };
+      /** Runs a command that opens a server; false if it failed. If the page stays, say so. */
+      async function opening(run) {
+        busy(true);
+        status(t("connecting"));
+        try {
+          await run();
+          setTimeout(() => {
+            busy(false);
+            status(t("stuck"), true);
+          }, 10000);
+          return true;
+        } catch (e) {
+          busy(false);
+          status(String(e), true);
+          return false;
+        }
+      }
+      function el(tag, props, ...children) {
+        const n = Object.assign(document.createElement(tag), props);
+        n.append(...children.filter(c => c !== null && c !== undefined));
+        return n;
+      }
+      function render({ list, active }) {
+        $("list-section").hidden = list.length === 0;
+        $("add-title").textContent = list.length ? t("add") : t("first");
+        $("profiles").replaceChildren(
+          ...list.map(p => {
+            const meta = [p.user, p.jira, hostOf(p.url)].filter(Boolean).join(" · ");
+            const name = el("div", { className: "name" }, el("span", { textContent: p.name }),
+              p.url === active ? el("span", { className: "badge", textContent: t("last") }) : null);
+            const open = el("button", { type: "button", textContent: t("open") });
+            open.onclick = () => opening(() => invoke("open_profile", { url: p.url }));
+            const remove = el("button", { type: "button", className: "icon", title: t("remove"), innerHTML:
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>' });
+            remove.setAttribute("aria-label", t("remove_named", { name: p.name }));
+            remove.onclick = async () => {
+              if (!confirm(t("confirm_remove", { name: p.name }))) return;
+              await invoke("remove_profile", { url: p.url });
+              load();
+            };
+            return el("li", {}, el("div", { className: "who" }, name, el("div", { className: "meta", textContent: meta })), open, remove);
+          })
+        );
+      }
+      async function load() {
+        const profiles = await invoke("list_profiles");
+        render(profiles);
+        return profiles;
+      }
+      $("form").addEventListener("submit", e => {
+        e.preventDefault();
+        const raw = $("url").value;
+        // The tailnet name alone (tailXXXX.ts.net) is not a machine.
+        const host = normalize(raw).replace(/^https?:\/\//, "").split(/[/:]/)[0];
+        if (/^tail[0-9a-z]+\.ts\.net$/i.test(host)) {
+          status(t("missing_name", { host }), true);
+          return;
+        }
+        void opening(() => invoke("add_profile", { url: normalize(raw), name: $("name").value || null }));
+      });
+      (async () => {
+        // The native side holds the language the app set (same for every origin).
+        try {
+          const l = await invoke("get_locale");
+          if (l in DICT) locale = l;
+        } catch {
+          const saved = localStorage.getItem("ikl-locale");
+          if (saved && saved in DICT) locale = saved;
+        }
+        applyStatic();
+        const profiles = await load();
+        if (params.get("error")) status(params.get("error"), true);
+        // Always a way back to the server we came from.
+        const from = params.get("from");
+        if (from) {
+          const p = profiles.list.find(x => x.url === from);
+          $("back-label").textContent = t("back_to", { name: p ? p.name : hostOf(from) });
+          $("back").hidden = false;
+          const back = () => opening(() => invoke("open_profile", { url: from }));
+          $("back").onclick = back;
+          document.addEventListener("keydown", e => e.key === "Escape" && back());
+        }
+        const active = profiles.list.find(p => p.url === profiles.active);
+        if (active && !params.has("change")) {
+          $("title").textContent = "inkledger";
+          $("lead").textContent = t("connecting_to", { name: active.name });
+          if (!(await opening(() => invoke("open_profile", { url: active.url })))) {
+            $("title").textContent = "Server";
+            $("lead").textContent = t("cant_open", { name: active.name });
+          }
+        }
+        if (!profiles.list.length) $("url").focus();
+      })();
+    </script>
+  </body>
+</html>

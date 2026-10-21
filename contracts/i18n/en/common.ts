@@ -1,0 +1,31 @@
+import type { Tree } from "../core";
+
+/** Words every area uses. Area-specific texts go in their own file. */
+export const common = {
+  save: "Save",
+  tracker: "your tracker",
+  trackers: "your trackers",
+  saving: "Saving…",
+  cancel: "Cancel",
+  delete: "Delete",
+  remove: "Remove",
+  discard: "Discard",
+  close: "Close",
+  confirm: "Confirm",
+  retry: "Retry",
+  edit: "Edit",
+  add: "Add",
+  back: "Back",
+  open: "Open",
+  more: "More actions",
+  search: "Search",
+  loading: "Loading…",
+  error: "Something went wrong",
+  yes: "Yes",
+  no: "No",
+  today: "Today",
+  yesterday: "Yesterday",
+  tomorrow: "Tomorrow",
+  none: "None",
+  language: "Language",
+} satisfies Tree;

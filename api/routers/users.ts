@@ -1,0 +1,126 @@
+// Accounts on this server, for whoever may manage them: invite people with
+// what they may do, reset a password, turn an account off. Nobody sees
+// anyone else's connections or time from here.
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { connections, users, type User } from "@db/schema";
+import { PERMISSIONS } from "@contracts/accounts";
+import { t } from "@contracts/i18n";
+import { createRouter, permProcedure } from "../middleware";
+import { getDb } from "../queries/connection";
+import { createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById } from "../queries/accounts";
+import { hashPassword, temporaryPassword } from "../lib/password";
+import { assertFreeUsername } from "./auth";
+
+const manage = permProcedure("manageUsers");
+
+const access = z.object({
+  role: z.enum(["admin", "member"]),
+  permissions: z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length),
+});
+
+const row = (u: User) => ({
+  id: u.id,
+  username: u.username,
+  displayName: u.displayName,
+  role: roleOf(u),
+  permissions: permissionsOf(u),
+  /** Hasn't set a password yet (invite pending, or an account from before local accounts) */
+  pending: !u.passwordHash,
+  mustChangePassword: Boolean(u.mustChangePassword),
+  disabled: Boolean(u.disabledAt),
+  createdAt: u.createdAt,
+});
+
+async function target(id: number, me: User): Promise<User> {
+  if (id === me.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
+  const user = await userById(id);
+  if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+  return user;
+}
+
+/** Another active admin remains when `id` stops being one. */
+async function assertAnotherAdmin(id: number) {
+  const [other] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "admin"), isNull(users.disabledAt), ne(users.id, id)))
+    .limit(1);
+  if (!other) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
+}
+
+const inviteLink = (token: string) => `/invite/${token}`;
+
+export const usersRouter = createRouter({
+  /** Every account; of their trackers only how many (T6: never which, or what they hold). */
+  list: manage.query(async () => {
+    const counts = new Map(
+      (
+        await getDb()
+          .select({ userId: connections.userId, n: sql<number>`count(*)::int` })
+          .from(connections)
+          .where(isNull(connections.archivedAt))
+          .groupBy(connections.userId)
+      ).map((c) => [c.userId, c.n]),
+    );
+    return (await getDb().select().from(users).orderBy(asc(users.id))).map((u) => ({ ...row(u), connections: counts.get(u.id) ?? 0 }));
+  }),
+
+  /** A new account and its one-time invite link (no mail leaves the server: the admin hands it over). */
+  invite: manage
+    .input(access.extend({ username: z.string().min(1).max(64), displayName: z.string().trim().min(1).max(80) }))
+    .mutation(async ({ input, ctx }) => {
+      const username = input.username.trim().toLowerCase();
+      await assertFreeUsername(username);
+      const [user] = await getDb()
+        .insert(users)
+        .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions) })
+        .returning();
+      const { token, expiresAt } = await createInvite(user.id, ctx.user.id);
+      return { user: row(user), link: inviteLink(token), expiresAt };
+    }),
+
+  /** A new invite link for an account that hasn't set its password yet (the old link stops working). */
+  reinvite: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    const { token, expiresAt } = await createInvite(user.id, ctx.user.id);
+    return { link: inviteLink(token), expiresAt };
+  }),
+
+  setAccess: manage.input(access.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    if (user.role === "admin" && input.role !== "admin") await assertAnotherAdmin(user.id);
+    const [updated] = await getDb()
+      .update(users)
+      .set({ role: input.role, permissions: storedPermissions(input.permissions) })
+      .where(eq(users.id, user.id))
+      .returning();
+    return row(updated);
+  }),
+
+  /** A temporary password, shown once; the account must change it at its next sign-in, and is signed out everywhere. */
+  resetPassword: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    const password = temporaryPassword();
+    await getDb()
+      .update(users)
+      .set({ passwordHash: await hashPassword(password), mustChangePassword: 1 })
+      .where(eq(users.id, user.id));
+    await signOutEverywhere(user.id);
+    return { password };
+  }),
+
+  /** Turns an account off (signed out everywhere, no sign-in) or on again. Its data stays. */
+  setDisabled: manage.input(z.object({ id: z.number().int(), disabled: z.boolean() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    if (input.disabled && user.role === "admin") await assertAnotherAdmin(user.id);
+    const [updated] = await getDb()
+      .update(users)
+      .set({ disabledAt: input.disabled ? new Date() : null })
+      .where(eq(users.id, user.id))
+      .returning();
+    if (input.disabled) await signOutEverywhere(user.id);
+    return row(updated);
+  }),
+});

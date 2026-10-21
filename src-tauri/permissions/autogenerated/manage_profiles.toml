@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-manage-profiles"
+description = "Enables the manage_profiles command without any pre-configured scope."
+commands.allow = ["manage_profiles"]
+
+[[permission]]
+identifier = "deny-manage-profiles"
+description = "Denies the manage_profiles command without any pre-configured scope."
+commands.deny = ["manage_profiles"]

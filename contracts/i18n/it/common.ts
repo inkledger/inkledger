@@ -1,0 +1,31 @@
+import type { Shape } from "../core";
+import type { common as en } from "../en/common";
+
+export const common: Shape<typeof en> = {
+  save: "Salva",
+  tracker: "tracker",
+  trackers: "tracker",
+  saving: "Salvataggio…",
+  cancel: "Annulla",
+  delete: "Elimina",
+  remove: "Rimuovi",
+  discard: "Scarta",
+  close: "Chiudi",
+  confirm: "Conferma",
+  retry: "Riprova",
+  edit: "Modifica",
+  add: "Aggiungi",
+  back: "Indietro",
+  open: "Apri",
+  more: "Altre azioni",
+  search: "Cerca",
+  loading: "Caricamento…",
+  error: "Qualcosa è andato storto",
+  yes: "Sì",
+  no: "No",
+  today: "Oggi",
+  yesterday: "Ieri",
+  tomorrow: "Domani",
+  none: "Nessuno",
+  language: "Lingua",
+};

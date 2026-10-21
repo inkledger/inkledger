@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tailscale-info"
+description = "Enables the tailscale_info command without any pre-configured scope."
+commands.allow = ["tailscale_info"]
+
+[[permission]]
+identifier = "deny-tailscale-info"
+description = "Denies the tailscale_info command without any pre-configured scope."
+commands.deny = ["tailscale_info"]

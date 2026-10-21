@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "local",
+  "description": "The bundled profiles page (ui/index.html): list, add, open and remove servers.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-list-profiles",
+    "allow-get-locale",
+    "allow-add-profile",
+    "allow-open-profile",
+    "allow-remove-profile"
+  ]
+}

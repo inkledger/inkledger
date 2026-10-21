@@ -1,0 +1,52 @@
+name: inkledger
+
+services:
+  # One database for the container and the dev server (pnpm dev, :3000).
+  db:
+    image: postgres:17-alpine
+    container_name: inkledger-db
+    restart: unless-stopped
+    env_file: .env.docker # POSTGRES_PASSWORD
+    environment:
+      POSTGRES_USER: inkledger
+      POSTGRES_DB: inkledger
+    ports:
+      # 54329: a Homebrew Postgres may already hold 5432 on the Mac.
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - inkledger-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inkledger -d inkledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  inkledger:
+    build: .
+    image: inkledger:latest
+    container_name: inkledger
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # SESSION_SECRET, DATABASE_URL (postgres://…@db:5432/inkledger) and
+    # REMOTE_ALLOWED_HOSTS (your self-hosted trackers): see .env.example.
+    env_file: .env.docker
+    environment:
+      NODE_ENV: production
+      PORT: "47823"
+      SYNC_INTERVAL_MIN: "5"
+    ports:
+      - "127.0.0.1:47823:47823"
+    volumes:
+      # Published app builds (APK) and other files; the database is in Postgres.
+      - inkledger-data:/app/data
+      # Scheduled database backups (Settings → Backup).
+      - ${INKLEDGER_BACKUP_DIR:-~/Backups/inkledger}:/backups
+      # Time zone inherited from the host (Colima keeps its VM on the Mac's zone).
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+volumes:
+  inkledger-data:
+  inkledger-pgdata:

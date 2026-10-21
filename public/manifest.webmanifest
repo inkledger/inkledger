@@ -1,0 +1,21 @@
+{
+  "name": "inkledger",
+  "short_name": "ikl",
+  "description": "Track and log time on Jira issues.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F3F2",
+  "theme_color": "#F3F3F2",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-monochrome-512.png", "sizes": "512x512", "type": "image/png", "purpose": "monochrome" }
+  ],
+  "shortcuts": [
+    { "name": "Timesheet", "url": "/timesheet" },
+    { "name": "Issue", "url": "/issues" }
+  ]
+}

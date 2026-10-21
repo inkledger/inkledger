@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-lan-stop"
+description = "Enables the lan_stop command without any pre-configured scope."
+commands.allow = ["lan_stop"]
+
+[[permission]]
+identifier = "deny-lan-stop"
+description = "Denies the lan_stop command without any pre-configured scope."
+commands.deny = ["lan_stop"]
