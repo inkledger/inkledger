@@ -18,8 +18,8 @@ The place is estimated from your browser's time zone.
 ## How it behaves
 
 - It works on every page. Changing page restarts nothing: the light is already where it is.
-- Only sunrise, sunset and the moon taking over glide, for a couple of seconds; with reduced
-  motion they don't.
+- Nothing animates. The light moves on its own, continuously: shadows fade in over half an
+  hour at dawn and out at dusk, in steps too small to see.
 - See-through parts (the running timer's stripes, days without a goal) never cast a shadow,
   so no dark box shows through them.
 - Focus rings stay as they are.
@@ -27,9 +27,9 @@ The place is estimated from your browser's time zone.
 
 ## Cost
 
-A few CSS variables on the page, rewritten only when a shadow would move by a quarter of a
-pixel (minutes apart by day), and one stylesheet made once. No extra layers, no filters on
-large areas, nothing animating at rest.
+A few CSS variables on the page, rewritten only when a change adds up to something visible
+(about every five minutes on average), and one stylesheet made once. No extra layers, no
+filters on large areas, no transitions or animations.
 
 ## For module authors
 
