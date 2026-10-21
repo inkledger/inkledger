@@ -80,6 +80,82 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE jira_worklog_id = 'gone-1'")).toEqual([{ n: 0 }]);
   });
 
+  it("a delete its tracker refuses leaves the sink's entry where it is: nothing queued, nothing sent", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: "2026-10-20T09:00:00+02:00", comment: "kept" });
+    await push();
+    expect(await sinkRow(made.id)).toMatchObject({ state: "synced" });
+    const { ProviderError } = await import("../providers/core/errors");
+    const tracker = fakes.tracker as { worklogs: { delete: (...a: unknown[]) => Promise<unknown> } };
+    const real = tracker.worklogs.delete;
+    tracker.worklogs.delete = async () => {
+      throw new ProviderError("forbidden", "locked there");
+    };
+    try {
+      await expect(caller.worklogs.delete({ id: made.id })).rejects.toThrow();
+    } finally {
+      tracker.worklogs.delete = real;
+    }
+    await push();
+    expect(await sinkRow(made.id)).toMatchObject({ state: "synced" });
+    expect((await sinkEntries()).map((e) => e.comment)).toContain("kept");
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE kind = 'delete'")).toEqual([{ n: 0 }]);
+    // Then deleted for real: the sink follows.
+    await caller.worklogs.delete({ id: made.id });
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).not.toContain("kept");
+  });
+
+  it("a sink delete held while its worklog's delete is under way: a pass meanwhile sends nothing; gone, it is due even if nothing else ran (a crash)", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: "2026-10-21T09:00:00+02:00", comment: "held" });
+    await push();
+    expect(await sinkRow(made.id)).toMatchObject({ state: "synced" });
+    const { holdSinkDeletes } = await import("./extraSinks");
+    const { getDb } = await import("../queries/connection");
+    const { worklogs } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [w] = await getDb().select().from(worklogs).where(eq(worklogs.id, made.id));
+    // Held: the tracker's delete is on its way; a background pass runs right now.
+    await holdSinkDeletes(w);
+    await holdSinkDeletes(w);
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).toContain("held");
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE worklog_id = ?", made.id)).toEqual([{ n: 1 }]);
+    // Not shown as queued to the user while held.
+    expect((await caller.outbox.list()).filter((o) => o.kind === "delete")).toEqual([]);
+    // The tracker deleted it and the process died before anything else: the database alone makes the sink's delete due.
+    await q("DELETE FROM worklogs WHERE id = ?", made.id);
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).not.toContain("held");
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE kind = 'delete'")).toEqual([{ n: 0 }]);
+  });
+
+  it("a sinks pass running while the tracker's delete is in flight sends nothing for it; once through, the sink follows", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: "2026-10-22T09:00:00+02:00", comment: "in flight" });
+    await push();
+    const tracker = fakes.tracker as { worklogs: { delete: (...a: unknown[]) => Promise<unknown> } };
+    const real = tracker.worklogs.delete;
+    let release: () => void = () => undefined;
+    let started: () => void = () => undefined;
+    const inFlight = new Promise<void>((r) => (started = r));
+    tracker.worklogs.delete = async (...a: unknown[]) => {
+      started();
+      await new Promise<void>((r) => (release = r));
+      return real(...a);
+    };
+    try {
+      const deleting = caller.worklogs.delete({ id: made.id });
+      await inFlight;
+      await push();
+      expect((await sinkEntries()).map((e) => e.comment)).toContain("in flight");
+      release();
+      await deleting;
+    } finally {
+      tracker.worklogs.delete = real;
+    }
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).not.toContain("in flight");
+  });
+
   it("an integration not verified yet keeps its work pending until writes are allowed", async () => {
     fakes.sinkStatus = "experimental";
     try {

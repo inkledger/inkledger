@@ -9,7 +9,7 @@
 // stand in for one tracker connection (Tempo for its Jira, sync/companion.ts):
 // it takes only the worklogs filed through it, and the tracker's own id of
 // each is kept on the worklog.
-import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { connections, issues, outbox, sinkMappings, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
 import { instant, localDateOf } from "@contracts/values";
@@ -95,18 +95,38 @@ export async function markForSinks(userId: number, worklogId: number) {
   }
 }
 
-/** A worklog about to be deleted: its entries on the sinks are queued to go too (its rows are going). */
-export async function queueSinkDeletes(w: Worklog) {
+/**
+ * A time sink's delete written before its worklog's delete went through:
+ * held, tied to the worklog (worklog_id), until the worklog is gone. The
+ * database then clears worklog_id (ON DELETE SET NULL) and the delete is due.
+ * A worklog its tracker kept keeps its sink entries; a crash in between
+ * converges either way: gone, the delete goes; still here, it stays held and
+ * the next delete writes it again.
+ */
+export const heldSinkDelete: SQL = sql`(${outbox.kind} = 'delete' and ${outbox.worklogId} is not null)`;
+
+/** A worklog about to be deleted: its entries on the sinks beside its tracker, held until it is gone (written again, never twice). */
+export async function holdSinkDeletes(w: Worklog): Promise<void> {
   const db = getDb();
   const rows = await db
     .select({ sink: worklogSinks.sinkConnectionId, remoteId: worklogSinks.remoteId })
     .from(worklogSinks)
     .innerJoin(connections, eq(connections.id, worklogSinks.sinkConnectionId))
     .where(and(eq(worklogSinks.worklogId, w.id), sql`${worklogSinks.remoteId} IS NOT NULL`, inArray(connections.type, TIME_SINK_TYPES.filter(BESIDE))));
-  for (const r of rows) {
-    if (!r.remoteId || r.sink === w.connectionId) continue;
-    await db.insert(outbox).values({ userId: w.userId, connectionId: r.sink, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, timeSpentSeconds: w.timeSpentSeconds, started: w.started });
-  }
+  const values = rows.flatMap((r) =>
+    !r.remoteId || r.sink === w.connectionId
+      ? []
+      : [{ userId: w.userId, connectionId: r.sink, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, worklogId: w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started }],
+  );
+  await db.transaction(async (tx) => {
+    await tx.delete(outbox).where(and(heldSinkDelete, eq(outbox.worklogId, w.id)));
+    if (values.length > 0) await tx.insert(outbox).values(values);
+  });
+}
+
+/** The worklog stayed (its tracker refused the delete): its held sink deletes go. */
+export async function dropHeldSinkDeletes(worklogId: number): Promise<void> {
+  await getDb().delete(outbox).where(and(heldSinkDelete, eq(outbox.worklogId, worklogId)));
 }
 
 type Mapping = { target: SinkTarget; activityId: string | null };
@@ -261,6 +281,8 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
           and(
             eq(outbox.connectionId, sink.id),
             eq(outbox.kind, "delete"),
+            // Held while its worklog is still here (heldSinkDelete).
+            isNull(outbox.worklogId),
             ...(o.force ? [] : [lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now()))]),
           ),
         )

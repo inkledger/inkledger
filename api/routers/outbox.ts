@@ -2,13 +2,14 @@
 // (each connection against its own tracker, through the contract:
 // sync/timeWrites.ts replayContract), discarded.
 import { z } from "zod";
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, not } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { LIST_MAX_ROWS } from "../lib/inputs";
 import { getDb } from "../queries/connection";
 import { connections, issues, outbox, worklogs } from "@db/schema";
 import { PENDING_PREFIX } from "./worklogs";
 import { replayContract } from "../sync/timeWrites";
+import { heldSinkDelete } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";
 
 export { pendingReplays, withOutboxLock } from "../sync/outboxLocks";
@@ -39,7 +40,8 @@ export const outboxRouter = createRouter({
         issues,
         and(eq(issues.userId, outbox.userId), eq(issues.connectionId, outbox.connectionId), eq(issues.key, outbox.issueKey)),
       )
-      .where(eq(outbox.userId, ctx.user.id))
+      // A sink delete held while its worklog's own delete is under way isn't queued yet.
+      .where(and(eq(outbox.userId, ctx.user.id), not(heldSinkDelete)))
       .orderBy(asc(outbox.createdAt), asc(outbox.id))
       .limit(LIST_MAX_ROWS);
     return rows;
@@ -62,7 +64,7 @@ export const outboxRouter = createRouter({
         total.failed += r.failed;
       }
       // What is left, everywhere (a connection's replay counts its own).
-      total.remaining = (await getDb().select({ n: count() }).from(outbox).where(eq(outbox.userId, ctx.user.id)))[0]?.n ?? 0;
+      total.remaining = (await getDb().select({ n: count() }).from(outbox).where(and(eq(outbox.userId, ctx.user.id), not(heldSinkDelete))))[0]?.n ?? 0;
       return total;
     })().finally(() => retries.delete(ctx.user.id));
     retries.set(ctx.user.id, run);
