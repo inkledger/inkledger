@@ -168,4 +168,21 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     expect(await sinkOf(made.id)).toMatchObject({ state: "synced" });
     await expect(caller.worklogs.resolveConflict({ id: made.id, keep: "mine" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
+
+  it("keep mine, refused by the tracker: the conflict stays as it was, theirs kept beside it, to settle again", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: "2026-10-17T09:00:00+02:00", comment: "mine" });
+    const snapshot = JSON.stringify({ seconds: 600, started: Date.parse("2026-10-17T09:00:00+02:00"), comment: "theirs" });
+    await q("UPDATE worklog_sinks SET state = 'conflict', remote_snapshot = ? WHERE worklog_id = ?", snapshot, made.id);
+    tracker.refuse = true;
+    try {
+      await expect(caller.worklogs.resolveConflict({ id: made.id, keep: "mine" })).rejects.toThrow();
+    } finally {
+      tracker.refuse = false;
+    }
+    expect(await q("SELECT state, remote_snapshot FROM worklog_sinks WHERE worklog_id = ?", made.id)).toEqual([{ state: "conflict", remote_snapshot: snapshot }]);
+    const mine = await caller.worklogs.resolveConflict({ id: made.id, keep: "mine" });
+    expect(mine).toMatchObject({ timeSpentSeconds: 1200, comment: "mine" });
+    expect(await sinkOf(made.id)).toMatchObject({ state: "synced" });
+    await caller.worklogs.delete({ id: made.id });
+  });
 });

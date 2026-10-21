@@ -342,7 +342,17 @@ export const worklogsRouter = createRouter({
           const through = await contractTime(ctx.user.id, conn, row.issueKey);
           if (!through) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.noConflict") });
           await db.update(worklogSinks).set({ state: "pending", remoteSnapshot: null }).where(eq(worklogSinks.id, sink.id));
-          await updateThrough(through, row, { timeSpentSeconds: row.timeSpentSeconds, started: row.started, comment: row.comment });
+          try {
+            await updateThrough(through, row, { timeSpentSeconds: row.timeSpentSeconds, started: row.started, comment: row.comment });
+          } catch (e) {
+            // Refused there: the conflict stays as it was, theirs beside it, to settle again
+            // (unless something else already moved the row on).
+            await db
+              .update(worklogSinks)
+              .set({ state: "conflict", remoteSnapshot: sink.remoteSnapshot })
+              .where(and(eq(worklogSinks.id, sink.id), eq(worklogSinks.state, "pending"), isNull(worklogSinks.remoteSnapshot)));
+            throw e;
+          }
         }
         const [after] = await db.select().from(worklogs).where(eq(worklogs.id, row.id));
         return after;
