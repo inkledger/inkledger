@@ -168,9 +168,10 @@ if (env.isProduction) {
     // No new sync from now on; a sync cut mid-write would leave the outbox /
     // issues half updated, so the running ones finish first.
     beginShutdown();
-    // Nor a purge or a licence renewal against a database about to close.
+    // Nor a purge, a licence renewal or a scheduled backup against a database about to close.
     clearInterval(purging);
     clearInterval(renewing);
+    stopBackups();
     // Open event streams would keep server.close waiting forever.
     closeAllStreams();
     // Bounded: a pass stuck on Jira must not hold the exit until the hard kill.
@@ -181,7 +182,6 @@ if (env.isProduction) {
       atMost(g.__iklStopSync?.(), 5_000),
       settleInFlightSyncs(5_000),
     ]);
-    stopBackups();
     await closeDb();
     process.exit(0);
   };
