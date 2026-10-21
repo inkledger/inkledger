@@ -1,17 +1,23 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 /**
- * Which page read each query (the path it was last watched on), so a Retry
- * after a page failed drops
- * that page's queries it no longer reads and it reads them afresh; every
- * other page's cache stays.
+ * Which page read each query (the path it was last read on), so a Retry after
+ * a page failed drops that page's queries it no longer reads and it reads
+ * them afresh; every other page's cache stays. A read is any draw that asks
+ * the cache for the query (`build`), so a page that throws on its first draw,
+ * before it ever watches what it read, counts too.
  */
 export function pageQueries(client: QueryClient, path: () => string = () => window.location.pathname) {
   const cache = client.getQueryCache();
   const readOn = new Map<string, string>();
-  const stop = cache.subscribe(e => {
-    if (e.type === "observerAdded") readOn.set(e.query.queryHash, path());
-    else if (e.type === "removed") readOn.delete(e.query.queryHash);
+  const build = cache.build.bind(cache);
+  cache.build = ((...args: Parameters<typeof build>) => {
+    const query = build(...args);
+    readOn.set(query.queryHash, path());
+    return query;
+  }) as typeof cache.build;
+  const unsubscribe = cache.subscribe(e => {
+    if (e.type === "removed") readOn.delete(e.query.queryHash);
   });
   return {
     dropInactive(page: string) {
@@ -20,7 +26,10 @@ export function pageQueries(client: QueryClient, path: () => string = () => wind
         if (on === page && q && q.getObserversCount() === 0) cache.remove(q);
       }
     },
-    stop,
+    stop() {
+      unsubscribe();
+      cache.build = build;
+    },
   };
 }
 

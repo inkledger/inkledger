@@ -28,4 +28,17 @@ describe("pageQueries", () => {
     expect(cached(client, "timers")).toBe(true);
     tracked.stop();
   });
+
+  it("a page that failed on its first draw, from cached data it never got to watch, reads it afresh too", async () => {
+    const client = new QueryClient();
+    let at = "/issues";
+    const tracked = pageQueries(client, () => at);
+    (await watch(client, "issues"))();
+    // On to a page drawn from that cache, which throws before it commits: read, never watched.
+    at = "/timesheet";
+    new QueryObserver(client, { queryKey: ["issues"], queryFn: () => "issues", staleTime: Infinity });
+    tracked.dropInactive("/timesheet");
+    expect(cached(client, "issues")).toBe(false);
+    tracked.stop();
+  });
 });
