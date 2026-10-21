@@ -233,10 +233,12 @@ export default function Board() {
     [rows, needle]
   );
 
-  // The trackers on the board: those with cards, those the bucket takes, the one chosen.
+  // The trackers on the board: those with cards, those the bucket takes, the one chosen;
+  // with no bucket, every tracker that answers, with or without issues.
   const sourceIds = useMemo(() => {
     const ids = new Set<number>((rows ?? []).map(r => r.connectionId));
     for (const s of active?.sources ?? []) ids.add(s.connectionId);
+    if (!active) for (const c of connections) if (c.role === "tracker" && c.status === "ok") ids.add(c.id);
     if (view.connection) return [view.connection];
     return [...ids].filter(id => connections.some(c => c.id === id)).sort((a, b) => a - b);
   }, [rows, active, view.connection, connections]);
@@ -508,7 +510,7 @@ export default function Board() {
     );
   } else if (query.error) {
     body = <ErrorState message={query.error.message} onRetry={() => query.refetch()} />;
-  } else if ((rows ?? []).length === 0) {
+  } else if ((rows ?? []).length === 0 && (mode !== "lanes" || lanes.length < 2)) {
     body = <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.emptyMessage", { provider })} />;
   } else {
     const several = lanes.length > 1;
@@ -558,6 +560,9 @@ export default function Board() {
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
               className="-mx-1 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-1 [scrollbar-gutter:stable]"
             >
+              {lane.columns.length === 0 && lane.connectionId !== null && (
+                <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.laneEmpty", { name: lane.label })} className="flex-1" />
+              )}
               {lane.columns.map(renderColumn)}
               {mode === "custom" && unmapped.length > 0 && (
                 <section aria-label={t("pages.board.unmapped")} className="flex min-w-[280px] flex-1 basis-0 flex-col rounded-xl opacity-80">

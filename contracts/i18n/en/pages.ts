@@ -208,6 +208,7 @@ export const pages = {
     emptyMessage: "No issues: press Sync {provider} in the sidebar",
     showAll: "Show older ({hidden})",
     lanesLabel: "Trackers",
+    laneEmpty: "Connected: nothing for you on {name} yet",
     showLess: "Show less",
     title: "Board",
     description: "Drag cards or use Move to… to change status in {provider}",

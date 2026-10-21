@@ -209,6 +209,7 @@ export const pages: Shape<typeof en> = {
     emptyMessage: "Nessuna issue: premi Sincronizza {provider} nella barra laterale",
     showAll: "Mostra i più vecchi ({hidden})",
     lanesLabel: "Tracker",
+    laneEmpty: "Collegato: ancora niente per te su {name}",
     showLess: "Mostra meno",
     title: "Board",
     description: "Trascina le card o usa Sposta in… per cambiare stato su {provider}",

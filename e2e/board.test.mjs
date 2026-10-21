@@ -218,3 +218,24 @@ async function center(locator) {
   const b = await locator.boundingBox();
   return [b.x + b.width / 2, b.y + Math.min(b.height / 2, 60)];
 }
+
+test("a tracker that answers but has no issues for the user still has its tab, saying so", () =>
+  withApp(
+    {
+      seed: async db => {
+        await seed(db);
+        await db.q(
+          "INSERT INTO connections (user_id, type, label, base_url, remote_account_id, display_name, options, encrypted_secret, status, created_at) VALUES (1, 'gitlab', 'Work GitLab', 'https://git.example.com', '77', 'Mario Rossi', '{}', 'x', 'ok', ?)",
+          Date.now(),
+        );
+      },
+    },
+    async ({ page, base }) => {
+      await page.addInitScript(() => localStorage.setItem("ikl-board-mode", "lanes"));
+      await page.goto(base + "/board");
+      const tabs = page.getByRole("tablist", { name: "Trackers" });
+      await tabs.getByRole("tab", { name: /Work GitLab/ }).click();
+      await page.getByRole("tabpanel", { name: "Work GitLab" }).getByText("Connected: nothing for you on Work GitLab yet").waitFor();
+      assert.equal(await tabs.getByRole("tab").count(), 3);
+    },
+  ));
