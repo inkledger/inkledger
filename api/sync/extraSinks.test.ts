@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.DATABASE_URL = ":memory:";
 
@@ -47,9 +47,15 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null });
   });
 
+  // Mapped, as every test but the first expects (each runs on its own too).
+  beforeEach(async () => {
+    await q("INSERT INTO sink_mappings (sink_connection_id, container_id, target_remote_id, target_name, target_path, activity_id) VALUES (?, NULL, 't-1', 'Build', '[]', 'dev') ON CONFLICT DO NOTHING", sinkId);
+  });
+
   const sinkRow = async (worklogId: number) => (await q<{ state: string; remote_id: string | null; last_error: string | null }>("SELECT state, remote_id, last_error FROM worklog_sinks WHERE worklog_id = ? AND sink_connection_id = ?", worklogId, sinkId))[0];
 
   it("no target mapped where the sink needs one: said on the worklog, nothing sent", async () => {
+    await q("DELETE FROM sink_mappings WHERE sink_connection_id = ?", sinkId);
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-14T09:00:00+02:00", comment: "a" });
     await push();
     expect(await sinkRow(made.id)).toMatchObject({ state: "failed", last_error: "noTarget" });
@@ -57,7 +63,6 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
   });
 
   it("mapped: logged, changed and deleted there too, filed under the target with its activity", async () => {
-    await q("INSERT INTO sink_mappings (sink_connection_id, container_id, target_remote_id, target_name, target_path, activity_id) VALUES (?, NULL, 't-1', 'Build', '[]', 'dev')", sinkId);
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-15T09:00:00+02:00", comment: "work" });
     await push();
     expect(await sinkRow(made.id)).toMatchObject({ state: "synced" });
