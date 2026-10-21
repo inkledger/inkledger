@@ -9,7 +9,7 @@
 // stand in for one tracker connection (Tempo for its Jira, sync/companion.ts):
 // it takes only the worklogs filed through it, and the tracker's own id of
 // each is kept on the worklog.
-import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { connections, issues, outbox, sinkMappings, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
 import { instant, localDateOf } from "@contracts/values";
@@ -22,6 +22,9 @@ import { jiraWorklogIdOf } from "../providers/tempo/adapter";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
 import { withDeleteReason } from "../queries/trash";
 import { linkSink, timeInput } from "./worklogs";
+import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
+import { backoffMs } from "./state";
+import { CLAIM_TTL_MS } from "./timeWrites";
 
 const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `sink-${Date.now()}` });
 const SINKS = new Set<string>(TIME_SINK_TYPES);
@@ -216,7 +219,13 @@ const running = new Set<number>();
  * one that refuses an entry says why on it. Unverified sinks whose writes
  * aren't allowed yet keep everything pending.
  */
-export async function pushSinks(userId: number): Promise<{ sent: number; failed: number }> {
+/** Worklogs and deletes sent to one sink in a pass: the rest waits for the next pass. */
+const SINK_BATCH = 100;
+
+/** The wait before a failed delete's next try: a minute after the first failure, doubling after each (the sync's backoff), at most an hour. */
+export const deleteRetryDelayMs = (attempts: number) => backoffMs(attempts + 1);
+
+export async function pushSinks(userId: number, now: () => number = Date.now): Promise<{ sent: number; failed: number }> {
   if (running.has(userId)) return { sent: 0, failed: 0 };
   running.add(userId);
   let sent = 0;
@@ -230,7 +239,9 @@ export async function pushSinks(userId: number): Promise<{ sent: number; failed:
         .select({ w: worklogs, remoteId: worklogSinks.remoteId })
         .from(worklogSinks)
         .innerJoin(worklogs, eq(worklogs.id, worklogSinks.worklogId))
-        .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.state, "pending")));
+        .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.state, "pending")))
+        .orderBy(asc(worklogs.id))
+        .limit(SINK_BATCH);
       for (const { w, remoteId } of due) {
         try {
           await pushOne(b, sink, w, remoteId);
@@ -241,8 +252,29 @@ export async function pushSinks(userId: number): Promise<{ sent: number; failed:
           await fail(w.id, sink.id, e instanceof Error ? e.message : String(e));
         }
       }
-      const gone = await db.select().from(outbox).where(and(eq(outbox.connectionId, sink.id), eq(outbox.kind, "delete")));
-      for (const g of gone) {
+      // Deletes still to try (under the attempts cap, their wait over), oldest first.
+      const gone = await db
+        .select()
+        .from(outbox)
+        .where(
+          and(
+            eq(outbox.connectionId, sink.id),
+            eq(outbox.kind, "delete"),
+            lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS),
+            or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now())),
+          ),
+        )
+        .orderBy(asc(outbox.createdAt), asc(outbox.id))
+        .limit(SINK_BATCH);
+      for (const queued of gone) {
+        // Claimed first, as the trackers' queue is (timeWrites): another server process on the same database skips it.
+        const at = now();
+        const [g] = await db
+          .update(outbox)
+          .set({ claimedAt: at })
+          .where(and(eq(outbox.id, queued.id), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, at - CLAIM_TTL_MS))))
+          .returning();
+        if (!g) continue;
         try {
           if (b.capabilities.entries.model === "dayTotals") {
             // A day's total without the deleted worklog (0 removes the day).
@@ -263,9 +295,17 @@ export async function pushSinks(userId: number): Promise<{ sent: number; failed:
           await db.delete(outbox).where(eq(outbox.id, g.id));
           sent++;
         } catch (e) {
-          if (e instanceof ProviderError && e.transient) break;
+          // Out of reach: no attempt counted, the rest waits for the next pass.
+          if (e instanceof ProviderError && e.transient) {
+            await db.update(outbox).set({ claimedAt: null }).where(eq(outbox.id, g.id));
+            break;
+          }
           failed++;
-          await db.update(outbox).set({ attempts: g.attempts + 1, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500) }).where(eq(outbox.id, g.id));
+          const attempts = g.attempts + 1;
+          await db
+            .update(outbox)
+            .set({ attempts, nextAttemptAt: now() + deleteRetryDelayMs(attempts), claimedAt: null, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500) })
+            .where(eq(outbox.id, g.id));
         }
       }
     }

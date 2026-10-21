@@ -611,11 +611,13 @@ export const outbox = pgTable(
      * same database (dev + container) skips it instead of posting it twice.
      */
     claimedAt: epochMs("claimed_at"),
+    /** A time sink's delete that failed waits until then before its next try (null: now). */
+    nextAttemptAt: epochMs("next_attempt_at"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_outbox_user").on(t.userId)],
+  (t) => [index("idx_outbox_user").on(t.userId), index("idx_outbox_connection_kind").on(t.connectionId, t.kind)],
 );
 
 /**

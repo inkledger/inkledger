@@ -129,7 +129,7 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
  * A claim older than this belongs to a process that died mid-replay: the
  * entry is free again (every call has its own, shorter timeout).
  */
-const CLAIM_TTL_MS = 5 * 60_000;
+export const CLAIM_TTL_MS = 5 * 60_000;
 
 /** How long before queueing a timed-out create may have been stored by the service. */
 const ADOPT_WINDOW_MS = 5 * 60_000;
