@@ -29,6 +29,7 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useKeepsTimeHere, useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issueId } from "@/lib/issues";
+import { occupiedId } from "@contracts/placement";
 
 export type EditableWorklog = {
   /** inkledger's id: edits go by it when known */
@@ -197,7 +198,7 @@ function LogTimeForm({
       : startedShown && parsed && parsed > 0 && !unchangedEdit
         ? placement.conflictOf(
             { start: new Date(startedShown), seconds: parsed },
-            worklog?.remoteId
+            worklog && occupiedId({ connectionId: conn ?? null, remoteId: worklog.remoteId })
           )
         : null;
   const conflict =

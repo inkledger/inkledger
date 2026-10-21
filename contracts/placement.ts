@@ -12,7 +12,7 @@ import { t } from "./i18n";
 export type Occupied = {
   start: Date;
   seconds: number;
-  /** Worklog id (to skip itself when editing) */
+  /** Worklog identity, `occupiedId` (to skip itself when editing) */
   id?: string;
   /** What it is, for the conflict message (issue key) */
   label?: string;
@@ -31,6 +31,9 @@ export type Placement =
  * so a block ending at 10:00:30 and one starting at 10:00 are "adjacent".
  */
 export const OVERLAP_TOLERANCE_MS = 59_000;
+
+/** A worklog's identity among the occupied: its remote id on its tracker (two trackers may share one). */
+export const occupiedId = (w: { connectionId: number | null; remoteId: string }) => `${w.connectionId ?? 0}:${w.remoteId}`;
 
 const MINUTE = 60_000;
 const endMs = (s: Block) => s.start.getTime() + s.seconds * 1000;

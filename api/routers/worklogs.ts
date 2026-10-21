@@ -23,7 +23,7 @@ import {
   parseDurationToSeconds,
 } from "@contracts/time";
 import { assertWeekOpen } from "./weeks";
-import { conflictMessage, overlapping } from "@contracts/placement";
+import { conflictMessage, occupiedId, overlapping } from "@contracts/placement";
 import { claimTimerSeconds } from "./timers";
 import { withOutboxLock } from "./outbox";
 import { getSettings } from "./settings";
@@ -134,6 +134,7 @@ function withWriteLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
 async function assertNoOverlap(
   userId: number,
   block: { start: Date; seconds: number },
+  /** The entry being edited, by `occupiedId` (a remote id alone may be on two trackers) */
   exceptId?: string,
 ): Promise<void> {
   // Parallel work is allowed by default (D12): only "block" refuses it; the app warns.
@@ -142,7 +143,8 @@ async function assertNoOverlap(
   const to = new Date(block.start.getTime() + block.seconds * 1000);
   const near = await getDb()
     .select({
-      id: worklogs.remoteId,
+      connectionId: worklogs.connectionId,
+      remoteId: worklogs.remoteId,
       issueKey: worklogs.issueKey,
       started: worklogs.started,
       seconds: worklogs.timeSpentSeconds,
@@ -151,7 +153,7 @@ async function assertNoOverlap(
     .where(and(eq(worklogs.userId, userId), gte(worklogs.started, from), lt(worklogs.started, to)));
   const hits = overlapping(
     block,
-    near.map((w) => ({ start: w.started, seconds: w.seconds, id: w.id, label: w.issueKey })),
+    near.map((w) => ({ start: w.started, seconds: w.seconds, id: occupiedId(w), label: w.issueKey })),
     exceptId,
   );
   if (hits.length > 0) {
@@ -549,7 +551,7 @@ export const worklogsRouter = createRouter({
       const previousSeconds = current?.seconds ?? null;
       const saved = await withWriteLock(ctx.user.id, async () => {
         if (moved) {
-          await assertNoOverlap(ctx.user.id, { start: started, seconds }, input.remoteId);
+          await assertNoOverlap(ctx.user.id, { start: started, seconds }, occupiedId({ connectionId: conn.id, remoteId: input.remoteId }));
         }
         const fields = { timeSpentSeconds: seconds, started, comment: input.comment };
         // Kept only in inkledger: nothing to tell a tracker.

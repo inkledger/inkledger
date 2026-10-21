@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { conflictMessage, overlapping, placeBlock, type Occupied } from "@contracts/placement";
+import { conflictMessage, occupiedId, overlapping, placeBlock, type Occupied } from "@contracts/placement";
 import { defaultWorkSchedule } from "@contracts/workSchedule";
 
 const at = (d: number, h: number, m = 0, s = 0) => new Date(2026, 9, d, h, m, s); // Oct 2026
@@ -126,6 +126,9 @@ describe("overlapping", () => {
     const hits = overlapping({ start: at(FRI, 9, 30), seconds: 3600 }, existing);
     expect(hits.map((h) => h.label)).toEqual(["DEMO-1", "SHOP-2"]);
     expect(overlapping({ start: at(FRI, 9), seconds: 5400 }, existing, "w1").map((h) => h.id)).toEqual(["w2"]);
+    // The same remote id on two trackers: skipping one entry never skips the other.
+    const twins = [wl(at(FRI, 9), 60, "A-1", occupiedId({ connectionId: 1, remoteId: "7" })), wl(at(FRI, 11), 60, "B-1", occupiedId({ connectionId: 2, remoteId: "7" }))];
+    expect(overlapping({ start: at(FRI, 11, 30), seconds: 3600 }, twins, occupiedId({ connectionId: 1, remoteId: "7" })).map((h) => h.label)).toEqual(["B-1"]);
     expect(conflictMessage(hits)).toBe("Overlaps DEMO-1 09:00–10:00, SHOP-2 10:00–10:30");
   });
 });

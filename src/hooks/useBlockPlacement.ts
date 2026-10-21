@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { addDays, startOfDay } from "@contracts/time";
 import {
   conflictMessage,
+  occupiedId,
   overlapping,
   placeBlock,
   type Block,
@@ -40,7 +41,7 @@ export function useBlockPlacement(
     const out: Occupied[] = (logs.data ?? []).map(w => ({
       start: new Date(w.started),
       seconds: w.timeSpentSeconds,
-      id: w.remoteId,
+      id: occupiedId(w),
       label: w.issueKey,
     }));
     for (const t of timers) {
