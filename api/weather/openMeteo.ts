@@ -1,6 +1,7 @@
 // Real weather for add-on modules, fetched by the server from Open-Meteo (free,
 // no key). Only rounded coordinates leave this server; the browser never calls out.
 import { env } from "../lib/env";
+import { LruCache } from "../lib/lruCache";
 
 export type WeatherCondition = "clear" | "cloudy" | "rain" | "snow" | "fog" | "storm";
 export type Weather = { condition: WeatherCondition; tempC: number; isDay: boolean; cloudCover: number; precipitation: number };
@@ -22,7 +23,8 @@ export function conditionOf(code: number): WeatherCondition {
 }
 
 const round = (n: number) => Math.round(n * 10) / 10;
-const cache = new Map<string, { at: number; value: Weather | null }>();
+/** Weather by rounded place: the coordinates come from the page, so the places kept are capped (the most recently asked). */
+export const weatherCache = new LruCache<string, { at: number; value: Weather | null }>({ maxEntries: 500 });
 
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: "application/json" } });
@@ -38,7 +40,7 @@ export async function weatherAt(lat: number, lon: number, now = Date.now()): Pro
   if (!env.weather) return null;
   const [la, lo] = [round(lat), round(lon)];
   const key = `${la},${lo}`;
-  const hit = cache.get(key);
+  const hit = weatherCache.get(key);
   if (hit && now - hit.at < TTL_MS) return hit.value;
   let value: Weather | null = null;
   try {
@@ -61,7 +63,7 @@ export async function weatherAt(lat: number, lon: number, now = Date.now()): Pro
   } catch {
     value = null;
   }
-  cache.set(key, { at: now, value });
+  weatherCache.set(key, { at: now, value });
   return value;
 }
 
@@ -83,5 +85,5 @@ export async function geocode(query: string, language: "en" | "it"): Promise<Pla
 }
 
 export function forgetWeatherForTests() {
-  cache.clear();
+  weatherCache.clear();
 }

@@ -36,6 +36,21 @@ describe("weather for modules (Open-Meteo)", () => {
     expect(urls).toHaveLength(2);
   });
 
+  it("places asked from the page are capped: the most recent kept, an old one asked again", async () => {
+    const { weatherAt, weatherCache } = await load();
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ current: { temperature_2m: 1, is_day: 1, weather_code: 0, cloud_cover: 0, precipitation: 0 } }));
+    });
+    for (let i = 0; i < 600; i++) await weatherAt(i / 10, 0, 0);
+    expect(weatherCache.size).toBe(500);
+    await weatherAt(59.9, 0, 0);
+    expect(urls).toHaveLength(600);
+    await weatherAt(0, 0, 0);
+    expect(urls).toHaveLength(601);
+  });
+
   it("answers null when off or unreachable, [] for places", async () => {
     let calls = 0;
     vi.stubGlobal("fetch", async () => {
