@@ -110,7 +110,8 @@ export function FocusMode() {
 function FocusOverlay({ onPip }: { onPip?: () => void }) {
   const timer = useFocusTimer();
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
-  const summary = issues.data?.find(i => i.key === timer?.issueKey)?.summary;
+  // By identity: the same key may be on two trackers.
+  const summary = timer && issues.data?.find(i => issueId(i) === issueId(timer))?.summary;
 
   return (
     <div className="flex h-full flex-col">
@@ -142,7 +143,7 @@ function FocusOverlay({ onPip }: { onPip?: () => void }) {
             <div className="overflow-hidden rounded-2xl border bg-card" {...surfaceFace()}>
             <div className={cn("grain h-28", coverClass(timer.issueKey))} />
             <div className="-mt-10 grid justify-items-center gap-5 px-6 pb-8 text-center">
-              <GoalRing issueKey={timer.issueKey} />
+              <GoalRing timerId={issueId(timer)} />
               <div className="min-w-0">
                 <p className="font-medium text-primary-strong">
                   {timer.issueKey}
@@ -238,10 +239,10 @@ function FocusActions({
 }
 
 /** Big clock inside a ring towards today's goal. */
-function GoalRing({ issueKey }: { issueKey: string }) {
+function GoalRing({ timerId }: { timerId: string }) {
   const patternId = useId();
   const { timers, fetchedAt } = useTimers();
-  const timer = timers.find(t => t.issueKey === issueKey);
+  const timer = timers.find(t => issueId(t) === timerId);
   const elapsed = useElapsed(
     timer?.state ?? "paused",
     timer?.elapsedSeconds ?? 0,

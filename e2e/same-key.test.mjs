@@ -101,3 +101,31 @@ test("Log time from the issue list logs on the row's own tracker", () =>
     const logged = (await entries(db)).filter(e => e.time_spent_seconds === 1800);
     assert.deepEqual(logged, [{ connection_id: github, comment: "", time_spent_seconds: 1800 }]);
   }));
+
+test("focus mode shows the running timer's own issue and clock, not the same key's on another tracker", () =>
+  withApp(
+    {
+      seed: async db => {
+        await sameKey(todayAt(0, 0) - 3 * 86_400_000)(db);
+        const now = Date.now();
+        // Jira's DEMO-101: paused at 4 h. GitHub's DEMO-101: running, just started.
+        await db.q(
+          "INSERT INTO timers (user_id, connection_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 1, 'DEMO-101', 'paused', ?, 14400, ?, '', ?, ?)",
+          now - 5 * 3600_000, now - 3600_000, now - 5 * 3600_000, now - 3600_000,
+        );
+        await db.q(
+          "INSERT INTO timers (user_id, connection_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, ?, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+          github, now, now, now,
+        );
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(base + "/issues");
+      await page.getByRole("button", { name: "Focus mode (F)" }).first().click();
+      const focus = page.getByRole("dialog");
+      await focus.getByText("Same key on GitHub").waitFor();
+      assert.equal(await focus.getByText("Test task number 1").count(), 0);
+      const clock = await focus.locator(".font-display.tabular").first().textContent();
+      assert.match(clock ?? "", /^0?0:0[0-4]:\d\d$/, `the running timer's few minutes, not the paused 4 h (${clock})`);
+    },
+  ));
