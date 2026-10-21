@@ -53,6 +53,7 @@ import { useManageable } from "@/hooks/useManageable";
 import { AttachmentsSection } from "@/components/issue/AttachmentsSection";
 import { RemoteLinks } from "@/components/issue/RemoteLinks";
 import { coverClass } from "@/lib/cover";
+import { mergeIssueWorklogs } from "@/lib/issueWorklogs";
 import { cn } from "@/lib/utils";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
@@ -184,6 +185,11 @@ export default function IssueDetail({
   }, [loaded, key, connectionId, markSeen]);
   // Its own worklogs: the key on its connection (another tracker may have the same key).
   const logs = trpc.worklogs.list.useQuery({ issueKey: key, connectionId: issue.data?.connectionId }, { enabled: !!issue.data });
+  // Everyone's on its tracker (time kept here is all mine): the others' beside mine.
+  const team = trpc.worklogs.team.useQuery(
+    { issueKey: key, connectionId: issue.data?.connectionId },
+    { enabled: !!issue.data && !timeHere, retry: false }
+  );
 
   const [logOpen, setLogOpen] = useState(false);
   const [editing, setEditing] = useState<EditableWorklog | null>(null);
@@ -338,7 +344,13 @@ export default function IssueDetail({
   const i = issue.data;
   const due = i.dueDate ? parseDayKey(i.dueDate) : null;
   const logTotal = logs.data?.reduce((acc, w) => acc + w.timeSpentSeconds, 0);
-  const spent = timeHere ? (logTotal ?? 0) : (i.timeSpentSeconds ?? 0);
+  // The tracker's total counts everyone: mine first, the team's beside it.
+  const teamTotal = timeHere ? null : (team.data?.totalSeconds ?? i.timeSpentSeconds ?? 0);
+  // The estimate is the whole issue's: progress on everyone's time.
+  const spent = teamTotal ?? logTotal ?? 0;
+  const logRows = mergeIssueWorklogs(logs.data ?? [], team.data?.entries);
+  // Mine stand out only beside someone else's.
+  const withOthers = logRows.some(r => r.kind === "other");
   const estimate = i.timeEstimateSeconds ?? 0;
   // An estimate only where the tracker keeps one and this issue has it.
   const hasEstimate = offers.estimate && i.timeEstimateSeconds != null;
@@ -651,8 +663,8 @@ export default function IssueDetail({
             cover={coverClass(i.key + "-time")}
             stats={[
               {
-                label: t("pages.issueDetail.logged"),
-                value: formatDuration(spent),
+                label: t("pages.issueDetail.myTime"),
+                value: logTotal !== undefined ? formatDuration(logTotal) : "—",
               },
               // No estimate: the number of entries instead.
               hasEstimate
@@ -662,7 +674,7 @@ export default function IssueDetail({
                   }
                 : {
                     label: t("pages.issueDetail.worklogs"),
-                    value: String(logs.data?.length ?? 0),
+                    value: String(logRows.length),
                   },
             ]}
             extra={[
@@ -674,18 +686,16 @@ export default function IssueDetail({
                     },
                     {
                       label: t("pages.issueDetail.worklogs"),
-                      value: String(logs.data?.length ?? 0),
+                      value: String(logRows.length),
                     },
                   ]
                 : []),
-              // Kept here only: the logged total already is the local one.
-              ...(timeHere
+              ...(teamTotal === null
                 ? []
                 : [
                     {
-                      label: t("pages.issueDetail.localTotal"),
-                      value:
-                        logTotal !== undefined ? formatDuration(logTotal) : "—",
+                      label: t("pages.issueDetail.teamTotal"),
+                      value: formatDuration(teamTotal),
                     },
                   ]),
               {
@@ -769,23 +779,73 @@ export default function IssueDetail({
                 message={logs.error.message}
                 onRetry={() => logs.refetch()}
               />
-            ) : logs.data.length === 0 ? (
+            ) : logRows.length === 0 ? (
               <EmptyState
                 art="inbox"
                 title={t("pages.issueDetail.noWorklogs")}
                 message={t("pages.issueDetail.noWorklogsHint")}
               />
             ) : (
-              <ul className="divide-y">
-                {logs.data.map(w => {
+              <>
+              {team.error && (
+                <p className="mb-2 text-caption text-muted-foreground">
+                  {t("pages.issueDetail.othersUnavailable")}
+                </p>
+              )}
+              <ul className="divide-y" data-testid="issue-worklogs">
+                {logRows.map(row => {
+                  if (row.kind === "other") {
+                    const e = row.entry;
+                    return (
+                      <li
+                        key={`other-${e.remoteId}`}
+                        data-mine="false"
+                        className="flex items-start gap-3 border-l-2 border-transparent py-3 pl-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="tabular text-muted-foreground">
+                              {formatDuration(e.seconds)}
+                            </span>
+                            <span className="text-body-sm text-muted-foreground">
+                              {e.authorName || t("pages.issueDetail.someoneElse")}
+                            </span>
+                          </div>
+                          <div className="text-caption text-muted-foreground">
+                            {e.start !== null
+                              ? dateTime().format(new Date(e.start))
+                              : e.day
+                                ? formatDate(parseDayKey(e.day) ?? new Date(0), "long")
+                                : "—"}
+                          </div>
+                          {e.comment && (
+                            <p className="mt-1 whitespace-pre-wrap text-body-sm text-muted-foreground">
+                              {e.comment}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  }
+                  const w = row.log;
                   const pending = w.remoteId.startsWith("pending-");
                   const started = new Date(w.started);
                   return (
-                    <li key={w.id} className="flex items-start gap-3 py-3">
+                    <li
+                      key={w.id}
+                      data-mine="true"
+                      className={cn(
+                        "flex items-start gap-3 py-3",
+                        withOthers && "border-l-2 border-primary bg-primary-soft pl-3"
+                      )}
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="tabular font-medium">
                             {formatDuration(w.timeSpentSeconds)}
+                          </span>
+                          <span className="text-body-sm font-medium">
+                            {t("pages.issueDetail.you")}
                           </span>
                           {pending && (
                             <Chip tone="warning">
@@ -834,6 +894,7 @@ export default function IssueDetail({
                   );
                 })}
               </ul>
+              </>
             )}
           </PanelSection>
           {offers.attachments && (

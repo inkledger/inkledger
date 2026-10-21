@@ -120,6 +120,10 @@ async function markSeen(userId: number, key: string, connectionId: number) {
 /** Others' activity newer than the last visit (my own actions are never news). */
 const UNREAD = sql<number>`(CASE WHEN ${issues.othersActivityAt} IS NOT NULL AND ${issues.othersActivityAt} > coalesce(${issues.seenAt}, 0) THEN 1 ELSE 0 END)`;
 
+/** My own time on the issue (its tracker's total counts everyone's). */
+const MY_SPENT = sql<number>`(SELECT coalesce(sum(${worklogs.timeSpentSeconds}), 0)::int FROM ${worklogs}
+  WHERE ${worklogs.userId} = ${issues.userId} AND ${worklogs.connectionId} = ${issues.connectionId} AND ${worklogs.issueKey} = ${issues.key})`;
+
 /** Raise others_activity_at to `at` (it never goes backwards). */
 const othersActivityUpTo = (at: number) =>
   sql`greatest(coalesce(${issues.othersActivityAt}, 0), ${at})`;
@@ -1665,7 +1669,7 @@ export const issuesRouter = createRouter({
       const where = viewWhere(view);
       const [rows, countRows] = await Promise.all([
         db
-          .select(listColumns)
+          .select({ ...listColumns, mySpentSeconds: MY_SPENT })
           .from(issues)
           .where(where)
           // what the words match best, favorites (in their manual order), then the requested order

@@ -305,6 +305,7 @@ function toRemoteWorklog(t: GitLabTimelog): RemoteWorklog {
     span: { kind: "session", start: instantFrom(t.spentAt) ?? instant(0), seconds: t.timeSpent },
     comment: t.summary ?? "",
     authorRemoteId: idOfGid(t.user.id),
+    authorName: t.user.username,
     createdAt: null,
     updatedAt: null,
     editable: { update: false, delete: true },

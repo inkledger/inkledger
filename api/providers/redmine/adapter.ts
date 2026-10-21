@@ -333,6 +333,7 @@ export function toRemoteWorklog(e: RmTimeEntry, me: string): RemoteWorklog {
     span: { kind: "date", date: day(e.spent_on) ?? localDate("1970-01-01"), seconds: secondsOf(e.hours) ?? 0 },
     comment: e.comments ?? "",
     authorRemoteId: String(e.user.id),
+    authorName: e.user.name ?? null,
     createdAt: instantFrom(e.created_on),
     updatedAt: instantFrom(e.updated_on),
     activity: e.activity ? { id: String(e.activity.id), name: e.activity.name ?? "" } : null,

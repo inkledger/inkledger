@@ -315,6 +315,8 @@ export type RemoteWorklog = {
   comment: string;
   /** Who logged it, as the service knows them */
   authorRemoteId: string;
+  /** Their name, where the service says it (others' entries on a shared issue) */
+  authorName?: string | null;
   createdAt?: Instant | null;
   updatedAt?: Instant | null;
   billable?: boolean | null;

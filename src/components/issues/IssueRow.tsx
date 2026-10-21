@@ -197,6 +197,18 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
   );
 }
 
+/** Everyone's time on its tracker, only where it is more than mine. */
+function TeamTotal({ issue, className }: { issue: IssueItem; className?: string }) {
+  const team = issue.timeSpentSeconds ?? 0;
+  if (team <= issue.mySpentSeconds) return null;
+  const label = t("views.issues.row.teamTotal", { time: formatDuration(team) });
+  return (
+    <span className={cn("text-muted-foreground", className)} title={label}>
+      {label}
+    </span>
+  );
+}
+
 function KeyLink({ issue }: { issue: IssueItem }) {
   return (
     <Link
@@ -302,7 +314,7 @@ export function IssueTable({
           >
             {t("views.issues.row.due")}
           </Head>
-          <TableHead className="text-right">{t("views.issues.row.logged")}</TableHead>
+          <TableHead className="whitespace-nowrap text-right">{t("views.issues.row.logged")}</TableHead>
           <TableHead className="pl-3">{t("views.issues.row.timer")}</TableHead>
           <TableHead className="pr-1">
             <span className="sr-only">{t("views.issues.row.actions")}</span>
@@ -409,7 +421,8 @@ export const IssueRow = memo(function IssueRow({
         {due ?? "—"}
       </td>
       <td className="whitespace-nowrap py-3 text-right text-muted-foreground tabular">
-        {formatDuration(issue.timeSpentSeconds ?? 0)}
+        <span className="text-foreground">{formatDuration(issue.mySpentSeconds)}</span>
+        <TeamTotal issue={issue} className="block text-caption" />
       </td>
       <td className="w-40 py-3 pl-3">
         <TimerControls issueKey={issue.key} connectionId={issue.connectionId} />
@@ -468,7 +481,8 @@ export const IssueCard = memo(function IssueCard({
           </span>
         )}
         <span className="ml-auto text-caption text-muted-foreground tabular">
-          {issue.timeSpentSeconds ? formatDuration(issue.timeSpentSeconds) : ""}
+          {issue.mySpentSeconds ? formatDuration(issue.mySpentSeconds) : ""}
+          <TeamTotal issue={issue} className="ml-1" />
         </span>
       </div>
       <TimerControls issueKey={issue.key} connectionId={issue.connectionId} />

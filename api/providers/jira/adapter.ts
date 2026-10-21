@@ -182,6 +182,7 @@ export function toRemoteWorklog(w: JiraWorklog, me: string, issueKey?: string): 
     span: { kind: "session", start: instantFrom(w.started) ?? instant(0), seconds: w.timeSpentSeconds },
     comment: textFromAdf(w.comment).trim(),
     authorRemoteId: w.author?.accountId ?? w.author?.name ?? w.author?.key ?? "",
+    authorName: w.author?.displayName ?? null,
     createdAt: instantFrom(w.created),
     updatedAt: instantFrom(w.updated),
     // Someone else's entries: Jira's permissions decide, inkledger only offers its user's own.

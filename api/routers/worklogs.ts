@@ -403,6 +403,32 @@ export const worklogsRouter = createRouter({
       }));
     }),
 
+  /**
+   * Everyone's time on one issue, live from its tracker: mine marked, the
+   * others' with their author. Null where the tracker keeps no entries (all
+   * the time is here, and mine) or can't list them.
+   */
+  team: protectedProcedure
+    .input(z.object({ issueKey: issueKeyInput, connectionId: z.number().int().positive().optional() }))
+    .query(async ({ ctx, input }) => {
+      const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      if (keepsTimeLocally(conn)) return null;
+      const through = await contractTime(ctx.user.id, conn, input.issueKey);
+      if (!through?.b.worklogs?.list) return null;
+      const remote = await through.b.worklogs.list({ signal: AbortSignal.timeout(30_000), correlationId: `team-${Date.now()}` }, through.ref);
+      const entries = remote.map((w) => ({
+        remoteId: w.remoteId,
+        // A session's start, or the day alone (services keeping only the date)
+        start: w.span.kind === "session" ? (w.span.start as number) : null,
+        day: w.span.kind === "session" ? null : (w.span.date as string),
+        seconds: w.span.seconds,
+        comment: w.comment,
+        authorName: w.authorName ?? null,
+        mine: w.authorRemoteId === conn.remoteAccountId,
+      }));
+      return { entries, totalSeconds: entries.reduce((acc, e) => acc + e.seconds, 0) };
+    }),
+
   /** Settings → Account: import the last 12 months of my worklogs from Jira again. */
   reimport: protectedProcedure.mutation(({ ctx }) => syncWorklogs(ctx.user, { reimport: true })),
 
