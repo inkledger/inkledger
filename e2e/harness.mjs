@@ -2,6 +2,7 @@
 // user, session and issues. Jira is read-only and never synced: these tests
 // never reach a real Jira. Run with `pnpm test:e2e` (builds first).
 import { spawn } from "node:child_process";
+import { createServer } from "node:net";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,7 +69,9 @@ async function syncSequences(client) {
  * has its own Postgres database, dropped at stop().
  */
 export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false } = {}) {
-  const port = 41000 + Math.floor(Math.random() * 8000);
+  // A port nothing listens on: a random one could be another app's (the Docker stacks'),
+  // whose health check would answer for a server still starting.
+  const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "ikl-e2e-"));
   // A database that stops answering fails the test, never holds the whole run.
   const admin = new pg.Client({ connectionString: adminUrl(), connectionTimeoutMillis: 15_000, query_timeout: 60_000 });
@@ -180,13 +183,27 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       await browser.close();
       const exited = new Promise(r => server.once("exit", r));
       server.kill("SIGTERM");
-      await Promise.race([exited, new Promise(r => setTimeout(r, 5000))]);
+      const gone = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 5000, false))]);
+      // A server that outlives its test would hold the whole run open.
+      if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
       await client.end();
       await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
       await admin.end();
       rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
+}
+
+/** A port the system has just handed out, so free right now. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
 }
 
 /** Pretends to be the native app's window: records the commands it gets. */
