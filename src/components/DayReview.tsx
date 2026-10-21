@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Check,
   Clock,
@@ -198,7 +198,11 @@ function DayReviewBody() {
     setConfirming(true);
   };
 
+  /** Set at once by logAll: the dialog's own close, in the same click, must keep the snapshot. */
+  const logging = useRef(false);
+
   const logAll = async () => {
+    logging.current = true;
     setConfirming(false);
     setRunning(true);
     // Each timer ends where it was stopped (now if still running), placed by
@@ -271,6 +275,7 @@ function DayReviewBody() {
         );
       }
     }
+    logging.current = false;
     setRunning(false);
     setFrozen(null);
     invalidate();
@@ -455,7 +460,9 @@ function DayReviewBody() {
         open={confirming}
         onOpenChange={o => {
           setConfirming(o);
-          if (!o && !running) setFrozen(null);
+          // Cancelled: the live values again. Confirmed: the snapshot stands for the save
+          // (this runs in the same click as logAll, before "running" is drawn).
+          if (!o && !logging.current) setFrozen(null);
         }}
       >
         <AlertDialogContent>
