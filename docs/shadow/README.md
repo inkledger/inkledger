@@ -45,6 +45,17 @@ One Thursday in Rome (29 October), the same dashboard:
 2. **Wait for the approval.** Once the request is approved, inkledger installs and activates the module by itself.
 3. **Look around.** Every page now has the light of the hour where you are.
 
+## Settings
+
+In **Settings → Store**, Shadow's badge → **Settings**, saved for you on every device:
+
+- **Preview.** A small card, button, chip, avatar and chart at the top, lit like the page: *now*, or
+  this morning, at noon or this afternoon (by night, with neither sun nor moon, *now* has no shadows).
+- **Intensity, Length, Softness.** How dark the shadows are, how far they fall (0% keeps them right
+  under each surface) and how blurred their edges are, from what the light casts by itself.
+- **Where.** The kinds of surface that cast one: buttons and switches, chips, avatars and pictures,
+  chart bars, cards, the main panel, the current page in the menu, menus and popovers, dialogs.
+
 ## How it behaves
 
 - It works on every page. Changing page restarts nothing: the light is already where it is.
