@@ -52,6 +52,15 @@ async function target(id: number, me: User): Promise<User> {
   return user;
 }
 
+/**
+ * The account as `target` checked it: a write by a manager matches it only if
+ * nobody changed its access meanwhile (else it may be beyond the manager now).
+ */
+function asChecked(user: User, me: User) {
+  if (roleOf(me) === "admin") return eq(users.id, user.id);
+  return and(eq(users.id, user.id), eq(users.role, user.role), eq(users.permissions, user.permissions));
+}
+
 /** Another active admin remains when `id` stops being one. */
 async function assertAnotherAdmin(id: number) {
   const [other] = await getDb()
@@ -110,8 +119,9 @@ export const usersRouter = createRouter({
     const [updated] = await getDb()
       .update(users)
       .set({ role: input.role, permissions: storedPermissions(input.permissions) })
-      .where(eq(users.id, user.id))
+      .where(asChecked(user, ctx.user))
       .returning();
+    if (!updated) throw notAllowed();
     return row(updated);
   }),
 
@@ -119,10 +129,12 @@ export const usersRouter = createRouter({
   resetPassword: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
     const password = temporaryPassword();
-    await getDb()
+    const done = await getDb()
       .update(users)
       .set({ passwordHash: await hashPassword(password), mustChangePassword: 1 })
-      .where(eq(users.id, user.id));
+      .where(asChecked(user, ctx.user))
+      .returning({ id: users.id });
+    if (done.length === 0) throw notAllowed();
     await signOutEverywhere(user.id);
     return { password };
   }),
@@ -134,8 +146,9 @@ export const usersRouter = createRouter({
     const [updated] = await getDb()
       .update(users)
       .set({ disabledAt: input.disabled ? new Date() : null })
-      .where(eq(users.id, user.id))
+      .where(asChecked(user, ctx.user))
       .returning();
+    if (!updated) throw notAllowed();
     if (input.disabled) await signOutEverywhere(user.id);
     return row(updated);
   }),
