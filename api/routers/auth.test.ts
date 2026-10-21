@@ -285,6 +285,13 @@ describe("auth: sessions, cookies, login hardening", () => {
       const reset = await a.users.invite({ username: "resetlater", displayName: "R", role: "member", permissions: [] });
       await a.users.resetPassword({ id: reset.user.id });
       await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token: token(reset.link), password: "someone else's" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      // A maker turned off (or no longer managing accounts): its links stop too.
+      const kept = await k.users.invite({ username: "kept", displayName: "Kept", role: "member", permissions: [] });
+      await q("UPDATE users SET disabled_at = ? WHERE username = 'keeper2'", Date.now());
+      await expect(appRouter.createCaller(anon()).auth.invite({ token: token(kept.link) })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await q("UPDATE users SET disabled_at = NULL, permissions = '[\"useModules\"]' WHERE username = 'keeper2'");
+      await expect(appRouter.createCaller(anon()).auth.invite({ token: token(kept.link) })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await q("UPDATE users SET permissions = '[\"manageUsers\",\"useModules\"]' WHERE username = 'keeper2'");
       // Within the manager's reach, its link still works.
       const fine = await k.users.invite({ username: "fine", displayName: "Fine", role: "member", permissions: ["useModules"] });
       await expect(appRouter.createCaller(anon()).auth.acceptInvite({ token: token(fine.link), password: "fine's own password" })).resolves.toMatchObject({ username: "fine" });

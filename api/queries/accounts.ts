@@ -102,8 +102,8 @@ export async function createInvite(userId: number, createdBy: number | null): Pr
 /**
  * The user an invite token is for, while unused and unexpired; and only while the link
  * still does what it was made for: the account has no password yet, and whoever made
- * the link could still give it the access it has now (else a manager's link, kept, would
- * open an account promoted since).
+ * the link could still make it (on, managing accounts) and give it the access it has
+ * now (else a manager's link, kept, would open an account promoted since).
  */
 export async function inviteUser(token: string): Promise<{ inviteId: string; user: User } | null> {
   const id = hashToken(token);
@@ -115,7 +115,8 @@ export async function inviteUser(token: string): Promise<{ inviteId: string; use
     .limit(1);
   if (!row) return null;
   const maker = row.createdBy === null ? null : await userById(row.createdBy);
-  if (maker && !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user) })) return null;
+  // Its maker must still be able to make it: on, managing accounts, holding what the account has.
+  if (maker && (maker.disabledAt || !can(maker, "manageUsers") || !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user) }))) return null;
   return { inviteId: id, user: row.user };
 }
 
