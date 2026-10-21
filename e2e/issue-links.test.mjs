@@ -65,3 +65,25 @@ test("a logged slice of the day timeline opens its issue, by click or by keyboar
     },
   );
 });
+
+test("a dialog opened on one issue doesn't follow the user to another (Back with it open)", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const [{ connection_id: conn }] = await db.q("SELECT connection_id FROM issues WHERE key = 'DEMO-101'");
+    const go = path => page.evaluate(p => {
+      history.pushState({}, "", p);
+      dispatchEvent(new PopStateEvent("popstate"));
+    }, path);
+    await page.goto(`${base}/issues/${conn}/DEMO-101`);
+    await page.getByText("Test task number 1").first().waitFor();
+    // To another issue in the same page, then its Log time dialog.
+    await go(`/issues/${conn}/DEMO-102`);
+    await page.getByText("Test task number 2").first().waitFor();
+    await page.locator("main").getByRole("button", { name: "Log time" }).first().click();
+    await page.getByRole("dialog").waitFor();
+    // Back to the first issue with it still open (browser Back, the mouse's back button, ⌘[).
+    await page.goBack();
+    await page.waitForURL(url => new URL(url).pathname === `/issues/${conn}/DEMO-101`);
+    await page.getByText("Test task number 1").first().waitFor();
+    await page.waitForTimeout(300);
+    assert.equal(await page.getByRole("dialog").count(), 0, "the other issue's dialog is gone");
+  }));
