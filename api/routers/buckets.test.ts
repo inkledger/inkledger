@@ -109,6 +109,20 @@ describe("buckets, per device", () => {
     await pad.buckets.setActive({ id: null });
     expect((await pad.pinboard.list()).map((n) => n.issueKey ?? n.note)).toEqual(["ONE-1", "TWO-1", "call the client"]);
   });
+
+  it("clearing all notifications on a device with a bucket clears that bucket's only", async () => {
+    await q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (?, ?, 'due', 'ONE-1', '', 'c1', ?), (?, ?, 'due', 'TWO-1', '', 'c2', ?)", userId, c1, Date.now(), userId, c2, Date.now());
+    const phone = await onDevice("device-phone-clear");
+    const desk = await onDevice("device-desk-clear");
+    const { id } = await phone.buckets.save({ name: "Two to clear", sources: [{ connectionId: c2, containerId: null }] });
+    await phone.buckets.setActive({ id });
+    const before = (await desk.notifications.list()).map((n) => n.issueKey).sort();
+    expect(before).toContain("ONE-1");
+    await phone.notifications.dismissAll();
+    expect(await phone.notifications.list()).toEqual([]);
+    // Never seen on the phone: still there everywhere else.
+    expect((await desk.notifications.list()).map((n) => n.issueKey).sort()).toEqual(before.filter((k) => k !== "TWO-1"));
+  });
 });
 
 describe("pinboard, as the board shows it", () => {

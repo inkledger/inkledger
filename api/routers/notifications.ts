@@ -249,10 +249,20 @@ export const notificationsRouter = createRouter({
     }),
 
   dismissAll: protectedProcedure.mutation(async ({ ctx }) => {
-    const res = await getDb()
+    // On a device with a bucket, that bucket's only: the others were never shown here.
+    const inBucket = await notificationsInBucket(ctx.user.id, ctx.deviceId);
+    const db = getDb();
+    const res = await db
       .update(notifications)
       .set({ dismissedAt: new Date() })
-      .where(undismissed(ctx.user.id))
+      .where(
+        inBucket
+          ? inArray(
+              notifications.id,
+              db.select({ id: notifications.id }).from(notifications).leftJoin(issues, joinIssue).where(and(undismissed(ctx.user.id), inBucket)),
+            )
+          : undismissed(ctx.user.id),
+      )
       .returning({ id: notifications.id, dedupe: notifications.dedupe });
     await (await import("../sync/inboxRead")).markInboxRead(ctx.user.id, res.map((r) => r.dedupe));
     return { dismissed: res.length };
