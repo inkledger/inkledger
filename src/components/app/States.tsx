@@ -6,6 +6,17 @@ import {
   type IllustrationKind,
 } from "@/components/app/Illustration";
 import { t } from "@/i18n";
+import { Spinner } from "@/components/ui/spinner";
+
+/** A page on its way (its code or its first data): a spinner where the page goes. */
+export function PageSpinner() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center" role="status">
+      <Spinner className="h-6 w-6" />
+      <span className="sr-only">{t("ui.app.loading")}</span>
+    </div>
+  );
+}
 
 /** Something failed to load; offers a retry. */
 export function ErrorState({

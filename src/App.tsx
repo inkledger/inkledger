@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
+import { PageSpinner } from "@/components/app/States";
 
 const Login = lazy(() => import("@/pages/Login"));
 const IssueByKey = lazy(() => import("@/pages/IssueRoute").then(m => ({ default: m.IssueByKey })));
@@ -23,18 +24,6 @@ const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const Info = lazy(() => import("@/pages/Info"));
 const Install = lazy(() => import("@/pages/Install"));
-
-function FullPageSpinner() {
-  return (
-    <div
-      className="flex min-h-[50vh] items-center justify-center"
-      role="status"
-    >
-      <Spinner className="h-6 w-6" />
-      <span className="sr-only">{t("ui.app.loading")}</span>
-    </div>
-  );
-}
 
 /** auth.me failed (network, 5xx): keep the route and keep trying. */
 function Reconnecting({
@@ -69,7 +58,7 @@ function RequireAuth() {
   const { user, isLoading, isAuthenticated, isUnreachable, isRetrying, retry } =
     useAuth();
   const location = useLocation();
-  if (isLoading) return <FullPageSpinner />;
+  if (isLoading) return <PageSpinner />;
   if (isUnreachable)
     return <Reconnecting onRetry={retry} retrying={isRetrying} />;
   if (!isAuthenticated) {
@@ -92,7 +81,7 @@ function GuestOnly() {
     useAuth();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? "/";
-  if (isLoading) return <FullPageSpinner />;
+  if (isLoading) return <PageSpinner />;
   if (isUnreachable)
     return <Reconnecting onRetry={retry} retrying={isRetrying} />;
   return isAuthenticated ? <Navigate to={from} replace /> : <Outlet />;
@@ -105,7 +94,7 @@ export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ErrorBoundary key={locale} resetKey={pathname}>
-        <Suspense fallback={<FullPageSpinner />}>
+        <Suspense fallback={<PageSpinner />}>
           <Routes>
             {/* Public: a new device opens it before any login. */}
             <Route path="/install" element={<Install />} />

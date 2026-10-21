@@ -1,5 +1,6 @@
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
-import { useRef } from "react";
+import { Suspense, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import {
   Maximize2,
@@ -48,6 +49,8 @@ import { CreateIssueDialog } from "@/components/issues/CreateIssueDialog";
 import { IssueHistoryDialog } from "@/components/issue/IssueHistoryDialog";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/app/ErrorBoundary";
+import { PageSpinner } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -502,6 +505,7 @@ export function AppLayout() {
   useSoftKeyboard();
   const collapsed = useSidebarCollapsed();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const mainRef = useRef<HTMLElement>(null);
   // A new page starts at the top; Back/Forward land where you were.
   useScrollRestoration(mainRef);
@@ -589,7 +593,12 @@ export function AppLayout() {
                 key={location.pathname}
                 className="motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
               >
-                <Outlet />
+                {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays. */}
+                <ErrorBoundary resetKey={location.pathname} onRetry={() => queryClient.removeQueries({ type: "inactive" })}>
+                  <Suspense fallback={<PageSpinner />}>
+                    <Outlet />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </main>
           </div>

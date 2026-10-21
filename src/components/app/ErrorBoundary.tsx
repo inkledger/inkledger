@@ -3,18 +3,23 @@ import { RotateCcw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { isChunkLoadError } from "@/lib/chunkError";
 
 type Props = {
   children: ReactNode;
   /** Changing it (e.g. the route) clears a caught error. */
   resetKey?: string;
+  /** Before "Retry" draws again: what the failed drawing read is dropped, so it is read afresh. */
+  onRetry?: () => void;
 };
 type State = { error: unknown; resetKey?: string };
 
 /**
- * Last line of defence: a render error (or a chunk that failed to load
- * after a redeploy) shows a calm fallback with "Reload" instead of a
- * blank page.
+ * A calm fallback instead of a blank page. A render error offers "Retry"
+ * (draws again) and "Reload"; a page's code that never arrived (a redeploy,
+ * the network) offers "Reload" only, since React.lazy keeps the failure.
+ * Around the page it leaves the app's shell in place; at the root it is the
+ * last line of defence.
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, resetKey: this.props.resetKey };
@@ -51,10 +56,23 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="text-body-sm text-muted-foreground">
             {t("ui.error.body")}
           </p>
-          <Button className="mt-1" onClick={() => window.location.reload()}>
-            <RotateCcw className="h-4 w-4" />
-            {t("ui.error.reload")}
-          </Button>
+          <div className="mt-1 flex flex-wrap justify-center gap-2">
+            {!isChunkLoadError(this.state.error) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  this.props.onRetry?.();
+                  this.setState({ error: null });
+                }}
+              >
+                {t("common.retry")}
+              </Button>
+            )}
+            <Button onClick={() => window.location.reload()}>
+              <RotateCcw className="h-4 w-4" />
+              {t("ui.error.reload")}
+            </Button>
+          </div>
         </div>
       </div>
     );
