@@ -1,12 +1,27 @@
 // A wall-clock hour of a day in a zone, as an instant: the same answer
 // whatever zone this process runs in (the server runs in the host's zone,
 // Europe/Rome in the image; the tests too).
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { instantAtLocal, localDate, timeZone } from "@contracts/values";
 
 const at = (day: string, hour: number, zone: string) => new Date(instantAtLocal(localDate(day), hour, timeZone(zone))).toISOString();
 
-describe("a wall-clock hour of a day, in a zone", () => {
+// The server's own zone, switched at runtime (Node reads process.env.TZ again).
+const SERVER_ZONES = ["Europe/Rome", "UTC", "America/Los_Angeles", "Pacific/Kiritimati", "Asia/Tokyo"];
+const own = process.env.TZ;
+afterAll(() => {
+  process.env.TZ = own;
+});
+
+describe.each(SERVER_ZONES)("a wall-clock hour of a day, in a zone, the server in %s", (server) => {
+  beforeEach(() => {
+    process.env.TZ = server;
+  });
+  it("the server's zone is in force here", () => {
+    process.env.TZ = server;
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(server);
+  });
+
   it("09:00 in Rome is 07:00Z in summer time, 08:00Z in winter time", () => {
     expect(at("2026-10-21", 9, "Europe/Rome")).toBe("2026-10-21T07:00:00.000Z");
     expect(at("2026-12-01", 9, "Europe/Rome")).toBe("2026-12-01T08:00:00.000Z");

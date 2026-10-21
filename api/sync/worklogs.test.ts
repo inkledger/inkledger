@@ -167,9 +167,18 @@ describe("worklog registry against any service, through the contract", () => {
         },
       },
     } as typeof b;
-    await syncEntries(byDay, conn, { since: null, meta, budget: unlimited, zone });
-    const [row] = await q<{ started: number }>("SELECT started FROM worklogs WHERE comment = 'by day'");
-    expect(new Date(row.started).toISOString()).toBe("2026-10-21T07:00:00.000Z");
+    // The same entry read with the server in different zones: always 09:00 in Rome (07:00Z that day).
+    const own = process.env.TZ;
+    try {
+      for (const server of ["Europe/Rome", "UTC", "America/Los_Angeles", "Asia/Tokyo", "Pacific/Kiritimati"]) {
+        process.env.TZ = server;
+        await syncEntries(byDay, conn, { since: null, meta, budget: unlimited, zone });
+        const [row] = await q<{ started: number }>("SELECT started FROM worklogs WHERE comment = 'by day'");
+        expect(new Date(row.started).toISOString(), server).toBe("2026-10-21T07:00:00.000Z");
+      }
+    } finally {
+      process.env.TZ = own;
+    }
   });
 
   it("changed on both sides: kept here, the service's version beside it (conflict); unchanged here: the service wins; locked there: said", async () => {
