@@ -99,7 +99,8 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
         <EmptyState art="chat" title={t("views.issue.comments.empty")} className="py-6" />
       ) : (
         <ol className="grid gap-4">
-          {comments.data.map(c => {
+          {/* Newest first, under the composer: the latest word is the first one read. */}
+          {[...comments.data].sort((a, b) => Date.parse(b.created) - Date.parse(a.created)).map(c => {
             const created = new Date(c.created);
             return (
               <li key={c.id} className="flex gap-3">
