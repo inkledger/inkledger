@@ -3,7 +3,7 @@
 // user's containers goes where (a default for all the others).
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { containers, connections, sinkMappings, worklogSinks } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -74,15 +74,13 @@ export const sinksRouter = createRouter({
           .where(and(eq(containers.id, input.containerId), eq(connections.userId, ctx.user.id)));
         if (!own) throw new TRPCError({ code: "NOT_FOUND" });
       }
-      await db.delete(sinkMappings).where(and(eq(sinkMappings.sinkConnectionId, conn.id), input.containerId === null ? isNull(sinkMappings.containerId) : eq(sinkMappings.containerId, input.containerId)));
-      await db.insert(sinkMappings).values({
-        sinkConnectionId: conn.id,
-        containerId: input.containerId,
-        targetRemoteId: input.target.remoteId,
-        targetName: input.target.name,
-        targetPath: JSON.stringify(input.target.path),
-        activityId: input.activityId,
-      });
+      // One statement on uq_sink_mappings: two saves at once can't both insert (the later one wins).
+      await db.execute(sql`
+        insert into sink_mappings (sink_connection_id, container_id, target_remote_id, target_name, target_path, activity_id)
+        values (${conn.id}, ${input.containerId}, ${input.target.remoteId}, ${input.target.name}, ${JSON.stringify(input.target.path)}, ${input.activityId})
+        on conflict (sink_connection_id, (coalesce(container_id, 0))) do update set
+          target_remote_id = excluded.target_remote_id, target_name = excluded.target_name,
+          target_path = excluded.target_path, activity_id = excluded.activity_id`);
       await db.update(worklogSinks).set({ state: "pending", lastError: null }).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed")));
       sinksSoon(ctx.user.id);
       return { ok: true };
