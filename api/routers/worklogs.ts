@@ -5,7 +5,7 @@ import { worklogScope } from "../queries/worklogScope";
 import type { RemoteSnapshot } from "../sync/worklogs";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, getTableColumns, gte, inArray, isNotNull, like, lt, not, notInArray, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, like, lt, not, notInArray, or, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { randomUUID } from "node:crypto";
@@ -33,7 +33,7 @@ import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { t } from "@contracts/i18n";
 import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
-import { contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
+import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
 
 const timeFields = {
   /** Whole seconds: what the app sends (a typed "1d" is resolved on the device, by the work schedule) */
@@ -94,20 +94,13 @@ function keepsTimeLocally(conn: Pick<Connection, "type">): boolean {
 }
 
 /**
- * A pending worklog can be edited only while its create is still queued: once replayed it
- * has a real Jira id, and an edit by the old id would silently do nothing.
+ * A pending worklog's queued create, as an edit or a delete may take it: still
+ * queued (once replayed it has a real id, and an edit by the old one would do
+ * nothing) and claimed by no replay, of this process or another on the same
+ * database (a claim past its lease is a dead process's).
  */
-async function assertStillQueued(userId: number, outboxId: number) {
-  const queued = (await getDb()
-    .select({ id: outbox.id })
-    .from(outbox)
-    .where(and(eq(outbox.id, outboxId), eq(outbox.userId, userId))).limit(1))[0];
-  if (!queued) {
-    throw new TRPCError({
-      code: "CONFLICT",
-      message: t("server.worklogs.justSynced"),
-    });
-  }
+function stillQueued(userId: number, outboxId: number) {
+  return and(eq(outbox.id, outboxId), eq(outbox.userId, userId), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS)));
 }
 
 export function pendingOutboxId(remoteId: string): number {
@@ -557,14 +550,16 @@ export const worklogsRouter = createRouter({
         // and the queued "create" operation.
         if (isPendingId(input.remoteId)) {
           const oid = pendingOutboxId(input.remoteId);
-          return await withOutboxLock(ctx.user.id, async () => {
-            await assertStillQueued(ctx.user.id, oid);
-            await getDb()
-              .update(outbox)
-              .set(fields)
-              .where(and(eq(outbox.id, oid), eq(outbox.userId, ctx.user.id)));
-            return await updateLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, fields, conn.id);
-          });
+          return await withOutboxLock(ctx.user.id, () =>
+            // The queued create and the copy here change together, only while no replay
+            // (another process on this database included) is sending it.
+            getDb().transaction(async (tx) => {
+              const [taken] = await tx.update(outbox).set(fields).where(stillQueued(ctx.user.id, oid)).returning({ id: outbox.id });
+              if (!taken) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
+              const [saved] = await tx.update(worklogs).set(fields).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id)).returning();
+              return saved;
+            }),
+          );
         }
         const [row] = await getDb().select().from(worklogs).where(where);
         if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.worklogs.notFound") });
@@ -649,12 +644,13 @@ export const worklogsRouter = createRouter({
         if (isPendingId(input.remoteId)) {
           const oid = pendingOutboxId(input.remoteId);
           return await withOutboxLock(ctx.user.id, async () => {
-            await assertStillQueued(ctx.user.id, oid);
-            await getDb()
-              .delete(outbox)
-              .where(and(eq(outbox.id, oid), eq(outbox.userId, ctx.user.id)));
-            await deleteLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, conn.id);
-              return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+            // Only while no replay (another process on this database included) is sending it.
+            await withDeleteReason("user", async (tx) => {
+              const [taken] = await tx.delete(outbox).where(stillQueued(ctx.user.id, oid)).returning({ id: outbox.id });
+              if (!taken) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
+              await tx.delete(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
+            });
+            return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
           });
         }
         const [filedRow] = await db.select().from(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));

@@ -989,6 +989,9 @@ describe("app router (integration, in-memory SQLite)", () => {
         ([, init]) => (init as RequestInit | undefined)?.method === "POST",
       );
       expect(posts).toHaveLength(1); // only the offline attempt
+      // While it holds the entry, it can't be deleted here either; that process done, it can.
+      await expect(caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId })).rejects.toMatchObject({ code: "CONFLICT" });
+      await db.update(outbox).set({ claimedAt: null });
       await caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId });
     });
 

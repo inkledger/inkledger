@@ -189,4 +189,24 @@ describe("the worklog registry", () => {
     expect((await q<{ comment: string }>("SELECT comment FROM worklogs WHERE issue_key = 'RACE-2' ORDER BY comment")).map((r) => r.comment)).toEqual(["young"]);
     await q("DELETE FROM worklogs WHERE issue_key = 'RACE-2'");
   });
+
+  it("a queued worklog another process is sending right now can't be changed or deleted meanwhile; its claim gone stale, it can", async () => {
+    offline = true;
+    const queued = await caller.worklogs.create({ issueKey: "CLAIM-1", seconds: 900, started: "2026-10-19T11:00:00+02:00", comment: "queued" });
+    offline = false;
+    const [entry] = await q<{ id: number }>("SELECT id FROM outbox WHERE worklog_id = ?", queued.id);
+    // Another server process on this database has claimed it (as its replay does) and is talking to Jira.
+    await q("UPDATE outbox SET claimed_at = ? WHERE id = ?", Date.now(), entry.id);
+    await expect(caller.worklogs.update({ id: queued.id, seconds: 1800, started: "2026-10-19T11:00:00+02:00", comment: "edited" })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(caller.worklogs.delete({ id: queued.id })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await q("SELECT time_spent_seconds, comment FROM worklogs WHERE id = ?", queued.id)).toEqual([{ time_spent_seconds: 900, comment: "queued" }]);
+    expect(await q("SELECT time_spent_seconds, comment FROM outbox WHERE id = ?", entry.id)).toEqual([{ time_spent_seconds: 900, comment: "queued" }]);
+    // That process died: past the lease the edit goes, to the queue and here alike.
+    const { CLAIM_TTL_MS } = await import("../sync/timeWrites");
+    await q("UPDATE outbox SET claimed_at = ? WHERE id = ?", Date.now() - CLAIM_TTL_MS - 1000, entry.id);
+    await caller.worklogs.update({ id: queued.id, seconds: 1800, started: "2026-10-19T11:00:00+02:00", comment: "edited" });
+    expect(await q("SELECT time_spent_seconds, comment FROM outbox WHERE id = ?", entry.id)).toEqual([{ time_spent_seconds: 1800, comment: "edited" }]);
+    await caller.worklogs.delete({ id: queued.id });
+    expect(await q("SELECT count(*)::int AS n FROM outbox WHERE id = ?", entry.id)).toEqual([{ n: 0 }]);
+  });
 });
