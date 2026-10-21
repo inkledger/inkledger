@@ -200,22 +200,38 @@ export async function restoreBackup(name: string): Promise<{ safety: string }> {
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 let enabled = false;
+/** Bumped by every reschedule: only the latest one's settings arm the timer (two saves in a row arm one backup, not two). */
+let generation = 0;
+
+/** The settings couldn't be read (the database away): the schedule tries again this much later, it never stops. */
+export const RESCHEDULE_RETRY_MS = 5 * 60_000;
 
 /** (Re)arms the next scheduled backup from the saved settings. */
 export function reschedule() {
   if (!enabled) return;
   clearTimeout(timer);
-  void getBackupSettings().then((s) => {
-    const at = nextRun(s, new Date());
-    if (!at) return;
-    // setTimeout caps at ~24.8 days; weekly fits.
-    timer = setTimeout(() => {
-      void runBackup()
-        .catch((e: unknown) => console.warn(`[backup] ${String(e)}`))
-        .finally(reschedule);
-    }, at.getTime() - Date.now());
+  const mine = ++generation;
+  const arm = (ms: number, then: () => void) => {
+    if (!enabled || mine !== generation) return;
+    clearTimeout(timer);
+    timer = setTimeout(then, ms);
     timer.unref();
-  });
+  };
+  getBackupSettings()
+    .then((s) => {
+      const at = nextRun(s, new Date());
+      if (!at) return;
+      // setTimeout caps at ~24.8 days; weekly fits.
+      arm(at.getTime() - Date.now(), () => {
+        void runBackup()
+          .catch((e: unknown) => console.warn(`[backup] ${String(e)}`))
+          .finally(reschedule);
+      });
+    })
+    .catch((e: unknown) => {
+      console.warn(`[backup] schedule not read, trying again in ${RESCHEDULE_RETRY_MS / 60_000} min: ${String(e)}`);
+      arm(RESCHEDULE_RETRY_MS, reschedule);
+    });
 }
 
 /** The container runs the schedule (the dev server shares the database: never twice). */
