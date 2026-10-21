@@ -24,6 +24,8 @@ export class LruCache<K, V> {
   private readonly entries = new Map<K, Entry<V>>();
   private readonly loading = new Map<K, Promise<V | undefined>>();
   private total = 0;
+  /** Bumped by clear(): a load begun before it keeps nothing. */
+  private epoch = 0;
   private readonly maxEntries: number;
   private readonly maxSize: number;
   private readonly sizeOf: (value: V) => number;
@@ -85,9 +87,12 @@ export class LruCache<K, V> {
     return true;
   }
 
+  /** Forgets everything, loads still running included (what they resolve to is not kept). */
   clear(): void {
     this.entries.clear();
+    this.loading.clear();
     this.total = 0;
+    this.epoch++;
   }
 
   /**
@@ -100,15 +105,16 @@ export class LruCache<K, V> {
     if (hit !== undefined) return Promise.resolve(hit);
     const running = this.loading.get(key);
     if (running) return running;
-    const p = (async () => {
-      try {
-        const value = await fn();
-        if (value !== undefined) this.set(key, value);
-        return value;
-      } finally {
-        this.loading.delete(key);
-      }
-    })();
+    const epoch = this.epoch;
+    const run = async () => {
+      const value = await fn();
+      if (value !== undefined && epoch === this.epoch) this.set(key, value);
+      return value;
+    };
+    // finally() runs after this function returns, even when fn throws at once: p is set by then.
+    const p = run().finally(() => {
+      if (this.loading.get(key) === p) this.loading.delete(key);
+    });
     this.loading.set(key, p);
     return p;
   }

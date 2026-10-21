@@ -97,6 +97,32 @@ describe("LruCache", () => {
       expect([calls, c.size]).toEqual([2, 0]);
     });
 
+    it("clear() forgets a load still running: what it resolves to is not kept, the next call loads again", async () => {
+      const c = new LruCache<string, number>({ maxEntries: 10 });
+      let release: (v: number) => void = () => undefined;
+      const slow = c.load("k", () => new Promise<number>((r) => (release = r)));
+      c.clear();
+      let calls = 0;
+      const fresh = c.load("k", async () => {
+        calls++;
+        return 2;
+      });
+      release(1);
+      expect(await slow).toBe(1);
+      expect(await fresh).toBe(2);
+      expect(calls).toBe(1);
+      expect(c.get("k")).toBe(2);
+    });
+
+    it("a load that throws at once is not left running: the next call loads again", async () => {
+      const c = new LruCache<string, number>({ maxEntries: 10 });
+      const sync = (): Promise<number> => {
+        throw new Error("at once");
+      };
+      await expect(c.load("k", sync)).rejects.toThrow("at once");
+      expect(await c.load("k", async () => 5)).toBe(5);
+    });
+
     it("an expired value loads again", async () => {
       let now = 0;
       const c = new LruCache<string, number>({ maxEntries: 10, ttlMs: 100, now: () => now });
