@@ -115,6 +115,10 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
       : [{ userId: w.userId, connectionId: r.sink, itemId: item?.id ?? null, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, worklogId: w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started }],
   );
   await db.transaction(async (tx) => {
+    // Still here, and kept until this commits: gone (another delete got there first, its
+    // own sink deletes queued), there is nothing to hold, and no row may point at it.
+    const [still] = await tx.select({ id: worklogs.id }).from(worklogs).where(eq(worklogs.id, w.id)).for("key share");
+    if (!still) return;
     await tx.delete(outbox).where(and(heldSinkDelete, eq(outbox.worklogId, w.id)));
     if (values.length > 0) await tx.insert(outbox).values(values);
   });

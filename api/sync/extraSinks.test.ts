@@ -131,6 +131,34 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE kind = 'delete'")).toEqual([{ n: 0 }]);
   });
 
+  it("two deletes of one worklog: the one that finds it already gone holds nothing (never a foreign-key 500)", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 700, started: "2026-10-24T09:00:00+02:00", comment: "twice" });
+    await push();
+    expect(await sinkRow(made.id)).toMatchObject({ state: "synced" });
+    const { holdSinkDeletes } = await import("./extraSinks");
+    const { getDb } = await import("../queries/connection");
+    const { worklogs } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    // The second delete has read the worklog and its sink entries; the first deletes it,
+    // all the way, just before the second one's transaction.
+    const [seen] = await getDb().select().from(worklogs).where(eq(worklogs.id, made.id));
+    const db = getDb();
+    const transaction = db.transaction.bind(db);
+    const spy = vi.spyOn(db, "transaction").mockImplementationOnce(async (...a: Parameters<typeof transaction>) => {
+      await caller.worklogs.delete({ id: made.id });
+      return transaction(...a);
+    });
+    try {
+      await expect(holdSinkDeletes(seen)).resolves.toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
+    // The first one's sink delete only: queued once, sent once.
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox WHERE kind = 'delete'")).toEqual([{ n: 1 }]);
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).not.toContain("twice");
+  });
+
   it("a sinks pass running while the tracker's delete is in flight sends nothing for it; once through, the sink follows", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: "2026-10-22T09:00:00+02:00", comment: "in flight" });
     await push();
