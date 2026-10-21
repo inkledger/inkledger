@@ -144,14 +144,15 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
       await new Promise<void>((r) => (release = r));
       return real(...a);
     };
+    const deleting = caller.worklogs.delete({ id: made.id });
     try {
-      const deleting = caller.worklogs.delete({ id: made.id });
       await inFlight;
       await push();
       expect((await sinkEntries()).map((e) => e.comment)).toContain("in flight");
-      release();
-      await deleting;
     } finally {
+      // Released whatever happened: never a delete left hanging for the tests after.
+      release();
+      await deleting.catch(() => undefined);
       tracker.worklogs.delete = real;
     }
     await push();

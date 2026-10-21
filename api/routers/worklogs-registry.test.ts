@@ -168,10 +168,15 @@ describe("the worklog registry", () => {
     const inFlight = new Promise<void>((r) => (posting = r));
     holdPost = { started: posting, until: new Promise<void>((r) => (release = r)) };
     const creating = caller.worklogs.create({ issueKey: "RACE-1", seconds: 1500, started: "2026-10-20T10:00:00+02:00", comment: "racing" });
-    await inFlight;
-    // Jira doesn't have it yet: the issue's sync runs right now.
-    await caller.worklogs.syncIssue({ issueKey: "RACE-1" });
-    release();
+    try {
+      await inFlight;
+      // Jira doesn't have it yet: the issue's sync runs right now.
+      await caller.worklogs.syncIssue({ issueKey: "RACE-1" });
+    } finally {
+      // Never left holding: a later test's POST would hang.
+      holdPost = null;
+      release();
+    }
     const saved = await creating;
     expect(saved.remoteId).toMatch(/^wl-/);
     const rows = await q<{ id: number; jira_worklog_id: string }>("SELECT id, jira_worklog_id FROM worklogs WHERE comment = 'racing'");
@@ -192,8 +197,9 @@ describe("the worklog registry", () => {
 
   it("a queued worklog another process is sending right now can't be changed or deleted meanwhile; its claim gone stale, it can", async () => {
     offline = true;
-    const queued = await caller.worklogs.create({ issueKey: "CLAIM-1", seconds: 900, started: "2026-10-19T11:00:00+02:00", comment: "queued" });
-    offline = false;
+    const queued = await caller.worklogs.create({ issueKey: "CLAIM-1", seconds: 900, started: "2026-10-19T11:00:00+02:00", comment: "queued" }).finally(() => {
+      offline = false;
+    });
     const [entry] = await q<{ id: number }>("SELECT id FROM outbox WHERE worklog_id = ?", queued.id);
     // Another server process on this database has claimed it (as its replay does) and is talking to Jira.
     await q("UPDATE outbox SET claimed_at = ? WHERE id = ?", Date.now(), entry.id);
