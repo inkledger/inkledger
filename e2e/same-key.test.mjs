@@ -3,7 +3,7 @@
 // "on more than one tracker").
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { mockNative, start } from "./harness.mjs";
 
 async function withApp(opts, body) {
   const app = await start(opts);
@@ -127,5 +127,26 @@ test("focus mode shows the running timer's own issue and clock, not the same key
       assert.equal(await focus.getByText("Test task number 1").count(), 0);
       const clock = await focus.locator(".font-display.tabular").first().textContent();
       assert.match(clock ?? "", /^0?0:0[0-4]:\d\d$/, `the running timer's few minutes, not the paused 4 h (${clock})`);
+    },
+  ));
+
+test("the native menu bar names the running timer's own issue, not the same key's on another tracker", () =>
+  withApp(
+    {
+      seed: async db => {
+        await sameKey(todayAt(0, 0) - 3 * 86_400_000)(db);
+        const now = Date.now();
+        await db.q(
+          "INSERT INTO timers (user_id, connection_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, ?, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+          github, now, now, now,
+        );
+      },
+    },
+    async ({ page, base, context }) => {
+      await mockNative(context);
+      await page.goto(base + "/issues");
+      await page.waitForFunction(() => (window.__nativeCalls ?? []).some(c => c[0] === "set_tray_state" && c[1]?.timer?.summary));
+      const tray = (await page.evaluate(() => window.__nativeCalls)).filter(c => c[0] === "set_tray_state" && c[1]?.timer).at(-1)[1].timer;
+      assert.equal(tray.summary, "Same key on GitHub");
     },
   ));

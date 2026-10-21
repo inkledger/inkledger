@@ -4,6 +4,7 @@ import { useTimers } from "@/hooks/useTimers";
 import { useStartTimer } from "@/hooks/useStartTimer";
 import { quickStart } from "@/lib/quickStart";
 import { timerLog } from "@/lib/timerLog";
+import { issueId } from "@/lib/issues";
 import {
   isNative,
   onNativeEvent,
@@ -39,7 +40,8 @@ export function useNativeBridge() {
       .sort((a, b) => (b.pausedAt?.getTime() ?? 0) - (a.pausedAt?.getTime() ?? 0))[0];
 
   const summary = current
-    ? (issues.data?.find(i => i.key === current.issueKey)?.summary ?? null)
+    ? // By identity: the same key may be on two trackers.
+      (issues.data?.find(i => issueId(i) === issueId(current))?.summary ?? null)
     : null;
   const trayKey = current
     ? `${current.issueKey}|${current.state}|${current.elapsedSeconds}|${fetchedAt}|${summary}`
