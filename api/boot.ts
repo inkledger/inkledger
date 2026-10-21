@@ -142,7 +142,8 @@ if (env.isProduction) {
       console.warn(`[purge] ${String(e)}`),
     );
   purge();
-  setInterval(purge, 6 * 3600 * 1000).unref();
+  const purging = setInterval(purge, 6 * 3600 * 1000);
+  purging.unref();
   // Module licences active on this server: renewed before they end (WP-19).
   if (ACTIVATION_KEYS.length === 0) console.warn("[modules] no activation key in this build: licences are not tied to a server");
   const renew = () =>
@@ -151,7 +152,8 @@ if (env.isProduction) {
       .then((done) => done.forEach((d) => !d.result.ok && console.warn(`[modules] licence ${d.id.slice(0, 6)}…: ${d.result.reason}`)))
       .catch((e: unknown) => console.warn(`[modules] renewal: ${String(e)}`));
   renew();
-  setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs).unref();
+  const renewing = setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs);
+  renewing.unref();
   // Scheduled database backups (Settings → Backup): only here, not in dev.
   const stopBackups = startBackupScheduler();
 
@@ -166,6 +168,9 @@ if (env.isProduction) {
     // No new sync from now on; a sync cut mid-write would leave the outbox /
     // issues half updated, so the running ones finish first.
     beginShutdown();
+    // Nor a purge or a licence renewal against a database about to close.
+    clearInterval(purging);
+    clearInterval(renewing);
     // Open event streams would keep server.close waiting forever.
     closeAllStreams();
     // Bounded: a pass stuck on Jira must not hold the exit until the hard kill.
