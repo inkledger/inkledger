@@ -350,7 +350,10 @@ test("a module on the day timeline scrolls under the page header, never over it"
       if (!h || !bar || !main) return null;
       main.scrollTop += bar.getBoundingClientRect().top - h.getBoundingClientRect().top - 20;
       const r = h.getBoundingClientRect();
-      return { x: r.x, y: r.y, width: r.width, height: r.height };
+      // Whole pixel rows inside the header only: at a fractional scroll the row its bottom
+      // edge falls in is shared with what scrolls under it, and that is not "over" it.
+      const top = Math.ceil(r.top) + 1;
+      return { x: Math.ceil(r.left), y: top, width: Math.floor(r.width) - 1, height: Math.floor(r.bottom) - 1 - top };
     });
     assert.ok(header, "the sticky header and the timeline are on the page");
     await page.waitForTimeout(300);
