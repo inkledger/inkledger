@@ -225,7 +225,7 @@ const SINK_BATCH = 100;
 /** The wait before a failed delete's next try: a minute after the first failure, doubling after each (the sync's backoff), at most an hour. */
 export const deleteRetryDelayMs = (attempts: number) => backoffMs(attempts + 1);
 
-export async function pushSinks(userId: number, now: () => number = Date.now): Promise<{ sent: number; failed: number }> {
+export async function pushSinks(userId: number, now: () => number = Date.now, o: { force?: boolean } = {}): Promise<{ sent: number; failed: number }> {
   if (running.has(userId)) return { sent: 0, failed: 0 };
   running.add(userId);
   let sent = 0;
@@ -252,7 +252,8 @@ export async function pushSinks(userId: number, now: () => number = Date.now): P
           await fail(w.id, sink.id, e instanceof Error ? e.message : String(e));
         }
       }
-      // Deletes still to try (under the attempts cap, their wait over), oldest first.
+      // Deletes still to try (under the attempts cap, their wait over), oldest first;
+      // the user's own "Send now" tries them all, waiting or stuck.
       const gone = await db
         .select()
         .from(outbox)
@@ -260,8 +261,7 @@ export async function pushSinks(userId: number, now: () => number = Date.now): P
           and(
             eq(outbox.connectionId, sink.id),
             eq(outbox.kind, "delete"),
-            lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS),
-            or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now())),
+            ...(o.force ? [] : [lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now()))]),
           ),
         )
         .orderBy(asc(outbox.createdAt), asc(outbox.id))

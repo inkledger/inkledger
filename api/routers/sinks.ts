@@ -96,9 +96,9 @@ export const sinksRouter = createRouter({
     return { ok: true };
   }),
 
-  /** Sends what is waiting now (Settings → the sink's "Send now"). */
+  /** Sends what is waiting now (Settings → the sink's "Send now"): failed deletes too, however long they were to wait. */
   push: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     await ownSink(ctx.user.id, input.id);
-    return pushSinks(ctx.user.id);
+    return pushSinks(ctx.user.id, Date.now, { force: true });
   }),
 });

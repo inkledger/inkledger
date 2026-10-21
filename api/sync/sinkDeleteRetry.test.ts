@@ -100,6 +100,19 @@ describe("a time sink's failed delete, retried", () => {
     expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 2 }]);
   });
 
+  it("the user's own \"Send now\" tries them all at once: waiting, and past the cap (as before the cap)", async () => {
+    await queue("e-waiting");
+    await queue("e-stuck", { attempts: MAX_OUTBOX_ATTEMPTS + 3 });
+    await pass(T0);
+    expect(calls).toEqual(["e-waiting"]);
+    calls = [];
+    refuse = false;
+    const { pushSinks } = await import("./extraSinks");
+    await pushSinks(userId, () => T0 + 1, { force: true });
+    expect(calls.sort()).toEqual(["e-stuck", "e-waiting"]);
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
   it("a delete that goes through leaves the queue", async () => {
     refuse = false;
     await queue("e-ok");
