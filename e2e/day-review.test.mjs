@@ -7,12 +7,18 @@ import assert from "node:assert/strict";
 import { start } from "./harness.mjs";
 
 test("while the day is being logged, the summary shows what is being logged", async () => {
+  // The block must fit today (it never starts before midnight): just after midnight,
+  // minutes instead of half hours, and at least the few minutes they need.
+  const midnight = new Date().setHours(0, 0, 0, 0);
+  if (Date.now() - midnight < 6 * 60_000) await new Promise(r => setTimeout(r, midnight + 6 * 60_000 - Date.now()));
+  const early = Date.now() - midnight < 55 * 60_000;
+  const [first, extra] = early ? [3, 2] : [30, 20];
   const now = Date.now();
   const app = await start({
     seed: async db => {
       await db.q(
         "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
-        now - 30 * 60_000, now, now,
+        now - first * 60_000, now, now,
       );
       // No "you were away" question while the test waits.
       await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
@@ -24,8 +30,8 @@ test("while the day is being logged, the summary shows what is being logged", as
     await page.getByRole("button", { name: "Close the day" }).first().click();
     const sheet = page.getByRole("dialog", { name: "Close the day" });
     await sheet.waitFor();
-    // The timer runs on while the sheet is open: 20 more minutes on the server, read by the next poll.
-    await app.db.q("UPDATE timers SET started_at = started_at - ? WHERE issue_key = 'DEMO-101'", 20 * 60_000);
+    // The timer runs on while the sheet is open: more minutes on the server, read by the next poll.
+    await app.db.q("UPDATE timers SET started_at = started_at - ? WHERE issue_key = 'DEMO-101'", extra * 60_000);
     // The next poll asked after that change (5–15 s), and its answer.
     const asked = await page.waitForRequest(r => new URL(r.url()).pathname.includes("timers.list"), { timeout: 30_000 });
     await (await asked.response())?.finished();
@@ -35,7 +41,7 @@ test("while the day is being logged, the summary shows what is being logged", as
     await confirm.waitFor();
     const logged = (await confirm.locator("li .tabular").first().innerText()).trim();
     // The live length, not the one the sheet opened with: otherwise this proves nothing.
-    assert.equal(logged, "50 min");
+    assert.equal(logged, `${first + extra} min`);
     // The save held on its way to the server.
     let release = () => {};
     const held = new Promise(r => (release = r));
