@@ -2,7 +2,7 @@
 // (each connection against its own tracker, through the contract:
 // sync/timeWrites.ts replayContract), discarded.
 import { z } from "zod";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { LIST_MAX_ROWS } from "../lib/inputs";
 import { getDb } from "../queries/connection";
@@ -62,7 +62,7 @@ export const outboxRouter = createRouter({
         total.failed += r.failed;
       }
       // What is left, everywhere (a connection's replay counts its own).
-      total.remaining = (await getDb().select({ id: outbox.id }).from(outbox).where(eq(outbox.userId, ctx.user.id))).length;
+      total.remaining = (await getDb().select({ n: count() }).from(outbox).where(eq(outbox.userId, ctx.user.id)))[0]?.n ?? 0;
       return total;
     })().finally(() => retries.delete(ctx.user.id));
     retries.set(ctx.user.id, run);

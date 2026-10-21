@@ -137,4 +137,15 @@ describe("the worklog registry", () => {
       expect(await trash()).toEqual([]);
     });
   });
+
+  it("a retry while the tracker is still away says how much is left, as a number", async () => {
+    offline = true;
+    const queued = await caller.worklogs.create({ issueKey: "REG-9", seconds: 300, started: "2026-10-19T08:00:00+02:00", comment: "left" });
+    const res = await caller.outbox.retry();
+    expect(res).toMatchObject({ synced: 0, remaining: 1 });
+    expect(typeof res.remaining).toBe("number");
+    offline = false;
+    expect(await caller.outbox.retry()).toMatchObject({ synced: 1, remaining: 0 });
+    await caller.worklogs.delete({ id: queued.id });
+  });
 });
