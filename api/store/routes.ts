@@ -3,28 +3,33 @@ import type { HttpBindings } from "@hono/node-server";
 import { STORE_PATH, type StoreItem } from "@contracts/store";
 import { restUser } from "../context";
 import { fetchCatalog } from "./client";
+import { LruCache } from "../lib/lruCache";
 
 /**
  * Catalog pictures through this server: the page's CSP stays `img-src 'self'`
  * and the browser never calls the image host. Raster types only (an SVG from
- * our origin could run script), at most 2 MB, kept in memory (a few items).
+ * our origin could run script), at most 2 MB each, kept in memory within a cap
+ * (a catalog renewed for months must not grow it without end).
  */
 
 const IMAGE_TYPES = /^image\/(png|jpeg|webp|gif|avif)$/;
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
-const images = new Map<string, { type: string; body: Uint8Array<ArrayBuffer> }>();
+type Image = { type: string; body: Uint8Array<ArrayBuffer> };
+/** The pictures kept: the most recently shown, 32 MB and 64 at most. */
+export const storeImages = new LruCache<string, Image>({ maxEntries: 64, maxSize: 32 * 1024 * 1024, sizeOf: (i) => i.body.byteLength });
 
-async function fetchImage(url: string) {
-  const hit = images.get(url);
-  if (hit) return hit;
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  const type = (res.headers.get("content-type") ?? "").split(";")[0]?.trim() ?? "";
-  if (!res.ok || !IMAGE_TYPES.test(type)) return null;
-  const body = new Uint8Array(await res.arrayBuffer());
-  if (body.byteLength > IMAGE_MAX_BYTES) return null;
-  const image = { type, body };
-  images.set(url, image);
-  return image;
+/** A catalog picture, fetched once (requests for the same one at once share it); null when it isn't one we show. */
+export async function fetchImage(url: string): Promise<Image | null> {
+  return (
+    (await storeImages.load(url, async () => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const type = (res.headers.get("content-type") ?? "").split(";")[0]?.trim() ?? "";
+      if (!res.ok || !IMAGE_TYPES.test(type)) return undefined;
+      const body = new Uint8Array(await res.arrayBuffer());
+      if (body.byteLength > IMAGE_MAX_BYTES) return undefined;
+      return { type, body };
+    })) ?? null
+  );
 }
 
 /** The catalog URL behind a media slot: image, hero or a gallery index. */
