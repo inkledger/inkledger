@@ -37,6 +37,10 @@ describe.each(SERVER_ZONES)("a wall-clock hour of a day, in a zone, the server i
     expect(at("2026-10-21", 9, "UTC")).toBe("2026-10-21T09:00:00.000Z");
   });
 
+  it("an hour a clock change repeats (Rome, 25 Oct 2026 02:30) is its second occurrence", () => {
+    expect(new Date(instantAtLocal(localDate("2026-10-25"), 2.5, timeZone("Europe/Rome"))).toISOString()).toBe("2026-10-25T01:30:00.000Z");
+  });
+
   it("an hour a clock change skips (Rome, 29 Mar 2026 02:30) lands an hour later", () => {
     expect(new Date(instantAtLocal(localDate("2026-03-29"), 2.5, timeZone("Europe/Rome"))).toISOString()).toBe("2026-03-29T01:30:00.000Z");
   });

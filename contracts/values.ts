@@ -82,7 +82,7 @@ function zoneOffsetMs(at: number, zone: TimeZone): number {
 /**
  * The instant a wall-clock hour of a day has in a zone (09:00 in Rome that
  * day), the same whatever zone this process runs in. An hour a clock change
- * skips lands an hour later; one it repeats is the first.
+ * skips lands an hour later; one it repeats is its second (winter) occurrence.
  */
 export function instantAtLocal(day: LocalDate, hour: number, zone: TimeZone): Instant {
   const [y, m, d] = day.split("-").map(Number);
