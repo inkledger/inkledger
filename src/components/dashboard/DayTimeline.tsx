@@ -11,7 +11,9 @@ import {
 } from "@contracts/workSchedule";
 import { projectOf, type ProjectColor } from "@/lib/projectColors";
 import { lanesOf, realSeconds } from "@contracts/placement";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { Link } from "react-router";
+import { issuePath } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import { t, dateFormat } from "@/i18n";
 import { surface } from "@/components/app/surface";
@@ -20,6 +22,8 @@ export type TimelineEntry = {
   id: string;
   issueKey: string;
   connectionId?: number | null;
+  /** The issue's id on its tracker: the stable link to it. */
+  remoteId?: string;
   summary?: string;
   start: Date;
   seconds: number;
@@ -175,6 +179,8 @@ export function DayTimeline({
           <button
             key={g.start.getTime()}
             type="button"
+            // Dashed and half see-through: no shadow of its own (it would show as a box).
+            {...surface("glass")}
             disabled={!onGap}
             onClick={() => onGap?.(g)}
             title={t("views.dashboard.timeline.holeTitle", { from: clock().format(g.start), to: clock().format(endOf(g)), duration: formatDurationLong(g.seconds) })}
@@ -189,42 +195,66 @@ export function DayTimeline({
             )}
           </button>
         ))}
-        {blocks.map(b => (
-          <div
-            key={b.id}
-            title={`${b.issueKey} · ${formatDurationLong(b.seconds)}${b.summary ? ` · ${b.summary}` : ""}`}
-            // The running one is see-through stripes: glass, no shadow (it would show through).
-            {...(b.live ? surface("glass") : surface("bar"))}
-            className={cn(
-              "absolute flex rounded-md",
-              b.lanes === 1 && "bottom-6 top-3",
-              b.live ? "stripes-pending stripes-live" : b.color.solid
-            )}
-            style={{
-              left: `${b.left}%`,
-              width: `${b.width}%`,
-              // Lanes split the band between top-3 (0.75rem) and bottom-6 (1.5rem).
-              ...(b.lanes > 1
-                ? {
-                    top: `calc(0.75rem + (100% - 2.25rem) * ${b.lane / b.lanes})`,
-                    height: `calc((100% - 2.25rem) / ${b.lanes} - 2px)`,
-                  }
-                : {}),
-            }}
-          >
-            <span
-              className={cn(
-                "h-full w-[18%] min-w-1.5 max-w-6 shrink-0 rounded-l-md",
-                b.live ? "bg-chart-focus" : b.color.fill
+        {blocks.map(b => {
+          const style: CSSProperties = {
+            left: `${b.left}%`,
+            width: `${b.width}%`,
+            // Lanes split the band between top-3 (0.75rem) and bottom-6 (1.5rem).
+            ...(b.lanes > 1
+              ? {
+                  top: `calc(0.75rem + (100% - 2.25rem) * ${b.lane / b.lanes})`,
+                  height: `calc((100% - 2.25rem) / ${b.lanes} - 2px)`,
+                }
+              : {}),
+          };
+          const title = `${b.issueKey} · ${formatDurationLong(b.seconds)}${b.summary ? ` · ${b.summary}` : ""}`;
+          const body = (
+            <>
+              <span
+                className={cn(
+                  "h-full w-[18%] min-w-1.5 max-w-6 shrink-0 rounded-l-md",
+                  b.live ? "bg-chart-focus" : b.color.fill
+                )}
+              />
+              {b.width > 7 && (
+                <span className="min-w-0 truncate px-2 pt-1.5 text-caption font-medium text-foreground/80">
+                  {b.issueKey}
+                </span>
               )}
-            />
-            {b.width > 7 && (
-              <span className="min-w-0 truncate px-2 pt-1.5 text-caption font-medium text-foreground/80">
-                {b.issueKey}
-              </span>
-            )}
-          </div>
-        ))}
+            </>
+          );
+          // The running one is see-through stripes: glass, no shadow (it would show through).
+          if (b.live)
+            return (
+              <div
+                key={b.id}
+                title={title}
+                {...surface("glass")}
+                className={cn("stripes-pending stripes-live absolute flex rounded-md", b.lanes === 1 && "bottom-6 top-3")}
+                style={style}
+              >
+                {body}
+              </div>
+            );
+          // A logged slice opens its issue.
+          return (
+            <Link
+              key={b.id}
+              to={issuePath({ key: b.issueKey, connectionId: b.connectionId, remoteId: b.remoteId })}
+              title={title}
+              aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: clock().format(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
+              {...surface("bar")}
+              className={cn(
+                "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
+                b.lanes === 1 && "bottom-6 top-3",
+                b.color.solid
+              )}
+              style={style}
+            >
+              {body}
+            </Link>
+          );
+        })}
         <div className="absolute inset-x-0 bottom-2 h-2">
           {[...pauses, ...breaks.map(b => ({ ...b, id: `b${b.start.getTime()}` }))].map(p => (
             <span

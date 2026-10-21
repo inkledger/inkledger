@@ -235,6 +235,7 @@ export default function Dashboard() {
     id: w.remoteId,
     issueKey: w.issueKey,
     connectionId: w.connectionId,
+    remoteId: issueByKey.get(issueId(w))?.remoteId,
     summary: issueByKey.get(issueId(w))?.summary,
     start: new Date(w.started),
     seconds: w.timeSpentSeconds,

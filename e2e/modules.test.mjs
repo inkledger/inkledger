@@ -506,3 +506,25 @@ test("a module over the day timeline takes clicks on its shape only: the hole un
     });
   }
 });
+
+test("a module over the day timeline lets a logged slice under it open its issue, off its shape", async () => {
+  const day = pastWorkday();
+  const [y, m, d] = day.split("-").map(Number);
+  const nine = new Date(y, m - 1, d, 9, 0, 0, 0).getTime();
+  const seed = async db => {
+    await licensed("perch")(db);
+    await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-under', ?, 10800, '', 1)", nine);
+  };
+  await withModules({ modules: ["perch"], seed, path: `/?period=day&from=${day}` }, async ({ page }) => {
+    const perch = page.getByTestId("module-perch");
+    await perch.waitFor();
+    await perch.scrollIntoViewIfNeeded();
+    const r = await perch.boundingBox();
+    const off = { x: r.x + Math.min(120, r.width - 10), y: r.y + r.height / 2 };
+    const under = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a")?.getAttribute("aria-label") ?? null, off);
+    assert.match(under ?? "", /^DEMO-101 from 09:00/, "a logged slice lies under the module");
+    await page.mouse.click(off.x, off.y);
+    await page.waitForURL(url => new URL(url).pathname.startsWith("/issues/"));
+    assert.equal(await page.evaluate(() => window.__perchHits), 0);
+  });
+});
