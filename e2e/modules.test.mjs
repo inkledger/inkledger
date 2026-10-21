@@ -336,6 +336,43 @@ test("backdrop visibility (Settings → Appearance) changes how much of the scen
     assert.equal(await level(), "scenic", "saved for the user");
   }));
 
+test("a module on the day timeline scrolls under the page header, never over it", () =>
+  withModules({ modules: ["perch"], seed: licensed("perch"), path: "/" }, async ({ page }) => {
+    const perch = page.getByTestId("module-perch");
+    await perch.waitFor();
+    // A colour nothing else on the page has, drawn over the whole perch.
+    await perch.evaluate(el => (el.style.background = "rgb(255 0 255)"));
+    // Scroll the panel until the timeline's top is well under the sticky header.
+    const header = await page.evaluate(() => {
+      const h = document.querySelector("main h1")?.closest("div.lg\\:sticky");
+      const bar = document.querySelector('[data-module="perch"]')?.closest(".h-56");
+      const main = document.getElementById("main");
+      if (!h || !bar || !main) return null;
+      main.scrollTop += bar.getBoundingClientRect().top - h.getBoundingClientRect().top - 20;
+      const r = h.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    });
+    assert.ok(header, "the sticky header and the timeline are on the page");
+    await page.waitForTimeout(300);
+    const shot = (await page.screenshot({ clip: header })).toString("base64");
+    // The browser decodes the picture: how many magenta pixels show in the header.
+    const magenta = await page.evaluate(async b64 => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] > 200) n++;
+      return n;
+    }, shot);
+    assert.equal(magenta, 0, "nothing of the perch paints over the header");
+  }));
+
 test("a module stands on the day timeline's entries, never in the way of a click; a hidden card leaves no desk", () =>
   withModules({ modules: ["perch"], seed: licensed("perch"), path: "/" }, async ({ page }) => {
     const perch = page.getByTestId("module-perch");

@@ -139,7 +139,8 @@ export function DayTimeline({
 
   return (
     <figure className="m-0">
-      <div {...surface("ground")} className="relative h-56 overflow-hidden rounded-lg bg-muted/30">
+      {/* isolate: the blocks and a module on the perch stack inside the timeline, so the sticky page header stays over them. */}
+      <div {...surface("ground")} className="relative isolate h-56 overflow-hidden rounded-lg bg-muted/30">
         {ticks.slice(1, -1).map(h => (
           <div
             key={h}

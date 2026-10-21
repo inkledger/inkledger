@@ -177,6 +177,8 @@ export type HostApiV1 = {
    * working; a gesture that starts where `test` is true (x, y from `el`'s top
    * left in CSS px, and its size) is the module's, and ends in `activate`.
    * `el` also becomes focusable (Enter/Space activate). Returns the undo.
+   * Whatever a module draws in those slots stays inside their box and under
+   * the page's sticky header: no z-index of its own can lift it out.
    * Optional, like `ambient`: without it, nothing of the module is clickable there.
    */
   hitArea?(el: HTMLElement, test: (x: number, y: number, width: number, height: number) => boolean, activate: () => void): () => void;
