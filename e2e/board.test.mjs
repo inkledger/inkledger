@@ -158,6 +158,44 @@ test("two columns collapsed in a row both stay collapsed, whatever order their s
     await page.locator('[data-lane="1"]').getByRole("region", { name: "In corso (collapsed)" }).waitFor({ timeout: 3000 });
   }));
 
+test("three columns collapsed in a row all stay, even when the list is read again between their saves", () =>
+  withApp({ seed }, async ({ page, base }) => {
+    await page.addInitScript(() => localStorage.setItem("ikl-board-mode", "lanes"));
+    await page.goto(base + "/board");
+    const lane = page.locator('[data-lane="1"]');
+    await lane.getByRole("button", { name: "Collapse Fatto" }).waitFor();
+    // The first two saves each held on their way.
+    const gates = [];
+    const sent = [];
+    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("settings.update"), async route => {
+      const n = sent.length;
+      let open = () => {};
+      const gate = n < 2 ? new Promise(r => (open = r)) : Promise.resolve();
+      gates.push(open);
+      sent.push(n);
+      await gate;
+      return route.continue();
+    });
+    const until = async n => {
+      while (sent.length < n) await page.waitForTimeout(50);
+    };
+    await lane.getByRole("button", { name: "Collapse Fatto" }).click();
+    await until(1);
+    await lane.getByRole("button", { name: "Collapse In corso" }).click();
+    // The first save goes through; the second leaves and is held; the list may be read meanwhile.
+    gates[0]();
+    await until(2);
+    await page.waitForTimeout(800);
+    await lane.getByRole("button", { name: "Collapse To Do" }).click();
+    gates[1]();
+    await until(3);
+    await page.waitForTimeout(1500);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await page.reload();
+    const after = page.locator('[data-lane="1"]');
+    for (const name of ["Fatto", "In corso", "To Do"]) await after.getByRole("region", { name: `${name} (collapsed)` }).waitFor({ timeout: 3000 });
+  }));
+
 test("by category, and from the card's menu (keyboard, long press): only where its tracker can take it", () =>
   withApp({ seed }, async ({ page, base }) => {
     const sent = [];
