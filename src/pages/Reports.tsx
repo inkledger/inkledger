@@ -80,8 +80,9 @@ export default function Reports() {
       // D9: the device's bucket, unless All is on; a search on the worklogs' issues.
       all: { key: "all", fallback: false, codec: flag },
       search: { key: "q", fallback: "", codec: text },
+      // This month, the very range its preset picks (so the picker names it).
       from: { key: "from", fallback: dayKey(presetRange("month", now).from), codec: text },
-      to: { key: "to", fallback: dayKey(now), codec: text },
+      to: { key: "to", fallback: dayKey(presetRange("month", now).to), codec: text },
       groupBy: { key: "group", fallback: "day", codec: oneOf(["day", "issue", "project", "client", "days"] as const) },
     }),
     [now]
