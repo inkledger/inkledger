@@ -253,7 +253,10 @@ describe("app router (integration, in-memory SQLite)", () => {
     const created = await caller.worklogs.create({
       issueKey: "PRJ-1",
       timeSpent: "2h 30m",
-      started: new Date().toISOString(),
+      // Noon, whatever the hour the tests run at: the reports below count it inside
+      // today, apart from the early-morning entries (from now, it crossed midnight
+      // after 21:30, and overlapped them before 01:31).
+      started: new Date(new Date().setHours(12, 0, 0, 0)).toISOString(),
       comment: "Sviluppo feature",
     });
     expect(created.timeSpentSeconds).toBe(9000);
@@ -460,8 +463,8 @@ describe("app router (integration, in-memory SQLite)", () => {
 
   it("reports: groups worklogs by day, issue and project", async () => {
     const caller = router.createCaller(authedCtx);
-    // add a second worklog on OPS-7 (PRJ-1 already has 9000s today, ending
-    // now): early today, where it overlaps nothing
+    // add a second worklog on OPS-7 (PRJ-1 already has 9000s today, from
+    // noon): early today, where it overlaps nothing
     await caller.worklogs.create({
       issueKey: "OPS-7",
       timeSpent: "1h 30m",
