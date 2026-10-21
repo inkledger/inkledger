@@ -19,11 +19,10 @@ fs.writeFileSync(
   `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_FAIL" ] && { echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
   { mode: 0o755 },
 );
-// psql: records its arguments and what it was fed; "committed" only once its input ended,
-// "killed" when stopped first.
+// psql: records its pid, its arguments and what it was fed; "committed" only once its input ended.
 fs.writeFileSync(
   path.join(BIN, "psql"),
-  `#!/bin/sh\necho "$@ pw=$PGPASSWORD" > "${DIR}/psql-args.txt"\ntrap 'echo killed >> "${DIR}/psql-input.sql"; exit 143' TERM\ncat <&0 > "${DIR}/psql-input.sql" &\nwait $!\necho committed >> "${DIR}/psql-input.sql"\n`,
+  `#!/bin/sh\necho $$ > "${DIR}/psql.pid"\necho "$@ pw=$PGPASSWORD" > "${DIR}/psql-args.txt"\ncat > "${DIR}/psql-input.sql"\necho committed >> "${DIR}/psql-input.sql"\n`,
   { mode: 0o755 },
 );
 process.env.DATABASE_URL = ":memory:";
@@ -104,7 +103,8 @@ describe("backups on disk", () => {
 
   it("a dump that breaks halfway is never committed: psql is stopped before its input ends", async () => {
     const b = await import("./backup");
-    fs.rmSync(path.join(DIR, "psql-input.sql"), { force: true });
+    fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    for (const f of ["psql-input.sql", "psql.pid"]) fs.rmSync(path.join(DIR, f), { force: true });
     process.env.FAKE_RESTORE_FAIL = "1";
     try {
       await expect(b.restoreBackup("inkledger-20200102-000000.dump")).rejects.toThrow(/broken archive/);
@@ -112,8 +112,18 @@ describe("backups on disk", () => {
       delete process.env.FAKE_RESTORE_FAIL;
     }
     // Stopped, never left waiting on its input (a real one would hold the transaction and its locks).
-    await expect.poll(() => (fs.existsSync(path.join(DIR, "psql-input.sql")) ? fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8") : "")).toContain("killed");
-    expect(fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8")).not.toContain("committed");
+    const alive = () => {
+      if (!fs.existsSync(path.join(DIR, "psql.pid"))) return false; // stopped before it even began
+      try {
+        process.kill(Number(fs.readFileSync(path.join(DIR, "psql.pid"), "utf8")), 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    await expect.poll(alive).toBe(false);
+    const fed = fs.existsSync(path.join(DIR, "psql-input.sql")) ? fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8") : "";
+    expect(fed).not.toContain("committed");
   });
 
   it("a folder that can't be written is an error, not a crash", async () => {
