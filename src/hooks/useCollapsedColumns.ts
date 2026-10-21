@@ -5,8 +5,8 @@ import { t } from "@/i18n";
 
 /**
  * Collapsed columns, a user setting (DB) so they follow every device.
- * `scope` keeps boards apart in the shared list ("dashboard:" prefix); the
- * Board uses the bare status names, as it always did.
+ * `scope` keeps boards apart in the shared list ("board:", "dashboard:");
+ * values without one (bare status names, from before) are no longer read.
  */
 export function useCollapsedColumns(scope?: string) {
   const utils = trpc.useUtils();

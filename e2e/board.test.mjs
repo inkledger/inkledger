@@ -72,15 +72,14 @@ async function lift(page, card) {
   await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 30, { steps: 5 });
 }
 
-test("lanes per tracker: while dragging only the statuses its workflow reaches take the card; a refused move goes back with its reason", () =>
+test("lanes per tracker, one tab each: while dragging only the statuses its workflow reaches take the card; a refused move goes back with its reason", () =>
   withApp({ seed }, async ({ page, base }) => {
     const sent = [];
     await fakeTrackers(page, sent);
     await page.addInitScript(() => localStorage.setItem("ikl-board-mode", "lanes"));
     await page.goto(base + "/board");
     const jira = page.locator('[data-lane="1"]');
-    const side = page.getByRole("group", { name: "Side projects" });
-    await side.waitFor();
+    await jira.waitFor();
     const card = page.locator("[draggable=true]").filter({ has: page.getByText("Test task number 1", { exact: true }) });
     await card.hover();
     await page.waitForTimeout(300);
@@ -88,9 +87,7 @@ test("lanes per tracker: while dragging only the statuses its workflow reaches t
     const inCorso = jira.getByRole("region", { name: "In corso" });
     await page.waitForFunction(() => document.querySelector('section[aria-label="In corso"]')?.getAttribute("data-drop") === "on");
     assert.equal(await jira.getByRole("region", { name: "Fatto" }).getAttribute("data-drop"), "off");
-    // Never onto another tracker's column.
-    assert.equal(await side.getByRole("region", { name: "closed" }).getAttribute("data-drop"), "off");
-    await page.mouse.move(...(await center(side.getByRole("region", { name: "closed" }))), { steps: 5 });
+    await page.mouse.move(...(await center(jira.getByRole("region", { name: "Fatto" }))), { steps: 5 });
     await page.mouse.up();
     assert.equal(sent.length, 0, "nothing sent for a column it can't go to");
 
@@ -101,6 +98,33 @@ test("lanes per tracker: while dragging only the statuses its workflow reaches t
     assert.deepEqual(sent.map(s => [s.key, s.connectionId, s.toStatus]), [["DEMO-101", 1, "In corso"]]);
     // Back where it was.
     await jira.getByRole("region", { name: "To Do" }).getByText("Test task number 1", { exact: true }).waitFor();
+
+    // The other tracker behind its tab, the whole height; remembered on this device.
+    const tabs = page.getByRole("tablist", { name: "Trackers" });
+    assert.deepEqual((await tabs.getByRole("tab").allInnerTexts()).map(x => x.replace(/\s+/g, " ").trim()).length, 2);
+    await tabs.getByRole("tab", { name: /Side projects/ }).click();
+    const side = page.getByRole("tabpanel", { name: "Side projects" });
+    await side.getByText("Login fails on Safari").waitFor();
+    assert.equal(await page.getByText("Test task number 1", { exact: true }).count(), 0);
+    await page.reload();
+    await page.getByRole("tabpanel", { name: "Side projects" }).getByText("Login fails on Safari").waitFor();
+    // Arrows move between the tabs.
+    await page.getByRole("tab", { name: /Side projects/ }).focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.locator('[data-lane="1"]').getByText("Test task number 1", { exact: true }).waitFor();
+  }));
+
+test("a column collapses and stays collapsed after a reload", () =>
+  withApp({ seed }, async ({ page, base }) => {
+    await page.addInitScript(() => localStorage.setItem("ikl-board-mode", "lanes"));
+    await page.goto(base + "/board");
+    const jira = page.locator('[data-lane="1"]');
+    await jira.getByRole("button", { name: "Collapse Fatto" }).click();
+    await jira.getByRole("region", { name: "Fatto (collapsed)" }).waitFor();
+    await page.reload();
+    await page.locator('[data-lane="1"]').getByRole("region", { name: "Fatto (collapsed)" }).waitFor();
+    await page.locator('[data-lane="1"]').getByRole("button", { name: /^Expand Fatto/ }).click();
+    await page.locator('[data-lane="1"]').getByRole("region", { name: "Fatto", exact: true }).waitFor();
   }));
 
 test("by category, and from the card's menu (keyboard, long press): only where its tracker can take it", () =>
@@ -129,11 +153,15 @@ test("by category, and from the card's menu (keyboard, long press): only where i
 test("one tracker from the board's own switcher", () =>
   withApp({ seed }, async ({ page, base }) => {
     await page.goto(base + "/board");
-    await page.getByText("Login fails on Safari").first().waitFor();
+    // Both trackers: a tab each, Jira's first.
+    await page.getByRole("tab", { name: /Side projects/ }).waitFor();
+    await page.getByText("Test task number 1").first().waitFor();
     await page.getByRole("button", { name: /^Board shows/ }).click();
     await page.getByRole("menuitemradio", { name: "Side projects" }).click();
     await page.waitForFunction(() => !document.body.innerText.includes("Test task number 1"));
     await page.getByText("Login fails on Safari").first().waitFor();
+    // One tracker: no tabs.
+    assert.equal(await page.getByRole("tablist", { name: "Trackers" }).count(), 0);
   }));
 
 test("custom columns made in Settings → Buckets, each tracker's statuses mapped onto them", () =>

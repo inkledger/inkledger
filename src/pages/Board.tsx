@@ -17,6 +17,8 @@ import { trpc } from "@/lib/trpc";
 import { byRelevance, visibleIssues, issueId } from "@/lib/issues";
 import { statusCategoryDotTone } from "@/lib/jira";
 import { cn } from "@/lib/utils";
+import { ConnectionBadge } from "@/components/app/ConnectionBadge";
+import { recentFinished } from "@/lib/boardDone";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelSection } from "@/components/app/Panel";
 import { Input } from "@/components/ui/input";
@@ -143,7 +145,8 @@ export default function Board() {
   const showAllDone = view.expanded;
   const setShowAllDone = (f: (s: Set<string>) => Set<string>) => setView({ expanded: f(showAllDone) });
 
-  const { collapsed, toggle: toggleCollapsed } = useCollapsedColumns();
+  // Column ids carry their connection or category (s:6:Done, k:done): kept apart as "board:".
+  const { collapsed, toggle: toggleCollapsed } = useCollapsedColumns("board");
   const panel = usePinboardPanel();
   const mobileBoard = pinboardSheet.useValue();
   const boardId = usePinboardBoardId();
@@ -272,6 +275,38 @@ export default function Board() {
   }, [mode, customColumns, sourceIds, statuses, rows, connections]);
   const allColumns = lanes.flatMap(l => l.columns);
 
+  // "Lately" for finished columns: from when the board was opened.
+  const [openedAt] = useState(() => Date.now());
+
+  // The tracker shown when there are several (its tab), remembered per bucket on this device.
+  const laneKey = `ikl-board-lane:${active?.id ?? "all"}`;
+  const [laneTab, setLaneTab] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem(laneKey));
+      return Number.isInteger(v) && v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const pickLane = (id: number | null) => {
+    setLaneTab(id);
+    try {
+      if (id !== null) localStorage.setItem(laneKey, String(id));
+    } catch {
+      // per-device convenience only
+    }
+  };
+  /** Arrows, Home and End move between the tabs (the tab pattern). */
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const ids = lanes.map(l => l.connectionId);
+    const at = Math.max(0, ids.indexOf(lanes.find(l => l.connectionId === laneTab)?.connectionId ?? ids[0]));
+    const next = e.key === "ArrowRight" ? (at + 1) % ids.length : e.key === "ArrowLeft" ? (at - 1 + ids.length) % ids.length : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    pickLane(ids[next]);
+    requestAnimationFrame(() => document.getElementById(`board-tab-${ids[next]}`)?.focus());
+  };
+
   // Dragging: only the columns its own tracker can take it to accept the drop.
   const [dragging, setDragging] = useState<Dragging | null>(null);
   const waysOf = async (card: Row): Promise<Way[]> => {
@@ -324,8 +359,10 @@ export default function Board() {
     const items = cardsOf(col);
     const isDone = col.category !== "" && isClosed(col.category);
     const expanded = showAllDone.has(col.id);
-    const hidden = isDone && !expanded ? Math.max(0, items.length - DONE_LIMIT) : 0;
-    const shown = hidden ? items.slice(0, DONE_LIMIT) : items;
+    // Finished columns: the last two weeks (at most DONE_LIMIT), the older ones on request.
+    const finished = isDone && !expanded ? recentFinished(items, openedAt, DONE_LIMIT) : null;
+    const hidden = finished?.older ?? 0;
+    const shown = finished ? finished.shown : items;
     // While a card is dragged: on where it can go, off (and dimmed) elsewhere; its own column stays as is.
     const own = dragging ? columnOf({ connectionId: dragging.card.connectionId, status: dragging.card.status, category: dragging.card.category }, [col]) === col.id : false;
     const allowed = targets.has(col.id);
@@ -436,7 +473,7 @@ export default function Board() {
               {t("pages.board.showAll", { hidden })}
             </Button>
           )}
-          {isDone && expanded && items.length > DONE_LIMIT && (
+          {isDone && expanded && recentFinished(items, openedAt, DONE_LIMIT).older > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -475,17 +512,48 @@ export default function Board() {
     body = <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.emptyMessage", { provider })} />;
   } else {
     const several = lanes.length > 1;
+    // Several trackers: one at a time behind its tab, the whole height for its columns.
+    const laneShown = several ? (lanes.find(l => l.connectionId === laneTab) ?? lanes[0]) : null;
+    const countOf = (id: number | null) => shownRows.filter(r => r.connectionId === id).length;
     body = (
-      <div className={cn("flex min-h-0 flex-1 flex-col gap-4", several && "overflow-y-auto")}>
-        {lanes.map(lane => (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {several && (
+          <div role="tablist" aria-label={t("pages.board.lanesLabel")} className="flex shrink-0 flex-wrap items-end gap-1 border-b" onKeyDown={onTabKey}>
+            {lanes.map(lane => {
+              const on = lane === laneShown;
+              return (
+                <button
+                  key={lane.connectionId ?? "all"}
+                  type="button"
+                  role="tab"
+                  id={`board-tab-${lane.connectionId}`}
+                  aria-selected={on}
+                  aria-controls="board-lane"
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => pickLane(lane.connectionId)}
+                  className={cn(
+                    "-mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-3 py-1.5 text-body-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
+                    on ? "bg-card text-foreground" : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {/* Its tracker beside a name of its own ("Side projects"); never "Jira Jira". */}
+                  {lane.connectionId !== null && lane.label !== connections.find(c => c.id === lane.connectionId)?.name && <ConnectionBadge connectionId={lane.connectionId} />}
+                  <span className="truncate">{lane.label}</span>
+                  <span className="tabular text-muted-foreground">{countOf(lane.connectionId)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {(laneShown ? [laneShown] : lanes).map(lane => (
           <div
             key={lane.connectionId ?? "all"}
             data-lane={lane.connectionId ?? "all"}
-            role={several ? "group" : undefined}
+            id={several ? "board-lane" : undefined}
+            role={several ? "tabpanel" : undefined}
             aria-label={several ? lane.label : undefined}
-            className={cn("flex min-h-0 flex-col", !several && "flex-1")}
+            className="flex min-h-0 flex-1 flex-col"
           >
-            {several && <h2 className="mb-2 text-body-sm font-semibold text-muted-foreground">{lane.label}</h2>}
             <div
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
               className="-mx-1 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-1 [scrollbar-gutter:stable]"
