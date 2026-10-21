@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { quickStart } from "@/lib/quickStart";
+import { issueId } from "@/lib/issues";
 import { t } from "@contracts/i18n";
 
 /** A stopped timer whose time still has to be logged. */
@@ -33,7 +34,8 @@ export const timerLog = {
     const isTimer = (q: PendingTimerLog) => q.fromTimer ?? true;
     queue = [
       ...queue.filter(
-        q => !(isTimer(q) && isTimer(entry) && q.issueKey === entry.issueKey)
+        // The same timer: its key on its connection (a key may live on two).
+        q => !(isTimer(q) && isTimer(entry) && issueId(q) === issueId(entry))
       ),
       entry,
     ];
