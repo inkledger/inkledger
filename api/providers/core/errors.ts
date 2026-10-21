@@ -69,6 +69,18 @@ export function kindOfStatus(status: number): ProviderErrorKind {
   return "invalid";
 }
 
+/** Why a write was refused before it left: the whole server is read-only, or this connection may not write. */
+export type ReadOnlyCause = "server" | "connection";
+
+/** The cause a refused write was marked with (http.ts), through the error's causes. */
+export function readOnlyCauseOf(e: unknown): ReadOnlyCause | undefined {
+  for (let x: unknown = e, i = 0; x && typeof x === "object" && i < 5; x = (x as { cause?: unknown }).cause, i++) {
+    const c = (x as { readOnlyCause?: unknown }).readOnlyCause;
+    if (c === "server" || c === "connection") return c;
+  }
+  return undefined;
+}
+
 /**
  * Any error from an adapter call as a ProviderError (the registry's binding
  * applies it at the boundary): a ProviderError as is; the caller's abort as

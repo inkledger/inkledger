@@ -46,11 +46,15 @@ test("two trackers in Settings → Connections; archiving one takes its issues o
     await add.getByRole("button", { name: /^Jira/ }).waitFor();
     // GitHub signs in through inkledger's OAuth App.
     assert.equal(await add.getByRole("button", { name: /^GitHub/ }).isDisabled(), false);
-    // Built on a simulator: offered, said not verified, its token form asks the server's address.
+    // GitLab is verified on real accounts: offered, nothing to warn about.
     const gitlab = add.getByRole("button", { name: /^GitLab/ });
     assert.equal(await gitlab.isDisabled(), false);
-    assert.match(await gitlab.innerText(), /Not verified yet/);
-    await gitlab.click();
+    assert.doesNotMatch(await gitlab.innerText(), /Not verified yet/);
+    // Built on a simulator: offered, said not verified, its token form asks the server's address.
+    const gitea = add.getByRole("button", { name: /^Gitea/ });
+    assert.equal(await gitea.isDisabled(), false);
+    assert.match(await gitea.innerText(), /Not verified yet/);
+    await gitea.click();
     await add.getByLabel("Address of your server").waitFor();
     await add.getByLabel("Personal access token").waitFor();
     await add.getByText(/tested on a simulator/).waitFor();

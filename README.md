@@ -38,8 +38,8 @@ Each person connects their own trackers; none is "the base". Jira (Cloud, Server
 
 **Trackers**
 - **One provider contract** for every tracker: adapters, a shared conformance suite and a [capability matrix](api/providers/CATALOG.md) of 25 services
-- **Verified on real accounts**: **Jira** (Cloud, Server and Data Center) and **GitHub**
-- **Built on simulators, not verified yet** ("Not verified" in Settings, writes off until you allow them): GitLab, Gitea and Forgejo, Linear, YouTrack, Azure DevOps, Shortcut, Plane, OpenProject, Redmine, Trello, Asana, ClickUp, monday.com, Notion, Wrike, Basecamp, Todoist and Microsoft Planner. Self-hosted servers may be on your own network or tailnet
+- **Verified on real accounts**: **Jira** (Cloud, Server and Data Center), **GitHub** and **GitLab** (gitlab.com and self-hosted)
+- **Built on simulators, not verified yet** ("Not verified" in Settings, writes off until you allow them): Gitea and Forgejo, Linear, YouTrack, Azure DevOps, Shortcut, Plane, OpenProject, Redmine, Trello, Asana, ClickUp, monday.com, Notion, Wrike, Basecamp, Todoist and Microsoft Planner. Self-hosted servers may be on your own network or tailnet
 - **Time trackers beside your trackers**: Harvest, Clockify, Toggl Track and Everhour get every worklog too, filed under the project you map; **Tempo** takes the place of its Jira: new time goes to Tempo, which writes it to Jira, one worklog and never two
 - **GitHub** signs in with a code on github.com (OAuth device flow), supports several accounts and brings every issue of the repositories you own, collaborate on, belong to through an organisation or watch; any repository can be left out
 - **Several connections per type**: test, rename, reconnect or archive them (the time stays)

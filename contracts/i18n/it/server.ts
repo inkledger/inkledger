@@ -66,8 +66,11 @@ export const server: Shape<typeof en> = {
     hostNotAllowed: "Host {host} non consentito",
     cannotResolve: "Impossibile risolvere {host}",
   },
+  provider: {
+    readOnlyServer: "Questo server è in sola lettura (PROVIDERS_READ_ONLY): nulla viene inviato a {name}",
+    writesOff: "Le modifiche su {name} non sono ancora consentite: attiva “Consenti modifiche su {name}” in Impostazioni → Connessioni",
+  },
   jira: {
-    readOnly: "Jira in sola lettura (JIRA_READ_ONLY): {verb} bloccato",
     redirectNotAllowed: "Redirect non consentito",
     externalUrl: "URL esterno al sito Jira",
   },

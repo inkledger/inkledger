@@ -601,3 +601,27 @@ describe("gitlab, errors and limits", () => {
     expect((await b.probe(meta())).rateLimit).toEqual({ perHour: 120_000, origin: "detected" });
   });
 });
+
+describe("gitlab, a write that may not leave", () => {
+  it("says why in GitLab's own name: this connection's writes off, never the Jira text", async () => {
+    const { conn, sim } = simulated();
+    const b = bindTracker(gitlabProvider, { ...conn, writable: false });
+    const err = await errorOf(b.transitions!.apply!(meta(), ref(sim.issues[0], "acme/web#1"), "close", {}));
+    expect(err).toMatchObject({ kind: "readOnly" });
+    expect(err?.message).toContain("Allow changes on GitLab");
+    expect(err?.message).not.toMatch(/Jira/);
+  });
+
+  it("on a read-only server: the server's flag, and the service named", async () => {
+    vi.stubEnv("PROVIDERS_READ_ONLY", "1");
+    vi.resetModules();
+    const { gitlabProvider: fresh } = await import("./adapter");
+    const { bindTracker: bind } = await import("../core/bind");
+    const { conn, sim } = simulated();
+    const err = await errorOf(bind(fresh, conn).transitions!.apply!(meta(), ref(sim.issues[0], "acme/web#1"), "close", {}));
+    expect(err).toMatchObject({ kind: "readOnly" });
+    expect(err?.message).toBe("This server is read-only (PROVIDERS_READ_ONLY): nothing is sent to GitLab");
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});

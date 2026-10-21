@@ -9,6 +9,7 @@ import { env } from "../../lib/env";
 import { assertSafeUrl, isForbiddenAddress, isReservedHost, type Network } from "../../lib/security";
 import { t } from "@contracts/i18n";
 import { callSignal, currentCall } from "./context";
+import type { ReadOnlyCause } from "./errors";
 
 /** Whether a call only reads (allowed on a read-only server) or may change something. */
 export type Intent = "read" | "write";
@@ -60,8 +61,10 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
   const verb = (init.method ?? "GET").toUpperCase();
   // The server read-only (test servers), or this connection's adapter not verified and its writes not allowed yet.
   if ((env.readOnly || currentCall()?.readOnly) && intentOf(verb, intent) === "write") {
-    // Marked, so the binding reports it as "readOnly" whatever error type the provider uses.
-    throw Object.assign(fail(403, t("server.jira.readOnly", { verb })), { providerKind: "readOnly" as const });
+    // Marked, so the binding reports it as "readOnly" whatever error type the provider uses, and
+    // says why in the tracker's own name (bind.ts): the server, or this connection's writes.
+    const why: ReadOnlyCause = env.readOnly ? "server" : "connection";
+    throw Object.assign(fail(403, `read-only (${why}): ${verb} blocked`), { providerKind: "readOnly" as const, readOnlyCause: why });
   }
   const origin = new URL(site).origin;
   let target = url;

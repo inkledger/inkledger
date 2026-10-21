@@ -62,7 +62,7 @@ type SinkEntry = { status: Extract<BuildStatus, "planned"> } | { status: Exclude
 export const TRACKER_REGISTRY = {
   jira: { status: "built", adapter: jiraProvider },
   github: { status: "built", adapter: githubProvider },
-  gitlab: { status: "experimental", adapter: gitlabProvider },
+  gitlab: { status: "built", adapter: gitlabProvider },
   azure: { status: "experimental", adapter: azureProvider },
   gitea: { status: "experimental", adapter: giteaProvider },
   linear: { status: "experimental", adapter: linearProvider },

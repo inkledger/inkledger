@@ -65,8 +65,11 @@ export const server = {
     hostNotAllowed: "Host {host} is not allowed",
     cannotResolve: "Can't resolve {host}",
   },
+  provider: {
+    readOnlyServer: "This server is read-only (PROVIDERS_READ_ONLY): nothing is sent to {name}",
+    writesOff: "Changes on {name} aren’t allowed yet: turn on “Allow changes on {name}” in Settings → Connections",
+  },
   jira: {
-    readOnly: "Jira is read-only (JIRA_READ_ONLY): {verb} blocked",
     redirectNotAllowed: "Redirect not allowed",
     externalUrl: "URL outside the Jira site",
   },

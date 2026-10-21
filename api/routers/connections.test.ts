@@ -38,7 +38,7 @@ describe("Settings → Connections", () => {
     const catalog = await caller.connections.catalog();
     expect(catalog.find((c) => c.type === "jira")).toMatchObject({ name: "Jira", status: "built", how: "jiraLogin" });
     expect(catalog.find((c) => c.type === "github")).toMatchObject({ name: "GitHub", status: "built" });
-    expect(catalog.find((c) => c.type === "gitlab")).toMatchObject({ name: "GitLab", status: "experimental", how: "token", asksAddress: true });
+    expect(catalog.find((c) => c.type === "gitlab")).toMatchObject({ name: "GitLab", status: "built", how: "token", asksAddress: true });
     expect(catalog.find((c) => c.type === "shortcut")).toMatchObject({ name: "Shortcut", status: "experimental", how: "token", asksAddress: false });
   });
 

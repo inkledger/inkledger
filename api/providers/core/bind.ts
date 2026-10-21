@@ -6,7 +6,10 @@
 import { SINK_CALLS, SINK_GROUPS, TRACKER_CALLS, TRACKER_GROUPS } from "./operations";
 import { originate } from "./origin";
 import { inCall, type CallMeta } from "./context";
-import { normalizeError, ProviderError } from "./errors";
+import { normalizeError, ProviderError, readOnlyCauseOf } from "./errors";
+import { t } from "@contracts/i18n";
+import { PROVIDER_NAMES } from "@contracts/providerNames";
+import type { ProviderType } from "@contracts/providers";
 import { checkActiveSources, checkEntryPage, checkFind, checkIssuePage, checkWorklog, IncompatibleResultError } from "./results";
 import { sinkProbeExceeds, trackerProbeExceeds } from "./validate";
 import { publicConversionWarning } from "../types";
@@ -97,6 +100,15 @@ function scrub(name: string, r: unknown, m: CallMeta): unknown {
   return scrubbed;
 }
 
+/** A write refused before it left (http.ts), said in the service's own name: the server, or this connection's writes. */
+function sayReadOnly(e: ProviderError, type: ProviderType): ProviderError {
+  const why = e.kind === "readOnly" ? readOnlyCauseOf(e) : undefined;
+  if (!why) return e;
+  const name = PROVIDER_NAMES[type];
+  const text = why === "server" ? t("server.provider.readOnlyServer", { name }) : t("server.provider.writesOff", { name });
+  return new ProviderError("readOnly", text, { cause: e });
+}
+
 export function bindTracker<T extends TrackerType, O>(p: TrackerProvider<T, O>, stored: StoredConn<T>): BoundTracker {
   let options: O;
   try {
@@ -114,7 +126,7 @@ export function bindTracker<T extends TrackerType, O>(p: TrackerProvider<T, O>, 
         try {
           result = await fn({ conn, signal: m.signal, correlationId: m.correlationId }, ...args);
         } catch (e) {
-          throw originate(normalizeError(e, m.signal), stored.id);
+          throw originate(sayReadOnly(normalizeError(e, m.signal), stored.type), stored.id);
         }
         checker(p, name, args)?.(result);
         return scrub(name, result, m);
@@ -194,7 +206,7 @@ export function bindSink<T extends TimeSinkType, O>(p: TimeSinkProvider<T, O>, s
         try {
           result = await fn({ conn, signal: m.signal, correlationId: m.correlationId }, ...args);
         } catch (err) {
-          throw normalizeError(err, m.signal);
+          throw sayReadOnly(normalizeError(err, m.signal), stored.type);
         }
         check(name, result);
         return result;
