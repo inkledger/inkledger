@@ -242,6 +242,40 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(appRouter.createCaller(s).issues.list()).rejects.toMatchObject({ message: "PASSWORD_CHANGE_REQUIRED" });
     });
 
+    it("an account manager who isn't an admin hands out no more than it holds, and can't take over a bigger account", async () => {
+      await account("keeper", { permissions: '["manageUsers","useModules"]' });
+      const k = appRouter.createCaller(await session({ username: "keeper" }));
+      const boss = await account("boss", { role: "admin" });
+      const ops = await account("ops", { permissions: '["manageServer"]' });
+      const plain = await account("plain", { permissions: '["useModules"]' });
+      const [pend] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('pend', 'Pend', 1) RETURNING id");
+      const forbidden = { code: "FORBIDDEN" };
+      // No admin, no power it lacks, for a new account or an existing one.
+      await expect(k.users.invite({ username: "x2", displayName: "X", role: "admin", permissions: [] })).rejects.toMatchObject(forbidden);
+      await expect(k.users.invite({ username: "x3", displayName: "X", role: "member", permissions: ["manageServer"] })).rejects.toMatchObject(forbidden);
+      await expect(k.users.setAccess({ id: plain.id, role: "admin", permissions: [] })).rejects.toMatchObject(forbidden);
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageBackups"] })).rejects.toMatchObject(forbidden);
+      // An admin, or an account with a power it lacks: no password reset, no new link, no change, no turning off.
+      for (const id of [boss.id, ops.id]) {
+        await expect(k.users.resetPassword({ id })).rejects.toMatchObject(forbidden);
+        await expect(k.users.reinvite({ id })).rejects.toMatchObject(forbidden);
+        await expect(k.users.setAccess({ id, role: "member", permissions: [] })).rejects.toMatchObject(forbidden);
+        await expect(k.users.setDisabled({ id, disabled: true })).rejects.toMatchObject(forbidden);
+      }
+      const [still] = await q<{ password_hash: string; role: string; disabled_at: unknown }>("SELECT password_hash, role, disabled_at FROM users WHERE id = ?", boss.id);
+      expect(still).toMatchObject({ password_hash: boss.passwordHash, role: "admin", disabled_at: null });
+      // Within what it holds, it still manages.
+      await expect(k.users.invite({ username: "x4", displayName: "X", role: "member", permissions: ["useModules"] })).resolves.toBeTruthy();
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).resolves.toMatchObject({ permissions: ["manageUsers"] });
+      await expect(k.users.resetPassword({ id: plain.id })).resolves.toBeTruthy();
+      await expect(k.users.reinvite({ id: pend.id })).resolves.toBeTruthy();
+    });
+
+    it("a new invite link is only for an account that hasn't set its password: an active one can't be taken over by one", async () => {
+      const active = await account("settled");
+      await expect(appRouter.createCaller(await admin()).users.reinvite({ id: active.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
     it("a turned-off account can't sign in or use its sessions; the last admin can't be removed", async () => {
       const target = await account("leaving");
       const s = await session({ username: "leaving" });

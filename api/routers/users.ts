@@ -33,10 +33,24 @@ const row = (u: User) => ({
   createdAt: u.createdAt,
 });
 
+const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
+
+/**
+ * Within what `me` holds: an admin may anything; anyone else (an account manager
+ * by permission) never an admin, nor a power it hasn't itself. Otherwise it could
+ * hand one to an account it controls, or take over a bigger one (a reset, a link).
+ */
+function assertWithin(me: User, granted: { role: string; permissions: readonly string[] }) {
+  if (roleOf(me) === "admin") return;
+  const mine = permissionsOf(me);
+  if (granted.role === "admin" || granted.permissions.some((p) => !(mine as readonly string[]).includes(p))) throw notAllowed();
+}
+
 async function target(id: number, me: User): Promise<User> {
   if (id === me.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
   const user = await userById(id);
   if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user) });
   return user;
 }
 
@@ -71,6 +85,7 @@ export const usersRouter = createRouter({
   invite: manage
     .input(access.extend({ username: z.string().min(1).max(64), displayName: z.string().trim().min(1).max(80) }))
     .mutation(async ({ input, ctx }) => {
+      assertWithin(ctx.user, input);
       const username = input.username.trim().toLowerCase();
       await assertFreeUsername(username);
       const [user] = await getDb()
@@ -84,12 +99,15 @@ export const usersRouter = createRouter({
   /** A new invite link for an account that hasn't set its password yet (the old link stops working). */
   reinvite: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
+    // A link sets the password: for an account that has one, it would be a takeover.
+    if (user.passwordHash) throw notAllowed();
     const { token, expiresAt } = await createInvite(user.id, ctx.user.id);
     return { link: inviteLink(token), expiresAt };
   }),
 
   setAccess: manage.input(access.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
+    assertWithin(ctx.user, input);
     if (user.role === "admin" && input.role !== "admin") await assertAnotherAdmin(user.id);
     const [updated] = await getDb()
       .update(users)
