@@ -1,15 +1,54 @@
 [
-  "*",
-  "/",
-  "/board",
-  "/info",
-  "/install",
-  "/invite/:token",
-  "/issues",
-  "/issues/:connectionId/:remoteId",
-  "/issues/:key",
-  "/login",
-  "/reports",
-  "/settings/:section?",
-  "/timesheet"
+  {
+    "path": "*",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/board",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/info",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/install",
+    "guard": null
+  },
+  {
+    "path": "/invite/:token",
+    "guard": null
+  },
+  {
+    "path": "/issues",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/issues/:connectionId/:remoteId",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/issues/:key",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/login",
+    "guard": "GuestOnly"
+  },
+  {
+    "path": "/reports",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/settings/:section?",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/timesheet",
+    "guard": "RequireAuth"
+  }
 ]

@@ -37,6 +37,14 @@ describe("materializing a type", () => {
     expect(materializeSource(src, "Node")).toBe('type Rec1 = { children: Rec1[]; kind: "list" } | { kind: "text"; text: string };\nRec1');
   });
 
+  it("numbers recursive types by where the text first names them, not by the compiler's order", () => {
+    const ab = `type A = { a: A[] } | { n: 1 }; type B = { b: B[] } | { n: 2 }; export type T = { x: B; y: A };`;
+    const ba = `type B = { b: B[] } | { n: 2 }; type A = { a: A[] } | { n: 1 }; export type T = { y: A; x: B };`;
+    const expected = 'type Rec1 = { b: Rec1[] } | { n: 2 };\ntype Rec2 = { a: Rec2[] } | { n: 1 };\n{ x: Rec1; y: Rec2 }';
+    expect(materializeSource(ab, "T")).toBe(expected);
+    expect(materializeSource(ba, "T")).toBe(expected);
+  });
+
   it("fails on what it can't write out, rather than degrading", () => {
     expect(() => materializeSource(`export type T = { x: any };`, "T")).toThrow(/T\.x: any can't be materialized/);
     expect(() => materializeSource(`export type T = { f: () => void };`, "T")).toThrow(/a function/);

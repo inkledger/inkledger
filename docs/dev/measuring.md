@@ -14,7 +14,7 @@ is a deliberate edit, explained in the commit that makes it.
 | tRPC structure | `trpc-procedures.json` | Every procedure path and its type (query, mutation or subscription), sorted |
 | tRPC contract | `trpc-contract.ts` | Every procedure's input and output, written out in full |
 | tRPC compatibility | `trpc-compat.ts` | The current router held to the frozen contract, checked by `tsc -b` (`pnpm check`) |
-| Routes | `routes.json` | The `<Route path>` entries of `src/App.tsx` |
+| Routes | `routes.json` | Every `<Route path>` of `src/App.tsx` (read with the TypeScript parser) and the layout route guarding it (`RequireAuth`, `GuestOnly` or none) |
 | Settings sections | `settings-sections.json` | The categories in menu order, their native, desktop and permission limits, and the legacy ids that still land |
 | i18n keys | `i18n-keys.json` | Every message key, en and it, with plurals marked |
 
@@ -24,8 +24,9 @@ The provider capability matrix is already frozen: `api/providers/catalogMatrix.t
 The **tRPC contract** contains standalone types only. It has no import and does not mention
 `AppRouter`, `inferRouterInputs` or any alias from the code.
 - **How types are written:**
-  - A recursive type becomes a numbered alias (`Rec1`, ...), numbered in the order of the
-    sorted walk.
+  - A recursive type becomes a numbered alias (`Rec1`, ...), numbered in the order the
+    contract first names it (then the aliases' own bodies, breadth first). The compiler's
+    internal order never shows in the numbers.
   - Date, Map and Set stay as TypeScript's own types.
 - **What fails generation instead of being weakened:** `any`, functions, classes, open generics,
   symbols and other library types.
