@@ -5,7 +5,7 @@ import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
 import { trackerConformance } from "../conformance/suite";
 import { basecampSimulator, type SimRecording } from "./simulator";
-import { basecampProvider, basecampWebhook, toBasecampHtml } from "./adapter";
+import { basecampAccounts, basecampProvider, basecampWebhook, toBasecampHtml } from "./adapter";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(async () => [{ address: "198.51.100.7", family: 4 }]),
@@ -591,5 +591,23 @@ describe("basecamp, errors and limits", () => {
   it("knows who the token belongs to", async () => {
     const { b, sim } = simulated();
     expect(await b.verify(meta())).toMatchObject({ remoteId: String(sim.me.id), name: "Mario Rossi", email: "mario@acme.example" });
+  });
+});
+
+describe("basecamp, the account of a token", () => {
+  it("found once per token, kept under a hash: the token itself is never a key in memory", async () => {
+    basecampAccounts.clear();
+    const { sim, b } = simulated();
+    let launchpad = 0;
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input instanceof Request ? input.url : input).endsWith("/authorization.json")) launchpad++;
+      return sim.fetch(input, init);
+    });
+    await pass(b);
+    await pass(b);
+    expect(launchpad).toBe(1);
+    expect(basecampAccounts.size).toBe(1);
+    const keys = [...(basecampAccounts as unknown as { entries: Map<string, unknown> }).entries.keys()];
+    expect(keys.every((k) => /^[0-9a-f]{64}$/.test(k) && !k.includes(sim.token))).toBe(true);
   });
 });

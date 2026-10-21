@@ -7,7 +7,9 @@
 // connection's options, never from a name). Time is Basecamp's timesheet
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
+import { createHash } from "node:crypto";
 import { z } from "zod";
+import { LruCache } from "../../lib/lruCache";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
@@ -160,19 +162,23 @@ const isIssueType = (t: string | undefined): t is typeof TODO | typeof CARD => t
 
 // ---------- Account and credentials ----------
 
-/** The account of a token, found once per token (the launchpad lists them). */
-const accounts = new Map<string, string>();
+/**
+ * The account of a token, found once per token (the launchpad lists them).
+ * Keyed by a hash, never the token itself, and capped: tokens renewed over
+ * time don't pile up in memory.
+ */
+export const basecampAccounts = new LruCache<string, string>({ maxEntries: 200 });
 
 async function accountOf(base: string, token: string, chosen: string | null): Promise<string> {
   if (chosen) return chosen;
-  const key = `${base}|${token}`;
-  const known = accounts.get(key);
+  const key = createHash("sha256").update(`${base}|${token}`).digest("hex");
+  const known = basecampAccounts.get(key);
   if (known) return known;
   const auth = await bcOk<BcAuthorization>({ apiBase: base, token }, "/authorization.json", { site: LAUNCHPAD });
   const mine = (auth.accounts ?? []).filter((a: BcAccount) => a.product === "bc3");
   if (mine.length === 0) throw new ProviderError("invalid", "Basecamp: the token has no Basecamp 3 or 4 account");
   if (mine.length > 1) throw new ProviderError("invalid", `Basecamp: the token has ${mine.length} accounts, choose one in the connection's options (account)`);
-  accounts.set(key, String(mine[0].id));
+  basecampAccounts.set(key, String(mine[0].id));
   return String(mine[0].id);
 }
 
