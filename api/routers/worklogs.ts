@@ -609,9 +609,25 @@ export const worklogsRouter = createRouter({
     if (!item) throw new TRPCError({ code: "NOT_FOUND", message: t("server.worklogs.notFound") });
     await assertWeekOpen(ctx.user.id, item.started);
     return withWriteLock(ctx.user.id, async () => {
-      await assertNoOverlap(ctx.user.id, { start: item.started, seconds: item.timeSpentSeconds });
-      const saved = await createWorklog(ctx.user, { issueKey: item.issueKey, comment: item.comment, connectionId: item.connectionId ?? undefined }, item.timeSpentSeconds, item.started);
-      await db.delete(worklogTrash).where(eq(worklogTrash.id, item.id));
+      // Taken from the trash first, in one statement: a second restore of it (a double
+      // click, another device, another process) finds it gone and logs nothing.
+      const [taken] = await db
+        .delete(worklogTrash)
+        .where(and(eq(worklogTrash.id, item.id), eq(worklogTrash.userId, ctx.user.id)))
+        .returning();
+      if (!taken) throw new TRPCError({ code: "NOT_FOUND", message: t("server.worklogs.notFound") });
+      let saved;
+      try {
+        await assertNoOverlap(ctx.user.id, { start: taken.started, seconds: taken.timeSpentSeconds });
+        saved = await createWorklog(ctx.user, { issueKey: taken.issueKey, comment: taken.comment, connectionId: taken.connectionId ?? undefined }, taken.timeSpentSeconds, taken.started);
+      } catch (e) {
+        // Not restored: back in the trash, as it was.
+        await db.insert(worklogTrash).values(taken);
+        throw e;
+      }
+      // Its time goes to the user's time sinks again, as a new worklog's does.
+      await markForSinks(ctx.user.id, saved.id);
+      sinksSoon(ctx.user.id);
       return saved;
     });
   }),

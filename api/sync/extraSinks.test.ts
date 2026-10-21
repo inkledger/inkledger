@@ -156,6 +156,41 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect((await sinkEntries()).map((e) => e.comment)).not.toContain("in flight");
   });
 
+  it("a worklog back from the trash is restored once however many asks race, and reaches the sinks again", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1500, started: "2026-10-23T09:00:00+02:00", comment: "binned" });
+    await push();
+    await caller.worklogs.delete({ id: made.id });
+    await push();
+    expect((await sinkEntries()).map((e) => e.comment)).not.toContain("binned");
+    const [item] = (await caller.worklogs.trash()).filter((t) => t.comment === "binned");
+    // Two asks at once (a double click, two devices).
+    const both = await Promise.allSettled([caller.worklogs.restore({ id: item.id }), caller.worklogs.restore({ id: item.id })]);
+    expect(both.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM worklogs WHERE comment = 'binned'")).toEqual([{ n: 1 }]);
+    expect((await caller.worklogs.trash()).filter((t) => t.comment === "binned")).toEqual([]);
+    await push();
+    expect((await sinkEntries()).filter((e) => e.comment === "binned")).toHaveLength(1);
+    const [back] = await q<{ id: number }>("SELECT id FROM worklogs WHERE comment = 'binned'");
+    await caller.worklogs.delete({ id: back.id });
+    await push();
+  });
+
+  it("a restore that fails leaves the worklog in the trash", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: "2026-10-23T14:00:00+02:00", comment: "stays binned" });
+    await caller.worklogs.delete({ id: made.id });
+    const [item] = (await caller.worklogs.trash()).filter((t) => t.comment === "stays binned");
+    // Something now overlaps it, and overlaps are refused: the restore fails.
+    const blocker = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: "2026-10-23T14:00:00+02:00", comment: "in the way" });
+    await caller.settings.update({ overlapPolicy: "block" });
+    try {
+      await expect(caller.worklogs.restore({ id: item.id })).rejects.toThrow();
+    } finally {
+      await caller.settings.update({ overlapPolicy: "warn" });
+    }
+    expect((await caller.worklogs.trash()).filter((t) => t.comment === "stays binned")).toHaveLength(1);
+    await caller.worklogs.delete({ id: blocker.id });
+  });
+
   it("an integration not verified yet keeps its work pending until writes are allowed", async () => {
     fakes.sinkStatus = "experimental";
     try {
