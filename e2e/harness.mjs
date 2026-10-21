@@ -75,9 +75,16 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   const dir = mkdtempSync(join(tmpdir(), "ikl-e2e-"));
   // A database that stops answering fails the test, never holds the whole run.
   const admin = new pg.Client({ connectionString: adminUrl(), connectionTimeoutMillis: 15_000, query_timeout: 60_000 });
-  await admin.connect();
   const dbName = `ikl_e2e_${process.pid}_${randomBytes(4).toString("hex")}`;
-  await admin.query(`CREATE DATABASE "${dbName}"`);
+  try {
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${dbName}"`);
+  } catch (e) {
+    // No database to work on: nothing left open or behind either.
+    await admin.end().catch(() => {});
+    rmSync(dir, { recursive: true, force: true });
+    throw e;
+  }
   const dbUrl = new URL(adminUrl());
   dbUrl.pathname = `/${dbName}`;
   const server = spawn(process.execPath, ["dist/boot.js"], {
