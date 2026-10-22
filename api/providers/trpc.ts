@@ -28,6 +28,9 @@ const CODES: Record<ProviderErrorKind, TRPCError["code"]> = {
 export function isRefusal(e: ProviderError): boolean {
   if (e.kind === "incompatible" || e.kind === "invalidCheckpoint") return false;
   const cause = e.cause as { status?: unknown; providerKind?: unknown } | undefined;
+  // A server error of the tracker's (5xx) is no answer of its own, however it is wrapped.
+  const status = e.status ?? (typeof cause?.status === "number" ? cause.status : undefined);
+  if (status !== undefined && status >= 500) return false;
   if (cause === undefined || cause instanceof ProviderError) return true;
   return typeof cause?.status === "number" || cause?.providerKind === "readOnly";
 }

@@ -17,12 +17,17 @@ describe("isRefusal", () => {
     expect(isRefusal(normalizeError(new Error("something odd")))).toBe(false);
     expect(isRefusal(normalizeError(new DOMException("timed out", "TimeoutError")))).toBe(false);
     expect(isRefusal(new ProviderError("incompatible", "Unexpected answer"))).toBe(false);
+    expect(isRefusal(normalizeError(Object.assign(new Error("Bad Gateway"), { status: 502 })))).toBe(false);
+    expect(isRefusal(new ProviderError("unavailable", "GitLab answered 503", { status: 503 }))).toBe(false);
   });
 
   it("answered as such: a refusal in its words, no answer in the user's, any other fault in general words", () => {
     const quiet = [vi.spyOn(console, "error").mockImplementation(() => {}), vi.spyOn(console, "warn").mockImplementation(() => {})];
     try {
       expect(providerTrpcError(new ProviderError("invalid", "GitLab: is invalid"))).toMatchObject({ code: "BAD_REQUEST", message: "GitLab: is invalid" });
+      const gateway = providerTrpcError(new ProviderError("unavailable", "GitLab answered 502", { status: 502 }));
+      expect(gateway.code).toBe("SERVICE_UNAVAILABLE");
+      expect(gateway.message).not.toMatch(/502/);
       const down = providerTrpcError(normalizeError(new TypeError("fetch failed")));
       expect(down.code).toBe("SERVICE_UNAVAILABLE");
       expect(down.message).not.toMatch(/fetch failed/);
