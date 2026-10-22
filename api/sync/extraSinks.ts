@@ -288,51 +288,80 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
         )
         .orderBy(asc(outbox.createdAt), asc(outbox.id))
         .limit(SINK_BATCH);
-      for (const queued of gone) {
-        // Claimed first, as the trackers' queue is (timeWrites): another server process on the same database skips it.
-        const at = now();
-        const [g] = await db
-          .update(outbox)
-          .set({ claimedAt: at })
-          .where(and(eq(outbox.id, queued.id), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, at - CLAIM_TTL_MS))))
-          .returning();
-        if (!g) continue;
-        try {
-          if (b.capabilities.entries.model === "dayTotals") {
-            // A day's total without the deleted worklog (0 removes the day): its own
-            // tracker's time only, as its issue (item_id) says; a delete from before that
-            // was kept goes by the key, as then.
-            const [item] = g.itemId === null ? [] : await db.select({ connectionId: issues.connectionId }).from(issues).where(eq(issues.id, g.itemId));
-            const tracker = item?.connectionId ?? null;
-            const { ref } = await refOf({ connectionId: tracker, userId: g.userId, issueKey: g.issueKey });
-            const zone = connOf(sink).timeZone;
-            const day = localDateOf(instant((g.started ?? new Date()).getTime()), zone);
-            const rest = await db
-              .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
-              .from(worklogs)
-              .where(and(eq(worklogs.userId, g.userId), eq(worklogs.issueKey, g.issueKey), ...(tracker === null ? [] : [eq(worklogs.connectionId, tracker)])));
-            const total = rest.filter((x) => localDateOf(instant(x.started.getTime()), zone) === day).reduce((a, x) => a + x.seconds, 0);
-            await b.entries.setDayTotal!(meta(), ref, null, day, total, { idempotencyKey: `del:${g.id}` });
-          } else if (b.entries.delete) {
-            await b.entries.delete(meta(), g.remoteId, {}).catch((e: unknown) => {
-              if (!(e instanceof ProviderError && e.kind === "notFound")) throw e;
-            });
-          }
-          await db.delete(outbox).where(eq(outbox.id, g.id));
-          sent++;
-        } catch (e) {
-          // Out of reach: no attempt counted, the rest waits for the next pass.
-          if (e instanceof ProviderError && e.transient) {
-            await db.update(outbox).set({ claimedAt: null }).where(eq(outbox.id, g.id));
-            break;
-          }
-          failed++;
-          const attempts = g.attempts + 1;
-          await db
+      // Claimed first, all at once, as the trackers' queue is (timeWrites): another server
+      // process on the same database skips them. Sent ones go in one delete at the end (a
+      // crash before it: they are tried again once their claim runs out, and each send is
+      // idempotent: its key, and a delete already done counts as done).
+      const at = now();
+      const claimedRows = gone.length === 0
+        ? []
+        : await db
             .update(outbox)
-            .set({ attempts, nextAttemptAt: now() + deleteRetryDelayMs(attempts), claimedAt: null, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500) })
-            .where(eq(outbox.id, g.id));
+            .set({ claimedAt: at })
+            .where(and(inArray(outbox.id, gone.map((g) => g.id)), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, at - CLAIM_TTL_MS))))
+            .returning();
+      const order = new Map(gone.map((g, i) => [g.id, i]));
+      const claimed = claimedRows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      // What a day's total is made of, read once per issue for the pass: its tracker, its ref, its worklogs.
+      const trackers = new Map<number, number | null>();
+      const refs = new Map<string, Awaited<ReturnType<typeof refOf>>>();
+      const left = new Map<string, { started: Date; seconds: number }[]>();
+      const done: number[] = [];
+      try {
+        for (let i = 0; i < claimed.length; i++) {
+          const g = claimed[i];
+          try {
+            if (b.capabilities.entries.model === "dayTotals") {
+              // A day's total without the deleted worklog (0 removes the day): its own
+              // tracker's time only, as its issue (item_id) says; a delete from before that
+              // was kept goes by the key, as then.
+              let tracker: number | null = null;
+              if (g.itemId !== null) {
+                if (!trackers.has(g.itemId)) {
+                  const [item] = await db.select({ connectionId: issues.connectionId }).from(issues).where(eq(issues.id, g.itemId));
+                  trackers.set(g.itemId, item?.connectionId ?? null);
+                }
+                tracker = trackers.get(g.itemId) ?? null;
+              }
+              const group = `${g.userId}:${tracker ?? ""}:${g.issueKey}`;
+              if (!refs.has(group)) refs.set(group, await refOf({ connectionId: tracker, userId: g.userId, issueKey: g.issueKey }));
+              if (!left.has(group)) {
+                left.set(
+                  group,
+                  await db
+                    .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
+                    .from(worklogs)
+                    .where(and(eq(worklogs.userId, g.userId), eq(worklogs.issueKey, g.issueKey), ...(tracker === null ? [] : [eq(worklogs.connectionId, tracker)]))),
+                );
+              }
+              const { ref } = refs.get(group)!;
+              const zone = connOf(sink).timeZone;
+              const day = localDateOf(instant((g.started ?? new Date()).getTime()), zone);
+              const total = left.get(group)!.filter((x) => localDateOf(instant(x.started.getTime()), zone) === day).reduce((a, x) => a + x.seconds, 0);
+              await b.entries.setDayTotal!(meta(), ref, null, day, total, { idempotencyKey: `del:${g.id}` });
+            } else if (b.entries.delete) {
+              await b.entries.delete(meta(), g.remoteId, {}).catch((e: unknown) => {
+                if (!(e instanceof ProviderError && e.kind === "notFound")) throw e;
+              });
+            }
+            done.push(g.id);
+            sent++;
+          } catch (e) {
+            // Out of reach: no attempt counted, this one and the rest wait for the next pass.
+            if (e instanceof ProviderError && e.transient) {
+              await db.update(outbox).set({ claimedAt: null }).where(inArray(outbox.id, claimed.slice(i).map((c) => c.id)));
+              break;
+            }
+            failed++;
+            const attempts = g.attempts + 1;
+            await db
+              .update(outbox)
+              .set({ attempts, nextAttemptAt: now() + deleteRetryDelayMs(attempts), claimedAt: null, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500) })
+              .where(eq(outbox.id, g.id));
+          }
         }
+      } finally {
+        if (done.length > 0) await db.delete(outbox).where(inArray(outbox.id, done));
       }
     }
     return { sent, failed };
