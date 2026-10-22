@@ -2,6 +2,8 @@
 // a DevTools hook on every commit (production builds too), so the page script installs
 // one before the app loads. Nothing of this is in the app. Validated by renders.test.mjs
 // on a fixture whose work is known before any app number is read (docs/dev/measuring.md).
+// It reads React's internals (fiber tags, the PerformedWork flag, alternate/child links),
+// checked with React 19.2: after an upgrade, that validation says whether they still hold.
 
 /**
  * Init script (page.addInitScript): counts commits and the components that rendered in

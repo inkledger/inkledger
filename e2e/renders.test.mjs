@@ -72,7 +72,8 @@ const WINDOW = 300_000;
  * re-renders the layout: no timer 41 / 4620. The shell's background effects in a component
  * of their own: 40 / 2889, 367 / 6044, 366 / 9883, 367 / 9296. Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
- * may lower them, never raise them.
+ * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
+ * commit, never a side effect.
  */
 const MEASURED = {
   "dashboard, no timer": { commits: 42, renders: 2950 },

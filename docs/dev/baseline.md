@@ -33,7 +33,7 @@ Unit: 1893 tests in 127 files. E2E: 107 scenarios in 19 files.
 
 ## Bundle
 
-| Chunk | KB | KB gzip |
+| Chunk | KiB | KiB gzip |
 |---|---:|---:|
 | entry `index.js` | 1067 | 333.6 |
 | first load (entry + preloads + css) | 1166.6 | 352 |

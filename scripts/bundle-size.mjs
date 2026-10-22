@@ -35,7 +35,7 @@ const report = {
 
 if (process.argv.includes("--md")) {
   const row = (n, s) => `| ${n} | ${kb(s.raw)} | ${kb(s.gzip)} |`;
-  console.log(["| Chunk | KB | KB gzip |", "|---|---:|---:|", row(`entry \`${report.entry.name}\``, report.entry), row("first load (entry + preloads + css)", report.firstLoad), row(`all JS (${chunks.filter((c) => c.name.endsWith(".js")).length} chunks)`, report.total.js), row("all CSS", report.total.css)].join("\n"));
+  console.log(["| Chunk | KiB | KiB gzip |", "|---|---:|---:|", row(`entry \`${report.entry.name}\``, report.entry), row("first load (entry + preloads + css)", report.firstLoad), row(`all JS (${chunks.filter((c) => c.name.endsWith(".js")).length} chunks)`, report.total.js), row("all CSS", report.total.css)].join("\n"));
 } else {
   console.log(JSON.stringify(report, null, 2));
 }

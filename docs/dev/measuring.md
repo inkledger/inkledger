@@ -14,7 +14,7 @@ is a deliberate edit, explained in the commit that makes it.
 | tRPC structure | `trpc-procedures.json` | Every procedure path and its type (query, mutation or subscription), sorted |
 | tRPC contract | `trpc-contract.ts` | Every procedure's input and output, written out in full |
 | tRPC compatibility | `trpc-compat.ts` | The current router held to the frozen contract, checked by `tsc -b` (`pnpm check`) |
-| Routes | `routes.json` | Every `<Route path>` of `src/App.tsx` (read with the TypeScript parser) and the layout route guarding it (`RequireAuth`, `GuestOnly` or none) |
+| Routes | `routes.json` | Every route path of `src/App.tsx` (read with the TypeScript parser) and the layout route guarding it (`RequireAuth`, `GuestOnly` or none) |
 | Settings sections | `settings-sections.json` | The categories in menu order, their native, desktop and permission limits, and the legacy ids that still land |
 | i18n keys | `i18n-keys.json` | Every message key, en and it, with plurals marked |
 
@@ -37,8 +37,11 @@ The **tRPC contract** contains standalone types only. It has no import and does 
   committed one, text for text. Any change shows, an addition as much as a removal: a new
   procedure, a new optional input field, a widened output, a renamed route or i18n key. This is
   what "nothing lost, nothing added" is held to.
-- **Backward compatibility of the tRPC API** (`trpc-compat.ts`, in `pnpm check`): a weaker check
-  that passes changes an old client cannot notice.
+- **Backward compatibility of the tRPC API** (`trpc-compat.ts`, in `pnpm check`): a weaker,
+  type-level check. It passes a change when an old client's requests still type-check against
+  the server and the server's answers still type-check against what the old client expects. It
+  does not say the old client sees no difference: a new output field, a new error or a changed
+  value can still reach it.
   - **Inputs:** each `FrozenIn[p]` must be assignable to the current input. The server still
     accepts everything an old client sends.
   - **Outputs:** each current output must be assignable to `FrozenOut[p]`. An old reader still
@@ -57,8 +60,9 @@ node scripts/bundle-size.mjs --md   # the summary table
 ```
 
 - **Names:** chunks are listed without their content hash, so two builds compare line by line.
+- **Units:** KiB (1024 bytes), one decimal.
 - **Gzip:** level 9.
-- **Entry:** the `<script type="module">` of `dist/public/index.html`.
+- **Entry:** the module script that `dist/public/index.html` loads.
 - **First load:** the entry, plus its `modulepreload` links and its stylesheets.
 
 ## Queries per scenario
@@ -75,8 +79,10 @@ notifications in `api/routers/notifications-insert.test.ts`, a sync of 1200 issu
 - **Boundaries:** from the call of the measured function to its return. Setup before it and
   checks after it are not counted.
 - **Ceilings:** each test's `MEASURED` holds the current numbers (the ones frozen on 2026-10-22,
-  before Wave 2, are in its comment and below). A change may lower them, never raise them; each
-  test also checks the functional result.
+  before Wave 2, are in its comment and below), and each test also checks the functional result.
+  A change that lowers a count lowers its ceiling. Raising one is never a side effect: it is a
+  deliberate edit, with the new measure and its reason in the commit (a correctness fix may need
+  a query more).
 - **What the counts prove:** fewer queries on PGlite. They say nothing about index use or
   latency on Postgres.
 
@@ -113,7 +119,7 @@ shows an index is usable and chosen; it does not measure production latency.
   only legacy fallbacks without a connection would use it, at one more entry per worklog written.
 
 ```sh
-npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.test.ts \
+pnpm exec vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.test.ts \
   api/sync/sinkDeletes-queries.test.ts api/routers/issues-reassigned-queries.test.ts \
   api/routers/issues-sync-queries.test.ts \
   --reporter=verbose   # prints the [measure] lines
@@ -135,14 +141,23 @@ and without, on the production bundle as it ships.
     walked.
   - Each render is attributed to the region (`main`, `nav`, `aside`, a dialog) and element it
     draws, so a number can be traced to what ticks.
+- **What it depends on:** React's internals, not a public API: the hook's `inject` and
+  `onCommitFiberRoot`, fiber tags (components 0, 1, 11, 14, 15; host 5), the `PerformedWork`
+  flag (1) and the `alternate` and `child` links. Checked with React 19.2 (the version in the
+  lockfile). After a React upgrade the validation below runs first; if those internals moved, it
+  fails and no app number is read until the counter is fixed.
 - **Window:** five minutes of the page's own clock (Playwright's `page.clock`), stepped a
   second at a time; each step waits for the requests it started (the event stream, open by
-  design, aside). Five minutes is the least common multiple of everything the app does on a
-  period (the 1 s clock; polls every 15, 30 and 60 s; the timer heartbeat every 25 s), so each
-  happens a fixed number of times whatever the phase. Real-time windows were tried first and
+  design, aside). Five minutes is the least common multiple of the app's fixed periods (the 1 s
+  clock; polls every 15, 30 and 60 s; the timer heartbeat every 25 s), so each of those fires
+  the same number of times in the window. That removes the phase of the fixed periods, not every
+  effect of timing: a refetch started by something else (an event, an invalidation) restarts a
+  poll's interval, and a response may land a step later. Real-time windows were tried first and
   rejected: a 10 s window holds a poll or not by chance.
-- **Spread:** two runs agree within 2% (a response landing a step later moves a commit or
-  two). Each limit is the most measured plus 2%.
+- **Spread:** two runs agree within 2%; the limits allow for it.
+- **Limits:** each scenario's limit is the most measured plus 2%. A change that lowers the work
+  lowers the limit; raising one is a deliberate edit, with the new measure and its reason in the
+  commit, never a side effect.
 - **Validation, before any app number is read:** a fixture built in production mode
   (`e2e/fixtures/renders/app.jsx`) has a ticker committing once a second with a plain child, a
   memo child and a static sibling. In 10 s of real time, and in 30 stepped seconds, the ticker
@@ -151,6 +166,8 @@ and without, on the production bundle as it ships.
   app's numbers are not used.
 - **What it does not say:** time spent. A count is work done, not frames dropped or
   milliseconds; no claim on smoothness rests on it alone.
+
+Each column adds its change to the ones before it (cumulative, in commit order).
 
 | Scenario (5 min) | Before Wave 3 | Shared clock | Fetch time read on demand | Shell effects apart |
 |---|---|---|---|---|

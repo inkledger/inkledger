@@ -2,7 +2,8 @@
 // (docs/dev/measuring.md) at several page sizes: the count per pass, and how it
 // grows with the page. Counted from the call of syncEntries to its return, with
 // api/testing/countQueries (every query on PGlite, inside transactions too).
-// The numbers are the measured ones: a change may lower them, never raise them.
+// The numbers are the measured ones: lowering one lowers it here; raising one is a
+// deliberate edit with its reason in the commit, never a side effect.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 process.env.DATABASE_URL = ":memory:";
