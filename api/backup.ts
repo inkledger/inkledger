@@ -4,7 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { env } from "./lib/env";
 import { getServerSetting, setServerSetting } from "./lib/serverSettings";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { rememberedDevices, sessions, users } from "@db/schema";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { t } from "@contracts/i18n";
@@ -260,9 +260,15 @@ export async function restoreBackup(
     const device = opts.keepSession?.deviceId
       ? (
           await getDb()
-            .select({ expiresAt: rememberedDevices.expiresAt })
+            .select({ expiresAt: rememberedDevices.expiresAt, lastUsedAt: rememberedDevices.lastUsedAt, createdAt: rememberedDevices.createdAt })
             .from(rememberedDevices)
-            .where(and(eq(rememberedDevices.id, opts.keepSession.deviceId), eq(rememberedDevices.userId, opts.keepSession.userId)))
+            .where(
+              and(
+                eq(rememberedDevices.id, opts.keepSession.deviceId),
+                eq(rememberedDevices.userId, opts.keepSession.userId),
+                gt(rememberedDevices.expiresAt, new Date()),
+              ),
+            )
         )[0]
       : undefined;
     const safety = await runBackup();
@@ -271,7 +277,7 @@ export async function restoreBackup(
       // A backup from an older version lacks the newest columns: bring it up to date.
       await migrateDb();
       // On the schema of now: whoever restored signs in on.
-      await signOutAfterRestore(opts.keepSession, device?.expiresAt);
+      await signOutAfterRestore(opts.keepSession, device);
     } catch (e) {
       // Whatever happened, the copy taken first undoes it: its name goes with the cause.
       throw new Error(`${e instanceof Error ? e.message : String(e)} (${safety})`, { cause: e });
@@ -289,7 +295,7 @@ export async function restoreBackup(
  */
 type Keep = { id: string; userId: number; username: string; deviceId?: string };
 
-async function signOutAfterRestore(keep?: Keep, deviceExpiresAt?: Date) {
+async function signOutAfterRestore(keep?: Keep, device?: { expiresAt: Date; lastUsedAt: Date; createdAt: Date }) {
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
@@ -297,7 +303,7 @@ async function signOutAfterRestore(keep?: Keep, deviceExpiresAt?: Date) {
   const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), eq(users.username, keep.username), isNull(users.disabledAt)));
   if (!still) return;
   await db.insert(sessions).values({ id: keep.id, userId: keep.userId, expiresAt: new Date(Date.now() + env.sessionDays * 86_400_000) });
-  if (keep.deviceId && deviceExpiresAt) await db.insert(rememberedDevices).values({ id: keep.deviceId, userId: keep.userId, expiresAt: deviceExpiresAt });
+  if (keep.deviceId && device) await db.insert(rememberedDevices).values({ id: keep.deviceId, userId: keep.userId, ...device });
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;
