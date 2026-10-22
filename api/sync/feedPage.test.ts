@@ -185,6 +185,13 @@ describe("the worklog feed, page by page", () => {
     expect(await state()).toMatchSnapshot();
   });
 
+  it("an entry first named as someone else's, then as ours, beside another of ours at the same time: ours lands on it", async () => {
+    const mine = await local(a, "new-1", { start: at(9), comment: "mine" });
+    await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, worklog_id, created_at) VALUES (?, ?, 'create', 'FAKE-1', '', ?, 1)", userId, a, mine);
+    expect(await pass(a, [{ items: [entry("x", { authorRemoteId: "someone" }), entry("x", { start: at(9) }), entry("y", { start: at(9) }), entry("z", { key: null }), entry("z", { start: at(15) })] }])).toMatchObject({ upserted: 3 });
+    expect(await state()).toMatchSnapshot();
+  });
+
   it("an entry named twice in a page, gone ones known, unknown and named twice, others' entries and entries without an issue", async () => {
     await pass(a, [{ items: [entry("g1"), entry("g2", { start: at(10) })] }]);
     const r = await pass(a, [

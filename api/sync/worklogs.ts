@@ -321,7 +321,9 @@ export async function syncEntries(
       // more than once goes in rounds (its first copy, then its second, …), so each copy
       // finds what the one before it left; a very large round goes in slices (a statement
       // takes 65535 parameters at most).
-      for (const round of rounds(items)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
+      // Only the user's own, on an issue, count as copies (the others are left out anyway).
+      const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
+      for (const round of rounds(mine)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
       for (const round of rounds(gone)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
     },
   );

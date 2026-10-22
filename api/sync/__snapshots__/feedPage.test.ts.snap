@@ -86,6 +86,56 @@ exports[`the worklog feed, page by page > a page that fails halfway (the databas
 }
 `;
 
+exports[`the worklog feed, page by page > an entry first named as someone else's, then as ours, beside another of ours at the same time: ours lands on it 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "",
+      "comment": "mine",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "x",
+      "locked": null,
+      "remote_id": "x",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+    {
+      "author_account_id": "me",
+      "comment": "",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "y",
+      "locked": null,
+      "remote_id": "y",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+    {
+      "author_account_id": "me",
+      "comment": "",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "z",
+      "locked": null,
+      "remote_id": "z",
+      "remote_snapshot": null,
+      "started": 1792069200000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+  ],
+}
+`;
+
 exports[`the worklog feed, page by page > an entry named twice in a page, gone ones known, unknown and named twice, others' entries and entries without an issue 1`] = `
 {
   "outbox": [],
