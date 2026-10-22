@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Meter } from "@/components/app/Meter";
 import { surface } from "@/components/app/surface";
 import { goalTone } from "@/lib/goalTone";
+import { usePendingSeconds } from "@/hooks/useTimers";
 import { t, dateFormat } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { workedSeconds } from "@/lib/worked";
@@ -43,17 +44,19 @@ export function DayProgress({
   target: number;
   label: string;
   /** Timers not yet logged: hatched, live. */
-  pending?: { pending: number; running: boolean };
+  /** Shows the time tracked and not yet logged, live. */
+  pending?: boolean;
 }) {
   const pct = target > 0 ? Math.round((seconds / target) * 100) : 0;
-  const pendingSeconds = pending?.pending ?? 0;
+  const live = usePendingSeconds(pending);
+  const pendingSeconds = live?.pending ?? 0;
   const scale = Math.max(target, seconds + pendingSeconds, 1);
   return (
     <Meter
       value={seconds}
       max={scale}
       pending={pendingSeconds}
-      running={pending?.running}
+      running={live?.running}
       tone={goalTone(pct)}
       lit
       label={label}
@@ -71,7 +74,8 @@ type Props = {
   targetFor: (day: Date) => number;
   todayKey: string;
   /** Unlogged timer time, shown on today's progress. */
-  pending?: { pending: number; running: boolean };
+  /** Shows the time tracked and not yet logged, live. */
+  pending?: boolean;
   locked: boolean;
   selected: Set<number>;
   busy: boolean;
@@ -154,7 +158,7 @@ export function WeekView({
                 seconds={total}
                 target={targetFor(day.date)}
                 label={t("views.timesheet.week.goalOf", { label })}
-                pending={isToday ? pending : undefined}
+                pending={isToday && pending}
               />
             </div>
 

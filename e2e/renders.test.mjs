@@ -67,15 +67,16 @@ const WINDOW = 300_000;
 /**
  * Per five minutes, page by page: commits and component renders, at most. Before Wave 3
  * (frozen 2026-10-22, two runs within 2%): no timer 55 / 15221; with one running, issue page
- * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. Each limit is the most
+ * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
+ * 13840, 366 / 20452, 366 / 24399, 366 / 23704. Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * may lower them, never raise them.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 56, renders: 15530 },
-  "issue page, timer running": { commits: 726, renders: 22370 },
-  "dashboard, timer running": { commits: 1033, renders: 75480 },
-  "timesheet, timer running": { commits: 1021, renders: 68160 },
+  "dashboard, no timer": { commits: 42, renders: 14120 },
+  "issue page, timer running": { commits: 374, renders: 20870 },
+  "dashboard, timer running": { commits: 374, renders: 24890 },
+  "timesheet, timer running": { commits: 374, renders: 24180 },
 };
 
 test("React work per five minutes, page by page", async () => {

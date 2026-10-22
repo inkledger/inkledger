@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useNow } from "@/hooks/useTimers";
 import { trpc } from "@/lib/trpc";
 import { invalidateJiraData } from "@/hooks/useSync";
 import { relativeFormat, t } from "@/i18n";
@@ -37,11 +38,7 @@ function useSyncStatus() {
 /** Last background sync as a short hint ("Updated 2 minutes ago"), and its error. */
 export function useSyncHint() {
   const status = useSyncStatus();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const i = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(i);
-  }, []);
+  const now = useNow(true, 30_000);
   const hint = status?.lastError
     ? t("ui.layout.syncFailed")
     : status?.lastSyncAt

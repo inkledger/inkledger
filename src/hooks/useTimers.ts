@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLiveState } from "@/lib/liveEvents";
+import { clockNow, subscribeClock } from "@/lib/clock";
 
-/** Current time, refreshed every second while `active`. */
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const i = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(i);
-  }, [active]);
-  return now;
+/** Current time, refreshed every `periodMs` while `active`, from one clock shared by every reader. */
+export function useNow(active: boolean, periodMs = 1000): number {
+  const subscribe = useCallback(
+    (listener: () => void) => (active ? subscribeClock(periodMs, listener) : () => {}),
+    [active, periodMs]
+  );
+  return useSyncExternalStore(subscribe, () => clockNow(periodMs));
 }
 
 /**
@@ -37,14 +36,18 @@ export function useElapsed(
     : elapsedSeconds;
 }
 
+/** Tracked time not yet logged, and whether a timer runs. */
+export type PendingTime = { pending: number; running: boolean };
+
 /**
  * Tracked time not yet logged to Jira (running + paused timers), ticking
- * live while a timer runs. Feeds the hatched "pending" segments of the bars.
+ * live while a timer runs. Feeds the hatched "pending" segments of the bars;
+ * read by the parts that draw it, so only they tick. Undefined unless `shown`.
  */
-export function usePendingSeconds(): { pending: number; running: boolean } {
+export function usePendingSeconds(shown = true): PendingTime | undefined {
   const { timers, fetchedAt } = useTimers();
   const running = timers.some(t => t.state === "running");
-  const now = useNow(running);
+  const now = useNow(shown && running);
   const pending = timers.reduce(
     (sum, t) =>
       sum +
@@ -52,5 +55,5 @@ export function usePendingSeconds(): { pending: number; running: boolean } {
       (t.state === "running" ? Math.max(0, now - fetchedAt) / 1000 : 0),
     0
   );
-  return { pending, running };
+  return shown ? { pending, running } : undefined;
 }

@@ -21,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 import { dayReview } from "@/lib/flag";
 import { logSpan } from "@/lib/timerLog";
 import { issueId } from "@/lib/issues";
-import { usePendingSeconds, useTimers } from "@/hooks/useTimers";
+import { useTimers } from "@/hooks/useTimers";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
 import { placeBlock, type Occupied } from "@contracts/placement";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
@@ -95,7 +95,6 @@ function DayReviewBody() {
   const [now] = useState(() => new Date());
   const today = useMemo(() => startOfDay(now), [now]);
   const { timers, fetchedAt } = useTimers();
-  const pending = usePendingSeconds();
   const { forDay, targetFor } = useWorkSchedule();
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
   // Today's worklogs and timers: where the batch may go (never over them).
@@ -311,7 +310,7 @@ function DayReviewBody() {
             className="mt-3"
             totalSeconds={logged}
             targetSeconds={target}
-            pending={pending}
+            pending
           />
         </section>
 

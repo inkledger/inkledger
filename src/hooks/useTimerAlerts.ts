@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useNow } from "@/hooks/useTimers";
 import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@contracts/time";
 import { showBrowserNotification } from "@/lib/browserNotifications";
@@ -30,11 +31,7 @@ export function useTimerAlerts() {
     refetchIntervalInBackground: true,
   });
   const alertedFor = useRef<Set<string>>(new Set());
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const i = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(i);
-  }, []);
+  const now = useNow(true, 30_000);
   const fetchedAt = timers.dataUpdatedAt;
 
   useEffect(() => {

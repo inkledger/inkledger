@@ -21,7 +21,8 @@ export function WeekRecapCard({
 }: {
   recap: WeekRecap;
   targetFor: (day: Date) => number;
-  pending?: { pending: number; running: boolean };
+  /** Today's bar shows the time tracked and not yet logged, live. */
+  pending?: boolean;
   summaryOf: (issue: { key: string; connectionId?: number | null }) => string | undefined;
 }) {
   const d = recap.deltaPct;

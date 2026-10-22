@@ -30,7 +30,6 @@ import {
 } from "@contracts/time";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useWorklogSelection } from "@/hooks/useWorklogSelection";
-import { usePendingSeconds } from "@/hooks/useTimers";
 import { downloadCsv } from "@/lib/csv";
 import { issueId } from "@/lib/issues";
 import { projectOf, rankProjects } from "@/lib/projectColors";
@@ -160,8 +159,8 @@ export default function Timesheet() {
       ? startOfWeek(today)
       : new Date(today.getFullYear(), today.getMonth(), 1);
   const isCurrent = dayKey(period.from) === dayKey(currentStart);
-  const pendingNow = usePendingSeconds();
-  const pending = isCurrent ? pendingNow : undefined;
+  // The current period: its parts show the time tracked and not yet logged (they tick, not the page).
+  const pending = isCurrent;
 
   const title =
     view === "week"

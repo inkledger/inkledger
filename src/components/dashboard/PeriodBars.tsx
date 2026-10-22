@@ -1,3 +1,4 @@
+import { usePendingSeconds } from "@/hooks/useTimers";
 import { useToday } from "@/hooks/useToday";
 import { dayKey, formatDurationLong } from "@contracts/time";
 import type { ProjectColor } from "@/lib/projectColors";
@@ -35,10 +36,12 @@ export function PeriodBars({
   /** Short variant for secondary charts */
   compact?: boolean;
   /** Timers not yet logged: hatched, live, stacked on today's bar. */
-  pending?: { pending: number; running: boolean };
+  /** Today's bar shows the time tracked and not yet logged, live. */
+  pending?: boolean;
 }) {
   const today = dayKey(useToday());
-  const pendingSeconds = pending?.pending ?? 0;
+  const live = usePendingSeconds(pending);
+  const pendingSeconds = live?.pending ?? 0;
   const sums = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
   const totals = stacks.map((s, i) => s.worked ?? sums[i]);
   const targets = stacks.map(s => targetFor(s.day));
@@ -87,7 +90,7 @@ export function PeriodBars({
                     <span
                       className={cn(
                         "order-last w-full border-t border-background/70 transition-[height] duration-1000 ease-linear stripes-pending",
-                        pending?.running && "stripes-live"
+                        live?.running && "stripes-live"
                       )}
                       style={{ height: `${(pendingSeconds / max) * 100}%` }}
                     />

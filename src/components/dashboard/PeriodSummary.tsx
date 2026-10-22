@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { dayKey, formatDuration, formatDurationLong } from "@contracts/time";
 import { toast } from "sonner";
 import { useCountUp } from "@/hooks/useCountUp";
+import { usePendingSeconds } from "@/hooks/useTimers";
 import { projectOf, type ProjectColor } from "@/lib/projectColors";
 import { Chip } from "@/components/app/Chip";
 import { SectionLabel } from "@/components/app/PageHeader";
@@ -48,7 +49,8 @@ export function PeriodSummary({
   issues: IssueTotal[];
   colorOf: (project: string) => ProjectColor;
   /** Timers not yet logged (only when the period includes now): hatched, live. */
-  pending?: { pending: number; running: boolean };
+  /** Shows the time tracked and not yet logged, live. */
+  pending?: boolean;
   /** Today's view: celebrate (once a day) when the goal is reached. */
   celebrate?: boolean;
 }) {
@@ -172,7 +174,8 @@ export function GoalProgress({
 }: {
   totalSeconds: number;
   targetSeconds: number;
-  pending?: { pending: number; running: boolean };
+  /** Shows the time tracked and not yet logged, live. */
+  pending?: boolean;
   className?: string;
   celebrate?: boolean;
 }) {
@@ -180,7 +183,8 @@ export function GoalProgress({
   const glowing = useGoalCelebration(celebrate && reached);
   const pct =
     targetSeconds > 0 ? Math.round((totalSeconds / targetSeconds) * 100) : 0;
-  const pendingSeconds = pending?.pending ?? 0;
+  const live = usePendingSeconds(pending);
+  const pendingSeconds = live?.pending ?? 0;
   // The bar scale grows past the target when logged + pending exceed it.
   const scale = Math.max(targetSeconds, totalSeconds + pendingSeconds, 1);
   return (
@@ -189,7 +193,7 @@ export function GoalProgress({
         value={totalSeconds}
         max={scale}
         pending={pendingSeconds}
-        running={pending?.running}
+        running={live?.running}
         marker={targetSeconds}
         tone={goalTone(pct)}
         size="lg"

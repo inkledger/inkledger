@@ -32,7 +32,7 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { missingSpans } from "@contracts/workSchedule";
 import { GapCutter } from "@/components/dashboard/GapCutter";
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns";
-import { usePendingSeconds, useTimers } from "@/hooks/useTimers";
+import { useTimers } from "@/hooks/useTimers";
 import { dayReview } from "@/lib/flag";
 import { weekRecap } from "@/lib/recap";
 import { WeekRecapCard } from "@/components/dashboard/WeekRecapCard";
@@ -172,9 +172,8 @@ export default function Dashboard() {
     to: recentTo.toISOString(),
   });
   const { timers, fetchedAt } = useTimers();
-  const pendingNow = usePendingSeconds();
-  const pending =
-    range.from <= today && today < range.to ? pendingNow : undefined;
+  // Today on screen: its parts show the time tracked and not yet logged (they tick, not the page).
+  const pending = range.from <= today && today < range.to;
 
   const issueByKey = useMemo(
     () => new Map((issues.data ?? []).map(i => [issueId(i), i])),
@@ -669,7 +668,7 @@ export default function Dashboard() {
                   issues={issueTotals}
                   colorOf={derived.colorOf}
                   pending={pending}
-                  celebrate={range.kind === "day" && pending !== undefined}
+                  celebrate={range.kind === "day" && pending}
                 />
               )}
               {stats.data && (
@@ -691,7 +690,7 @@ export default function Dashboard() {
                     })}
                     targetFor={targetFor}
                     dense
-                    pending={pendingNow}
+                    pending
                   />
                 </div>
               )}
@@ -757,7 +756,7 @@ export default function Dashboard() {
             <WeekRecapCard
               recap={recap}
               targetFor={targetFor}
-              pending={pendingNow}
+              pending
               summaryOf={top => issueByKey.get(issueId(top))?.summary}
             />
           )}
