@@ -221,3 +221,15 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     await caller.worklogs.delete({ id: made.id });
   });
 });
+
+describe("sameWords", () => {
+  it("a comment read back trimmed (Jira's copy) is the same comment; other words are not", async () => {
+    const { sameWords } = await import("./timeWrites");
+    expect(sameWords("fixed login\n", "fixed login")).toBe(true);
+    expect(sameWords("  note ", "note")).toBe(true);
+    expect(sameWords("two\n\nlines", "two lines")).toBe(true);
+    expect(sameWords("", "")).toBe(true);
+    expect(sameWords("twin", "queued")).toBe(false);
+    expect(sameWords("note", "")).toBe(false);
+  });
+});

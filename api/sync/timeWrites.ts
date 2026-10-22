@@ -153,6 +153,9 @@ const ADOPT_WINDOW_MS = 5 * 60_000;
  * other worklog (or to a copy a sync read back meanwhile, identical: that
  * copy goes). The worklog is linked to it; true when one was.
  */
+/** The same comment as words: how a tracker or a sync may store it (trimmed, spaces folded) aside. */
+export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+
 async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date): Promise<boolean> {
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
@@ -170,10 +173,10 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
       .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
       .limit(1);
     // Another worklog's entry: only its copy a sync read back meanwhile is ours to take (made
-    // after ours, with our entry's time and comment, since it is our entry); a twin the user
-    // logged, older, or with words of its own, keeps it. (A newer twin identical even in its
-    // comment can't be told from that copy.)
-    if (linked && linked.id !== local.id && (linked.id < local.id || linked.comment !== local.comment || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
+    // after ours, with our entry's time and comment, since it is our entry: compared as words,
+    // a sync stores it trimmed); a twin the user logged, older, or with words of its own,
+    // keeps it. (A newer twin identical even in its comment can't be told from that copy.)
+    if (linked && linked.id !== local.id && (linked.id < local.id || !sameWords(linked.comment, local.comment) || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     return true;
   }
