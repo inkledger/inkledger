@@ -118,16 +118,20 @@ describe("worklog registry against any service, through the contract", () => {
     }
   });
 
-  it("the replaced entry: a refusal is said, a failure for now is queued", async () => {
+  it("the replaced entry: a refusal is queued as stuck with its words, a failure for now is queued to retry", async () => {
     const { b, conn } = await setup({ entryUpdate: false });
     const { dropOld } = await import("./worklogs");
     const { ProviderError } = await import("../providers/core/errors");
     const failing = (kind: "forbidden" | "unavailable") => ({ ...b, worklogs: { ...b.worklogs!, delete: async () => { throw new ProviderError(kind, kind); } } }) as typeof b;
     const who = { userId, issueKey: "FAKE-1" };
-    await expect(dropOld(failing("forbidden"), conn, who, ref, meta, "w-old", null)).rejects.toMatchObject({ kind: "forbidden" });
+    const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
     try {
+      await dropOld(failing("forbidden"), conn, who, ref, meta, "w-refused", null);
       await dropOld(failing("unavailable"), conn, who, ref, meta, "w-old", null);
-      expect(await q("SELECT kind, jira_worklog_id FROM outbox WHERE user_id = ?", userId)).toEqual([{ kind: "delete", jira_worklog_id: "w-old" }]);
+      expect(await q("SELECT jira_worklog_id, attempts, last_error FROM outbox WHERE user_id = ? AND kind = 'delete' ORDER BY id", userId)).toEqual([
+        { jira_worklog_id: "w-refused", attempts: MAX_OUTBOX_ATTEMPTS, last_error: "forbidden" },
+        { jira_worklog_id: "w-old", attempts: 0, last_error: "" },
+      ]);
     } finally {
       await q("DELETE FROM outbox");
     }
