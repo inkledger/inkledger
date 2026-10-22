@@ -24,6 +24,11 @@ function migrationsFolder(): string {
   return process.env.MIGRATIONS_DIR ?? path.resolve(process.cwd(), "drizzle");
 }
 
+/** When the newest migration this build knows was made (its journal's `when`). */
+export function newestMigration(): number {
+  return readJournal(migrationsFolder()).at(-1)?.when ?? 0;
+}
+
 let instance: Db | undefined;
 let close: (() => Promise<void>) | undefined;
 let pending: Promise<Db> | undefined;

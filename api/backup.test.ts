@@ -95,7 +95,8 @@ describe("backups on disk", () => {
     expect(fed.startsWith("SET client_min_messages = warning;")).toBe(true);
     expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeGreaterThanOrEqual(0);
     expect(fed.indexOf("DROP SCHEMA public CASCADE")).toBeLessThan(fed.indexOf("-- the dump's SQL"));
-    expect(fed).toMatch(/-- end of dump\ncommitted/);
+    // Before it commits: a backup from a newer build (migrations this one doesn't know) is refused.
+    expect(fed).toMatch(/-- end of dump\nDO \$\$ BEGIN IF EXISTS \(SELECT 1 FROM drizzle\.__drizzle_migrations WHERE created_at > \d+\)[^\n]*\ncommitted/);
     // The oldest of `keep` files: the safety backup must not prune it away.
     expect(fs.existsSync(path.join(DIR, "inkledger-20200102-000000.dump"))).toBe(true);
     await expect(b.restoreBackup("../etc/passwd")).rejects.toThrow(/Invalid backup/);

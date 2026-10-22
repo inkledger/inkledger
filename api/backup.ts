@@ -6,7 +6,7 @@ import { env } from "./lib/env";
 import { getServerSetting, setServerSetting } from "./lib/serverSettings";
 import { and, eq, isNull } from "drizzle-orm";
 import { rememberedDevices, sessions, users } from "@db/schema";
-import { getDb, migrateDb } from "./queries/connection";
+import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { t } from "@contracts/i18n";
 
 /**
@@ -153,6 +153,10 @@ function run(bin: string, args: string[], childEnv: NodeJS.ProcessEnv = process.
  */
 const EMPTY_DATABASE = "SET client_min_messages = warning;\nDROP SCHEMA IF EXISTS drizzle CASCADE;\nDROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n";
 
+const newerBackupRefused = (newest: number) =>
+  `DO $$ BEGIN IF EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at > ${newest}) THEN ` +
+  `RAISE EXCEPTION 'This backup comes from a newer inkledger: restore it there, or one taken with this version.'; END IF; END $$;\n`;
+
 function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const restoreBin = process.env.PG_RESTORE_BIN ?? "pg_restore";
@@ -179,7 +183,9 @@ function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: stri
     psql.stdin.write(EMPTY_DATABASE);
     dump.stdout.pipe(psql.stdin, { end: false });
     dump.on("close", (code) => {
-      if (code === 0) psql.stdin.end();
+      // Last, before the commit: a backup from a newer build (migrations this one doesn't
+      // know) is refused, or the server would be left on a schema it can't start on.
+      if (code === 0) psql.stdin.end(newerBackupRefused(newestMigration()));
       else fail(new Error(err.trim() || t("server.backup.exitedWith", { bin: restoreBin, code: code ?? "?" })));
     });
     psql.on("close", (code) => {
