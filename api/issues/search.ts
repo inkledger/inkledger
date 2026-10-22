@@ -5,6 +5,8 @@ import { boundTracker } from "../sync/engine";
 import { formatQuery, parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
 import type { RemoteIssue } from "../providers/types";
+import { ProviderError } from "../providers/core/errors";
+import { t } from "@contracts/i18n";
 
 function isKeyQuery(query: string): boolean {
   return /^[A-Za-z][A-Za-z0-9]+-\d+$/.test(query.trim());
@@ -71,7 +73,10 @@ async function askTracker(conn: Connection, query: string) {
       found = words ? (await b.searchText(callMeta(), words, 25)).items : [];
     }
   } catch (e) {
-    return { ...none, failed: { connectionId: conn.id, label, message: e instanceof Error ? e.message : String(e) } };
+    // The tracker's refusal in its words, as the other calls show it; any other fault in
+    // general words, its details in the log.
+    if (!(e instanceof ProviderError)) console.error(e);
+    return { ...none, failed: { connectionId: conn.id, label, message: e instanceof ProviderError ? e.message : t("server.internal.error") } };
   }
   return { ...none, found, unsupported };
 }
