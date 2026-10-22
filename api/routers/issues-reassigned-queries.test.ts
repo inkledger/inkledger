@@ -63,10 +63,10 @@ vi.stubGlobal(
 
 /**
  * Queries of the second sync, by reassigned issues K. Before Wave 2: 22 / 34 / 79 (19 + 3
- * per issue). What still grows by one per issue is the "unassigned" notification each
- * gets (insertNotifications, not part of this refresh).
+ * per issue); after it 22 / 26 / 41 (the "unassigned" notifications one by one); now the
+ * same at any K.
  */
-const MEASURED = { 1: 22, 5: 26, 20: 41 } as const;
+const MEASURED = { 1: 22, 5: 22, 20: 22 } as const;
 
 describe("a sync that finds K issues reassigned away", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;

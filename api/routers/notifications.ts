@@ -114,15 +114,21 @@ export function detectNotifications(
   return out;
 }
 
-/** Store notifications; already-known ones (same dedupe, per connection) are ignored. */
+/** Notifications per statement at most (about 8 parameters each, 65535 per statement). */
+const INSERT_BATCH = 500;
+
+/**
+ * Store notifications; already-known ones (same dedupe, per connection) are ignored, and
+ * so is a repeat within the list (the first one stays, as one by one). One statement per
+ * batch, however many.
+ */
 export async function insertNotifications(userId: number, items: NewNotification[], at: number) {
   if (items.length === 0) return;
   const createdAt = new Date(at);
+  const rows = items.map((n) => ({ userId, ...n, dedupe: `c${n.connectionId}:${n.dedupe}`, createdAt }));
   await getDb().transaction(async (tx) => {
-    for (const n of items) {
-      await tx.insert(notifications)
-        .values({ userId, ...n, dedupe: `c${n.connectionId}:${n.dedupe}`, createdAt })
-        .onConflictDoNothing({ target: [notifications.userId, notifications.dedupe] });
+    for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+      await tx.insert(notifications).values(rows.slice(i, i + INSERT_BATCH)).onConflictDoNothing({ target: [notifications.userId, notifications.dedupe] });
     }
   });
 }
