@@ -169,6 +169,22 @@ test("deleting an entry another device has just removed counts as done, not as a
     await page.getByRole("button", { name: "Delete DEMO-101" }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await page.getByText("Worklog deleted").first().waitFor();
-    assert.equal(await page.getByText(/not deleted/i).count(), 0);
+    assert.equal(await page.getByText(/^Deleted \d+ of \d+/).count(), 0, "not reported as left");
+  });
+});
+
+test("an entry whose tracker is archived is not deleted, and says so", { timeout: 600_000 }, async () => {
+  await awayFromMidnight();
+  return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
+    const y = new Date(Date.now() - 86_400_000);
+    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    await db.q("UPDATE connections SET archived_at = ? WHERE id = ?", Date.now(), github);
+    await page.goto(base + "/timesheet");
+    await page.getByRole("button", { name: "Pick a date" }).click();
+    await page.getByLabel("Go to day").fill(day);
+    await page.getByRole("button", { name: "Delete DEMO-101" }).first().click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+    await page.getByText("Deleted 0 of 1: the one left is selected").first().waitFor();
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM worklogs"))[0].n, 1, "still there");
   });
 });

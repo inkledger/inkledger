@@ -360,8 +360,14 @@ export default function Timesheet() {
         // By its id: its key may be on two trackers.
         await del.mutateAsync({ id: w.id });
       } catch (e) {
-        // Already gone (a sync, another device): what was asked is done.
-        if (e instanceof TRPCClientError && (e.data as { code?: string } | undefined)?.code === "NOT_FOUND") continue;
+        // The entry itself already gone (a sync, another device): what was asked is done.
+        // Not any other "not found" (its tracker archived: nothing was deleted).
+        if (
+          e instanceof TRPCClientError &&
+          (e.data as { code?: string } | undefined)?.code === "NOT_FOUND" &&
+          e.message === t("server.worklogs.notFound")
+        )
+          continue;
         failed.push(w);
         reason ||= e instanceof Error ? e.message : String(e);
       }
