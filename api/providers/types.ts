@@ -236,8 +236,6 @@ export type IssueGone = ReportedIssueGone | { remoteId: string; reason: "missing
 
 /** A time entry removed, as its service says it (only when its feed declares removals). */
 export type ReportedEntryGone = { remoteId: string; reason: "deleted" };
-/** The engine's view of a removed entry. */
-export type EntryGone = ReportedEntryGone | { remoteId: string; reason: "missing" };
 
 /**
  * One page of a pass: more to read (next), or the last one, the only one

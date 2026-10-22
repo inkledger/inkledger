@@ -83,7 +83,3 @@ export async function geocode(query: string, language: "en" | "it"): Promise<Pla
     return [];
   }
 }
-
-export function forgetWeatherForTests() {
-  weatherCache.clear();
-}

@@ -1,7 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./context";
 import { env } from "./lib/env";
 import { serverBuild } from "./lib/appBuild";
@@ -9,9 +8,6 @@ import { APP_BUILD_CHANGED, APP_BUILD_HEADER } from "@contracts/appBuild";
 import { JiraApiError } from "./jira/client";
 import { ProviderError } from "./providers/core/errors";
 import { TimerConflictError } from "./lib/timerConflict";
-import { getDb } from "./queries/connection";
-import { sessions } from "@db/schema";
-import { clearedSessionCookies } from "./lib/session";
 import { t as tr } from "@contracts/i18n";
 import type { Permission } from "@contracts/accounts";
 import { can } from "./queries/accounts";
@@ -67,17 +63,6 @@ export class UnreadableCredentialsError extends Error {
     super(tr("server.auth.credentialsUnreadable"));
     this.name = "UnreadableCredentialsError";
   }
-}
-
-/**
- * End the current session (row and cookie): its Jira credentials are no
- * longer usable, so the client goes back to the login cleanly.
- */
-export async function endSession(ctx: Pick<TrpcContext, "req" | "resHeaders" | "sessionId">) {
-  if (ctx.sessionId) {
-    await getDb().delete(sessions).where(eq(sessions.id, ctx.sessionId));
-  }
-  for (const c of clearedSessionCookies(ctx.req)) ctx.resHeaders.append("Set-Cookie", c);
 }
 
 /** Signed in, whatever the account still has to do (the password change itself runs here). */

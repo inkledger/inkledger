@@ -90,14 +90,6 @@ export type OpTimeEntry = {
   _links: { workPackage?: Link; project?: Link; user?: Link; activity?: Link; update?: Link; updateImmediately?: Link; delete?: Link };
 };
 export type OpActivityType = { id: number; name: string; position?: number; default?: boolean };
-export type OpNotification = {
-  id: number;
-  reason: string;
-  readIAN: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  _links: { resource?: Link; actor?: Link };
-};
 
 /** The number at the end of a link (`/api/v3/users/5`), as text. */
 export const idOfHref = (href: string | null | undefined) => (href ? /\/(\d+)\/?$/.exec(href)?.[1] ?? null : null);

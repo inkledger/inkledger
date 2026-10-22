@@ -112,32 +112,8 @@ export function connOf(row: Connection): StoredConn<TrackerType> {
   };
 }
 
-/** One of the user's live connections (a connection of someone else is never found). */
-export async function loadConn(userId: number, connectionId: number): Promise<StoredConn<TrackerType>> {
-  const [row] = await getDb()
-    .select()
-    .from(connections)
-    .where(and(eq(connections.userId, userId), eq(connections.id, connectionId), isNull(connections.archivedAt)))
-    .limit(1);
-  if (!row) {
-    const cause = new NoConnectionError();
-    throw new TRPCError({ code: "NOT_FOUND", message: cause.message, cause });
-  }
-  return connOf(row);
-}
-
 /** A user as Jira sees them: site and account from their Jira connection. */
 export type JiraUser = User & { siteUrl: string; accountId: string; connectionId: number };
-
-/** The user's Jira side in one go: who they are there, and the credentials to call it. */
-export async function jiraContext(user: User): Promise<{ user: JiraUser; creds: JiraCredentials; conn: Connection }> {
-  const conn = await jiraConnection(user.id);
-  if (!conn) {
-    const cause = new NoConnectionError();
-    throw new TRPCError({ code: "PRECONDITION_FAILED", message: cause.message, cause });
-  }
-  return contextFor(user, conn);
-}
 
 /** One connection's Jira side: who the user is there, and the credentials to call it. */
 export function contextFor(user: User, conn: Connection): { user: JiraUser; creds: JiraCredentials; conn: Connection } {

@@ -68,6 +68,3 @@ export async function pollDeviceLogin(userId: number, flowId: string): Promise<P
   flows.delete(flowId);
   return { state: "failed", reason: r.error === "access_denied" ? "denied" : "expired" };
 }
-
-/** Tests: forget pending logins. */
-export const forgetDeviceLogins = () => flows.clear();

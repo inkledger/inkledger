@@ -196,11 +196,6 @@ export async function claimTimerSeconds(
   };
 }
 
-/** Settle a timer after `seconds` of it were logged elsewhere (see claimTimerSeconds). */
-export async function consumeTimerSeconds(userId: number, issueKey: string, seconds: number, now: Date = new Date(), connectionId?: number) {
-  await claimTimerSeconds(userId, issueKey, seconds, connectionId, now);
-}
-
 /** Pauses a running timer: its owner lets go, everyone's view moves on. */
 async function pauseTimer(db: Db | Tx, t: Timer, now: Date): Promise<number> {
   const epoch = t.epoch + 1;

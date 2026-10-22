@@ -952,11 +952,3 @@ export async function fetchIssueDescriptionRaw(creds: JiraCredentials, issueKey:
   );
   return res.fields?.description ?? null;
 }
-
-export async function fetchIssueDescription(creds: JiraCredentials, issueKey: string): Promise<string> {
-  const res = await jiraFetch<{ fields?: { description?: unknown } }>(
-    creds,
-    `${apiBase(creds)}/issue/${encodeURIComponent(issueKey)}?fields=description`,
-  );
-  return textFromAdf(res.fields?.description ?? "").trim();
-}

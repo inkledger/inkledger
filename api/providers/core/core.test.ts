@@ -3,7 +3,7 @@ import { instant } from "@contracts/values";
 import { fakeTrackerCapabilities } from "../fake/adapter";
 import { executable, assertTransitionFields } from "./fields";
 import { checkActiveSources, checkEntryPage, checkFind } from "./results";
-import { assertRevision, assertSeconds, fitDuration } from "./time";
+import { assertRevision, assertSeconds } from "./time";
 import { trackerProbeExceeds } from "./validate";
 import { readPass } from "../conformance/suite";
 import { ProviderError } from "./errors";
@@ -21,15 +21,6 @@ const kindOf = (fn: () => unknown) => {
 };
 
 describe("durations and amounts", () => {
-  it("are rounded to the increment, then refused (never clamped) outside the limits", () => {
-    const limits = { minSeconds: 600, maxSeconds: 8 * 3600, increment: { seconds: 900, rounding: "up" as const } };
-    expect(fitDuration(1, limits)).toBe(900);
-    expect(fitDuration(1800, limits)).toBe(1800);
-    expect(kindOf(() => fitDuration(9 * 3600, limits))).toBe("invalid");
-    expect(kindOf(() => fitDuration(0, limits))).toBe("invalid");
-    expect(kindOf(() => fitDuration(300, { minSeconds: 600 }))).toBe("invalid");
-  });
-
   it("counters move by positive whole seconds; day totals may be zero", () => {
     expect(kindOf(() => assertSeconds(-60))).toBe("invalid");
     expect(kindOf(() => assertSeconds(1.5))).toBe("invalid");

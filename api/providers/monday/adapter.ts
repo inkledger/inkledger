@@ -775,9 +775,6 @@ export function toChanges(l: MondayActivity, data: Record<string, unknown>, titl
 
 // ---------- Webhooks ----------
 
-/** A webhook delivery older than this is a replay and is refused by the core (sentAt). */
-export const WEBHOOK_MAX_AGE_MS = 5 * 60_000;
-
 type Headers_ = Headers | Record<string, string | string[] | undefined>;
 const header = (h: Headers_, name: string): string | undefined => {
   if (h instanceof Headers) return h.get(name) ?? undefined;

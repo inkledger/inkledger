@@ -319,5 +319,3 @@ export function plannerSimulator(apiBase = "https://graph.microsoft.com/v1.0", o
   };
   return sim;
 }
-
-export type PlannerSim = ReturnType<typeof plannerSimulator>;

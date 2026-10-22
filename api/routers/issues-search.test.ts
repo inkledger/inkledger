@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSearchJql } from "./issues";
+import { buildSearchJql } from "../issues/search";
 
 describe("buildSearchJql", () => {
   it("detects exact issue keys", () => {

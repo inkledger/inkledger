@@ -275,7 +275,7 @@ async function recordSync(userId: number, outcome: { ok: true; full: boolean } |
 }
 
 /** Minutes looked back by an incremental sync: the interval plus some slack. */
-export function incrementalWindowMin(): number {
+function incrementalWindowMin(): number {
   return Math.max(7, env.syncIntervalMin + 2);
 }
 

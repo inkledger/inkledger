@@ -415,5 +415,3 @@ export function giteaSimulator(
     },
   };
 }
-
-export type GiteaSimulator = ReturnType<typeof giteaSimulator>;

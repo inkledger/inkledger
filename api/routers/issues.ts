@@ -38,9 +38,7 @@ import { runSync, toRow, upsertIssue } from "../sync/jiraIssues";
 import { syncUser } from "../sync/orchestrator";
 import { callMeta, searchConnection } from "../issues/search";
 
-export { upsertIssue } from "../sync/jiraIssues";
 export { settleInFlightSyncs, syncUser } from "../sync/orchestrator";
-export { buildSearchJql } from "../issues/search";
 
 /** The user looked at (or acted on) an issue: its activity so far is read. */
 async function markSeen(userId: number, key: string, connectionId: number) {
