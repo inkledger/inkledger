@@ -23,6 +23,9 @@ import { providerName } from "@contracts/providerNames";
 type Local = typeof worklogs.$inferSelect;
 type Sink = typeof worklogSinks.$inferSelect;
 
+/** What a tracker refuses to do with its entries, in the user's words and with its name. */
+const cannotDoIt = (b: BoundTracker) => new ProviderError("invalid", t("server.issues.cannotManage", { provider: providerName(b.type) }));
+
 /** The entries model of a tracker that keeps entries, or null. */
 export function entriesOf(b: BoundTracker): Extract<EntryCapabilities, { model: "entries" }> | null {
   const t = b.capabilities.time;
@@ -79,13 +82,13 @@ export async function linkSink(worklogId: number, sinkConnectionId: number, remo
 
 function inputOf(b: BoundTracker, local: Local, zone: TimeZone): WorklogInput {
   const e = entriesOf(b);
-  if (!e) throw new ProviderError("invalid", `${b.type} keeps no time entries`);
+  if (!e) throw cannotDoIt(b);
   return { time: timeInput(e.shape, local, zone), comment: local.comment };
 }
 
 /** A new worklog on the service: a retry with the same uuid lands once (natively, or by inkledger's own key). */
 export async function pushCreate(b: BoundTracker, conn: Pick<Connection, "id">, local: Local, ref: IssueRef, meta: CallMeta, zone: TimeZone) {
-  if (!b.worklogs?.create) throw new ProviderError("invalid", `${b.type} doesn't take new entries`);
+  if (!b.worklogs?.create) throw cannotDoIt(b);
   const remote = await b.worklogs.create(meta, ref, inputOf(b, local, zone), { idempotencyKey: local.uuid });
   await landed(local, conn, remote);
   return remote;
@@ -100,7 +103,7 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
   const e = entriesOf(b);
   const sink = await sinkOf(local.id, conn.id);
   if (!sink?.remoteId) return pushCreate(b, conn, local, ref, meta, zone);
-  if (!e || e.write.mode !== "entry" || e.write.update === "none") throw new ProviderError("invalid", `${b.type} entries can't be changed`);
+  if (!e || e.write.mode !== "entry" || e.write.update === "none") throw cannotDoIt(b);
   const input = inputOf(b, local, zone);
   if (e.write.update === "recreate") {
     // The new entry first (types.ts: never the old one gone with nothing in its place): refused
@@ -127,7 +130,7 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
  * shown to the user, never queued), not with a crash.
  */
 export async function deleteThere(b: BoundTracker, meta: CallMeta, ref: IssueRef, remoteId: string, m: { expectedVersion?: string } = {}): Promise<void> {
-  if (!b.worklogs?.delete) throw new ProviderError("invalid", t("server.issues.cannotManage", { provider: providerName(b.type) }));
+  if (!b.worklogs?.delete) throw cannotDoIt(b);
   await b.worklogs.delete(meta, ref, remoteId, m);
 }
 
