@@ -5,7 +5,7 @@
 // entries read back into the registry. Every tracker that keeps entries
 // writes through here (sync/timeWrites.ts); Jira's feed is still read by
 // its own sync (worklogSync.ts).
-import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
 import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/values";
@@ -136,34 +136,151 @@ export const sameTime = (a: { started: Date; seconds: number }, b: { started: Da
 /** What the service has, as stored for a conflict (the user picks). */
 export type RemoteSnapshot = { seconds: number; started: number; comment: string };
 
-/**
- * A new entry read from the service that is one of ours not confirmed yet
- * (written, its answer lost; or queued): the local worklog it is, or none.
- */
-async function ownUnconfirmed(conn: Pick<Connection, "id" | "userId">, issueKey: string, remote: { started: Date; seconds: number }): Promise<Local | undefined> {
-  const candidates = await getDb()
-    .select()
-    .from(worklogs)
-    .where(
-      and(
-        eq(worklogs.userId, conn.userId),
-        eq(worklogs.connectionId, conn.id),
-        eq(worklogs.issueKey, issueKey),
-        or(sql`${worklogs.remoteId} LIKE 'new-%'`, sql`${worklogs.remoteId} LIKE 'pending-%'`),
-      ),
-    );
-  return candidates.find((c) => sameTime({ started: c.started, seconds: c.timeSpentSeconds }, remote));
-}
+/** Entries written per statement at most (5 to 10 parameters each, 65535 per statement). */
+const PAGE_SLICE = 1000;
 
-/** A worklog with a change of ours not on the service yet: queued, or its sink not synced. */
-async function hasOwnChange(worklogId: number, connectionId: number, sink: Pick<Sink, "state"> | undefined): Promise<boolean> {
-  if (sink && sink.state !== "synced") return true;
-  const [queued] = await getDb()
-    .select({ id: outbox.id })
-    .from(outbox)
-    .where(and(eq(outbox.worklogId, worklogId), eq(outbox.connectionId, connectionId), inArray(outbox.kind, ["create", "update"])))
-    .limit(1);
-  return !!queued;
+/** An UPDATE … FROM (VALUES …) row: each value cast, so the first row types the column. */
+const valuesOf = (rows: SQL[][]) => sql.join(rows.map((r) => sql`(${sql.join(r, sql`, `)})`), sql`, `);
+
+/**
+ * One page of the service's feed into the registry. Read once for the page (the
+ * entries already known, their worklogs, our own not confirmed yet, our queued
+ * changes) and written in a few statements, however many entries: the cost of a
+ * page does not grow with it. A conflict and one of ours read back (both rare) are
+ * still written one by one. Not one transaction: a page cut halfway is read again on
+ * the next pass (the checkpoint only moves after it) and lands the same.
+ */
+async function applyPage(
+  conn: Pick<Connection, "id" | "userId" | "remoteAccountId">,
+  items: RemoteWorklog[],
+  gone: { remoteId: string }[],
+  zone: TimeZone,
+): Promise<{ upserted: number; removed: number }> {
+  const db = getDb();
+  const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
+  // An entry named twice in a page ends as its last, as entry after entry did.
+  const entries = [...new Map(mine.map((w) => [w.remoteId, w])).values()];
+
+  const ids = entries.map((w) => w.remoteId);
+  const knownRows =
+    ids.length === 0
+      ? []
+      : await db
+          .select({ worklogId: worklogSinks.worklogId, state: worklogSinks.state, remoteId: worklogSinks.remoteId })
+          .from(worklogSinks)
+          .where(and(eq(worklogSinks.sinkConnectionId, conn.id), inArray(worklogSinks.remoteId, ids)));
+  const known = new Map(knownRows.map((k) => [k.remoteId ?? "", k]));
+  const locals = new Map(
+    (knownRows.length === 0 ? [] : await db.select().from(worklogs).where(inArray(worklogs.id, knownRows.map((k) => k.worklogId)))).map((l) => [l.id, l]),
+  );
+  // Ours not confirmed yet (written, its answer lost; or queued), on the issues of the new entries.
+  const newKeys = [...new Set(entries.flatMap((w) => (!known.has(w.remoteId) && w.issue?.key ? [w.issue.key] : [])))];
+  const unconfirmed =
+    newKeys.length === 0
+      ? []
+      : await db
+          .select()
+          .from(worklogs)
+          .where(
+            and(
+              eq(worklogs.userId, conn.userId),
+              eq(worklogs.connectionId, conn.id),
+              inArray(worklogs.issueKey, newKeys),
+              or(sql`${worklogs.remoteId} LIKE 'new-%'`, sql`${worklogs.remoteId} LIKE 'pending-%'`),
+            ),
+          );
+
+  type Read = { w: RemoteWorklog; key: string; values: { timeSpentSeconds: number; started: Date; comment: string; syncedAt: Date }; locked: string | null };
+  const reads: (Read & { k?: { worklogId: number; state: string }; local?: Local; differs: boolean })[] = entries.map((w) => {
+    const values = { timeSpentSeconds: w.span.seconds, started: startOf(w.span, zone), comment: w.comment, syncedAt: new Date() };
+    const k = known.get(w.remoteId);
+    const local = k ? locals.get(k.worklogId) : undefined;
+    // A service that keeps only the day: the clock time here stands while the day is the same.
+    if (local && w.dayOnly && localDateOf(instant(local.started.getTime()), zone) === localDateOf(instant(values.started.getTime()), zone)) values.started = local.started;
+    const differs = !!local && (local.timeSpentSeconds !== values.timeSpentSeconds || local.started.getTime() !== values.started.getTime() || local.comment !== values.comment);
+    // (Every entry here has its issue: the others were left out above.)
+    return { w, key: w.issue?.key ?? "", values, locked: w.locked ? JSON.stringify(w.locked) : null, k, local, differs };
+  });
+  // A change of ours not on the service yet, for the known entries that differ: queued, or its sink not synced.
+  const differing = reads.filter((r) => r.differs).map((r) => r.local!.id);
+  const queued = new Set(
+    differing.length === 0
+      ? []
+      : (
+          await db
+            .select({ worklogId: outbox.worklogId })
+            .from(outbox)
+            .where(and(inArray(outbox.worklogId, differing), eq(outbox.connectionId, conn.id), inArray(outbox.kind, ["create", "update"])))
+        ).map((r) => r.worklogId),
+  );
+
+  const updated: Read[] = [];
+  const updatedIds: number[] = [];
+  const added: Read[] = [];
+  for (const r of reads) {
+    const { w, values, locked, k, local } = r;
+    if (k) {
+      if (local && r.differs && (k.state !== "synced" || queued.has(local.id))) {
+        // Changed on both sides: kept as it is here, the service's version beside it, until the user picks.
+        const snapshot: RemoteSnapshot = { seconds: values.timeSpentSeconds, started: values.started.getTime(), comment: values.comment };
+        await db
+          .update(worklogSinks)
+          .set({ state: "conflict", remoteSnapshot: JSON.stringify(snapshot), version: w.version ?? null, locked })
+          .where(and(eq(worklogSinks.worklogId, k.worklogId), eq(worklogSinks.sinkConnectionId, conn.id)));
+      } else {
+        // Unchanged here: the service's version wins.
+        updated.push(r);
+        updatedIds.push(k.worklogId);
+      }
+      continue;
+    }
+    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
+    if (at >= 0) {
+      // Ours, read back before its answer came: the same worklog, never a second one.
+      const [ours] = unconfirmed.splice(at, 1);
+      await landed(ours, conn, w);
+      await db.update(worklogSinks).set({ locked }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
+      await db.delete(outbox).where(and(eq(outbox.worklogId, ours.id), eq(outbox.connectionId, conn.id), eq(outbox.kind, "create")));
+    } else {
+      added.push(r);
+    }
+  }
+
+  if (updated.length > 0) {
+    await db.execute(sql`UPDATE ${worklogs} SET time_spent_seconds = v.seconds, started = v.started, comment = v.comment, synced_at = v.synced_at
+      FROM (VALUES ${valuesOf(updated.map((r, i) => [sql`${updatedIds[i]}::int`, sql`${r.values.timeSpentSeconds}::int`, sql`${r.values.started.getTime()}::bigint`, sql`${r.values.comment}::text`, sql`${r.values.syncedAt.getTime()}::bigint`]))})
+      AS v(id, seconds, started, comment, synced_at) WHERE ${worklogs.id} = v.id`);
+    await db.execute(sql`UPDATE ${worklogSinks} SET version = v.version, state = 'synced', remote_snapshot = NULL, locked = v.locked
+      FROM (VALUES ${valuesOf(updated.map((r, i) => [sql`${updatedIds[i]}::int`, sql`${r.w.version ?? null}::text`, sql`${r.locked}::text`]))})
+      AS v(worklog_id, version, locked) WHERE ${worklogSinks.worklogId} = v.worklog_id AND ${worklogSinks.sinkConnectionId} = ${conn.id}`);
+  }
+  if (added.length > 0) {
+    const made = await db
+      .insert(worklogs)
+      .values(added.map(({ w, key, values }) => ({ userId: conn.userId, connectionId: conn.id, issueKey: key, remoteId: w.remoteId, authorAccountId: w.authorRemoteId, ...values })))
+      .onConflictDoUpdate({
+        target: [worklogs.userId, worklogs.connectionId, worklogs.issueKey, worklogs.remoteId],
+        set: { timeSpentSeconds: sql`excluded.time_spent_seconds`, started: sql`excluded.started`, comment: sql`excluded.comment`, syncedAt: sql`excluded.synced_at` },
+      })
+      .returning({ id: worklogs.id, remoteId: worklogs.remoteId });
+    const byRemote = new Map(added.map((r) => [r.w.remoteId, r]));
+    await db.execute(sql`UPDATE ${worklogSinks} SET version = v.version, locked = v.locked
+      FROM (VALUES ${valuesOf(made.map((m) => [sql`${m.id}::int`, sql`${byRemote.get(m.remoteId)?.w.version ?? null}::text`, sql`${byRemote.get(m.remoteId)?.locked ?? null}::text`]))})
+      AS v(worklog_id, version, locked) WHERE ${worklogSinks.worklogId} = v.worklog_id AND ${worklogSinks.sinkConnectionId} = ${conn.id}`);
+  }
+
+  // Gone on the service: their worklogs go here, in one statement.
+  const goneIds = [...new Set(gone.map((g) => g.remoteId))];
+  const goneRows =
+    goneIds.length === 0
+      ? []
+      : await db
+          .select({ worklogId: worklogSinks.worklogId, remoteId: worklogSinks.remoteId })
+          .from(worklogSinks)
+          .where(and(eq(worklogSinks.sinkConnectionId, conn.id), inArray(worklogSinks.remoteId, goneIds)));
+  if (goneRows.length > 0) await db.delete(worklogs).where(and(inArray(worklogs.id, goneRows.map((g) => g.worklogId)), eq(worklogs.connectionId, conn.id)));
+  // Each known one once (named twice, the second found nothing, as entry after entry did).
+  return { upserted: mine.length, removed: goneRows.length };
 }
 
 /**
@@ -178,7 +295,6 @@ export async function syncEntries(
 ): Promise<{ checkpoint: Checkpoint | null; upserted: number; removed: number }> {
   const changed = b.worklogs?.changed;
   if (!changed) throw new ProviderError("invalid", `${b.type} has no feed of entries`);
-  const db = getDb();
   let upserted = 0;
   let removed = 0;
   const { checkpoint } = await eachPage(
@@ -188,61 +304,11 @@ export async function syncEntries(
     },
     opts.since,
     async (items, gone) => {
-      for (const w of items) {
-        if (w.authorRemoteId !== conn.remoteAccountId || !w.issue?.key) continue;
-        const values = { timeSpentSeconds: w.span.seconds, started: startOf(w.span, opts.zone), comment: w.comment, syncedAt: new Date() };
-        const locked = w.locked ? JSON.stringify(w.locked) : null;
-        const [known] = await db
-          .select({ worklogId: worklogSinks.worklogId, state: worklogSinks.state })
-          .from(worklogSinks)
-          .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
-          .limit(1);
-        const ours = known ? undefined : await ownUnconfirmed(conn, w.issue.key, { started: values.started, seconds: values.timeSpentSeconds });
-        if (known) {
-          const [local] = await db.select().from(worklogs).where(eq(worklogs.id, known.worklogId));
-          // A service that keeps only the day: the clock time here stands while the day is the same.
-          if (local && w.dayOnly && localDateOf(instant(local.started.getTime()), opts.zone) === localDateOf(instant(values.started.getTime()), opts.zone)) values.started = local.started;
-          const differs = !!local && (local.timeSpentSeconds !== values.timeSpentSeconds || local.started.getTime() !== values.started.getTime() || local.comment !== values.comment);
-          if (local && differs && (await hasOwnChange(local.id, conn.id, known))) {
-            // Changed on both sides: kept as it is here, the service's version beside it, until the user picks.
-            const snapshot: RemoteSnapshot = { seconds: values.timeSpentSeconds, started: values.started.getTime(), comment: values.comment };
-            await db
-              .update(worklogSinks)
-              .set({ state: "conflict", remoteSnapshot: JSON.stringify(snapshot), version: w.version ?? null, locked })
-              .where(and(eq(worklogSinks.worklogId, known.worklogId), eq(worklogSinks.sinkConnectionId, conn.id)));
-          } else {
-            // Unchanged here: the service's version wins.
-            await db.update(worklogs).set(values).where(eq(worklogs.id, known.worklogId));
-            await db
-              .update(worklogSinks)
-              .set({ version: w.version ?? null, state: "synced", remoteSnapshot: null, locked })
-              .where(and(eq(worklogSinks.worklogId, known.worklogId), eq(worklogSinks.sinkConnectionId, conn.id)));
-          }
-        } else if (ours) {
-          // Ours, read back before its answer came: the same worklog, never a second one.
-          await landed(ours, conn, w);
-          await db.update(worklogSinks).set({ locked }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
-          await db.delete(outbox).where(and(eq(outbox.worklogId, ours.id), eq(outbox.connectionId, conn.id), eq(outbox.kind, "create")));
-        } else {
-          const [made] = await db
-            .insert(worklogs)
-            .values({ userId: conn.userId, connectionId: conn.id, issueKey: w.issue.key, remoteId: w.remoteId, authorAccountId: w.authorRemoteId, ...values })
-            .onConflictDoUpdate({ target: [worklogs.userId, worklogs.connectionId, worklogs.issueKey, worklogs.remoteId], set: values })
-            .returning({ id: worklogs.id });
-          await db.update(worklogSinks).set({ version: w.version ?? null, locked }).where(and(eq(worklogSinks.worklogId, made.id), eq(worklogSinks.sinkConnectionId, conn.id)));
-        }
-        upserted++;
-      }
-      for (const g of gone) {
-        const [known] = await db
-          .select({ worklogId: worklogSinks.worklogId })
-          .from(worklogSinks)
-          .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, g.remoteId)))
-          .limit(1);
-        if (known) {
-          await db.delete(worklogs).where(and(eq(worklogs.id, known.worklogId), eq(worklogs.connectionId, conn.id)));
-          removed++;
-        }
+      // A very large page in slices, one after the other: a statement takes 65535 parameters at most.
+      for (let i = 0; i < Math.max(items.length, gone.length, 1); i += PAGE_SLICE) {
+        const page = await applyPage(conn, items.slice(i, i + PAGE_SLICE), gone.slice(i, i + PAGE_SLICE), opts.zone);
+        upserted += page.upserted;
+        removed += page.removed;
       }
     },
   );
