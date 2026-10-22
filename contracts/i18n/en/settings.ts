@@ -538,7 +538,7 @@ export const settings = {
     empty: "No backups in the folder.",
     restore: "Restore",
     restoreTitle: "Restore this backup?",
-    restoreBody: "All inkledger data (dev too) goes back to how it was then. I first save a copy of the current data, so you can go back.",
+    restoreBody: "All inkledger data (dev too) goes back to how it was then, and everyone else is signed out. I first save a copy of the current data, so you can go back.",
   },
   permissions: {
     granted: "Allowed",

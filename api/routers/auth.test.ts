@@ -230,6 +230,8 @@ describe("auth: sessions, cookies, login hardening", () => {
       const granted = await session({ username: "member1" });
       await expect(appRouter.createCaller(granted).backup.get()).resolves.toBeTruthy();
       await expect(appRouter.createCaller(granted).store.pending()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      // Restoring brings the backup's accounts back with it: admins only.
+      await expect(appRouter.createCaller(granted).backup.restore({ name: "inkledger-20200101-000000.dump" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
 
     it("a reset gives a temporary password, signs the account out everywhere, and forces a change", async () => {

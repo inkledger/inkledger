@@ -4,7 +4,9 @@ import path from "node:path";
 import { z } from "zod";
 import { env } from "./lib/env";
 import { getServerSetting, setServerSetting } from "./lib/serverSettings";
-import { migrateDb } from "./queries/connection";
+import { and, eq, isNull } from "drizzle-orm";
+import { rememberedDevices, sessions, users } from "@db/schema";
+import { getDb, migrateDb } from "./queries/connection";
 import { t } from "@contracts/i18n";
 
 /**
@@ -223,7 +225,11 @@ export function runBackup(): Promise<string> {
  * Replace the database with a backup. A safety backup of the current data
  * comes first, so a wrong pick can be undone.
  */
-export async function restoreBackup(name: string): Promise<{ safety: string }> {
+export async function restoreBackup(
+  name: string,
+  /** Whoever restores stays signed in (when their account is in the backup, and on). */
+  opts: { keepSession?: { id: string; userId: number } } = {},
+): Promise<{ safety: string }> {
   if (!BACKUP_FILE.test(name)) throw new Error(t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
   if (!fs.existsSync(file)) throw new Error(t("server.backup.notFound"));
@@ -233,10 +239,25 @@ export async function restoreBackup(name: string): Promise<{ safety: string }> {
     await restoreInto(pgTarget(), file);
     // A backup from an older version lacks the newest columns: bring it up to date.
     await migrateDb();
+    await signOutAfterRestore(opts.keepSession);
     return { safety };
   } finally {
     restoring = null;
   }
+}
+
+/**
+ * The sessions and remembered devices the backup held would let in again whoever
+ * was signed out since (a reset, an account turned off): everyone signs in again,
+ * but whoever restored.
+ */
+async function signOutAfterRestore(keep?: { id: string; userId: number }) {
+  const db = getDb();
+  await db.delete(rememberedDevices);
+  await db.delete(sessions);
+  if (!keep) return;
+  const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), isNull(users.disabledAt)));
+  if (still) await db.insert(sessions).values({ id: keep.id, userId: keep.userId, expiresAt: new Date(Date.now() + env.sessionDays * 86_400_000) });
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;

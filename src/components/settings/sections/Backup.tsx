@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DatabaseBackup, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { formatBytes } from "@/lib/devices";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -54,6 +55,7 @@ export function BackupSection() {
       toast.error(t("settings.backup.failed", { message: e.message }));
     },
   });
+  const admin = useAuth().user?.role === "admin";
   const restore = trpc.backup.restore.useMutation({
     onSuccess: r => {
       toast.success(t("settings.backup.restored"), { description: t("settings.backup.restoredHint", { safety: r.safety }) });
@@ -170,10 +172,13 @@ export function BackupSection() {
                     {f.name} · {formatBytes(f.size)}
                   </span>
                 </span>
-                <Button variant="outline" size="sm" disabled={restore.isPending} onClick={() => setRestoring(f.name)}>
-                  <RotateCcw />
-                  {t("settings.backup.restore")}
-                </Button>
+                {/* Admins only: the backup's accounts come back with it. */}
+                {admin && (
+                  <Button variant="outline" size="sm" disabled={restore.isPending} onClick={() => setRestoring(f.name)}>
+                    <RotateCcw />
+                    {t("settings.backup.restore")}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

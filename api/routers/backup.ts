@@ -2,6 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createRouter, permProcedure } from "../middleware";
 import { env } from "../lib/env";
+import { roleOf } from "../queries/accounts";
+import { t } from "@contracts/i18n";
 import {
   backupDir,
   backupDirWritable,
@@ -49,9 +51,14 @@ export const backupRouter = createRouter({
     }
   }),
 
-  restore: backups.input(z.object({ name: z.string().max(100) })).mutation(async ({ input }) => {
+  /**
+   * Admins only: the backup's accounts come back with it, so whoever restores could take
+   * back an access it no longer has (managing backups is not managing accounts).
+   */
+  restore: backups.input(z.object({ name: z.string().max(100) })).mutation(async ({ input, ctx }) => {
+    if (roleOf(ctx.user) !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
     try {
-      return await restoreBackup(input.name);
+      return await restoreBackup(input.name, ctx.sessionId ? { keepSession: { id: ctx.sessionId, userId: ctx.user.id } } : {});
     } catch (e) {
       throw fail(e);
     }
