@@ -1,7 +1,7 @@
 // inkledger's own accounts: who exists on this server, what they may do, how they
 // get in (password, invite link), and turning access off again.
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, sessions, users, type User } from "@db/schema";
 import { DEFAULT_ADMIN, INVITE_DAYS, PERMISSIONS, type Permission, type Role } from "@contracts/accounts";
 import { env } from "../lib/env";
@@ -83,8 +83,8 @@ export async function defaultAdminPending(): Promise<boolean> {
 export async function signOutEverywhere(userId: number, keepSessionId?: string | null) {
   const db = getDb();
   await db.delete(rememberedDevices).where(eq(rememberedDevices.userId, userId));
-  const rows = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.userId, userId));
-  for (const r of rows) if (r.id !== keepSessionId) await db.delete(sessions).where(eq(sessions.id, r.id));
+  // One statement, however many sessions.
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : [])));
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");

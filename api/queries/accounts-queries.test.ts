@@ -9,8 +9,8 @@ import { countQueries } from "../testing/countQueries";
 
 const q: typeof import("./connection").q = async (text, ...params) => (await import("./connection")).q(text, ...params);
 
-/** Queries by sessions S (one of them kept). Frozen 2026-10-22, before Wave 2. */
-const MEASURED = { 1: 2, 5: 6, 20: 21 } as const;
+/** Queries by sessions S (one of them kept). Before Wave 2: 2 / 6 / 21 (one delete per session). */
+const MEASURED = { 1: 2, 5: 2, 20: 2 } as const;
 
 describe("signOutEverywhere", () => {
   let me = 0;
@@ -42,4 +42,15 @@ describe("signOutEverywhere", () => {
       expect(await q("SELECT id FROM remembered_devices")).toEqual([{ id: "d-theirs" }]);
     });
   }
+
+  it("no session kept, and a user with none: the same, nobody else's touched", async () => {
+    await q("DELETE FROM sessions");
+    for (let i = 0; i < 3; i++) await q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, 1)", `s${i}`, me, Date.now() + 86_400_000);
+    await q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES ('theirs', ?, ?, 1)", other, Date.now() + 86_400_000);
+    const { signOutEverywhere } = await import("./accounts");
+    await signOutEverywhere(me);
+    expect(await q("SELECT id FROM sessions")).toEqual([{ id: "theirs" }]);
+    await signOutEverywhere(me, "s0");
+    expect(await q("SELECT id FROM sessions")).toEqual([{ id: "theirs" }]);
+  });
 });
