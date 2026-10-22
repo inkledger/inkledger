@@ -3,7 +3,7 @@
 // anyone else's connections or time from here.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { connections, users, type User } from "@db/schema";
 import { PERMISSIONS } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
@@ -61,14 +61,26 @@ function asChecked(user: User, me: User) {
   return and(eq(users.id, user.id), eq(users.role, user.role), eq(users.permissions, user.permissions));
 }
 
-/** Another active admin remains when `id` stops being one. */
-async function assertAnotherAdmin(id: number) {
-  const [other] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.role, "admin"), isNull(users.disabledAt), ne(users.id, id)))
-    .limit(1);
-  if (!other) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/**
+ * A write to account `id`, which may stop it being an active admin (`removing`): then
+ * only while another one stays. The active admins are locked first (in one order), so
+ * two admins turning each other off at once can't both pass and leave none.
+ */
+async function writeAccount<T>(id: number, removing: boolean, write: (db: Tx) => Promise<T>): Promise<T> {
+  return getDb().transaction(async (tx) => {
+    if (removing) {
+      const admins = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.role, "admin"), isNull(users.disabledAt)))
+        .orderBy(asc(users.id))
+        .for("update");
+      if (!admins.some((a) => a.id !== id)) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
+    }
+    return write(tx);
+  });
 }
 
 const inviteLink = (token: string) => `/invite/${token}`;
@@ -115,12 +127,13 @@ export const usersRouter = createRouter({
   setAccess: manage.input(access.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
     assertWithin(ctx.user, input);
-    if (user.role === "admin" && input.role !== "admin") await assertAnotherAdmin(user.id);
-    const [updated] = await getDb()
-      .update(users)
-      .set({ role: input.role, permissions: storedPermissions(input.permissions) })
-      .where(asChecked(user, ctx.user))
-      .returning();
+    const [updated] = await writeAccount(user.id, user.role === "admin" && input.role !== "admin", (db) =>
+      db
+        .update(users)
+        .set({ role: input.role, permissions: storedPermissions(input.permissions) })
+        .where(asChecked(user, ctx.user))
+        .returning(),
+    );
     if (!updated) throw notAllowed();
     return row(updated);
   }),
@@ -142,12 +155,13 @@ export const usersRouter = createRouter({
   /** Turns an account off (signed out everywhere, no sign-in) or on again. Its data stays. */
   setDisabled: manage.input(z.object({ id: z.number().int(), disabled: z.boolean() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
-    if (input.disabled && user.role === "admin") await assertAnotherAdmin(user.id);
-    const [updated] = await getDb()
-      .update(users)
-      .set({ disabledAt: input.disabled ? new Date() : null })
-      .where(asChecked(user, ctx.user))
-      .returning();
+    const [updated] = await writeAccount(user.id, input.disabled && user.role === "admin", (db) =>
+      db
+        .update(users)
+        .set({ disabledAt: input.disabled ? new Date() : null })
+        .where(asChecked(user, ctx.user))
+        .returning(),
+    );
     if (!updated) throw notAllowed();
     if (input.disabled) await signOutEverywhere(user.id);
     return row(updated);
