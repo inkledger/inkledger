@@ -162,6 +162,7 @@ describe("backups on disk", () => {
     await expect(admin.backup.restore({ name: "../etc/passwd" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(admin.backup.restore({ name: "inkledger-19990101-000000.dump" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    fs.rmSync(path.join(DIR, "psql.pid"), { force: true });
     process.env.FAKE_RESTORE_FAIL = "1";
     try {
       // The cause, and the safety backup that undoes whatever happened.
