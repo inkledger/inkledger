@@ -118,6 +118,50 @@ describe("worklog registry against any service, through the contract", () => {
     }
   });
 
+  it("a queued change whose new entry landed with its answer lost adopts it, never logging the time twice", async () => {
+    const { b, conn } = await setup({ entryUpdate: false });
+    const { pushCreate } = await import("./worklogs");
+    const { replayUpdate } = await import("./timeWrites");
+    const w = await local();
+    const made = await pushCreate(b, conn, w, ref, meta, zone);
+    // The edit's new entry landed on the service; its answer never came back (the change was queued).
+    const changed = { ...w, timeSpentSeconds: 2400 };
+    const landedThere = await b.worklogs!.create!(meta, ref, { time: { kind: "session", start: changed.started.getTime() as never, seconds: 2400 }, comment: "" }, { idempotencyKey: "lost-answer" });
+    await replayUpdate({ conn: conn as never, b, ref, zone }, conn as never, changed, new Date());
+    const there = await b.worklogs!.list(meta, ref);
+    expect(there.map((x) => x.remoteId)).toEqual([landedThere.remoteId]);
+    expect(there.map((x) => x.remoteId)).not.toContain(made.remoteId);
+    expect(await sink(w.id)).toMatchObject({ remote_id: landedThere.remoteId, state: "synced" });
+  });
+
+  it("a queued change to the comment alone never takes the entry it replaces for its new one", async () => {
+    const { b, conn } = await setup({ entryUpdate: false });
+    const { pushCreate } = await import("./worklogs");
+    const { replayUpdate } = await import("./timeWrites");
+    const w = await local(1800, "first");
+    const made = await pushCreate(b, conn, w, ref, meta, zone);
+    await replayUpdate({ conn: conn as never, b, ref, zone }, conn as never, { ...w, comment: "second" }, new Date());
+    const there = await b.worklogs!.list(meta, ref);
+    expect(there).toHaveLength(1);
+    expect(there[0].remoteId).not.toBe(made.remoteId);
+    expect(there[0].comment).toBe("second");
+  });
+
+  it("the replaced entry: a refusal is said, a failure for now is queued", async () => {
+    const { b, conn } = await setup({ entryUpdate: false });
+    const { dropOld } = await import("./worklogs");
+    const { ProviderError } = await import("../providers/core/errors");
+    const failing = (kind: "forbidden" | "unavailable") => ({ ...b, worklogs: { ...b.worklogs!, delete: async () => { throw new ProviderError(kind, kind); } } }) as typeof b;
+    const who = { userId, issueKey: "FAKE-1" };
+    await expect(dropOld(failing("forbidden"), conn, who, ref, meta, "w-old", null)).rejects.toMatchObject({ kind: "forbidden" });
+    try {
+      await dropOld(failing("unavailable"), conn, who, ref, meta, "w-old", null);
+      expect(await q("SELECT kind, jira_worklog_id FROM outbox WHERE user_id = ?", userId)).toEqual([{ kind: "delete", jira_worklog_id: "w-old" }]);
+    } finally {
+      await q("DELETE FROM outbox");
+    }
+  });
+
   it("deleted on the service and out of the registry; deleting again is fine", async () => {
     const { b, conn } = await setup();
     const { pushCreate, pushDelete } = await import("./worklogs");

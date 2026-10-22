@@ -15,7 +15,7 @@ import type { BoundTracker } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
 import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
-import { deleteThere, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
+import { deleteThere, dropOld, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
@@ -153,14 +153,14 @@ const ADOPT_WINDOW_MS = 5 * 60_000;
  * other worklog (or to a copy a sync read back meanwhile, identical: that
  * copy goes). The worklog is linked to it; true when one was.
  */
-async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date): Promise<boolean> {
+async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date, except?: string): Promise<boolean> {
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
   const there = await t.b.worklogs.list(meta(), t.ref);
   const notBefore = queuedAt.getTime() - ADOPT_WINDOW_MS;
   const mine = { started: local.started, seconds: local.timeSpentSeconds };
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session") continue;
+    if (w.remoteId === except || w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session") continue;
     if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
@@ -262,7 +262,7 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
             if (!(await adoptLanded(t, conn, local, entry.createdAt))) await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
             await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds);
           } else {
-            await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
+            await replayUpdate(t, conn, local, entry.createdAt);
           }
         }
       }
@@ -280,6 +280,28 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
   }
   const remaining = await db.select({ id: outbox.id }).from(outbox).where(eq(outbox.userId, conn.userId));
   return { synced, failed, remaining: remaining.length };
+}
+
+/**
+ * A queued change sent again. On a tracker that changes an entry by logging it again with no
+ * idempotency of its own (GitLab, Gitea), the first try may have landed with its answer lost:
+ * that new entry is adopted (never the one being replaced) and the old one sent away, instead
+ * of a second new one counting the time twice.
+ */
+export async function replayUpdate(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date) {
+  const write = entriesOf(t.b)?.write;
+  if (write?.mode === "entry" && write.update === "recreate") {
+    const [sink] = await getDb()
+      .select({ remoteId: worklogSinks.remoteId, version: worklogSinks.version })
+      .from(worklogSinks)
+      .where(and(eq(worklogSinks.worklogId, local.id), eq(worklogSinks.sinkConnectionId, conn.id)))
+      .limit(1);
+    if (sink?.remoteId && (await adoptLanded(t, conn, local, queuedAt, sink.remoteId))) {
+      await dropOld(t.b, conn, local, t.ref, meta(), sink.remoteId, sink.version);
+      return;
+    }
+  }
+  await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
 }
 
 /** A newer edit (or the delete) supersedes queued edits of the same worklog. */

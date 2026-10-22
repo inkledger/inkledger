@@ -95,6 +95,22 @@ export async function pushCreate(b: BoundTracker, conn: Pick<Connection, "id">, 
 }
 
 /**
+ * The entry a recreated worklog replaced, sent away once the new one is linked. Already gone:
+ * done. Unreachable now: queued, its replay deletes it (the worklog points to the new entry,
+ * so the replay leaves it alone). Refused: said, and the old entry, left there, comes back as
+ * a worklog of its own at the next sync, never silently counted twice.
+ */
+export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, local: Pick<Local, "userId" | "issueKey">, ref: IssueRef, meta: CallMeta, old: string, version: string | null) {
+  try {
+    await deleteThere(b, meta, ref, old, { expectedVersion: version ?? undefined });
+  } catch (err) {
+    if (err instanceof ProviderError && err.kind === "notFound") return;
+    if (!(err instanceof ProviderError && err.transient)) throw err;
+    await getDb().insert(outbox).values({ userId: local.userId, connectionId: conn.id, kind: "delete", issueKey: local.issueKey, remoteId: old });
+  }
+}
+
+/**
  * A changed worklog, the way the service allows: updated in place (with
  * the revision it was read at, where the service keeps revisions), or
  * deleted and logged again (the new entry is linked to the same worklog).
@@ -111,13 +127,8 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
     // lands once, the original create's key is not reused.
     const remote = await b.worklogs!.create!(meta, ref, input, { idempotencyKey: `${local.uuid}:${input.time.kind === "session" ? input.time.start : input.time.date}:${input.time.seconds}` });
     await landed(local, conn, remote);
-    // Then the old one. Not deleted now: queued, its replay deletes it (the worklog already
-    // points to the new entry, so the replay leaves it alone); already gone counts as done.
-    const old = sink.remoteId;
-    await deleteThere(b, meta, ref, old, { expectedVersion: sink.version ?? undefined }).catch(async (err: unknown) => {
-      if (err instanceof ProviderError && err.kind === "notFound") return;
-      await getDb().insert(outbox).values({ userId: local.userId, connectionId: conn.id, kind: "delete", issueKey: local.issueKey, remoteId: old });
-    });
+    // The same entry back (a service that keeps the key and took the content as unchanged): nothing to replace.
+    if (remote.remoteId !== sink.remoteId) await dropOld(b, conn, local, ref, meta, sink.remoteId, sink.version);
     return remote;
   }
   const remote = await b.worklogs!.update!(meta, ref, sink.remoteId, input, { expectedVersion: sink.version ?? undefined });
