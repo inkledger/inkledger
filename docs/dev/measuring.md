@@ -119,25 +119,38 @@ npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.te
   --reporter=verbose   # prints the [measure] lines
 ```
 
-## React renders (method only, not yet a gate)
+## React renders
 
-This method is recorded for later use. It becomes a gate only after its own check passes.
+`e2e/renders.test.mjs` counts React's work in the browser while a timer runs, on the
+production bundle as it ships.
 
-- **What is counted:** commits, not render calls. `<Profiler onRender>` is called once per commit
-  of its subtree; render calls also include renders React throws away (StrictMode's double render,
-  interrupted transitions), which say nothing about work done on screen.
-- **Method:**
-  - A test build exposes a `<Profiler>` commit count per named subtree, behind a flag only the
-    e2e build sets. `onRender` runs only in development or in React's profiling build, so that
-    build uses `react-dom/profiling`. The production bundle never contains the counter, which is
-    checked by searching the built chunks.
-  - **Reset after mount:** the page loads, its data settles (no request in flight), then the page
-    script resets every count to 0. Mount and first-data commits are not part of the window.
-  - Then a Playwright page script reads the counts after a fixed time with a timer running, under
-    an e2e harness clock.
-- **Validation before use:** after the reset, a component known to commit once a second must
-  count 60 (±1) commits in 60 seconds, and a static component must count 0. If either fails, the
-  harness is wrong and its numbers are not used.
+- **What is counted:** commits, and the components that rendered in each. Not render calls:
+  those also include renders React throws away (StrictMode's double render, interrupted
+  transitions), which say nothing about work done on screen.
+- **How:** React calls a DevTools hook (`__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot`) on
+  every commit, production builds included. `e2e/renders.mjs` installs one as a page init
+  script, before the app loads; nothing of it is in the app or its bundle.
+  - A component rendered in a commit when it is new or did work (React's `PerformedWork`
+    flag). A subtree React left as it was (its children the same fibers as before) is not
+    walked.
+  - Each render is attributed to the region (`main`, `nav`, `aside`, a dialog) and element it
+    draws, so a number can be traced to what ticks.
+- **Window:** the page loads and settles for 5 s; then the counts are reset to 0 (mount and
+  first data are not part of it) and read 10 s later, in real time.
+- **Validation, before any app number is read:** a fixture built in production mode
+  (`e2e/fixtures/renders/app.jsx`) has a ticker committing once a second with a plain child, a
+  memo child and a static sibling. In 10 s the ticker and its plain child must count 10 (±1)
+  each, the memo child and the static sibling 0, and nothing else. If it fails, the counter
+  is wrong and the app's numbers are not used.
+- **What it does not say:** time spent. A count is work done, not frames dropped or
+  milliseconds; no claim on smoothness rests on it alone.
+
+| Scenario (10 s) | Before Wave 3 |
+|---|---|
+| Dashboard, no timer | 0 commits, 0 renders |
+| Issue page, timer running | 11 commits, 394 renders |
+| Dashboard, timer running | 19 commits, 1670 renders |
+| Timesheet, timer running | 11 commits, 1460 renders |
 
 ## Zod in the client (method only)
 
