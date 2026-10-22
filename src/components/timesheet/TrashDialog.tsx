@@ -1,3 +1,4 @@
+import { dayAndTime } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
 import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -7,9 +8,8 @@ import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useProviderName } from "@/hooks/useConnections";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
 
-const when = () => dateFormat({ weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Worklogs deleted in the last 30 days, each one click from coming back. */
 export function TrashDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -43,7 +43,7 @@ export function TrashDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                     {w.issueKey} · {formatDuration(w.timeSpentSeconds)}
                   </p>
                   <p className="truncate text-caption text-muted-foreground">
-                    {when().format(w.started)} ·{" "}
+                    {dayAndTime(w.started)} ·{" "}
                     {w.reason === "user" ? t("pages.timesheet.deletedByYou") : t("pages.timesheet.removedOn", { provider })}
                     {w.comment ? ` · ${w.comment}` : ""}
                   </p>

@@ -1,3 +1,4 @@
+import { dayAndTime } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
 import { AlertTriangle, CloudOff, Lock } from "lucide-react";
 import { surface } from "@/components/app/surface";
@@ -6,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
 import { formatDuration } from "@contracts/time";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
 
 export type SinkInfo = {
   state: "synced" | "pending" | "failed" | "conflict" | null;
@@ -15,7 +16,6 @@ export type SinkInfo = {
   error: string | null;
 };
 
-const when = () => dateFormat({ weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /**
  * Where a worklog stands on its tracker: waiting to be sent, refused, locked
@@ -61,7 +61,7 @@ export function WorklogSinkState({ worklogId, sink, provider }: { worklogId: num
             {t("views.worklogSink.theirs", {
               provider,
               duration: formatDuration(sink.remote.seconds),
-              when: when().format(sink.remote.started),
+              when: dayAndTime(sink.remote.started),
             })}
             {sink.remote.comment && ` · “${sink.remote.comment}”`}
           </p>
