@@ -15,7 +15,12 @@ export function shortcuts({ pinboard = true }: { pinboard?: boolean } = {}): {
         { keys: ["f"], label: t("ui.shortcuts.focus") },
         { keys: ["n"], label: t("ui.shortcuts.notifications") },
         { keys: ["i"], label: t("ui.shortcuts.newIssue") },
-        ...(pinboard ? [{ keys: ["p"], label: t("ui.shortcuts.pinboard") }] : []),
+        ...(pinboard
+          ? [
+              { keys: ["p"], label: t("ui.shortcuts.pinboard") },
+              { keys: ["/"], label: t("ui.shortcuts.pinboardSearch") },
+            ]
+          : []),
         { keys: [PALETTE_SHORTCUT], label: t("ui.shortcuts.search") },
         { keys: ["?"], label: t("ui.shortcuts.show") },
         { keys: ["["], label: t("ui.shortcuts.sidebar") },

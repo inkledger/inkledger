@@ -306,6 +306,7 @@ export const ui = {
     current: "Current profile",
   },
   shortcuts: {
+    pinboardSearch: "In the pinboard: search an issue to pin",
     pinboard: "Open or close the pinboard",
     title: "Keyboard shortcuts",
     description: "They work everywhere, except while typing in a field.",

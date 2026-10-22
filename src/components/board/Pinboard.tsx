@@ -85,6 +85,8 @@ import { useProviderName } from "@/hooks/useConnections";
 import { surface } from "@/components/app/surface";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
+import { isTyping } from "@/lib/dom";
+import { PinSearch } from "@/components/board/PinSearch";
 
 const reducedMotion = () =>
   typeof matchMedia === "function" &&
@@ -209,8 +211,10 @@ export function Pinboard({
       const r = await utils.client.pinboard.add.mutate({ ...input, boardId });
       await refresh();
       if (r.existed) toast.info(t("views.board.pinboard.alreadyHere", { key: input.issueKey ?? "" }));
+      return r;
     } catch (e) {
       fail(e);
+      return null;
     }
   };
 
@@ -315,11 +319,29 @@ export function Pinboard({
     );
   };
 
+  // Pinned from the search: brought into view where it landed.
+  const search = useRef<HTMLInputElement>(null);
+  const pinFound = async (i: { key: string; connectionId: number }) => {
+    const r = await add({ issueKey: i.key, connectionId: i.connectionId });
+    const landed = r && utils.pinboard.list.getData(listInput)?.find(n => n.id === r.id);
+    if (landed) reveal(landed);
+  };
+  const onBoard = useMemo(
+    () => new Set(notes.flatMap(n => (n.issueKey && !n.issueNoteId ? [`${n.connectionId}:${n.issueKey}`] : []))),
+    [notes]
+  );
+
   const wide = panel === "wide";
   return (
     <section
       aria-label={t("views.board.pinboard.title")}
       className={cn("flex min-h-0 min-w-0 flex-col gap-2", className)}
+      onKeyDown={e => {
+        // "/" inside the pinboard: its search.
+        if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || !search.current) return;
+        e.preventDefault();
+        search.current.focus();
+      }}
     >
       <div className="flex shrink-0 items-center gap-1">
         <Pin className="h-4 w-4 shrink-0 -rotate-12 text-muted-foreground" aria-hidden />
@@ -457,6 +479,7 @@ export function Pinboard({
         </span>
       </div>
 
+      {board && <PinSearch onBoard={onBoard} onPick={i => void pinFound(i)} inputRef={search} />}
       {board && board.hidden > 0 && (
         <p className="shrink-0 px-1.5 text-caption text-muted-foreground">
           {bucket

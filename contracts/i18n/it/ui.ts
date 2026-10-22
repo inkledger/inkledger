@@ -307,6 +307,7 @@ export const ui: Shape<typeof en> = {
     current: "Profilo attuale",
   },
   shortcuts: {
+    pinboardSearch: "Nella lavagna: cerca una issue da appendere",
     pinboard: "Apri o chiudi la lavagna",
     title: "Scorciatoie da tastiera",
     description: "Funzionano ovunque, tranne mentre scrivi in un campo.",

@@ -68,6 +68,27 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
     assert.deepEqual(await onBoards(), ["Sprint"]);
   }));
 
+test("the pinboard's search pins an issue with Enter, once, and checks the ones already there", () =>
+  withApp({ seed: db => note(db, "reminder", 60, 60) }, async ({ page, base, db }) => {
+    const board = await openPinboard(page, base);
+    await board.getByLabel(/^Pinboard area/).focus();
+    await page.keyboard.press("/");
+    const field = board.getByRole("combobox", { name: "Search issues to pin" });
+    assert.equal(await field.evaluate(el => el === document.activeElement), true, "/ focuses the search");
+    await field.fill("number 7");
+    const options = board.getByRole("option");
+    await options.filter({ hasText: "DEMO-107" }).waitFor();
+    await page.keyboard.press("Enter");
+    await board.getByRole("group", { name: /DEMO-107/ }).waitFor();
+    const pinned = async () => (await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_key = 'DEMO-107'"))[0].n;
+    assert.equal(await pinned(), 1);
+    await options.filter({ hasText: "DEMO-107" }).getByLabel("Already on this board").waitFor();
+    // Again: brought to the front, never doubled.
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(400);
+    assert.equal(await pinned(), 1);
+  }));
+
 test("a private note from the issue page hangs on the pinboard, tied by a red string that follows a drag", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-105");
