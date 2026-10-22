@@ -71,6 +71,14 @@ export const server: Shape<typeof en> = {
     writesOff: "Le modifiche su {name} non sono ancora consentite: attiva “Consenti modifiche su {name}” in Impostazioni → Connessioni",
     unreachable: "Il tracker non è raggiungibile in questo momento. Riprova più tardi.",
     slow: "Il tracker non ha risposto in tempo. Riprova più tardi.",
+    refused: {
+      auth: "Il tracker ha rifiutato le credenziali salvate: ricollegalo in Impostazioni → Connessioni.",
+      forbidden: "Il tracker non lo consente al tuo account.",
+      notFound: "Il tracker non lo trova più.",
+      invalid: "Il tracker non ha accettato la richiesta.",
+      conflict: "Nel frattempo è cambiato sul tracker: ricarica e riprova.",
+      rateLimit: "Il tracker è occupato: riprova tra poco.",
+    },
   },
   jira: {
     redirectNotAllowed: "Redirect non consentito",

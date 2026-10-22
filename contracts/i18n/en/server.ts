@@ -70,6 +70,14 @@ export const server = {
     writesOff: "Changes on {name} aren’t allowed yet: turn on “Allow changes on {name}” in Settings → Connections",
     unreachable: "The tracker can’t be reached right now. Try again later.",
     slow: "The tracker didn’t answer in time. Try again later.",
+    refused: {
+      auth: "The tracker refused the saved credentials: reconnect it in Settings → Connections.",
+      forbidden: "The tracker doesn’t allow this to your account.",
+      notFound: "The tracker no longer has it.",
+      invalid: "The tracker didn’t accept the request.",
+      conflict: "It changed on the tracker meanwhile: reload and try again.",
+      rateLimit: "The tracker is busy: try again in a little while.",
+    },
   },
   jira: {
     redirectNotAllowed: "Redirect not allowed",

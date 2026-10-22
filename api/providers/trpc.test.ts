@@ -41,4 +41,14 @@ describe("isRefusal", () => {
       quiet.forEach(q => q.mockRestore());
     }
   });
+
+  it("a refusal with no words of the tracker's own reads as its kind, in the user's words", () => {
+    const busy = providerTrpcError(new ProviderError("rateLimit", "GitHub answered 429", { status: 429 }));
+    expect(busy.code).toBe("TOO_MANY_REQUESTS");
+    expect(busy.message).not.toMatch(/answered/);
+    expect(providerTrpcError(new ProviderError("invalid", "Linear: answered 400", { status: 400 })).message).not.toMatch(/answered/);
+    expect(providerTrpcError(new ProviderError("notFound", "answered 404", { status: 404 })).message).not.toMatch(/answered/);
+    // The tracker's own words stay as they are.
+    expect(providerTrpcError(new ProviderError("invalid", "GitLab: title is too long", { status: 400 })).message).toBe("GitLab: title is too long");
+  });
 });

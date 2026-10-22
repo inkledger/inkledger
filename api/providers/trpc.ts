@@ -35,13 +35,23 @@ export function isRefusal(e: ProviderError): boolean {
   return typeof cause?.status === "number" || cause?.providerKind === "readOnly";
 }
 
+// A client's fallback when the tracker said nothing of its own: "GitHub answered 429", "monday: answered 500".
+const BARE_STATUS = /^(?:[A-Za-z][\w .-]*?:? )?answered \d{3}$/;
+const REFUSED = ["auth", "forbidden", "notFound", "invalid", "conflict", "rateLimit"] as const;
+
+/** A refusal's words: the tracker's own, or, where it gave none, the kind of refusal in the user's. */
+function refusalWords(e: ProviderError): string {
+  const kind = REFUSED.find((k) => k === e.kind);
+  return kind && BARE_STATUS.test(e.message) ? t(`server.provider.refused.${kind}`) : e.message;
+}
+
 /**
  * A provider's error as the API answers it. A refusal: its kind's code and its words. A tracker
  * out of reach or too slow (no answer of its own): that code, in the user's words. Any other
  * fault: a server error in general words. Faults are logged here, with their details.
  */
 export function providerTrpcError(e: ProviderError): TRPCError {
-  if (isRefusal(e)) return new TRPCError({ code: CODES[e.kind], message: e.message, cause: e });
+  if (isRefusal(e)) return new TRPCError({ code: CODES[e.kind], message: refusalWords(e), cause: e });
   if (e.kind === "unavailable" || e.kind === "timeout") {
     console.warn(`[provider] ${e.kind}: ${e.message}`);
     return new TRPCError({ code: CODES[e.kind], message: t(e.kind === "timeout" ? "server.provider.slow" : "server.provider.unreachable"), cause: e });
