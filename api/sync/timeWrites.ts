@@ -180,6 +180,10 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
     // same time, can't be told from that copy: its comment may have been edited since either.)
     if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
+    // A queued change is about an older worklog: any newer one of the same time may be a twin
+    // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
+    // twice, as it did; never another worklog's entry, and the old one with it, gone).
+    if (replacing && linked && linked.id !== local.id) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     // The entry it replaces goes, as after a recreate that was answered (queued if it can't now).
     if (replacing) await dropOld(t.b, conn, local, t.ref, meta(), replacing.remoteId, replacing.version);

@@ -259,6 +259,31 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("where a change logs the entry again, a change queued offline never takes another worklog's entry of the same time", async () => {
+    tracker.recreating = true;
+    try {
+      const at = "2026-10-23T09:00:00+02:00";
+      const a = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: "2026-10-23T07:00:00+02:00", comment: "A" });
+      const b = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 3600, started: at, comment: "B" });
+      tracker.offline = true;
+      try {
+        await caller.worklogs.update({ id: a.id, started: at, seconds: 3600, comment: "A" });
+      } finally {
+        tracker.offline = false;
+      }
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      const mine = (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => w.id === a.id || w.id === b.id);
+      expect(mine.map((w) => [w.id, w.timeSpentSeconds, w.comment])).toEqual(expect.arrayContaining([[a.id, 3600, "A"], [b.id, 3600, "B"]]));
+      const [ea, eb] = [(await sinkOf(a.id))?.remote_id, (await sinkOf(b.id))?.remote_id];
+      expect(ea).toBeTruthy();
+      expect(ea).not.toBe(eb);
+      await caller.worklogs.delete({ id: a.id });
+      await caller.worklogs.delete({ id: b.id });
+    } finally {
+      tracker.recreating = false;
+    }
+  });
+
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "to lock" });
     await q("UPDATE worklog_sinks SET locked = ? WHERE worklog_id = ?", JSON.stringify({ cause: "approved", message: "Approved by the team lead" }), made.id);
