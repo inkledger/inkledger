@@ -69,15 +69,16 @@ const WINDOW = 300_000;
  * (frozen 2026-10-22, two runs within 2%): no timer 55 / 15221; with one running, issue page
  * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
  * 13840, 366 / 20452, 366 / 24399, 366 / 23704. A poll that changes nothing no longer
- * re-renders the layout: no timer 41 / 4620. Each limit is the most
+ * re-renders the layout: no timer 41 / 4620. The shell's background effects in a component
+ * of their own: 40 / 2889, 367 / 6044, 366 / 9883, 367 / 9296. Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * may lower them, never raise them.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 42, renders: 4720 },
-  "issue page, timer running": { commits: 374, renders: 20870 },
-  "dashboard, timer running": { commits: 374, renders: 24890 },
-  "timesheet, timer running": { commits: 374, renders: 24180 },
+  "dashboard, no timer": { commits: 42, renders: 2950 },
+  "issue page, timer running": { commits: 374, renders: 6170 },
+  "dashboard, timer running": { commits: 374, renders: 10090 },
+  "timesheet, timer running": { commits: 374, renders: 9480 },
 };
 
 test("React work per five minutes, page by page", async () => {

@@ -493,15 +493,24 @@ function MobileBell() {
   );
 }
 
-/** App shell: grouped sidebar on canvas, content in a single white panel. */
-export function AppLayout() {
-  useHotkeys();
-  useMouseHistoryButtons(isNative());
+/**
+ * The shell's background duties (alerts, live sync, the native bridge, reminders): effects
+ * only, on queries that change often. Kept in a component of their own that draws nothing,
+ * so their data re-renders it alone, not the whole shell.
+ */
+function ShellWatchers() {
   useTimerAlerts();
   useLiveSync();
   useNativeBridge();
   useDayEndReminder();
   useNotificationAlerts();
+  return null;
+}
+
+/** App shell: grouped sidebar on canvas, content in a single white panel. */
+export function AppLayout() {
+  useHotkeys();
+  useMouseHistoryButtons(isNative());
   useThemeSync();
   useSoftKeyboard();
   const collapsed = useSidebarCollapsed();
@@ -514,6 +523,7 @@ export function AppLayout() {
 
   return (
     <TooltipProvider delayDuration={200}>
+      <ShellWatchers />
       <ModulesProvider>
       <div data-surface-stage className="min-h-dvh bg-canvas">
         {/* App-wide modules (the Shadow's light): mounted once, never with a page. */}
