@@ -539,7 +539,7 @@ export const settings: Shape<typeof en> = {
     empty: "Nessun backup nella cartella.",
     restore: "Ripristina",
     restoreTitle: "Ripristinare questo backup?",
-    restoreBody: "Tutti i dati di inkledger (anche della dev) tornano com'erano allora, e tutti escono dall'account su ogni dispositivo: resta solo questa sessione, se il tuo account è nel backup. Prima salvo una copia dei dati di adesso, così puoi tornare indietro.",
+    restoreBody: "Tutti i dati di inkledger (anche della dev) tornano com'erano allora, e tutti escono dall'account su ogni dispositivo: restano solo questa sessione e questo dispositivo, se il tuo account è nel backup. Prima salvo una copia dei dati di adesso, così puoi tornare indietro.",
   },
   permissions: {
     granted: "Consentite",

@@ -245,21 +245,33 @@ export function runBackup(): Promise<string> {
  */
 export async function restoreBackup(
   name: string,
-  /** Whoever restores stays signed in (when their account, same id and name, is in the backup and on). */
-  opts: { keepSession?: { id: string; userId: number; username: string } } = {},
+  /**
+   * Whoever restores stays signed in, and their device remembered (when their account,
+   * same id and name, is in the backup and on).
+   */
+  opts: { keepSession?: Keep } = {},
 ): Promise<{ safety: string }> {
   if (!BACKUP_FILE.test(name)) throw new BackupError("invalid", t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
   if (!fs.existsSync(file)) throw new BackupError("notFound", t("server.backup.notFound"));
   restoring = name;
   try {
+    // The restorer's remembered device as it is now (the backup's goes with everyone's).
+    const device = opts.keepSession?.deviceId
+      ? (
+          await getDb()
+            .select({ expiresAt: rememberedDevices.expiresAt })
+            .from(rememberedDevices)
+            .where(and(eq(rememberedDevices.id, opts.keepSession.deviceId), eq(rememberedDevices.userId, opts.keepSession.userId)))
+        )[0]
+      : undefined;
     const safety = await runBackup();
     try {
       await restoreInto(pgTarget(), file);
       // A backup from an older version lacks the newest columns: bring it up to date.
       await migrateDb();
       // On the schema of now: whoever restored signs in on.
-      await signOutAfterRestore(opts.keepSession);
+      await signOutAfterRestore(opts.keepSession, device?.expiresAt);
     } catch (e) {
       // Whatever happened, the copy taken first undoes it: its name goes with the cause.
       throw new Error(`${e instanceof Error ? e.message : String(e)} (${safety})`, { cause: e });
@@ -275,13 +287,17 @@ export async function restoreBackup(
  * was signed out since (a reset, an account turned off): everyone signs in again,
  * but whoever restored (only as themselves: an id may be someone else's in the backup).
  */
-async function signOutAfterRestore(keep?: { id: string; userId: number; username: string }) {
+type Keep = { id: string; userId: number; username: string; deviceId?: string };
+
+async function signOutAfterRestore(keep?: Keep, deviceExpiresAt?: Date) {
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
   if (!keep) return;
   const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), eq(users.username, keep.username), isNull(users.disabledAt)));
-  if (still) await db.insert(sessions).values({ id: keep.id, userId: keep.userId, expiresAt: new Date(Date.now() + env.sessionDays * 86_400_000) });
+  if (!still) return;
+  await db.insert(sessions).values({ id: keep.id, userId: keep.userId, expiresAt: new Date(Date.now() + env.sessionDays * 86_400_000) });
+  if (keep.deviceId && deviceExpiresAt) await db.insert(rememberedDevices).values({ id: keep.deviceId, userId: keep.userId, expiresAt: deviceExpiresAt });
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;

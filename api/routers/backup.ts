@@ -3,6 +3,9 @@ import { z } from "zod";
 import { createRouter, permProcedure } from "../middleware";
 import { env } from "../lib/env";
 import { roleOf } from "../queries/accounts";
+import { parseCookies } from "../context";
+import { readRememberCookie } from "../lib/session";
+import { hashSessionId } from "../lib/security";
 import { t } from "@contracts/i18n";
 import {
   BackupError,
@@ -17,6 +20,12 @@ import {
   runBackup,
   setBackupSettings,
 } from "../backup";
+
+/** The device this request comes from, as remembered (its stored, hashed id), if it is. */
+function rememberedDeviceId(req: Request): string | undefined {
+  const token = readRememberCookie(req, parseCookies(req.headers.get("cookie")));
+  return token ? hashSessionId(token) : undefined;
+}
 
 /** Server-wide: for whoever may manage backups. */
 const backups = permProcedure("manageBackups");
@@ -70,7 +79,7 @@ export const backupRouter = createRouter({
   restore: backups.input(z.object({ name: z.string().max(100) })).mutation(async ({ input, ctx }) => {
     if (roleOf(ctx.user) !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
     try {
-      return await restoreBackup(input.name, ctx.sessionId && ctx.user.username ? { keepSession: { id: ctx.sessionId, userId: ctx.user.id, username: ctx.user.username } } : {});
+      return await restoreBackup(input.name, ctx.sessionId && ctx.user.username ? { keepSession: { id: ctx.sessionId, userId: ctx.user.id, username: ctx.user.username, deviceId: rememberedDeviceId(ctx.req) } } : {});
     } catch (e) {
       throw fail(e);
     }

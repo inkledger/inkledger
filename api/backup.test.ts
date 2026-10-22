@@ -140,11 +140,12 @@ describe("backups on disk", () => {
     const [other] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('other', 'O', 1) RETURNING id");
     const later = Date.now() + 86_400_000;
     await q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES ('mine', ?, ?, 1), ('revoked-but-back', ?, ?, 1)", me.id, later, other.id, later);
-    await q("INSERT INTO remembered_devices (id, user_id, expires_at, last_used_at, created_at) VALUES ('dev', ?, ?, 1, 1)", other.id, later);
+    await q("INSERT INTO remembered_devices (id, user_id, expires_at, last_used_at, created_at) VALUES ('dev', ?, ?, 1, 1), ('my-dev', ?, ?, 1, 1)", other.id, later, me.id, later);
     fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
-    await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: me.id, username: "restorer" } });
+    await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: me.id, username: "restorer", deviceId: "my-dev" } });
     expect(await q("SELECT id, user_id FROM sessions")).toEqual([{ id: "mine", user_id: me.id }]);
-    expect(await q("SELECT id FROM remembered_devices")).toEqual([]);
+    // The restorer's device stays remembered too; everyone else's goes.
+    expect(await q("SELECT id, user_id FROM remembered_devices")).toEqual([{ id: "my-dev", user_id: me.id }]);
     // In the backup, that id is someone else's: the session isn't handed to them.
     await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: other.id, username: "restorer" } });
     expect(await q("SELECT id FROM sessions")).toEqual([]);
