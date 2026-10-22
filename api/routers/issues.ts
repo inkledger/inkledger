@@ -31,6 +31,7 @@ import { env } from "../lib/env";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { buildTimeline } from "../lib/history";
 import { isShuttingDown } from "../lib/shutdown";
+import { rounds } from "../lib/rounds";
 import {
   fetchAssignedIssues,
   fetchRecentlyAssignedIssues,
@@ -181,11 +182,6 @@ function toRow(userId: number, siteUrl: string, connectionId: number, i: JiraSea
   };
 }
 
-/** The last row for each remote id: one statement may not touch a row twice. */
-function lastByRemoteId<R extends { remoteId: string }>(rows: R[]): R[] {
-  return [...new Map(rows.map((r) => [r.remoteId, r])).values()];
-}
-
 /** followMove for many rows, in one statement. */
 async function followMoves(db: Pick<Tx, "execute">, userId: number, connectionId: number, rows: { remoteId: string; key: string }[]) {
   if (rows.length === 0) return;
@@ -282,9 +278,10 @@ async function refreshNoLongerAssigned(
     if (stale.length === 0) return;
     const { found, gone } = await fetchIssuesByKeys(creds, stale);
     await getDb().transaction(async (tx) => {
-      // However many: the moves in one statement, the rows in one upsert.
-      const rows = lastByRemoteId(found.map((i) => withStatusChange(toRow(user.id, user.siteUrl, user.connectionId, i), previous, now)));
-      if (rows.length > 0) {
+      // However many: the moves in one statement, the rows in one upsert (an issue Jira
+      // returned twice in rounds: one statement may not touch a row twice).
+      const all = found.map((i) => withStatusChange(toRow(user.id, user.siteUrl, user.connectionId, i), previous, now));
+      for (const rows of rounds(all, (r) => r.remoteId)) {
         await followMoves(tx, user.id, user.connectionId, rows);
         await tx.insert(issues)
           .values(rows)
@@ -417,65 +414,66 @@ const UPSERT_BATCH = 500;
 /**
  * Upsert synced issues: local flags kept, status changes noticed. In a few statements
  * however many (the moves, the rows, then the two kinds of news), each decided on what
- * was stored before this sync, as one by one.
+ * was stored before this sync, as one by one. An issue Jira returned twice goes in
+ * rounds (its first copy, then its second, each with its news), as one by one did.
  */
 async function upsertSynced(tx: Tx, c: UpsertContext, list: JiraSearchedIssue[]) {
-  if (list.length === 0) return;
   const { user, previous, previousAssignee, firstSync, lastSyncAt, now } = c;
   const all = list.map((i) => withStatusChange(toRow(user.id, user.siteUrl, user.connectionId, i), previous, now));
-  const rows = lastByRemoteId(all);
-  for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
-    const some = rows.slice(i, i + UPSERT_BATCH);
-    await followMoves(tx, user.id, user.connectionId, some);
-    await tx.insert(issues)
-      // Newly assigned to me (after the first sync): news from someone else.
-      .values(some.map((row) => ({ ...row, othersActivityAt: firstSync || row.assigneeId !== user.accountId ? null : (row.remoteCreatedAt ?? now) })))
-      .onConflictDoUpdate({
-        target: [issues.userId, issues.connectionId, issues.remoteId],
-        set: conflictSet(some[0]),
-        setWhere: ROW_CHANGED,
-      });
-  }
-  // Already in the catalog (watched, imported) and now reassigned to me: news from
-  // someone else, like a brand-new assignment.
-  const reassigned = [
-    ...new Set(
-      all
-        .filter((row) => {
-          const prevAssignee = previousAssignee.get(row.key);
-          return !firstSync && row.assigneeId === user.accountId && prevAssignee !== undefined && prevAssignee !== user.accountId;
-        })
-        .map((row) => row.key),
-    ),
-  ];
-  // A status change noticed between syncs has no known author: assume
-  // someone else, unless the user opened the issue since the last sync.
-  const restatused = [
-    ...new Set(
-      all
-        .filter((row) => {
-          const before = previous.get(row.key);
-          return before !== undefined && before !== row.status;
-        })
-        .map((row) => row.key),
-    ),
-  ];
-  for (let i = 0; i < reassigned.length; i += UPSERT_BATCH) {
-    await tx.update(issues)
-      .set({ othersActivityAt: othersActivityUpTo(now) })
-      .where(and(eq(issues.userId, user.id), eq(issues.connectionId, user.connectionId), inArray(issues.key, reassigned.slice(i, i + UPSERT_BATCH))));
-  }
-  for (let i = 0; i < restatused.length; i += UPSERT_BATCH) {
-    await tx.update(issues)
-      .set({ othersActivityAt: othersActivityUpTo(now) })
-      .where(
-        and(
-          eq(issues.userId, user.id),
-          eq(issues.connectionId, user.connectionId),
-          inArray(issues.key, restatused.slice(i, i + UPSERT_BATCH)),
-          sql`coalesce(${issues.seenAt}, 0) <= ${lastSyncAt?.getTime() ?? 0}`,
-        ),
-      );
+  for (const round of rounds(all, (r) => r.remoteId)) {
+    for (let i = 0; i < round.length; i += UPSERT_BATCH) {
+      const some = round.slice(i, i + UPSERT_BATCH);
+      await followMoves(tx, user.id, user.connectionId, some);
+      await tx.insert(issues)
+        // Newly assigned to me (after the first sync): news from someone else.
+        .values(some.map((row) => ({ ...row, othersActivityAt: firstSync || row.assigneeId !== user.accountId ? null : (row.remoteCreatedAt ?? now) })))
+        .onConflictDoUpdate({
+          target: [issues.userId, issues.connectionId, issues.remoteId],
+          set: conflictSet(some[0]),
+          setWhere: ROW_CHANGED,
+        });
+    }
+    // Already in the catalog (watched, imported) and now reassigned to me: news from
+    // someone else, like a brand-new assignment.
+    const reassigned = [
+      ...new Set(
+        round
+          .filter((row) => {
+            const prevAssignee = previousAssignee.get(row.key);
+            return !firstSync && row.assigneeId === user.accountId && prevAssignee !== undefined && prevAssignee !== user.accountId;
+          })
+          .map((row) => row.key),
+      ),
+    ];
+    // A status change noticed between syncs has no known author: assume
+    // someone else, unless the user opened the issue since the last sync.
+    const restatused = [
+      ...new Set(
+        round
+          .filter((row) => {
+            const before = previous.get(row.key);
+            return before !== undefined && before !== row.status;
+          })
+          .map((row) => row.key),
+      ),
+    ];
+    for (let i = 0; i < reassigned.length; i += UPSERT_BATCH) {
+      await tx.update(issues)
+        .set({ othersActivityAt: othersActivityUpTo(now) })
+        .where(and(eq(issues.userId, user.id), eq(issues.connectionId, user.connectionId), inArray(issues.key, reassigned.slice(i, i + UPSERT_BATCH))));
+    }
+    for (let i = 0; i < restatused.length; i += UPSERT_BATCH) {
+      await tx.update(issues)
+        .set({ othersActivityAt: othersActivityUpTo(now) })
+        .where(
+          and(
+            eq(issues.userId, user.id),
+            eq(issues.connectionId, user.connectionId),
+            inArray(issues.key, restatused.slice(i, i + UPSERT_BATCH)),
+            sql`coalesce(${issues.seenAt}, 0) <= ${lastSyncAt?.getTime() ?? 0}`,
+          ),
+        );
+    }
   }
 }
 

@@ -16,6 +16,7 @@ import { ProviderError } from "../providers/core/errors";
 import { eachPage } from "../providers/core/paging";
 import type { Checkpoint, IssueRef, RemoteWorklog, TimeInput, WorklogInput } from "../providers/types";
 import type { Budget } from "./budget";
+import { rounds } from "../lib/rounds";
 
 type Local = typeof worklogs.$inferSelect;
 type Sink = typeof worklogSinks.$inferSelect;
@@ -138,18 +139,6 @@ export type RemoteSnapshot = { seconds: number; started: number; comment: string
 
 /** Entries written per statement at most (5 to 10 parameters each, 65535 per statement). */
 const PAGE_SLICE = 1000;
-
-/** Round k holds each remote id's k-th copy, in page order: within a round, none is named twice. */
-function rounds<T extends { remoteId: string }>(all: T[]): T[][] {
-  const seen = new Map<string, number>();
-  const out: T[][] = [];
-  for (const t of all) {
-    const k = seen.get(t.remoteId) ?? 0;
-    seen.set(t.remoteId, k + 1);
-    (out[k] ??= []).push(t);
-  }
-  return out;
-}
 
 const slices = <T>(all: T[]): T[][] => Array.from({ length: Math.ceil(all.length / PAGE_SLICE) }, (_, i) => all.slice(i * PAGE_SLICE, (i + 1) * PAGE_SLICE));
 
@@ -323,8 +312,8 @@ export async function syncEntries(
       // takes 65535 parameters at most).
       // Only the user's own, on an issue, count as copies (the others are left out anyway).
       const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
-      for (const round of rounds(mine)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
-      for (const round of rounds(gone)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
+      for (const round of rounds(mine, (w) => w.remoteId)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
+      for (const round of rounds(gone, (g) => g.remoteId)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
     },
   );
   return { checkpoint, upserted, removed };

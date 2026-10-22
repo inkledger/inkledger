@@ -4,6 +4,8 @@
 import { jiraSignIn } from "../testing/signIn";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { countQueries } from "../testing/countQueries";
+
 process.env.DATABASE_URL = ":memory:";
 
 
@@ -79,11 +81,15 @@ describe("a Jira sync's issues", () => {
   afterAll(() => vi.useRealTimers());
 
   const state = async () => ({
-    issues: (await raw<Record<string, unknown>>("SELECT * FROM issues ORDER BY jira_id")).map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "id"))),
+    // Without serial ids (the row's, its container's: they depend on what ran before).
+    issues: (await raw<Record<string, unknown>>("SELECT * FROM issues ORDER BY jira_id")).map((r) =>
+      Object.fromEntries(Object.entries(r).flatMap(([k, v]) => (k === "id" ? [] : k === "container_id" ? [[k, v !== null]] : [[k, v]]))),
+    ),
     notifications: (await raw<Record<string, unknown>>("SELECT kind, issue_key, detail, dedupe, created_at FROM notifications ORDER BY dedupe")),
   });
 
   it("first sync, then status changes seen and not, a new issue, one reassigned to me, a moved key, issues returned twice", async () => {
+    tick = 0;
     assigned = [jiraIssue("PA-1"), jiraIssue("PA-2"), jiraIssue("PA-3")];
     await caller.issues.sync();
     const first = await state();
@@ -107,5 +113,59 @@ describe("a Jira sync's issues", () => {
       twice.on = false;
     }
     expect({ first, then: await state() }).toMatchSnapshot();
+  });
+
+  const fresh = async () => {
+    tick = 0;
+    await raw("DELETE FROM issues");
+    await raw("DELETE FROM notifications");
+    await raw("DELETE FROM sync_state");
+    byKey.clear();
+  };
+
+  it("issues Jira returns twice with different contents: copy after copy, each with its news", async () => {
+    await fresh();
+    vi.setSystemTime(T0);
+    assigned = [jiraIssue("PD-1"), jiraIssue("PS-1")];
+    await caller.issues.sync();
+    const stale = jiraIssue("PS-1");
+    stale.fields.updated = (await raw<{ jira_updated: string }>("SELECT jira_updated FROM issues WHERE key = 'PS-1'"))[0].jira_updated;
+    vi.setSystemTime(T0 + 3_600_000);
+    const moved = jiraIssue("NEWD-1", "acc-1", "In Progress");
+    moved.id = "PD-1";
+    // PN-1 new, mine then someone else's; PS-1 changed, then a stale copy as stored; PD-1 changed under its old key, then moved.
+    assigned = [jiraIssue("PN-1"), jiraIssue("PN-1", "someone"), jiraIssue("PS-1", "acc-1", "In Progress"), stale, jiraIssue("PD-1", "acc-1", "In Progress"), moved];
+    await caller.issues.sync();
+    expect(await state()).toMatchSnapshot();
+  });
+
+  it("another issue taking a moved issue's old key brings no news to the moved one, whatever their order", async () => {
+    await fresh();
+    vi.setSystemTime(T0);
+    assigned = [jiraIssue("PE-1")];
+    await caller.issues.sync();
+    vi.setSystemTime(T0 + 3_600_000);
+    const taker = jiraIssue("PE-1", "acc-1", "In Progress");
+    taker.id = "PE-X";
+    const moved = jiraIssue("NEWE-1");
+    moved.id = "PE-1";
+    assigned = [taker, moved];
+    await caller.issues.sync();
+    // (The one-by-one code bumped it here, its status unchanged, only because the other came first.)
+    expect(await raw("SELECT jira_id, key, others_activity_at FROM issues WHERE jira_id = 'PE-1'")).toEqual([{ jira_id: "PE-1", key: "NEWE-1", others_activity_at: null }]);
+  });
+
+  it("1200 issues, past one statement's batch: all stored, in a fixed number of queries", async () => {
+    await fresh();
+    vi.setSystemTime(T0);
+    assigned = Array.from({ length: 1200 }, (_, i) => jiraIssue(`PM-${i + 1}`));
+    const counter = countQueries();
+    try {
+      await caller.issues.sync();
+      expect(counter.n).toBeLessThanOrEqual(30);
+    } finally {
+      counter.stop();
+    }
+    expect(await raw("SELECT count(*)::int AS n FROM issues")).toEqual([{ n: 1200 }]);
   });
 });
