@@ -4,7 +4,7 @@
 // private address. Pending logins live in this process, a quarter of an hour.
 import { randomUUID } from "node:crypto";
 import { env } from "../../lib/env";
-import { ProviderError } from "../core/errors";
+import { kindOfStatus, ProviderError } from "../core/errors";
 import { safeFetch } from "../core/http";
 
 const WEB = "https://github.com";
@@ -23,7 +23,11 @@ async function post<T>(path: string, form: Record<string, string>): Promise<T> {
     init: { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(form).toString() },
     fail: (status, message) => new ProviderError("invalid", message, { status }),
   });
-  if (!res.ok) throw new ProviderError(res.status >= 500 ? "unavailable" : "invalid", `GitHub answered ${res.status}`, { status: res.status });
+  if (!res.ok) {
+    // What GitHub's answer means (busy, not allowed, down); a 401 here is this app's, no connection to reconnect.
+    const kind = kindOfStatus(res.status);
+    throw new ProviderError(kind === "auth" ? "invalid" : kind, `GitHub answered ${res.status}`, { status: res.status });
+  }
   return (await res.json()) as T;
 }
 
