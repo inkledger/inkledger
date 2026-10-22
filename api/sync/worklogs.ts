@@ -139,6 +139,18 @@ export type RemoteSnapshot = { seconds: number; started: number; comment: string
 /** Entries written per statement at most (5 to 10 parameters each, 65535 per statement). */
 const PAGE_SLICE = 1000;
 
+/** Round k holds each remote id's k-th copy, in page order: within a round, none is named twice. */
+function rounds<T extends { remoteId: string }>(all: T[]): T[][] {
+  const seen = new Map<string, number>();
+  const out: T[][] = [];
+  for (const t of all) {
+    const k = seen.get(t.remoteId) ?? 0;
+    seen.set(t.remoteId, k + 1);
+    (out[k] ??= []).push(t);
+  }
+  return out;
+}
+
 const slices = <T>(all: T[]): T[][] => Array.from({ length: Math.ceil(all.length / PAGE_SLICE) }, (_, i) => all.slice(i * PAGE_SLICE, (i + 1) * PAGE_SLICE));
 
 /** An UPDATE … FROM (VALUES …) row: each value cast, so the first row types the column. */
@@ -160,11 +172,8 @@ async function applyPage(
 ): Promise<{ upserted: number; removed: number }> {
   const db = getDb();
   const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
-  // An entry named twice in a page ends as its last, as entry after entry did; its first
-  // copy is the one that could be ours (the later ones found it known by then).
-  const entries = [...new Map(mine.map((w) => [w.remoteId, w])).values()];
-  const firsts = new Map<string, RemoteWorklog>();
-  for (const w of mine) if (!firsts.has(w.remoteId)) firsts.set(w.remoteId, w);
+  // (Named once each: a page's copies come in rounds, see syncEntries.)
+  const entries = mine;
 
   const ids = entries.map((w) => w.remoteId);
   const knownRows =
@@ -239,21 +248,13 @@ async function applyPage(
       }
       continue;
     }
-    const first = firsts.get(w.remoteId) ?? w;
-    const firstTime = { started: startOf(first.span, zone), seconds: first.span.seconds };
-    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, firstTime));
+    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
     if (at >= 0) {
       // Ours, read back before its answer came: the same worklog, never a second one.
       const [ours] = unconfirmed.splice(at, 1);
-      await landed(ours, conn, first);
-      await db.update(worklogSinks).set({ locked: first.locked ? JSON.stringify(first.locked) : null }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
+      await landed(ours, conn, w);
+      await db.update(worklogSinks).set({ locked }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
       await db.delete(outbox).where(and(eq(outbox.worklogId, ours.id), eq(outbox.connectionId, conn.id), eq(outbox.kind, "create")));
-      if (first !== w) {
-        // Named again later in the page: then known, its last copy's values win.
-        if (w.dayOnly && localDateOf(instant(ours.started.getTime()), zone) === localDateOf(instant(values.started.getTime()), zone)) values.started = ours.started;
-        updated.push(r);
-        updatedIds.push(ours.id);
-      }
     } else {
       added.push(r);
     }
@@ -283,7 +284,7 @@ async function applyPage(
   }
 
   // Gone on the service: their worklogs go here, in one statement.
-  const goneIds = [...new Set(gone.map((g) => g.remoteId))];
+  const goneIds = gone.map((g) => g.remoteId);
   const goneRows =
     goneIds.length === 0
       ? []
@@ -292,7 +293,6 @@ async function applyPage(
           .from(worklogSinks)
           .where(and(eq(worklogSinks.sinkConnectionId, conn.id), inArray(worklogSinks.remoteId, goneIds)));
   if (goneRows.length > 0) await db.delete(worklogs).where(and(inArray(worklogs.id, goneRows.map((g) => g.worklogId)), eq(worklogs.connectionId, conn.id)));
-  // Each known one once (named twice, the second found nothing, as entry after entry did).
   return { upserted: mine.length, removed: goneRows.length };
 }
 
@@ -317,10 +317,12 @@ export async function syncEntries(
     },
     opts.since,
     async (items, gone) => {
-      // A very large page in slices, one after the other (a statement takes 65535 parameters
-      // at most): all its entries first, then what is gone, as entry after entry did.
-      for (const some of slices(items)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
-      for (const someGone of slices(gone)) removed += (await applyPage(conn, [], someGone, opts.zone)).removed;
+      // All its entries first, then what is gone, as entry after entry did. An entry named
+      // more than once goes in rounds (its first copy, then its second, …), so each copy
+      // finds what the one before it left; a very large round goes in slices (a statement
+      // takes 65535 parameters at most).
+      for (const round of rounds(items)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
+      for (const round of rounds(gone)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
     },
   );
   return { checkpoint, upserted, removed };

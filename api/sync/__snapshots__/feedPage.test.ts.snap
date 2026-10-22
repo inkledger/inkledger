@@ -1,5 +1,27 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`the worklog feed, page by page > a gone entry named twice whose worklog is another connection's (a mirror): counted each time, nothing deleted 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "",
+      "comment": "B's",
+      "conn": "https://b.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "w-b",
+      "locked": null,
+      "remote_id": "w-b",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+  ],
+}
+`;
+
 exports[`the worklog feed, page by page > a page that fails halfway (the database refuses one entry) lands the same once read again 1`] = `
 {
   "outbox": [],
@@ -156,6 +178,42 @@ exports[`the worklog feed, page by page > changed on both sides: a queued change
 }
 `;
 
+exports[`the worklog feed, page by page > day-only copies of one entry in a page: each as entry after entry 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "me",
+      "comment": "",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "r3",
+      "locked": null,
+      "remote_id": "r3",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 3600,
+      "version": null,
+    },
+    {
+      "author_account_id": "me",
+      "comment": "",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "r4",
+      "locked": null,
+      "remote_id": "r4",
+      "remote_snapshot": null,
+      "started": 1792067400000,
+      "state": "synced",
+      "time_spent_seconds": 3600,
+      "version": null,
+    },
+  ],
+}
+`;
+
 exports[`the worklog feed, page by page > known entries: unchanged stays, changed on the service follows it, a day-only one keeps its clock time the same day 1`] = `
 {
   "outbox": [],
@@ -200,6 +258,28 @@ exports[`the worklog feed, page by page > known entries: unchanged stays, change
       "started": 1792067400000,
       "state": "synced",
       "time_spent_seconds": 5400,
+      "version": null,
+    },
+  ],
+}
+`;
+
+exports[`the worklog feed, page by page > known, its sink waiting: a first copy as it is here makes it synced, a second one then wins 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "me",
+      "comment": "theirs",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "x",
+      "locked": null,
+      "remote_id": "x",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 600,
       "version": null,
     },
   ],
@@ -256,6 +336,42 @@ exports[`the worklog feed, page by page > new entries: sessions, a day-only one,
 }
 `;
 
+exports[`the worklog feed, page by page > one entry under two issues in a page: the first one's stays, ours on it landed 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "",
+      "comment": "moved",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "x",
+      "locked": null,
+      "remote_id": "x",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+    {
+      "author_account_id": "me",
+      "comment": "",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "y",
+      "locked": null,
+      "remote_id": "y",
+      "remote_snapshot": null,
+      "started": 1792058400000,
+      "state": "synced",
+      "time_spent_seconds": 600,
+      "version": null,
+    },
+  ],
+}
+`;
+
 exports[`the worklog feed, page by page > ours named twice in a page: the first copy is ours (landed, its create gone), the last one's values stay 1`] = `
 {
   "outbox": [],
@@ -273,6 +389,34 @@ exports[`the worklog feed, page by page > ours named twice in a page: the first 
       "state": "synced",
       "time_spent_seconds": 900,
       "version": "v2",
+    },
+  ],
+}
+`;
+
+exports[`the worklog feed, page by page > ours named twice with an update of ours queued too: the second copy finds it changed on both sides 1`] = `
+{
+  "outbox": [
+    {
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "",
+      "kind": "update",
+    },
+  ],
+  "worklogs": [
+    {
+      "author_account_id": "",
+      "comment": "mine",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "x",
+      "locked": null,
+      "remote_id": "x",
+      "remote_snapshot": "{"seconds":600,"started":1792047600000,"comment":"theirs"}",
+      "started": 1792047600000,
+      "state": "conflict",
+      "time_spent_seconds": 600,
+      "version": null,
     },
   ],
 }

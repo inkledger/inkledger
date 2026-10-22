@@ -149,6 +149,42 @@ describe("the worklog feed, page by page", () => {
     expect(await state()).toMatchSnapshot();
   });
 
+  it("ours named twice with an update of ours queued too: the second copy finds it changed on both sides", async () => {
+    const mine = await local(a, "new-1", { start: at(9), seconds: 600, comment: "mine" });
+    await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, worklog_id, created_at) VALUES (?, ?, 'create', 'FAKE-1', '', ?, 1), (?, ?, 'update', 'FAKE-1', '', ?, 2)", userId, a, mine, userId, a, mine);
+    expect(await pass(a, [{ items: [entry("x", { start: at(9), seconds: 600, comment: "mine" }), entry("x", { start: at(9), seconds: 600, comment: "theirs" })] }])).toMatchObject({ upserted: 2 });
+    expect(await state()).toMatchSnapshot();
+  });
+
+  it("known, its sink waiting: a first copy as it is here makes it synced, a second one then wins", async () => {
+    await pass(a, [{ items: [entry("x", { comment: "same" })] }]);
+    await q("UPDATE worklog_sinks SET state = 'pending' FROM worklogs w WHERE w.id = worklog_sinks.worklog_id AND w.jira_worklog_id = 'x'");
+    expect(await pass(a, [{ items: [entry("x", { comment: "same" }), entry("x", { comment: "theirs" })] }])).toMatchObject({ upserted: 2 });
+    expect(await state()).toMatchSnapshot();
+  });
+
+  it("one entry under two issues in a page: the first one's stays, ours on it landed", async () => {
+    const mine = await local(a, "new-1", { start: at(9), key: "FAKE-1" });
+    await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, worklog_id, created_at) VALUES (?, ?, 'create', 'FAKE-1', '', ?, 1)", userId, a, mine);
+    expect(await pass(a, [{ items: [entry("x", { key: "FAKE-1" }), entry("x", { key: "FAKE-2", comment: "moved" }), entry("y", { key: "FAKE-1", start: at(12) }), entry("y", { key: "FAKE-2", start: at(12) })] }])).toMatchObject({ upserted: 4 });
+    expect(await state()).toMatchSnapshot();
+  });
+
+  it("day-only copies of one entry in a page: each as entry after entry", async () => {
+    await pass(a, [{ items: [entry("r3", { span: { kind: "date", date: "2026-10-15" as never, seconds: 3600 }, dayOnly: true } as never)] }]);
+    await q("UPDATE worklogs SET started = ? WHERE jira_worklog_id = 'r3'", at(14, 30));
+    await pass(a, [{ items: [entry("r3", { span: { kind: "date", date: "2026-10-16" as never, seconds: 3600 }, dayOnly: true } as never), entry("r3", { span: { kind: "date", date: "2026-10-15" as never, seconds: 3600 }, dayOnly: true } as never)] }]);
+    await pass(a, [{ items: [entry("r4", { start: at(14, 30), seconds: 3600 }), entry("r4", { span: { kind: "date", date: "2026-10-15" as never, seconds: 3600 }, dayOnly: true } as never)] }]);
+    expect(await state()).toMatchSnapshot();
+  });
+
+  it("a gone entry named twice whose worklog is another connection's (a mirror): counted each time, nothing deleted", async () => {
+    const theirs = await local(b, "w-b", { comment: "B's" });
+    await q("INSERT INTO worklog_sinks (worklog_id, sink_connection_id, remote_id, state, synced_at) VALUES (?, ?, 'm1', 'synced', 1)", theirs, a);
+    expect(await pass(a, [{ items: [], gone: [{ remoteId: "m1" }, { remoteId: "m1" }] }])).toEqual({ checkpoint: "c", upserted: 0, removed: 2 });
+    expect(await state()).toMatchSnapshot();
+  });
+
   it("an entry named twice in a page, gone ones known, unknown and named twice, others' entries and entries without an issue", async () => {
     await pass(a, [{ items: [entry("g1"), entry("g2", { start: at(10) })] }]);
     const r = await pass(a, [
