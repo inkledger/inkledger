@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -70,14 +71,14 @@ export function NotificationTester() {
         description: t("settings.tester.createdHint"),
       });
     },
-    onError: e => toast.error(t("settings.tester.createFailed", { message: e.message })),
+    onError: e => toast.error(t("settings.tester.createFailed", { message: failureText(e) })),
   });
   const clear = trpc.notifications.dismissAll.useMutation({
     onSuccess: ({ dismissed }) => {
       refresh();
       toast.success(t("settings.tester.archived", { count: dismissed }));
     },
-    onError: e => toast.error(t("settings.tester.archiveFailed", { message: e.message })),
+    onError: e => toast.error(t("settings.tester.archiveFailed", { message: failureText(e) })),
   });
 
   // The real browser notification shows only with the tab in background:

@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
 import { useMemo, useState } from "react";
@@ -119,7 +120,7 @@ function useDashboardLayout() {
     },
     onError: (e, _input, ctx) => {
       if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
-      toast.error(t("pages.dashboard.prefNotSaved", { message: e.message }));
+      toast.error(t("pages.dashboard.prefNotSaved", { message: failureText(e) }));
     },
     onSettled: () => utils.settings.get.invalidate(),
   });

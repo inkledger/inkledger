@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { Coffee } from "lucide-react";
 import { formatDuration } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
@@ -76,7 +76,7 @@ export function IdleDialog() {
                     toast.error(
                       t("ui.idle.removeFailed", { key: issueKey }),
                       {
-                        description: e instanceof Error ? e.message : undefined,
+                        description: failureText(e),
                         duration: Infinity,
                         action: { label: t("common.retry"), onClick: () => void removeAway() },
                       }

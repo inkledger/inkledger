@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ export function useCollapsedColumns(scope?: string) {
   const save = trpc.settings.update.useMutation({
     scope: { id: "settings.collapsedColumns" },
     onError: e => {
-      toast.error(t("ui.columns.saveFailed", { message: e.message }));
+      toast.error(t("ui.columns.saveFailed", { message: failureText(e) }));
     },
     // Once the last save in the row is done, the server's list is the one shown:
     // read before that, it would lack the saves still waiting their turn.

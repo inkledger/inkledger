@@ -400,7 +400,6 @@ export const pages = {
     notDuplicated: "Not duplicated: {reason}",
     duplicated: { one: "{count} worklog duplicated to today", other: "{count} worklogs duplicated to today" },
     duplicatePartial: "Duplicated {done} of {total}{list}: {message}",
-    errorWord: "error",
     csvDate: "Date",
     csvIssue: "Issue",
     csvSummary: "Summary",

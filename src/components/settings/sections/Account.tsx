@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useState } from "react";
@@ -38,7 +39,7 @@ export function AccountSection() {
       toast.success(t("settings.account.imported", { count: r.imported, provider }));
     },
     onError: e =>
-      toast.error(t("settings.account.importFailed", { message: e.message })),
+      toast.error(t("settings.account.importFailed", { message: failureText(e) })),
   });
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {

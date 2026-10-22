@@ -401,7 +401,6 @@ export const pages: Shape<typeof en> = {
     notDuplicated: "Non duplicata: {reason}",
     duplicated: { one: "{count} worklog duplicati su oggi", other: "{count} worklog duplicati su oggi" },
     duplicatePartial: "Duplicati {done} di {total}{list}: {message}",
-    errorWord: "errore",
     csvDate: "Data",
     csvIssue: "Issue",
     csvSummary: "Riepilogo",

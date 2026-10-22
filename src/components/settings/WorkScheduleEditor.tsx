@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { Copy, Plus, Trash2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -146,7 +146,7 @@ export function WorkScheduleEditor() {
       setDraft(null);
       toast.success(t("settings.schedule.saved", { version: versionLabel(validFrom).toLowerCase() }));
     },
-    onError: e => toast.error(t("settings.schedule.saveFailed", { message: e.message })),
+    onError: e => toast.error(t("settings.schedule.saveFailed", { message: failureText(e) })),
   });
   const remove = trpc.workSchedule.remove.useMutation({
     onSuccess: data => {

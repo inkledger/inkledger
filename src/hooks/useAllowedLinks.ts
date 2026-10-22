@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useCallback, useMemo } from "react";
 import { hostAllowed, normalizeDomain } from "@contracts/links";
 import { trpc } from "@/lib/trpc";
@@ -18,7 +19,7 @@ export function useAllowedLinks() {
 
   const update = trpc.settings.update.useMutation({
     onSuccess: data => utils.settings.get.setData(undefined, data),
-    onError: e => toast.error(t("ui.allowed.saveFailed", { message: e.message })),
+    onError: e => toast.error(t("ui.allowed.saveFailed", { message: failureText(e) })),
   });
 
   const isAllowed = useCallback(

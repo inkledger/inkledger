@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -260,7 +261,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
           failed = true;
           patch(li, i, { status: "error" });
           toast.error(
-            `${n?.issueKey ?? p.issueKey}: ${e instanceof Error ? e.message : String(e)}`
+            `${n?.issueKey ?? p.issueKey}: ${failureText(e)}`
           );
           break run; // stop: what is left stays here to retry
         }

@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { issueId } from "@/lib/issues";
@@ -18,7 +19,7 @@ export function usePinnedOrder(items: IssueItem[]) {
   // not snap back to an intermediate order.
   const seq = useRef(0);
   const save = trpc.issues.reorderFavorites.useMutation({
-    onError: e => toast.error(t("ui.pinnedOrder.failed", { message: e.message })),
+    onError: e => toast.error(t("ui.pinnedOrder.failed", { message: failureText(e) })),
   });
 
   // By identity (issueId): two trackers' APP-1 are two favorites.

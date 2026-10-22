@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { DatabaseBackup, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -53,7 +53,7 @@ export function BackupSection() {
     },
     onError: e => {
       void refresh();
-      toast.error(t("settings.backup.failed", { message: e.message }));
+      toast.error(t("settings.backup.failed", { message: failureText(e) }));
     },
   });
   const admin = useAuth().user?.role === "admin";
@@ -62,7 +62,7 @@ export function BackupSection() {
       toast.success(t("settings.backup.restored"), { description: t("settings.backup.restoredHint", { safety: r.safety }) });
       setTimeout(() => window.location.reload(), 1200);
     },
-    onError: e => toast.error(t("settings.backup.restoreFailed", { message: e.message })),
+    onError: e => toast.error(t("settings.backup.restoreFailed", { message: failureText(e) })),
   });
   const [restoring, setRestoring] = useState<string | null>(null);
 

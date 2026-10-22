@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
@@ -90,7 +91,7 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
       onClose();
       void navigate(issuePath({ key, connectionId, remoteId: remoteId }));
     },
-    onError: e => toast.error(t("views.issues.create.failed", { message: e.message })),
+    onError: e => toast.error(t("views.issues.create.failed", { message: failureText(e) })),
   });
 
   const canSubmit = !!target && (!where?.types || !!chosenType) && summary.trim().length > 0 && !create.isPending;

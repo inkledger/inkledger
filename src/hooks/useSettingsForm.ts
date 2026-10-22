@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useIsMutating } from "@tanstack/react-query";
 import { getMutationKey } from "@trpc/react-query";
 import { trpc } from "@/lib/trpc";
@@ -38,7 +39,7 @@ export function useSettingsForm() {
     onSuccess: () => toast.success(t("ui.settingsForm.saved")),
     onError: (e, _vars, ctx) => {
       if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
-      toast.error(t("ui.settingsForm.failed", { message: e.message }));
+      toast.error(t("ui.settingsForm.failed", { message: failureText(e) }));
     },
     onSettled: () => utils.settings.get.invalidate(),
   });

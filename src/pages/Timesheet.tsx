@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ViewScope } from "@/components/ViewScope";
@@ -369,7 +369,7 @@ export default function Timesheet() {
         )
           continue;
         failed.push(w);
-        reason ||= e instanceof Error ? e.message : String(e);
+        reason ||= failureText(e);
       }
     }
     setBusy(false);
@@ -438,7 +438,7 @@ export default function Timesheet() {
           done: done.length,
           total: blocks.length,
           list: done.length ? ` (${done.join(", ")})` : "",
-          message: e instanceof Error ? e.message : t("pages.timesheet.errorWord"),
+          message: failureText(e),
         }),
         { duration: 10_000 }
       );

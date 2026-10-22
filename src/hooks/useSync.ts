@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { t } from "@/i18n";
@@ -23,7 +24,7 @@ export function useSync() {
       toast.success(t("ui.sync.done", { count: r.synced, provider }));
       invalidateJiraData(utils);
     },
-    onError: e => toast.error(t("ui.sync.failed", { message: e.message })),
+    onError: e => toast.error(t("ui.sync.failed", { message: failureText(e) })),
     onSettled: () => void utils.issues.syncStatus.invalidate(),
   });
 }

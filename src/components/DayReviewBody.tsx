@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useMemo, useRef, useState } from "react";
 import {
   Check,
@@ -255,7 +256,7 @@ export function DayReviewBody() {
             .catch(() => undefined);
         setStatus(s => ({ ...s, [issueId(d)]: "error" }));
         toast.error(
-          `${d.issueKey}: ${e instanceof Error ? e.message : String(e)}`
+          `${d.issueKey}: ${failureText(e)}`
         );
       }
     }

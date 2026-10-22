@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -57,7 +58,7 @@ export function ThemeColorPicker() {
     },
     onError: (e, _vars, ctx) => {
       if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
-      toast.error(t("settings.theme.saveFailed", { message: e.message }));
+      toast.error(t("settings.theme.saveFailed", { message: failureText(e) }));
     },
     onSettled: () => utils.settings.get.invalidate(),
   });
