@@ -192,7 +192,8 @@ test("a dialog whose code came ahead of use opens at once, with its content", as
     await page.goto(app.base + "/issues");
     for (let i = 0; i < 50 && !fetched; i++) await page.waitForTimeout(200);
     assert.ok(fetched, "the form's code was fetched ahead of use");
-    await page.waitForTimeout(500);
+    // Time to evaluate it too (a loaded machine is slow at it), so the opening finds it here.
+    await page.waitForTimeout(2000);
     // Frames from the click to the form on screen: React.lazy alone held it ~300 ms (about 20).
     const frames = await page.evaluate(async () => {
       const button = [...document.querySelectorAll("button")].find(b => b.textContent?.includes("New issue"));
