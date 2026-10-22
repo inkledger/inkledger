@@ -17,7 +17,7 @@ mod shortcuts;
 #[cfg(desktop)]
 mod tray;
 
-use i18n::{tr, trf};
+use i18n::{fault, tr, trf};
 use tauri::{AppHandle, Manager, Url};
 
 /// Launched at login (autostart): start hidden in the menu bar.
@@ -96,8 +96,8 @@ async fn reachable(server: &Url) -> Result<(), String> {
         .timeout(Duration::from_secs(6))
         .danger_accept_invalid_certs(lan)
         .build()
-        .map_err(|e| e.to_string())?;
-    let health = server.join("api/health").map_err(|e| e.to_string())?;
+        .map_err(fault)?;
+    let health = server.join("api/health").map_err(fault)?;
     let res = client.get(health).send().await.map_err(|e| {
         if e.is_timeout() {
             unreachable(tr("err.no_response"))
@@ -208,7 +208,7 @@ async fn open_url(app: &AppHandle, raw: &str, name: Option<&str>) -> Result<(), 
     p.upsert(&server, name);
     profiles::save(app, &p)?;
     profiles_changed(app);
-    main_window(app)?.navigate(server).map_err(|e| e.to_string())
+    main_window(app)?.navigate(server).map_err(fault)
 }
 
 /// Add (or rename) a profile and open it — the connect page.
@@ -246,7 +246,7 @@ fn remove_profile(app: AppHandle, url: String) -> Result<(), String> {
 /// The page says who is signed in on its server: shown next to the profile.
 #[tauri::command]
 fn set_profile_info(app: AppHandle, webview: tauri::Webview, user: String, jira: String) -> Result<(), String> {
-    let url = webview.url().map_err(|e| e.to_string())?;
+    let url = webview.url().map_err(fault)?;
     let mut p = profiles::load(&app);
     let Some(profile) = p.get_mut(&profiles::key(&parse_server(url.as_str())?)) else { return Ok(()) };
     if profile.user.as_deref() == Some(user.as_str()) && profile.jira.as_deref() == Some(jira.as_str()) {
@@ -263,12 +263,12 @@ fn set_profile_info(app: AppHandle, webview: tauri::Webview, user: String, jira:
 /// profile is removed, the others keep theirs; back to the profiles page.
 #[tauri::command]
 fn forget_server(app: AppHandle, webview: tauri::Webview) -> Result<(), String> {
-    let url = webview.url().map_err(|e| e.to_string())?;
+    let url = webview.url().map_err(fault)?;
     let mut p = profiles::load(&app);
     p.remove(&profiles::key(&parse_server(url.as_str())?));
     profiles::save(&app, &p)?;
     profiles_changed(&app);
-    main_window(&app)?.navigate(local_page(&app, "?change=1")).map_err(|e| e.to_string())
+    main_window(&app)?.navigate(local_page(&app, "?change=1")).map_err(fault)
 }
 
 /// The start page with the profiles, to add the first one (or pick another).
@@ -456,7 +456,7 @@ fn settings_url(pane: &str) -> Option<&'static str> {
 fn open_system_settings(app: AppHandle, pane: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let url = settings_url(&pane).ok_or_else(|| tr("err.setting_unavailable").to_string())?;
-    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    app.opener().open_url(url, None::<&str>).map_err(fault)
 }
 
 /// Bring the main window forward (the page asks, e.g. after an away stretch).
@@ -476,7 +476,7 @@ fn notify(app: AppHandle, title: String, body: Option<String>) -> Result<(), Str
     if let Some(body) = body {
         n = n.body(body);
     }
-    n.show().map_err(|e| e.to_string())
+    n.show().map_err(fault)
 }
 
 #[derive(serde::Serialize)]
@@ -528,7 +528,7 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
     let result = {
         use tauri_plugin_autostart::ManagerExt;
         let a = app.autolaunch();
-        if enabled { a.enable() } else { a.disable() }.map_err(|e| e.to_string())
+        if enabled { a.enable() } else { a.disable() }.map_err(fault)
     };
     #[cfg(mobile)]
     let result = {

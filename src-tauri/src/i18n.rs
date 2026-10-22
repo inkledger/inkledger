@@ -60,9 +60,9 @@ pub fn init(app: &AppHandle) {
 /// Validates, remembers and applies a language.
 pub fn set(app: &AppHandle, locale: &str) -> Result<Locale, String> {
     let l = Locale::parse(locale).ok_or_else(|| format!("unsupported locale: {locale}"))?;
-    let store = app.store(STORE).map_err(|e| e.to_string())?;
+    let store = app.store(STORE).map_err(fault)?;
     store.set(KEY, l.code());
-    store.save().map_err(|e| e.to_string())?;
+    store.save().map_err(fault)?;
     set_current(l);
     Ok(l)
 }
@@ -75,6 +75,14 @@ pub fn tr(key: &str) -> &'static str {
 /// Text with `{name}` placeholders filled.
 pub fn trf(key: &str, vars: &[(&str, &str)]) -> String {
     vars.iter().fold(tr(key).to_string(), |s, (k, v)| s.replace(&format!("{{{k}}}"), v))
+}
+
+/// A fault of this device (a file, the store, a certificate, the window) as the page
+/// tells it: in the user's language, the system's own words kept after it (there is no
+/// server log to look them up in), and logged.
+pub fn fault(e: impl std::fmt::Display) -> String {
+    eprintln!("[native] {e}");
+    trf("err.system", &[("err", &e.to_string())])
 }
 
 fn lookup(locale: Locale, key: &str) -> &'static str {
@@ -134,6 +142,7 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("err.invalid_name", "Invalid name", "Nome non valido"),
     ("err.setting_unavailable", "Setting not available on this system", "Impostazione non disponibile su questo sistema"),
     ("err.not_on_mobile", "Not available on mobile", "Non disponibile su mobile"),
+    ("err.system", "Something went wrong on this device ({err})", "Qualcosa non ha funzionato su questo dispositivo ({err})"),
     // Tailscale
     ("ts.not_installed", "Tailscale is not installed on this computer", "Tailscale non è installato su questo computer"),
     (
@@ -226,5 +235,12 @@ mod tests {
         assert_eq!(lookup(Locale::It, "err.invalid_name"), "Nome non valido");
         assert_eq!(Locale::parse("fr"), None);
         assert_eq!(Locale::parse("it"), Some(Locale::It));
+    }
+
+    #[test]
+    fn a_fault_keeps_the_system_words_after_the_users() {
+        let told = fault("Permission denied (os error 13)");
+        assert!(told.ends_with("(Permission denied (os error 13))"), "{told}");
+        assert!(told.len() > "(Permission denied (os error 13))".len());
     }
 }

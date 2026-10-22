@@ -23,7 +23,7 @@ use tauri::{AppHandle, Manager, State, Url};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::i18n::{tr, trf};
+use crate::i18n::{fault, tr, trf};
 
 pub const TLS_PORT: u16 = 47843;
 pub const WELCOME_PORT: u16 = 47844;
@@ -41,8 +41,8 @@ fn ca_name(mac: &str) -> String {
 }
 
 pub fn create_ca(mac: &str) -> Result<Ca, String> {
-    let key = KeyPair::generate().map_err(|e| e.to_string())?;
-    let mut params = CertificateParams::new(Vec::<String>::new()).map_err(|e| e.to_string())?;
+    let key = KeyPair::generate().map_err(fault)?;
+    let mut params = CertificateParams::new(Vec::<String>::new()).map_err(fault)?;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, ca_name(mac));
     dn.push(DnType::OrganizationName, "inkledger");
@@ -51,7 +51,7 @@ pub fn create_ca(mac: &str) -> Result<Ca, String> {
     params.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign, KeyUsagePurpose::DigitalSignature];
     params.not_before = rcgen::date_time_ymd(2025, 1, 1);
     params.not_after = rcgen::date_time_ymd(2035, 1, 1);
-    let cert = params.self_signed(&key).map_err(|e| e.to_string())?;
+    let cert = params.self_signed(&key).map_err(fault)?;
     Ok(Ca { cert_pem: cert.pem(), key_pem: key.serialize_pem() })
 }
 
@@ -61,10 +61,10 @@ pub fn load_or_create_ca(dir: &Path, mac: &str) -> Result<Ca, String> {
     if let (Ok(cert_pem), Ok(key_pem)) = (std::fs::read_to_string(&cert), std::fs::read_to_string(&key)) {
         return Ok(Ca { cert_pem, key_pem });
     }
-    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir).map_err(fault)?;
     let ca = create_ca(mac)?;
-    std::fs::write(&cert, &ca.cert_pem).map_err(|e| e.to_string())?;
-    std::fs::write(&key, &ca.key_pem).map_err(|e| e.to_string())?;
+    std::fs::write(&cert, &ca.cert_pem).map_err(fault)?;
+    std::fs::write(&key, &ca.key_pem).map_err(fault)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -75,10 +75,10 @@ pub fn load_or_create_ca(dir: &Path, mac: &str) -> Result<Ca, String> {
 
 /// A server certificate for these names and addresses (≤ 397 days, as phones require).
 pub fn issue_server_cert(ca: &Ca, names: &[String], ips: &[IpAddr]) -> Result<(String, String), String> {
-    let ca_key = KeyPair::from_pem(&ca.key_pem).map_err(|e| e.to_string())?;
-    let issuer = Issuer::from_ca_cert_pem(&ca.cert_pem, ca_key).map_err(|e| e.to_string())?;
-    let key = KeyPair::generate().map_err(|e| e.to_string())?;
-    let mut params = CertificateParams::new(names.to_vec()).map_err(|e| e.to_string())?;
+    let ca_key = KeyPair::from_pem(&ca.key_pem).map_err(fault)?;
+    let issuer = Issuer::from_ca_cert_pem(&ca.cert_pem, ca_key).map_err(fault)?;
+    let key = KeyPair::generate().map_err(fault)?;
+    let mut params = CertificateParams::new(names.to_vec()).map_err(fault)?;
     params.subject_alt_names.extend(ips.iter().map(|ip| SanType::IpAddress(*ip)));
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, names.first().cloned().unwrap_or_else(|| "inkledger".into()));
@@ -88,7 +88,7 @@ pub fn issue_server_cert(ca: &Ca, names: &[String], ips: &[IpAddr]) -> Result<(S
     let now = time_now();
     params.not_before = now - std::time::Duration::from_secs(86_400);
     params.not_after = now + std::time::Duration::from_secs(397 * 86_400);
-    let cert = params.signed_by(&key, &issuer).map_err(|e| e.to_string())?;
+    let cert = params.signed_by(&key, &issuer).map_err(fault)?;
     Ok((cert.pem(), key.serialize_pem()))
 }
 
@@ -201,7 +201,7 @@ fn stopped(error: Option<String>) -> LanStatus {
 }
 
 fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path().app_data_dir().map_err(|e| e.to_string())
+    app.path().app_data_dir().map_err(fault)
 }
 
 /// Only a server on this machine can be shared (the proxy dials loopback).
@@ -253,7 +253,7 @@ pub async fn start(app: &AppHandle, state: &LanState, target: Url, extra: &[Stri
         tauri::async_runtime::spawn(serve_proxy(proxy, tls, upstream)),
         tauri::async_runtime::spawn(serve_welcome(welcome_l, page)),
     ];
-    *state.0.lock().map_err(|e| e.to_string())? = Some(Running { status: status.clone(), tasks });
+    *state.0.lock().map_err(fault)? = Some(Running { status: status.clone(), tasks });
     Ok(status)
 }
 
@@ -280,10 +280,10 @@ fn tls_acceptor(cert_pem: &str, key_pem: &str, ca_pem: &str) -> Result<tokio_rus
     let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pem_der(key_pem).ok_or_else(|| tr("lan.bad_key").to_string())?));
     let config = rustls::ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
         .with_safe_default_protocol_versions()
-        .map_err(|e| e.to_string())?
+        .map_err(fault)?
         .with_no_client_auth()
         .with_single_cert(chain, key)
-        .map_err(|e| e.to_string())?;
+        .map_err(fault)?;
     Ok(tokio_rustls::TlsAcceptor::from(Arc::new(config)))
 }
 
@@ -393,8 +393,8 @@ pub fn lan_status(state: State<LanState>) -> LanStatus {
 /// Shares the server the window shows (it must be on this Mac).
 #[tauri::command]
 pub async fn lan_start(app: AppHandle, webview: tauri::Webview, names: Option<Vec<String>>) -> Result<LanStatus, String> {
-    let url = webview.url().map_err(|e| e.to_string())?;
-    let origin = Url::parse(&url.origin().ascii_serialization()).map_err(|e| e.to_string())?;
+    let url = webview.url().map_err(fault)?;
+    let origin = Url::parse(&url.origin().ascii_serialization()).map_err(fault)?;
     let names = names.unwrap_or_default();
     let state = app.state::<LanState>();
     let s = start(&app, &state, origin.clone(), &names).await?;

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::i18n::{tr, trf};
+use crate::i18n::{fault, tr, trf};
 
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -98,7 +98,7 @@ pub async fn tailscale_serve(port: u16) -> Result<TailscaleInfo, String> {
     let https = format!("--https={port}");
     let out = tauri::async_runtime::spawn_blocking(move || run_with_timeout(&bin, &["serve", "--bg", &https, &target], Duration::from_secs(15)))
         .await
-        .map_err(|e| e.to_string())??;
+        .map_err(fault)??;
     let info = tailscale_info();
     if info.serves.iter().any(|s| s.port == port && s.target == format!("http://127.0.0.1:{port}")) {
         return Ok(info);
@@ -117,7 +117,7 @@ fn run_with_timeout(bin: &str, args: &[&str], limit: Duration) -> Result<String,
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(fault)?;
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
     let reader = std::thread::spawn(move || {
@@ -132,7 +132,7 @@ fn run_with_timeout(bin: &str, args: &[&str], limit: Duration) -> Result<String,
     });
     let start = Instant::now();
     loop {
-        if child.try_wait().map_err(|e| e.to_string())?.is_some() {
+        if child.try_wait().map_err(fault)?.is_some() {
             break;
         }
         if start.elapsed() > limit {

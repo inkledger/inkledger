@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Url};
 use tauri_plugin_store::StoreExt;
+use crate::i18n::fault;
 
 const STORE: &str = "settings.json";
 const KEY: &str = "profiles";
@@ -106,10 +107,10 @@ pub fn load(app: &AppHandle) -> Profiles {
 }
 
 pub fn save(app: &AppHandle, profiles: &Profiles) -> Result<(), String> {
-    let store = app.store(STORE).map_err(|e| e.to_string())?;
-    store.set(KEY, serde_json::to_value(profiles).map_err(|e| e.to_string())?);
+    let store = app.store(STORE).map_err(fault)?;
+    store.set(KEY, serde_json::to_value(profiles).map_err(fault)?);
     store.delete(LEGACY_KEY);
-    store.save().map_err(|e| e.to_string())
+    store.save().map_err(fault)
 }
 
 #[cfg(test)]
