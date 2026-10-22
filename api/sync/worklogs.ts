@@ -17,7 +17,6 @@ import { eachPage } from "../providers/core/paging";
 import type { Checkpoint, IssueRef, RemoteWorklog, TimeInput, WorklogInput } from "../providers/types";
 import type { Budget } from "./budget";
 import { rounds } from "../lib/rounds";
-import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { t } from "@contracts/i18n";
 import { providerName } from "@contracts/providerNames";
 
@@ -98,9 +97,9 @@ export async function pushCreate(b: BoundTracker, conn: Pick<Connection, "id">, 
 /**
  * The entry a recreated worklog replaced, sent away once the new one is linked (the change
  * itself is done either way). Already gone: done. Unreachable now: queued, its replay deletes
- * it (the worklog points to the new entry, so the replay leaves it alone). Refused: queued as
- * stuck, with the tracker's words, so the queue shows it to retry or discard: never silently
- * counted twice, never a change reported as failed when it happened.
+ * it (the worklog points to the new entry, so the replay leaves it alone). Refused: queued too,
+ * with the tracker's words, so the queue shows it (retried as any, then stuck, or discarded):
+ * never silently counted twice, never a change reported as failed when it happened.
  */
 export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, local: Pick<Local, "userId" | "issueKey">, ref: IssueRef, meta: CallMeta, old: string, version: string | null) {
   try {
@@ -116,7 +115,7 @@ export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, loc
         kind: "delete",
         issueKey: local.issueKey,
         remoteId: old,
-        ...(refused ? { attempts: MAX_OUTBOX_ATTEMPTS, lastError: (err instanceof Error ? err.message : String(err)).slice(0, 500) } : {}),
+        ...(refused ? { lastError: (err instanceof Error ? err.message : String(err)).slice(0, 500) } : {}),
       });
   }
 }
