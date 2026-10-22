@@ -188,6 +188,7 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     if (write?.mode === "entry" && write.update === "native" && !sameWords(w.comment, local.comment)) {
       await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone).catch((e: unknown) => {
         if (queueable(e)) throw e;
+        if (!(e instanceof ProviderError)) console.error(e);
       });
     }
     return true;
@@ -289,6 +290,8 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
       synced++;
     } catch (e) {
       failed++;
+      // A fault's details to the log: the queue shows general words for it.
+      if (!(e instanceof ProviderError)) console.error(e);
       const offline = queueable(e);
       await db
         .update(outbox)

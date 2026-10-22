@@ -108,6 +108,7 @@ export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, loc
   } catch (err) {
     if (err instanceof ProviderError && err.kind === "notFound") return;
     const refused = !(err instanceof ProviderError && err.transient);
+    if (!(err instanceof ProviderError)) console.error(err);
     await getDb()
       .insert(outbox)
       .values({

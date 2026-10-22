@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 process.env.DATABASE_URL = ":memory:";
 
 /** The test's tracker that keeps entries (the contract's fake, as "gitlab"), and whether it answers. */
-type TestTracker = { adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[] };
+type TestTracker = { adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string };
 const tracker: TestTracker = vi.hoisted(() => ({ adapter: null, offline: false, refuse: false, loseAnswer: false, calls: [] }));
 
 vi.mock("../providers/registry", async (importOriginal) => {
@@ -27,7 +27,8 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
         name,
         async (...args: unknown[]) => {
           if (tracker.offline) throw new ProviderError("unavailable", "fake: down");
-          if (tracker.refuse) throw new ProviderError("invalid", "fake: no");
+          if (tracker.refuse || tracker.refuseOnly === name) throw new ProviderError("invalid", "fake: no");
+          if (tracker.downOnly === name) throw new ProviderError("unavailable", "fake: down");
           tracker.calls.push(name);
           const out = await (fn as (...a: unknown[]) => unknown)(...args);
           // It landed, but the answer never came back.
@@ -181,6 +182,38 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     expect(entry).toBeTruthy();
     expect(tracker.calls).toContain("update");
     await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("after adoption, a comment the tracker refuses stays here only; one it can't take now is sent at the next replay", async () => {
+    const started5 = "2026-10-21T09:00:00+02:00";
+    tracker.loseAnswer = true;
+    const refused = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 300, started: started5, comment: "a" });
+    tracker.loseAnswer = false;
+    await caller.worklogs.update({ id: refused.id, seconds: 300, started: started5, comment: "b" });
+    tracker.refuseOnly = "update";
+    try {
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    } finally {
+      tracker.refuseOnly = undefined;
+    }
+    expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    await caller.worklogs.delete({ id: refused.id });
+
+    const started6 = "2026-10-21T11:00:00+02:00";
+    tracker.loseAnswer = true;
+    const later = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 300, started: started6, comment: "c" });
+    tracker.loseAnswer = false;
+    await caller.worklogs.update({ id: later.id, seconds: 300, started: started6, comment: "d" });
+    tracker.downOnly = "update";
+    try {
+      expect(await replay()).toMatchObject({ synced: 0 });
+    } finally {
+      tracker.downOnly = undefined;
+    }
+    tracker.calls = [];
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    expect(tracker.calls).toContain("update");
+    await caller.worklogs.delete({ id: later.id });
   });
 
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
