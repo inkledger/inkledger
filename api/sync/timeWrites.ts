@@ -13,6 +13,8 @@ import { withDeleteReason } from "../queries/trash";
 import { connOf } from "../providers/connections";
 import type { BoundTracker } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
+import { t as tr } from "@contracts/i18n";
+import { providerTrpcError } from "../providers/trpc";
 import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
 import { deleteThere, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
@@ -106,8 +108,10 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
     .from(worklogSinks)
     .where(and(eq(worklogSinks.worklogId, current.id), eq(worklogSinks.sinkConnectionId, t.conn.id)))
     .limit(1);
-  // Its id on the service (a row from before the sink links: its own id).
-  const remoteId = sink?.remoteId ?? (/^(local|new|pending)-/.test(current.remoteId) ? null : current.remoteId);
+  // Its id on the service (a row from before the sink links: its own id); a placeholder
+  // (local-, new-, pending-), on the row or copied to its link, names nothing there yet.
+  const known = sink?.remoteId ?? current.remoteId;
+  const remoteId = /^(local|new|pending)-/.test(known) ? null : known;
   await dropQueuedUpdates(t.conn, current.id);
   if (remoteId) {
     try {
@@ -281,7 +285,8 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
       const offline = queueable(e);
       await db
         .update(outbox)
-        .set({ attempts: offline ? entry.attempts : entry.attempts + 1, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500), claimedAt: null })
+        // In the user's words (the queue shows it): a tracker's refusal, no answer, or a fault.
+        .set({ attempts: offline ? entry.attempts : entry.attempts + 1, lastError: (e instanceof ProviderError ? providerTrpcError(e).message : tr("server.internal.error")).slice(0, 500), claimedAt: null })
         .where(eq(outbox.id, entry.id));
       if (offline) break;
     }
