@@ -181,8 +181,15 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     // same time, can't be told from that copy: its comment may have been edited since either.)
     if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
-    // The comment changed while it waited: sent now, or the tracker keeps the first words.
-    if (!sameWords(w.comment, local.comment)) await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
+    // The comment changed while it waited: sent now, where the tracker changes an entry in
+    // place (one that logs it again would churn, and keeps no comment on some: Gitea). Refused
+    // there, the entry stays as it landed (the words here only); not answering, tried again.
+    const write = entriesOf(t.b)?.write;
+    if (write?.mode === "entry" && write.update === "native" && !sameWords(w.comment, local.comment)) {
+      await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone).catch((e: unknown) => {
+        if (queueable(e)) throw e;
+      });
+    }
     return true;
   }
   return false;

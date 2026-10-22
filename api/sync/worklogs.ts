@@ -13,6 +13,7 @@ import { getDb } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import type { BoundTracker, CallMeta } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
+import { providerTrpcError } from "../providers/trpc";
 import { eachPage } from "../providers/core/paging";
 import type { Checkpoint, IssueRef, RemoteWorklog, TimeInput, WorklogInput } from "../providers/types";
 import type { Budget } from "./budget";
@@ -115,7 +116,8 @@ export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, loc
         kind: "delete",
         issueKey: local.issueKey,
         remoteId: old,
-        ...(refused ? { lastError: (err instanceof Error ? err.message : String(err)).slice(0, 500) } : {}),
+        // In the user's words, as the queue shows every error (providerTrpcError).
+        ...(refused ? { lastError: (err instanceof ProviderError ? providerTrpcError(err).message : t("server.internal.error")).slice(0, 500) } : {}),
       });
   }
 }

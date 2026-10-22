@@ -972,7 +972,8 @@ describe("app router (integration, in-memory SQLite)", () => {
       await caller.outbox.retry();
       const [entry] = await caller.outbox.list();
       expect(entry.attempts).toBe(0);
-      expect(entry.lastError).toMatch(/fetch failed/);
+      // In the user's words, not the socket's ("fetch failed").
+      expect(entry.lastError).toBe("The tracker can’t be reached right now. Try again later.");
       await caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId });
     });
 
