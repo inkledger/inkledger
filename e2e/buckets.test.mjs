@@ -51,10 +51,12 @@ test("a bucket narrows this device's board and lists; the chip goes back to ever
     await page.getByText("Test task number 1").first().waitFor();
   }));
 
-// Yesterday 10–11 on the first tracker, 11–12 on Client B.
+// The last working day 10–11 on the first tracker, 11–12 on Client B (a working day:
+// its holes are checked below, and a Saturday or Sunday has none).
 const dayBefore = () => {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
   return d;
 };
 const keyOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
