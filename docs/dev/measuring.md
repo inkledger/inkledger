@@ -31,13 +31,22 @@ The **tRPC contract** contains standalone types only. It has no import and does 
 - **What fails generation instead of being weakened:** `any`, functions, classes, open generics,
   symbols and other library types.
 
-**Compatibility runs in two directions:**
-- **Inputs:** each `FrozenIn[p]` must be assignable to the current input. The server still accepts
-  everything an old client sends.
-- **Outputs:** each current output must be assignable to `FrozenOut[p]`. An old reader still reads
-  what the server returns.
+**Two different guarantees, kept apart:**
 
-A break in either direction stops `pnpm check`.
+- **Exact parity** (`parity.test.ts`, in `pnpm test`): every inventory regenerated equals the
+  committed one, text for text. Any change shows, an addition as much as a removal: a new
+  procedure, a new optional input field, a widened output, a renamed route or i18n key. This is
+  what "nothing lost, nothing added" is held to.
+- **Backward compatibility of the tRPC API** (`trpc-compat.ts`, in `pnpm check`): a weaker check
+  that passes changes an old client cannot notice.
+  - **Inputs:** each `FrozenIn[p]` must be assignable to the current input. The server still
+    accepts everything an old client sends.
+  - **Outputs:** each current output must be assignable to `FrozenOut[p]`. An old reader still
+    reads what the server returns.
+  - So a new optional input field or an extra output field passes compatibility while failing
+    exact parity; a break in either direction stops `pnpm check`.
+- **What neither covers:** behaviour behind the types (validation refinements, the values
+  returned, side effects). The unit and e2e suites hold that.
 
 ## Bundle size
 
@@ -54,7 +63,7 @@ node scripts/bundle-size.mjs --md   # the summary table
 
 ## Queries per scenario
 
-Four tests count the database queries of a piece of code, each at several sizes, so both the
+Five tests count the database queries of a piece of code, each at several sizes, so both the
 count and how it grows are on record. They share one counter, `api/testing/countQueries.ts`.
 
 - **How queries are counted:** a spy on `PGlite.prototype.query` and on the `query` of each
@@ -102,6 +111,7 @@ shows an index is usable and chosen; it does not measure production latency.
 ```sh
 npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.test.ts \
   api/sync/sinkDeletes-queries.test.ts api/routers/issues-reassigned-queries.test.ts \
+  api/routers/issues-sync-queries.test.ts \
   --reporter=verbose   # prints the [measure] lines
 ```
 
@@ -109,15 +119,21 @@ npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.te
 
 This method is recorded for later use. It becomes a gate only after its own check passes.
 
+- **What is counted:** commits, not render calls. `<Profiler onRender>` is called once per commit
+  of its subtree; render calls also include renders React throws away (StrictMode's double render,
+  interrupted transitions), which say nothing about work done on screen.
 - **Method:**
-  - A test build exposes a `<Profiler>` count per named subtree, behind a flag only the e2e
-    build sets. The production bundle never contains it, which is checked by searching the
-    built chunks.
-  - A Playwright page script reads the counts after a fixed time with a timer running, under
+  - A test build exposes a `<Profiler>` commit count per named subtree, behind a flag only the
+    e2e build sets. `onRender` runs only in development or in React's profiling build, so that
+    build uses `react-dom/profiling`. The production bundle never contains the counter, which is
+    checked by searching the built chunks.
+  - **Reset after mount:** the page loads, its data settles (no request in flight), then the page
+    script resets every count to 0. Mount and first-data commits are not part of the window.
+  - Then a Playwright page script reads the counts after a fixed time with a timer running, under
     an e2e harness clock.
-- **Validation before use:** a component known to re-render once a second must count about 60
-  renders in 60 seconds, and a static component must count 0. If either fails, the harness is
-  wrong and its numbers are not used.
+- **Validation before use:** after the reset, a component known to commit once a second must
+  count 60 (±1) commits in 60 seconds, and a static component must count 0. If either fails, the
+  harness is wrong and its numbers are not used.
 
 ## Zod in the client (method only)
 
