@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { normalizeError, ProviderError } from "./core/errors";
-import { isRefusal } from "./trpc";
+import { isRefusal, providerTrpcError } from "./trpc";
 
 describe("isRefusal", () => {
   it("a tracker's own no: said on purpose, its HTTP answer, the read-only guard", () => {
@@ -17,5 +17,23 @@ describe("isRefusal", () => {
     expect(isRefusal(normalizeError(new Error("something odd")))).toBe(false);
     expect(isRefusal(normalizeError(new DOMException("timed out", "TimeoutError")))).toBe(false);
     expect(isRefusal(new ProviderError("incompatible", "Unexpected answer"))).toBe(false);
+  });
+
+  it("answered as such: a refusal in its words, no answer in the user's, any other fault in general words", () => {
+    const quiet = [vi.spyOn(console, "error").mockImplementation(() => {}), vi.spyOn(console, "warn").mockImplementation(() => {})];
+    try {
+      expect(providerTrpcError(new ProviderError("invalid", "GitLab: is invalid"))).toMatchObject({ code: "BAD_REQUEST", message: "GitLab: is invalid" });
+      const down = providerTrpcError(normalizeError(new TypeError("fetch failed")));
+      expect(down.code).toBe("SERVICE_UNAVAILABLE");
+      expect(down.message).not.toMatch(/fetch failed/);
+      const slow = providerTrpcError(normalizeError(new DOMException("timed out", "TimeoutError")));
+      expect(slow.code).toBe("TIMEOUT");
+      expect(slow.message).not.toMatch(/No answer in time/);
+      const bug = providerTrpcError(normalizeError(new TypeError("Cannot read properties of undefined (reading 'x')")));
+      expect(bug.code).toBe("INTERNAL_SERVER_ERROR");
+      expect(bug.message).not.toMatch(/Cannot read/);
+    } finally {
+      quiet.forEach(q => q.mockRestore());
+    }
   });
 });

@@ -2,6 +2,7 @@
 // code, the fields at fault ride along for the form that asked.
 import { TRPCError } from "@trpc/server";
 import { ProviderError, type ProviderErrorKind } from "./core/errors";
+import { t } from "@contracts/i18n";
 
 const CODES: Record<ProviderErrorKind, TRPCError["code"]> = {
   // The connection needs reconnecting, never the account signing in again
@@ -31,8 +32,20 @@ export function isRefusal(e: ProviderError): boolean {
   return typeof cause?.status === "number" || cause?.providerKind === "readOnly";
 }
 
-/** A provider's error as the API answers it: its kind's code, its words, the original as cause. */
-export const providerTrpcError = (e: ProviderError) => new TRPCError({ code: CODES[e.kind], message: e.message, cause: e });
+/**
+ * A provider's error as the API answers it. A refusal: its kind's code and its words. A tracker
+ * out of reach or too slow (no answer of its own): that code, in the user's words. Any other
+ * fault: a server error in general words. Faults are logged here, with their details.
+ */
+export function providerTrpcError(e: ProviderError): TRPCError {
+  if (isRefusal(e)) return new TRPCError({ code: CODES[e.kind], message: e.message, cause: e });
+  if (e.kind === "unavailable" || e.kind === "timeout") {
+    console.warn(`[provider] ${e.kind}: ${e.message}`);
+    return new TRPCError({ code: CODES[e.kind], message: t(e.kind === "timeout" ? "server.provider.slow" : "server.provider.unreachable"), cause: e });
+  }
+  console.error(e);
+  return new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: t("server.internal.error"), cause: e });
+}
 
 /** Runs a provider call, its ProviderError turned into the matching TRPCError (the original as cause). */
 export async function providerCall<T>(call: () => Promise<T>): Promise<T> {

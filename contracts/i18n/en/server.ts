@@ -68,6 +68,8 @@ export const server = {
   provider: {
     readOnlyServer: "This server is read-only (PROVIDERS_READ_ONLY): nothing is sent to {name}",
     writesOff: "Changes on {name} aren’t allowed yet: turn on “Allow changes on {name}” in Settings → Connections",
+    unreachable: "The tracker can’t be reached right now. Try again later.",
+    slow: "The tracker didn’t answer in time. Try again later.",
   },
   jira: {
     redirectNotAllowed: "Redirect not allowed",

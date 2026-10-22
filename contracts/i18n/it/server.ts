@@ -69,6 +69,8 @@ export const server: Shape<typeof en> = {
   provider: {
     readOnlyServer: "Questo server è in sola lettura (PROVIDERS_READ_ONLY): nulla viene inviato a {name}",
     writesOff: "Le modifiche su {name} non sono ancora consentite: attiva “Consenti modifiche su {name}” in Impostazioni → Connessioni",
+    unreachable: "Il tracker non è raggiungibile in questo momento. Riprova più tardi.",
+    slow: "Il tracker non ha risposto in tempo. Riprova più tardi.",
   },
   jira: {
     redirectNotAllowed: "Redirect non consentito",
