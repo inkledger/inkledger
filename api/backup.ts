@@ -194,7 +194,10 @@ function restoreInto(target: { url: string; env: NodeJS.ProcessEnv }, file: stri
     dump.on("close", (code) => {
       // Last, before the commit: a backup from a newer build (migrations this one doesn't
       // know) is refused, or the server would be left on a schema it can't start on.
-      if (code === 0) psql.stdin.end(newerBackupRefused(newestMigration()));
+      // Ended in the same transaction too: the backup's sessions and remembered devices,
+      // so none of them ever lets in whoever was signed out since. (Schema-qualified: the
+      // dump's SQL empties the search path.)
+      if (code === 0) psql.stdin.end(`DELETE FROM public.remembered_devices;\nDELETE FROM public.sessions;\n${newerBackupRefused(newestMigration())}`);
       else fail(new Error(err.trim() || t("server.backup.exitedWith", { bin: restoreBin, code: code ?? "?" })));
     });
     psql.on("close", (code) => {
@@ -253,10 +256,10 @@ export async function restoreBackup(
     const safety = await runBackup();
     try {
       await restoreInto(pgTarget(), file);
-      // First, so no session the backup held works even for a moment (or if a migration fails).
-      await signOutAfterRestore(opts.keepSession);
       // A backup from an older version lacks the newest columns: bring it up to date.
       await migrateDb();
+      // On the schema of now: whoever restored signs in on.
+      await signOutAfterRestore(opts.keepSession);
     } catch (e) {
       // Whatever happened, the copy taken first undoes it: its name goes with the cause.
       throw new Error(`${e instanceof Error ? e.message : String(e)} (${safety})`, { cause: e });
