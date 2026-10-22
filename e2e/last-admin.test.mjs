@@ -31,7 +31,10 @@ test("two admins turning each other off at once leave one of them on", async () 
       const answers = await Promise.all([turnOff(a, b.id), turnOff(b, a.id)]);
       const [{ n }] = await db.q("SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND disabled_at IS NULL");
       assert.equal(n, 1, `round ${round}: one admin stays on (answers ${answers.map(r => r.status)})`);
-      assert.deepEqual(answers.map(r => r.status).sort(), [200, 400], `round ${round}: one done, one refused`);
+      // One done; the other refused as the last admin, or, if it came that late, as signed out already.
+      const [done, refused] = answers.map(r => r.status).sort();
+      assert.equal(done, 200, `round ${round}: one done`);
+      assert.ok(refused === 400 || refused === 401, `round ${round}: the other refused (${refused})`);
     }
   } finally {
     await app.stop();
