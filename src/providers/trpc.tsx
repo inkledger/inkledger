@@ -14,6 +14,7 @@ import { trpc } from "@/lib/trpc";
 import { getLocale } from "@/i18n";
 import { deviceId } from "@/lib/device";
 import { pageQueriesOf } from "@/lib/pageQueries";
+import { logFault } from "@/lib/errorText";
 import { APP_BUILD_CHANGED, APP_BUILD_HEADER, APP_BUILD_META } from "@contracts/appBuild";
 
 /** The build this page's code comes from; none in development. */
@@ -72,7 +73,11 @@ function onAuthError(error: unknown, queryKey?: readonly unknown[]) {
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
-    onError: (error, query) => onAuthError(error, query.queryKey),
+    onError: (error, query) => {
+      // A read that failed shows general words where it was drawn (errorText): its details here, once.
+      logFault(error);
+      onAuthError(error, query.queryKey);
+    },
   }),
   mutationCache: new MutationCache({
     onError: error => onAuthError(error),

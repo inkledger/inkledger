@@ -1,0 +1,65 @@
+import { TRPCClientError } from "@trpc/client";
+import { toast } from "sonner";
+import { t } from "@/i18n";
+
+/**
+ * An error written for the person using the app (already in their words): shown as it is.
+ * Anything else thrown in the client is a fault, told in general words.
+ */
+export class UserFacingError extends Error {}
+
+/** What kind of failure it is, as far as the person using the app is concerned. */
+export type ErrorKind = "said" | "network" | "timeout" | "other";
+
+// The browsers' own words for a request that never got an answer (Chrome, Safari, Firefox, React Native).
+const NETWORK = /Failed to fetch|Load failed|NetworkError when attempting to fetch|Network request failed/i;
+
+const named = (e: unknown, name: string) => typeof e === "object" && e !== null && (e as { name?: unknown }).name === name;
+
+const offline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+
+export function errorKind(e: unknown): ErrorKind {
+  if (e instanceof TRPCClientError) {
+    // The server answered with its own error: its words are meant to be read (internal
+    // faults already come back in general words, the details in its log).
+    if (e.data) return "said";
+    // No answer of the server's: why the request failed, from what it carries.
+    const cause = errorKind(e.cause);
+    if (cause === "network" || cause === "timeout") return cause;
+    return NETWORK.test(e.message) || offline() ? "network" : "other";
+  }
+  if (e instanceof UserFacingError) return "said";
+  if (named(e, "TimeoutError")) return "timeout";
+  if (e instanceof TypeError && NETWORK.test(e.message)) return "network";
+  return offline() ? "network" : "other";
+}
+
+/**
+ * The words to show for a failure: the server's or the app's own, else what kind of failure
+ * it was (a fault's own text, often technical or in another language, never shows). Pure: safe
+ * in a render; the details of a fault go to the console where it is reported (toastError, the
+ * query cache).
+ */
+export function errorText(e: unknown): string {
+  const kind = errorKind(e);
+  if (kind === "said") return (e as Error).message;
+  if (kind === "network") return t("ui.error.network");
+  if (kind === "timeout") return t("ui.error.timeout");
+  return t("ui.error.failed");
+}
+
+/** A fault's details for the console (general words are what the person sees). */
+export function logFault(e: unknown): void {
+  if (errorKind(e) === "other") console.error(e);
+}
+
+/**
+ * A failure as a toast; a fault's details to the console. The same words twice at once show
+ * once (a local and a shared handler both reporting it). In onError, call it with the error
+ * alone: React Query passes the variables second.
+ */
+export function toastError(e: unknown, opts?: { duration?: number }): void {
+  logFault(e);
+  const text = errorText(e);
+  toast.error(text, { id: `error:${text}`, ...opts });
+}
