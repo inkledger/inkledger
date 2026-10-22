@@ -51,11 +51,16 @@ describe("placeBlock: today ends now", () => {
     expect(r).toEqual({ ok: true, start: at(FRI, 13, 30) });
   });
 
-  it("work begun before the working hours ends now in its own place (a timer from 8:15 stopped at 9:05)", () => {
-    expect(place({ seconds: 50 * MIN, now: at(FRI, 9, 5) })).toEqual({ ok: true, start: at(FRI, 8, 15) });
+  it("tracked work begun before the working hours ends at its stop in its own place (a timer from 8:15 stopped at 9:05)", () => {
+    expect(place({ seconds: 50 * MIN, now: at(FRI, 9, 5), endAt: at(FRI, 9, 5) })).toEqual({ ok: true, start: at(FRI, 8, 15) });
     expect(place({ seconds: 50 * MIN, now: at(FRI, 10), endAt: at(FRI, 9, 5) })).toEqual({ ok: true, start: at(FRI, 8, 15) });
     // Its own place taken: moved back, but never before the working hours.
-    expect(place({ seconds: 50 * MIN, now: at(FRI, 9, 5), occupied: [wl(at(FRI, 8, 50), 15)] }).ok).toBe(false);
+    expect(place({ seconds: 50 * MIN, now: at(FRI, 9, 5), endAt: at(FRI, 9, 5), occupied: [wl(at(FRI, 8, 50), 15)] }).ok).toBe(false);
+  });
+
+  it("a typed duration or a copied day stays out of the night, however empty the day", () => {
+    expect(place({ seconds: 50 * MIN, now: at(FRI, 9, 5) }).ok).toBe(false);
+    expect(place({ seconds: 8 * 60 * MIN, now: at(FRI, 10) }).ok).toBe(false);
   });
 
   it("never before midnight: early in the day there is no room", () => {
