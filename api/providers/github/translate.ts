@@ -53,5 +53,11 @@ export function toGitHubQuery(expr: QueryExpr | null, now: Date): Translated {
     // Only a single qualifier or word can be negated.
     not: (part, item) => (item.kind === "field" || item.kind === "text" ? `-${part}` : null),
   };
-  return translateWith(expr, d);
+  const said = translateWith(expr, d);
+  // Without a repository or a person to search by, GitHub searches every public
+  // issue: kept to the issues the user is involved in.
+  return said.query && !SCOPED.test(said.query) ? { ...said, query: `${said.query} involves:@me` } : said;
 }
+
+/** A qualifier that already narrows the search: a repository, an owner or a person (not negated). */
+const SCOPED = /(?:^|\s)(?:repo|user|org|assignee|author|involves|mentions|commenter):/;

@@ -22,8 +22,19 @@ describe("the search language in a tracker's own words", () => {
   it("GitHub: qualifiers, no OR, negation of one qualifier only", () => {
     expect(gh("login project:acme/web @me label:bug")).toEqual({ query: "login repo:acme/web assignee:@me label:bug", unsupported: [] });
     expect(gh("project:acme is:closed -label:wontfix")).toEqual({ query: "user:acme is:closed -label:wontfix", unsupported: [] });
-    expect(gh("created:2026-10-01..2026-10-07")).toEqual({ query: "created:2026-10-01..2026-10-08", unsupported: [] });
+    expect(gh("created:2026-10-01..2026-10-07")).toEqual({ query: "created:2026-10-01..2026-10-08 involves:@me", unsupported: [] });
     expect(gh("label:a OR label:b")).toEqual({ query: "", unsupported: ["label:a OR label:b"] });
     expect(gh("priority>=high due:today")).toEqual({ query: "", unsupported: ["priority:>=high", "due:today"] });
+  });
+
+  it("GitHub: without a repository or a person, only the issues the user is involved in", () => {
+    expect(gh("login bug").query).toBe("login bug involves:@me");
+    expect(gh("label:bug -assignee:@me").query).toBe("label:bug -assignee:@me involves:@me");
+    expect(gh('"repo:x y"').query).toBe('"repo:x y" involves:@me');
+    // A repository, an owner or a person already narrows it.
+    expect(gh("login project:acme/web").query).toBe("login repo:acme/web");
+    expect(gh("login project:acme").query).toBe("login user:acme");
+    expect(gh("login author:me").query).toBe("login author:@me");
+    expect(gh("login assignee:bob").query).toBe("login assignee:bob");
   });
 });

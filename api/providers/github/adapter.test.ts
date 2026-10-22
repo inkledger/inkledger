@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { parseQuery } from "@contracts/query";
 import { timeZone } from "@contracts/values";
 import { bindTracker, forgetRefusalVerdicts } from "../core/bind";
 import { readPass } from "../core/paging";
@@ -24,6 +25,9 @@ function simulated() {
   sim.add("stranger/repo", "Not followed", { assignee: null });
   // A repository with no issue yet.
   sim.repo("acme/empty");
+  // Org repositories: one the user can write to, one they can only see.
+  sim.repo("bigorg/team", { org: true, push: true });
+  sim.repo("bigorg/other", { org: true });
   vi.stubGlobal("fetch", sim.fetch);
   const conn = {
     id: 7,
@@ -56,13 +60,24 @@ describe("github, as the layer sees it", () => {
       ["acme/api#1", "acme/api", "Open"],
       ["oss/lib#1", "oss/lib", "Open"],
     ]);
-    // Every repository, even one with no issue yet (a bucket can pick it).
-    expect((await b.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/api", "acme/empty", "acme/web", "oss/lib"]);
+    // The user's own repositories, even one with no issue yet (a bucket can pick it), and the
+    // org ones they can write to: not every org repository, nor the ones only watched.
+    expect((await b.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/api", "acme/empty", "acme/web", "bigorg/team"]);
     // Repositories left out by the user are neither read nor listed.
     const narrow = bindTracker(githubProvider, { ...conn, options: { excludeRepos: ["acme/api", "OSS/lib"] } });
     expect((await readPass((q) => narrow.listChanged(meta(), q), null)).items.map((i) => i.key)).toEqual(["acme/web#1", "acme/web#2"]);
-    expect((await narrow.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/empty", "acme/web"]);
+    expect((await narrow.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/empty", "acme/web", "bigorg/team"]);
     expect((await b.description!(meta(), { remoteId: all.items[0].remoteId, key: "acme/web#1" }))?.kind).toBe("text");
+  });
+
+  it("searches only the issues the user is involved in, unless a repository or a person is named", async () => {
+    const { sim, conn } = simulated();
+    sim.add("stranger/repo", "Login on someone else's site", { assignee: null, author: { id: 5151, login: "anna-b", name: "Anna Bianchi" } });
+    const b = bindTracker(githubProvider, conn);
+    const ask = async (q: string) => (await b.query!(meta(), b.translate!(parseQuery(q).expr, new Date()).query, 25)).items.map((i) => i.key).sort();
+    expect(await ask("login")).toEqual(["acme/web#1"]);
+    expect(await ask("login project:stranger/repo")).toEqual(["stranger/repo#2"]);
+    expect(await ask("login author:anna-b")).toEqual(["stranger/repo#2"]);
   });
 
   it("closes as not planned (cancelled), reopens; comments in GFM", async () => {

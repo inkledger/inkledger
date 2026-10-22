@@ -174,7 +174,7 @@ async function search(creds: GitHubCreds, q: string, limit: number) {
   return { items, complete: !r.incomplete_results && r.total_count <= limit };
 }
 
-type GitHubRepo = { id: number; node_id: string; full_name: string; name: string; has_issues?: boolean; owner?: { avatar_url?: string | null } };
+type GitHubRepo = { id: number; node_id: string; full_name: string; name: string; has_issues?: boolean; owner?: { avatar_url?: string | null }; permissions?: { push?: boolean } };
 
 /** A repository as a container: by its full name, what every issue call names it by. */
 const repoContainer = (r: Pick<GitHubRepo, "full_name" | "name" | "owner">) => ({
@@ -321,8 +321,11 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   async containers(x) {
     const creds = await credsOf(x);
     const excluded = new Set(x.conn.options.excludeRepos.map((r) => r.toLowerCase()));
-    const [mine, watched] = await Promise.all([allPages<GitHubRepo>(creds, "/user/repos?affiliation=owner,collaborator,organization_member&per_page=100"), allPages<GitHubRepo>(creds, "/user/subscriptions?per_page=100")]);
-    const byName = new Map([...mine, ...watched].filter((r) => r.has_issues !== false).map((r) => [r.full_name, r]));
+    // The user's own (owned, collaborated on) and the org's ones they can write to: not every
+    // repository of every org, nor the ones only watched (the repositories where the user
+    // already has issues are added by the catalogue, see createTargets).
+    const [own, org] = await Promise.all([allPages<GitHubRepo>(creds, "/user/repos?affiliation=owner,collaborator&per_page=100"), allPages<GitHubRepo>(creds, "/user/repos?affiliation=organization_member&per_page=100")]);
+    const byName = new Map([...own, ...org.filter((r) => r.permissions?.push)].filter((r) => r.has_issues !== false).map((r) => [r.full_name, r]));
     return [...byName.values()].filter((r) => !excluded.has(r.full_name.toLowerCase())).map(repoContainer);
   },
 

@@ -6,14 +6,18 @@ import type { GitHubComment, GitHubIssue, GitHubUser } from "./client";
 
 export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUser = { id: 4242, login: "mrossi", name: "Mario Rossi" }) {
   const issues: (GitHubIssue & { owner: string; repo: string; assignee: number | null; comments: GitHubComment[] })[] = [];
-  /** Repositories: `member` (owned, collaborated on or org member: in the `filter=all` feed), `watched` (subscribed). */
-  const repos = new Map<string, { member: boolean; watched: boolean }>();
+  /**
+   * Repositories: `member` (owned, collaborated on or org member: in the `filter=all` feed), `watched` (subscribed),
+   * `org` (reached only as an org member, not owned or collaborated on) and `push` (the user can write to it).
+   */
+  const repos = new Map<string, { member: boolean; watched: boolean; org: boolean; push: boolean }>();
   /** People who can be assigned (besides me), and every repository's labels. */
   const people: GitHubUser[] = [me, { id: 5151, login: "anna-b", name: "Anna Bianchi" }];
   const LABELS = ["bug", "enhancement", "ui"];
-  const addRepo = (full: string, o: { member?: boolean; watched?: boolean } = {}) => {
+  const addRepo = (full: string, o: { member?: boolean; watched?: boolean; org?: boolean; push?: boolean } = {}) => {
     const known = repos.get(full);
-    repos.set(full, { member: o.member ?? known?.member ?? true, watched: o.watched ?? known?.watched ?? false });
+    const org = o.org ?? known?.org ?? false;
+    repos.set(full, { member: o.member ?? known?.member ?? true, watched: o.watched ?? known?.watched ?? false, org, push: o.push ?? known?.push ?? !org });
   };
   let clock = Date.UTC(2026, 9, 1);
   // Ids unique across simulators, as GitHub's are across accounts (the default one starts at 1000).
@@ -23,7 +27,7 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
     new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
-  const add = (full: string, title: string, o: { assignee?: number | null; pr?: boolean; body?: string } = {}) => {
+  const add = (full: string, title: string, o: { assignee?: number | null; pr?: boolean; body?: string; author?: GitHubUser } = {}) => {
     if (!repos.has(full)) addRepo(full);
     const [owner, repo] = full.split("/");
     const number = issues.filter((i) => i.owner === owner && i.repo === repo).length + 1;
@@ -41,7 +45,7 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
       repository: { id: 1, node_id: `R_${full}`, full_name: full, name: repo },
       labels: [] as GitHubIssue["labels"],
       assignees: o.assignee === null ? [] : [me],
-      user: me,
+      user: o.author ?? me,
       created_at: at,
       updated_at: at,
       closed_at: null,
@@ -123,8 +127,14 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
       const filter = url.searchParams.get("filter") ?? "assigned";
       return paged(byUpdate(issues.filter((i) => (filter === "all" ? repos.get(`${i.owner}/${i.repo}`)?.member : i.assignee === me.id))));
     }
-    const repoJson = (full: string) => ({ id: 1, node_id: `R_${full}`, full_name: full, name: full.split("/")[1], has_issues: true });
-    if (path === "/user/repos") return paged([...repos].filter(([, r]) => r.member).map(([full]) => repoJson(full)));
+    const repoJson = (full: string) => ({ id: 1, node_id: `R_${full}`, full_name: full, name: full.split("/")[1], has_issues: true, permissions: { admin: false, push: !!repos.get(full)?.push, pull: true } });
+    if (path === "/user/repos") {
+      // affiliation: owner and collaborator (the user's own), organization_member (every repository of the user's orgs).
+      const affiliation = (url.searchParams.get("affiliation") ?? "owner,collaborator,organization_member").split(",");
+      const own = affiliation.includes("owner") || affiliation.includes("collaborator");
+      const orgs = affiliation.includes("organization_member");
+      return paged([...repos].filter(([, r]) => r.member && (r.org ? orgs : own)).map(([full]) => repoJson(full)));
+    }
     if (path === "/user/subscriptions") return paged([...repos].filter(([, r]) => r.watched).map(([full]) => repoJson(full)));
     const list = /^\/repos\/([^/]+)\/([^/]+)\/issues$/.exec(path);
     if (list && method === "POST") {
@@ -148,7 +158,7 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
       return paged(byUpdate(issues.filter((i) => i.owner === list[1] && i.repo === list[2])));
     }
     if (path === "/search/issues") {
-      // GitHub's qualifiers the adapter writes (repo, user, label, is/state, assignee, -negation); the rest are words of the title.
+      // GitHub's qualifiers the adapter writes (repo, user, label, is/state, assignee, author, involves, -negation); the rest are words of the title.
       const tokens = (url.searchParams.get("q") ?? "").match(/-?[a-z]+:"[^"]*"|-?[a-z]+:\S+|"[^"]*"|\S+/gi) ?? [];
       const test = (i: (typeof issues)[number], tok: string): boolean => {
         const [k, ...rest] = tok.split(":");
@@ -167,6 +177,11 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
             return i.labels.some((l) => (typeof l === "string" ? l : l.name ?? "").toLowerCase() === v);
           case "assignee":
             return v === "@me" ? i.assignee === me.id : (i.assignees ?? []).some((a) => a.login.toLowerCase() === v);
+          case "author":
+            return v === "@me" ? i.user?.id === me.id : i.user?.login.toLowerCase() === v;
+          case "involves":
+            // Author, assignee or mentioned (the simulator has no mentions): the user's own part in it.
+            return v === "@me" ? i.user?.id === me.id || i.assignee === me.id : i.user?.login.toLowerCase() === v || (i.assignees ?? []).some((a) => a.login.toLowerCase() === v);
           default:
             return true;
         }
