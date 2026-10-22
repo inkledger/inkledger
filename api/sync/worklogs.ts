@@ -160,8 +160,11 @@ async function applyPage(
 ): Promise<{ upserted: number; removed: number }> {
   const db = getDb();
   const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
-  // An entry named twice in a page ends as its last, as entry after entry did.
+  // An entry named twice in a page ends as its last, as entry after entry did; its first
+  // copy is the one that could be ours (the later ones found it known by then).
   const entries = [...new Map(mine.map((w) => [w.remoteId, w])).values()];
+  const firsts = new Map<string, RemoteWorklog>();
+  for (const w of mine) if (!firsts.has(w.remoteId)) firsts.set(w.remoteId, w);
 
   const ids = entries.map((w) => w.remoteId);
   const knownRows =
@@ -236,13 +239,21 @@ async function applyPage(
       }
       continue;
     }
-    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
+    const first = firsts.get(w.remoteId) ?? w;
+    const firstTime = { started: startOf(first.span, zone), seconds: first.span.seconds };
+    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, firstTime));
     if (at >= 0) {
       // Ours, read back before its answer came: the same worklog, never a second one.
       const [ours] = unconfirmed.splice(at, 1);
-      await landed(ours, conn, w);
-      await db.update(worklogSinks).set({ locked }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
+      await landed(ours, conn, first);
+      await db.update(worklogSinks).set({ locked: first.locked ? JSON.stringify(first.locked) : null }).where(and(eq(worklogSinks.worklogId, ours.id), eq(worklogSinks.sinkConnectionId, conn.id)));
       await db.delete(outbox).where(and(eq(outbox.worklogId, ours.id), eq(outbox.connectionId, conn.id), eq(outbox.kind, "create")));
+      if (first !== w) {
+        // Named again later in the page: then known, its last copy's values win.
+        if (w.dayOnly && localDateOf(instant(ours.started.getTime()), zone) === localDateOf(instant(values.started.getTime()), zone)) values.started = ours.started;
+        updated.push(r);
+        updatedIds.push(ours.id);
+      }
     } else {
       added.push(r);
     }

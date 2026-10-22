@@ -141,6 +141,14 @@ describe("the worklog feed, page by page", () => {
     expect(await state()).toMatchSnapshot();
   });
 
+  it("ours named twice in a page: the first copy is ours (landed, its create gone), the last one's values stay", async () => {
+    const created = await local(a, "new-1", { start: at(9), seconds: 600 });
+    await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, worklog_id, created_at) VALUES (?, ?, 'create', 'FAKE-1', '', ?, 1)", userId, a, created);
+    const r = await pass(a, [{ items: [entry("r1", { start: at(9), seconds: 600 }), entry("r1", { start: at(9), seconds: 900, comment: "edited there", version: "v2" })] }]);
+    expect(r).toMatchObject({ upserted: 2, removed: 0 });
+    expect(await state()).toMatchSnapshot();
+  });
+
   it("an entry named twice in a page, gone ones known, unknown and named twice, others' entries and entries without an issue", async () => {
     await pass(a, [{ items: [entry("g1"), entry("g2", { start: at(10) })] }]);
     const r = await pass(a, [

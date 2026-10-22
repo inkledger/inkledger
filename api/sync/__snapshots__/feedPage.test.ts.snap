@@ -256,6 +256,28 @@ exports[`the worklog feed, page by page > new entries: sessions, a day-only one,
 }
 `;
 
+exports[`the worklog feed, page by page > ours named twice in a page: the first copy is ours (landed, its create gone), the last one's values stay 1`] = `
+{
+  "outbox": [],
+  "worklogs": [
+    {
+      "author_account_id": "",
+      "comment": "edited there",
+      "conn": "https://a.example",
+      "issue_key": "FAKE-1",
+      "jira_worklog_id": "r1",
+      "locked": null,
+      "remote_id": "r1",
+      "remote_snapshot": null,
+      "started": 1792047600000,
+      "state": "synced",
+      "time_spent_seconds": 900,
+      "version": "v2",
+    },
+  ],
+}
+`;
+
 exports[`the worklog feed, page by page > ours, read back before their answer came: the same worklogs, the queued creates gone, never a second one 1`] = `
 {
   "outbox": [],
