@@ -171,7 +171,8 @@ export default function Dashboard() {
     from: recentFrom.toISOString(),
     to: recentTo.toISOString(),
   });
-  const { timers, fetchedAt } = useTimers();
+  const timerState = useTimers();
+  const { timers } = timerState;
   // Today on screen: its parts show the time tracked and not yet logged (they tick, not the page).
   const pending = range.from <= today && today < range.to;
 
@@ -247,7 +248,7 @@ export default function Dashboard() {
       issueKey: running.issueKey,
       connectionId: running.connectionId,
       summary: issueByKey.get(issueId(running))?.summary,
-      start: new Date(fetchedAt - running.elapsedSeconds * 1000),
+      start: new Date(timerState.fetchedAt - running.elapsedSeconds * 1000),
       seconds: running.elapsedSeconds,
       live: true,
     });
@@ -483,7 +484,7 @@ export default function Dashboard() {
                 <TickingElapsed
                   state={running.state}
                   elapsedSeconds={running.elapsedSeconds}
-                  fetchedAt={fetchedAt}
+                  fetchedAt={timerState.fetchedAt}
                 />
               </span>
             )}

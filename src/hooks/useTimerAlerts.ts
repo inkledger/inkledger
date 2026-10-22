@@ -32,7 +32,8 @@ export function useTimerAlerts() {
   });
   const alertedFor = useRef<Set<string>>(new Set());
   const now = useNow(true, 30_000);
-  const fetchedAt = timers.dataUpdatedAt;
+  // Read only while a timer runs: a reader of the fetch time re-renders on every poll.
+  const fetchedAt = timers.data?.some(t => t.state === "running") ? timers.dataUpdatedAt : 0;
 
   useEffect(() => {
     const s = settings.data;

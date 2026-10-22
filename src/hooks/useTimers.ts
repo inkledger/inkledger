@@ -16,11 +16,21 @@ export function useNow(active: boolean, periodMs = 1000): number {
  * Timers of the user; `fetchedAt` anchors the live ticking. Events bring
  * changes at once (useLiveSync); the poll is the fallback, quicker while the
  * event stream is down.
+ *
+ * `fetchedAt` is read on demand: React Query re-renders a reader for the
+ * fields it has read, and every poll moves the fetch time even when nothing
+ * changed. Read it only where a timer runs (destructuring reads it).
  */
 export function useTimers() {
   const live = useLiveState();
   const q = trpc.timers.list.useQuery(undefined, { refetchInterval: live === "live" ? 15_000 : 5_000, refetchOnWindowFocus: true });
-  return { timers: q.data ?? [], fetchedAt: q.dataUpdatedAt, query: q };
+  return {
+    timers: q.data ?? [],
+    get fetchedAt() {
+      return q.dataUpdatedAt;
+    },
+    query: q,
+  };
 }
 
 /** Live elapsed seconds of a timer entry. */

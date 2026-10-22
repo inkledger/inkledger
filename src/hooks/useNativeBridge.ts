@@ -27,7 +27,8 @@ import { t } from "@/i18n";
 export function useNativeBridge() {
   const native = isNative();
   const utils = trpc.useUtils();
-  const { timers, fetchedAt } = useTimers();
+  const timerState = useTimers();
+  const { timers } = timerState;
   const issues = trpc.issues.all.useQuery(undefined, {
     staleTime: 60_000,
     enabled: native,
@@ -44,7 +45,7 @@ export function useNativeBridge() {
       (issues.data?.find(i => issueId(i) === issueId(current))?.summary ?? null)
     : null;
   const trayKey = current
-    ? `${current.issueKey}|${current.state}|${current.elapsedSeconds}|${fetchedAt}|${summary}`
+    ? `${current.issueKey}|${current.state}|${current.elapsedSeconds}|${current.state === "running" ? timerState.fetchedAt : 0}|${summary}`
     : "none";
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function useNativeBridge() {
           // As of now, not of the last fetch: the menu bar ticks from here.
           elapsedSeconds:
             current.elapsedSeconds +
-            (current.state === "running" ? Math.max(0, Date.now() - fetchedAt) / 1000 : 0),
+            (current.state === "running" ? Math.max(0, Date.now() - timerState.fetchedAt) / 1000 : 0),
           running: current.state === "running",
         }
       : null;

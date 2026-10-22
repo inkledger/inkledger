@@ -152,12 +152,12 @@ and without, on the production bundle as it ships.
 - **What it does not say:** time spent. A count is work done, not frames dropped or
   milliseconds; no claim on smoothness rests on it alone.
 
-| Scenario (5 min) | Before Wave 3 | Shared clock |
-|---|---|---|
-| Dashboard, no timer | 55 commits, 15221 renders | 41, 13840 |
-| Issue page, timer running | 712 commits, 21929 renders | 366, 20452 |
-| Dashboard, timer running | 1013 commits, 73998 renders | 366, 24399 |
-| Timesheet, timer running | 1001 commits, 66823 renders | 366, 23704 |
+| Scenario (5 min) | Before Wave 3 | Shared clock | Fetch time read on demand |
+|---|---|---|---|
+| Dashboard, no timer | 55 commits, 15221 renders | 41, 13840 | 41, 4620 |
+| Issue page, timer running | 712 commits, 21929 renders | 366, 20452 | 366, 20452 |
+| Dashboard, timer running | 1013 commits, 73998 renders | 366, 24399 | 366, 24399 |
+| Timesheet, timer running | 1001 commits, 66823 renders | 366, 23704 | 366, 23704 |
 
 ## Zod in the client (method only)
 

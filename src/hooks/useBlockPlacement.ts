@@ -34,7 +34,10 @@ export function useBlockPlacement(
     to: addDays(from, 1).toISOString(),
   });
   const schedule = useWorkSchedule();
-  const { timers, fetchedAt, query: timersQuery } = useTimers();
+  const timerState = useTimers();
+  const { timers, query: timersQuery } = timerState;
+  // Only a running timer (no pause time) is placed from the fetch time.
+  const fetchedAt = timers.some(t => !t.pausedAt) ? timerState.fetchedAt : 0;
   const ready = !!logs.data && !schedule.isPending && !!timersQuery.data;
 
   const occupied = useMemo<Occupied[]>(() => {
