@@ -6,7 +6,6 @@ import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router";
 import {
   Copy,
-  Pin,
   ExternalLink,
   Eye,
   EyeOff,
@@ -79,7 +78,7 @@ import {
 import { toast } from "sonner";
 import { Meter } from "@/components/app/Meter";
 import { issueHistory } from "@/lib/issueHistory";
-import { usePinIssue } from "@/hooks/usePinIssue";
+import { PinButton } from "@/components/issue/PinMenu";
 import {
   useConnections,
   useKeepsTimeHere,
@@ -200,7 +199,6 @@ export default function IssueDetail({
   const [transOpen, setTransOpen] = useState(false);
   // What its tracker lets the app change (GitHub: assignees, labels, title and body).
   const manage = useManageable({ issueKey: key, connectionId });
-  const pinIssue = usePinIssue();
   // The reason of the last update, next to its date (same query as the dialog).
   const history = trpc.issues.history.useQuery(
     { key, connectionId },
@@ -452,15 +450,7 @@ export default function IssueDetail({
                   : t("pages.issueDetail.watch")}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("pages.issueDetail.pin")}
-              title={t("pages.issueDetail.pin")}
-              onClick={() => void pinIssue(i.key)}
-            >
-              <Pin className="h-4 w-4 -rotate-12" />
-            </Button>
+            <PinButton issueKey={i.key} connectionId={i.connectionId} />
             <TimerControls issueKey={i.key} connectionId={i.connectionId} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

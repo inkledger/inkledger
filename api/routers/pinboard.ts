@@ -408,6 +408,67 @@ export const pinboardRouter = createRouter({
       return { ok: true };
     }),
 
+  /**
+   * Where an issue is pinned: every board this device shows, each with the
+   * issue's own post-it on it (null when it isn't there), and whether the
+   * device's bucket hides the issue (pinned, it wouldn't show).
+   */
+  where: protectedProcedure
+    .input(z.object({ issueKey: issueKeyInput, connectionId: z.number().int().positive().optional() }))
+    .query(async ({ ctx, input }) => {
+      const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const { boards } = await visibleBoards(ctx.user.id, ctx.deviceId);
+      const pinned = await getDb()
+        .select({ id: pinboardNotes.id, boardId: pinboardNotes.boardId })
+        .from(pinboardNotes)
+        .where(
+          and(
+            eq(pinboardNotes.userId, ctx.user.id),
+            eq(pinboardNotes.connectionId, conn.id),
+            eq(pinboardNotes.issueKey, input.issueKey),
+            isNull(pinboardNotes.issueNoteId),
+          ),
+        );
+      const on = new Map(pinned.map((p) => [p.boardId, p.id]));
+      const inBucket = await issuesInBucket(ctx.user.id, ctx.deviceId);
+      const shown = inBucket
+        ? (
+            await getDb()
+              .select({ id: issues.id })
+              .from(issues)
+              .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.issueKey), inBucket))
+              .limit(1)
+          ).length > 0
+        : true;
+      return {
+        connectionId: conn.id,
+        hiddenByBucket: !shown,
+        boards: boards.map((b) => ({ id: b.id, name: boardDisplayName(b.name), noteId: on.get(b.id) ?? null })),
+      };
+    }),
+
+  /** Unpin an issue from one board (its own post-it). Returns it so "Undo" can put it back. */
+  unpinIssue: protectedProcedure
+    .input(z.object({ boardId: boardIdInput, issueKey: issueKeyInput, connectionId: z.number().int().positive().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const board = await resolveBoard(ctx.user.id, input.boardId);
+      const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const [row] = await getDb()
+        .delete(pinboardNotes)
+        .where(
+          and(
+            eq(pinboardNotes.userId, ctx.user.id),
+            eq(pinboardNotes.boardId, board.id),
+            eq(pinboardNotes.connectionId, conn.id),
+            eq(pinboardNotes.issueKey, input.issueKey),
+            isNull(pinboardNotes.issueNoteId),
+          ),
+        )
+        .returning();
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.noteNotFound") });
+      return row;
+    }),
+
   /** Unpin. Returns the post-it so "Undo" can put it back as it was. */
   remove: protectedProcedure.input(z.object({ id: z.number().int() })).mutation(async ({ ctx, input }) => {
     const row = await own(ctx.user.id, input.id);

@@ -496,6 +496,12 @@ export const ui: Shape<typeof en> = {
     existing: "{key} è già su «{board}»",
     added: "{key} appesa a «{board}»",
     open: "Apri lavagna",
+    removed: "{key} staccata da «{board}»",
+    undo: "Annulla",
+    unpin: "Stacca",
+    boards: "Appesa su",
+    pinnedOn: { one: "Appesa su {count} lavagna", other: "Appesa su {count} lavagne" },
+    hiddenByBucket: "Appesa qui, il bucket attivo la nasconde",
   },
   pinnedOrder: {
     failed: "Ordine non salvato: {message}",

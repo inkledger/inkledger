@@ -4,8 +4,8 @@ import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { trpc } from "@/lib/trpc";
 import { reachable, type BoardColumn } from "@/lib/boardTargets";
 import { Link } from "react-router";
-import { CalendarDays, Clock3, MoveRight, Pin, Star } from "lucide-react";
-import { usePinIssue } from "@/hooks/usePinIssue";
+import { CalendarDays, Clock3, MoveRight, Star } from "lucide-react";
+import { PinMenuItems } from "@/components/issue/PinMenu";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
 import { relevanceText, issuePath } from "@/lib/issues";
@@ -65,7 +65,6 @@ export function BoardCard({
   onPrefetch: () => void;
 }) {
   const due = issue.dueDate ? parseDayKey(issue.dueDate.slice(0, 10)) : null;
-  const pin = usePinIssue();
   // The menu (keyboard, and a long press on touch) lists only where its tracker can take it.
   const [menu, setMenu] = useState(false);
   const ways = trpc.issues.transitions.useQuery({ key: issue.key, connectionId: issue.connectionId }, { enabled: menu, staleTime: 60_000 });
@@ -118,9 +117,7 @@ export function BoardCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => void pin(issue.key, issue.connectionId)}>
-              <Pin className="h-4 w-4" /> {t("views.board.card.pin")}
-            </DropdownMenuItem>
+            <PinMenuItems issueKey={issue.key} connectionId={issue.connectionId} label={t("views.board.card.pin")} />
             <DropdownMenuSeparator />
             <DropdownMenuLabel>{t("views.board.card.moveTo")}</DropdownMenuLabel>
             {places === null ? (

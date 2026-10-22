@@ -134,7 +134,9 @@ export interface FrozenIn {
   "pinboard.renameBoard": { id: number; name: string };
   "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; note: string; rotation: number; x: number; y: number };
   "pinboard.setBoardScope": { bucketId: null | number; id: number };
+  "pinboard.unpinIssue": { boardId: number; connectionId?: number | undefined; issueKey: string };
   "pinboard.update": { color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; id: number; note?: string | undefined; toFront?: false | true | undefined; x?: number | undefined; y?: number | undefined };
+  "pinboard.where": { connectionId?: number | undefined; issueKey: string };
   "ping": void;
   "queries.clearRecent": void;
   "queries.delete": { id: number };
@@ -322,7 +324,9 @@ export interface FrozenOut {
   "pinboard.renameBoard": { ok: boolean };
   "pinboard.restore": { ok: boolean };
   "pinboard.setBoardScope": { ok: boolean };
+  "pinboard.unpinIssue": { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number };
   "pinboard.update": { ok: boolean };
+  "pinboard.where": { boards: { id: number; name: string; noteId: null | number }[]; connectionId: number; hiddenByBucket: boolean };
   "ping": { ok: boolean; ts: number };
   "queries.clearRecent": { ok: boolean };
   "queries.delete": { ok: boolean };

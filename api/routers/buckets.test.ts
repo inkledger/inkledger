@@ -167,6 +167,9 @@ describe("pinboard, as the board shows it", () => {
     await device.buckets.setActive({ id });
     expect(await shown()).toEqual(["BBB-1", "free"]);
     expect(await shown(a)).toEqual(["free"]);
+    // The pin menu says so: pinned or not, the bucket keeps it off the board.
+    expect((await device.pinboard.where({ issueKey: "AAA-1", connectionId: a })).hiddenByBucket).toBe(true);
+    expect((await device.pinboard.where({ issueKey: "BBB-1", connectionId: b })).hiddenByBucket).toBe(false);
     // What the filter keeps out is counted apart, never lost: 4 post-its, 2 shown.
     expect((await device.pinboard.boards())[0]).toMatchObject({ count: 2, hidden: 2, bucket: null });
     await device.buckets.setActive({ id: null });

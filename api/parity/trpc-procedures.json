@@ -516,8 +516,16 @@
     "type": "mutation"
   },
   {
+    "path": "pinboard.unpinIssue",
+    "type": "mutation"
+  },
+  {
     "path": "pinboard.update",
     "type": "mutation"
+  },
+  {
+    "path": "pinboard.where",
+    "type": "query"
   },
   {
     "path": "ping",

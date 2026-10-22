@@ -3,7 +3,6 @@ import { memo } from "react";
 import { Link } from "react-router";
 import {
   History,
-  Pin,
   ArrowDown,
   ArrowUp,
   CalendarDays,
@@ -47,7 +46,7 @@ import {
   TableHeaderRow,
 } from "@/components/ui/table";
 import { issueHistory } from "@/lib/issueHistory";
-import { usePinIssue } from "@/hooks/usePinIssue";
+import { PinMenuItems } from "@/components/issue/PinMenu";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 
@@ -115,7 +114,6 @@ function updatedText(issue: IssueItem): string | null {
 function Actions({ issue, onLog, pin: pinProps }: RowProps) {
   const provider = useProviderName(issue.connectionId);
   const act = useIssueActions();
-  const pin = usePinIssue();
   const favorite = issue.favorite === 1;
   const hidden = issue.hidden === 1;
   return (
@@ -147,9 +145,7 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
               {favorite ? t("views.issues.row.unfavorite") : t("views.issues.row.favorite")}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => void pin(issue.key, issue.connectionId)}>
-            <Pin className="h-4 w-4" /> {t("views.issues.row.pin")}
-          </DropdownMenuItem>
+          <PinMenuItems issueKey={issue.key} connectionId={issue.connectionId} label={t("views.issues.row.pin")} />
           <DropdownMenuItem
             onSelect={() => void act.setWatching(issue.key, issue.watching !== 1, issue.connectionId)}
           >

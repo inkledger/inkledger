@@ -118,6 +118,27 @@ describe("pinboard", () => {
     await expect(me.pinboard.createBoard({ name: "   " })).rejects.toThrow(/name/);
   });
 
+  it("says where an issue is pinned; unpins it from one board, and Undo puts it back", async () => {
+    const [first] = await me.pinboard.boards();
+    const { id: second } = await me.pinboard.createBoard({ name: "Second" });
+    await me.pinboard.add({ boardId: first.id, issueKey: "PIN-1" });
+    // A private note's post-it is not the issue's own.
+    const where = async () => (await me.pinboard.where({ issueKey: "pin-1" })).boards.map((b) => [b.name, b.noteId !== null]);
+    expect(await where()).toEqual([["My board", true], ["Second", false]]);
+    await me.pinboard.add({ boardId: second, issueKey: "PIN-1" });
+    expect(await where()).toEqual([["My board", true], ["Second", true]]);
+    const removed = await me.pinboard.unpinIssue({ boardId: first.id, issueKey: "PIN-1" });
+    expect(await where()).toEqual([["My board", false], ["Second", true]]);
+    await expect(me.pinboard.unpinIssue({ boardId: first.id, issueKey: "PIN-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await me.pinboard.restore({ boardId: removed.boardId!, issueKey: removed.issueKey, note: removed.note, color: removed.color as "yellow", x: removed.x, y: removed.y, rotation: removed.rotation });
+    expect(await where()).toEqual([["My board", true], ["Second", true]]);
+    expect((await me.pinboard.where({ issueKey: "PIN-1" })).hiddenByBucket).toBe(false);
+    // Another user's board: neither read nor unpinned.
+    await expect(other.pinboard.unpinIssue({ boardId: second, issueKey: "PIN-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await other.pinboard.where({ issueKey: "PIN-1" })).boards.every((b) => b.noteId === null && b.id !== second)).toBe(true);
+    await me.pinboard.deleteBoard({ id: second });
+  });
+
   it("boards are private", async () => {
     const [mine] = await me.pinboard.boards();
     await expect(other.pinboard.list({ boardId: mine.id })).rejects.toMatchObject({ code: "NOT_FOUND" });

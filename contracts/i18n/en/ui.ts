@@ -495,6 +495,12 @@ export const ui = {
     existing: "{key} is already on “{board}”",
     added: "{key} pinned to “{board}”",
     open: "Open pinboard",
+    removed: "{key} unpinned from “{board}”",
+    undo: "Undo",
+    unpin: "Unpin",
+    boards: "Pinned on",
+    pinnedOn: { one: "Pinned on {count} board", other: "Pinned on {count} boards" },
+    hiddenByBucket: "Pinned here, the active bucket hides it",
   },
   pinnedOrder: {
     failed: "Order not saved: {message}",

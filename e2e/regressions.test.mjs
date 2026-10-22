@@ -45,6 +45,29 @@ test("an issue card dropped on the pinboard becomes a post-it", () =>
     assert.equal(pinned?.board_id, 1);
   }));
 
+test("the issue page pins on a chosen board, shows where it is, and unpins with undo", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const now = Date.now();
+    await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Sprint', 1, ?)", now);
+    await page.goto(base + "/issues/DEMO-105");
+    const pin = page.getByRole("button", { name: "Pin to the pinboard" });
+    await pin.click();
+    const menu = page.getByRole("menu");
+    await menu.getByRole("menuitemcheckbox", { name: "Sprint" }).click();
+    await page.getByText("DEMO-105 pinned to “Sprint”").waitFor();
+    const onBoards = async () => (await db.q("SELECT b.name FROM pinboard_notes n JOIN pinboards b ON b.id = n.board_id WHERE n.issue_key = 'DEMO-105' ORDER BY b.name")).map((r) => r.name);
+    assert.deepEqual(await onBoards(), ["Sprint"]);
+    await page.getByRole("button", { name: "Pinned on 1 board" }).click();
+    assert.equal(await menu.getByRole("menuitemcheckbox", { name: "Sprint" }).getAttribute("aria-checked"), "true");
+    assert.equal(await menu.getByRole("menuitemcheckbox", { name: "My board" }).getAttribute("aria-checked"), "false");
+    await menu.getByRole("menuitemcheckbox", { name: "Sprint" }).click();
+    await page.getByText("DEMO-105 unpinned from “Sprint”").waitFor();
+    assert.deepEqual(await onBoards(), []);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await page.getByRole("button", { name: "Pinned on 1 board" }).waitFor();
+    assert.deepEqual(await onBoards(), ["Sprint"]);
+  }));
+
 test("a private note from the issue page hangs on the pinboard, tied by a red string that follows a drag", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-105");
