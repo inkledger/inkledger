@@ -52,22 +52,33 @@ node scripts/bundle-size.mjs --md   # the summary table
 - **Entry:** the `<script type="module">` of `dist/public/index.html`.
 - **First load:** the entry, plus its `modulepreload` links and its stylesheets.
 
-## Queries per sync pass
+## Queries per scenario
 
-`api/sync/queries-per-pass.test.ts` counts the database queries of one pass of the worklog feed.
-- **Setup:** 20 entries on the fake tracker, one page.
-- **Three passes:**
-  - **all new:** the first read;
-  - **all known:** a full re-read with no checkpoint, where every entry is already ours;
-  - **five gone:** five deleted on the service.
-- **How queries are counted:** with a spy on `PGlite.prototype.query`, and on the `query` of each
-  transaction. A first test checks the counter itself: one query counts as one, inside a
-  transaction too.
-- **Ceilings:** the baseline's numbers are the test's `CEILING`. A change may lower them, never
-  raise them.
+Four tests count the database queries of a piece of code, each at several sizes, so both the
+count and how it grows are on record. They share one counter, `api/testing/countQueries.ts`.
+
+- **How queries are counted:** a spy on `PGlite.prototype.query` and on the `query` of each
+  transaction (begin and commit included when drizzle sends them as queries). A test of the
+  counter itself checks that one query counts as one, inside a transaction too.
+- **Boundaries:** from the call of the measured function to its return. Setup before it and
+  checks after it are not counted.
+- **Ceilings:** each test's `MEASURED` holds the numbers frozen on 2026-10-22, before Wave 2. A
+  change may lower them, never raise them; each test also checks the functional result.
+- **What the counts prove:** fewer queries on PGlite. They say nothing about index use or
+  latency on Postgres.
+
+| Test | Scenario | Measured (before Wave 2) |
+|---|---|---|
+| `api/sync/queries-per-pass.test.ts` | `syncEntries` over one page of N entries on the fake tracker: first read (all new), then a full re-read without a checkpoint (all known) | N = 10 / 20 / 40: 40 / 80 / 160, both passes (4 per entry) |
+| same | a pass where G of 40 entries are gone on the service | G = 5 / 10 / 20: 10 / 20 / 40 (2 per entry) |
+| `api/queries/accounts-queries.test.ts` | `signOutEverywhere` for a user with S sessions, one kept, one other user's session and device present | S = 1 / 5 / 20: 2 / 6 / 21 (2 + one per session ended) |
+| `api/sync/sinkDeletes-queries.test.ts` | `pushSinks` sending D deletes of one issue's entries to a day-totals sink (Everhour, mocked) | D = 1 / 5 / 20: 9 / 29 / 104 (4 + 5 per delete) |
+| `api/routers/issues-reassigned-queries.test.ts` | a Jira sync (fetch mocked) that finds K of the user's issues reassigned to someone else | K = 1 / 5 / 20: 22 / 34 / 79 (19 + 3 per issue) |
 
 ```sh
-npx vitest run api/sync/queries-per-pass.test.ts --reporter=verbose   # prints the [measure] line
+npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.test.ts \
+  api/sync/sinkDeletes-queries.test.ts api/routers/issues-reassigned-queries.test.ts \
+  --reporter=verbose   # prints the [measure] lines
 ```
 
 ## React renders (method only, not yet a gate)

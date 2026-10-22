@@ -1,47 +1,27 @@
 // How many database queries one pass of the worklog feed costs, measured
-// (docs/dev/measuring.md). Every query reaches PGlite through query(), inside
-// a transaction through the transaction's own query(): both are counted. The
-// ceilings are the baseline's numbers: a change may lower them, never raise them.
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { PGlite, type Transaction } from "@electric-sql/pglite";
+// (docs/dev/measuring.md) at several page sizes: the count per pass, and how it
+// grows with the page. Counted from the call of syncEntries to its return, with
+// api/testing/countQueries (every query on PGlite, inside transactions too).
+// The numbers are the measured ones: a change may lower them, never raise them.
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 process.env.DATABASE_URL = ":memory:";
 
 import { timeZone } from "@contracts/values";
 import { unlimited } from "./budget";
+import { countQueries } from "../testing/countQueries";
 
 const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
 const zone = timeZone("Europe/Rome");
 const meta = { signal: new AbortController().signal, correlationId: "t" };
 const ref = { remoteId: "r-1", key: "FAKE-1" };
-const N = 20;
 
-/** Ceilings per pass of N entries (baseline 2026-10-21). */
-const CEILING = { allNew: 80, allKnown: 80, fiveGone: 10 };
-
-let counted = 0;
-/** Counts every query from now on (installed once per test; reset `counted` between passes). */
-function countQueries() {
-  counted = 0;
-  // eslint-disable-next-line @typescript-eslint/unbound-method -- called with apply/call on the instance below
-  const query = PGlite.prototype.query;
-  // eslint-disable-next-line @typescript-eslint/unbound-method -- same
-  const transaction = PGlite.prototype.transaction;
-  vi.spyOn(PGlite.prototype, "query").mockImplementation(function (this: PGlite, ...a: Parameters<PGlite["query"]>) {
-    counted++;
-    return query.apply(this, a);
-  } as PGlite["query"]);
-  vi.spyOn(PGlite.prototype, "transaction").mockImplementation(function <T>(this: PGlite, fn: (tx: Transaction) => Promise<T>) {
-    return transaction.call(this, (tx: Transaction) => {
-      const txQuery = tx.query.bind(tx);
-      tx.query = ((...a: Parameters<Transaction["query"]>) => {
-        counted++;
-        return txQuery(...a);
-      }) as Transaction["query"];
-      return fn(tx);
-    });
-  });
-}
+/** Queries per pass, by page size N (all new, all known) and by entries gone G (of 40). Frozen 2026-10-22, before Wave 2. */
+const MEASURED = {
+  allNew: { 10: 40, 20: 80, 40: 160 },
+  allKnown: { 10: 40, 20: 80, 40: 160 },
+  gone: { 5: 10, 10: 20, 20: 40 },
+} as const;
 
 describe("queries per pass of the worklog feed", () => {
   let userId = 0;
@@ -64,56 +44,77 @@ describe("queries per pass of the worklog feed", () => {
     connId = c.id;
   });
 
-  afterEach(() => vi.restoreAllMocks());
-
   it("the counter counts one query as one, inside a transaction too", async () => {
     const { getDb } = await import("../queries/connection");
     const { sql } = await import("drizzle-orm");
-    countQueries();
-    await q("SELECT 1");
-    expect(counted).toBe(1);
-    counted = 0;
-    await getDb().transaction(async (tx) => {
-      await tx.execute(sql`SELECT 1`);
-      await tx.execute(sql`SELECT 2`);
-    });
-    // The two statements, plus the transaction's own begin/commit when drizzle sends them as queries.
-    expect(counted).toBeGreaterThanOrEqual(2);
-    expect(counted).toBeLessThanOrEqual(4);
+    const counter = countQueries();
+    try {
+      await q("SELECT 1");
+      expect(counter.n).toBe(1);
+      counter.reset();
+      await getDb().transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1`);
+        await tx.execute(sql`SELECT 2`);
+      });
+      // The two statements, plus the transaction's own begin/commit when drizzle sends them as queries.
+      expect(counter.n).toBeGreaterThanOrEqual(2);
+      expect(counter.n).toBeLessThanOrEqual(4);
+    } finally {
+      counter.stop();
+    }
   });
 
-  it(`a pass of ${N} entries: all new, all known, five gone`, async () => {
+  /** A fake tracker with `n` entries of the user's on one issue, one page of `n`; the feed and the entry ids. */
+  async function feedOf(n: number) {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { bindTracker } = await import("../providers/core/bind");
-    const { syncEntries } = await import("./worklogs");
-    const fake = fakeTracker([{ key: "FAKE-1", title: "First" }], { pageSize: N });
+    const fake = fakeTracker([{ key: "FAKE-1", title: "First" }], { pageSize: n });
     const b = bindTracker(fake, { id: connId, userId, type: "gitlab", baseUrl: "https://fake.example", remoteAccountId: "me", options: { region: "eu" }, timeZone: zone, credential: async () => ({ kind: "token", token: "t" }) });
-    const conn = { id: connId, userId, remoteAccountId: "me" };
     const ids: string[] = [];
-    for (let i = 0; i < N; i++) {
+    for (let i = 0; i < n; i++) {
       const e = await b.worklogs!.create!(meta, ref, { time: { kind: "session", start: Date.UTC(2026, 9, 15, 8, i * 10) as never, seconds: 300 }, comment: `e${i}` }, { idempotencyKey: `k${i}` });
       ids.push(e.remoteId);
     }
+    return { b, ids, conn: { id: connId, userId, remoteAccountId: "me" } };
+  }
 
-    countQueries();
-    const first = await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
-    const allNew = counted;
-    expect(first.upserted).toBe(N);
+  for (const n of [10, 20, 40] as const) {
+    it(`a pass of ${n} entries, all new then all known`, async () => {
+      const { syncEntries } = await import("./worklogs");
+      const { b, conn } = await feedOf(n);
+      const counter = countQueries();
+      try {
+        const first = await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
+        const allNew = counter.n;
+        expect(first.upserted).toBe(n);
+        // A full re-read (no checkpoint): every entry is already ours.
+        counter.reset();
+        await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
+        const allKnown = counter.n;
+        console.info(`[measure] pass of ${n}: allNew=${allNew} allKnown=${allKnown}`);
+        expect(allNew).toBeLessThanOrEqual(MEASURED.allNew[n]);
+        expect(allKnown).toBeLessThanOrEqual(MEASURED.allKnown[n]);
+      } finally {
+        counter.stop();
+      }
+    });
+  }
 
-    // A full re-read (no checkpoint): every entry is already ours.
-    counted = 0;
-    await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
-    const allKnown = counted;
-
-    for (const id of ids.slice(0, 5)) await b.worklogs!.delete!(meta, ref, id, {});
-    counted = 0;
-    const gone = await syncEntries(b, conn, { since: first.checkpoint, meta, budget: unlimited, zone });
-    const fiveGone = counted;
-    expect(gone.removed).toBe(5);
-
-    console.info(`[measure] queries per pass of ${N}: allNew=${allNew} allKnown=${allKnown} fiveGone=${fiveGone}`);
-    expect(allNew).toBeLessThanOrEqual(CEILING.allNew);
-    expect(allKnown).toBeLessThanOrEqual(CEILING.allKnown);
-    expect(fiveGone).toBeLessThanOrEqual(CEILING.fiveGone);
-  });
+  for (const g of [5, 10, 20] as const) {
+    it(`a pass where ${g} of 40 entries are gone`, async () => {
+      const { syncEntries } = await import("./worklogs");
+      const { b, ids, conn } = await feedOf(40);
+      const first = await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
+      for (const id of ids.slice(0, g)) await b.worklogs!.delete!(meta, ref, id, {});
+      const counter = countQueries();
+      try {
+        const gone = await syncEntries(b, conn, { since: first.checkpoint, meta, budget: unlimited, zone });
+        expect(gone.removed).toBe(g);
+        console.info(`[measure] ${g} of 40 gone: ${counter.n}`);
+        expect(counter.n).toBeLessThanOrEqual(MEASURED.gone[g]);
+      } finally {
+        counter.stop();
+      }
+    });
+  }
 });
