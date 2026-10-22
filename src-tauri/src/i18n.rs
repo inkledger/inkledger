@@ -79,9 +79,8 @@ pub fn trf(key: &str, vars: &[(&str, &str)]) -> String {
 
 /// A fault of this device (a file, the store, a certificate, the window) as the page
 /// tells it: in the user's language, the system's own words kept after it (there is no
-/// server log to look them up in), and logged.
+/// server log to look them up in; a caller that only logs it logs these words).
 pub fn fault(e: impl std::fmt::Display) -> String {
-    eprintln!("[native] {e}");
     trf("err.system", &[("err", &e.to_string())])
 }
 
