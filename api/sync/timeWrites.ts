@@ -167,17 +167,18 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
-      .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds, comment: worklogs.comment })
+      .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogSinks)
       .innerJoin(worklogs, eq(worklogs.id, worklogSinks.worklogId))
       .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
       .limit(1);
-    // Another worklog's entry: only its copy a sync read back meanwhile is ours to take (made
-    // after ours, with our entry's time and comment, since it is our entry: compared as words,
-    // a sync stores it trimmed); a twin the user logged, older, or with words of its own,
-    // keeps it. (A newer twin identical even in its comment can't be told from that copy.)
-    if (linked && linked.id !== local.id && (linked.id < local.id || !sameWords(linked.comment, local.comment) || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
+    // Another worklog's entry: only its copy a sync read back meanwhile (made after ours, the
+    // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
+    // same time, can't be told from that copy: its comment may have been edited since either.)
+    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
+    // The comment changed while it waited: sent now, or the tracker keeps the first words.
+    if (!sameWords(w.comment, local.comment)) await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
     return true;
   }
   return false;
