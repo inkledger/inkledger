@@ -1,13 +1,15 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
-let prefetching = 0;
+const partFailures = new WeakSet<object>();
 
 /**
- * Whether a part's code is being fetched ahead of use. Its failure (offline, a redeploy)
- * must not reload the page by itself (main.tsx): it shows where the part opens, if it does.
+ * Whether a failed import was a part's (main.tsx asks once the import has settled). A part's
+ * failure (offline, a redeploy) must not reload the page by itself: it shows where the part
+ * opens. Told by the failure itself, never by timing: a page's chunk failing meanwhile still
+ * reloads.
  */
-export const prefetchingParts = () => prefetching > 0;
+export const isPartFailure = (e: unknown): boolean => typeof e === "object" && e !== null && partFailures.has(e);
 
 /** After start, when the browser is free (or soon, where it cannot say). */
 function whenIdle(run: () => void) {
@@ -24,14 +26,16 @@ function whenIdle(run: () => void) {
  */
 export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> {
   let pending: Promise<{ default: ComponentType<P> }> | undefined;
-  const fetchOnce = () => (pending ??= load().then(c => ({ default: c })));
+  const fetchOnce = () =>
+    (pending ??= load().then(
+      c => ({ default: c }),
+      (e: unknown) => {
+        if (typeof e === "object" && e !== null) partFailures.add(e);
+        throw e;
+      },
+    ));
   const Lazy = lazy(fetchOnce);
-  whenIdle(() => {
-    prefetching++;
-    void fetchOnce()
-      .catch(() => {})
-      .finally(() => prefetching--);
-  });
+  whenIdle(() => void fetchOnce().catch(() => {}));
   function Part(props: P) {
     return (
       <ErrorBoundary>

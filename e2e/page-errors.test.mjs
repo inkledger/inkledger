@@ -154,3 +154,29 @@ test("a dialog whose code never arrives: no reload by itself, the error shows in
     await app.stop();
   }
 });
+
+test("a page's code failing while a dialog's is still on its way still reloads the page by itself", async () => {
+  const app = await start();
+  try {
+    const { page, context } = app;
+    // The new-issue form's chunk held back (its fetch ahead of use under way), the Reports page's cut.
+    const part = u => /\/assets\/CreateIssueForm-[\w-]+\.js$/.test(new URL(u).pathname);
+    const held = [];
+    await context.route(part, route => void held.push(route));
+    const reports = u => /\/assets\/Reports-[\w-]+\.js$/.test(new URL(u).pathname);
+    await context.route(reports, route => route.abort("failed"));
+    let loads = 0;
+    page.on("load", () => loads++);
+    await page.goto(app.base + "/");
+    await sidebarLink(page, "/reports").waitFor();
+    for (let i = 0; i < 50 && held.length === 0; i++) await page.waitForTimeout(200);
+    assert.ok(held.length >= 1, "the dialog's code is on its way");
+    const reloaded = page.waitForEvent("load");
+    await sidebarLink(page, "/reports").click();
+    await reloaded;
+    assert.equal(loads, 2, "the page reloaded by itself once");
+    for (const r of held) await r.abort("failed").catch(() => {});
+  } finally {
+    await app.stop();
+  }
+});
