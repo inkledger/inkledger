@@ -116,7 +116,7 @@ export function ManageBadge({
       downloadBlob(`${moduleId}${PROGRESS_FILE_EXTENSION}`, blob);
       return true;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e);
       return false;
     }
   };
@@ -132,7 +132,7 @@ export function ManageBadge({
         downloadBlob(`${moduleId}${LICENSE_FILE_EXTENSION}`, blob);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e);
     }
   };
 

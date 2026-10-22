@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -170,7 +171,7 @@ export function Pinboard({
   const refresh = () =>
     Promise.all([utils.pinboard.list.invalidate(), utils.pinboard.boards.invalidate()]);
   const fail = (e: unknown) => {
-    toast.error(e instanceof Error ? e.message : String(e));
+    toastError(e);
     void refresh();
   };
   const setNotes = (f: (old: Note[]) => Note[]) =>
@@ -654,7 +655,7 @@ export function Pinboard({
             setNaming(null);
             await refresh();
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : String(e));
+            toastError(e);
           }
         }}
       />

@@ -230,7 +230,7 @@ export function QuickStart() {
                     startOn({ key, connectionId });
                   })
                   .catch((e: unknown) =>
-                    toast.error(e instanceof Error ? e.message : String(e))
+                    toastError(e)
                   );
               }}
             >

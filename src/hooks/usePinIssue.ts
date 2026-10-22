@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
 import { pinboardBoard, pinboardPanel } from "@/hooks/usePinboardPanel";
@@ -34,7 +35,7 @@ export function usePinIssue() {
         }
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e);
     }
   };
 }

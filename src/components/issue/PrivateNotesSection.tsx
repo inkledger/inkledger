@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
 import { useNavigate } from "react-router";
@@ -35,7 +36,7 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
       utils.pinboard.list.invalidate(),
       utils.pinboard.boards.invalidate(),
     ]);
-  const fail = (e: unknown) => toast.error(e instanceof Error ? e.message : String(e));
+  const fail = (e: unknown) => toastError(e);
 
   const add = trpc.issueNotes.add.useMutation({
     onSuccess: () => {

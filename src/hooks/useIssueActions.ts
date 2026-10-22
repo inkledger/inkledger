@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { branchName, copyText } from "@/lib/issues";
@@ -24,7 +25,7 @@ export function useIssueActions() {
     try {
       return await work();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toastError(e);
       return undefined;
     } finally {
       setPending(false);
