@@ -124,11 +124,17 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   try {
     const base = `http://127.0.0.1:${port}`;
     // Up, or the test fails here (seeding a database still migrating would fail less clearly).
+    // Ours: it says it listens on this port (it migrates first), and then answers. A health
+    // answer alone could come from another test's server that took the same port first.
+    const listening = `Server running on http://localhost:${port}/`;
     for (let i = 0; ; i++) {
-      try {
-        if ((await fetch(`${base}/api/health`)).ok) break;
-      } catch {
-        // not up yet
+      if (server.exitCode !== null || server.signalCode !== null) throw new Error(`the server stopped before it was up:\n${log}`);
+      if (log.includes(listening)) {
+        try {
+          if ((await fetch(`${base}/api/health`)).ok) break;
+        } catch {
+          // not answering yet
+        }
       }
       if (i === 300) throw new Error(`the server did not start in 30 s:\n${log}`);
       await new Promise(r => setTimeout(r, 100));
