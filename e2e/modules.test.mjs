@@ -351,21 +351,43 @@ test("a module on the day timeline scrolls under the page header, never over it"
     await perch.waitFor();
     // A colour nothing else on the page has, drawn over the whole perch.
     await perch.evaluate(el => (el.style.background = "rgb(255 0 255)"));
-    // Scroll the panel until the timeline's top is well under the sticky header.
-    const header = await page.evaluate(() => {
-      const h = document.querySelector("main h1")?.closest("div.lg\\:sticky");
-      const bar = document.querySelector('[data-module="perch"]')?.closest(".h-56");
+    // Scroll the panel until the timeline's top is well under the sticky header, once the page
+    // has stopped moving (data landing late changes the header's height and what is above).
+    // Found the same way in each step: the sticky header, the timeline's bar, the scrolling panel.
+    const SEL = { header: "main h1", sticky: "div.lg\\:sticky", bar: '[data-module="perch"]', box: ".h-56" };
+    const settled = () =>
+      page.waitForFunction(
+        sel => {
+          const h = document.querySelector(sel.header)?.closest(sel.sticky);
+          const bar = document.querySelector(sel.bar)?.closest(sel.box);
+          if (!h || !bar) return false;
+          const now = JSON.stringify([h.getBoundingClientRect(), bar.getBoundingClientRect()]);
+          const same = window.__still === now;
+          window.__still = now;
+          return same;
+        },
+        SEL,
+        { polling: 150, timeout: 10_000 },
+      );
+    await settled();
+    await page.evaluate(sel => {
+      const h = document.querySelector(sel.header).closest(sel.sticky);
+      const bar = document.querySelector(sel.bar).closest(sel.box);
       const main = document.getElementById("main");
-      if (!h || !bar || !main) return null;
       main.scrollTop += bar.getBoundingClientRect().top - h.getBoundingClientRect().top - 20;
+    }, SEL);
+    await settled();
+    // The header as it is now, right before the picture.
+    const header = await page.evaluate(sel => {
+      const h = document.querySelector(sel.header)?.closest(sel.sticky);
+      if (!h) return null;
       const r = h.getBoundingClientRect();
       // Whole pixel rows inside the header only: at a fractional scroll the row its bottom
       // edge falls in is shared with what scrolls under it, and that is not "over" it.
       const top = Math.ceil(r.top) + 1;
       return { x: Math.ceil(r.left), y: top, width: Math.floor(r.width) - 1, height: Math.floor(r.bottom) - 1 - top };
-    });
+    }, SEL);
     assert.ok(header, "the sticky header and the timeline are on the page");
-    await page.waitForTimeout(300);
     const shot = (await page.screenshot({ clip: header })).toString("base64");
     // The browser decodes the picture: how many magenta pixels show in the header.
     const magenta = await page.evaluate(async b64 => {
