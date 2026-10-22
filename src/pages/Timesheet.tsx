@@ -21,14 +21,7 @@ import { day, flag, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { toast } from "sonner";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
-import {
-  addDays,
-  dayKey,
-  formatDurationLong,
-  formatDuration,
-  parseDayKey,
-  startOfWeek,
-} from "@contracts/time";
+import { addDays, dayKey, formatDurationLong, formatDuration, parseDayKey, startOfWeek, hoursDecimal } from "@contracts/time";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useWorklogSelection } from "@/hooks/useWorklogSelection";
 import { downloadCsv } from "@/lib/csv";
@@ -474,7 +467,7 @@ export default function Timesheet() {
         dayKey(new Date(w.started)),
         w.issueKey,
         summaries.get(issueId(w))?.summary ?? "",
-        Math.round((w.timeSpentSeconds / 3600) * 100) / 100,
+        hoursDecimal(w.timeSpentSeconds),
         w.comment,
         // Tracker (its label, else its service name) and project/repository.
         trackerOf(w.connectionId),

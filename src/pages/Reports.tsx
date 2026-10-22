@@ -6,13 +6,7 @@ import { useMemo } from "react";
 import { useToday } from "@/hooks/useToday";
 import { Briefcase, CalendarDays, CalendarRange, Download, FolderKanban, ListChecks } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import {
-  addDays,
-  dayKey,
-  formatDuration,
-  formatDurationLong,
-  parseDayKey,
-} from "@contracts/time";
+import { addDays, dayKey, formatDuration, formatDurationLong, parseDayKey, hoursDecimal } from "@contracts/time";
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
@@ -160,7 +154,7 @@ export default function Reports() {
   const perWorkingDay =
     data && workedDays > 0 ? data.totalSeconds / workedDays : 0;
 
-  const hours = (s: number) => Math.round((s / 3600) * 100) / 100;
+  const hours = hoursDecimal;
 
   const exportDaysCsv = () => {
     if (!daily.data) return;
