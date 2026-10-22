@@ -4,7 +4,7 @@
 // in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
 import { safeFetch, discardBody } from "../core/http";
-import { nextLink } from "../github/client";
+import { nextLink } from "../core/paging";
 
 export type GitLabCreds = {
   /** The API root: https://gitlab.com/api/v4, or a self-hosted https://host[/prefix]/api/v4 */

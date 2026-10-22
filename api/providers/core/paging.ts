@@ -5,6 +5,12 @@
 import type { Checkpoint, Page, PageQuery, PageToken } from "../types";
 import { IncompatibleResultError } from "./results";
 
+/** The next page's address in a Link header (rel="next"), as given; null on the last page. */
+export function nextLink(link: string | null): string | null {
+  const m = link?.split(",").map((p) => /<([^>]+)>;\s*rel="next"/.exec(p)).find(Boolean);
+  return m ? m[1] : null;
+}
+
 /** More pages than any real pass has: past it, the adapter is looping. */
 export const MAX_PAGES = 1000;
 

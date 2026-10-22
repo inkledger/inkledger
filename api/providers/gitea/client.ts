@@ -3,6 +3,7 @@
 // errors in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
 import { safeFetch, discardBody } from "../core/http";
+import { nextLink } from "../core/paging";
 
 export type GiteaCreds = {
   /** The API root of the server: https://host/api/v1 (maybe under a sub-path: https://host/gitea/api/v1) */
@@ -81,15 +82,6 @@ async function refused(res: Response): Promise<ProviderError> {
   // Time tracking switched off on a repository is a setting, answered 400 (a permission would be 403).
   if (res.status === 400 && /time tracking disabled/i.test(message)) return new ProviderError("forbidden", message, { status: res.status });
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
-}
-
-/** The next page's URL, from a Link header. */
-export function nextLink(link: string | null): string | null {
-  const m = link
-    ?.split(",")
-    .map((p) => /<([^>]+)>;\s*rel="next"/.exec(p))
-    .find(Boolean);
-  return m ? m[1] : null;
 }
 
 /**

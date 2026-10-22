@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { ProviderError, kindOfStatus } from "../core/errors";
 import { safeFetch, discardBody } from "../core/http";
+import { nextLink } from "../core/paging";
 
 export type GitHubCreds = {
   /** The API root: https://api.github.com, or a GitHub Enterprise Server's https://host/api/v3 */
@@ -58,12 +59,6 @@ async function refused(res: Response): Promise<ProviderError> {
     return new ProviderError("rateLimit", message, { status: res.status, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Number.isFinite(reset) ? reset * 1000 : undefined } });
   }
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
-}
-
-/** The next page's URL, from a Link header. */
-export function nextLink(link: string | null): string | null {
-  const m = link?.split(",").map((p) => /<([^>]+)>;\s*rel="next"/.exec(p)).find(Boolean);
-  return m ? m[1] : null;
 }
 
 /**
