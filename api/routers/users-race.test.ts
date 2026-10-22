@@ -101,7 +101,23 @@ describe("a manager's change races an admin's promotion", () => {
     const [admin] = await getDb().select().from(users).where(eq(users.id, a.id));
     const asA = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: { ...admin, disabledAt: null }, sessionId: null });
     stale.user = { role: "member" };
-    await expect(asA.users.setDisabled({ id: x.id, disabled: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // Refused (A is off now, and X the last admin): whichever check comes first.
+    await expect(asA.users.setDisabled({ id: x.id, disabled: true })).rejects.toMatchObject({ code: expect.stringMatching(/^(BAD_REQUEST|FORBIDDEN)$/) });
     expect(await q("SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND disabled_at IS NULL")).toEqual([{ n: 1 }]);
+  });
+
+  it("a request from an admin turned off (or demoted) while it ran writes nothing", async () => {
+    const [a] = await q<{ id: number }>("INSERT INTO users (username, display_name, role, created_at) VALUES ('soon-off', 'A', 'admin', 1) RETURNING id");
+    const [t] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('target-x', 'T', 1) RETURNING id");
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [admin] = await getDb().select().from(users).where(eq(users.id, a.id));
+    // Signed in and checked as it was; turned off since.
+    await q("UPDATE users SET disabled_at = ? WHERE id = ?", Date.now(), a.id);
+    const asA = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: admin, sessionId: null });
+    await expect(asA.users.setAccess({ id: t.id, role: "member", permissions: ["manageServer"] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await q("SELECT permissions FROM users WHERE id = ?", t.id)).toEqual([{ permissions: "[]" }]);
   });
 });

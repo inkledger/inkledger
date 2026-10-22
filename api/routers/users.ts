@@ -9,7 +9,7 @@ import { PERMISSIONS } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById, within } from "../queries/accounts";
+import { can, createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById, within } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
 import { assertFreeUsername } from "./auth";
 
@@ -69,7 +69,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
  * one is read then, not before: if so, the write goes only while another one stays. Two admins turning
  * each other off at once, or one promoted meanwhile, can't leave the server with none.
  */
-async function writeAccount<T>(id: number, takesAway: boolean, write: (db: Tx) => Promise<T>): Promise<T> {
+async function writeAccount<T>(me: User, target: User, takesAway: boolean, write: (db: Tx, me: User) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     const admins = await tx
       .select({ id: users.id })
@@ -77,12 +77,17 @@ async function writeAccount<T>(id: number, takesAway: boolean, write: (db: Tx) =
       .where(and(eq(users.role, "admin"), isNull(users.disabledAt)))
       .orderBy(asc(users.id))
       .for("update");
-    const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, id));
+    // Whoever acts, as now, not as signed in: still on, still managing accounts, still
+    // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
+    const [actor] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
+    if (!actor || actor.disabledAt || !can(actor, "manageUsers")) throw notAllowed();
+    assertWithin(actor, { role: roleOf(target), permissions: permissionsOf(target) });
+    const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
     const admin = now?.role === "admin" && !now.disabledAt;
-    if (admin && takesAway && !admins.some((a) => a.id !== id)) {
+    if (admin && takesAway && !admins.some((a) => a.id !== target.id)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
     }
-    return write(tx);
+    return write(tx, actor);
   });
 }
 
@@ -130,13 +135,14 @@ export const usersRouter = createRouter({
   setAccess: manage.input(access.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
     assertWithin(ctx.user, input);
-    const [updated] = await writeAccount(user.id, input.role !== "admin", (db) =>
-      db
+    const [updated] = await writeAccount(ctx.user, user, input.role !== "admin", (db, me) => {
+      assertWithin(me, input);
+      return db
         .update(users)
         .set({ role: input.role, permissions: storedPermissions(input.permissions) })
-        .where(asChecked(user, ctx.user))
-        .returning(),
-    );
+        .where(asChecked(user, me))
+        .returning();
+    });
     if (!updated) throw notAllowed();
     return row(updated);
   }),
@@ -145,11 +151,10 @@ export const usersRouter = createRouter({
   resetPassword: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
     const password = temporaryPassword();
-    const done = await getDb()
-      .update(users)
-      .set({ passwordHash: await hashPassword(password), mustChangePassword: 1 })
-      .where(asChecked(user, ctx.user))
-      .returning({ id: users.id });
+    const passwordHash = await hashPassword(password);
+    const done = await writeAccount(ctx.user, user, false, (db, me) =>
+      db.update(users).set({ passwordHash, mustChangePassword: 1 }).where(asChecked(user, me)).returning({ id: users.id }),
+    );
     if (done.length === 0) throw notAllowed();
     await signOutEverywhere(user.id);
     return { password };
@@ -158,11 +163,11 @@ export const usersRouter = createRouter({
   /** Turns an account off (signed out everywhere, no sign-in) or on again. Its data stays. */
   setDisabled: manage.input(z.object({ id: z.number().int(), disabled: z.boolean() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
-    const [updated] = await writeAccount(user.id, input.disabled, (db) =>
+    const [updated] = await writeAccount(ctx.user, user, input.disabled, (db, me) =>
       db
         .update(users)
         .set({ disabledAt: input.disabled ? new Date() : null })
-        .where(asChecked(user, ctx.user))
+        .where(asChecked(user, me))
         .returning(),
     );
     if (!updated) throw notAllowed();
