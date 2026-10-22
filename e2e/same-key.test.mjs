@@ -3,7 +3,7 @@
 // "on more than one tracker").
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mockNative, start } from "./harness.mjs";
+import { awayFromMidnight, mockNative, start } from "./harness.mjs";
 
 async function withApp(opts, body) {
   const app = await start(opts);
@@ -42,8 +42,11 @@ function todayAt(h, m) {
 
 const entries = db => db.q("SELECT connection_id, comment, time_spent_seconds FROM worklogs ORDER BY started, id");
 
-test("the Timesheet edits, duplicates and deletes an entry on the tracker it is on", () =>
-  withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
+// Its own timeout: near midnight it first waits up to 5 minutes (one day, start to end;
+// the copy ends now and never starts before midnight).
+test("the Timesheet edits, duplicates and deletes an entry on the tracker it is on", { timeout: 600_000 }, async () => {
+  await awayFromMidnight();
+  return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
     // Yesterday's week (duplicating is for a day before today).
     const y = new Date(Date.now() - 86_400_000);
     const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
@@ -57,9 +60,6 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
     await dialog.waitFor({ state: "detached" });
     await page.getByText("Time entry updated").first().waitFor();
     assert.deepEqual(await entries(db), [{ connection_id: github, comment: "edited", time_spent_seconds: 60 }]);
-    // The copy ends now and never starts before midnight: a few minutes into the day at least.
-    const sinceMidnight = Date.now() - todayAt(0, 0);
-    if (sinceMidnight < 3 * 60_000) await page.waitForTimeout(3 * 60_000 - sinceMidnight);
     await page.getByRole("button", { name: /^Duplicate .* to today$/ }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Duplicate" }).click();
     await page.getByText("1 worklog duplicated to today").waitFor();
@@ -70,7 +70,8 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await page.getByText("Worklog deleted").first().waitFor();
     assert.equal((await entries(db)).length, 1);
-  }));
+  });
+});
 
 test("an issue's page edits and deletes an entry on its own tracker", () =>
   withApp({ seed: sameKey(todayAt(0, 0) - 86_400_000) }, async ({ page, base, db }) => {

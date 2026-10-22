@@ -125,7 +125,9 @@ try {
   // Gone before its database folder goes; one that doesn't stop is killed.
   const exited = new Promise((r) => server.once("exit", r));
   server.kill("SIGTERM");
-  const gone = await Promise.race([exited.then(() => true), new Promise((r) => setTimeout(r, 5000, false))]);
+  let timer;
+  const gone = await Promise.race([exited.then(() => true), new Promise((r) => (timer = setTimeout(r, 5000, false)))]);
+  clearTimeout(timer);
   if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }

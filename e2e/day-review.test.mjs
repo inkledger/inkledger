@@ -4,14 +4,14 @@
 // sheet opened).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { awayFromMidnight, start } from "./harness.mjs";
 
-// Its own timeout: just after midnight it first waits up to 6 minutes (see below).
+// Its own timeout: near midnight it first waits up to 8 minutes (see below).
 test("while the day is being logged, the summary shows what is being logged", { timeout: 600_000 }, async () => {
-  // The block must fit today (it never starts before midnight): just after midnight,
-  // minutes instead of half hours, and at least the few minutes they need.
+  // The block must fit today (it never starts before midnight), and the test must not
+  // cross midnight: just after it, minutes instead of half hours, and those few minutes.
+  await awayFromMidnight(2 * 60_000, 6 * 60_000);
   const midnight = new Date().setHours(0, 0, 0, 0);
-  if (Date.now() - midnight < 6 * 60_000) await new Promise(r => setTimeout(r, midnight + 6 * 60_000 - Date.now()));
   const early = Date.now() - midnight < 55 * 60_000;
   const [first, extra] = early ? [3, 2] : [30, 20];
   const now = Date.now();

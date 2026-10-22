@@ -193,7 +193,10 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
         await browser.close().catch(() => {});
         const exited = new Promise(r => server.once("exit", r));
         server.kill("SIGTERM");
-        const gone = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(r, 5000, false))]);
+        let timer;
+        const gone = await Promise.race([exited.then(() => true), new Promise(r => (timer = setTimeout(r, 5000, false)))]);
+        clearTimeout(timer); // or the test file waits it out
+
         // A server that outlives its test would hold the whole run open.
         if (!gone && server.exitCode === null && server.signalCode === null) server.kill("SIGKILL");
         try {
@@ -216,6 +219,19 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     rmSync(dir, { recursive: true, force: true });
     throw e;
   }
+}
+
+/**
+ * Waits, if needed, so a test about "today" runs whole inside one day: not in the
+ * last `before` ms of a day, nor in the first `after` ms (a block never starts
+ * before midnight). Give such a test a timeout above the longest wait.
+ */
+export async function awayFromMidnight(before = 2 * 60_000, after = 3 * 60_000) {
+  const now = Date.now();
+  const midnight = new Date(now).setHours(0, 0, 0, 0);
+  const next = new Date(midnight + 36 * 3600_000).setHours(0, 0, 0, 0);
+  const until = next - now < before ? next + after : now - midnight < after ? midnight + after : now;
+  if (until > now) await new Promise(r => setTimeout(r, until - now));
 }
 
 /** A port the system has just handed out, so free right now. */
