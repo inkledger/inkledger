@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { PASSWORD_MIN_LENGTH } from "@contracts/accounts";
 import { trpc } from "@/lib/trpc";
@@ -20,7 +21,7 @@ export function ChangePasswordForm({ onDone, username }: { onDone?: () => void; 
       setNext("");
       onDone?.();
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
   return (
     <form

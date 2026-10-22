@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
@@ -149,7 +150,7 @@ export function TransitionDialog({
     onError: e => {
       const fields = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields;
       setErrors(fields ?? {});
-      setError(fields ? null : e.message);
+      setError(fields ? null : failureText(e));
     },
   });
   const set = (id: string, v: Value | undefined) =>

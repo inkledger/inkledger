@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { Settings2 } from "lucide-react";
@@ -33,8 +34,8 @@ export default function Login() {
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const login = trpc.auth.login.useMutation({ onSuccess: signedIn, onError: e => setError(e.message) });
-  const activate = trpc.auth.activate.useMutation({ onSuccess: signedIn, onError: e => setError(e.message) });
+  const login = trpc.auth.login.useMutation({ onSuccess: signedIn, onError: e => setError(failureText(e)) });
+  const activate = trpc.auth.activate.useMutation({ onSuccess: signedIn, onError: e => setError(failureText(e)) });
 
   // This device remembers who signed in: back in with one click, or by
   // itself when the session just ran out or a profile was switched to.
@@ -43,7 +44,7 @@ export default function Login() {
   const resume = trpc.auth.resume.useMutation({
     onSuccess: signedIn,
     onError: e => {
-      setError(e.message);
+      setError(failureText(e));
       setManual(true);
       void utils.auth.remembered.invalidate();
     },

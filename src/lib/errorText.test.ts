@@ -1,6 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { errorKind, errorText, toastError, UserFacingError } from "./errorText";
+import { errorKind, errorText, failureText, toastError, UserFacingError } from "./errorText";
 
 const toastSpy = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastSpy } }));
@@ -64,5 +64,17 @@ describe("errorText", () => {
     toastError(fromServer("Già fatto", "CONFLICT"), { duration: 10_000 });
     expect(toastSpy).toHaveBeenNthCalledWith(1, "Già fatto", { id: "error:Già fatto" });
     expect(toastSpy).toHaveBeenNthCalledWith(2, "Già fatto", { id: "error:Già fatto", duration: 10_000 });
+  });
+
+  it("failureText: the same words, a fault's details to the console", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(failureText(fromServer("Password errata", "UNAUTHORIZED"))).toBe("Password errata");
+      expect(log).not.toHaveBeenCalled();
+      expect(failureText(new Error("x is undefined"))).toBe("<ui.error.failed>");
+      expect(log).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
   });
 });

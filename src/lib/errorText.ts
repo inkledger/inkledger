@@ -53,6 +53,12 @@ export function logFault(e: unknown): void {
   if (errorKind(e) === "other") console.error(e);
 }
 
+/** A failure shown other than as a toast (in a form, inside a sentence): its words, a fault's details to the console. */
+export function failureText(e: unknown): string {
+  logFault(e);
+  return errorText(e);
+}
+
 /**
  * A failure as a toast; a fault's details to the console. The same words twice at once show
  * once (a local and a shared handler both reporting it). In onError, call it with the error

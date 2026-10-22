@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { QrCode } from "@/components/app/QrCode";
 import { useState } from "react";
 import { Copy, MoreHorizontal, UserPlus } from "lucide-react";
@@ -124,7 +124,7 @@ export function UsersSection() {
       setForm(newInvite());
       setShown({ title: t("settings.users.linkTitle", { name: r.user.displayName }), hint: linkHint(r.expiresAt), value: absolute(r.link), qr: true });
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
   const reinvite = trpc.users.reinvite.useMutation({
     onSuccess: (r, v) => {
@@ -148,7 +148,7 @@ export function UsersSection() {
       setEditing(null);
       toast.success(t("settings.users.accessSaved"));
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
 
   return (

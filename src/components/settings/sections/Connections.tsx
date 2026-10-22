@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { providerName } from "@contracts/providerNames";
@@ -58,8 +58,8 @@ function JiraForm({ reconnect, onDone }: { reconnect?: Shown; onDone: () => void
     refresh();
     onDone();
   };
-  const add = trpc.connections.addJira.useMutation({ onSuccess: c => done(t("settings.connections.added", { name: c.label || c.host })), onError: e => setError(e.message) });
-  const again = trpc.connections.reconnectJira.useMutation({ onSuccess: () => done(t("settings.connections.reconnected")), onError: e => setError(e.message) });
+  const add = trpc.connections.addJira.useMutation({ onSuccess: c => done(t("settings.connections.added", { name: c.label || c.host })), onError: e => setError(failureText(e)) });
+  const again = trpc.connections.reconnectJira.useMutation({ onSuccess: () => done(t("settings.connections.reconnected")), onError: e => setError(failureText(e)) });
   const pending = add.isPending || again.isPending;
   return (
     <form
@@ -98,7 +98,7 @@ function GitHubForm({ onDone }: { onDone: () => void }) {
       setFlow(f);
       window.open(f.verificationUri, "_blank", "noopener");
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
   const { mutateAsync } = poll;
   // The latest callbacks, without restarting the wait at each render.
@@ -130,7 +130,7 @@ function GitHubForm({ onDone }: { onDone: () => void }) {
           .catch((e: unknown) => {
             if (stopped) return;
             setFlow(null);
-            setError(e instanceof Error ? e.message : String(e));
+            setError(failureText(e));
           });
       }, seconds * 1000);
     };
@@ -256,8 +256,8 @@ function TokenForm({ type, asksAddress, reconnect, onDone }: { type: string; ask
     refresh();
     onDone();
   };
-  const add = trpc.connections.connectToken.useMutation({ onSuccess: done, onError: e => setError(e.message) });
-  const again = trpc.connections.reconnectToken.useMutation({ onSuccess: done, onError: e => setError(e.message) });
+  const add = trpc.connections.connectToken.useMutation({ onSuccess: done, onError: e => setError(failureText(e)) });
+  const again = trpc.connections.reconnectToken.useMutation({ onSuccess: done, onError: e => setError(failureText(e)) });
   const pending = add.isPending || again.isPending;
   return (
     <form

@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, MoreHorizontal, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -133,7 +133,7 @@ function BucketForm({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       toast.success(t("settings.buckets.saved", { name }));
       onDone();
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
   const toggle = (s: Source, on: boolean) => setSources(prev => (on ? [...prev.filter(p => !same(p, s)), s] : prev.filter(p => !same(p, s))));
   const has = (s: Source) => sources.some(p => same(p, s));

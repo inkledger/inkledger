@@ -1,3 +1,4 @@
+import { failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { useParams } from "react-router";
 import { PASSWORD_MIN_LENGTH } from "@contracts/accounts";
@@ -19,7 +20,7 @@ export default function Invite() {
   const signedIn = useSignedIn("/");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const accept = trpc.auth.acceptInvite.useMutation({ onSuccess: signedIn, onError: e => setError(e.message) });
+  const accept = trpc.auth.acceptInvite.useMutation({ onSuccess: signedIn, onError: e => setError(failureText(e)) });
 
   if (invite.isPending && token) {
     return (

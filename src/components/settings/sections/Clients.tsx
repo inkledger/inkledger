@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { MoreHorizontal, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +32,7 @@ function ClientForm({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       toast.success(t("settings.clients.saved", { name }));
       onDone();
     },
-    onError: e => setError(e.message),
+    onError: e => setError(failureText(e)),
   });
   const ownerOf = (containerId: number) => list.data?.clients.find(c => c.id !== draft.id && c.containerIds.includes(containerId))?.name;
   return (
