@@ -1,3 +1,4 @@
+import { timeOfDay } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -14,9 +15,8 @@ import { IssuePicker, type IssueRef } from "@/components/app/IssuePicker";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { cn } from "@/lib/utils";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
 
-const clock = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 
 /**
  * Fastest path to log time: pick an issue (themed searchable picker),
@@ -155,8 +155,8 @@ export function QuickLog({
         >
           {placed.ok
             ? t("ui.quickLog.range", {
-                from: clock().format(placed.start),
-                to: clock().format(new Date(placed.start.getTime() + (parsed ?? 0) * 1000)),
+                from: timeOfDay(placed.start),
+                to: timeOfDay(new Date(placed.start.getTime() + (parsed ?? 0) * 1000)),
               })
             : t("ui.quickLog.noRoom", { reason: placed.reason })}
         </p>

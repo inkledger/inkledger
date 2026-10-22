@@ -1,3 +1,4 @@
+import { timeOfDay } from "@/lib/dates";
 import {
   formatDuration,
   formatDurationLong,
@@ -15,7 +16,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Link } from "react-router";
 import { issuePath } from "@/lib/issues";
 import { cn } from "@/lib/utils";
-import { t, dateFormat } from "@/i18n";
+import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 
 export type TimelineEntry = {
@@ -36,7 +37,6 @@ const MIN_PAUSE_MS = 10 * 60_000;
 
 type Span = { id: string; left: number; width: number };
 
-const clock = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 const endOf = (s: TimeSpan) => new Date(s.start.getTime() + s.seconds * 1000);
 
 /**
@@ -183,8 +183,8 @@ export function DayTimeline({
             {...surface("glass")}
             disabled={!onGap}
             onClick={() => onGap?.(g)}
-            title={t("views.dashboard.timeline.holeTitle", { from: clock().format(g.start), to: clock().format(endOf(g)), duration: formatDurationLong(g.seconds) })}
-            aria-label={t("views.dashboard.timeline.holeLabel", { from: clock().format(g.start), to: clock().format(endOf(g)), duration: formatDurationLong(g.seconds) })}
+            title={t("views.dashboard.timeline.holeTitle", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
+            aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             className="absolute bottom-6 top-3 z-10 flex min-w-1 items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none"
             style={{ left: `${g.left}%`, width: `${g.width}%` }}
           >
@@ -242,7 +242,7 @@ export function DayTimeline({
               key={b.id}
               to={issuePath({ key: b.issueKey, connectionId: b.connectionId, remoteId: b.remoteId })}
               title={title}
-              aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: clock().format(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
+              aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: timeOfDay(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
               {...surface("bar")}
               className={cn(
                 "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
@@ -333,7 +333,7 @@ export function DayTimeline({
           : sorted
               .map(
                 e =>
-                  `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: clock().format(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : ""}`
+                  `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: timeOfDay(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : ""}`
               )
               .join("; ")}
       </figcaption>

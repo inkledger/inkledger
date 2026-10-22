@@ -1,3 +1,4 @@
+import { timeOfDay } from "@/lib/dates";
 import { failureText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -37,9 +38,8 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { surface } from "@/components/app/surface";
-import { t, dateFormat } from "@/i18n";
+import { t } from "@/i18n";
 
-const clock = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 
 type Piece = {
   issueKey: string | null;
@@ -207,8 +207,8 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
     const n = neighbours[side];
     if (!n) return "";
     return side === "before"
-      ? t("views.dashboard.gap.extendBefore", { key: n.issueKey, time: clock().format(n.start + n.seconds * 1000) })
-      : t("views.dashboard.gap.extendAfter", { key: n.issueKey, time: clock().format(n.start) });
+      ? t("views.dashboard.gap.extendBefore", { key: n.issueKey, time: timeOfDay(n.start + n.seconds * 1000) })
+      : t("views.dashboard.gap.extendAfter", { key: n.issueKey, time: timeOfDay(n.start) });
   };
   // The hours the hole gets: alone, its assigned pieces; with lanes, their union (parallel work counts once).
   const assigned =
@@ -367,8 +367,8 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
             data-cut={c}
             aria-label={
               cutLocked(li, k)
-                ? t("views.dashboard.gap.cutLocked", { time: clock().format(c) })
-                : t("views.dashboard.gap.cutLabel", { time: clock().format(c) })
+                ? t("views.dashboard.gap.cutLocked", { time: timeOfDay(c) })
+                : t("views.dashboard.gap.cutLabel", { time: timeOfDay(c) })
             }
             aria-disabled={cutLocked(li, k) || undefined}
             className="absolute -inset-y-1.5 z-10 flex w-4 -translate-x-1/2 cursor-ew-resize touch-none aria-disabled:cursor-default justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -418,7 +418,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
       >
         <div className="flex items-center gap-2">
           <span className="text-body-sm tabular">
-            {clock().format(s.start)}–{clock().format(endOf(s))}
+            {timeOfDay(s.start)}–{timeOfDay(endOf(s))}
           </span>
           <span className="text-body-sm text-muted-foreground tabular">
             {formatDuration(s.seconds)}
@@ -461,7 +461,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={t("views.dashboard.gap.emptyPiece", { from: clock().format(s.start), to: clock().format(endOf(s)) })}
+                aria-label={t("views.dashboard.gap.emptyPiece", { from: timeOfDay(s.start), to: timeOfDay(endOf(s)) })}
                 title={t("views.dashboard.gap.emptyPieceHint")}
                 onClick={() => patch(li, i, { issueKey: null, connectionId: undefined, comment: "", status: "idle" })}
               >
@@ -522,7 +522,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
           onClick={() =>
             pick(
               ({ key, connectionId }) => patch(li, i, { issueKey: key, connectionId, extend: undefined, status: "idle" }),
-              t("views.dashboard.gap.logOnPrompt", { from: clock().format(s.start), to: clock().format(endOf(s)) })
+              t("views.dashboard.gap.logOnPrompt", { from: timeOfDay(s.start), to: timeOfDay(endOf(s)) })
             )
           }
           className={cn(
@@ -551,7 +551,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
             value={p.comment}
             onChange={e => patch(li, i, { comment: e.target.value })}
             placeholder={t("views.dashboard.gap.commentPlaceholder")}
-            aria-label={t("views.dashboard.gap.commentFor", { from: clock().format(s.start), to: clock().format(endOf(s)) })}
+            aria-label={t("views.dashboard.gap.commentFor", { from: timeOfDay(s.start), to: timeOfDay(endOf(s)) })}
             className="h-8"
           />
         )}
@@ -588,7 +588,7 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
           {t("views.dashboard.gap.title")}
         </SheetTitle>
         <SheetDescription className="text-caption text-muted-foreground">
-          {t("views.dashboard.gap.description", { from: clock().format(gap.start), to: clock().format(endOf(gap)), duration: formatDurationLong(gap.seconds) })}
+          {t("views.dashboard.gap.description", { from: timeOfDay(gap.start), to: timeOfDay(endOf(gap)), duration: formatDurationLong(gap.seconds) })}
         </SheetDescription>
       </div>
 
@@ -596,12 +596,12 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
         {/* The strip: click to cut, drag the handles, colours = projects; lanes under it for parallel work. */}
         {lanes.map((_, li) => renderStrip(li))}
         <div className="mt-1.5 flex justify-between text-caption text-muted-foreground tabular">
-          <span>{clock().format(gap.start)}</span>
+          <span>{timeOfDay(gap.start)}</span>
           <span className="max-sm:hidden">
             <Kbd>C</Kbd>{t("views.dashboard.gap.hintCut")}<Kbd>←</Kbd>
             <Kbd>→</Kbd>{t("views.dashboard.gap.hintStep")}<Kbd>⇧</Kbd>{t("views.dashboard.gap.hintShift")}
           </span>
-          <span>{clock().format(endOf(gap))}</span>
+          <span>{timeOfDay(endOf(gap))}</span>
         </div>
 
         <div className="mt-5 flex items-center justify-between gap-2">

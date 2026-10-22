@@ -1,3 +1,4 @@
+import { timeOfDay } from "@/lib/dates";
 import { failureText } from "@/lib/errorText";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -53,10 +54,9 @@ import { toast } from "sonner";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { missingSpans } from "@contracts/workSchedule";
 import { useProviderName } from "@/hooks/useConnections";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
 
-const time = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 type Draft = {
   issueKey: string;
   connectionId?: number | null;
@@ -387,8 +387,8 @@ export function DayReviewBody() {
                 >
                   <span className="stripes-idle h-8 w-1.5 shrink-0 rounded-full" {...surface("glass")} />
                   <span className="text-body-sm tabular">
-                    {time().format(g.start)} –{" "}
-                    {time().format(
+                    {timeOfDay(g.start)} –{" "}
+                    {timeOfDay(
                       new Date(g.start.getTime() + g.seconds * 1000)
                     )}
                   </span>

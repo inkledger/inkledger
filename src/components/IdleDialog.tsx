@@ -1,3 +1,4 @@
+import { timeOfDay } from "@/lib/dates";
 import { toastError, failureText } from "@/lib/errorText";
 import { Coffee } from "lucide-react";
 import { formatDuration } from "@contracts/time";
@@ -15,11 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
 import { issueId } from "@/lib/issues";
 import { surface } from "@/components/app/surface";
 
-const time = () => dateFormat({ hour: "2-digit", minute: "2-digit" });
 
 /** "You were away 25 min": keep, remove or move the away time of the running timer. */
 export function IdleDialog() {
@@ -52,7 +52,7 @@ export function IdleDialog() {
           </span>
           <DialogTitle>{t("ui.idle.title", { duration: formatDuration(away.seconds) })}</DialogTitle>
           <DialogDescription>
-            {t("ui.idle.sinceBefore", { time: time().format(away.since) })}{" "}
+            {t("ui.idle.sinceBefore", { time: timeOfDay(away.since) })}{" "}
             <span className="font-medium text-foreground">{away.issueKey}</span>{" "}
             {t("ui.idle.sinceAfter")}
           </DialogDescription>
