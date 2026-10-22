@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, MoreHorizontal, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -205,7 +206,7 @@ export function BucketsSection() {
   const utils = trpc.useUtils();
   const { buckets, active } = useBuckets();
   const [editing, setEditing] = useState<Draft | null>(null);
-  const remove = trpc.buckets.delete.useMutation({ onSuccess: () => void utils.invalidate(), onError: e => toast.error(e.message) });
+  const remove = trpc.buckets.delete.useMutation({ onSuccess: () => void utils.invalidate(), onError: e => toastError(e) });
   const order = trpc.buckets.reorder.useMutation({ onSuccess: () => void utils.buckets.list.invalidate() });
   const reorder = (i: number, d: -1 | 1) => {
     const ids = buckets.map(b => b.id);

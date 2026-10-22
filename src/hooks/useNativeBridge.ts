@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useTimers } from "@/hooks/useTimers";
@@ -80,7 +81,7 @@ export function useNativeBridge() {
       void invalidate();
       toast.success(t("ui.nativeBridge.paused", { key: issueKey }));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const stop = trpc.timers.stop.useMutation({
     onSuccess: (r, { issueKey, connectionId }) => {
@@ -88,7 +89,7 @@ export function useNativeBridge() {
       if (r.found)
         timerLog.push({ issueKey, connectionId, seconds: r.seconds, note: r.note, end: r.stoppedAt ?? undefined });
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   // The handler sees the latest timer without re-subscribing.

@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { FileKey, Grid3x3, LayoutGrid, Store } from "lucide-react";
 import { toast } from "sonner";
@@ -309,7 +310,7 @@ function RestoreLicence() {
       void utils.store.catalog.invalidate();
       void utils.modules.list.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   return (
     <>

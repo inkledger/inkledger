@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { AlertTriangle, CloudOff, Lock } from "lucide-react";
 import { surface } from "@/components/app/surface";
 import { toast } from "sonner";
@@ -27,7 +28,7 @@ export function WorklogSinkState({ worklogId, sink, provider }: { worklogId: num
       toast.success(t("views.worklogSink.settled"));
       void utils.worklogs.list.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   return (
     <>

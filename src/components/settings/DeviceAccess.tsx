@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useEffect, useState } from "react";
 import { Check, Globe, Plus, RefreshCw, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -23,7 +24,7 @@ export function DeviceAccess() {
   const info = trpc.info.get.useQuery();
   const setAccess = trpc.info.setAccess.useMutation({
     onSuccess: () => utils.info.get.invalidate(),
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const [ts, setTs] = useState<TailscaleInfo | null>(null);
   const [busy, setBusy] = useState(false);

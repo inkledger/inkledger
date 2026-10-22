@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { MoreHorizontal, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -97,7 +98,7 @@ export function ClientsSection() {
   const [asked, setAsked] = useState(false);
   const suggestions = trpc.clients.suggestions.useQuery(undefined, { enabled: asked, staleTime: 60_000 });
   const [editing, setEditing] = useState<Draft | null>(null);
-  const remove = trpc.clients.delete.useMutation({ onSuccess: () => void utils.invalidate(), onError: e => toast.error(e.message) });
+  const remove = trpc.clients.delete.useMutation({ onSuccess: () => void utils.invalidate(), onError: e => toastError(e) });
   const clients = list.data?.clients ?? [];
   return (
     <SettingsGroup

@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -224,7 +225,7 @@ export default function Issues() {
       );
       void utils.issues.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const all = trpc.issues.all.useQuery();

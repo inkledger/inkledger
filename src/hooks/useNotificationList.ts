@@ -1,5 +1,5 @@
+import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
-import { toast } from "sonner";
 
 /** The undismissed notifications, with optimistic dismiss / dismiss all. */
 export function useNotificationList() {
@@ -11,8 +11,8 @@ export function useNotificationList() {
     void utils.notifications.list.invalidate();
     void utils.notifications.count.invalidate();
   };
-  const onError = (e: { message: string }) => {
-    toast.error(e.message);
+  const onError = (e: unknown) => {
+    toastError(e);
     refresh();
   };
   const dismiss = trpc.notifications.dismiss.useMutation({

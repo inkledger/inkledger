@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -27,14 +28,14 @@ export function ActivationDialog({ product, name, open, onOpenChange }: { produc
     void utils.modules.invalidate();
     void utils.store.catalog.invalidate();
   };
-  const activate = trpc.modules.activate.useMutation({ onSuccess: () => done(t("settings.store.activation.activated", { name })), onError: e => toast.error(e.message) });
-  const deactivate = trpc.modules.deactivate.useMutation({ onSuccess: () => done(t("settings.store.activation.freed", { name })), onError: e => toast.error(e.message) });
+  const activate = trpc.modules.activate.useMutation({ onSuccess: () => done(t("settings.store.activation.activated", { name })), onError: e => toastError(e) });
+  const deactivate = trpc.modules.deactivate.useMutation({ onSuccess: () => done(t("settings.store.activation.freed", { name })), onError: e => toastError(e) });
   const accept = trpc.modules.acceptToken.useMutation({
     onSuccess: () => {
       setPasted("");
       done(t("settings.store.activation.activated", { name }));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const state = info.data?.state;
   const servers = info.data?.servers;

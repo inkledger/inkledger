@@ -1,8 +1,8 @@
+import { toastError } from "@/lib/errorText";
 import { Star } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { t } from "@/i18n";
 
 export function FavoriteStar({
@@ -24,7 +24,7 @@ export function FavoriteStar({
         utils.issues.all.invalidate(),
         utils.issues.get.invalidate(),
       ]),
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const label = t(favorite ? "ui.favorite.remove" : "ui.favorite.add", {
     key: issueKey,

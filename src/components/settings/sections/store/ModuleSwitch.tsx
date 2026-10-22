@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { toast } from "sonner";
 import type { ModuleStatus } from "@contracts/modules";
 import { trpc } from "@/lib/trpc";
@@ -13,7 +14,7 @@ export function ModuleSwitch({ moduleId, name, installed }: { moduleId: string; 
       toast.success(t(r.enabled ? "settings.store.switch.on" : "settings.store.switch.off", { name }));
       void utils.modules.list.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (installed?.state !== "active") return null;
   const on = !off.includes(moduleId);

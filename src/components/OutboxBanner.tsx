@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { CloudOff, RefreshCw, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -57,7 +58,7 @@ export function OutboxBanner() {
         toast.error(t("ui.outbox.unreachable", { provider }));
       }
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const discard = trpc.outbox.discard.useMutation({
     onSuccess: () => {
@@ -65,7 +66,7 @@ export function OutboxBanner() {
       void utils.worklogs.list.invalidate();
       toast.success(t("ui.outbox.discarded"));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const [discarding, setDiscarding] = useState<number | null>(null);

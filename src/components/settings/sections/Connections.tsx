@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { providerName } from "@contracts/providerNames";
@@ -201,7 +202,7 @@ function RepoChooser({ id, onDone }: { id: number; onDone: () => void }) {
       refresh();
       onDone();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (list.isPending) return <p className="text-body-sm text-muted-foreground">{t("common.loading")}</p>;
   if ((list.data ?? []).length === 0) return <p className="text-body-sm text-muted-foreground">{t("settings.connections.reposNone")}</p>;
@@ -354,7 +355,7 @@ function ConnectionOptions({ c }: { c: Shown }) {
       resync.mutate({ id: c.id, reconcile: true });
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   return (
     <div className="grid gap-4">
@@ -396,8 +397,8 @@ function SinkMappings({ id }: { id: number }) {
   const activities = trpc.sinks.activities.useQuery({ id }, { staleTime: 5 * 60_000 });
   const mappings = trpc.sinks.mappings.useQuery({ id });
   const done = () => void utils.sinks.mappings.invalidate({ id });
-  const map = trpc.sinks.map.useMutation({ onSuccess: () => (toast.success(t("settings.connections.sink.mapped")), done()), onError: e => toast.error(e.message) });
-  const unmap = trpc.sinks.unmap.useMutation({ onSuccess: done, onError: e => toast.error(e.message) });
+  const map = trpc.sinks.map.useMutation({ onSuccess: () => (toast.success(t("settings.connections.sink.mapped")), done()), onError: e => toastError(e) });
+  const unmap = trpc.sinks.unmap.useMutation({ onSuccess: done, onError: e => toastError(e) });
   if (targets.data?.use === "none") return <p className="text-caption text-muted-foreground">{t("settings.connections.sink.noTargets")}</p>;
   const nameOf = (cid: number | null) => (cid === null ? t("settings.connections.sink.everything") : (mappings.data?.containers.find(x => x.id === cid)?.key ?? String(cid)));
   return (
@@ -471,7 +472,7 @@ function StandIn({ c, standsIn }: { c: Shown; standsIn: NonNullable<Shown["stand
       toast.success(t("settings.connections.optionSaved"));
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const trackers = (list.data ?? []).filter(o => o.type === standsIn.tracker);
   const NONE = "none";
@@ -499,7 +500,7 @@ function StandIn({ c, standsIn }: { c: Shown; standsIn: NonNullable<Shown["stand
 /** Writes on an integration not verified on a real account: off until the person allows them here. */
 function AllowWrites({ c }: { c: Shown }) {
   const refresh = useRefresh();
-  const set = trpc.connections.allowWrites.useMutation({ onSuccess: refresh, onError: e => toast.error(e.message) });
+  const set = trpc.connections.allowWrites.useMutation({ onSuccess: refresh, onError: e => toastError(e) });
   return (
     <div className="grid gap-2 border-t pt-3">
       <div className="flex items-center justify-between gap-3">
@@ -521,7 +522,7 @@ function WebhookOption({ id }: { id: number }) {
   const hook = trpc.connections.webhook.useQuery({ id });
   const set = trpc.connections.setWebhook.useMutation({
     onSuccess: () => void utils.connections.webhook.invalidate({ id }),
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (!hook.data?.available) return null;
   const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success(t("settings.connections.webhook.copied")));
@@ -587,21 +588,21 @@ function ConnectionCard({ c, onReconnect }: { c: Shown; onReconnect: () => void 
       toast.success(t("settings.connections.tested", { who: r.signedInAs, sources: r.sources.join(", ") }));
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const rename = trpc.connections.rename.useMutation({
     onSuccess: () => {
       setRenaming(false);
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const archive = trpc.connections.archive.useMutation({
     onSuccess: () => {
       toast.success(t("settings.connections.archived", { name: c.label || c.host }));
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   // One connection now: its changes, or everything again (asking for what it no longer lists).
   const syncNow = trpc.issues.syncConnection.useMutation({
@@ -609,7 +610,7 @@ function ConnectionCard({ c, onReconnect }: { c: Shown; onReconnect: () => void 
       toast.success(v.reconcile ? t("settings.connections.reconciled", { name: c.label || c.host }) : t("settings.connections.synced", { name: c.label || c.host }));
       refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const title = c.label || c.host;
   return (

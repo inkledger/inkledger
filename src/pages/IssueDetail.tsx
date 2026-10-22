@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { WorklogSinkState } from "@/components/issue/WorklogSinkState";
 import { OtherFields } from "@/components/issue/OtherFields";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
@@ -230,7 +231,7 @@ export default function IssueDetail({
   };
   const transition = trpc.issues.transition.useMutation({
     onSuccess: transitionDone,
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const importIssue = trpc.issues.import.useMutation({
@@ -243,7 +244,7 @@ export default function IssueDetail({
         utils.issues.search.invalidate(),
       ]);
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   // Hotkeys: "l" log time, "s" favorite, "h" hide / restore, "c" / "b" copy
@@ -296,14 +297,14 @@ export default function IssueDetail({
       toast.success(t("pages.issueDetail.synced", { count: r.synced }));
       invalidateWorklogs();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const del = trpc.worklogs.delete.useMutation({
     onSuccess: () => {
       toast.success(t("pages.issueDetail.worklogDeleted"));
       invalidateWorklogs();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   if (issue.isPending)

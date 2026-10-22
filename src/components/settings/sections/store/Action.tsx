@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import type { ReactNode } from "react";
 import { Download, Info, KeyRound, RefreshCw, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -48,7 +49,7 @@ export function Action({
       );
       refresh();
     },
-    onError: err => toast.error(err.message),
+    onError: err => toastError(err),
   });
   const dismiss = trpc.store.dismiss.useMutation({ onSuccess: refresh });
 

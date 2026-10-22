@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { Coffee } from "lucide-react";
 import { formatDuration } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
@@ -26,7 +27,7 @@ export function IdleDialog() {
   const utils = trpc.useUtils();
   const trim = trpc.timers.trim.useMutation({
     onSuccess: () => utils.timers.list.invalidate(),
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (!away) return null;
 

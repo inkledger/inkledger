@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { timerLog } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
@@ -31,7 +32,7 @@ export function useStartTimer(opts: { announce?: boolean } = {}) {
         toast.error(e.message, {
           action: { label: t("ui.timer.takeOver"), onClick: () => mutate({ ...input, force: true }) },
         });
-      } else toast.error(e.message);
+      } else toastError(e);
     },
   });
   const mutate = (input: StartInput) => m.mutate({ ...input, opId: newOpId(), device: thisDevice() });

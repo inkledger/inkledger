@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDuration } from "@contracts/time";
@@ -22,7 +23,7 @@ export function TrashDialog({ open, onOpenChange }: { open: boolean; onOpenChang
       void utils.worklogs.trash.invalidate();
       invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

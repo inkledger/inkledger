@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
 import { useMemo, useState } from "react";
@@ -208,7 +209,7 @@ export default function Board() {
       // The way there asks for fields: its form, instead of an error.
       const fields = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields;
       if (fields && v.toStatus && v.connectionId) setAsking({ key: v.key, connectionId: v.connectionId, target: { toStatus: v.toStatus } });
-      else toast.error(e.message);
+      else toastError(e);
     },
     onSettled: (_r, _e, v) => {
       // Transitions depend on the status just changed.

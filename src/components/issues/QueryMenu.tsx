@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { Bookmark, History, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -27,9 +28,9 @@ export function QueryMenu({ value, onPick }: { value: string; onPick: (query: st
       setSaving(false);
       setName("");
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
-  const remove = trpc.queries.delete.useMutation({ onSuccess: done, onError: e => toast.error(e.message) });
+  const remove = trpc.queries.delete.useMutation({ onSuccess: done, onError: e => toastError(e) });
   const clear = trpc.queries.clearRecent.useMutation({ onSuccess: done });
   const saved = kept.data?.saved ?? [];
   const recent = kept.data?.recent ?? [];

@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { QrCode } from "@/components/app/QrCode";
 import { useState } from "react";
 import { Copy, MoreHorizontal, UserPlus } from "lucide-react";
@@ -130,7 +131,7 @@ export function UsersSection() {
       const who = list.data?.find(u => u.id === v.id);
       setShown({ title: t("settings.users.linkTitle", { name: who?.displayName ?? "" }), hint: linkHint(r.expiresAt), value: absolute(r.link), qr: true });
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const reset = trpc.users.resetPassword.useMutation({
     onSuccess: (r, v) => {
@@ -138,9 +139,9 @@ export function UsersSection() {
       const who = list.data?.find(u => u.id === v.id);
       setShown({ title: t("settings.users.resetTitle", { name: who?.displayName ?? "" }), hint: t("settings.users.resetHint"), value: r.password });
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
-  const setDisabled = trpc.users.setDisabled.useMutation({ onSuccess: refresh, onError: e => toast.error(e.message) });
+  const setDisabled = trpc.users.setDisabled.useMutation({ onSuccess: refresh, onError: e => toastError(e) });
   const saveAccess = trpc.users.setAccess.useMutation({
     onSuccess: () => {
       refresh();

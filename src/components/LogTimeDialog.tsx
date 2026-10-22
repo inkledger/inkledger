@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
@@ -225,7 +226,7 @@ function LogTimeForm({
     onClose();
     onDone?.();
   };
-  const onError = (e: { message: string }) => toast.error(e.message);
+  const onError = (e: unknown) => toastError(e);
   const create = trpc.worklogs.create.useMutation({ onSuccess, onError });
   const update = trpc.worklogs.update.useMutation({ onSuccess, onError });
   const pending = create.isPending || update.isPending;

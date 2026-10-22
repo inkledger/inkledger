@@ -1,6 +1,6 @@
+import { toastError } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { ArrowLeft, Bitcoin, Check, CreditCard, KeyRound, ShoppingBag } from "lucide-react";
-import { toast } from "sonner";
 import type { PaymentMethod, StoreEntry } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
 import { openExternal } from "@/lib/native";
@@ -58,7 +58,7 @@ export function RequestPanel({ entry, locale, onBack }: { entry: StoreEntry; loc
   const sent = entry.pending?.status === "pending";
   const send = trpc.store.requestLicense.useMutation({
     onSuccess: () => void utils.store.catalog.invalidate(),
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   return (
@@ -145,7 +145,7 @@ export function PayPanel({ entry, locale, onBack }: { entry: StoreEntry; locale:
       openExternal(r.url);
       void utils.store.catalog.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const dismiss = trpc.store.dismiss.useMutation({
     onSuccess: () => {

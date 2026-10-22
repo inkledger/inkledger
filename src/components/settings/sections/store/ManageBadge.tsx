@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useRef, useState } from "react";
 import { ChevronDown, Copy, Download, FileDown, FileUp, KeyRound, Server, Settings2, Trash2 } from "lucide-react";
 import { ActivationDialog } from "./ActivationDialog";
@@ -105,7 +106,7 @@ export function ManageBadge({
       toast.success(t("settings.store.manage.progressImported", { name }));
       setTimeout(() => window.location.reload(), 600);
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const exportProgress = async () => {

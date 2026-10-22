@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ViewScope } from "@/components/ViewScope";
@@ -333,14 +334,14 @@ export default function Timesheet() {
       void utils.weeks.invalidate();
       toast.success(t("pages.timesheet.weekClosed"));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const reopenMut = trpc.weeks.reopen.useMutation({
     onSuccess: () => {
       void utils.weeks.invalidate();
       toast.success(t("pages.timesheet.weekReopened"));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   // --- selection & mutations ---

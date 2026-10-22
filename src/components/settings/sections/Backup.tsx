@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { DatabaseBackup, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -43,7 +44,7 @@ export function BackupSection() {
       void refresh();
       toast.success(t("settings.backup.scheduleSaved"));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const runNow = trpc.backup.run.useMutation({
     onSuccess: r => {

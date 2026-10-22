@@ -3,6 +3,7 @@ import { timerLog } from "@/lib/timerLog";
 import { useTimers } from "@/hooks/useTimers";
 import { useStartTimer } from "@/hooks/useStartTimer";
 import { newOpId, timerConflictOf } from "@/lib/timerConflict";
+import { toastError } from "@/lib/errorText";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 
@@ -25,10 +26,10 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
   const guarded = () => ({ ...on, epoch: timer?.epoch, opId: newOpId() });
 
   const invalidate = () => utils.timers.list.invalidate();
-  const onError = (e: { message: string }) => {
+  const onError = (e: unknown) => {
     // Held elsewhere or changed meanwhile: the fresh view shows why.
     if (timerConflictOf(e)) void invalidate();
-    toast.error(e.message);
+    toastError(e);
   };
   const start = useStartTimer();
   const pause = trpc.timers.pause.useMutation({

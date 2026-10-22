@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { Copy, Plus, Trash2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -152,7 +153,7 @@ export function WorkScheduleEditor() {
       onSaved(data);
       toast.success(t("settings.schedule.versionDeleted"));
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const edit = (i: number, patch: Partial<WorkDay>) =>

@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
 import { Send } from "lucide-react";
@@ -39,7 +40,7 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
       toast.success(t("views.issue.comments.posted", { provider }));
       void utils.issues.comments.invalidate({ key: issueKey });
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const submit = () => {
     if (text.trim() && !add.isPending) add.mutate({ ...where, text });

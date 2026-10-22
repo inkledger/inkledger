@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { useState } from "react";
@@ -47,7 +48,7 @@ export function TrackerSearchPanel() {
       toast.success(t("views.issues.search.imported", { key: r.imported }));
       await refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   const watch = trpc.issues.watch.useMutation({
     onSuccess: async r => {
@@ -56,7 +57,7 @@ export function TrackerSearchPanel() {
       });
       await refresh();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   // The key asked for, then titles with every word, then the most recent, then mine.
   const words = query.toLowerCase().split(/\s+/).filter(w => w && !w.includes(":"));

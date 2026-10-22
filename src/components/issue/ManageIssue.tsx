@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -93,7 +94,7 @@ function AssigneesForm({
   const after = useAfterChange(onDone);
   const assign = trpc.issues.assign.useMutation({
     onSuccess: after,
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (people.isPending || issue.isPending)
     return (
@@ -193,7 +194,7 @@ function LabelsForm({
   const after = useAfterChange(onDone);
   const save = trpc.issues.setLabels.useMutation({
     onSuccess: after,
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (options.isPending)
     return (
@@ -278,7 +279,7 @@ function EditForm({
   const after = useAfterChange(onDone);
   const save = trpc.issues.edit.useMutation({
     onSuccess: after,
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
   if (description.isPending)
     return (

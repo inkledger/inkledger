@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Download, Eye, Play, Star } from "lucide-react";
@@ -152,7 +153,7 @@ export function QuickStart() {
           if (pick) pick({ key });
           else start.mutate({ issueKey: key });
         },
-        onError: e => toast.error(e.message),
+        onError: e => toastError(e),
       }
     );
   };

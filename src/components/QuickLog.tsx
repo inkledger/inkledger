@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { visibleIssues } from "@/lib/issues";
@@ -53,7 +54,7 @@ export function QuickLog({
       invalidate();
       onLogged?.();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toastError(e),
   });
 
   const list = visibleIssues(issues.data ?? []);
