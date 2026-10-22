@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { FileKey, Grid3x3, LayoutGrid, Store } from "lucide-react";
@@ -32,19 +33,10 @@ type Layout = "large" | "compact";
 
 /** Large cards or a compact grid of small tiles: per device, like the density. */
 function useLayout(): [Layout, (l: Layout) => void] {
-  const [layout, setLayout] = useState<Layout>(() => {
-    try {
-      return localStorage.getItem(LAYOUT_KEY) === "compact" ? "compact" : "large";
-    } catch {
-      return "large";
-    }
-  });
+  const [layout, setLayout] = useState<Layout>(() => (readStored(LAYOUT_KEY) === "compact" ? "compact" : "large"));
   const set = (l: Layout) => {
-    try {
-      localStorage.setItem(LAYOUT_KEY, l);
-    } catch {
-      /* storage unavailable: still applies for this visit */
-    }
+    // Storage unavailable: still applies for this visit.
+    writeStored(LAYOUT_KEY, l);
     setLayout(l);
   };
   return [layout, set];

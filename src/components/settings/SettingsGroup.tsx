@@ -1,3 +1,4 @@
+import { readStoredJson, writeStored } from "@/lib/storage";
 import { useContext, useId, useState, type ReactNode } from "react";
 import { matches, SettingsSearch } from "@/lib/settingsSearch";
 import { ChevronRight } from "lucide-react";
@@ -7,24 +8,19 @@ import { cn } from "@/lib/utils";
 const OPEN_KEY = "ikl-settings-open";
 
 function readOpen(): Record<string, boolean> {
-  try {
-    const saved = JSON.parse(localStorage.getItem(OPEN_KEY) ?? "{}") as Record<string, boolean>;
-    // Saved under the old Italian group id.
-    if ("permessi" in saved && !("permissions-system" in saved)) {
-      saved["permissions-system"] = saved["permessi"];
-    }
-    return saved;
-  } catch {
-    return {};
+  const v = readStoredJson(OPEN_KEY);
+  if (typeof v !== "object" || v === null) return {};
+  const saved = v as Record<string, boolean>;
+  // Saved under the old Italian group id.
+  if ("permessi" in saved && !("permissions-system" in saved)) {
+    saved["permissions-system"] = saved["permessi"];
   }
+  return saved;
 }
 
 function writeOpen(id: string, open: boolean) {
-  try {
-    localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(), [id]: open }));
-  } catch {
-    // storage unavailable: open/closed just isn't remembered
-  }
+  // Storage unavailable: open/closed just isn't remembered.
+  writeStored(OPEN_KEY, JSON.stringify({ ...readOpen(), [id]: open }));
 }
 
 

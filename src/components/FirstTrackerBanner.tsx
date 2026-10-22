@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { useState } from "react";
 import { Plug, X } from "lucide-react";
 import { Link } from "react-router";
@@ -8,11 +9,7 @@ import { t } from "@/i18n";
 const SKIPPED = "ikl-first-tracker-skipped";
 
 function skipped(): boolean {
-  try {
-    return localStorage.getItem(SKIPPED) === "1";
-  } catch {
-    return false;
-  }
+  return readStored(SKIPPED) === "1";
 }
 
 /**
@@ -25,11 +22,8 @@ export function FirstTrackerBanner() {
   const [hidden, setHidden] = useState(skipped);
   if (hidden || !list.data || list.data.some(c => c.role === "tracker")) return null;
   const skip = () => {
-    try {
-      localStorage.setItem(SKIPPED, "1");
-    } catch {
-      // storage unavailable: hidden until the next visit
-    }
+    // Storage unavailable: hidden until the next visit.
+    writeStored(SKIPPED, "1");
     setHidden(true);
   };
   return (

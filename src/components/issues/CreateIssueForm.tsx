@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { failureText, errorText } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
@@ -45,11 +46,7 @@ function decode(raw: string): Target | null {
 }
 
 function lastTarget(): string {
-  try {
-    return localStorage.getItem(LAST_TARGET) ?? "";
-  } catch {
-    return "";
-  }
+  return readStored(LAST_TARGET) ?? "";
 }
 
 /** The new-issue form (CreateIssueDialog.tsx draws its dialog): loaded on demand. */
@@ -98,11 +95,8 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || !target) return;
-    try {
-      localStorage.setItem(LAST_TARGET, picked);
-    } catch {
-      // storage unavailable: the project is asked again next time
-    }
+    // Storage unavailable: the project is asked again next time.
+    writeStored(LAST_TARGET, picked);
     create.mutate({
       connectionId: target.connectionId,
       container: target.container,

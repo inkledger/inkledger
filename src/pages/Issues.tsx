@@ -1,3 +1,4 @@
+import { readStoredJson, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
@@ -72,32 +73,25 @@ type Prefs = Pick<
 >;
 
 function loadFilters(): IssueFilterState {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY);
-    if (!raw) return INITIAL_FILTERS;
-    const p = JSON.parse(raw) as Partial<Prefs>;
-    return {
-      ...INITIAL_FILTERS,
-      sort: p.sort ?? INITIAL_FILTERS.sort,
-      includeDone: p.includeDone === true,
-      includeUnassigned: p.includeUnassigned === true,
-    };
-  } catch {
-    return INITIAL_FILTERS;
-  }
+  const p = readStoredJson(PREFS_KEY);
+  if (typeof p !== "object" || p === null) return INITIAL_FILTERS;
+  const prefs = p as Partial<Prefs>;
+  return {
+    ...INITIAL_FILTERS,
+    sort: prefs.sort ?? INITIAL_FILTERS.sort,
+    includeDone: prefs.includeDone === true,
+    includeUnassigned: prefs.includeUnassigned === true,
+  };
 }
 
 function saveFilters(f: IssueFilterState) {
-  try {
-    const prefs: Prefs = {
-      sort: f.sort,
-      includeDone: f.includeDone,
-      includeUnassigned: f.includeUnassigned,
-    };
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-  } catch {
-    // storage unavailable: preferences last for the session only
-  }
+  const prefs: Prefs = {
+    sort: f.sort,
+    includeDone: f.includeDone,
+    includeUnassigned: f.includeUnassigned,
+  };
+  // Storage unavailable: preferences last for the session only.
+  writeStored(PREFS_KEY, JSON.stringify(prefs));
 }
 
 const SORTS = ["activity", "updated", "priority", "key", "due"] as const satisfies readonly SortMode[];

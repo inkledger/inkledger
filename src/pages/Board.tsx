@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
@@ -117,14 +118,7 @@ const categoryTitle = (c: string) =>
     cancelled: t("pages.board.categories.cancelled"),
   })[c] ?? c;
 const MODE_KEY = "ikl-board-mode";
-const readMode = (): BoardMode => {
-  try {
-    const v = localStorage.getItem(MODE_KEY);
-    return v === "category" ? "category" : "lanes";
-  } catch {
-    return "lanes";
-  }
-};
+const readMode = (): BoardMode => (readStored(MODE_KEY) === "category" ? "category" : "lanes");
 
 type Row = inferRouterOutputs<AppRouter>["issues"]["all"][number];
 type Lane = { connectionId: number | null; label: string; columns: (BoardColumn & { title: string; category: string })[] };
@@ -173,11 +167,8 @@ export default function Board() {
     if (active) setBucketMode.mutate({ id: active.id, mode: m });
     else {
       setLocalMode(m);
-      try {
-        localStorage.setItem(MODE_KEY, m);
-      } catch {
-        // per-device convenience only
-      }
+      // A per-device convenience only.
+      writeStored(MODE_KEY, m);
     }
   };
   const statuses = trpc.buckets.statuses.useQuery(undefined, { staleTime: 5 * 60_000 }).data ?? [];
@@ -286,20 +277,13 @@ export default function Board() {
   // The tracker shown when there are several (its tab), remembered per bucket on this device.
   const laneKey = `ikl-board-lane:${active?.id ?? "all"}`;
   const [laneTab, setLaneTab] = useState<number | null>(() => {
-    try {
-      const v = Number(localStorage.getItem(laneKey));
-      return Number.isInteger(v) && v > 0 ? v : null;
-    } catch {
-      return null;
-    }
+    const v = Number(readStored(laneKey));
+    return Number.isInteger(v) && v > 0 ? v : null;
   });
   const pickLane = (id: number | null) => {
     setLaneTab(id);
-    try {
-      if (id !== null) localStorage.setItem(laneKey, String(id));
-    } catch {
-      // per-device convenience only
-    }
+    // A per-device convenience only.
+    if (id !== null) writeStored(laneKey, String(id));
   };
   /** Arrows, Home and End move between the tabs (the tab pattern). */
   const onTabKey = (e: React.KeyboardEvent) => {

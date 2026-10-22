@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { idleGap } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
@@ -46,19 +47,12 @@ export async function requestIdlePermission(): Promise<boolean> {
 }
 
 function readCovered(): number {
-  try {
-    return Number(localStorage.getItem(COVERED_KEY) ?? 0) || 0;
-  } catch {
-    return 0;
-  }
+  return Number(readStored(COVERED_KEY) ?? 0) || 0;
 }
 
 function writeCovered(ms: number) {
-  try {
-    localStorage.setItem(COVERED_KEY, String(ms));
-  } catch {
-    // storage unavailable: the in-memory value still protects this tab
-  }
+  // Storage unavailable: the in-memory value still protects this tab.
+  writeStored(COVERED_KEY, String(ms));
 }
 
 /**
