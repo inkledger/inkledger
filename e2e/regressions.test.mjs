@@ -174,20 +174,33 @@ test("on a narrow window More's pinboard opens the Board's pinboard sheet", () =
     assert.equal(await page.getByRole("dialog").count(), 1, "More gave way to the pinboard");
   }));
 
+/**
+ * The last working day before today, as the Dashboard's day: its holes are there,
+ * whole, at any hour and on any day the tests run (today's start at 9:00, and a
+ * Saturday or Sunday has none).
+ */
+function lastWorkday() {
+  const d = new Date();
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
+  return d;
+}
+const lastWorkdayKey = () => {
+  const d = lastWorkday();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 test("filling a hole: click and C cut, arrows move a cut by 1 or 15 minutes", () =>
   withApp({}, async ({ page, base }) => {
-    await page.goto(base + "/");
+    await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
     const hole = page.getByRole("button", { name: /Log missing time/ }).first();
-    // Before the work day starts there is no hole yet: nothing to test.
-    const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
-    if (!found) return;
     await hole.click();
     const strip = page.getByRole("group", { name: /Strip of time to log/ });
     await strip.waitFor();
     await page.waitForTimeout(500);
     const cuts = () => page.locator("[data-cut]").count();
     const box = await strip.boundingBox();
-    // Far apart, so the first cut has room to move right however short the hole is (in the morning).
+    // Far apart, so the first cut has room to move right.
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
     assert.equal(await cuts(), 1, "click cuts");
     await page.mouse.move(box.x + box.width * 0.1, box.y + box.height / 2, { steps: 3 });
@@ -200,9 +213,9 @@ test("filling a hole: click and C cut, arrows move a cut by 1 or 15 minutes", ()
     const m0 = await minute();
     await page.keyboard.press("ArrowRight");
     assert.equal((await minute()) - m0, 1, "arrow: 1 minute");
-    // A cut never passes its neighbour: with less room than that, the jump is not testable now.
+    // A cut never passes its neighbour: the whole morning's hole leaves room for the jump.
     const room = (Number(await page.locator("[data-cut]").nth(1).getAttribute("data-cut")) / 60_000) - m0;
-    if (room <= 17) return;
+    assert.ok(room > 17, `room for a 15-minute jump (${room} min)`);
     await page.keyboard.press("Shift+ArrowRight");
     assert.equal((await minute()) - m0, 16, "shift+arrow: 15 more");
   }));
@@ -212,11 +225,8 @@ test("filling a hole: once a piece is logged, its cuts stay where they are", () 
     await fakeProcedures(page, {
       "worklogs.create": { id: 900, issueKey: "DEMO-101", remoteId: "wl-e2e", timeSpentSeconds: 600, comment: "" },
     });
-    await page.goto(base + "/");
+    await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
     const hole = page.getByRole("button", { name: /Log missing time/ }).first();
-    // Before the work day starts there is no hole yet: nothing to test.
-    const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
-    if (!found) return;
     await hole.click();
     const strip = page.getByRole("group", { name: /Strip of time to log/ });
     await strip.waitFor();
@@ -251,11 +261,8 @@ test("filling a hole in parallel: a lane under the strip logs an overlapping spa
       const made = { id: 900 + sent.length, issueKey: input.issueKey, remoteId: `wl-${sent.length}`, timeSpentSeconds: input.seconds, comment: "" };
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
     });
-    await page.goto(base + "/");
+    await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
     const hole = page.getByRole("button", { name: /Log missing time/ }).first();
-    // Before the work day starts there is no hole yet: nothing to test.
-    const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
-    if (!found) return;
     await hole.click();
     const strip = page.getByRole("group", { name: /Strip of time to log/ });
     await strip.waitFor();
@@ -295,7 +302,7 @@ test("filling a hole in parallel: a lane under the strip logs an overlapping spa
 
 test("filling a hole by extending the worklog before or after it, never a tiny new one", () => {
   const today = h => {
-    const d = new Date();
+    const d = lastWorkday();
     d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0);
     return d.getTime();
   };
@@ -307,7 +314,7 @@ test("filling a hole by extending the worklog before or after it, never a tiny n
       },
     },
     async ({ page, base }) => {
-      // The hole 9:30–9:45 exists on a working day once the morning is past.
+      // The hole 9:30–9:45 of the last working day (whole, whatever the time now).
       const hole = page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ });
       const sent = [];
       await page.route(/\/api\/trpc\/worklogs\.update/, async route => {
@@ -317,9 +324,7 @@ test("filling a hole by extending the worklog before or after it, never a tiny n
         const made = { id: input.id, issueKey: "DEMO-101", timeSpentSeconds: input.seconds, comment: input.comment };
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
       });
-      await page.goto(base + "/");
-      const found = await hole.waitFor({ timeout: 8000 }).then(() => true, () => false);
-      if (!found) return;
+      await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
       await hole.click();
       await page.getByRole("group", { name: /Strip of time to log/ }).waitFor();
       // Both neighbours on offer; the one-click way extends the one before.
