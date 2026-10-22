@@ -34,6 +34,7 @@ import { t } from "@contracts/i18n";
 import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
 import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
+import { keyedLock } from "../lib/locks";
 
 const timeFields = {
   /** Whole seconds: what the app sends (a typed "1d" is resolved on the device, by the work schedule) */
@@ -115,16 +116,7 @@ export function isAuthoredBy(w: JiraWorklog, accountId: string): boolean {
 }
 
 /** One write at a time per user: two parallel requests can't both pass the overlap check. */
-const writeLocks = new Map<number, Promise<unknown>>();
-function withWriteLock<T>(userId: number, fn: () => Promise<T>): Promise<T> {
-  const run = (writeLocks.get(userId) ?? Promise.resolve()).then(fn, fn);
-  const tail = run.catch(() => undefined);
-  writeLocks.set(userId, tail);
-  void tail.then(() => {
-    if (writeLocks.get(userId) === tail) writeLocks.delete(userId);
-  });
-  return run;
-}
+const withWriteLock = keyedLock<number>();
 
 /**
  * With the "block" policy, time is never logged twice: refuse a block that
