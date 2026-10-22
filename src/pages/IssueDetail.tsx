@@ -183,8 +183,10 @@ export default function IssueDetail({
   useEffect(() => {
     if (loaded) markSeen({ key, connectionId });
   }, [loaded, key, connectionId, markSeen]);
-  // Its own worklogs: the key on its connection (another tracker may have the same key).
-  const logs = trpc.worklogs.list.useQuery({ issueKey: key, connectionId: issue.data?.connectionId }, { enabled: !!issue.data });
+  // Its own worklogs: the key on its connection (another tracker may have the same key). When
+  // its link names the connection, read at once beside the issue (the same query either way).
+  const logsOn = connectionId ?? issue.data?.connectionId;
+  const logs = trpc.worklogs.list.useQuery({ issueKey: key, connectionId: logsOn }, { enabled: logsOn !== undefined });
   // Everyone's on its tracker (time kept here is all mine): the others' beside mine.
   const team = trpc.worklogs.team.useQuery(
     { issueKey: key, connectionId: issue.data?.connectionId },
