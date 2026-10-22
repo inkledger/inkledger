@@ -217,7 +217,6 @@
     "api/lib/time.test.ts": [
       "a typed day follows the work schedule (D14) › 1d and 1w use the given day, else 8 hours",
       "a typed day follows the work schedule (D14) › a field shows hours and minutes, which read back the same whatever the day",
-      "formatHours › formats decimal hours",
       "formatSeconds › formats compact durations",
       "formatSeconds › round-trips with parseDurationToSeconds",
       "local calendar helpers (Europe/Rome) › addDays keeps local midnight across DST",
@@ -609,7 +608,6 @@
     ],
     "api/providers/core/core.test.ts": [
       "durations and amounts › a service with revisions takes changes only at a known one",
-      "durations and amounts › are rounded to the increment, then refused (never clamped) outside the limits",
       "durations and amounts › counters move by positive whole seconds; day totals may be zero",
       "reading a pass › refuses a page token that comes back (a loop)",
       "results held to the contract › a probe may narrow (less, tighter) but never widen",
