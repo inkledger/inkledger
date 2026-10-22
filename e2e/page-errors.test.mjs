@@ -180,3 +180,31 @@ test("a page's code failing while a dialog's is still on its way still reloads t
     await app.stop();
   }
 });
+
+test("a dialog whose code came ahead of use opens at once, with its content", async () => {
+  const app = await start();
+  try {
+    const { page } = app;
+    let fetched = false;
+    page.on("requestfinished", r => {
+      if (/\/assets\/CreateIssueForm-[\w-]+\.js$/.test(new URL(r.url()).pathname)) fetched = true;
+    });
+    await page.goto(app.base + "/issues");
+    for (let i = 0; i < 50 && !fetched; i++) await page.waitForTimeout(200);
+    assert.ok(fetched, "the form's code was fetched ahead of use");
+    await page.waitForTimeout(500);
+    // Frames from the click to the form on screen: React.lazy alone held it ~300 ms (about 20).
+    const frames = await page.evaluate(async () => {
+      const button = [...document.querySelectorAll("button")].find(b => b.textContent?.includes("New issue"));
+      button?.click();
+      for (let f = 1; f <= 60; f++) {
+        await new Promise(r => requestAnimationFrame(r));
+        if (document.querySelector('[role="dialog"] [role="combobox"]')) return f;
+      }
+      return -1;
+    });
+    assert.ok(frames >= 1 && frames <= 5, `the form shows within a few frames of the click (${frames})`);
+  } finally {
+    await app.stop();
+  }
+});

@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, useState, type ComponentType } from "react";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
 const partFailures = new WeakSet<object>();
@@ -26,9 +26,12 @@ function whenIdle(run: () => void) {
  */
 export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> {
   let pending: Promise<{ default: ComponentType<P> }> | undefined;
+  // Its code once here: drawn as is. React.lazy suspends on its first render however long
+  // the code has been here, and then holds the content back ~300 ms after the fallback.
+  let loaded: ComponentType<P> | undefined;
   const fetchOnce = () =>
     (pending ??= load().then(
-      c => ({ default: c }),
+      c => ((loaded = c), { default: c }),
       (e: unknown) => {
         if (typeof e === "object" && e !== null) partFailures.add(e);
         throw e;
@@ -37,10 +40,13 @@ export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>
   const Lazy = lazy(fetchOnce);
   whenIdle(() => void fetchOnce().catch(() => {}));
   function Part(props: P) {
+    // Chosen once per mount: a body that switched from Lazy to the code itself would remount,
+    // losing what was typed in it.
+    const [Body] = useState<ComponentType<P>>(() => loaded ?? Lazy);
     return (
       <ErrorBoundary>
         <Suspense fallback={null}>
-          <Lazy {...props} />
+          <Body {...props} />
         </Suspense>
       </ErrorBoundary>
     );
