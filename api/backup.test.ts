@@ -135,9 +135,12 @@ describe("backups on disk", () => {
     await q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES ('mine', ?, ?, 1), ('revoked-but-back', ?, ?, 1)", me.id, later, other.id, later);
     await q("INSERT INTO remembered_devices (id, user_id, expires_at, last_used_at, created_at) VALUES ('dev', ?, ?, 1, 1)", other.id, later);
     fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
-    await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: me.id } });
+    await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: me.id, username: "restorer" } });
     expect(await q("SELECT id, user_id FROM sessions")).toEqual([{ id: "mine", user_id: me.id }]);
     expect(await q("SELECT id FROM remembered_devices")).toEqual([]);
+    // In the backup, that id is someone else's: the session isn't handed to them.
+    await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: other.id, username: "restorer" } });
+    expect(await q("SELECT id FROM sessions")).toEqual([]);
   });
 
   it("a folder that can't be written is an error, not a crash", async () => {

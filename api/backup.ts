@@ -227,8 +227,8 @@ export function runBackup(): Promise<string> {
  */
 export async function restoreBackup(
   name: string,
-  /** Whoever restores stays signed in (when their account is in the backup, and on). */
-  opts: { keepSession?: { id: string; userId: number } } = {},
+  /** Whoever restores stays signed in (when their account, same id and name, is in the backup and on). */
+  opts: { keepSession?: { id: string; userId: number; username: string } } = {},
 ): Promise<{ safety: string }> {
   if (!BACKUP_FILE.test(name)) throw new Error(t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
@@ -237,9 +237,10 @@ export async function restoreBackup(
   try {
     const safety = await runBackup();
     await restoreInto(pgTarget(), file);
+    // First, so no session the backup held works even for a moment (or if a migration fails).
+    await signOutAfterRestore(opts.keepSession);
     // A backup from an older version lacks the newest columns: bring it up to date.
     await migrateDb();
-    await signOutAfterRestore(opts.keepSession);
     return { safety };
   } finally {
     restoring = null;
@@ -249,14 +250,14 @@ export async function restoreBackup(
 /**
  * The sessions and remembered devices the backup held would let in again whoever
  * was signed out since (a reset, an account turned off): everyone signs in again,
- * but whoever restored.
+ * but whoever restored (only as themselves: an id may be someone else's in the backup).
  */
-async function signOutAfterRestore(keep?: { id: string; userId: number }) {
+async function signOutAfterRestore(keep?: { id: string; userId: number; username: string }) {
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
   if (!keep) return;
-  const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), isNull(users.disabledAt)));
+  const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), eq(users.username, keep.username), isNull(users.disabledAt)));
   if (still) await db.insert(sessions).values({ id: keep.id, userId: keep.userId, expiresAt: new Date(Date.now() + env.sessionDays * 86_400_000) });
 }
 
