@@ -61,8 +61,11 @@ vi.stubGlobal(
   }),
 );
 
-/** Queries by K: first sync, then a sync where all K changed status. Frozen before the mini-wave. */
-const MEASURED = { first: { 1: 21, 5: 29, 20: 59 }, changed: { 1: 22, 5: 34, 20: 79 } } as const;
+/**
+ * Queries by K: first sync, then a sync where all K changed status. Before the residuals
+ * mini-wave: 21 / 29 / 59 and 22 / 34 / 79 (2 and 3 per issue); now the same at any K.
+ */
+const MEASURED = { first: { 1: 21, 5: 21, 20: 21 }, changed: { 1: 22, 5: 22, 20: 22 } } as const;
 
 describe("a sync of K issues assigned to the user", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;

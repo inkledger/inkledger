@@ -83,11 +83,12 @@ count and how it grows are on record. They share one counter, `api/testing/count
 | same | a pass where G of 40 entries are gone on the service | G = 5 / 10 / 20: 10 / 20 / 40 (2 per entry) | 2 / 2 / 2 |
 | `api/queries/accounts-queries.test.ts` | `signOutEverywhere` for a user with S sessions, one kept, one other user's session and device present | S = 1 / 5 / 20: 2 / 6 / 21 (2 + one per session ended) | 2 / 2 / 2 |
 | `api/sync/sinkDeletes-queries.test.ts` | `pushSinks` sending D deletes of one issue's entries to a day-totals sink (Everhour, mocked) | D = 1 / 5 / 20: 9 / 29 / 104 (4 + 5 per delete) | 9 / 9 / 9 (100 per pass at most; 150 take two passes of 9) |
-| `api/routers/issues-sync-queries.test.ts` | a Jira sync (fetch mocked) of K issues assigned to the user: first sync (all new), then one where all K changed status | K = 1 / 5 / 20: 21 / 29 / 59 first (19 + 2 per issue), 22 / 34 / 79 changed (19 + 3 per issue) (frozen before the residuals mini-wave) | — |
+| `api/routers/issues-sync-queries.test.ts` | a Jira sync (fetch mocked) of K issues assigned to the user: first sync (all new), then one where all K changed status | K = 1 / 5 / 20: 21 / 29 / 59 first (19 + 2 per issue), 22 / 34 / 79 changed (19 + 3 per issue) (frozen before the residuals mini-wave) | 21 / 21 / 21 first, 22 / 22 / 22 changed |
 | `api/routers/issues-reassigned-queries.test.ts` | a Jira sync (fetch mocked) that finds K of the user's issues reassigned to someone else | K = 1 / 5 / 20: 22 / 34 / 79 (19 + 3 per issue) | 22 / 26 / 41 after Wave 2; 22 / 22 / 22 once its "unassigned" notifications are stored in one statement |
 
-The feed's result is also checked scenario by scenario in `api/sync/feedPage.test.ts`: its
-snapshots were written by the per-entry code before Wave 2, and the batched code ends the same.
+The results are also checked scenario by scenario against snapshots the per-row code wrote
+before it was batched: the worklog feed in `api/sync/feedPage.test.ts`, a Jira sync's issues
+and notifications in `api/routers/issues-sync-parity.test.ts`.
 
 ## Indexes (Wave 2)
 
