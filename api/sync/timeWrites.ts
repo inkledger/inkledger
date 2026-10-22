@@ -183,7 +183,9 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     // A queued change is about an older worklog: any newer one of the same time may be a twin
     // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
     // twice, as it did; never another worklog's entry, and the old one with it, gone).
-    if (replacing && linked && linked.id !== local.id) continue;
+    // Nor one of the same time the user logged on the tracker itself (with no creation time to
+    // bound it, on GitLab, of any age): ours carries the very words sent.
+    if (replacing && ((linked && linked.id !== local.id) || !sameWords(w.comment, local.comment))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     // The entry it replaces goes, as after a recreate that was answered (queued if it can't now).
     if (replacing) await dropOld(t.b, conn, local, t.ref, meta(), replacing.remoteId, replacing.version);

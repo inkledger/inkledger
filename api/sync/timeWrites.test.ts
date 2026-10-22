@@ -284,6 +284,39 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("where a change logs the entry again, a queued change never takes an entry logged on the tracker itself at that time", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { instant } = await import("@contracts/values");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    tracker.recreating = true;
+    try {
+      const at = "2026-10-24T14:00:00+02:00";
+      const w = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 3600, started: "2026-10-24T09:00:00+02:00", comment: "W" });
+      tracker.offline = true;
+      try {
+        await caller.worklogs.update({ id: w.id, started: at, seconds: 3600, comment: "W edited" });
+      } finally {
+        tracker.offline = false;
+      }
+      const meta = { signal: new AbortController().signal, correlationId: "t" };
+      const ref = { remoteId: "r-1", key: "FAKE-1" };
+      const b = boundTracker(conn)!;
+      const direct = await b.worklogs!.create!(meta, ref, { time: { kind: "session", start: instant(Date.parse(at) + 30_000), seconds: 3600 }, comment: "direct" }, { idempotencyKey: "direct-1" });
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      const all = await b.worklogs!.list(meta, ref);
+      const near = all.filter((e) => e.span.kind === "session" && Math.abs(e.span.start - Date.parse(at)) < 60_000);
+      expect(near.map((e) => e.comment).sort()).toEqual(["W edited", "direct"]);
+      expect((await sinkOf(w.id))?.remote_id).not.toBe(direct.remoteId);
+      await caller.worklogs.delete({ id: w.id });
+      await b.worklogs!.delete!(meta, ref, direct.remoteId, {});
+    } finally {
+      tracker.recreating = false;
+    }
+  });
+
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "to lock" });
     await q("UPDATE worklog_sinks SET locked = ? WHERE worklog_id = ?", JSON.stringify({ cause: "approved", message: "Approved by the team lead" }), made.id);
