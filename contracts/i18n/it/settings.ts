@@ -59,6 +59,11 @@ export const settings: Shape<typeof en> = {
       description: "Tema, densità e colore dell'app.",
       keywords: "tema chiaro scuro densità compatta colore palette",
     },
+    pinboard: {
+      label: "Lavagna",
+      description: "Dove vive la lavagna: nella Board, nel menu, come widget mobile.",
+      keywords: "lavagna pinboard post-it note board menu widget mobile scorciatoia",
+    },
     links: {
       label: "Link esterni",
       description: "I siti i cui link si aprono senza chiedere.",
@@ -666,6 +671,17 @@ export const settings: Shape<typeof en> = {
     unread: { one: "1 da vedere", other: "{count} da vedere" },
     emptyTitle: "Nessuna notifica",
     emptyMessage: "Qui arrivano nuove assegnazioni, priorità critiche e scadenze.",
+  },
+  pinboard: {
+    placesTitle: "Dove vive",
+    placesKeywords: "board pannello menu pagina widget mobile scorciatoia p",
+    onBoard: "Nella Board",
+    onBoardHint: "Un pannello accanto alle colonne della Board.",
+    inMenu: "Nel menu",
+    inMenuHint: "Una pagina tutta sua nella barra laterale.",
+    widget: "Widget mobile",
+    widgetHint: "Sopra qualsiasi pagina, spostato e ridimensionato a piacere; P lo apre e lo chiude.",
+    off: "Disattivata",
   },
   appearance: {
     displayTitle: "Tema e densità",

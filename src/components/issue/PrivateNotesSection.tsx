@@ -1,13 +1,12 @@
 import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
-import { useNavigate } from "react-router";
 import { Lock, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { relativeTime } from "@/lib/initials";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
-import { pinboardBoard, pinboardPanel } from "@/hooks/usePinboardPanel";
+import { canShowPinboard, pinboardBoard, showPinboard } from "@/hooks/usePinboardPanel";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +22,6 @@ import { t, dateFormat } from "@/i18n";
 export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: string; connectionId?: number | null }) {
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
-  const navigate = useNavigate();
   const conn = connectionId ?? undefined;
   const notes = trpc.issueNotes.list.useQuery({ issueKey, connectionId: conn });
   const [text, setText] = useState("");
@@ -83,15 +81,17 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
         r.existed
           ? t("views.issue.privateNotes.hungAgain", { board: r.boardName })
           : t("views.issue.privateNotes.hung", { board: r.boardName, key: issueKey }),
-        {
-          action: {
-            label: t("views.issue.privateNotes.open"),
-            onClick: () => {
-              pinboardPanel.set("open");
-              void navigate("/board");
-            },
-          },
-        }
+        canShowPinboard()
+          ? {
+              action: {
+                label: t("views.issue.privateNotes.open"),
+                onClick: () => {
+                  pinboardBoard.set(r.boardId);
+                  showPinboard();
+                },
+              },
+            }
+          : undefined
       );
     } catch (e) {
       fail(e);

@@ -92,17 +92,23 @@ export const settingsRouter = createRouter({
         backdropVisibility: z.enum(BACKDROP_VISIBILITY).optional(),
         overlapPolicy: z.enum(["warn", "block"]).optional(),
         dashboardNight: z.boolean().optional(),
+        pinboardOnBoard: z.boolean().optional(),
+        pinboardInMenu: z.boolean().optional(),
+        pinboardWidget: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       await getSettings(ctx.user.id); // ensure row exists
-      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, ...rest } = input;
+      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, pinboardOnBoard, pinboardInMenu, pinboardWidget, ...rest } = input;
       await db
         .update(settings)
         .set({
           ...rest,
           ...(dashboardNight === undefined ? {} : { dashboardNight: dashboardNight ? 1 : 0 }),
+          ...(pinboardOnBoard === undefined ? {} : { pinboardOnBoard: pinboardOnBoard ? 1 : 0 }),
+          ...(pinboardInMenu === undefined ? {} : { pinboardInMenu: pinboardInMenu ? 1 : 0 }),
+          ...(pinboardWidget === undefined ? {} : { pinboardWidget: pinboardWidget ? 1 : 0 }),
           ...(dashboardLayout
             ? { dashboardLayout: JSON.stringify(dashboardLayout) }
             : {}),

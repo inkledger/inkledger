@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isDialogOpen, isTyping } from "@/lib/dom";
+import { inFloat, isDialogOpen, isTyping } from "@/lib/dom";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 
 const isControl = (t: EventTarget | null) =>
@@ -24,7 +24,7 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTyping(e.target) || isDialogOpen()) return;
+      if (isTyping(e.target) || isDialogOpen() || inFloat(e.target)) return;
       // Open selects / menus / popovers own the keyboard (j, k, Esc, Enter).
       if (
         document.querySelector(

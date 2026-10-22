@@ -31,7 +31,7 @@ export const focusMode = createFlag();
 export const createIssueDialog = createFlag();
 /** Notification center (right-side panel, like macOS). */
 export const notificationCenter = createFlag();
-/** Pinboard as a dialog, opened from the sidebar or "p" outside the Board. */
-export const pinboardDialog = createFlag();
+/** The floating pinboard widget, opened from the sidebar, "p" or the palette. */
+export const pinboardFloat = createFlag();
 /** The Board's pinboard sheet on small screens. */
 export const pinboardSheet = createFlag();

@@ -7,6 +7,7 @@ export const ui = {
     other: "More",
     dashboard: "Dashboard",
     board: "Board",
+    pinboard: "Pinboard",
     issues: "Issues",
     timesheet: "Timesheet",
     reports: "Reports",
@@ -490,6 +491,13 @@ export const ui = {
     unfollowing: "You no longer follow {key}",
     followingHint: "Find it in the Following filter and get its updates.",
     visible: "{key} visible again",
+  },
+  pinboardFloat: {
+    label: "Floating pinboard",
+    move: "Move the pinboard",
+    moveHint: "Drag to move it, or use the arrow keys",
+    resize: "Resize the pinboard",
+    resizeHint: "Drag to resize it, or use the arrow keys",
   },
   pin: {
     existing: "{key} is already on “{board}”",

@@ -19,6 +19,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Issues = lazy(() => import("@/pages/Issues"));
 const Timesheet = lazy(() => import("@/pages/Timesheet"));
 const Board = lazy(() => import("@/pages/Board"));
+const PinboardPage = lazy(() => import("@/pages/PinboardPage"));
 const Reports = lazy(() => import("@/pages/Reports"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -109,6 +110,7 @@ export default function App() {
               <Route path="/issues/:key" element={<IssueByKey />} />
               <Route path="/timesheet" element={<Timesheet />} />
               <Route path="/board" element={<Board />} />
+              <Route path="/pinboard" element={<PinboardPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />

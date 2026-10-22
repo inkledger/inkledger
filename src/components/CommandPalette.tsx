@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   BarChart3,
   CalendarDays,
@@ -38,7 +38,7 @@ import { shortcutsHelp } from "@/lib/shortcuts";
 import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { createIssueDialog, dayReview, focusMode } from "@/lib/flag";
-import { togglePinboard } from "@/hooks/usePinboardPanel";
+import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { Kbd } from "@/components/app/Kbd";
 import { useProviderName } from "@/hooks/useConnections";
 import { t, useLocale } from "@/i18n";
@@ -55,6 +55,7 @@ export function CommandPalette() {
   const setOpen = commandPalette.set;
   const navigate = useNavigate();
   const { setTheme, resolvedTheme } = useTheme();
+  const pinTarget = usePinboardTarget(useLocation().pathname);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -228,15 +229,17 @@ export function CommandPalette() {
             <Plus className="mr-2 h-4 w-4" /> {t("ui.palette.newIssue")}
             <Kbd className="ml-auto text-muted-foreground">I</Kbd>
           </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              requestAnimationFrame(() => togglePinboard());
-            }}
-          >
-            <Pin className="mr-2 h-4 w-4 -rotate-12" /> {t("ui.palette.pinboard")}
-            <Kbd className="ml-auto text-muted-foreground">P</Kbd>
-          </CommandItem>
+          {pinTarget !== null && (
+            <CommandItem
+              onSelect={() => {
+                setOpen(false);
+                requestAnimationFrame(() => togglePinboard());
+              }}
+            >
+              <Pin className="mr-2 h-4 w-4 -rotate-12" /> {t("ui.palette.pinboard")}
+              <Kbd className="ml-auto text-muted-foreground">P</Kbd>
+            </CommandItem>
+          )}
           <CommandItem
             onSelect={() => {
               setOpen(false);

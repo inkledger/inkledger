@@ -59,4 +59,11 @@ describe("settings: allowed link domains", () => {
     const s = await me.settings.update({ idleMinutes: 15 });
     expect(s.allowedLinkDomains).toContain("google.com");
   });
+
+  it("the pinboard lives in all three places until one is switched off, alone", async () => {
+    expect(await me.settings.get()).toMatchObject({ pinboardOnBoard: 1, pinboardInMenu: 1, pinboardWidget: 1 });
+    expect(await me.settings.update({ pinboardWidget: false })).toMatchObject({ pinboardOnBoard: 1, pinboardInMenu: 1, pinboardWidget: 0 });
+    expect(await me.settings.update({ pinboardOnBoard: false, pinboardWidget: true })).toMatchObject({ pinboardOnBoard: 0, pinboardInMenu: 1, pinboardWidget: 1 });
+    expect(await me.settings.update({ idleMinutes: 20 })).toMatchObject({ pinboardOnBoard: 0, pinboardInMenu: 1, pinboardWidget: 1 });
+  });
 });

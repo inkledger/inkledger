@@ -39,6 +39,7 @@ import {
   pinboardPanel,
   usePinboardBoardId,
   usePinboardPanel,
+  usePinboardSurfacesNow,
 } from "@/hooks/usePinboardPanel";
 import { Pinboard } from "@/components/board/Pinboard";
 import { pinboardSheet } from "@/lib/flag";
@@ -143,11 +144,13 @@ export default function Board() {
 
   // Column ids carry their connection or category (s:6:Done, k:done): kept apart as "board:".
   const { collapsed, toggle: toggleCollapsed } = useCollapsedColumns("board");
+  // The pinboard lives here unless Settings → Pinboard says otherwise.
+  const onBoard = usePinboardSurfacesNow().board;
   const panel = usePinboardPanel();
   const mobileBoard = pinboardSheet.useValue();
   const boardId = usePinboardBoardId();
   // The badge counts what the pinboard shows: the bucket's and the chosen tracker's post-its.
-  const pinBoards = trpc.pinboard.boards.useQuery(view.connection ? { connectionId: view.connection } : undefined).data ?? [];
+  const pinBoards = trpc.pinboard.boards.useQuery(view.connection ? { connectionId: view.connection } : undefined, { enabled: onBoard }).data ?? [];
   const pinned =
     (pinBoards.find(b => b.id === boardId) ?? pinBoards[0])?.count ?? 0;
 
@@ -639,6 +642,8 @@ export default function Board() {
                 ...(customColumns.length > 0 ? [{ value: "custom" as const, label: t("pages.board.modeCustom"), icon: LayoutGrid }] : []),
               ]}
             />
+            {onBoard && (
+            <>
             <Button
               variant="outline"
               aria-pressed={panel !== "closed"}
@@ -662,6 +667,8 @@ export default function Board() {
               <Pin className="h-4 w-4 -rotate-12" />
               {t("pages.board.pinboard")}
             </Button>
+            </>
+            )}
             <div className="relative">
               <Search
                 className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
@@ -683,7 +690,7 @@ export default function Board() {
         <div className="flex min-h-0 flex-1 gap-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
           {/* Lavagna on the right: a rail when closed, 420px, or wide. */}
-          {panel === "closed" ? (
+          {!onBoard ? null : panel === "closed" ? (
             <button
               type="button"
               {...surface("control")}
@@ -713,7 +720,7 @@ export default function Board() {
         </div>
       </PanelSection>
       {/* Small screens: the lavagna slides in from the right. */}
-      <Sheet open={mobileBoard} onOpenChange={pinboardSheet.set}>
+      <Sheet open={onBoard && mobileBoard} onOpenChange={pinboardSheet.set}>
         <SheetContent
           side="right"
           hideClose

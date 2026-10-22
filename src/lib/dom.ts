@@ -20,6 +20,11 @@ export function isDialogOpen(): boolean {
   );
 }
 
+/** True when the key comes from inside the floating pinboard (the page behind must not act on it). */
+export function inFloat(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-pinboard-float]") !== null;
+}
+
 /** Shortcut label for the command palette, per platform. */
 export const PALETTE_SHORTCUT =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)

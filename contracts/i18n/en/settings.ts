@@ -58,6 +58,11 @@ export const settings = {
       description: "Theme, density and colour of the app.",
       keywords: "theme light dark density compact color colour palette language",
     },
+    pinboard: {
+      label: "Pinboard",
+      description: "Where the pinboard lives: on the Board, in the menu, as a floating widget.",
+      keywords: "pinboard lavagna post-it notes board menu widget floating shortcut",
+    },
     links: {
       label: "External links",
       description: "Sites whose links open without asking.",
@@ -665,6 +670,17 @@ export const settings = {
     unread: { one: "1 to review", other: "{count} to review" },
     emptyTitle: "No notifications",
     emptyMessage: "New assignments, critical priorities and due dates show up here.",
+  },
+  pinboard: {
+    placesTitle: "Where it lives",
+    placesKeywords: "board panel menu page widget floating shortcut p",
+    onBoard: "On the Board",
+    onBoardHint: "A panel beside the Board's columns.",
+    inMenu: "In the menu",
+    inMenuHint: "A page of its own in the sidebar.",
+    widget: "Floating widget",
+    widgetHint: "Over any page, moved and sized as you like; P opens and closes it.",
+    off: "Off",
   },
   appearance: {
     displayTitle: "Theme and density",

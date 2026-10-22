@@ -8,6 +8,7 @@ export const ui: Shape<typeof en> = {
     other: "Altro",
     dashboard: "Dashboard",
     board: "Board",
+    pinboard: "Lavagna",
     issues: "Issue",
     timesheet: "Timesheet",
     reports: "Report",
@@ -491,6 +492,13 @@ export const ui: Shape<typeof en> = {
     unfollowing: "Non segui più {key}",
     followingHint: "La trovi nel filtro Seguite e ti arrivano le sue novità.",
     visible: "{key} di nuovo visibile",
+  },
+  pinboardFloat: {
+    label: "Lavagna mobile",
+    move: "Sposta la lavagna",
+    moveHint: "Trascina per spostarla, oppure usa le frecce",
+    resize: "Ridimensiona la lavagna",
+    resizeHint: "Trascina per ridimensionarla, oppure usa le frecce",
   },
   pin: {
     existing: "{key} è già su «{board}»",

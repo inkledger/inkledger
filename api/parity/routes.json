@@ -40,6 +40,10 @@
     "guard": "GuestOnly"
   },
   {
+    "path": "/pinboard",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/reports",
     "guard": "RequireAuth"
   },

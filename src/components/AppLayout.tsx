@@ -40,8 +40,8 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
-import { togglePinboard, usePinboardPanel } from "@/hooks/usePinboardPanel";
-import { PinboardDialog } from "@/components/board/PinboardDialog";
+import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
+import { PinboardWidget } from "@/components/board/PinboardWidget";
 import { DashboardBackdrop, ModuleSlot, ModulesProvider } from "@/modules/ModuleHost";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
@@ -76,7 +76,7 @@ import { useDayEndReminder } from "@/hooks/useDayEndReminder";
 import { quickStart } from "@/lib/quickStart";
 import { OutboxBanner } from "@/components/OutboxBanner";
 import { ReconnectBanner } from "@/components/ReconnectBanner";
-import { navItems, navEntryFor } from "@/lib/nav";
+import { navEntryFor, useNavItems } from "@/lib/nav";
 import { SidebarSection } from "@/components/app/SidebarSection";
 import { Kbd } from "@/components/app/Kbd";
 import { useProviderName } from "@/hooks/useConnections";
@@ -158,6 +158,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const unread = useUnreadCount();
   const inbox = useNotificationCount();
   const pinboard = usePinboardPanel();
+  const navItems = useNavItems();
+  const pinTarget = usePinboardTarget(pathname);
 
   return (
     <div
@@ -232,7 +234,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         // very short window only this middle part of sections scrolls.
         className="-mx-3 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-3"
       >
-        {navItems().map(({ group, title, items }) => {
+        {navItems.map(({ group, title, items }) => {
           const links = items.map(({ to, label, icon: Icon }) => {
             const link = (
               <RailTip key={to} collapsed={collapsed} label={label}>
@@ -275,7 +277,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                 </NavLink>
               </RailTip>
             );
-            if (to !== "/board" || collapsed) return link;
+            if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page") return link;
             // The pinboard, one tap away from any page: a sibling of the
             // link, never inside it.
             const panelOpen = pathname === "/board" && pinboard !== "closed";
@@ -510,6 +512,7 @@ function ShellWatchers() {
 /** App shell: grouped sidebar on canvas, content in a single white panel. */
 export function AppLayout() {
   useHotkeys();
+  usePinboardWiring();
   useMouseHistoryButtons(isNative());
   useThemeSync();
   useSoftKeyboard();
@@ -639,7 +642,7 @@ export function AppLayout() {
         <ShortcutsDialog />
         <TimerLogHost />
         <NotificationCenter />
-        <PinboardDialog />
+        <PinboardWidget />
         <CreateIssueDialog />
         <IssueHistoryDialog />
         <ModuleSettingsSheet />

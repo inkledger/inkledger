@@ -575,6 +575,10 @@ export const settings = pgTable("settings", {
   /** What meets the goals: time logged (parallel work counts twice) or clock time (counted once) */
   /** Night on the Dashboard: a module's light dims the page after dark (1) or never (0) */
   dashboardNight: integer("dashboard_night").notNull().default(1),
+  /** Where the pinboard lives, each on (1) or off (0): the Board's panel, its own page in the menu, a floating widget */
+  pinboardOnBoard: integer("pinboard_on_board").notNull().default(1),
+  pinboardInMenu: integer("pinboard_in_menu").notNull().default(1),
+  pinboardWidget: integer("pinboard_widget").notNull().default(1),
 });
 
 export type User = typeof users.$inferSelect;

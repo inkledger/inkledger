@@ -6,6 +6,7 @@ import {
   Link2,
   CalendarClock,
   Palette,
+  Pin,
   Server,
   ShieldCheck,
   Store,
@@ -34,6 +35,8 @@ import { weekSeconds } from "@/lib/weekSeconds";
 import { DENSITIES, THEMES } from "@/lib/appearance";
 import { AccountSection } from "@/components/settings/sections/Account";
 import { AppearanceSection } from "@/components/settings/sections/Appearance";
+import { PinboardSection } from "@/components/settings/sections/Pinboard";
+import { usePinboardSurfaces } from "@/hooks/usePinboardPanel";
 import { NotificationsSection } from "@/components/settings/sections/Notifications";
 import { PermissionsSection } from "@/components/settings/sections/Permissions";
 import { ScheduleSection } from "@/components/settings/sections/Schedule";
@@ -190,6 +193,19 @@ export const CATEGORIES: SettingsCategory[] = [
       const themeLabel = THEMES.find(x => x.value === (theme ?? "system"))?.label;
       const densityLabel = DENSITIES.find(x => x.value === density)?.label;
       return [themeLabel, densityLabel].filter(Boolean).join(" · ");
+    },
+  },
+  {
+    id: "pinboard",
+    get label() { return t("settings.categories.pinboard.label"); },
+    get description() { return t("settings.categories.pinboard.description"); },
+    icon: Pin,
+    get keywords() { return t("settings.categories.pinboard.keywords"); },
+    Content: PinboardSection,
+    Summary: function PinboardSummary() {
+      const s = usePinboardSurfaces();
+      const on = [s.board && t("settings.pinboard.onBoard"), s.menu && t("settings.pinboard.inMenu"), s.widget && t("settings.pinboard.widget")].filter(Boolean);
+      return on.length ? on.join(" · ") : t("settings.pinboard.off");
     },
   },
   {

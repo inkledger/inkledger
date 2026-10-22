@@ -18,7 +18,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
-import { isDialogOpen, isTyping } from "@/lib/dom";
+import { inFloat, isDialogOpen, isTyping } from "@/lib/dom";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import {
@@ -265,7 +265,7 @@ export default function IssueDetail({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTyping(e.target) || isDialogOpen()) return;
+      if (isTyping(e.target) || isDialogOpen() || inFloat(e.target)) return;
       if (hotkeySequence.pending()) return; // "g b" navigates, it doesn't copy
       const { key: k, connection: c, flags: f, act: a } = keyRef.current;
       if (e.key === "l") {

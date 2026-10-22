@@ -5,9 +5,11 @@ import {
   KanbanSquare,
   LayoutDashboard,
   ListTodo,
+  Pin,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { t } from "@/i18n";
+import { usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
 
 /**
  * Sidebar navigation; also the source of page breadcrumbs. A function: the
@@ -22,6 +24,7 @@ export function navItems() {
       items: [
         { to: "/", label: t("ui.nav.dashboard"), icon: LayoutDashboard },
         { to: "/board", label: t("ui.nav.board"), icon: KanbanSquare },
+        { to: "/pinboard", label: t("ui.nav.pinboard"), icon: Pin },
         { to: "/issues", label: t("ui.nav.issues"), icon: ListTodo },
         { to: "/timesheet", label: t("ui.nav.timesheet"), icon: CalendarDays },
       ],
@@ -40,6 +43,12 @@ export function navItems() {
       ],
     },
   ];
+}
+
+/** The sections the menu shows: the pinboard's page only while it lives there (Settings → Pinboard). */
+export function useNavItems() {
+  const { menu } = usePinboardSurfacesNow();
+  return navItems().map(g => ({ ...g, items: g.items.filter(i => i.to !== "/pinboard" || menu) }));
 }
 
 /** Phones: the sections in the tab bar; the others are under "More". */

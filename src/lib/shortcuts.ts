@@ -2,8 +2,8 @@ import { useSyncExternalStore } from "react";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { t } from "@/i18n";
 
-/** Every keyboard shortcut of the app (source for the "?" help dialog). */
-export function shortcuts(): {
+/** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere. */
+export function shortcuts({ pinboard = true }: { pinboard?: boolean } = {}): {
   group: string;
   items: { keys: string[]; label: string }[];
 }[] {
@@ -15,7 +15,7 @@ export function shortcuts(): {
         { keys: ["f"], label: t("ui.shortcuts.focus") },
         { keys: ["n"], label: t("ui.shortcuts.notifications") },
         { keys: ["i"], label: t("ui.shortcuts.newIssue") },
-        { keys: ["p"], label: t("ui.shortcuts.pinboard") },
+        ...(pinboard ? [{ keys: ["p"], label: t("ui.shortcuts.pinboard") }] : []),
         { keys: [PALETTE_SHORTCUT], label: t("ui.shortcuts.search") },
         { keys: ["?"], label: t("ui.shortcuts.show") },
         { keys: ["["], label: t("ui.shortcuts.sidebar") },

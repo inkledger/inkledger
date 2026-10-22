@@ -55,6 +55,12 @@
       "permission": null
     },
     {
+      "id": "pinboard",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
       "id": "links",
       "nativeOnly": false,
       "desktopOnly": false,

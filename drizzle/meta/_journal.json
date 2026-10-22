@@ -43,6 +43,13 @@
       "when": 1792657923963,
       "tag": "0005_outbox_worklog_index",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792708289583,
+      "tag": "0006_pinboard_surfaces",
+      "breakpoints": true
     }
   ]
 }

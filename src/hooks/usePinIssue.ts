@@ -1,7 +1,6 @@
 import { toastError } from "@/lib/errorText";
-import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
-import { pinboardBoard, pinboardPanel } from "@/hooks/usePinboardPanel";
+import { canShowPinboard, pinboardBoard, showPinboard } from "@/hooks/usePinboardPanel";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 import type { NoteColor } from "@contracts/pinboard";
@@ -22,7 +21,6 @@ function usePinRefresh() {
  */
 export function usePinIssue() {
   const utils = trpc.useUtils();
-  const navigate = useNavigate();
   const refresh = usePinRefresh();
   return async (issueKey: string, connectionId?: number, boardId?: number) => {
     try {
@@ -37,16 +35,17 @@ export function usePinIssue() {
           key: issueKey,
           board: r.boardName,
         }),
-        {
-          action: {
-            label: t("ui.pin.open"),
-            onClick: () => {
-              pinboardBoard.set(r.boardId);
-              pinboardPanel.set("open");
-              void navigate("/board");
-            },
-          },
-        }
+        canShowPinboard()
+          ? {
+              action: {
+                label: t("ui.pin.open"),
+                onClick: () => {
+                  pinboardBoard.set(r.boardId);
+                  showPinboard();
+                },
+              },
+            }
+          : undefined
       );
     } catch (e) {
       toastError(e);

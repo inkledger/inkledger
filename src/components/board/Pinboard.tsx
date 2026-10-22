@@ -129,6 +129,7 @@ export function Pinboard({
   className,
   onClose,
   resizable = true,
+  closable = true,
   connectionId,
 }: {
   className?: string;
@@ -138,6 +139,8 @@ export function Pinboard({
   onClose?: () => void;
   /** Widen/narrow the Board's panel; off where it is not that panel. */
   resizable?: boolean;
+  /** A close button; off where it is a page of its own. */
+  closable?: boolean;
 }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
@@ -440,15 +443,17 @@ export function Pinboard({
               {wide ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("views.board.pinboard.closeLabel")}
-            title={t("views.board.pinboard.close")}
-            onClick={onClose ?? (() => pinboardPanel.set("closed"))}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {closable && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("views.board.pinboard.closeLabel")}
+              title={t("views.board.pinboard.close")}
+              onClick={onClose ?? (() => pinboardPanel.set("closed"))}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </span>
       </div>
 

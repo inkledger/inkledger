@@ -138,22 +138,96 @@ test("on a narrow window the pinboard sheet has one close button, and it closes"
     assert.equal(await page.getByRole("dialog").count(), 0);
   }));
 
-test("the sidebar pin opens the pinboard as a dialog from any page", () =>
+test("the sidebar pin opens the floating pinboard from any page; P and Esc close it, other keys still work", () =>
   withApp({ seed: db => note(db, "reminder", 60, 60) }, async ({ page, base }) => {
     await page.goto(base + "/issues");
     await page.getByRole("button", { name: "Open the pinboard" }).click();
-    const dialog = page.getByRole("dialog");
-    await dialog.getByRole("region", { name: "Pinboard" }).locator("[data-postit]").first().waitFor();
-    assert.equal(await page.getByRole("region", { name: "Pinboard" }).count(), 1, "mounted once");
-    assert.equal(await dialog.getByRole("button", { name: "Widen the pinboard" }).count(), 0);
+    const float = page.getByRole("region", { name: "Floating pinboard" });
+    await float.getByRole("region", { name: "Pinboard" }).locator("[data-postit]").first().waitFor();
+    assert.equal(await page.getByRole("region", { name: "Pinboard", exact: true }).count(), 1, "mounted once");
+    assert.equal(await page.getByRole("dialog").count(), 0, "not a dialog: the page stays usable");
+    assert.equal(await float.getByRole("button", { name: "Widen the pinboard" }).count(), 0);
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(400);
-    assert.equal(await page.getByRole("dialog").count(), 0);
+    await float.waitFor({ state: "detached" });
     await page.keyboard.press("p");
-    await dialog.getByRole("region", { name: "Pinboard" }).waitFor();
-    await dialog.getByRole("button", { name: "Close the pinboard" }).click();
-    await page.waitForTimeout(400);
-    assert.equal(await page.getByRole("dialog").count(), 0);
+    await float.waitFor();
+    // The global keys still answer with it open (the focus inside it).
+    await page.keyboard.press("?");
+    await page.getByRole("dialog", { name: "Keyboard shortcuts" }).waitFor();
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.keyboard.press("p");
+    await float.waitFor({ state: "detached" });
+    await page.keyboard.press("p");
+    await float.getByRole("button", { name: "Close the pinboard" }).click();
+    await float.waitFor({ state: "detached" });
+  }));
+
+test("the floating pinboard moves by its handle and keeps its place after a reload", () =>
+  withApp({ seed: db => note(db, "reminder", 60, 60) }, async ({ page, base }) => {
+    await page.goto(base + "/issues");
+    await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+    await page.keyboard.press("p");
+    const float = page.getByRole("region", { name: "Floating pinboard" });
+    await float.waitFor();
+    const before = await float.boundingBox();
+    const handle = float.getByRole("button", { name: "Move the pinboard" });
+    const h = await handle.boundingBox();
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(h.x + h.width / 2 - 200, h.y + h.height / 2 + 100, { steps: 8 });
+    await page.mouse.up();
+    const moved = await float.boundingBox();
+    assert.ok(Math.abs(moved.x - (before.x - 200)) <= 2 && Math.abs(moved.y - (before.y + 100)) <= 2, `moved: ${JSON.stringify(moved)}`);
+    // The arrow keys move it too.
+    await handle.focus();
+    await page.keyboard.press("ArrowRight");
+    const nudged = await float.boundingBox();
+    assert.ok(Math.abs(nudged.x - (moved.x + 16)) <= 1);
+    await page.reload();
+    await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+    await page.keyboard.press("p");
+    await float.waitFor();
+    const after = await float.boundingBox();
+    assert.ok(Math.abs(after.x - nudged.x) <= 1 && Math.abs(after.y - nudged.y) <= 1, "same place after a reload");
+  }));
+
+test("Settings → Pinboard: each place on or off, alone", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.goto(base + "/settings/pinboard");
+    const sw = name => page.getByRole("switch", { name });
+    await sw("Floating widget").waitFor();
+    // In the menu: a page of its own.
+    const menuLink = page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Pinboard" });
+    await menuLink.waitFor();
+    await menuLink.click();
+    await page.waitForURL(/\/pinboard$/);
+    await page.getByRole("region", { name: "Pinboard" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Close the pinboard" }).count(), 0, "a page has nothing to close");
+    await page.goto(base + "/settings/pinboard");
+    await sw("In the menu").click();
+    await menuLink.waitFor({ state: "detached" });
+    // Off the Board: no panel, no button there; P opens the widget instead.
+    await sw("On the Board").click();
+    await page.waitForTimeout(300);
+    const [row] = await db.q("SELECT pinboard_on_board, pinboard_in_menu, pinboard_widget FROM settings WHERE user_id = 1");
+    assert.deepEqual(row, { pinboard_on_board: 0, pinboard_in_menu: 0, pinboard_widget: 1 });
+    await page.goto(base + "/board");
+    await page.getByRole("heading", { name: "Board" }).first().waitFor();
+    assert.equal(await page.getByRole("button", { name: "Pinboard", exact: true }).count(), 0);
+    await page.keyboard.press("p");
+    await page.getByRole("region", { name: "Floating pinboard" }).waitFor();
+    await page.keyboard.press("Escape");
+    // Every place off: P does nothing, the sidebar has no pin.
+    await page.goto(base + "/settings/pinboard");
+    await sw("Floating widget").click();
+    await page.waitForTimeout(300);
+    await page.goto(base + "/issues");
+    await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+    assert.equal(await page.getByRole("button", { name: "Open the pinboard" }).count(), 0);
+    await page.keyboard.press("p");
+    await page.waitForTimeout(300);
+    assert.equal(await page.getByRole("region", { name: /pinboard/i }).count(), 0);
   }));
 
 test("on the Board, the sidebar pin and P toggle its own panel, not a dialog", () =>

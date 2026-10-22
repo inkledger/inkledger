@@ -4,8 +4,8 @@ import { Moon, Pin, RefreshCw } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSync } from "@/hooks/useSync";
 import { useSyncHint } from "@/hooks/useSyncHint";
-import { togglePinboard } from "@/hooks/usePinboardPanel";
-import { navItems, TAB_ROUTES } from "@/lib/nav";
+import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
+import { TAB_ROUTES, useNavItems } from "@/lib/nav";
 import { SidebarFavorites } from "@/components/SidebarFavorites";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Switch } from "@/components/ui/switch";
@@ -40,9 +40,11 @@ export function MobileMoreSheet({
   const sync = useSync();
   const provider = useProviderName();
   const { hint, error } = useSyncHint();
-  const sections = navItems()
+  const sections = useNavItems()
     .flatMap(g => g.items)
     .filter(i => !TAB_ROUTES.includes(i.to));
+  // The pinboard opened in place (the Board's sheet, the widget); its page is a section above.
+  const pinTarget = usePinboardTarget(pathname);
 
   // Any navigation (a section, a favorite, the account menu) closes it.
   const shown = useRef(pathname);
@@ -76,6 +78,7 @@ export function MobileMoreSheet({
                 <span className="max-w-full truncate">{label}</span>
               </NavLink>
             ))}
+            {pinTarget !== null && pinTarget !== "page" && (
             <button
               type="button"
               aria-label={t("ui.layout.openPinboard")}
@@ -90,6 +93,7 @@ export function MobileMoreSheet({
               <Pin className="h-5 w-5 -rotate-12" aria-hidden />
               <span className="max-w-full truncate">{t("pages.board.pinboard")}</span>
             </button>
+            )}
           </nav>
           <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />
 

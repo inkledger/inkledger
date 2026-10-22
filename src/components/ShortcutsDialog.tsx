@@ -11,12 +11,14 @@ import {
   useShortcutsHelpOpen,
 } from "@/lib/shortcuts";
 import { Kbd } from "@/components/app/Kbd";
+import { usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
 import { SectionLabel } from "@/components/app/PageHeader";
 import { t } from "@/i18n";
 
 /** "?" help: every keyboard shortcut, grouped. */
 export function ShortcutsDialog() {
   const open = useShortcutsHelpOpen();
+  const { board, menu, widget } = usePinboardSurfacesNow();
   return (
     <Dialog open={open} onOpenChange={shortcutsHelp.set}>
       <DialogContent className="sm:max-w-md">
@@ -27,7 +29,7 @@ export function ShortcutsDialog() {
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-5">
-          {shortcuts().map(({ group, items }) => (
+          {shortcuts({ pinboard: board || menu || widget }).map(({ group, items }) => (
             <section key={group}>
               <SectionLabel as="h3" className="mb-2 px-0">
                 {group}
