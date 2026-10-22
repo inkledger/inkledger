@@ -617,7 +617,14 @@ export const outbox = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("idx_outbox_user").on(t.userId), index("idx_outbox_connection_kind").on(t.connectionId, t.kind)],
+  (t) => [
+    index("idx_outbox_user").on(t.userId),
+    index("idx_outbox_connection_kind").on(t.connectionId, t.kind),
+    // A worklog's queued operations (held sink deletes, pending changes), and the
+    // ON DELETE SET NULL every worklog delete runs here. Rows tied to no worklog
+    // (sink deletes due) are never looked up by it: left out.
+    index("idx_outbox_worklog").on(t.worklogId).where(sql`${t.worklogId} IS NOT NULL`),
+  ],
 );
 
 /**

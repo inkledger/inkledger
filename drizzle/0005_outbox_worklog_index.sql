@@ -1,0 +1,1 @@
+CREATE INDEX "idx_outbox_worklog" ON "outbox" USING btree ("worklog_id") WHERE "outbox"."worklog_id" IS NOT NULL;
