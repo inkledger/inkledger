@@ -501,6 +501,12 @@ export const ui: Shape<typeof en> = {
     resize: "Ridimensiona la lavagna",
     resizeHint: "Trascina per ridimensionarla, oppure usa le frecce",
   },
+  startChoice: {
+    title: "Avvia {key}",
+    body: "Non c'è niente registrato dalle {from} ({duration}). Contare anche quel tempo?",
+    now: "Da adesso",
+    fromGap: "Dalle {from}",
+  },
   pin: {
     existing: "{key} è già su «{board}»",
     added: "{key} appesa a «{board}»",

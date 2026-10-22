@@ -74,7 +74,7 @@ export function useNativeBridge() {
     if (native && user) void setProfileInfo(user.displayName, site ?? user.username ?? "");
   }, [native, user, site]);
 
-  const start = useStartTimer({ announce: true });
+  const start = useStartTimer({ announce: true, ask: false });
   const invalidate = () => utils.timers.list.invalidate();
   const pause = trpc.timers.pause.useMutation({
     onSuccess: (_r, { issueKey }) => {

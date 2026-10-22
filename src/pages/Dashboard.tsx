@@ -30,7 +30,7 @@ import {
 } from "@contracts/dashboard";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
-import { missingSpans } from "@contracts/workSchedule";
+import { missingSpans, openGap } from "@contracts/workSchedule";
 import { GapCutter } from "@/components/dashboard/GapCutter";
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns";
 import { useTimers } from "@/hooks/useTimers";
@@ -274,10 +274,13 @@ export default function Dashboard() {
     { enabled: dayView }
   );
   const daySchedule = forDay(range.from);
+  const holesUntil = new Date();
   const missing =
     dayView && weekStatus.data === null && range.from.getTime() <= today.getTime()
-      ? missingSpans(range.from, daySchedule, [...timelineEntries, ...pausedSpans], new Date())
+      ? missingSpans(range.from, daySchedule, [...timelineEntries, ...pausedSpans], holesUntil)
       : [];
+  // The hole reaching now: a timer can start from its start (Play on it).
+  const openHole = openGap(missing, holesUntil);
   const [gap, setGap] = useState<TimeSpan | null>(null);
   // The worklogs next to the hole, which it can extend instead of a tiny new one.
   const neighbours = useMemo(
@@ -573,6 +576,7 @@ export default function Dashboard() {
                   schedule={daySchedule}
                   missing={missing}
                   onGap={setGap}
+                  openHole={openHole}
                   floor={<ModuleSlot id="dashboard-perch" />}
                 />
               ) : (
@@ -791,7 +795,12 @@ export default function Dashboard() {
           <QuickLog day={logDay} onLogged={() => setLogOpen(false)} />
         </DialogContent>
       </Dialog>
-      <GapCutter gap={gap} neighbours={neighbours} onOpenChange={open => !open && setGap(null)} />
+      <GapCutter
+        gap={gap}
+        neighbours={neighbours}
+        open={!!gap && !!openHole && gap.start.getTime() === openHole.start.getTime()}
+        onOpenChange={open => !open && setGap(null)}
+      />
     </>
   );
 }

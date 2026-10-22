@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP, fakeProcedures, mockNative, start } from "./harness.mjs";
+import { APP, fakeProcedures, mockNative, start, startTimer } from "./harness.mjs";
 
 const note = (db, text, x, y) => {
   const now = Date.now();
@@ -66,6 +66,56 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
     await page.getByRole("button", { name: "Undo" }).click();
     await page.getByRole("button", { name: "Pinned on 1 board" }).waitFor();
     assert.deepEqual(await onBoards(), ["Sprint"]);
+  }));
+
+/** Minutes since local midnight, now. */
+const minutesToday = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+// A working day around the clock: the hole since midnight is always open (but in its first and last minutes).
+const allDay = db =>
+  db.q(
+    "INSERT INTO work_schedules (user_id, valid_from, schedule, created_at) VALUES (1, '1970-01-01', ?, ?)",
+    JSON.stringify(Array.from({ length: 7 }, () => ({ enabled: true, start: "00:00", end: "23:59", breaks: [] }))),
+    Date.now(),
+  );
+
+test("Play with a hole open asks: from its start counts it, and with a timer running nothing is asked", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
+  withApp({ seed: allDay }, async ({ page, base, db }) => {
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
+    const ask = page.getByRole("alertdialog", { name: "Start DEMO-101" });
+    await ask.waitFor();
+    await ask.getByRole("button", { name: "From 00:00" }).click();
+    await page.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const [row] = await db.q("SELECT started_at FROM timers WHERE issue_key = 'DEMO-101'");
+    assert.equal(Number(row.started_at), midnight.getTime(), "counted from the hole's start");
+    // A timer running covers up to now: no hole, nothing asked (the switch asks to log the first one).
+    await page.goto(base + "/issues/DEMO-102");
+    await page.getByRole("button", { name: "Start timer DEMO-102" }).first().click();
+    await page.getByRole("dialog", { name: /DEMO-101/ }).waitFor();
+    assert.equal(await page.getByRole("alertdialog", { name: /^Start DEMO-102/ }).count(), 0);
+    const [next] = await db.q("SELECT state, started_at FROM timers WHERE issue_key = 'DEMO-102'");
+    assert.equal(next?.state, "running");
+    assert.ok(Date.now() - Number(next.started_at) < 60_000, "from now");
+  }));
+
+test("the open hole on the Dashboard has a Play; from now starts the timer at once", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
+  withApp({ seed: allDay }, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: /^Start a timer: from 00:00/ }).click();
+    const picker = page.getByRole("dialog");
+    await picker.getByRole("option", { name: /DEMO-103/ }).first().click();
+    const ask = page.getByRole("alertdialog", { name: "Start DEMO-103" });
+    await ask.getByRole("button", { name: "From now" }).click();
+    await ask.waitFor({ state: "detached" });
+    await page.waitForTimeout(500);
+    const [row] = await db.q("SELECT started_at, state FROM timers WHERE issue_key = 'DEMO-103'");
+    assert.equal(row?.state, "running");
+    assert.ok(Date.now() - Number(row.started_at) < 60_000, "counted from now");
   }));
 
 test("the pinboard's search pins an issue with Enter, once, and checks the ones already there", () =>
@@ -1213,8 +1263,7 @@ test("Reports' bars show logged time only, never a running timer's", () =>
     },
   }, async ({ page, base }) => {
     await page.goto(base + "/issues/DEMO-101");
-    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
-    await page.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    await startTimer(page, "DEMO-101");
     await page.waitForTimeout(2500);
     await page.goto(base + "/reports");
     await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();

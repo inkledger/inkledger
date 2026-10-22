@@ -42,6 +42,7 @@ import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
+import { StartChoiceDialog } from "@/components/StartChoiceDialog";
 import { DashboardBackdrop, ModuleSlot, ModulesProvider } from "@/modules/ModuleHost";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
@@ -643,6 +644,7 @@ export function AppLayout() {
         <TimerLogHost />
         <NotificationCenter />
         <PinboardWidget />
+        <StartChoiceDialog />
         <CreateIssueDialog />
         <IssueHistoryDialog />
         <ModuleSettingsSheet />

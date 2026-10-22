@@ -19,6 +19,7 @@ export const views: Shape<typeof en> = {
       parallel: "{logged} registrate in {clock} di tempo effettivo (in parallelo)",
       break: "Pausa",
       holeTitle: "Da registrare: {from}–{to} · {duration}",
+      playHole: "Avvia un timer: dalle {from} o da adesso",
       holeLabel:
         "Registra il tempo mancante dalle {from} alle {to}, {duration}",
       dayOff: "Giornata non lavorativa.",

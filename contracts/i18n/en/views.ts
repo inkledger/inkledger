@@ -18,6 +18,7 @@ export const views = {
       parallel: "{logged} logged in {clock} of clock time (in parallel)",
       break: "Break",
       holeTitle: "To log: {from}–{to} · {duration}",
+      playHole: "Start a timer: from {from} or from now",
       holeLabel: "Log missing time from {from} to {to}, {duration}",
       dayOff: "Non-working day.",
       empty: "No entries on this day.",

@@ -72,6 +72,20 @@ async function syncSequences(client) {
  * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). Each run
  * has its own Postgres database, dropped at stop().
  */
+/**
+ * Play on an issue. With a hole of today still open the app asks first (from its start, or
+ * from now): answered "from now", so a test does the same at any hour of the day.
+ */
+export async function startTimer(page, key) {
+  await page.getByRole("button", { name: `Start timer ${key}` }).first().click();
+  const ask = page.getByRole("alertdialog", { name: `Start ${key}` });
+  const running = page.getByRole("button", { name: `Pause timer ${key}` }).first();
+  const asked = ask.waitFor().then(() => true, () => false);
+  const started = running.waitFor().then(() => false, () => false);
+  if (await Promise.race([asked, started])) await ask.getByRole("button", { name: "From now" }).click();
+  await running.waitFor();
+}
+
 export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would

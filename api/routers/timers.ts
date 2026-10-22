@@ -12,6 +12,8 @@ import { publish } from "../lib/userEvents";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
+import { dayKey } from "@contracts/time";
+import { assertNoOverlap } from "../queries/overlap";
 import { t as tr } from "@contracts/i18n";
 
 /** The issue's connection, when a key lives on two. */
@@ -263,11 +265,26 @@ export const timersRouter = createRouter({
    * taking over the same issue moves control only: the time runs on, once.
    */
   start: protectedProcedure
-    .input(z.object({ ...issueInput, ...control, device: z.string().max(60).optional() }))
+    .input(
+      z.object({
+        ...issueInput,
+        ...control,
+        device: z.string().max(60).optional(),
+        /** Counted from this moment of today (the start of the gap it fills), not from now. */
+        from: z.iso.datetime({ offset: true }).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const now = new Date();
       const w = whoOf(ctx, input.device);
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const from = input.from === undefined ? null : new Date(input.from);
+      if (from) {
+        if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
+        if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
+        // Time already logged there (the "block" policy refuses it, as for a worklog).
+        await assertNoOverlap(ctx.user.id, { start: from, seconds: Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000)) });
+      }
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.
       return act(ctx.user.id, input.opId, async (tx) => {
@@ -276,6 +293,19 @@ export const timersRouter = createRouter({
           .from(timers)
           .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
         for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
+        if (from) {
+          // Another timer's time covers it: one running (it would be paused now, its time
+          // counted twice), or one paused after it.
+          if (running.length > 0) throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromWhileRunning") });
+          const paused = await tx
+            .select({ pausedAt: timers.pausedAt })
+            .from(timers)
+            .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "paused")));
+          if (paused.some((p) => p.pausedAt && p.pausedAt.getTime() > from.getTime())) {
+            throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromBeforePause") });
+          }
+        }
+        const startedAt = from ?? now;
         // Auto-pause any other running timers (single active timer per user).
         const others = running.filter((o) => o.issueKey !== input.issueKey || o.connectionId !== conn.id);
         let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
@@ -297,7 +327,7 @@ export const timersRouter = createRouter({
         if (existing) {
           await tx
             .update(timers)
-            .set({ state: "running", startedAt: now, pausedAt: null, updatedAt: now, epoch: existing.epoch + 1, ...ownedBy(w, now) })
+            .set({ state: "running", startedAt, pausedAt: null, updatedAt: now, epoch: existing.epoch + 1, ...ownedBy(w, now) })
             .where(eq(timers.id, existing.id));
         } else {
           await tx.insert(timers).values({
@@ -305,7 +335,7 @@ export const timersRouter = createRouter({
             connectionId: conn.id,
             issueKey: input.issueKey,
             state: "running",
-            startedAt: now,
+            startedAt,
             accumulatedSeconds: 0,
             epoch: (await epochOf(tx, ctx.user.id)) + 1,
             ...ownedBy(w, now),

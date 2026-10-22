@@ -18,6 +18,8 @@ import { issuePath } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { Play } from "lucide-react";
+import { quickStart } from "@/lib/quickStart";
 
 export type TimelineEntry = {
   id: string;
@@ -53,6 +55,7 @@ export function DayTimeline({
   schedule,
   missing = [],
   onGap,
+  openHole,
   floor,
 }: {
   day: Date;
@@ -63,6 +66,8 @@ export function DayTimeline({
   /** Working time not logged yet (holes to fill) */
   missing?: TimeSpan[];
   onGap?: (gap: TimeSpan) => void;
+  /** The hole reaching now: a Play on it starts a timer (asked from its start or from now). */
+  openHole?: TimeSpan | null;
   /**
    * Standing on the entries' baseline at the bar's left end, in front of them
    * (a module's scene: its shadow falls on them; clicks pass through).
@@ -195,6 +200,22 @@ export function DayTimeline({
             )}
           </button>
         ))}
+        {openHole && (() => {
+          const h = spanOf(openHole);
+          return (
+            <button
+              type="button"
+              {...surface("control")}
+              onClick={() => quickStart.set(true)}
+              aria-label={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
+              title={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
+              className="absolute bottom-7 z-20 flex h-6 w-6 -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring/40"
+              style={{ left: `calc(${h.left + h.width}% - 2px)` }}
+            >
+              <Play className="h-3 w-3 fill-current" aria-hidden />
+            </button>
+          );
+        })()}
         {blocks.map(b => {
           const style: CSSProperties = {
             left: `${b.left}%`,

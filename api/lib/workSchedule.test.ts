@@ -6,6 +6,7 @@ import {
   expectedSecondsBetween,
   firstFreeStart,
   missingSpans,
+  openGap,
   scheduleFor,
   workSpans,
   EPOCH_DAY,
@@ -29,6 +30,21 @@ describe("work schedule", () => {
     expect(expectedSeconds(at(MON, 0), sched)).toBe(8 * H);
     expect(expectedSeconds(at(MON + 5, 0), sched)).toBe(0); // Saturday
     expect(missingSpans(at(MON + 5, 0), sched, [], at(MON + 6, 0))).toEqual([]);
+  });
+
+  it("the open hole is the one reaching now: a timer can start from its start", () => {
+    const logged = [{ start: at(MON, 9), seconds: 2 * H }]; // 9–11
+    const now = at(MON, 11, 40);
+    expect(openGap(missingSpans(at(MON, 0), sched, logged, now), now)).toEqual({ start: at(MON, 11), seconds: 40 * 60 });
+    // Covered up to now (a running timer drawn to now), or past the working day: none.
+    const upToNow = [...logged, { start: at(MON, 11), seconds: 40 * 60 }];
+    expect(openGap(missingSpans(at(MON, 0), sched, upToNow, now), now)).toBeNull();
+    expect(openGap(missingSpans(at(MON, 0), sched, logged, at(MON, 19)), at(MON, 19))).toBeNull();
+    // During lunch the hole before it is closed.
+    expect(openGap(missingSpans(at(MON, 0), sched, logged, at(MON, 13, 20)), at(MON, 13, 20))).toBeNull();
+    // Under a minute: nothing to start from.
+    const now2 = at(MON, 11);
+    expect(openGap(missingSpans(at(MON, 0), sched, logged, new Date(now2.getTime() + 30_000)), new Date(now2.getTime() + 30_000))).toBeNull();
   });
 
   it("derives the first version from an old daily target", () => {

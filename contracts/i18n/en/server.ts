@@ -159,6 +159,10 @@ export const server = {
     nameRequired: "Give the board a name",
   },
   timers: {
+    fromFuture: "A timer can't start in the future.",
+    fromToday: "A timer can only start earlier today.",
+    fromWhileRunning: "Another timer is running: stop it before counting from the start of the gap.",
+    fromBeforePause: "A paused timer already counts that time: start from after it.",
     held: "The timer of {key} runs on {device}: take it over to act here.",
     anotherDevice: "another device",
     moved: "The timer of {key} changed on another device: here is how it is now.",

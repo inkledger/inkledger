@@ -3,7 +3,7 @@
 // event stream cut, the page falls back to polling and says it may be behind.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { start, startTimer } from "./harness.mjs";
 
 async function withTwoDevices(body) {
   const app = await start({});
@@ -25,8 +25,7 @@ test("a timer started on one device shows on the other at once; taking it over m
   withTwoDevices(async ({ page, other, base, db }) => {
     await page.goto(base + "/issues/DEMO-101");
     await other.goto(base + "/issues/DEMO-101");
-    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
-    await page.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    await startTimer(page, "DEMO-101");
 
     // The other device learns it from the event stream (well before its 15 s poll).
     const takeOver = other.getByRole("button", { name: "Take over the timer of DEMO-101" }).first();
@@ -58,7 +57,7 @@ test("without the event stream the page polls, and says it may be behind", () =>
     await phone.route("**/api/events", route => route.abort());
     await other.goto(base + "/issues/DEMO-101");
     await page.goto(base + "/issues/DEMO-101");
-    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
+    await startTimer(page, "DEMO-101");
     await other.getByRole("button", { name: "Take over the timer of DEMO-101" }).first().waitFor({ timeout: 9000 });
     await other.getByText(/Reconnecting|Offline/).waitFor();
   }));

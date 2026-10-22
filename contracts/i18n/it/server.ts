@@ -160,6 +160,10 @@ export const server: Shape<typeof en> = {
     nameRequired: "Dai un nome alla lavagna",
   },
   timers: {
+    fromFuture: "Un timer non può partire nel futuro.",
+    fromToday: "Un timer può partire prima solo nella giornata di oggi.",
+    fromWhileRunning: "C'è un altro timer in corso: fermalo prima di contare dall'inizio del buco.",
+    fromBeforePause: "Un timer in pausa conta già quel tempo: parti da dopo.",
     held: "Il timer di {key} è in corso su {device}: prendine il controllo per agire da qui.",
     anotherDevice: "un altro dispositivo",
     moved: "Il timer di {key} è cambiato su un altro dispositivo: ecco com'è ora.",

@@ -148,7 +148,14 @@ test("React work per five minutes, page by page", async () => {
     await open("/issues/DEMO-101");
     await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
     await clock.run(2000, 100);
-    await page.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    // With a hole of today still open, Play asks first: from now, the same at any hour.
+    const ask = page.getByRole("alertdialog", { name: "Start DEMO-101" });
+    const pause = page.getByRole("button", { name: "Pause timer DEMO-101" }).first();
+    for (let i = 0; i < 20 && !(await pause.isVisible()); i++) {
+      if (await ask.isVisible()) await ask.getByRole("button", { name: "From now" }).click();
+      await clock.run(500, 100);
+    }
+    await pause.waitFor();
     await measure("issue page, timer running");
     await open("/");
     await measure("dashboard, timer running");

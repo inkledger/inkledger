@@ -127,6 +127,16 @@ export function missingSpans(
   return out;
 }
 
+/**
+ * The hole still open: the one reaching now (missingSpans ends them at now),
+ * at least a minute long, else null. A timer can start from its start.
+ */
+export function openGap(missing: TimeSpan[], now: Date): TimeSpan | null {
+  const last = missing.at(-1);
+  if (!last || last.seconds < 60) return null;
+  return Math.abs(last.start.getTime() + last.seconds * 1000 - now.getTime()) <= 1000 ? last : null;
+}
+
 /** Start of the first hole of the day long enough for `seconds`, else null. */
 export function firstFreeStart(
   day: Date,

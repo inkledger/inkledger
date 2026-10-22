@@ -500,6 +500,12 @@ export const ui = {
     resize: "Resize the pinboard",
     resizeHint: "Drag to resize it, or use the arrow keys",
   },
+  startChoice: {
+    title: "Start {key}",
+    body: "Nothing is logged since {from} ({duration}). Count that time too?",
+    now: "From now",
+    fromGap: "From {from}",
+  },
   pin: {
     existing: "{key} is already on “{board}”",
     added: "{key} pinned to “{board}”",

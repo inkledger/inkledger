@@ -6,6 +6,7 @@ import {
   Loader2,
   MoveHorizontal,
   Maximize2,
+  Play,
   Rows2,
   Scissors,
   Trash2,
@@ -68,11 +69,14 @@ const endOf = (s: TimeSpan) => new Date(s.start.getTime() + s.seconds * 1000);
 export function GapCutter({
   gap,
   neighbours = NO_NEIGHBOURS,
+  open = false,
   onOpenChange,
 }: {
   gap: TimeSpan | null;
   /** The worklogs touching the hole, which its first / last piece can extend */
   neighbours?: Neighbours;
+  /** The hole reaches now: a timer can start from its start instead. */
+  open?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -86,6 +90,7 @@ export function GapCutter({
             key={gap.start.getTime()}
             gap={gap}
             neighbours={neighbours}
+            open={open}
             onDone={() => onOpenChange(false)}
           />
         )}
@@ -94,7 +99,7 @@ export function GapCutter({
   );
 }
 
-function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours: Neighbours; onDone: () => void }) {
+function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neighbours: Neighbours; open: boolean; onDone: () => void }) {
   const utils = trpc.useUtils();
   const invalidate = useInvalidateWorklogs();
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
@@ -590,6 +595,20 @@ function GapCutterBody({ gap, neighbours, onDone }: { gap: TimeSpan; neighbours:
         <SheetDescription className="text-caption text-muted-foreground">
           {t("views.dashboard.gap.description", { from: timeOfDay(gap.start), to: timeOfDay(endOf(gap)), duration: formatDurationLong(gap.seconds) })}
         </SheetDescription>
+        {open && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              // The picker, then Play asks: from the hole's start, or from now.
+              onDone();
+              quickStart.set(true);
+            }}
+          >
+            <Play className="h-4 w-4" /> {t("views.dashboard.timeline.playHole", { from: timeOfDay(gap.start) })}
+          </Button>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
