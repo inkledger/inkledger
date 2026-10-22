@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
-import { DOWNLOADS_PATH, downloadsManifestSchema, type DownloadsManifest } from "@contracts/downloads";
+import { DOWNLOADS_PATH, type DownloadsManifest } from "@contracts/downloads";
+import { downloadsManifestSchema } from "@contracts/downloadsSchema";
 import { env } from "./lib/env";
 
 const EMPTY: DownloadsManifest = { android: null };

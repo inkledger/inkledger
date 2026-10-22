@@ -1,5 +1,6 @@
 import { HOST_API_VERSION, SLOT_IDS } from "@contracts/modules";
-import { storeCatalogSchema, type PaymentMethod, type StoreItem } from "@contracts/store";
+import { type PaymentMethod, type StoreItem } from "@contracts/store";
+import { storeCatalogSchema } from "@contracts/storeSchema";
 import { env } from "../lib/env";
 import { getServerSetting, setServerSetting } from "../lib/serverSettings";
 

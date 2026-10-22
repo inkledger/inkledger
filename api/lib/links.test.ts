@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { domainInput, hostAllowed, normalizeDomain, safeExternalUrl } from "@contracts/links";
+import { domainInput } from "@contracts/linksSchema";
+import { hostAllowed, normalizeDomain, safeExternalUrl } from "@contracts/links";
 
 describe("external link domains", () => {
   it("normalizes what people paste", () => {

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { settings, type Settings } from "@db/schema";
-import { domainInput } from "@contracts/links";
+import { domainInput } from "@contracts/linksSchema";
 import {
   normalizeDashboardLayout,
   type DashboardLayoutItem,

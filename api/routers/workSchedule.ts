@@ -7,11 +7,10 @@ import { weekLocks, workSchedules } from "@db/schema";
 import { parseDayKey, weekStartKey } from "@contracts/time";
 import {
   defaultWorkSchedule,
-  normalizeWorkSchedule,
-  workScheduleSchema,
   EPOCH_DAY,
   type ScheduleVersion,
 } from "@contracts/workSchedule";
+import { normalizeWorkSchedule, workScheduleSchema } from "@contracts/workScheduleSchema";
 import { getSettings } from "./settings";
 import { t } from "@contracts/i18n";
 

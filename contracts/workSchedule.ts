@@ -1,6 +1,5 @@
-import { z } from "zod";
 import { addDays, dayKey, findGaps, type TimeSpan } from "./time";
-import { t } from "./i18n";
+import type { WorkDay } from "./workScheduleSchema";
 
 /**
  * Work schedule: per weekday hours with breaks. Breaks are time when no
@@ -9,53 +8,13 @@ import { t } from "./i18n";
  * on that day, so changing it never rewrites past weeks.
  */
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const hhmm = z.string().regex(HHMM, { error: () => t("server.workSchedule.invalidTime") });
-
 /** "13:30" → 810 */
 export function minutesOf(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
 
-const breakSchema = z.object({ start: hhmm, end: hhmm });
-
-export const workDaySchema = z
-  .object({
-    enabled: z.boolean(),
-    start: hhmm,
-    end: hhmm,
-    breaks: z.array(breakSchema).max(4),
-  })
-  .superRefine((d, ctx) => {
-    if (!d.enabled) return;
-    const start = minutesOf(d.start);
-    const end = minutesOf(d.end);
-    if (start >= end) {
-      ctx.addIssue({ code: "custom", message: t("server.workSchedule.endAfterStart"), path: ["end"] });
-      return;
-    }
-    let cursor = start;
-    d.breaks.forEach((b, i) => {
-      const bs = minutesOf(b.start);
-      const be = minutesOf(b.end);
-      if (bs >= be) {
-        ctx.addIssue({ code: "custom", message: t("server.workSchedule.invalidBreak"), path: ["breaks", i] });
-      } else if (bs < cursor || be > end) {
-        ctx.addIssue({
-          code: "custom",
-          message: t("server.workSchedule.breaksOrder"),
-          path: ["breaks", i],
-        });
-      }
-      cursor = Math.max(cursor, be);
-    });
-  });
-
-/** Monday first, like `startOfWeek`. */
-export const workScheduleSchema = z.array(workDaySchema).length(7);
-
-export type WorkDay = z.infer<typeof workDaySchema>;
+export type { WorkDay } from "./workScheduleSchema";
 export type WorkSchedule = WorkDay[];
 export type ScheduleVersion = { validFrom: string; schedule: WorkSchedule };
 
@@ -80,12 +39,6 @@ export function defaultWorkSchedule(dailySeconds = 8 * 3600): WorkSchedule {
     breaks: withLunch ? [{ start: "13:00", end: "14:00" }] : [],
   };
   return [day, day, day, day, day, OFF, OFF].map((d) => ({ ...d, breaks: [...d.breaks] }));
-}
-
-/** A stored schedule, or the defaults when missing/invalid. */
-export function normalizeWorkSchedule(raw: unknown): WorkSchedule {
-  const parsed = workScheduleSchema.safeParse(raw);
-  return parsed.success ? parsed.data : defaultWorkSchedule();
 }
 
 /** Monday = 0 … Sunday = 6 */

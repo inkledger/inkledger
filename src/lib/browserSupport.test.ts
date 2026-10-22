@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { storeItemSchema } from "@contracts/store";
+import { storeItemSchema } from "@contracts/storeSchema";
 
 const item = (requires: unknown) => ({
   id: "bonsai",

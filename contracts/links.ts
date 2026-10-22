@@ -1,5 +1,3 @@
-import { z } from "zod";
-import { t } from "./i18n";
 
 /**
  * External links: which hosts open freely. A domain allows itself and its
@@ -22,18 +20,6 @@ export function normalizeDomain(input: string): string | null {
   v = v.replace(/^\*\./, "").replace(/\/.*$/, "").replace(/:\d+$/, "").replace(/\.$/, "");
   return HOST_RE.test(v) ? v : null;
 }
-
-export const domainInput = z
-  .string()
-  .max(260)
-  .transform((s, ctx) => {
-    const d = normalizeDomain(s);
-    if (!d) {
-      ctx.addIssue({ code: "custom", message: t("server.links.invalidDomain", { domain: s }) });
-      return z.NEVER;
-    }
-    return d;
-  });
 
 export function hostAllowed(host: string, allowed: readonly string[]): boolean {
   const h = host.toLowerCase().replace(/\.$/, "");

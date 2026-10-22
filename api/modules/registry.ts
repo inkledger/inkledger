@@ -10,15 +10,13 @@ import {
   MODULES_PATH,
   PACKAGE_CONTEXT,
   SIGNATURE_FILE,
-  licensePayloadSchema,
-  moduleIdSchema,
   runsHere,
-  moduleManifestSchema,
   type LicensePayload,
   type ModuleListEntry,
   type ModuleManifest,
   type ModuleStatus,
 } from "@contracts/modules";
+import { licensePayloadSchema, moduleIdSchema, moduleManifestSchema } from "@contracts/modulesSchema";
 import { canonicalJSON } from "../vendor/seal/canonical.ts";
 import { verifyEnvelope } from "../vendor/seal/envelope.ts";
 import { pathInside, sha256hex, verifyPackage } from "../vendor/seal/package.ts";

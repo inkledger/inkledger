@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 /**
  * Add-on modules: closed bundles signed by the publisher, unlocked by an
  * offline licence (seal, api/vendor/seal). The server checks signature, hashes
@@ -32,34 +30,7 @@ export const SIGNATURE_FILE = "manifest.sig";
 export const BUNDLE_EXTENSION = ".iklmod";
 export const BUNDLE_MAX_BYTES = 2 * 1024 * 1024;
 
-export const moduleIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/);
-
-/** The signed manifest: closed, every field checked before anything loads. */
-export const moduleManifestSchema = z.strictObject({
-  id: moduleIdSchema,
-  version: z.string().regex(/^\d+\.\d+\.\d+$/),
-  /** "inkledger.<id>": what a licence unlocks. */
-  product: z.string().regex(/^inkledger\.[a-z0-9-]+$/),
-  /** The ES module to import (a declared .js / .mjs file). */
-  entry: z.string().regex(/^[\w./-]+\.m?js$/),
-  hostApi: z.strictObject({ min: z.number().int().positive(), max: z.number().int().positive() }),
-  slots: z.array(z.enum(SLOT_IDS)).min(1),
-  /** Display name, by locale. */
-  name: z.strictObject({ en: z.string().min(1).max(40), it: z.string().min(1).max(40) }),
-  files: z.record(z.string(), z.string().regex(/^[0-9a-f]{64}$/)),
-});
-export type ModuleManifest = z.infer<typeof moduleManifestSchema>;
-
-/** A licence payload (inside the signed envelope). Extra fields are ignored. */
-export const licensePayloadSchema = z.object({
-  id: z.string().min(1).max(64),
-  email_hash: z.string().min(1),
-  product: z.string().min(1),
-  /** Epoch ms */
-  issued: z.number().int().nonnegative(),
-  v: z.number().int().positive(),
-});
-export type LicensePayload = z.infer<typeof licensePayloadSchema>;
+export type { LicensePayload, ModuleManifest } from "./modulesSchema";
 
 /** Whether a manifest runs on this inkledger: its host API range and every slot it names. */
 export const runsHere = (m: { hostApi: { min: number; max: number }; slots: readonly string[] }): boolean =>

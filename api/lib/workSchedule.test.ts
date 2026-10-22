@@ -6,13 +6,12 @@ import {
   expectedSecondsBetween,
   firstFreeStart,
   missingSpans,
-  normalizeWorkSchedule,
   scheduleFor,
-  workScheduleSchema,
   workSpans,
   EPOCH_DAY,
   type WorkSchedule,
 } from "@contracts/workSchedule";
+import { normalizeWorkSchedule, workScheduleSchema } from "@contracts/workScheduleSchema";
 
 const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m); // Oct 2026
 const MON = 12; // 2026-10-12 is a Monday

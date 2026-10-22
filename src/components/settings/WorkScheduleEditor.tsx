@@ -15,11 +15,11 @@ import {
   expectedSeconds,
   minutesOf,
   scheduleFor,
-  workDaySchema,
   EPOCH_DAY,
   type WorkDay,
   type WorkSchedule,
 } from "@contracts/workSchedule";
+import { workDaySchema } from "@contracts/workScheduleSchema";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
