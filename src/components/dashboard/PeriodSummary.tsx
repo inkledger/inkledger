@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { Link } from "react-router";
 import { useEffect, useState } from "react";
 import { dayKey, formatDuration, formatDurationLong } from "@contracts/time";
@@ -248,11 +249,8 @@ function useGoalCelebration(reached: boolean): boolean {
 /** Marks today as celebrated; true if it already was. */
 function celebratedToday(): boolean {
   const today = dayKey(new Date());
-  try {
-    if (localStorage.getItem(CELEBRATED_KEY) === today) return true;
-    localStorage.setItem(CELEBRATED_KEY, today);
-  } catch {
-    // storage unavailable: once per page load
-  }
+  if (readStored(CELEBRATED_KEY) === today) return true;
+  // Storage unavailable: once per page load.
+  writeStored(CELEBRATED_KEY, today);
   return false;
 }

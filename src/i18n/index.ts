@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { useSyncExternalStore } from "react";
 import { currentLocale, INTL_TAG, isLocale, setLocaleSource, type Locale } from "@contracts/i18n";
 import { invokeNative } from "@/lib/native";
@@ -23,12 +24,8 @@ const KEY = "ikl-locale";
 
 /** The saved choice; none yet → the default (English). */
 function read(): Locale | undefined {
-  try {
-    const saved = localStorage.getItem(KEY);
-    return isLocale(saved) ? saved : undefined;
-  } catch {
-    return undefined;
-  }
+  const saved = readStored(KEY);
+  return isLocale(saved) ? saved : undefined;
 }
 
 let chosen: Locale | undefined = read();
@@ -56,11 +53,8 @@ export function getLocale(): Locale {
 export function setLocale(next: Locale): void {
   if (next === currentLocale()) return;
   chosen = next;
-  try {
-    localStorage.setItem(KEY, next);
-  } catch {
-    // no storage: this tab only
-  }
+  // No storage: this tab only.
+  writeStored(KEY, next);
   applyToDocument();
   tellNativeShell();
   listeners.forEach(l => l());

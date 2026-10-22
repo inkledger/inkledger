@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import { useEffect } from "react";
 import { dayKey } from "@contracts/time";
 import { workBounds } from "@contracts/workSchedule";
@@ -31,12 +32,9 @@ export function useDayEndReminder() {
         : DAY_OFF_END_HOUR;
       if (now.getHours() + now.getMinutes() / 60 < endHour) return;
       const today = dayKey(now);
-      try {
-        if (localStorage.getItem(KEY) === today) return;
-        localStorage.setItem(KEY, today);
-      } catch {
-        // storage unavailable: remind anyway, once per session
-      }
+      if (readStored(KEY) === today) return;
+      // Storage unavailable: remind anyway, once per session.
+      writeStored(KEY, today);
       // The app may sit hidden in the menu bar: tell the system too.
       if (isNative())
         void notifyNative(

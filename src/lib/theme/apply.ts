@@ -1,3 +1,4 @@
+import { writeStored } from "@/lib/storage";
 import { derivePalette, type ThemeVars } from "./derive";
 
 /** localStorage key read by the inline script in index.html (no flash). */
@@ -28,11 +29,6 @@ export function applyTheme(baseHex: string, persist = true): void {
     document.head.appendChild(el);
   }
   el.textContent = css;
-  if (persist) {
-    try {
-      localStorage.setItem(THEME_CACHE_KEY, css);
-    } catch {
-      /* storage unavailable: the theme still applies for this session */
-    }
-  }
+  // Storage unavailable: the theme still applies for this session.
+  if (persist) writeStored(THEME_CACHE_KEY, css);
 }

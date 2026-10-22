@@ -1,3 +1,4 @@
+import { readStored, writeStored } from "@/lib/storage";
 import type { ModuleListEntry } from "@contracts/modules";
 import type { InkledgerModuleV1 } from "./types";
 
@@ -6,20 +7,12 @@ const OFF_KEY = "inkledger-modules-off";
 /** Kill switch: ?modules=off, or the toggle in Settings → Extras (per device). */
 export function modulesDisabled(): boolean {
   if (new URLSearchParams(window.location.search).get("modules") === "off") return true;
-  try {
-    return localStorage.getItem(OFF_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return readStored(OFF_KEY) === "1";
 }
 
 export function setModulesDisabled(off: boolean) {
-  try {
-    if (off) localStorage.setItem(OFF_KEY, "1");
-    else localStorage.removeItem(OFF_KEY);
-  } catch {
-    /* storage unavailable: nothing to remember */
-  }
+  // Storage unavailable: nothing to remember.
+  writeStored(OFF_KEY, off ? "1" : null);
 }
 
 export type LoadedModule = { entry: ModuleListEntry; module: InkledgerModuleV1 };
