@@ -133,8 +133,8 @@ function Floating({ onClose }: { onClose: () => void }) {
       role="region"
       aria-label={t("ui.pinboardFloat.label")}
       tabIndex={-1}
-      {...surface("card")}
-      className="fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-card shadow-lg outline-none"
+      {...surface("dialog")}
+      className="fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-card outline-none"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
       onKeyDown={e => {
         // Esc closes it, unless something inside already used it (a note being written, a menu).

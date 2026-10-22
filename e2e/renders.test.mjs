@@ -71,13 +71,16 @@ const WINDOW = 300_000;
  * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
  * 13840, 366 / 20452, 366 / 24399, 366 / 23704. A poll that changes nothing no longer
  * re-renders the layout: no timer 41 / 4620. The shell's background effects in a component
- * of their own: 40 / 2889, 367 / 6044, 366 / 9883, 367 / 9296. Each limit is the most
+ * of their own: 40 / 2889, 367 / 6044, 366 / 9883, 367 / 9296. The pinboard's page in the
+ * menu (one link more in the sidebar, drawn with it on each of its commits): 40 / 2990,
+ * 366 / 6139, 367 / 9992, 366 / 9396.
+ * Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
  * commit, never a side effect.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 42, renders: 2950 },
+  "dashboard, no timer": { commits: 42, renders: 3050 },
   "issue page, timer running": { commits: 374, renders: 6170 },
   "dashboard, timer running": { commits: 374, renders: 10090 },
   "timesheet, timer running": { commits: 374, renders: 9480 },
