@@ -6,6 +6,7 @@
 // Completed. Time is Asana's time tracking entries: a date, whole minutes, a
 // category (attributable_to) and a billable status.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
+import { wholeMinutes } from "../core/time";
 import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
@@ -342,7 +343,7 @@ function toRemoteWorklog(e: AsanaEntry, me: string): RemoteWorklog {
 }
 
 /** Asana keeps whole minutes (at least one): a duration is rounded to the nearest. */
-const minutesOf = (seconds: number) => Math.max(1, Math.round(seconds / 60));
+const minutesOf = wholeMinutes;
 
 function entryBody(w: WorklogInput) {
   if (w.time.kind !== "date") throw new ProviderError("invalid", `Asana keeps time on a day, not a ${w.time.kind}`);

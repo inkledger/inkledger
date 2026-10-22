@@ -6,6 +6,7 @@
 // started, completed, cancelled), never by its name. Time is Plane's
 // worklogs: whole minutes on a day, created and read, not changed.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
+import { wholeMinutes } from "../core/time";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
@@ -629,8 +630,7 @@ export const planeProvider: TrackerProvider<"plane", PlaneOptions> = {
       const k = await ctxOf(x);
       if (w.time.kind !== "date") throw new ProviderError("invalid", "Plane keeps time on days, not sessions");
       const t = await targetOf(k, ref);
-      // Whole minutes (at least one: a short entry is not lost).
-      const duration = Math.max(1, Math.round(w.time.seconds / 60));
+      const duration = wholeMinutes(w.time.seconds);
       const made = await planeOk<PlaneWorklog>(k.c, ws(k, `${issuePath(t.project, t.id)}worklogs/`), {
         method: "POST",
         body: JSON.stringify({ duration, logged_at: w.time.date, ...(w.comment ? { description: w.comment } : {}) }),

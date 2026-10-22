@@ -7,6 +7,7 @@
 // connection's options, never from a name). Time is Basecamp's timesheet
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
+import { wholeMinutes } from "../core/time";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { LruCache } from "../../lib/lruCache";
@@ -364,7 +365,7 @@ function minutesOfHours(hours: string): number {
 }
 
 const hoursOfSeconds = (seconds: number) => {
-  const min = Math.max(1, Math.round(seconds / 60));
+  const min = wholeMinutes(seconds);
   return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
 };
 

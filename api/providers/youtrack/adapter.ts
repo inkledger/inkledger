@@ -5,6 +5,7 @@
 // the bundle's `isResolved` and the state's name. Time is work items, kept by
 // date in whole minutes. Built from the API's documentation on a simulator,
 // not yet on a real account: docs/dev/spikes.md, section YouTrack.
+import { wholeMinutes } from "../core/time";
 import { toYouTrackQuery } from "./translate";
 import { verifyYouTrackWebhook } from "./webhook";
 import { z } from "zod";
@@ -287,7 +288,7 @@ async function search(x: X, query: string, limit: number) {
 const MINUTE = 60;
 
 /** YouTrack keeps durations in whole minutes: seconds are rounded to the nearest, at least one. */
-const minutesOf = (seconds: number) => Math.max(1, Math.round(seconds / MINUTE));
+const minutesOf = wholeMinutes;
 
 export function toRemoteWorklog(w: YtWorkItem, me: string, issue?: { id: string; key: string }): RemoteWorklog {
   const mine = (w.author?.id ?? "") === me;

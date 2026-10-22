@@ -5,6 +5,9 @@ import type { EntryCapabilities, EntryLimits } from "@contracts/providers";
 import { ProviderError } from "./errors";
 import type { TimeInput } from "../types";
 
+/** Seconds as whole minutes, for services that keep minutes: the nearest, at least one (a short entry is not lost). */
+export const wholeMinutes = (seconds: number): number => Math.max(1, Math.round(seconds / 60));
+
 const roundTo = (seconds: number, step: number, rounding: "up" | "nearest" | "down") =>
   (rounding === "up" ? Math.ceil : rounding === "down" ? Math.floor : Math.round)(seconds / step) * step;
 
