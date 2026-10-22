@@ -1,32 +1,12 @@
-import { useSyncExternalStore } from "react";
+import { deviceSetting } from "@/lib/storage";
 import { pinboardDialog, pinboardSheet } from "@/lib/flag";
 
 export type PinboardPanel = "closed" | "open" | "wide";
-const KEY = "ikl-pinboard-panel";
-const listeners = new Set<() => void>();
-
-function read(): PinboardPanel {
-  try {
-    const v = localStorage.getItem(KEY);
-    return v === "open" || v === "wide" ? v : "closed";
-  } catch {
-    return "closed";
-  }
-}
-
-let state = read();
+const panel = deviceSetting<PinboardPanel>("ikl-pinboard-panel", raw => (raw === "open" || raw === "wide" ? raw : "closed"));
 
 /** The Board's pinboard panel: closed, open or wide (per device). */
 export const pinboardPanel = {
-  set: (next: PinboardPanel) => {
-    state = next;
-    try {
-      localStorage.setItem(KEY, next);
-    } catch {
-      /* storage unavailable: applies for this session */
-    }
-    listeners.forEach(l => l());
-  },
+  set: (next: PinboardPanel) => panel.set(next),
 };
 
 /**
@@ -37,56 +17,31 @@ export function togglePinboard(pathname = window.location.pathname) {
   if (pathname !== "/board") {
     pinboardDialog.set(true);
   } else if (window.matchMedia("(min-width: 1024px)").matches) {
-    pinboardPanel.set(state === "closed" ? "open" : "closed");
+    pinboardPanel.set(panel.get() === "closed" ? "open" : "closed");
   } else {
     pinboardSheet.set(true);
   }
 }
 
 export function usePinboardPanel(): PinboardPanel {
-  return useSyncExternalStore(
-    l => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => state
-  );
+  return panel.use();
 }
 
-const BOARD_KEY = "ikl-pinboard-board";
-const boardListeners = new Set<() => void>();
-
-function readBoard(): number | null {
-  try {
-    const v = Number(localStorage.getItem(BOARD_KEY));
+const board = deviceSetting<number | null>(
+  "ikl-pinboard-board",
+  raw => {
+    const v = Number(raw);
     return Number.isInteger(v) && v > 0 ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-let boardId = readBoard();
+  },
+  v => (v === null ? null : String(v)),
+);
 
 /** The board shown in the panel (and where "Pin" pins), per device. */
 export const pinboardBoard = {
-  set: (id: number) => {
-    boardId = id;
-    try {
-      localStorage.setItem(BOARD_KEY, String(id));
-    } catch {
-      /* storage unavailable: applies for this session */
-    }
-    boardListeners.forEach(l => l());
-  },
-  get: () => boardId,
+  set: (id: number) => board.set(id),
+  get: () => board.get(),
 };
 
 export function usePinboardBoardId(): number | null {
-  return useSyncExternalStore(
-    l => {
-      boardListeners.add(l);
-      return () => boardListeners.delete(l);
-    },
-    () => boardId
-  );
+  return board.use();
 }
