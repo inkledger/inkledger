@@ -11,11 +11,12 @@ import { PENDING_PREFIX } from "./worklogs";
 import { replayContract } from "../sync/timeWrites";
 import { heldSinkDelete } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";
+import { singleFlight } from "../lib/locks";
 
 export { pendingReplays, withOutboxLock } from "../sync/outboxLocks";
 
-/** A "retry everything" under way, per user. */
-const retries = new Map<number, Promise<ReplayResult>>();
+/** A "retry everything" under way, per user: concurrent asks share one run. */
+const retries = singleFlight<number, ReplayResult>();
 
 export const outboxRouter = createRouter({
   /** Queued operations, joined with the issue summary for display. */
@@ -49,9 +50,7 @@ export const outboxRouter = createRouter({
 
   /** Replay the whole queue, each connection's against its own tracker; concurrent asks share one run. */
   retry: protectedProcedure.mutation(({ ctx }) => {
-    const running = retries.get(ctx.user.id);
-    if (running) return running;
-    const run = (async () => {
+    return retries.run(ctx.user.id, async () => {
       const total: ReplayResult = { synced: 0, failed: 0, remaining: 0 };
       // Each connection with something queued, against its own tracker.
       const queued = await getDb().selectDistinct({ id: outbox.connectionId }).from(outbox).where(eq(outbox.userId, ctx.user.id));
@@ -66,9 +65,7 @@ export const outboxRouter = createRouter({
       // What is left, everywhere (a connection's replay counts its own).
       total.remaining = (await getDb().select({ n: count() }).from(outbox).where(and(eq(outbox.userId, ctx.user.id), not(heldSinkDelete))))[0]?.n ?? 0;
       return total;
-    })().finally(() => retries.delete(ctx.user.id));
-    retries.set(ctx.user.id, run);
-    return run;
+    });
   }),
 
   /**
