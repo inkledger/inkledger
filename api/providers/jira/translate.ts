@@ -34,6 +34,8 @@ function term(t: QueryTerm, now: Date): string | null {
           return `issuetype = ${quoted(v)}`;
         case "label":
           return `labels = ${quoted(v)}`;
+        case "component":
+          return `component = ${quoted(v)}`;
         case "priority":
           return t.op === "=" ? `priority = ${quoted(v)}` : null;
         case "updated":

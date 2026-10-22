@@ -41,6 +41,7 @@ export function fieldsOf(i: RemoteIssue) {
     issueType: i.type.name,
     priority: i.priority?.name ?? "",
     labels: JSON.stringify(i.labels),
+    components: JSON.stringify(i.components ?? []),
     assigneeId: assignee?.remoteId ?? "",
     assigneeName: assignee?.name ?? "",
     reporterName: i.reporter?.name ?? "",

@@ -146,6 +146,7 @@ export type JiraSearchedIssue = {
     issuetype?: { name?: string };
     priority?: { name?: string };
     labels?: string[];
+    components?: { name?: string }[];
     assignee?: { accountId?: string; name?: string; displayName?: string } | null;
     reporter?: { displayName?: string } | null;
     timeestimate?: number | null;
@@ -270,8 +271,11 @@ export async function getMyself(creds: JiraCredentials): Promise<JiraMyself> {
   return jiraFetch<JiraMyself>(creds, `${apiBase(creds)}/myself`);
 }
 
+/** A Jira issue's components, by name. */
+export const componentNames = (c: { name?: string }[] | undefined) => (c ?? []).flatMap((x) => (x.name ? [x.name] : []));
+
 const ISSUE_FIELDS =
-  "summary,status,project,issuetype,priority,labels,assignee,reporter,timeestimate,timespent,duedate,updated,created,statuscategorychangedate";
+  "summary,status,project,issuetype,priority,labels,components,assignee,reporter,timeestimate,timespent,duedate,updated,created,statuscategorychangedate";
 
 /** Generic JQL search with automatic pagination. */
 export async function searchIssues(

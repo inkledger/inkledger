@@ -80,6 +80,8 @@ export function compileIssueQuery(expr: QueryExpr | null, ctx: QueryContext): Co
       case "label":
         // labels is a JSON array: the quoted element, whatever its case.
         return contains(issues.labels, JSON.stringify(v));
+      case "component":
+        return contains(issues.components, JSON.stringify(v));
       case "priority": {
         const rank = priorityRankOfValue(v);
         if (rank === null) return equalsCi(issues.priority, v);

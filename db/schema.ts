@@ -243,8 +243,10 @@ export const issues = pgTable(
     projectName: text("project_name").notNull(),
     issueType: text("issue_type").notNull().default(""),
     priority: text("priority").notNull().default(""),
-    /** Jira labels, as JSON string array */
+    /** Labels (Jira's, a repository's…), as JSON string array */
     labels: text("labels").notNull().default("[]"),
+    /** Components (Jira's: a project's parts), as JSON string array */
+    components: text("components").notNull().default("[]"),
     /** Assignee accountId (Cloud) or username (Server/DC) */
     assigneeId: text("assignee_id").notNull().default(""),
     /** Display names; null = never fetched (rows older than these columns) */
@@ -719,6 +721,14 @@ export const pinboards = pgTable(
      * every bucket (nothing pinned is lost).
      */
     bucketId: integer("bucket_id").references(() => buckets.id, { onDelete: "set null" }),
+    /**
+     * A board that follows a tag: "label" or "component", and its value (null:
+     * a board pinned by hand). It shows the user's open issues with that tag,
+     * on one tracker or on every one (null), and nothing is pinned on it.
+     */
+    followField: text("follow_field"),
+    followValue: text("follow_value"),
+    followConnectionId: integer("follow_connection_id").references(() => connections.id, { onDelete: "set null" }),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),

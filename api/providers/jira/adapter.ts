@@ -31,6 +31,7 @@ import {
   fetchWorklog,
   fetchWorklogs,
   fetchWorklogsByIds,
+  componentNames,
   getMyself,
   searchIssues,
   setWatching,
@@ -163,6 +164,7 @@ export function toRemoteIssue(siteUrl: string, i: JiraSearchedIssue): RemoteIssu
     // The rank needs the site's priority order: computed where the catalogue is stored.
     priority: f.priority?.name ? { id: f.priority.name, name: f.priority.name, rank: null } : null,
     labels: f.labels ?? [],
+    components: componentNames(f.components),
     assignees: f.assignee ? [{ remoteId: f.assignee.accountId ?? f.assignee.name ?? "", name: f.assignee.displayName ?? "" }] : [],
     reporter: f.reporter?.displayName ? { remoteId: "", name: f.reporter.displayName } : null,
     due: null,

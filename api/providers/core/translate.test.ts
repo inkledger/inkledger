@@ -13,6 +13,9 @@ describe("the search language in a tracker's own words", () => {
     expect(jql("cat:doing OR is:watched")).toEqual({ query: "(statusCategory = 4) OR (watcher = currentUser())", unsupported: [] });
     expect(jql('-label:bug updated:7d')).toEqual({ query: '(NOT (labels = "bug")) AND (updated >= "2026-10-15" AND updated < "2026-10-22")', unsupported: [] });
     expect(jql("APP-12")).toEqual({ query: "key = APP-12", unsupported: [] });
+    expect(jql("componente:Backend")).toEqual({ query: 'component = "Backend"', unsupported: [] });
+    // A tracker without components names it, never drops it.
+    expect(gh("login component:Backend")).toEqual({ query: "login involves:@me", unsupported: ["component:Backend"] });
     // client: and logged: are inkledger's: named, the rest still sent.
     expect(jql("login client:Acme")).toEqual({ query: '(text ~ "login")', unsupported: ["client:Acme"] });
     // One unsayable term makes its OR unsayable.

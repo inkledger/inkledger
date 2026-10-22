@@ -15,6 +15,7 @@ export type QueryField =
   | "author"
   | "type"
   | "label"
+  | "component"
   | "priority"
   | "updated"
   | "created"
@@ -53,6 +54,7 @@ const FIELDS: Record<QueryField, { en: string; it: string; also?: string[] }> = 
   author: { en: "author", it: "autore", also: ["reporter", "creator", "creatore"] },
   type: { en: "type", it: "tipo" },
   label: { en: "label", it: "etichetta", also: ["labels", "tag"] },
+  component: { en: "component", it: "componente", also: ["components", "componenti"] },
   priority: { en: "priority", it: "priorità", also: ["priorita", "prio"] },
   updated: { en: "updated", it: "aggiornata", also: ["aggiornato"] },
   created: { en: "created", it: "creata", also: ["creato"] },

@@ -52,6 +52,17 @@ describe("jira: errors arrive in the layer's words", () => {
     expect(await kindOf(b.verify(meta()))).toBe(kind);
   });
 
+  it("an issue's labels and components, by name, on both paths that read it", async () => {
+    const { sim, conn } = simulated();
+    Object.assign(sim.issues.get("APP-1")!, { labels: ["bug"], components: ["Backend", "API"] });
+    const b = bindTracker(jiraProvider, conn);
+    expect(await b.getIssue(meta(), { remoteId: sim.issues.get("APP-1")!.id, key: "APP-1" })).toMatchObject({ labels: ["bug"], components: ["Backend", "API"] });
+    // The catalogue's own Jira sync (toRow) keeps them too.
+    const { toRow } = await import("../../sync/jiraIssues");
+    const raw = (await (await sim.fetch(`${sim.site}/rest/api/3/issue/APP-1`)).json()) as Parameters<typeof toRow>[3];
+    expect(toRow(1, sim.site, 1, raw)).toMatchObject({ labels: '["bug"]', components: '["Backend","API"]' });
+  });
+
   it("a write on a read-only server is readOnly, never sent", async () => {
     vi.stubEnv("PROVIDERS_READ_ONLY", "1");
     vi.resetModules();

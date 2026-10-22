@@ -17,6 +17,7 @@ describe("query language", () => {
   it("reads operators in English and Italian alike", () => {
     expect(p('stato:"In corso"')).toEqual({ kind: "field", field: "status", op: "=", value: "In corso" });
     expect(p("progetto:APP")).toEqual(p("project:APP"));
+    expect(p("componente:Backend")).toEqual({ kind: "field", field: "component", op: "=", value: "Backend" });
     expect(p("fonte:GitHub")).toEqual({ kind: "field", field: "source", op: "=", value: "GitHub" });
     expect(p("è:osservata")).toEqual({ kind: "field", field: "is", op: "=", value: "watched" });
     expect(p("cat:incorso")).toEqual({ kind: "field", field: "cat", op: "=", value: "doing" });

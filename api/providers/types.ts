@@ -187,6 +187,8 @@ export type RemoteIssue = {
   container: ContainerRef;
   priority?: { id: string; name: string; rank: number | null } | null;
   labels: string[];
+  /** The parts of its project it belongs to (Jira's components); none where the tracker has none */
+  components?: string[];
   assignees: RemotePerson[];
   reporter?: RemotePerson | null;
   due?: LocalDate | null;

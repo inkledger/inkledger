@@ -9,6 +9,9 @@ type Issue = {
   assignee: string | null;
   /** Its priority's name (Medium unless a test raises it) */
   priority: string;
+  /** Its labels and components (none unless a test sets them) */
+  labels?: string[];
+  components?: string[];
   updated: string;
   watchers: Set<string>;
   comments: { id: string; body: unknown; created: string; author: string }[];
@@ -45,7 +48,8 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
       project: { key: i.key.split("-")[0], name: `Project ${i.key.split("-")[0]}` },
       issuetype: { name: "Task" },
       priority: { name: i.priority },
-      labels: [],
+      labels: i.labels ?? [],
+      components: (i.components ?? []).map((name) => ({ name })),
       assignee: i.assignee ? { accountId: i.assignee, displayName: i.assignee } : null,
       updated: i.updated,
       created: "2026-09-01T10:00:00.000+0000",

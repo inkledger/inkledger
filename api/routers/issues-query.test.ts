@@ -71,6 +71,19 @@ describe("issues.list speaks the query language", () => {
     expect((await find("@me project:APP")).keys).toEqual(["APP-1", "APP-2"]);
   });
 
+  it("filters by a Jira component, in either language", async () => {
+    await q("UPDATE issues SET components = '[\"Backend\",\"API\"]' WHERE key = 'APP-2'");
+    try {
+      expect((await find("component:backend")).keys).toEqual(["APP-2"]);
+      expect((await find("componente:API")).keys).toEqual(["APP-2"]);
+      expect((await find("-component:Backend project:APP")).keys).toEqual(["APP-1"]);
+      // A word inside a component is not the component.
+      expect((await find("component:back")).keys).toEqual([]);
+    } finally {
+      await q("UPDATE issues SET components = '[]' WHERE key = 'APP-2'");
+    }
+  });
+
   it("filters by project, source, status, label, priority and dates, in either language", async () => {
     expect((await find("progetto:APP -etichetta:bug")).keys).toEqual(["APP-2"]);
     expect((await find("in:github")).keys).toEqual(["acme/web#4"]);
