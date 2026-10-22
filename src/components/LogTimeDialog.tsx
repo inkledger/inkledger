@@ -176,7 +176,7 @@ function LogTimeForm({
   const seconds = parsed && parsed > 0 ? parsed : (prefillSeconds ?? 3600);
   const auto =
     !startedTouched && placement.ready
-      ? placement.place(seconds, { now: openedAt, endAt })
+      ? placement.place(seconds, { now: openedAt, endAt, tracked: fromTimer ? prefillSeconds : undefined })
       : null;
   const startedShown = startedTouched
     ? started

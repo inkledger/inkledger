@@ -61,7 +61,7 @@ export function useBlockPlacement(
 
   /** Place `seconds` (ending at `endAt` for a stopped timer). */
   const place = useCallback(
-    (seconds: number, at: { now: Date; endAt?: Date }): Placement =>
+    (seconds: number, at: { now: Date; endAt?: Date; tracked?: number }): Placement =>
       placeBlock({
         day: from,
         seconds,
@@ -69,6 +69,7 @@ export function useBlockPlacement(
         schedule: schedule.forDay(from),
         now: at.now,
         endAt: at.endAt,
+        tracked: at.tracked,
       }),
     [from, occupied, schedule]
   );

@@ -234,6 +234,8 @@ function DayReviewBody() {
               schedule: forDay(today),
               now: at,
               endAt,
+              // What the timer tracked up to then: typed over it, the block is not that work.
+              tracked: timer ? timer.elapsedSeconds + (timer.state === "running" ? Math.max(0, at.getTime() - fetchedAt) / 1000 : 0) : undefined,
             })
           : ({
               ok: false,
