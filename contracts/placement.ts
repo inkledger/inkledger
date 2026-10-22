@@ -94,8 +94,8 @@ export function conflictMessage(withItems: Occupied[]): string {
 /**
  * Place a block of `seconds` on `day`, never over `occupied`:
  * - today (or with `endAt`, e.g. when a timer was stopped): it ends at `endAt`
- *   (default now); if that is taken, it goes at the end of the latest free
- *   stretch before it, not earlier than the start of the working hours;
+ *   (default now), wherever it starts; if that is taken, it goes at the end of
+ *   the latest free stretch before it, not earlier than the start of the working hours;
  * - another day: right after the last block of that day, or at the start of
  *   that day's working hours (9:00 on days off) when it is empty.
  * No silent fallback: when nothing fits the answer says why.
@@ -117,8 +117,15 @@ export function placeBlock(opts: {
   const isToday = dayKey(day) === dayKey(now);
   if (opts.endAt || isToday) {
     const limit = Math.min(dayEnd, Math.max(dayStart, (opts.endAt ?? now).getTime()));
-    // Not into the night: back to the start of the working hours at most,
-    // unless the block itself ends before them.
+    // Its own place first, ending at the limit, wherever it starts: work begun before
+    // the working hours (a timer from 8:15 stopped at 9:05) ends there too.
+    const [own] = freeIntervals(occupied, dayStart, limit).slice(-1);
+    if (own && own[1] === limit) {
+      const start = fitAtEnd(own[0], own[1], seconds);
+      if (start !== null) return { ok: true, start: new Date(start) };
+    }
+    // Taken: moved back, but not into the night: to the start of the working hours
+    // at most, unless the block itself ends before them.
     const workStart = workBounds(day, schedule)?.start.getTime() ?? dayStart;
     const floor = limit > workStart ? workStart : dayStart;
     const free = freeIntervals(occupied, floor, limit);
