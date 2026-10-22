@@ -87,7 +87,7 @@ function FollowedBoards() {
         open={picking}
         onClose={() => setPicking(false)}
         onPick={tag =>
-          void utils.client.pinboard.createBoard.mutate({ name: tag.value.slice(0, 60), follow: tag }).then(() => {
+          utils.client.pinboard.createBoard.mutate({ name: tag.value.slice(0, 60), follow: tag }).then(() => {
             setPicking(false);
             toast.success(t("views.board.pinboard.created", { name: tag.value }));
             return refresh();

@@ -21,6 +21,15 @@ export const DATA_MIGRATIONS: DataMigration[] = [
       await db.execute(sql`UPDATE users SET permissions = (permissions::jsonb || '["useModules"]'::jsonb)::text WHERE role <> 'admin' AND NOT (permissions::jsonb ? 'useModules')`);
     },
   },
+  {
+    // Jira components are kept now: the next background sync reads every issue again
+    // (full), so the ones synced before have theirs without waiting for the hourly full one.
+    id: "issue-components-full-sync",
+    run: async (db) => {
+      // What makes a background pass full (syncScheduler's needsFullSync): never the first-sync state.
+      await db.execute(sql`UPDATE sync_state SET last_full_sync_at = NULL`);
+    },
+  },
 ];
 
 const DONE_KEY = "data-migrations.done";

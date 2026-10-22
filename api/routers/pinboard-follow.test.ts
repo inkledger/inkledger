@@ -99,5 +99,10 @@ describe("a pinboard that follows a tag", () => {
     await expect(me.pinboard.deleteBoard({ id: free[0].id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
     const followed = boards.find((b) => b.follow)!;
     await me.pinboard.deleteBoard({ id: followed.id });
+    // Two deletes at once never leave none: one is refused.
+    const { id: second } = await me.pinboard.createBoard({ name: "Second" });
+    const both = await Promise.allSettled([me.pinboard.deleteBoard({ id: free[0].id }), me.pinboard.deleteBoard({ id: second })]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await me.pinboard.boards()).filter((b) => !b.follow)).toHaveLength(1);
   });
 });

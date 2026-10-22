@@ -17,9 +17,11 @@ export async function assertNoOverlap(
   block: { start: Date; seconds: number },
   /** The entry being edited, by `occupiedId` (a remote id alone may be on two trackers) */
   exceptId?: string,
+  /** Refused whatever the policy (time said to be free: a timer counted from a gap's start). */
+  always = false,
 ): Promise<void> {
   // Parallel work is allowed by default (D12): only "block" refuses it; the app warns.
-  if ((await getSettings(userId)).overlapPolicy !== "block") return;
+  if (!always && (await getSettings(userId)).overlapPolicy !== "block") return;
   const from = new Date(block.start.getTime() - MAX_WORKLOG_SECONDS * 1000);
   const to = new Date(block.start.getTime() + block.seconds * 1000);
   const near = await getDb()

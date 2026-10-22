@@ -179,7 +179,8 @@ export function Pinboard({
   type Note = (typeof notes)[number];
 
   const refresh = () =>
-    Promise.all([utils.pinboard.list.invalidate(), utils.pinboard.boards.invalidate()]);
+    // Where each issue is pinned too: the issue page's pin button follows the board.
+    Promise.all([utils.pinboard.list.invalidate(), utils.pinboard.boards.invalidate(), utils.pinboard.where.invalidate()]);
   const fail = (e: unknown) => {
     toastError(e);
     void refresh();
@@ -228,6 +229,7 @@ export function Pinboard({
     try {
       const removed = await utils.client.pinboard.remove.mutate({ id: n.id });
       void utils.pinboard.boards.invalidate();
+      void utils.pinboard.where.invalidate();
       if (n.issueNoteId && n.issueKey) void utils.issueNotes.list.invalidate({ issueKey: n.issueKey, connectionId: n.connectionId ?? undefined });
       toast.success(n.issueNoteId ? t("views.board.pinboard.unhungNote") : n.issueKey ? t("views.board.pinboard.unpinnedIssue", { key: n.issueKey }) : t("views.board.pinboard.unpinnedNote"), {
         action: {
@@ -691,14 +693,14 @@ export function Pinboard({
       <FollowTagDialog
         open={following}
         onClose={() => setFollowing(false)}
-        onPick={tag => {
-          void utils.client.pinboard.createBoard.mutate({ name: tag.value.slice(0, 60), follow: tag }).then(r => {
+        onPick={tag =>
+          utils.client.pinboard.createBoard.mutate({ name: tag.value.slice(0, 60), follow: tag }).then(r => {
             setFollowing(false);
             pinboardBoard.set(r.id);
             toast.success(t("views.board.pinboard.created", { name: tag.value }));
             return refresh();
-          }, toastError);
-        }}
+          }, toastError)
+        }
       />
       <BoardNameDialog
         mode={naming}

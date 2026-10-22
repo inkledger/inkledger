@@ -282,8 +282,8 @@ export const timersRouter = createRouter({
       if (from) {
         if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
         if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
-        // Time already logged there (the "block" policy refuses it, as for a worklog).
-        await assertNoOverlap(ctx.user.id, { start: from, seconds: Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000)) });
+        // From a gap's start: the time must be free, whatever the overlap policy (it would count twice).
+        await assertNoOverlap(ctx.user.id, { start: from, seconds: Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000)) }, undefined, true);
       }
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.

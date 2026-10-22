@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import { deviceSetting } from "@/lib/storage";
-import { pinboardFloat, pinboardSheet } from "@/lib/flag";
+import { pinboardFloat, pinboardFloatFocus, pinboardSheet } from "@/lib/flag";
 import { trpc } from "@/lib/trpc";
 
 export type PinboardPanel = "closed" | "open" | "wide";
@@ -98,6 +98,7 @@ export function togglePinboard(pathname = window.location.pathname) {
       pinboardSheet.set(true);
       return;
     case "float":
+      pinboardFloatFocus.set(!pinboardFloat.get());
       pinboardFloat.set(!pinboardFloat.get());
       return;
     case "page":
@@ -118,7 +119,10 @@ export function showPinboard(pathname = window.location.pathname) {
   const target = pinboardTarget(pathname, isWide(), surfaces);
   if (target === "panel") pinboardPanel.set(panel.get() === "closed" ? "open" : panel.get());
   else if (target === "sheet") pinboardSheet.set(true);
-  else if (target === "float") pinboardFloat.set(true);
+  else if (target === "float") {
+    pinboardFloatFocus.set(true);
+    pinboardFloat.set(true);
+  }
   else if (target === "page") go?.("/pinboard");
   else if (target === "board") openOnBoard();
 }

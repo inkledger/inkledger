@@ -18,7 +18,8 @@ type Utils = ReturnType<typeof trpc.useUtils>;
 async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
   const now = new Date();
   const day = startOfDay(now);
-  const fresh = { staleTime: 30_000 };
+  // Read now: a time logged or a timer started a moment ago elsewhere closes the hole.
+  const fresh = { staleTime: 0 };
   const timers = await utils.timers.list.fetch(undefined, fresh);
   if (timers.some(tm => tm.state === "running")) return null;
   const [week, logs, versions] = await Promise.all([
@@ -32,7 +33,12 @@ async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
   const paused: TimeSpan[] = timers.flatMap(tm =>
     !tm.pausedAt || tm.elapsedSeconds <= 0 ? [] : [{ start: new Date(new Date(tm.pausedAt).getTime() - tm.elapsedSeconds * 1000), seconds: tm.elapsedSeconds }]
   );
-  return openGap(missingSpans(day, scheduleFor(day, versions), [...logged, ...paused], now), now);
+  const gap = openGap(missingSpans(day, scheduleFor(day, versions), [...logged, ...paused], now), now);
+  // A timer paused in it (even with no time left) ends the hole there, as the server sees it.
+  const lastPause = Math.max(0, ...timers.flatMap(tm => (tm.pausedAt ? [new Date(tm.pausedAt).getTime()] : [])));
+  if (!gap || lastPause <= gap.start.getTime()) return gap;
+  const seconds = Math.round((now.getTime() - lastPause) / 1000);
+  return seconds >= 60 ? { start: new Date(lastPause), seconds } : null;
 }
 
 /**
@@ -60,7 +66,8 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
       void utils.timers.list.invalidate();
       if (c?.reason === "held") {
         toast.error(e.message, {
-          action: { label: t("ui.timer.takeOver"), onClick: () => mutate({ ...input, force: true }) },
+          // Taking over keeps the other device's time running: never "from" a gap then.
+          action: { label: t("ui.timer.takeOver"), onClick: () => mutate({ issueKey: input.issueKey, connectionId: input.connectionId, force: true }) },
         });
       } else toastError(e);
     },

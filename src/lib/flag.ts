@@ -33,5 +33,7 @@ export const createIssueDialog = createFlag();
 export const notificationCenter = createFlag();
 /** The floating pinboard widget, opened from the sidebar, "p" or the palette. */
 export const pinboardFloat = createFlag();
+/** Set when the user opens the widget: it takes the focus then (not when it comes back on another page). */
+export const pinboardFloatFocus = createFlag();
 /** The Board's pinboard sheet on small screens. */
 export const pinboardSheet = createFlag();

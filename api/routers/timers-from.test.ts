@@ -82,18 +82,16 @@ describe("a timer started from the start of a gap", () => {
     vi.setSystemTime(NOON);
   });
 
-  it("over time already logged: refused with the block policy, let be with warn", async () => {
+  it("over time already logged: refused whatever the overlap policy (it would count twice); after it, counted", async () => {
     await q(
       "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, synced_at) VALUES (?, ?, 'LOG-1', 'w-1', 1200, ?, 1)",
       userId, connId, NOON.getTime() - 25 * 60_000,
     );
-    await caller.settings.update({ overlapPolicy: "block" });
-    await expect(caller.timers.start({ issueKey: "GAP-1", from: minutesAgo(30) })).rejects.toMatchObject({ code: "CONFLICT" });
+    for (const overlapPolicy of ["block", "warn"] as const) {
+      await caller.settings.update({ overlapPolicy });
+      await expect(caller.timers.start({ issueKey: "GAP-1", from: minutesAgo(30) })).rejects.toMatchObject({ code: "CONFLICT" });
+    }
     await caller.timers.start({ issueKey: "GAP-1", from: minutesAgo(5) });
     expect(await elapsed("GAP-1")).toBe(300);
-    await q("DELETE FROM timers");
-    await caller.settings.update({ overlapPolicy: "warn" });
-    await caller.timers.start({ issueKey: "GAP-1", from: minutesAgo(30) });
-    expect(await elapsed("GAP-1")).toBe(1800);
   });
 });

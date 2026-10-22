@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { useLocation } from "react-router";
 import { GripHorizontal, MoveDiagonal2 } from "lucide-react";
-import { pinboardFloat } from "@/lib/flag";
+import { pinboardFloat, pinboardFloatFocus } from "@/lib/flag";
 import { deviceSetting } from "@/lib/storage";
 import { isTyping } from "@/lib/dom";
 import { floatHidden, usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
@@ -86,8 +86,11 @@ function Floating({ onClose }: { onClose: () => void }) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  // Opened from a key: the focus goes in, so its keys work at once.
+  // Opened by the user: the focus goes in, so its keys work at once. Back on
+  // another page it doesn't take it: that page's keys keep working.
   useEffect(() => {
+    if (!pinboardFloatFocus.get()) return;
+    pinboardFloatFocus.set(false);
     box.current?.focus({ preventScroll: true });
   }, []);
 
@@ -137,8 +140,17 @@ function Floating({ onClose }: { onClose: () => void }) {
       className="fixed z-40 flex flex-col overflow-hidden rounded-xl border bg-card outline-none"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
       onKeyDown={e => {
+        if (e.defaultPrevented || isTyping(e.target) || !e.currentTarget.contains(e.target as Node)) return;
+        // "/" from anywhere in it (the box itself too, as opened): its search.
+        if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          const field = e.currentTarget.querySelector<HTMLInputElement>("input[type=search]");
+          if (!field) return;
+          e.preventDefault();
+          field.focus();
+          return;
+        }
         // Esc closes it, unless something inside already used it (a note being written, a menu).
-        if (e.key !== "Escape" || e.defaultPrevented || isTyping(e.target) || !e.currentTarget.contains(e.target as Node)) return;
+        if (e.key !== "Escape") return;
         e.preventDefault();
         onClose();
       }}

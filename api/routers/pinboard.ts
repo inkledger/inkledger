@@ -312,16 +312,20 @@ export const pinboardRouter = createRouter({
 
   /** Delete a board and its notes; the last one stays. */
   deleteBoard: protectedProcedure.input(z.object({ id: boardIdInput })).mutation(async ({ ctx, input }) => {
-    const boards = await boardsOf(ctx.user.id);
-    if (!boards.some((b) => b.id === input.id)) {
-      throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.boardNotFound") });
-    }
-    // One board pinned by hand always stays: where a pin lands.
-    const free = boards.filter((b) => !followOf(b));
-    if (boards.length === 1 || (free.length === 1 && free[0].id === input.id)) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.needBoard") });
-    }
+    await boardsOf(ctx.user.id);
+    // Checked and deleted under the user's board lock: two deletes at once can't both
+    // see another board pinned by hand and leave none.
     await getDb().transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('pinboards'), ${ctx.user.id})`);
+      const boards = await tx.select().from(pinboards).where(eq(pinboards.userId, ctx.user.id));
+      if (!boards.some((b) => b.id === input.id)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.boardNotFound") });
+      }
+      // One board pinned by hand always stays: where a pin lands.
+      const free = boards.filter((b) => !followOf(b));
+      if (boards.length === 1 || (free.length === 1 && free[0].id === input.id)) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.needBoard") });
+      }
       await tx.delete(pinboardNotes).where(eq(pinboardNotes.boardId, input.id));
       await tx.delete(pinboards).where(eq(pinboards.id, input.id));
     });

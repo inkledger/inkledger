@@ -279,8 +279,8 @@ export default function Dashboard() {
     dayView && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? missingSpans(range.from, daySchedule, [...timelineEntries, ...pausedSpans], holesUntil)
       : [];
-  // The hole reaching now: a timer can start from its start (Play on it).
-  const openHole = openGap(missing, holesUntil);
+  // The hole reaching now: a timer can start from its start (Play on it). None while one runs.
+  const openHole = running ? null : openGap(missing, holesUntil);
   const [gap, setGap] = useState<TimeSpan | null>(null);
   // The worklogs next to the hole, which it can extend instead of a tiny new one.
   const neighbours = useMemo(

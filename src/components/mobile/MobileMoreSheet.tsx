@@ -4,7 +4,7 @@ import { Moon, Pin, RefreshCw } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSync } from "@/hooks/useSync";
 import { useSyncHint } from "@/hooks/useSyncHint";
-import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
+import { togglePinboard, usePinboardSurfacesNow, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { TAB_ROUTES, useNavItems } from "@/lib/nav";
 import { SidebarFavorites } from "@/components/SidebarFavorites";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -43,8 +43,11 @@ export function MobileMoreSheet({
   const sections = useNavItems()
     .flatMap(g => g.items)
     .filter(i => !TAB_ROUTES.includes(i.to));
-  // The pinboard opened in place (the Board's sheet, the widget); its page is a section above.
+  // The pinboard opened in place (the Board's sheet, the widget); with its page in the
+  // menu, that section above is the way (never two "Pinboard" tiles), but on the Board.
   const pinTarget = usePinboardTarget(pathname);
+  const { menu } = usePinboardSurfacesNow();
+  const inPlace = pinTarget !== null && pinTarget !== "page" && !(menu && pinTarget === "float");
 
   // Any navigation (a section, a favorite, the account menu) closes it.
   const shown = useRef(pathname);
@@ -78,7 +81,7 @@ export function MobileMoreSheet({
                 <span className="max-w-full truncate">{label}</span>
               </NavLink>
             ))}
-            {pinTarget !== null && pinTarget !== "page" && (
+            {inPlace && (
             <button
               type="button"
               aria-label={t("ui.layout.openPinboard")}

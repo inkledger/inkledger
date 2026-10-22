@@ -13,7 +13,7 @@ export type FollowedTag = { field: "label" | "component"; value: string };
  * used first, filtered as typed; the one chosen becomes a board that shows
  * the open issues carrying it, kept up to date by the tracker.
  */
-export function FollowTagDialog({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (tag: FollowedTag) => void }) {
+export function FollowTagDialog({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (tag: FollowedTag) => Promise<unknown> }) {
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -27,9 +27,11 @@ export function FollowTagDialog({ open, onClose, onPick }: { open: boolean; onCl
   );
 }
 
-function TagList({ onPick }: { onPick: (tag: FollowedTag) => void }) {
+function TagList({ onPick }: { onPick: (tag: FollowedTag) => Promise<unknown> }) {
   const tags = trpc.pinboard.tags.useQuery();
   const [filter, setFilter] = useState("");
+  // One board per choice: a second click while it is made does nothing.
+  const [busy, setBusy] = useState(false);
   const shown = (tags.data ?? []).filter(x => x.value.toLowerCase().includes(filter.trim().toLowerCase()));
   return (
     <div className="grid gap-3">
@@ -53,8 +55,12 @@ function TagList({ onPick }: { onPick: (tag: FollowedTag) => void }) {
             <li key={`${x.field}:${x.value}`}>
               <button
                 type="button"
-                onClick={() => onPick({ field: x.field, value: x.value })}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void onPick({ field: x.field, value: x.value }).finally(() => setBusy(false));
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60"
               >
                 <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{x.value}</span>

@@ -33,6 +33,8 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
       utils.issueNotes.list.invalidate({ issueKey, connectionId: conn }),
       utils.pinboard.list.invalidate(),
       utils.pinboard.boards.invalidate(),
+      // Hanging a note pins its issue too: the pin button says so.
+      utils.pinboard.where.invalidate(),
     ]);
   const fail = (e: unknown) => toastError(e);
 

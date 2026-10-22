@@ -36,7 +36,9 @@ async function fakeJiraTransitions(page, sent) {
     // The rest of the batch goes to the server as it is.
     let real = [];
     if (!names.every(mine)) {
-      const res = await route.fetch();
+      // The page may be closing (end of the test): a request left over is let go, as in harness.mjs.
+      const res = await route.fetch().catch(() => null);
+      if (!res) return;
       real = await res.json().catch(() => []);
     }
     const out = names.map((n, i) => {
@@ -49,7 +51,7 @@ async function fakeJiraTransitions(page, sent) {
         return { error: { json: { message: "Fields don't fit the transition", code: -32600, data: { code: "BAD_REQUEST", httpStatus: 400, fields: { resolution: "required" } } } } };
       return { result: { data: { json: { moved: "DEMO-101", to: "Chiuso" } } } };
     });
-    await route.fulfill({ status: out.some(o => o.error) ? 400 : 200, contentType: "application/json", body: JSON.stringify(out) });
+    await route.fulfill({ status: out.some(o => o.error) ? 400 : 200, contentType: "application/json", body: JSON.stringify(out) }).catch(() => {});
   });
 }
 

@@ -728,7 +728,8 @@ export const pinboards = pgTable(
      */
     followField: text("follow_field"),
     followValue: text("follow_value"),
-    followConnectionId: integer("follow_connection_id").references(() => connections.id, { onDelete: "set null" }),
+    /** Its tracker: removed with it (never widened to every tracker). */
+    followConnectionId: integer("follow_connection_id").references(() => connections.id, { onDelete: "cascade" }),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
