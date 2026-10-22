@@ -292,4 +292,16 @@ describe("Settings → Connections: GitHub by its own login", () => {
     expect(partly.results.map((r) => r.key)).not.toContain("acme/web#2");
     expect(partly.unsupported).toEqual(["priority:>=high"]);
   });
+
+  it("a search answered from the last minute still says what is here now: imported a moment ago, it says so", async () => {
+    const conn = (await caller.connections.list()).find((c) => c.label === "Side projects")!;
+    sim.add("acme/web", "Not here yet", { assignee: null });
+    const added = sim.issues[sim.issues.length - 1];
+    const key = `acme/web#${added.number}`;
+    const before = await caller.issues.searchOn({ connectionId: conn.id, query: key });
+    expect(before.results.map((r) => [r.key, r.imported])).toEqual([[key, false]]);
+    await caller.issues.import({ key, connectionId: conn.id });
+    const after = await caller.issues.searchOn({ connectionId: conn.id, query: key });
+    expect(after.results.map((r) => [r.key, r.imported])).toEqual([[key, true]]);
+  });
 });

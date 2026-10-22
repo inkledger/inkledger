@@ -21,18 +21,24 @@ export function buildSearchJql(query: string): string {
   return `text ~ "${escaped}" ORDER BY updated DESC`;
 }
 
-/** Searches answered in the last minute, by user, connection and query (a tracker isn't asked twice for the same). */
-const searchCache = new Map<string, { at: number; value: Awaited<ReturnType<typeof searchUncached>> }>();
+/**
+ * A tracker's answers of the last minute, by user, connection and query (a tracker isn't asked
+ * twice for the same). Only what the tracker said: whether the user has an issue here, or
+ * watches it, is read afresh on every search (an import or a watch shows at once).
+ */
+const searchCache = new Map<string, { at: number; value: Awaited<ReturnType<typeof askTracker>> }>();
 const SEARCH_TTL_MS = 60_000;
 
 export async function searchConnection(user: User, conn: Connection, query: string) {
   const key = `${user.id}|${conn.id}|${query}`;
   const hit = searchCache.get(key);
-  if (hit && Date.now() - hit.at < SEARCH_TTL_MS) return hit.value;
-  const value = await searchUncached(user, conn, query);
-  if (!value.failed) searchCache.set(key, { at: Date.now(), value });
-  if (searchCache.size > 500) searchCache.delete(searchCache.keys().next().value!);
-  return value;
+  let said = hit && Date.now() - hit.at < SEARCH_TTL_MS ? hit.value : undefined;
+  if (!said) {
+    said = await askTracker(conn, query);
+    if (!said.failed) searchCache.set(key, { at: Date.now(), value: said });
+    if (searchCache.size > 500) searchCache.delete(searchCache.keys().next().value!);
+  }
+  return withLocalState(user, conn, said);
 }
 
 /**
@@ -40,10 +46,10 @@ export async function searchConnection(user: User, conn: Connection, query: stri
  * rest is said in the tracker's own query language (translate), or as its
  * words only; what it can't say is named in `unsupported`.
  */
-async function searchUncached(user: User, conn: Connection, query: string) {
+async function askTracker(conn: Connection, query: string) {
   const label = conn.label || conn.displayName || providerName(conn.type);
   const b = boundTracker(conn);
-  const none = { connectionId: conn.id, results: [] as SearchResult[], unsupported: [] as string[], failed: null as { connectionId: number; label: string; message: string } | null };
+  const none = { label, canWatch: !!b?.watch, found: [] as RemoteIssue[], unsupported: [] as string[], failed: null as { connectionId: number; label: string; message: string } | null };
   if (!b) return none;
   const parsed = parseQuery(query);
   let found: RemoteIssue[] = [];
@@ -67,7 +73,14 @@ async function searchUncached(user: User, conn: Connection, query: string) {
   } catch (e) {
     return { ...none, failed: { connectionId: conn.id, label, message: e instanceof Error ? e.message : String(e) } };
   }
-  if (found.length === 0) return { ...none, unsupported };
+  return { ...none, found, unsupported };
+}
+
+/** The tracker's answer as the user sees it: which issues are already here, watched, and whose client. */
+async function withLocalState(user: User, conn: Connection, said: Awaited<ReturnType<typeof askTracker>>) {
+  const none = { connectionId: conn.id, results: [] as SearchResult[], unsupported: said.unsupported, failed: said.failed };
+  const { found, label } = said;
+  if (found.length === 0) return none;
   const db = getDb();
   const local = await db
     .select({ remoteId: issues.remoteId, watching: issues.watching })
@@ -98,12 +111,12 @@ async function searchUncached(user: User, conn: Connection, query: string) {
       isMine: conn.remoteAccountId !== "" && issue.assignees.some((p) => p.remoteId === conn.remoteAccountId),
       imported: mine !== undefined,
       watching: mine?.watching === 1,
-      canWatch: !!b.watch,
+      canWatch: said.canWatch,
       url: issue.url,
       updatedAt: issue.updatedAt ?? null,
     };
   });
-  return { ...none, results, unsupported };
+  return { ...none, results };
 }
 
 type SearchResult = {
