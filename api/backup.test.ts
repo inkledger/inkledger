@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -164,14 +164,18 @@ describe("backups on disk", () => {
     fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
     fs.rmSync(path.join(DIR, "psql.pid"), { force: true });
     process.env.FAKE_RESTORE_FAIL = "1";
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       // The cause, and the safety backup that undoes whatever happened.
       await expect(admin.backup.restore({ name: "inkledger-20200102-000000.dump" })).rejects.toMatchObject({
         code: "SERVICE_UNAVAILABLE",
         message: expect.stringMatching(/broken archive[\s\S]*inkledger-\d{8}-\d{6}\.dump/),
       });
+      // And in the server's log, as before.
+      expect(logged.mock.calls.some((c) => String(c.join(" ")).includes("broken archive"))).toBe(true);
     } finally {
       delete process.env.FAKE_RESTORE_FAIL;
+      logged.mockRestore();
     }
   });
 

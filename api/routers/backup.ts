@@ -25,12 +25,15 @@ const backups = permProcedure("manageBackups");
  * What went wrong, said to whoever manages backups: a name or file that can't be, or the
  * backup tools' own cause (an internal error's words never leave a production server).
  */
-const fail = (e: unknown) =>
-  new TRPCError({
+const fail = (e: unknown) => {
+  // The tools' failures in the server's log too, as every internal error is.
+  if (!(e instanceof BackupError)) console.error("[backup]", e);
+  return new TRPCError({
     code: e instanceof BackupError ? (e.kind === "invalid" ? "BAD_REQUEST" : "NOT_FOUND") : "SERVICE_UNAVAILABLE",
     message: e instanceof Error ? e.message : String(e),
     cause: e,
   });
+};
 
 export const backupRouter = createRouter({
   /** Settings → Backup: schedule, state, the folder and its backups. */
