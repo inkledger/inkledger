@@ -11,10 +11,10 @@ import { t } from "@contracts/i18n";
 import { callSignal, currentCall } from "./context";
 import type { ReadOnlyCause } from "./errors";
 
-/** Whether a call only reads (allowed on a read-only server) or may change something. */
 /** A response whose body nobody reads: released, so its connection goes back to the pool. */
 export const discardBody = (res: Response): Promise<void> => res.body?.cancel().catch(() => undefined) ?? Promise.resolve();
 
+/** Whether a call only reads (allowed on a read-only server) or may change something. */
 export type Intent = "read" | "write";
 
 /** GET and HEAD read; anything else writes unless the call says it only reads (a POST carrying a list of ids). */
