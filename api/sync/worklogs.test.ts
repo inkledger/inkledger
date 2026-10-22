@@ -89,6 +89,35 @@ describe("worklog registry against any service, through the contract", () => {
     expect(await b.worklogs!.list(meta, ref)).toHaveLength(1);
   });
 
+  it("where entries can only be logged again, a refused change leaves the old entry as it was", async () => {
+    const { b, conn } = await setup({ entryUpdate: false });
+    const { pushCreate, pushUpdate } = await import("./worklogs");
+    const { ProviderError } = await import("../providers/core/errors");
+    const w = await local();
+    const made = await pushCreate(b, conn, w, ref, meta, zone);
+    // The service refuses the new entry (a date it doesn't take): nothing may be lost.
+    const refusing = { ...b, worklogs: { ...b.worklogs!, create: async () => { throw new ProviderError("invalid", "not in the future"); } } } as typeof b;
+    await expect(pushUpdate(refusing, conn, { ...w, timeSpentSeconds: 2400 }, ref, meta, zone)).rejects.toMatchObject({ kind: "invalid" });
+    expect((await b.worklogs!.list(meta, ref)).map((x) => x.remoteId)).toEqual([made.remoteId]);
+    expect(await sink(w.id)).toMatchObject({ remote_id: made.remoteId, state: "synced" });
+  });
+
+  it("where entries can only be logged again, an old entry that can't go now is queued to go, the worklog on the new one", async () => {
+    const { b, conn } = await setup({ entryUpdate: false });
+    const { pushCreate, pushUpdate } = await import("./worklogs");
+    const { ProviderError } = await import("../providers/core/errors");
+    const w = await local();
+    const made = await pushCreate(b, conn, w, ref, meta, zone);
+    const offline = { ...b, worklogs: { ...b.worklogs!, delete: async () => { throw new ProviderError("unavailable", "down"); } } } as typeof b;
+    const again = await pushUpdate(offline, conn, { ...w, timeSpentSeconds: 2400 }, ref, meta, zone);
+    expect(await sink(w.id)).toMatchObject({ remote_id: again.remoteId, state: "synced" });
+    try {
+      expect(await q("SELECT kind, jira_worklog_id FROM outbox WHERE user_id = ? AND issue_key = 'FAKE-1'", userId)).toEqual([{ kind: "delete", jira_worklog_id: made.remoteId }]);
+    } finally {
+      await q("DELETE FROM outbox");
+    }
+  });
+
   it("deleted on the service and out of the registry; deleting again is fine", async () => {
     const { b, conn } = await setup();
     const { pushCreate, pushDelete } = await import("./worklogs");

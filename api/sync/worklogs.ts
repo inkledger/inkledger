@@ -103,10 +103,18 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
   if (!e || e.write.mode !== "entry" || e.write.update === "none") throw new ProviderError("invalid", `${b.type} entries can't be changed`);
   const input = inputOf(b, local, zone);
   if (e.write.update === "recreate") {
-    await deleteThere(b, meta, ref, sink.remoteId, { expectedVersion: sink.version ?? undefined });
-    // A new key per content: a retry of this same change lands once, the original create's key is not reused.
+    // The new entry first (types.ts: never the old one gone with nothing in its place): refused
+    // or failing, the old stays as it was. A new key per content: a retry of this same change
+    // lands once, the original create's key is not reused.
     const remote = await b.worklogs!.create!(meta, ref, input, { idempotencyKey: `${local.uuid}:${input.time.kind === "session" ? input.time.start : input.time.date}:${input.time.seconds}` });
     await landed(local, conn, remote);
+    // Then the old one. Not deleted now: queued, its replay deletes it (the worklog already
+    // points to the new entry, so the replay leaves it alone); already gone counts as done.
+    const old = sink.remoteId;
+    await deleteThere(b, meta, ref, old, { expectedVersion: sink.version ?? undefined }).catch(async (err: unknown) => {
+      if (err instanceof ProviderError && err.kind === "notFound") return;
+      await getDb().insert(outbox).values({ userId: local.userId, connectionId: conn.id, kind: "delete", issueKey: local.issueKey, remoteId: old });
+    });
     return remote;
   }
   const remote = await b.worklogs!.update!(meta, ref, sink.remoteId, input, { expectedVersion: sink.version ?? undefined });
