@@ -72,10 +72,20 @@ function withStatusChange<R extends { key: string; status: string; statusChanged
   };
 }
 
-/** Upsert values on conflict: local flags kept, status-change time never goes backwards. */
+/**
+ * Upsert values on conflict: each of the row's columns as inserted (`excluded`, so one
+ * statement serves any number of rows), local flags kept, status-change time never
+ * goes backwards.
+ */
 function conflictSet<R extends object>(row: R) {
+  const columns = getTableColumns(issues) as Record<string, { name: string }>;
+  const asInserted = Object.fromEntries(
+    Object.entries(row)
+      .filter(([k, v]) => v !== undefined && k in columns)
+      .map(([k]) => [k, sql.raw(`excluded."${columns[k].name}"`)]),
+  ) as { [K in keyof R]: SQL };
   return {
-    ...row,
+    ...asInserted,
     favorite: undefined,
     hidden: undefined,
     statusChangedAt: sql`NULLIF(greatest(coalesce(excluded.status_changed_at, 0), coalesce(${issues.statusChangedAt}, 0)), 0)`,
@@ -171,6 +181,19 @@ function toRow(userId: number, siteUrl: string, connectionId: number, i: JiraSea
   };
 }
 
+/** The last row for each remote id: one statement may not touch a row twice. */
+function lastByRemoteId<R extends { remoteId: string }>(rows: R[]): R[] {
+  return [...new Map(rows.map((r) => [r.remoteId, r])).values()];
+}
+
+/** followMove for many rows, in one statement. */
+async function followMoves(db: Pick<Tx, "execute">, userId: number, connectionId: number, rows: { remoteId: string; key: string }[]) {
+  if (rows.length === 0) return;
+  const moved = sql.join(rows.map((r) => sql`(${r.remoteId}, ${r.key})`), sql`, `);
+  await db.execute(sql`UPDATE ${issues} SET key = v.key FROM (VALUES ${moved}) AS v(remote_id, key)
+    WHERE ${issues.userId} = ${userId} AND ${issues.connectionId} = ${connectionId} AND ${issues.remoteId} = v.remote_id AND ${issues.key} <> v.key`);
+}
+
 /**
  * The issue moved (same Jira id, new key: APP-1 became NEW-1): its row takes
  * the new key before the upsert, instead of a second row beside the old one.
@@ -259,12 +282,13 @@ async function refreshNoLongerAssigned(
     if (stale.length === 0) return;
     const { found, gone } = await fetchIssuesByKeys(creds, stale);
     await getDb().transaction(async (tx) => {
-      for (const i of found) {
-        const row = withStatusChange(toRow(user.id, user.siteUrl, user.connectionId, i), previous, now);
-        await followMove(tx, user.id, user.connectionId, row.remoteId, row.key);
+      // However many: the moves in one statement, the rows in one upsert.
+      const rows = lastByRemoteId(found.map((i) => withStatusChange(toRow(user.id, user.siteUrl, user.connectionId, i), previous, now)));
+      if (rows.length > 0) {
+        await followMoves(tx, user.id, user.connectionId, rows);
         await tx.insert(issues)
-          .values(row)
-          .onConflictDoUpdate({ target: [issues.userId, issues.connectionId, issues.remoteId], set: conflictSet(row) });
+          .values(rows)
+          .onConflictDoUpdate({ target: [issues.userId, issues.connectionId, issues.remoteId], set: conflictSet(rows[0]) });
       }
       if (gone.length > 0) {
         await tx.update(issues)

@@ -33,6 +33,8 @@ type JiraIssue = ReturnType<typeof jiraIssue>;
 
 let assigned: JiraIssue[] = [];
 const byKey = new Map<string, JiraIssue>();
+/** Jira answering a search by key with every issue twice. */
+const twice = { on: false };
 
 vi.stubGlobal(
   "fetch",
@@ -47,7 +49,10 @@ vi.stubGlobal(
       const jql = params.get("jql") ?? "";
       if (jql.includes("worklogAuthor") || params.get("fields") === "comment") return json({ isLast: true, issues: [] });
       const keys = /^key in \((.*)\)$/.exec(jql);
-      if (keys) return json({ isLast: true, issues: keys[1].split(",").map((k) => byKey.get(k)).filter(Boolean) });
+      if (keys) {
+        const found = keys[1].split(",").map((k) => byKey.get(k)).filter(Boolean);
+        return json({ isLast: true, issues: twice.on ? [...found, ...found] : found });
+      }
       if (jql.startsWith("watcher = currentUser()")) return json({ isLast: true, issues: [] });
       if (jql.includes("assignee was currentUser()")) return json({ isLast: true, issues: [] });
       if (jql.startsWith("assignee = currentUser() ORDER BY")) return json({ isLast: true, issues: assigned });
@@ -56,8 +61,12 @@ vi.stubGlobal(
   }),
 );
 
-/** Queries of the second sync, by reassigned issues K. Frozen 2026-10-22, before Wave 2. */
-const MEASURED = { 1: 22, 5: 34, 20: 79 } as const;
+/**
+ * Queries of the second sync, by reassigned issues K. Before Wave 2: 22 / 34 / 79 (19 + 3
+ * per issue). What still grows by one per issue is the "unassigned" notification each
+ * gets (insertNotifications, not part of this refresh).
+ */
+const MEASURED = { 1: 22, 5: 26, 20: 41 } as const;
 
 describe("a sync that finds K issues reassigned away", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;
@@ -99,4 +108,36 @@ describe("a sync that finds K issues reassigned away", () => {
       expect(rows).toEqual(keys.sort().map((key) => ({ key, assignee_id: "someone", favorite: 1 })));
     });
   }
+
+  it("field by field as one at a time: a moved key, status time never back, a known rank kept, local flags kept, an issue Jira returns twice", async () => {
+    await raw("DELETE FROM issues");
+    await raw("DELETE FROM sync_state");
+    byKey.clear();
+    assigned = ["RB-1", "RB-2", "RB-3"].map((key) => jiraIssue(key));
+    await caller.issues.sync();
+    await raw("UPDATE issues SET favorite = 1, hidden = 1, status_changed_at = 9999999999999, priority_rank = 3 WHERE key = 'RB-1'");
+    await raw("UPDATE issues SET priority_rank = 7 WHERE key = 'RB-2'");
+    assigned = [];
+    // RB-1 someone else's; RB-2 too, its priority now one Jira ranks unknown; RB-3 moved to NEW-3 (same id).
+    byKey.set("RB-1", jiraIssue("RB-1", "someone"));
+    const rb2 = jiraIssue("RB-2", "someone");
+    rb2.fields.priority = { name: "Unranked" };
+    byKey.set("RB-2", rb2);
+    const moved = jiraIssue("NEW-3", "someone");
+    moved.id = "RB-3";
+    byKey.set("RB-3", moved);
+    twice.on = true;
+    try {
+      await new Promise((r) => setTimeout(r, 2));
+      await caller.issues.sync();
+    } finally {
+      twice.on = false;
+    }
+    const rows = await raw<Record<string, unknown>>("SELECT key, jira_id, assignee_id, favorite, hidden, status_changed_at, priority_rank FROM issues ORDER BY jira_id");
+    expect(rows).toEqual([
+      { key: "RB-1", jira_id: "RB-1", assignee_id: "someone", favorite: 1, hidden: 1, status_changed_at: 9999999999999, priority_rank: 3 },
+      { key: "RB-2", jira_id: "RB-2", assignee_id: "someone", favorite: 0, hidden: 0, status_changed_at: null, priority_rank: 7 },
+      { key: "NEW-3", jira_id: "RB-3", assignee_id: "someone", favorite: 0, hidden: 0, status_changed_at: null, priority_rank: null },
+    ]);
+  });
 });
