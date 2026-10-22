@@ -12,7 +12,8 @@ export function deviceId(): string {
   const known = readStored(KEY);
   if (known) return known;
   if (fallback) return fallback;
-  const made = crypto.randomUUID();
-  // Not stored: the same one for this page.
-  return writeStored(KEY, made) ? made : (fallback = made);
+  // Kept for this page too: stored or not, read back or not, the same one until it reloads.
+  fallback = crypto.randomUUID();
+  writeStored(KEY, fallback);
+  return fallback;
 }

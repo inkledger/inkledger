@@ -30,7 +30,8 @@ export function dayAndTime(at: Date | number): string {
   return dateFormat({ weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
 }
 
-/** A date in the locale's medium style: "22 Oct 2026" / "22 ott 2026". An invalid date throws (RangeError), as Intl does. */
+/** A date in the locale's medium style: "22 Oct 2026" / "22 ott 2026"; an invalid one says so, as toLocaleDateString did. */
 export function mediumDate(at: Date | number): string {
-  return dateFormat({ dateStyle: "medium" }).format(at);
+  const d = new Date(at);
+  return Number.isNaN(d.getTime()) ? String(d) : dateFormat({ dateStyle: "medium" }).format(d);
 }

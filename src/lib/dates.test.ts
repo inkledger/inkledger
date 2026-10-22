@@ -40,8 +40,10 @@ describe("civil-time formats", () => {
     }
   });
 
-  it("an invalid moment throws (Intl), where toLocaleDateString said \"Invalid Date\"", () => {
+  it("an invalid moment: mediumDate says so as toLocaleDateString did; the clock formats throw, as their Intl did", () => {
+    expect(mediumDate(Number.NaN)).toBe(new Date(Number.NaN).toLocaleDateString("en-GB", { dateStyle: "medium" }));
+    expect(mediumDate(9e15)).toBe("Invalid Date");
     expect(() => timeOfDay(Number.NaN)).toThrow(RangeError);
-    expect(() => mediumDate(Number.NaN)).toThrow(RangeError);
+    expect(() => dayAndTime(Number.NaN)).toThrow(RangeError);
   });
 });
