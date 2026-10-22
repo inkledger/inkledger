@@ -45,4 +45,18 @@ describe("a manager's change races an admin's promotion", () => {
     await expect(manager.users.resetPassword({ id: target })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await q("SELECT role, password_hash FROM users WHERE id = ?", target)).toEqual([{ role: "admin", password_hash: "old-hash" }]);
   });
+
+  it("accepting a link while the account is promoted (or given a password) sets nothing", async () => {
+    const [pending] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('pending', 'P', 1) RETURNING id");
+    const [m] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'keeper'");
+    const { createInvite } = await import("../queries/accounts");
+    const { token } = await createInvite(pending.id, m.id);
+    const { appRouter } = await import("../router");
+    const anon = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: null, sessionId: null, remoteAddress: "192.0.2.9" });
+    during.hash = async () => {
+      await q("UPDATE users SET role = 'admin' WHERE id = ?", pending.id);
+    };
+    await expect(anon.auth.acceptInvite({ token, password: "the manager's own choice" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await q("SELECT password_hash FROM users WHERE id = ?", pending.id)).toEqual([{ password_hash: null }]);
+  });
 });

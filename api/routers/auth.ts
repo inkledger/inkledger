@@ -185,11 +185,21 @@ export const authRouter = createRouter({
       if (!found || !(await consumeInvite(found.inviteId))) {
         throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
       }
+      // The account as the link was checked against: promoted or given a password while
+      // the hash ran, it is no longer the link's to open.
       const [user] = await getDb()
         .update(users)
         .set({ passwordHash: await hashPassword(input.password), mustChangePassword: 0 })
-        .where(eq(users.id, found.user.id))
+        .where(
+          and(
+            eq(users.id, found.user.id),
+            isNull(users.passwordHash),
+            eq(users.role, found.user.role),
+            eq(users.permissions, found.user.permissions),
+          ),
+        )
         .returning();
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
       await signOutEverywhere(user.id);
       return signIn(ctx, user);
     }),
