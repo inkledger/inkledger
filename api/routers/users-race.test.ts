@@ -120,4 +120,17 @@ describe("a manager's change races an admin's promotion", () => {
     await expect(asA.users.setAccess({ id: t.id, role: "member", permissions: ["manageServer"] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await q("SELECT permissions FROM users WHERE id = ?", t.id)).toEqual([{ permissions: "[]" }]);
   });
+
+  it("a manager turned off while its request ran invites nobody", async () => {
+    const [m] = await q<{ id: number }>("INSERT INTO users (username, display_name, permissions, created_at) VALUES ('inviter', 'I', '[\"manageUsers\"]', 1) RETURNING id");
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [manager] = await getDb().select().from(users).where(eq(users.id, m.id));
+    await q("UPDATE users SET disabled_at = ? WHERE id = ?", Date.now(), m.id);
+    const asM = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: manager, sessionId: null });
+    await expect(asM.users.invite({ username: "late-invite", displayName: "L", role: "member", permissions: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await q("SELECT count(*)::int AS n FROM users WHERE username = 'late-invite'")).toEqual([{ n: 0 }]);
+  });
 });

@@ -69,6 +69,18 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
  * one is read then, not before: if so, the write goes only while another one stays. Two admins turning
  * each other off at once, or one promoted meanwhile, can't leave the server with none.
  */
+/** Whoever acts, read now: on, and managing accounts (else nothing it asked is done). */
+function assertActing(actor: User | undefined): asserts actor is User {
+  if (!actor || actor.disabledAt || !can(actor, "manageUsers")) throw notAllowed();
+}
+
+/** The acting account as it is now, not as signed in (turned off or demoted meanwhile). */
+async function actingNow(me: User): Promise<User> {
+  const actor = await userById(me.id);
+  assertActing(actor);
+  return actor;
+}
+
 async function writeAccount<T>(me: User, target: User, takesAway: boolean, write: (db: Tx, me: User) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     const admins = await tx
@@ -80,7 +92,7 @@ async function writeAccount<T>(me: User, target: User, takesAway: boolean, write
     // Whoever acts, as now, not as signed in: still on, still managing accounts, still
     // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
     const [actor] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
-    if (!actor || actor.disabledAt || !can(actor, "manageUsers")) throw notAllowed();
+    assertActing(actor);
     assertWithin(actor, { role: roleOf(target), permissions: permissionsOf(target) });
     const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
     const admin = now?.role === "admin" && !now.disabledAt;
@@ -112,23 +124,25 @@ export const usersRouter = createRouter({
   invite: manage
     .input(access.extend({ username: z.string().min(1).max(64), displayName: z.string().trim().min(1).max(80) }))
     .mutation(async ({ input, ctx }) => {
-      assertWithin(ctx.user, input);
+      const me = await actingNow(ctx.user);
+      assertWithin(me, input);
       const username = input.username.trim().toLowerCase();
       await assertFreeUsername(username);
       const [user] = await getDb()
         .insert(users)
         .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions) })
         .returning();
-      const { token, expiresAt } = await createInvite(user.id, ctx.user.id);
+      const { token, expiresAt } = await createInvite(user.id, me.id);
       return { user: row(user), link: inviteLink(token), expiresAt };
     }),
 
   /** A new invite link for an account that hasn't set its password yet (the old link stops working). */
   reinvite: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
-    const user = await target(input.id, ctx.user);
+    const me = await actingNow(ctx.user);
+    const user = await target(input.id, me);
     // A link sets the password: for an account that has one, it would be a takeover.
     if (user.passwordHash) throw notAllowed();
-    const { token, expiresAt } = await createInvite(user.id, ctx.user.id);
+    const { token, expiresAt } = await createInvite(user.id, me.id);
     return { link: inviteLink(token), expiresAt };
   }),
 
