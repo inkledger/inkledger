@@ -63,6 +63,7 @@ export function PostIt({
   onCreateIssue,
   onOpen,
   onDrag,
+  readOnly = false,
 }: {
   n: PostItData;
   zoom: number;
@@ -77,6 +78,8 @@ export function PostIt({
   onOpen: () => void;
   /** Where it is while being dragged (null when let go): the red strings follow it. */
   onDrag?: (p: { x: number; y: number } | null) => void;
+  /** On a board that follows a tag: shown as the tracker says, nothing moved or written. */
+  readOnly?: boolean;
 }) {
   // A private note hung here: written on, it is the note's text that changes.
   const isNote = !!n.issueNoteId;
@@ -117,7 +120,7 @@ export function PostIt({
       data-dragging={drag ? "" : undefined}
       className={cn(
         "note-shadow absolute left-0 top-0 touch-none select-none rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2",
-        drag ? "cursor-grabbing" : !editing && "cursor-grab"
+        readOnly ? "cursor-default" : drag ? "cursor-grabbing" : !editing && "cursor-grab"
       )}
       style={{
         width: NOTE_SIZE,
@@ -126,7 +129,7 @@ export function PostIt({
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${tilt}deg)`,
       }}
       onPointerDown={e => {
-        if (editing || e.button !== 0 || isControl(e.target)) return;
+        if (readOnly || editing || e.button !== 0 || isControl(e.target)) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         start.current = { px: e.clientX, py: e.clientY, x: n.x, y: n.y, moved: false };
       }}
@@ -154,7 +157,7 @@ export function PostIt({
         onDrag?.(null);
       }}
       onDoubleClick={e => {
-        if (isControl(e.target)) return;
+        if (readOnly || isControl(e.target)) return;
         setText(body);
         setEditing(true);
       }}
@@ -168,7 +171,12 @@ export function PostIt({
           ArrowDown: [0, step],
         };
         const m = moves[e.key];
-        if (m) {
+        if (readOnly) {
+          if (e.key === "o" && n.issueKey) {
+            e.preventDefault();
+            onOpen();
+          }
+        } else if (m) {
           e.preventDefault();
           onNudge(m[0], m[1]);
         } else if (e.key === "Enter") {
@@ -257,12 +265,12 @@ export function PostIt({
             </p>
           )}
         </div>
-        {/* Always there, quiet: tone, status, make an issue, unpin. */}
+        {/* Always there, quiet: tone, status, make an issue, unpin (the status alone where it is read-only). */}
         <div className="flex shrink-0 items-center gap-1 border-t border-foreground/5 px-2.5 py-1.5">
           {isNote && n.noteCreatedAt && (
             <span className="truncate text-2xs opacity-70">{formatDate(new Date(n.noteCreatedAt), "short")}</span>
           )}
-          {!isNote && TAPE_ORDER.map((c, i) => (
+          {!isNote && !readOnly && TAPE_ORDER.map((c, i) => (
             <button
               key={c}
               type="button"
@@ -280,6 +288,7 @@ export function PostIt({
           {!isNote && n.status && (
             <span className="ml-1.5 truncate text-2xs font-normal opacity-70">{n.status}</span>
           )}
+          {!readOnly && (
           <span className="ml-auto flex items-center">
             {!n.issueKey && (
               <button
@@ -302,6 +311,7 @@ export function PostIt({
               <X className="h-3.5 w-3.5" />
             </button>
           </span>
+          )}
         </div>
       </div>
     </div>

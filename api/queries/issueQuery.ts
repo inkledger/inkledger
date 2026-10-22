@@ -6,7 +6,7 @@ import { and, eq, inArray, not, notInArray, or, sql, type AnyColumn, type SQL } 
 import { clientContainers, clients, connections, issues, worklogs } from "@db/schema";
 import { dateBounds, formatQuery, priorityRankOfValue, type QueryExpr, type QueryField, type QueryTerm } from "@contracts/query";
 
-const CLOSED = ["done", "cancelled"];
+export const CLOSED = ["done", "cancelled"];
 
 export const escapeLike = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 const contains = (col: AnyColumn, v: string) => sql`${col} ILIKE ${`%${escapeLike(v)}%`} ESCAPE '\\'`;

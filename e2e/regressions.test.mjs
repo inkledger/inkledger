@@ -118,6 +118,46 @@ test("the open hole on the Dashboard has a Play; from now starts the timer at on
     assert.ok(Date.now() - Number(row.started_at) < 60_000, "counted from now");
   }));
 
+test("a board that follows a component shows my open issues with it, read-only, and lets the closed ones go", () =>
+  withApp(
+    {
+      seed: async db => {
+        await note(db, "reminder", 60, 60);
+        await db.q("UPDATE issues SET components = '[\"Backend\"]' WHERE key IN ('DEMO-101', 'DEMO-102')");
+      },
+    },
+    async ({ page, base, db }) => {
+      const board = await openPinboard(page, base);
+      await board.getByRole("button", { name: /Switch pinboard$/ }).click();
+      await page.getByRole("menuitem", { name: "Follow a tag…" }).click();
+      const dialog = page.getByRole("dialog", { name: "A board that follows a tag" });
+      await dialog.getByRole("button", { name: /^Backend Component 2$/ }).click();
+      await board.getByText("Follows the component “Backend”: your open issues with it").waitFor();
+      const postIts = board.locator("[data-postit]");
+      await board.getByRole("group", { name: /DEMO-101/ }).waitFor();
+      assert.deepEqual((await postIts.allTextContents()).map(x => /DEMO-\d+/.exec(x)?.[0]).sort(), ["DEMO-101", "DEMO-102"]);
+      // Read-only: nothing to add, search, recolour or remove, and a drag moves nothing.
+      assert.equal(await board.getByRole("button", { name: "Note", exact: true }).count(), 0);
+      assert.equal(await board.getByRole("combobox").count(), 0);
+      assert.equal(await board.getByRole("button", { name: /^Unpin|^Take the note off/ }).count(), 0);
+      const card = board.getByRole("group", { name: /DEMO-101/ });
+      const before = await card.boundingBox();
+      await page.mouse.move(before.x + 40, before.y + 60);
+      await page.mouse.down();
+      await page.mouse.move(before.x + 240, before.y + 260, { steps: 6 });
+      await page.mouse.up();
+      const after = await card.boundingBox();
+      assert.ok(Math.abs(after.x - before.x) < 2 && Math.abs(after.y - before.y) < 2, "not moved");
+      const [{ n: stored }] = await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_key IS NOT NULL");
+      assert.equal(stored, 0, "nothing pinned");
+      // Closed on the tracker: gone at the next read.
+      await db.q("UPDATE issues SET category = 'done' WHERE key = 'DEMO-102'");
+      await page.reload();
+      await board.getByRole("group", { name: /DEMO-101/ }).waitFor();
+      assert.equal(await board.getByRole("group", { name: /DEMO-102/ }).count(), 0);
+    },
+  ));
+
 test("the pinboard's search pins an issue with Enter, once, and checks the ones already there", () =>
   withApp({ seed: db => note(db, "reminder", 60, 60) }, async ({ page, base, db }) => {
     const board = await openPinboard(page, base);

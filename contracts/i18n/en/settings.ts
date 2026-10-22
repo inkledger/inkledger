@@ -672,6 +672,11 @@ export const settings = {
     emptyMessage: "New assignments, critical priorities and due dates show up here.",
   },
   pinboard: {
+    followTitle: "Boards that follow a tag",
+    followHint: "Each shows your open issues with a label or component, kept up to date by the tracker.",
+    followKeywords: "tag label component follow synced jira",
+    followNone: "No board follows a tag yet.",
+    followRemove: "Remove the board “{name}”",
     placesTitle: "Where it lives",
     placesKeywords: "board panel menu page widget floating shortcut p",
     onBoard: "On the Board",

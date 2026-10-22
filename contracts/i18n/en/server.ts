@@ -142,6 +142,8 @@ export const server = {
     empty: "Write something first.",
   },
   pinboard: {
+    followReadOnly: "This board follows a tag: it shows what the tracker says, nothing is pinned or moved on it.",
+    trackerNotFound: "This tracker isn't among yours.",
     defaultBoard: "My board",
     boardNotFound: "Board not found",
     bucketNotFound: "Bucket not found",

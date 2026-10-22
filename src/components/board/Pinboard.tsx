@@ -19,6 +19,7 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Tag,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { openCreateIssue } from "@/lib/createIssue";
@@ -87,6 +88,7 @@ import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 import { isTyping } from "@/lib/dom";
 import { PinSearch } from "@/components/board/PinSearch";
+import { FollowTagDialog } from "@/components/board/FollowTagDialog";
 
 const reducedMotion = () =>
   typeof matchMedia === "function" &&
@@ -159,6 +161,8 @@ export function Pinboard({
   const shared = bucket ? boards.filter(b => b.bucket === null) : [];
   const board = boards.find(b => b.id === storedBoard) ?? boards[0];
   const boardId = board?.id;
+  // A board that follows a tag: what the tracker says, read-only.
+  const follow = board?.follow ?? null;
   const listInput = { boardId, ...scope };
   const list = trpc.pinboard.list.useQuery(listInput, { enabled: boardId !== undefined });
   const [zoom, setZoom] = useState(1);
@@ -166,6 +170,7 @@ export function Pinboard({
   const [panning, setPanning] = useState(false);
   const [edges, setEdges] = useState<Offscreen>(NONE);
   const [naming, setNaming] = useState<"create" | "rename" | null>(null);
+  const [following, setFollowing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -382,6 +387,9 @@ export function Pinboard({
             <DropdownMenuItem onSelect={() => setNaming("create")}>
               <Plus className="h-4 w-4" /> {t("views.board.pinboard.newBoard")}
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setFollowing(true)}>
+              <Tag className="h-4 w-4" /> {t("views.board.pinboard.followTag")}
+            </DropdownMenuItem>
             <DropdownMenuItem disabled={!board} onSelect={() => setNaming("rename")}>
               <Pencil className="h-4 w-4" /> {t("views.board.pinboard.rename")}
             </DropdownMenuItem>
@@ -415,7 +423,8 @@ export function Pinboard({
               </DropdownMenuSub>
             )}
             <DropdownMenuItem
-              disabled={boards.length < 2}
+              // One board pinned by hand always stays (where a pin lands).
+              disabled={boards.length < 2 || (!follow && boards.filter(b => !b.follow).length < 2)}
               onSelect={() => setConfirmDelete(true)}
               className="text-danger focus:text-danger"
             >
@@ -424,16 +433,18 @@ export function Pinboard({
           </DropdownMenuContent>
         </DropdownMenu>
         <span className="ml-auto flex items-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void add({ note: "" })}
-            title={t("views.board.pinboard.newNoteHint")}
-            disabled={!board}
-          >
-            <Plus className="h-4 w-4" />
-            {t("views.board.pinboard.note")}
-          </Button>
+          {!follow && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void add({ note: "" })}
+              title={t("views.board.pinboard.newNoteHint")}
+              disabled={!board}
+            >
+              <Plus className="h-4 w-4" />
+              {t("views.board.pinboard.note")}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -479,7 +490,15 @@ export function Pinboard({
         </span>
       </div>
 
-      {board && <PinSearch onBoard={onBoard} onPick={i => void pinFound(i)} inputRef={search} />}
+      {board && !follow && <PinSearch onBoard={onBoard} onPick={i => void pinFound(i)} inputRef={search} />}
+      {follow && (
+        <p className="flex shrink-0 items-center gap-1.5 px-1.5 text-caption text-muted-foreground">
+          <Tag className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            {t(follow.field === "component" ? "views.board.pinboard.followsComponent" : "views.board.pinboard.followsLabel", { value: follow.value })}
+          </span>
+        </p>
+      )}
       {board && board.hidden > 0 && (
         <p className="shrink-0 px-1.5 text-caption text-muted-foreground">
           {bucket
@@ -541,7 +560,8 @@ export function Pinboard({
               className="relative"
               style={{ width: CANVAS_W * zoom, height: CANVAS_H * zoom }}
               onDragOver={e => {
-                if (!e.dataTransfer.types.includes("text/plain")) return;
+                // A board that follows a tag takes nothing pinned by hand.
+                if (follow || !e.dataTransfer.types.includes("text/plain")) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "copy";
                 setOver(true);
@@ -587,7 +607,7 @@ export function Pinboard({
                     <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
                       <p className="font-display text-heading">{board?.name ?? t("views.board.pinboard.yourBoard")}</p>
                       <p className="mt-1 text-body-sm opacity-80">
-                        {t("views.board.pinboard.emptyHint")}
+                        {follow ? t("views.board.pinboard.followEmpty", { value: follow.value }) : t("views.board.pinboard.emptyHint")}
                       </p>
                     </div>
                   </div>
@@ -597,6 +617,7 @@ export function Pinboard({
                     key={n.id}
                     n={n}
                     zoom={zoom}
+                    readOnly={!!follow}
                     onFront={() => toFront(n.id)}
                     onNudge={(dx, dy) => nudge(n.id, dx, dy)}
                     onMove={(x, y) =>
@@ -667,6 +688,18 @@ export function Pinboard({
         })}
       </div>
 
+      <FollowTagDialog
+        open={following}
+        onClose={() => setFollowing(false)}
+        onPick={tag => {
+          void utils.client.pinboard.createBoard.mutate({ name: tag.value.slice(0, 60), follow: tag }).then(r => {
+            setFollowing(false);
+            pinboardBoard.set(r.id);
+            toast.success(t("views.board.pinboard.created", { name: tag.value }));
+            return refresh();
+          }, toastError);
+        }}
+      />
       <BoardNameDialog
         mode={naming}
         initial={naming === "rename" ? (board?.name ?? "") : ""}
@@ -693,7 +726,7 @@ export function Pinboard({
             <AlertDialogTitle>{t("views.board.pinboard.deleteTitle", { name: board?.name ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
               {/* Every note, the ones the filter hides too: they go with the board. */}
-              {(board ? board.count + board.hidden : 0) === 0
+              {follow || (board ? board.count + board.hidden : 0) === 0
                 ? t("views.board.pinboard.deleteEmpty")
                 : t("views.board.pinboard.deleteNotes", { count: board ? board.count + board.hidden : 0 })}{" "}
               {t("views.board.pinboard.deleteJira", { provider })}

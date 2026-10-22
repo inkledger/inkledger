@@ -125,7 +125,7 @@ export interface FrozenIn {
   "outbox.retry": void;
   "pinboard.add": { boardId?: number | undefined; color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; connectionId?: number | undefined; issueKey?: string | undefined; note?: string | undefined; x?: number | undefined; y?: number | undefined };
   "pinboard.boards": undefined | void | { connectionId?: number | undefined };
-  "pinboard.createBoard": { bucketId?: null | number | undefined; name: string };
+  "pinboard.createBoard": { bucketId?: null | number | undefined; follow?: undefined | { connectionId?: null | number | undefined; field: "component" | "label"; value: string }; name: string };
   "pinboard.deleteBoard": { id: number };
   "pinboard.link": { connectionId?: number | undefined; id: number; issueKey: string };
   "pinboard.list": undefined | void | { boardId?: number | undefined; connectionId?: number | undefined };
@@ -134,6 +134,7 @@ export interface FrozenIn {
   "pinboard.renameBoard": { id: number; name: string };
   "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; note: string; rotation: number; x: number; y: number };
   "pinboard.setBoardScope": { bucketId: null | number; id: number };
+  "pinboard.tags": void;
   "pinboard.unpinIssue": { boardId: number; connectionId?: number | undefined; issueKey: string };
   "pinboard.update": { color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; id: number; note?: string | undefined; toFront?: false | true | undefined; x?: number | undefined; y?: number | undefined };
   "pinboard.where": { connectionId?: number | undefined; issueKey: string };
@@ -314,16 +315,17 @@ export interface FrozenOut {
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date | null; timeSpentSeconds: number }[];
   "outbox.retry": { failed: number; remaining: number; synced: number };
   "pinboard.add": { boardId: number; boardName: string; existed: boolean; id: number };
-  "pinboard.boards": { bucket: null | { id: number; name: string }; count: number; hidden: number; id: number; name: string }[];
+  "pinboard.boards": { bucket: null | { id: number; name: string }; count: number; follow: null | { connectionId: null | number; field: "component" | "label"; value: string }; hidden: number; id: number; name: string }[];
   "pinboard.createBoard": { id: number };
   "pinboard.deleteBoard": { ok: boolean };
   "pinboard.link": { ok: boolean };
-  "pinboard.list": { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; noteBody: null | string; noteCreatedAt: Date | null; rotation: number; status: null | string; statusCategory: null | string; summary: null | string; updatedAt: Date; userId: number; x: number; y: number; z: number }[];
+  "pinboard.list": ({ boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number } & { noteBody: null | string; noteCreatedAt: Date | null; status: null | string; statusCategory: null | string; summary: null | string })[];
   "pinboard.pinNote": { boardId: number; boardName: string; existed: boolean; id: number };
   "pinboard.remove": { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number };
   "pinboard.renameBoard": { ok: boolean };
   "pinboard.restore": { ok: boolean };
   "pinboard.setBoardScope": { ok: boolean };
+  "pinboard.tags": { count: number; field: "component" | "label"; value: string }[];
   "pinboard.unpinIssue": { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number };
   "pinboard.update": { ok: boolean };
   "pinboard.where": { boards: { id: number; name: string; noteId: null | number }[]; connectionId: number; hiddenByBucket: boolean };

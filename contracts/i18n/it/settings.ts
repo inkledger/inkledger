@@ -673,6 +673,11 @@ export const settings: Shape<typeof en> = {
     emptyMessage: "Qui arrivano nuove assegnazioni, priorità critiche e scadenze.",
   },
   pinboard: {
+    followTitle: "Lavagne che seguono un tag",
+    followHint: "Ognuna mostra le tue issue aperte con un'etichetta o un componente, aggiornate dal tracker.",
+    followKeywords: "tag etichetta componente segui sincronizzata jira",
+    followNone: "Ancora nessuna lavagna segue un tag.",
+    followRemove: "Elimina la lavagna «{name}»",
     placesTitle: "Dove vive",
     placesKeywords: "board pannello menu pagina widget mobile scorciatoia p",
     onBoard: "Nella Board",

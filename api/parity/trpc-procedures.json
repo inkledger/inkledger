@@ -516,6 +516,10 @@
     "type": "mutation"
   },
   {
+    "path": "pinboard.tags",
+    "type": "query"
+  },
+  {
     "path": "pinboard.unpinIssue",
     "type": "mutation"
   },

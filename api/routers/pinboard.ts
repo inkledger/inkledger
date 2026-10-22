@@ -4,9 +4,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { buckets, issueNotes, issues, pinboardNotes, pinboards } from "@db/schema";
+import { buckets, connections, issueNotes, issues, pinboardNotes, pinboards, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
+import { openIssuesTagged, type FollowTag } from "../queries/myIssues";
 import {
   clampToCanvas,
   firstFreeSlot,
@@ -108,6 +109,73 @@ async function resolveBoard(userId: number, boardId?: number) {
   return b;
 }
 
+/** The tag a board follows, or null for a board pinned by hand. */
+function followOf(b: Pick<Pinboard, "followField" | "followValue" | "followConnectionId">): FollowTag | null {
+  return (b.followField === "label" || b.followField === "component") && b.followValue
+    ? { field: b.followField, value: b.followValue, connectionId: b.followConnectionId }
+    : null;
+}
+
+/** A board that follows a tag shows what the tracker says: nothing is pinned, moved or written on it. */
+function writable(b: Pick<Pinboard, "followField" | "followValue" | "followConnectionId">) {
+  if (followOf(b)) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.followReadOnly") });
+}
+
+/**
+ * Where a pin lands: the asked board, unless it follows a tag (the one last
+ * shown on the device may): then the first board pinned by hand it shows.
+ */
+async function pinTarget(userId: number, deviceId: string | undefined, boardId?: number) {
+  const asked = await shownBoard(userId, deviceId, boardId);
+  if (!followOf(asked)) return asked;
+  const { boards } = await visibleBoards(userId, deviceId);
+  const free = boards.find((b) => !followOf(b)) ?? (await boardsOf(userId)).find((b) => !followOf(b));
+  if (!free) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.followReadOnly") });
+  return free;
+}
+
+/** A post-it as a board lists it: the stored one, with its issue as the catalogue knows it. */
+type BoardNote = PinboardNote & { summary: string | null; status: string | null; statusCategory: string | null; noteBody: string | null; noteCreatedAt: Date | null };
+
+/** The post-its a followed board shows: the open issues with its tag, laid out in reading order, newest first. */
+async function followedNotes(userId: number, deviceId: string | undefined, board: Pinboard, tag: FollowTag, connectionId?: number): Promise<BoardNote[]> {
+  const rows = await getDb()
+    .select({ id: issues.id, key: issues.key, connectionId: issues.connectionId, summary: issues.summary, status: issues.status, statusCategory: issues.statusCategory, updatedAt: issues.remoteUpdatedAt, syncedAt: issues.syncedAt })
+    .from(issues)
+    .where(and(await openIssuesTagged(userId, deviceId, tag), connectionId ? eq(issues.connectionId, connectionId) : undefined))
+    .orderBy(sql`${issues.remoteUpdatedAt} DESC NULLS LAST`, asc(issues.key))
+    .limit(MAX_NOTES);
+  const placed: { x: number; y: number }[] = [];
+  return rows.map((r, i) => {
+    const at = firstFreeSlot(placed);
+    placed.push(at);
+    const when = new Date(r.updatedAt ?? r.syncedAt);
+    return {
+      // Never a stored post-it's id: these aren't stored.
+      id: -r.id,
+      userId,
+      boardId: board.id,
+      connectionId: r.connectionId,
+      itemId: null,
+      issueKey: r.key,
+      issueNoteId: null,
+      note: "",
+      color: "yellow",
+      ...at,
+      // A steady tilt per issue, so the board doesn't shuffle on each read.
+      rotation: ((r.id % 7) - 3) * 0.4 || 0.6,
+      z: rows.length - i,
+      createdAt: when,
+      updatedAt: when,
+      summary: r.summary,
+      status: r.status,
+      statusCategory: r.statusCategory,
+      noteBody: null,
+      noteCreatedAt: null,
+    };
+  });
+}
+
 /** A private note of the user (issue_notes). */
 async function ownIssueNote(userId: number, id: number) {
   const [row] = await getDb()
@@ -153,14 +221,27 @@ export const pinboardRouter = createRouter({
     const names = new Map(
       (await getDb().select({ id: buckets.id, name: buckets.name }).from(buckets).where(eq(buckets.userId, ctx.user.id))).map((b) => [b.id, b.name]),
     );
+    // A followed board counts the issues it shows (capped as it draws them).
+    const followed = new Map<number, number>();
+    for (const b of boards) {
+      const tag = followOf(b);
+      if (!tag) continue;
+      const [r] = await getDb()
+        .select({ n: count() })
+        .from(issues)
+        .where(and(await openIssuesTagged(ctx.user.id, ctx.deviceId, tag), input?.connectionId ? eq(issues.connectionId, input.connectionId) : undefined));
+      followed.set(b.id, Math.min(MAX_NOTES, r?.n ?? 0));
+    }
     return boards.map((b) => {
       const c = by.get(b.id);
+      const tag = followOf(b);
       return {
         id: b.id,
         name: boardDisplayName(b.name),
         bucket: b.bucketId === null ? null : { id: b.bucketId, name: names.get(b.bucketId) ?? "" },
-        count: c?.shown ?? 0,
-        hidden: (c?.all ?? 0) - (c?.shown ?? 0),
+        follow: tag,
+        count: tag ? (followed.get(b.id) ?? 0) : (c?.shown ?? 0),
+        hidden: tag ? 0 : (c?.all ?? 0) - (c?.shown ?? 0),
       };
     });
   }),
@@ -175,13 +256,36 @@ export const pinboardRouter = createRouter({
       return { ok: true };
     }),
 
-  /** A new board: in the device's bucket unless told otherwise (null: every bucket). */
+  /**
+   * A new board: in the device's bucket unless told otherwise (null: every
+   * bucket); pinned by hand, or following a tag (a label or a component, on
+   * one tracker or on every one).
+   */
   createBoard: protectedProcedure
-    .input(z.object({ name: boardName, bucketId: z.number().int().positive().nullable().optional() }))
+    .input(
+      z.object({
+        name: boardName,
+        bucketId: z.number().int().positive().nullable().optional(),
+        follow: z
+          .object({
+            field: z.enum(["label", "component"]),
+            value: z.string().trim().min(1).max(200),
+            connectionId: z.number().int().positive().nullable().default(null),
+          })
+          .optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
     const boards = await boardsOf(ctx.user.id);
     const bucketId = input.bucketId === undefined ? await activeBucket(ctx.user.id, ctx.deviceId) : input.bucketId;
     if (bucketId !== null) await ownBucket(ctx.user.id, bucketId);
+    if (input.follow?.connectionId) {
+      const [own] = await getDb()
+        .select({ id: connections.id })
+        .from(connections)
+        .where(and(eq(connections.id, input.follow.connectionId), eq(connections.userId, ctx.user.id)));
+      if (!own) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.trackerNotFound") });
+    }
     if (boards.length >= MAX_BOARDS) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.maxBoards", { count: MAX_BOARDS }) });
     }
@@ -192,6 +296,7 @@ export const pinboardRouter = createRouter({
         name: input.name,
         position: Math.max(0, ...boards.map((b) => b.position)) + 1,
         bucketId,
+        ...(input.follow ? { followField: input.follow.field, followValue: input.follow.value, followConnectionId: input.follow.connectionId } : {}),
       })
       .returning({ id: pinboards.id });
     return { id: row.id };
@@ -211,7 +316,9 @@ export const pinboardRouter = createRouter({
     if (!boards.some((b) => b.id === input.id)) {
       throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.boardNotFound") });
     }
-    if (boards.length === 1) {
+    // One board pinned by hand always stays: where a pin lands.
+    const free = boards.filter((b) => !followOf(b));
+    if (boards.length === 1 || (free.length === 1 && free[0].id === input.id)) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.needBoard") });
     }
     await getDb().transaction(async (tx) => {
@@ -226,6 +333,8 @@ export const pinboardRouter = createRouter({
     .input(z.object({ boardId: boardIdInput.optional(), ...scopeInput }).optional())
     .query(async ({ ctx, input }) => {
       const board = await shownBoard(ctx.user.id, ctx.deviceId, input?.boardId);
+      const tag = followOf(board);
+      if (tag) return followedNotes(ctx.user.id, ctx.deviceId, board, tag, input?.connectionId);
       // The device's bucket and the tracker chosen: issues outside them step off the board (free notes stay).
       const scope = await pinScope(ctx.user.id, ctx.deviceId, input?.connectionId);
       const rows = await getDb()
@@ -242,7 +351,7 @@ export const pinboardRouter = createRouter({
         .leftJoin(issueNotes, eq(issueNotes.id, pinboardNotes.issueNoteId))
         .where(and(eq(pinboardNotes.userId, ctx.user.id), eq(pinboardNotes.boardId, board.id), scope))
         .orderBy(asc(pinboardNotes.z), asc(pinboardNotes.id));
-      return rows.map((r) => ({
+      return rows.map((r): BoardNote => ({
         ...r.note,
         summary: r.summary ?? null,
         status: r.status ?? null,
@@ -272,7 +381,7 @@ export const pinboardRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const board = await shownBoard(ctx.user.id, ctx.deviceId, input.boardId);
+      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : undefined;
       const mine = await db
         .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
@@ -328,7 +437,7 @@ export const pinboardRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const n = await ownIssueNote(ctx.user.id, input.noteId);
-      const board = await shownBoard(ctx.user.id, ctx.deviceId, input.boardId);
+      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
       const mine = await db
         .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
         .from(pinboardNotes)
@@ -368,6 +477,38 @@ export const pinboardRouter = createRouter({
         .returning({ id: pinboardNotes.id });
       return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
     }),
+
+  /**
+   * The tags a board can follow: the labels and components of the user's open
+   * issues, each with how many carry it, most used first.
+   */
+  tags: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await getDb()
+      .select({ connectionId: issues.connectionId, labels: issues.labels, components: issues.components })
+      .from(issues)
+      .where(await openIssuesTagged(ctx.user.id, ctx.deviceId, null));
+    const counted = new Map<string, { field: "label" | "component"; value: string; count: number }>();
+    const add = (field: "label" | "component", raw: string) => {
+      let values: unknown;
+      try {
+        values = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (!Array.isArray(values)) return;
+      for (const v of new Set(values.filter((x): x is string => typeof x === "string" && x.trim() !== ""))) {
+        const k = `${field}:${v}`;
+        const c = counted.get(k) ?? { field, value: v, count: 0 };
+        c.count++;
+        counted.set(k, c);
+      }
+    };
+    for (const r of rows) {
+      add("label", r.labels);
+      add("component", r.components);
+    }
+    return [...counted.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  }),
 
   /** Move, raise, write on or recolour a post-it. */
   update: protectedProcedure
@@ -443,7 +584,8 @@ export const pinboardRouter = createRouter({
       return {
         connectionId: conn.id,
         hiddenByBucket: !shown,
-        boards: boards.map((b) => ({ id: b.id, name: boardDisplayName(b.name), noteId: on.get(b.id) ?? null })),
+        // A followed board shows what its tag says: not a place to pin.
+        boards: boards.filter((b) => !followOf(b)).map((b) => ({ id: b.id, name: boardDisplayName(b.name), noteId: on.get(b.id) ?? null })),
       };
     }),
 
@@ -495,6 +637,7 @@ export const pinboardRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       // Undo puts it back where it was, whatever the device shows now.
       const board = await resolveBoard(ctx.user.id, input.boardId);
+      writable(board);
       if (input.issueNoteId) await ownIssueNote(ctx.user.id, input.issueNoteId);
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : null;
       const [c] = await getDb()

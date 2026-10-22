@@ -4,9 +4,11 @@ import { toast } from "sonner";
 import { t } from "@/i18n";
 import { useProviderName } from "@/hooks/useConnections";
 
-/** Everything that comes from Jira, worklogs and the offline queue included. */
+/** Everything that comes from Jira, worklogs, the offline queue and the pinboards' issues included. */
 export function invalidateJiraData(utils: ReturnType<typeof trpc.useUtils>) {
   void utils.issues.invalidate();
+  // A board that follows a tag shows the open issues the sync just brought.
+  void utils.pinboard.invalidate();
   void utils.stats.invalidate();
   void utils.outbox.invalidate();
   void utils.worklogs.invalidate();
