@@ -174,11 +174,14 @@ and without, on the production bundle as it ships.
 - **Limits:** each scenario's limit is the most measured plus 2%. A change that lowers the work
   lowers the limit; raising one is a deliberate edit, with the new measure and its reason in the
   commit, never a side effect.
-- **Over once:** on a loaded machine (the full e2e suite running alongside) a window has, about
-  once in six full gates, counted 20 to 30 commits more on the issue page. A window over its limit
-  is measured again and fails only when over twice, and the message lists what the page asked
-  for in each (by procedure, and the event stream reopened), so the next one says why. A real
-  regression is over both times (checked by lowering a limit under the measure).
+- **A window with the stream up:** the counts are defined with the event stream connected. On a
+  loaded machine (the full e2e suite alongside) the stream has dropped during a window a few
+  times (the page then polls timers every 5 s instead of 15 and refetches everything when it is
+  back: up to 18491 renders where 9874 is normal), never on its own or in 7 real minutes. An init
+  script counts the stream's errors and opens; a window in which either moved is not one, and
+  up to three windows are measured: the first with the stream up and under its limit passes.
+  Each window's message lists what the page asked for. A real regression is over in every clean
+  window (checked by lowering a limit under the measure).
 - **Validation, before any app number is read:** a fixture built in production mode
   (`e2e/fixtures/renders/app.jsx`) has a ticker committing once a second with a plain child, a
   memo child and a static sibling. In 10 s of real time, and in 30 stepped seconds, the ticker

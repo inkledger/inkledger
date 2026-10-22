@@ -8,7 +8,7 @@ import { build } from "esbuild";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../scripts/chromium.mjs";
 import { start } from "./harness.mjs";
-import { clockStepper, renderHook, rendersOver } from "./renders.mjs";
+import { clockStepper, renderHook, rendersOver, streamProbe } from "./renders.mjs";
 
 test("the counter: a 1 s ticker commits once a second, its plain child too, its memo child and a static sibling never", async () => {
   const out = await build({
@@ -65,8 +65,8 @@ test("the counter: a 1 s ticker commits once a second, its plain child too, its 
 const WINDOW = 300_000;
 
 /**
- * Per five minutes, page by page: commits and component renders, at most (over once, the
- * window is measured again; over twice fails). Before Wave 3
+ * Per five minutes, page by page: commits and component renders, at most, in a window with the
+ * event stream up (up to three windows; the first clean one under its limit passes). Before Wave 3
  * (frozen 2026-10-22, two runs within 2%): no timer 55 / 15221; with one running, issue page
  * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
  * 13840, 366 / 20452, 366 / 24399, 366 / 23704. A poll that changes nothing no longer
@@ -88,14 +88,17 @@ test("React work per five minutes, page by page", async () => {
   const { page, base } = app;
   try {
     await page.context().addInitScript(renderHook);
+    await page.context().addInitScript(streamProbe);
     await page.clock.install();
     const clock = clockStepper(page);
     const open = async path => {
       await page.goto(base + path);
       await clock.run(5000, 100);
     };
-    // What the page asked for during a window, by procedure (the event stream as one): an
-    // over-limit count says what it did more.
+    // What the page asked for during a window, by procedure, and whether its event stream held.
+    // The counts are defined with the stream up: a window in which it dropped or reconnected (the
+    // page then polls at its fallback rate and refetches everything when back; seen on a loaded
+    // machine, never on its own) is not one, and is measured again once it is back.
     const asked = {};
     let counting = false;
     page.on("request", q => {
@@ -103,27 +106,33 @@ test("React work per five minutes, page by page", async () => {
       const k = q.resourceType() === "eventsource" ? "event stream (re)opened" : decodeURIComponent(new URL(q.url()).pathname.replace("/api/trpc/", ""));
       asked[k] = (asked[k] ?? 0) + 1;
     });
+    const stream = () => page.evaluate(() => ({ ...window.__stream }));
     const window5min = async () => {
       for (const k of Object.keys(asked)) delete asked[k];
+      const before = await stream();
       counting = true;
       const r = await rendersOver(page, () => clock.run(WINDOW));
       counting = false;
-      return { ...r, asked: { ...asked } };
+      const after = await stream();
+      const clean = after.errors === before.errors && after.opens === before.opens;
+      if (!clean) asked["event stream errors, opens"] = `${after.errors - before.errors}, ${after.opens - before.opens}`;
+      return { ...r, asked: { ...asked }, clean };
     };
     const over = (name, r) => r.commits > MEASURED[name].commits || r.renders > MEASURED[name].renders;
     const line = (name, r) =>
-      `${name}: ${r.commits} commits, ${r.renders} component renders; most: ${r.top.slice(0, 5).map(([k, v]) => `${v} ${k}`).join(", ")}; asked: ${JSON.stringify(r.asked)}`;
+      `${name}: ${r.commits} commits, ${r.renders} component renders${r.clean ? "" : " (event stream broke)"}; most: ${r.top.slice(0, 5).map(([k, v]) => `${v} ${k}`).join(", ")}; asked: ${JSON.stringify(r.asked)}`;
+    // Up to three windows: the first clean one under its limit passes. A real regression is over
+    // in every clean window (checked by lowering a limit under the measure).
     const measure = async name => {
-      let r = await window5min();
-      console.info(`[measure] renders per 5 min, ${line(name, r)}`);
-      // Once over, measured again: on a loaded machine an answer landing late can move work into
-      // the window (seen about once in six full gates). A real regression is over both times.
-      if (over(name, r)) {
-        const first = r;
-        r = await window5min();
-        console.info(`[measure] again, ${line(name, r)}`);
-        assert.ok(!over(name, r), `over the limit twice. ${line(name, first)} | ${line(name, r)}`);
+      const seen = [];
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await page.waitForTimeout(5000); // real time: the stream reconnects by itself
+        const r = await window5min();
+        seen.push(r);
+        console.info(`[measure] ${attempt ? "again, " : "renders per 5 min, "}${line(name, r)}`);
+        if (r.clean && !over(name, r)) return;
       }
+      assert.fail(`no clean window under the limit. ${seen.map(r => line(name, r)).join(" | ")}`);
     };
     await open("/");
     await measure("dashboard, no timer");

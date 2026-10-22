@@ -58,6 +58,24 @@ export function renderHook() {
 }
 
 /**
+ * Init script: counts the event stream's errors (a drop, a failed reconnect) and opens, in
+ * window.__stream. The app's live state follows them: down, it polls at its fallback rate and
+ * refetches everything when back.
+ */
+export function streamProbe() {
+  const S = (window.__stream = { errors: 0, opens: 0 });
+  const Native = window.EventSource;
+  if (!Native) return;
+  window.EventSource = class extends Native {
+    constructor(...args) {
+      super(...args);
+      this.addEventListener("error", () => S.errors++);
+      this.addEventListener("open", () => S.opens++);
+    }
+  };
+}
+
+/**
  * Steps a page under Playwright's clock (page.clock.install before it loads) one second at a
  * time, each step waiting for the requests it started and React's commits: the page's time
  * runs on the stepped clock, its network and rendering in real time.
