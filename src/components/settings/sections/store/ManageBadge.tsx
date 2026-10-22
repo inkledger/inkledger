@@ -1,3 +1,4 @@
+import { mediumDate } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
 import { useRef, useState } from "react";
 import { ChevronDown, Copy, Download, FileDown, FileUp, KeyRound, Server, Settings2, Trash2 } from "lucide-react";
@@ -7,7 +8,7 @@ import { PROGRESS_FILE_EXTENSION, type ModuleStatus } from "@contracts/modules";
 import { LICENSE_FILE_EXTENSION } from "@contracts/store";
 import { downloadBlob } from "@/lib/download";
 import { trpc } from "@/lib/trpc";
-import { t, useLocale } from "@/i18n";
+import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -73,7 +74,6 @@ export function ManageBadge({
   /** Opens the module's settings, when it has some. */
   onSettings?: () => void;
 }) {
-  const locale = useLocale();
   const utils = trpc.useUtils();
   const list = trpc.modules.list.useQuery().data;
   const licences = (list?.licenses ?? []).filter(l => l.product === product);
@@ -138,7 +138,6 @@ export function ManageBadge({
 
   if (!installed && !licensed) return null;
   const badge = badgeOf(installed, licensed, off);
-  const date = (ms: number) => new Date(ms).toLocaleDateString(locale === "it" ? "it-IT" : "en-GB", { dateStyle: "medium" });
 
   return (
     <>
@@ -160,7 +159,7 @@ export function ManageBadge({
               <div key={l.id} className="flex items-start gap-2 px-2 pb-1.5 text-caption text-muted-foreground">
                 <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                 <p>
-                  <span className="block text-foreground">{t("settings.store.manage.licence", { id: l.label, date: date(l.issued) })}</span>
+                  <span className="block text-foreground">{t("settings.store.manage.licence", { id: l.label, date: mediumDate(l.issued) })}</span>
                   <span className="block">{t(`settings.store.issuer.${l.issuer ?? "unknown"}`)}</span>
                   <span className="block">{t("settings.store.manage.forever")}</span>
                 </p>

@@ -1,3 +1,4 @@
+import { mediumDate } from "@/lib/dates";
 import {
   Calendar,
   Settings2,
@@ -173,7 +174,7 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
             <dd>{t("settings.store.info.privacyBody")}</dd>
             <dt className="text-muted-foreground">{t("settings.store.info.licence")}</dt>
             <dd>
-              <LicenceInfo product={e.product} locale={locale} />
+              <LicenceInfo product={e.product} />
             </dd>
             <dt className="text-muted-foreground">{t("settings.store.info.terms")}</dt>
             <dd>
@@ -208,10 +209,10 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
 }
 
 /** The licence this server holds for the product, or how licences work. */
-function LicenceInfo({ product, locale }: { product: string; locale: Locale }) {
+function LicenceInfo({ product }: { product: string }) {
   const licence = trpc.modules.list.useQuery().data?.licenses.find(l => l.product === product);
   if (!licence) return <>{t("settings.store.info.licenceBody")}</>;
-  const date = new Date(licence.issued).toLocaleDateString(locale === "it" ? "it-IT" : "en-GB", { dateStyle: "medium" });
+  const date = mediumDate(licence.issued);
   return (
     <>
       <span className="block">{t("settings.store.manage.licence", { id: licence.label, date })}</span>
