@@ -17,7 +17,7 @@ import { t as tr } from "@contracts/i18n";
 import { providerTrpcError } from "../providers/trpc";
 import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
-import { deleteThere, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
+import { deleteThere, dropOld, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
@@ -160,14 +160,14 @@ const ADOPT_WINDOW_MS = 5 * 60_000;
 /** The same comment as words: how a tracker or a sync may store it (trimmed, spaces folded) aside. */
 export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
 
-async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date): Promise<boolean> {
+async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date, replacing?: { remoteId: string; version: string | null }): Promise<boolean> {
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
   const there = await t.b.worklogs.list(meta(), t.ref);
   const notBefore = queuedAt.getTime() - ADOPT_WINDOW_MS;
   const mine = { started: local.started, seconds: local.timeSpentSeconds };
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session") continue;
+    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session" || w.remoteId === replacing?.remoteId) continue;
     if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
@@ -181,6 +181,8 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     // same time, can't be told from that copy: its comment may have been edited since either.)
     if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
+    // The entry it replaces goes, as after a recreate that was answered (queued if it can't now).
+    if (replacing) await dropOld(t.b, conn, local, t.ref, meta(), replacing.remoteId, replacing.version);
     // The comment changed while it waited: sent now, where the tracker changes an entry in
     // place (one that logs it again would churn, and keeps no comment on some: Gitea). Refused
     // there, the entry stays as it landed (the words here only); not answering, tried again.
@@ -194,6 +196,24 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     return true;
   }
   return false;
+}
+
+/**
+ * A change queued where the tracker logs an entry again (GitLab, Gitea): the new entry may
+ * have landed with its answer lost. Taken as a create's would be (adoptLanded, the entry it
+ * replaces never), so the retry doesn't log the time twice; the old entry goes then.
+ */
+async function adoptRecreated(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date): Promise<boolean> {
+  const write = entriesOf(t.b)?.write;
+  if (write?.mode !== "entry" || write.update !== "recreate") return false;
+  const [sink] = await getDb()
+    .select({ remoteId: worklogSinks.remoteId, version: worklogSinks.version })
+    .from(worklogSinks)
+    .where(and(eq(worklogSinks.worklogId, local.id), eq(worklogSinks.sinkConnectionId, conn.id)))
+    .limit(1);
+  // Nothing there yet (no link, or a placeholder copied to it): nothing to replace.
+  if (!sink?.remoteId || /^(local|new|pending)-/.test(sink.remoteId)) return false;
+  return adoptLanded(t, conn, local, queuedAt, { remoteId: sink.remoteId, version: sink.version });
 }
 
 /** The worklog is the service's entry `remoteId`: a copy of it a sync read back meanwhile goes (no trace). */
@@ -281,7 +301,7 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
           if (entry.kind === "create") {
             if (!(await adoptLanded(t, conn, local, entry.createdAt))) await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
             await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds);
-          } else {
+          } else if (!(await adoptRecreated(t, conn, local, entry.createdAt))) {
             await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
           }
         }

@@ -3,12 +3,12 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 process.env.DATABASE_URL = ":memory:";
 
 /** The test's tracker that keeps entries (the contract's fake, as "gitlab"), and whether it answers. */
-type TestTracker = { adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string };
+type TestTracker = { adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string; recreating?: boolean; recreator?: unknown };
 const tracker: TestTracker = vi.hoisted(() => ({ adapter: null, offline: false, refuse: false, loseAnswer: false, calls: [] }));
 
 vi.mock("../providers/registry", async (importOriginal) => {
   const real = await importOriginal<typeof import("../providers/registry")>();
-  return { ...real, trackerAdapter: (type: Parameters<typeof real.trackerAdapter>[0]) => (type === "gitlab" ? tracker.adapter : real.trackerAdapter(type)) };
+  return { ...real, trackerAdapter: (type: Parameters<typeof real.trackerAdapter>[0]) => (type === "gitlab" ? (tracker.recreating ? tracker.recreator : tracker.adapter) : real.trackerAdapter(type)) };
 });
 
 describe("time on a tracker that keeps entries, through the contract (write-through, queue, replay)", () => {
@@ -21,8 +21,9 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
   beforeAll(async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");
-    const fake = fakeTracker([{ key: "FAKE-1", title: "First" }]);
-    const guarded = Object.fromEntries(
+    // The tracker as the test sets it: offline, refusing, or losing a create's answer.
+    const guard = (fake: ReturnType<typeof fakeTracker>, keyless = false) => {
+      const guarded = Object.fromEntries(
       Object.entries(fake.worklogs ?? {}).map(([name, fn]) => [
         name,
         async (...args: unknown[]) => {
@@ -30,6 +31,8 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
           if (tracker.refuse || tracker.refuseOnly === name) throw new ProviderError("invalid", "fake: no");
           if (tracker.downOnly === name) throw new ProviderError("unavailable", "fake: down");
           tracker.calls.push(name);
+          // A key the service doesn't keep (GitLab, Gitea): a retried create is a new entry.
+          if (keyless && name === "create") args[3] = { ...(args[3] as object), idempotencyKey: `unkept-${Math.random()}` };
           const out = await (fn as (...a: unknown[]) => unknown)(...args);
           // It landed, but the answer never came back.
           if (tracker.loseAnswer && name === "create") throw new ProviderError("unavailable", "fake: timed out");
@@ -37,7 +40,11 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
         },
       ]),
     );
-    tracker.adapter = Object.assign(Object.create(Object.getPrototypeOf(fake) as object), fake, { worklogs: guarded });
+      return Object.assign(Object.create(Object.getPrototypeOf(fake) as object), fake, { worklogs: guarded }) as unknown;
+    };
+    tracker.adapter = guard(fakeTracker([{ key: "FAKE-1", title: "First" }]));
+    // One that logs an entry again to change it (GitLab, Gitea).
+    tracker.recreator = guard(fakeTracker([{ key: "FAKE-1", title: "First" }], { entryUpdate: false }), true);
     await (await import("../queries/connection")).resetDbForTests();
     const { sealSecret } = await import("../lib/crypto");
     const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('t', 'T', 1) RETURNING id");
@@ -214,6 +221,42 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
     expect(tracker.calls).toContain("update");
     await caller.worklogs.delete({ id: later.id });
+  });
+
+  it("where a change logs the entry again, a retry after a lost answer takes the entry that landed: the time once", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    tracker.recreating = true;
+    try {
+      const there = async (at: string) => {
+        const all = await boundTracker(conn)!.worklogs!.list({ signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "FAKE-1" });
+        return all.filter((w) => w.span.kind === "session" && w.span.start === Date.parse(at)).map((w) => ({ id: w.remoteId, seconds: w.span.seconds, comment: w.comment }));
+      };
+      for (const [at, change] of [
+        ["2026-10-22T09:00:00+02:00", { seconds: 900, comment: "first" }],
+        ["2026-10-22T11:00:00+02:00", { seconds: 600, comment: "words only" }],
+      ] as const) {
+        const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "first" });
+        const [old] = await there(at);
+        tracker.loseAnswer = true;
+        try {
+          await caller.worklogs.update({ id: made.id, started: at, ...change });
+        } finally {
+          tracker.loseAnswer = false;
+        }
+        expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+        const now = await there(at);
+        expect(now).toEqual([{ id: (await sinkOf(made.id))?.remote_id, ...change }]);
+        expect(now[0].id).not.toBe(old.id);
+        expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+        await caller.worklogs.delete({ id: made.id });
+      }
+    } finally {
+      tracker.recreating = false;
+    }
   });
 
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
