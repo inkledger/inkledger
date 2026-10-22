@@ -99,4 +99,9 @@ describe("errorText", () => {
     expect(errorKind(fromServer("APP_BUILD_CHANGED", "CONFLICT"))).toBe("other");
     expect(errorText(fromServer("APP_BUILD_CHANGED", "CONFLICT"))).toBe("<ui.error.failed>");
   });
+
+  it("an error the server sent without words of its own (its code as message) shows general words", () => {
+    expect(errorText(fromServer("NOT_FOUND", "NOT_FOUND"))).toBe("<ui.error.failed>");
+    expect(errorText(fromServer("Cliente non trovato", "NOT_FOUND"))).toBe("Cliente non trovato");
+  });
 });

@@ -23,8 +23,9 @@ export function errorKind(e: unknown): ErrorKind {
   if (e instanceof TRPCClientError) {
     // The server answered with its own error: its words are meant to be read (internal
     // faults already come back in general words, the details in its log). Save the signal
-    // that a newer build is serving, which reloads the page: a code, not words.
-    if (e.data) return e.message === APP_BUILD_CHANGED ? "other" : "said";
+    // that a newer build is serving, which reloads the page: a code, not words; and an error
+    // sent with no words of its own (its message is then its code, e.g. "NOT_FOUND").
+    if (e.data) return e.message === APP_BUILD_CHANGED || e.message === (e.data as { code?: unknown }).code ? "other" : "said";
     // No answer of the server's: why the request failed, from what it carries.
     const cause = errorKind(e.cause);
     if (cause === "network" || cause === "timeout") return cause;
