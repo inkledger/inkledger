@@ -164,10 +164,15 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
   const there = await t.b.worklogs.list(meta(), t.ref);
+  // Entries the user deleted while offline (their delete still queued): never "ours, landed",
+  // or that delete's replay would take this worklog with it.
+  const deleting = new Set(
+    (await db.select({ remoteId: outbox.remoteId }).from(outbox).where(and(eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete")))).map((r) => r.remoteId),
+  );
   const notBefore = queuedAt.getTime() - ADOPT_WINDOW_MS;
   const mine = { started: local.started, seconds: local.timeSpentSeconds };
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session" || w.remoteId === replacing?.remoteId) continue;
+    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session" || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
     if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
