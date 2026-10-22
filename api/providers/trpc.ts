@@ -19,12 +19,15 @@ const CODES: Record<ProviderErrorKind, TRPCError["code"]> = {
   incompatible: "INTERNAL_SERVER_ERROR",
 };
 
+/** A provider's error as the API answers it: its kind's code, its words, the original as cause. */
+export const providerTrpcError = (e: ProviderError) => new TRPCError({ code: CODES[e.kind], message: e.message, cause: e });
+
 /** Runs a provider call, its ProviderError turned into the matching TRPCError (the original as cause). */
 export async function providerCall<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (e) {
     if (!(e instanceof ProviderError)) throw e;
-    throw new TRPCError({ code: CODES[e.kind], message: e.message, cause: e });
+    throw providerTrpcError(e);
   }
 }

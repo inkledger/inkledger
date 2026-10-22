@@ -29,7 +29,8 @@ vi.stubGlobal(
       const w = remoteWorklogs.get(decodeURIComponent(one[1]));
       return w ? json({ ...w, author: { accountId: "acc-1" } }) : json({ errorMessages: ["gone"] }, 404);
     }
-    if (one && method === "DELETE") return new Response(null, { status: 204 });
+    if (one && method === "DELETE")
+      return decodeURIComponent(one[1]) === "wl-refused" ? json({ errorMessages: ["Jira refuses this delete"] }, 400) : new Response(null, { status: 204 });
     if (one && method === "PUT") {
       const body = JSON.parse(String(init?.body)) as { timeSpentSeconds: number; started: string };
       return json({ id: decodeURIComponent(one[1]), ...body, author: { accountId: "acc-1" } });
@@ -187,6 +188,14 @@ describe("worklogs and stats", () => {
     remoteWorklogs.set("wl-open", { id: "wl-open", started: toJiraStarted(new Date()), timeSpentSeconds: 60 });
     expect(await caller.worklogs.delete({ issueKey: "DEL-1", remoteId: "wl-open" })).toMatchObject({ ok: true });
     expect(deletes()).toBe(before + 1);
+  });
+
+  it("a delete the tracker refuses says so with its words and code, not as a server fault", async () => {
+    const { toJiraStarted } = await import("@contracts/time");
+    remoteWorklogs.set("wl-refused", { id: "wl-refused", started: toJiraStarted(new Date()), timeSpentSeconds: 60 });
+    const e = await caller.worklogs.delete({ issueKey: "DEL-1", remoteId: "wl-refused" }).catch((x: unknown) => x);
+    expect(e).toMatchObject({ code: "BAD_REQUEST" });
+    expect((e as Error).message).toMatch(/Jira refuses this delete/);
   });
 
   describe("overlapping worklogs", () => {

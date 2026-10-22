@@ -7,6 +7,7 @@ import { serverBuild } from "./lib/appBuild";
 import { APP_BUILD_CHANGED, APP_BUILD_HEADER } from "@contracts/appBuild";
 import { JiraApiError } from "./jira/client";
 import { ProviderError } from "./providers/core/errors";
+import { providerTrpcError } from "./providers/trpc";
 import { TimerConflictError } from "./lib/timerConflict";
 import { t as tr } from "@contracts/i18n";
 import type { Permission } from "@contracts/accounts";
@@ -96,6 +97,9 @@ export const protectedProcedure = signedInProcedure.use(async ({ ctx, next }) =>
       const provider = type && type in PROVIDER_NAMES ? PROVIDER_NAMES[type as ProviderType] : tr("server.auth.aTracker");
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: tr("server.auth.reconnect", { provider }), cause });
     }
+    // A tracker's refusal no router mapped (providerCall): its code and words, not a 500 in
+    // general words (a delete Plane can't do, an entry a tracker refuses).
+    if (cause instanceof ProviderError && result.error.code === "INTERNAL_SERVER_ERROR") throw providerTrpcError(cause);
   }
   return result;
 });
