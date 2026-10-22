@@ -374,7 +374,7 @@ export type RateLimitFigure = z.infer<typeof rateLimitFigureSchema>;
 export const timeSinkCapabilitiesSchema = z
   .strictObject({
     entries: entryCapabilitiesSchema,
-    /** Supported, best first: the order is behaviour (a reorder is a change); pickReference chooses */
+    /** Supported, best first: the order is behaviour (a reorder is a change) */
     references: z
       .tuple([z.enum(SINK_REFERENCES)])
       .rest(z.enum(SINK_REFERENCES))
