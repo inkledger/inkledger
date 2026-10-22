@@ -13,10 +13,11 @@ fs.writeFileSync(
   { mode: 0o755 },
 );
 // Like the real one: a missing file fails. Also records the password env, and
-// writes the dump as SQL on stdout (FAKE_RESTORE_FAIL: dies halfway through).
+// writes the dump as SQL on stdout (FAKE_RESTORE_FAIL: dies halfway through, once
+// psql is up, so the test sees psql stopped rather than never started).
 fs.writeFileSync(
   path.join(BIN, "pg_restore"),
-  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_FAIL" ] && { echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
+  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_FAIL" ] && { i=0; while [ ! -s "${DIR}/psql.pid" ] && [ $i -lt 100 ]; do sleep 0.02; i=$((i+1)); done; echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
   { mode: 0o755 },
 );
 // psql: records its pid, its arguments and what it was fed; "committed" only once its input ended.
@@ -115,7 +116,7 @@ describe("backups on disk", () => {
     }
     // Stopped, never left waiting on its input (a real one would hold the transaction and its locks).
     const alive = () => {
-      if (!fs.existsSync(path.join(DIR, "psql.pid"))) return false; // stopped before it even began
+      if (!fs.existsSync(path.join(DIR, "psql.pid"))) return false; // stopped before it even began (the fake waits for it: see the next check)
       // Stopped while writing its pid: no pid (and 0 would ask about the whole process group).
       const pid = Number(fs.readFileSync(path.join(DIR, "psql.pid"), "utf8"));
       if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -126,6 +127,7 @@ describe("backups on disk", () => {
         return false;
       }
     };
+    expect(fs.existsSync(path.join(DIR, "psql.pid")), "psql was up when the dump broke").toBe(true);
     await expect.poll(alive).toBe(false);
     const fed = fs.existsSync(path.join(DIR, "psql-input.sql")) ? fs.readFileSync(path.join(DIR, "psql-input.sql"), "utf8") : "";
     expect(fed).not.toContain("committed");
