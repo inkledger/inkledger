@@ -178,8 +178,9 @@ and without, on the production bundle as it ships.
   loaded machine (the full e2e suite alongside) the stream has dropped during a window a few
   times (the page then polls timers every 5 s instead of 15 and refetches everything when it is
   back: up to 18491 renders where 9874 is normal), never on its own or in 7 real minutes. An init
-  script counts the stream's errors and opens; a window in which either moved is not one, and
-  up to three windows are measured: the first with the stream up and under its limit passes.
+  script counts the stream's errors and opens (and must have seen the app's stream open first);
+  a window in which either moved doesn't count, up to four in all: the first with the stream up
+  and under its limit passes, a second over it fails.
   Each window's message lists what the page asked for. A real regression is over in every clean
   window (checked by lowering a limit under the measure).
 - **Validation, before any app number is read:** a fixture built in production mode

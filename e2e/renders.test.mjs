@@ -66,7 +66,7 @@ const WINDOW = 300_000;
 
 /**
  * Per five minutes, page by page: commits and component renders, at most, in a window with the
- * event stream up (up to three windows; the first clean one under its limit passes). Before Wave 3
+ * event stream up (a broken one doesn't count; over twice with it up fails). Before Wave 3
  * (frozen 2026-10-22, two runs within 2%): no timer 55 / 15221; with one running, issue page
  * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
  * 13840, 366 / 20452, 366 / 24399, 366 / 23704. A poll that changes nothing no longer
@@ -121,20 +121,26 @@ test("React work per five minutes, page by page", async () => {
     const over = (name, r) => r.commits > MEASURED[name].commits || r.renders > MEASURED[name].renders;
     const line = (name, r) =>
       `${name}: ${r.commits} commits, ${r.renders} component renders${r.clean ? "" : " (event stream broke)"}; most: ${r.top.slice(0, 5).map(([k, v]) => `${v} ${k}`).join(", ")}; asked: ${JSON.stringify(r.asked)}`;
-    // Up to three windows: the first clean one under its limit passes. A real regression is over
-    // in every clean window (checked by lowering a limit under the measure).
+    // A window with the stream broken doesn't count (up to four in all); with it up, the first
+    // under its limit passes and a second over it fails. A real regression is over in every clean
+    // window (checked by lowering a limit under the measure).
     const measure = async name => {
       const seen = [];
-      for (let attempt = 0; attempt < 3; attempt++) {
+      let cleanOver = 0;
+      for (let attempt = 0; attempt < 4; attempt++) {
         if (attempt > 0) await page.waitForTimeout(5000); // real time: the stream reconnects by itself
         const r = await window5min();
         seen.push(r);
         console.info(`[measure] ${attempt ? "again, " : "renders per 5 min, "}${line(name, r)}`);
-        if (r.clean && !over(name, r)) return;
+        if (!r.clean) continue;
+        if (!over(name, r)) return;
+        if (++cleanOver === 2) break;
       }
-      assert.fail(`no clean window under the limit. ${seen.map(r => line(name, r)).join(" | ")}`);
+      assert.fail(`${cleanOver === 2 ? "over the limit in two windows with the stream up" : "no window with the stream up under the limit"}. ${seen.map(r => line(name, r)).join(" | ")}`);
     };
     await open("/");
+    // The probe sees the app's own stream, or no window could be told clean from broken.
+    assert.ok((await stream()).opens >= 1, "the event stream is up and seen by the probe");
     await measure("dashboard, no timer");
     await open("/issues/DEMO-101");
     await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
