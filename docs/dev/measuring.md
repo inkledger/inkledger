@@ -121,8 +121,8 @@ npx vitest run api/sync/queries-per-pass.test.ts api/queries/accounts-queries.te
 
 ## React renders
 
-`e2e/renders.test.mjs` counts React's work in the browser while a timer runs, on the
-production bundle as it ships.
+`e2e/renders.test.mjs` counts React's work in the browser, page by page, with a timer running
+and without, on the production bundle as it ships.
 
 - **What is counted:** commits, and the components that rendered in each. Not render calls:
   those also include renders React throws away (StrictMode's double render, interrupted
@@ -135,22 +135,29 @@ production bundle as it ships.
     walked.
   - Each render is attributed to the region (`main`, `nav`, `aside`, a dialog) and element it
     draws, so a number can be traced to what ticks.
-- **Window:** the page loads and settles for 5 s; then the counts are reset to 0 (mount and
-  first data are not part of it) and read 10 s later, in real time.
+- **Window:** five minutes of the page's own clock (Playwright's `page.clock`), stepped a
+  second at a time; each step waits for the requests it started (the event stream, open by
+  design, aside). Five minutes is the least common multiple of everything the app does on a
+  period (the 1 s clock; polls every 15, 30 and 60 s; the timer heartbeat every 25 s), so each
+  happens a fixed number of times whatever the phase. Real-time windows were tried first and
+  rejected: a 10 s window holds a poll or not by chance.
+- **Spread:** two runs agree within 2% (a response landing a step later moves a commit or
+  two). Each limit is the most measured plus 2%.
 - **Validation, before any app number is read:** a fixture built in production mode
   (`e2e/fixtures/renders/app.jsx`) has a ticker committing once a second with a plain child, a
-  memo child and a static sibling. In 10 s the ticker and its plain child must count 10 (±1)
-  each, the memo child and the static sibling 0, and nothing else. If it fails, the counter
-  is wrong and the app's numbers are not used.
+  memo child and a static sibling. In 10 s of real time, and in 30 stepped seconds, the ticker
+  and its plain child must count one per second (±1; stepped, exactly 30 commits), the memo
+  child and the static sibling 0, and nothing else. If it fails, the counter is wrong and the
+  app's numbers are not used.
 - **What it does not say:** time spent. A count is work done, not frames dropped or
   milliseconds; no claim on smoothness rests on it alone.
 
-| Scenario (10 s) | Before Wave 3 |
+| Scenario (5 min) | Before Wave 3 |
 |---|---|
-| Dashboard, no timer | 0 commits, 0 renders |
-| Issue page, timer running | 11 commits, 394 renders |
-| Dashboard, timer running | 19 commits, 1670 renders |
-| Timesheet, timer running | 11 commits, 1460 renders |
+| Dashboard, no timer | 55 commits, 15221 renders |
+| Issue page, timer running | 712 commits, 21929 renders |
+| Dashboard, timer running | 1013 commits, 73998 renders |
+| Timesheet, timer running | 1001 commits, 66823 renders |
 
 ## Zod in the client (method only)
 

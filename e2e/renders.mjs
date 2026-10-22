@@ -55,10 +55,38 @@ export function renderHook() {
   };
 }
 
-/** Commits and component renders over `ms`, counted from zero after the page has settled. */
-export async function rendersDuring(page, ms) {
+/**
+ * Steps a page under Playwright's clock (page.clock.install before it loads) one second at a
+ * time, each step waiting for the requests it started and React's commits: the page's time
+ * runs on the stepped clock, its network and rendering in real time.
+ */
+export function clockStepper(page) {
+  // The event stream stays open by design: only requests that end are waited for.
+  const counted = r => r.resourceType() !== "eventsource";
+  let inflight = 0;
+  page.on("request", r => counted(r) && inflight++);
+  const done = r => counted(r) && inflight--;
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
+  const settle = async () => {
+    for (let i = 0; i < 250 && inflight > 0; i++) await page.waitForTimeout(20);
+    await page.waitForTimeout(60);
+  };
+  return {
+    settle,
+    async run(ms, step = 1000) {
+      for (let t = 0; t < ms; t += step) {
+        await page.clock.runFor(step);
+        await settle();
+      }
+    },
+  };
+}
+
+/** Commits and component renders while `run()` goes, counted from zero. */
+export async function rendersOver(page, run) {
   await page.evaluate(() => Object.assign(window.__renders, { commits: 0, renders: 0, where: {} }));
-  await page.waitForTimeout(ms);
+  await run();
   const r = await page.evaluate(() => window.__renders);
   return { commits: r.commits, renders: r.renders, top: Object.entries(r.where).sort((a, b) => b[1] - a[1]).slice(0, 8) };
 }
