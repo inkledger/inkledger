@@ -54,7 +54,7 @@ export type PendingTime = { pending: number; running: boolean };
  * live while a timer runs. Feeds the hatched "pending" segments of the bars;
  * read by the parts that draw it, so only they tick. Undefined unless `shown`.
  */
-export function usePendingSeconds(shown = true): PendingTime | undefined {
+export function usePendingSeconds(shown: boolean): PendingTime | undefined {
   const { timers, fetchedAt } = useTimers();
   const running = timers.some(t => t.state === "running");
   const now = useNow(shown && running);

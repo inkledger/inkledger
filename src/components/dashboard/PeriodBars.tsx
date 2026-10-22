@@ -40,7 +40,7 @@ export function PeriodBars({
   pending?: boolean;
 }) {
   const today = dayKey(useToday());
-  const live = usePendingSeconds(pending);
+  const live = usePendingSeconds(pending === true);
   const pendingSeconds = live?.pending ?? 0;
   const sums = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
   const totals = stacks.map((s, i) => s.worked ?? sums[i]);

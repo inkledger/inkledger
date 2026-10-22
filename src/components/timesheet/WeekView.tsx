@@ -48,7 +48,7 @@ export function DayProgress({
   pending?: boolean;
 }) {
   const pct = target > 0 ? Math.round((seconds / target) * 100) : 0;
-  const live = usePendingSeconds(pending);
+  const live = usePendingSeconds(pending === true);
   const pendingSeconds = live?.pending ?? 0;
   const scale = Math.max(target, seconds + pendingSeconds, 1);
   return (

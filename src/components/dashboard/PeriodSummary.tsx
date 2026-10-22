@@ -184,7 +184,7 @@ export function GoalProgress({
   const glowing = useGoalCelebration(celebrate && reached);
   const pct =
     targetSeconds > 0 ? Math.round((totalSeconds / targetSeconds) * 100) : 0;
-  const live = usePendingSeconds(pending);
+  const live = usePendingSeconds(pending === true);
   const pendingSeconds = live?.pending ?? 0;
   // The bar scale grows past the target when logged + pending exceed it.
   const scale = Math.max(targetSeconds, totalSeconds + pendingSeconds, 1);

@@ -1081,3 +1081,26 @@ test("a change that never reaches the server says so in the user's words, not th
     await page.getByText("The server can’t be reached. Check the connection and try again.").waitFor();
     assert.equal(await page.getByText(/Failed to fetch|TRPCClientError/).count(), 0, "no browser or library words");
   }));
+
+test("Reports' bars show logged time only, never a running timer's", () =>
+  withApp({
+    // An hour logged today, so the trend has bars to draw.
+    seed: db => {
+      const nine = new Date();
+      nine.setHours(9, 0, 0, 0);
+      return db.q(
+        "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-102', 'w-today', ?, 3600, '', 1)",
+        nine.getTime(),
+      );
+    },
+  }, async ({ page, base }) => {
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
+    await page.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    await page.waitForTimeout(2500);
+    await page.goto(base + "/reports");
+    await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();
+    await page.getByRole("heading", { name: "Trend" }).waitFor();
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".stripes-pending").count(), 0, "no pending segment on Reports");
+  }));
