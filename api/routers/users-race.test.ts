@@ -59,4 +59,18 @@ describe("a manager's change races an admin's promotion", () => {
     await expect(anon.auth.acceptInvite({ token, password: "the manager's own choice" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await q("SELECT password_hash FROM users WHERE id = ?", pending.id)).toEqual([{ password_hash: null }]);
   });
+
+  it("accepting a link while its maker is turned off sets nothing", async () => {
+    const [pending] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('pending2', 'P', 1) RETURNING id");
+    const [m] = await q<{ id: number }>("INSERT INTO users (username, display_name, permissions, created_at) VALUES ('maker2', 'M', '[\"manageUsers\"]', 1) RETURNING id");
+    const { createInvite } = await import("../queries/accounts");
+    const { token } = await createInvite(pending.id, m.id);
+    const { appRouter } = await import("../router");
+    const anon = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: null, sessionId: null, remoteAddress: "192.0.2.10" });
+    during.hash = async () => {
+      await q("UPDATE users SET disabled_at = ? WHERE id = ?", Date.now(), m.id);
+    };
+    await expect(anon.auth.acceptInvite({ token, password: "a link from someone turned off" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await q("SELECT password_hash FROM users WHERE id = ?", pending.id)).toEqual([{ password_hash: null }]);
+  });
 });

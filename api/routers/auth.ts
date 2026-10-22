@@ -181,15 +181,17 @@ export const authRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       throttle(ctx);
       assertNewPassword(input.password);
+      // The slow part first: the link (its maker's rights, the account's access) is checked
+      // right before the write, not before a hash that leaves time for either to change.
+      const passwordHash = await hashPassword(input.password);
       const found = await inviteUser(input.token);
       if (!found || !(await consumeInvite(found.inviteId))) {
         throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
       }
-      // The account as the link was checked against: promoted or given a password while
-      // the hash ran, it is no longer the link's to open.
+      // The account as the link was checked against: changed since, it is no longer the link's to open.
       const [user] = await getDb()
         .update(users)
-        .set({ passwordHash: await hashPassword(input.password), mustChangePassword: 0 })
+        .set({ passwordHash, mustChangePassword: 0 })
         .where(
           and(
             eq(users.id, found.user.id),
