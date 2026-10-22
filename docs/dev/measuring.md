@@ -63,8 +63,11 @@ node scripts/bundle-size.mjs --md   # the summary table
 
 ## Queries per scenario
 
-Five tests count the database queries of a piece of code, each at several sizes, so both the
-count and how it grows are on record. They share one counter, `api/testing/countQueries.ts`.
+Five scenario tests count the database queries of a piece of code, each at several sizes, so
+both the count and how it grows are on record. They share one counter,
+`api/testing/countQueries.ts`, which other tests also use for a single ceiling (storing 1200
+notifications in `api/routers/notifications-insert.test.ts`, a sync of 1200 issues in
+`api/routers/issues-sync-parity.test.ts`).
 
 - **How queries are counted:** a spy on `PGlite.prototype.query` and on the `query` of each
   transaction (begin and commit included when drizzle sends them as queries). A test of the
