@@ -181,8 +181,10 @@ export const authRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       throttle(ctx);
       assertNewPassword(input.password);
-      // The slow part first: the link (its maker's rights, the account's access) is checked
-      // right before the write, not before a hash that leaves time for either to change.
+      // A link that doesn't work is refused at once (no hash for it); one that does is
+      // checked again after the hash (its maker's rights, the account's access), right
+      // before the write: the hash leaves time for either to change.
+      if (!(await inviteUser(input.token))) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
       const passwordHash = await hashPassword(input.password);
       const found = await inviteUser(input.token);
       if (!found || !(await consumeInvite(found.inviteId))) {
