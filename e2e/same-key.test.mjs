@@ -154,3 +154,21 @@ test("the native menu bar names the running timer's own issue, not the same key'
       assert.equal(tray.summary, "Same key on GitHub");
     },
   ));
+
+test("deleting an entry another device has just removed counts as done, not as a failure", { timeout: 600_000 }, async () => {
+  await awayFromMidnight();
+  return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
+    const y = new Date(Date.now() - 86_400_000);
+    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    await page.goto(base + "/timesheet");
+    await page.getByRole("button", { name: "Pick a date" }).click();
+    await page.getByLabel("Go to day").fill(day);
+    await page.getByRole("button", { name: "Delete DEMO-101" }).first().waitFor();
+    // Gone meanwhile (a sync, another device), still on screen here.
+    await db.q("DELETE FROM worklogs");
+    await page.getByRole("button", { name: "Delete DEMO-101" }).first().click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+    await page.getByText("Worklog deleted").first().waitFor();
+    assert.equal(await page.getByText(/not deleted/i).count(), 0);
+  });
+});

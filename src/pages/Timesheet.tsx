@@ -18,6 +18,7 @@ import {
 import { useUrlFields } from "@/hooks/useUrlState";
 import { day, flag, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { toast } from "sonner";
+import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import {
   addDays,
@@ -359,6 +360,8 @@ export default function Timesheet() {
         // By its id: its key may be on two trackers.
         await del.mutateAsync({ id: w.id });
       } catch (e) {
+        // Already gone (a sync, another device): what was asked is done.
+        if (e instanceof TRPCClientError && (e.data as { code?: string } | undefined)?.code === "NOT_FOUND") continue;
         failed.push(w);
         reason ||= e instanceof Error ? e.message : String(e);
       }
