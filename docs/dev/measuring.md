@@ -73,8 +73,9 @@ node scripts/bundle-size.mjs --md   # the summary table
 | Zod kept to the settings page | 997.9 | 314.6 |
 | Dialog bodies on demand | 880.8 | 280.9 |
 
-All JS together went from 441.5 to 451.4 KiB gzip (38 chunks to 57): code shared by the parts
-loaded on demand splits into chunks of its own. Those are fetched when the browser is free after
+All JS together: 444.8 KiB gzip before Wave 3, 441.5 with zod kept to the settings page, 451.4
+with the dialog bodies on demand (38 chunks to 57): code shared by the parts loaded on demand
+splits into chunks of its own. Those are fetched when the browser is free after
 start, so the total transferred grows a little while the first load shrinks.
 
 ## Queries per scenario
@@ -151,6 +152,9 @@ and without, on the production bundle as it ships.
   - A component rendered in a commit when it is new or did work (React's `PerformedWork`
     flag). A subtree React left as it was (its children the same fibers as before) is not
     walked.
+  - Edges: a component whose function ran and then bailed out (nothing changed) is not
+    counted; a `memo` around a forwardRef or class (tag 14) counts with its inner component,
+    twice. The app's own `memo`s wrap plain functions (tag 15, counted once).
   - Each render is attributed to the region (`main`, `nav`, `aside`, a dialog) and element it
     draws, so a number can be traced to what ticks.
 - **What it depends on:** React's internals, not a public API: the hook's `inject` and

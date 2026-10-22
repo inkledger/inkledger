@@ -19,7 +19,8 @@ function whenIdle(run: () => void) {
  * A part of the shell drawn only on demand (a dialog's body), kept out of the first
  * load: its code is fetched when the browser is free after start, so opening it is
  * still immediate. If its code never arrives (a redeploy, the network), the error
- * card shows in its place with "Reload", never instead of the whole app.
+ * card shows in its place with "Reload", never instead of the whole app. As for a page,
+ * only a reload fetches it again: the browser keeps a module that failed to load.
  */
 export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> {
   let pending: Promise<{ default: ComponentType<P> }> | undefined;
