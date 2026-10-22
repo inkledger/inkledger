@@ -83,6 +83,27 @@ describe("queries per pass of the worklog feed", () => {
     return { b, ids, conn: { id: connId, userId, remoteAccountId: "me" } };
   }
 
+  it("a pass of 20 entries: all new, all known, five gone", async () => {
+    const { syncEntries } = await import("./worklogs");
+    const { b, ids, conn } = await feedOf(20);
+    const counter = countQueries();
+    try {
+      const first = await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
+      expect(first.upserted).toBe(20);
+      expect(counter.n).toBeLessThanOrEqual(MEASURED.allNew[20]);
+      counter.reset();
+      await syncEntries(b, conn, { since: null, meta, budget: unlimited, zone });
+      expect(counter.n).toBeLessThanOrEqual(MEASURED.allKnown[20]);
+      for (const id of ids.slice(0, 5)) await b.worklogs!.delete!(meta, ref, id, {});
+      counter.reset();
+      const gone = await syncEntries(b, conn, { since: first.checkpoint, meta, budget: unlimited, zone });
+      expect(gone.removed).toBe(5);
+      expect(counter.n).toBeLessThanOrEqual(MEASURED.gone[5]);
+    } finally {
+      counter.stop();
+    }
+  });
+
   for (const n of [10, 20, 40] as const) {
     it(`a pass of ${n} entries, all new then all known`, async () => {
       const { syncEntries } = await import("./worklogs");
