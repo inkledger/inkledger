@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateBounds, daySpan, formatQuery, parseQuery, priorityRankOfValue, queryText } from "@contracts/query";
+import { dateBounds, daySpan, formatQuery, parseQuery, priorityRankOfValue, queryFieldNames, queryText } from "@contracts/query";
 
 const p = (s: string) => parseQuery(s).expr;
 
@@ -83,5 +83,24 @@ describe("query language", () => {
     expect(parseQuery("-preferite").expr).toEqual({ kind: "not", item: { kind: "field", field: "is", op: "=", value: "favorite" } });
     expect(parseQuery('"osservata"').expr).toEqual({ kind: "text", text: "osservata" });
     expect(parseQuery("aperta").expr).toEqual({ kind: "text", text: "aperta" });
+  });
+});
+
+describe("queryFieldNames", () => {
+  it("names every field once per language, and each name is read as a field", () => {
+    for (const lang of ["en", "it"] as const) {
+      const names = queryFieldNames(lang);
+      expect(new Set(names.map(n => n.field)).size).toBe(names.length);
+      for (const { field, name } of names) {
+        // Known as a field: read as one, or its value refused (some take dates, categories,
+        // flags); never left as plain text.
+        const r = parseQuery(`${name}:x`);
+        const asField = r.expr?.kind === "field" ? r.expr.field === field : r.warnings.some(w => w.code === "badValue");
+        expect(asField, `${lang} ${name}`).toBe(true);
+        expect(r.warnings.some(w => w.code === "unknownField"), `${lang} ${name}`).toBe(false);
+      }
+    }
+    expect(queryFieldNames("en").map(n => n.field)).toEqual(queryFieldNames("it").map(n => n.field));
+    expect(parseQuery("zzz:x").warnings.map(w => w.code)).toEqual(["unknownField"]);
   });
 });
