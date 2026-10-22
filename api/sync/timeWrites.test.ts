@@ -146,6 +146,23 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     await caller.worklogs.delete({ id: made.id });
   });
 
+  it("a lost answer's replay never takes a twin's entry: an older worklog with the same time keeps its own", async () => {
+    const started2 = "2026-10-18T09:00:00+02:00";
+    const twin = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: started2, comment: "twin" });
+    const twinEntry = (await sinkOf(twin.id))?.remote_id;
+    expect(twinEntry).toBeTruthy();
+    tracker.loseAnswer = true;
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: started2, comment: "mine" });
+    tracker.loseAnswer = false;
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    const rows = (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => w.id === twin.id || w.id === made.id);
+    expect(rows.map((w) => w.id).sort()).toEqual([twin.id, made.id].sort());
+    expect((await sinkOf(twin.id))?.remote_id).toBe(twinEntry);
+    expect((await sinkOf(made.id))?.remote_id).not.toBe(twinEntry);
+    await caller.worklogs.delete({ id: made.id });
+    await caller.worklogs.delete({ id: twin.id });
+  });
+
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "to lock" });
     await q("UPDATE worklog_sinks SET locked = ? WHERE worklog_id = ?", JSON.stringify({ cause: "approved", message: "Approved by the team lead" }), made.id);
