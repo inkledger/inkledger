@@ -58,8 +58,12 @@ describe("GET /api/events", () => {
   it("a stream whose session ends (signed out, turned off, reset) gets nothing more and closes", async () => {
     const { publish, streamCount } = await import("./lib/userEvents");
     const { userFromRequest } = await import("./context");
-    const { user, sessionId } = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
-    const res = await app.request("/api/events", { headers: { cookie } });
+    // A session of its own (the others' stays): signed in again.
+    const resHeaders = new Headers();
+    await jiraSignIn({ req: new Request("http://localhost/"), resHeaders }, { siteUrl: "https://acme.atlassian.net", deployment: "cloud", authType: "basic", username: "m@x.it", secret: "t" });
+    const own = (resHeaders.get("set-cookie") ?? "").split(";")[0];
+    const { user, sessionId } = await userFromRequest(new Request("http://localhost/", { headers: { cookie: own } }));
+    const res = await app.request("/api/events", { headers: { cookie: own } });
     const reader = res.body!.getReader();
     const text = new TextDecoder();
     let got = "";
