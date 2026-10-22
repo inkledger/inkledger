@@ -4,7 +4,8 @@ import { ArrowLeftRight, Pause, Play, Square, X } from "lucide-react";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
 import { TimerNote } from "@/components/TimerNote";
-import { clockTime, formatHMS } from "@contracts/time";
+import { formatHMS } from "@contracts/time";
+import { timeOfDay } from "@/lib/dates";
 import { useLiveState } from "@/lib/liveEvents";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { Button } from "@/components/ui/button";
@@ -100,7 +101,7 @@ export function TimerControls({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {t("ui.timer.elsewhere", { device: owner, time: timer?.runningSince ? clockTime(timer.runningSince) : "" })}
+            {t("ui.timer.elsewhere", { device: owner, time: timer?.runningSince ? timeOfDay(timer.runningSince) : "" })}
           </TooltipContent>
         </Tooltip>
       ) : !running ? (
@@ -204,7 +205,7 @@ export function TimerWhere({ issueKey, connectionId, className }: { issueKey: st
       {timer.heldElsewhere ? (
         <>
           <p className="font-medium">
-            {t("ui.timer.elsewhere", { device, time: timer.runningSince ? clockTime(timer.runningSince) : "" })}
+            {t("ui.timer.elsewhere", { device, time: timer.runningSince ? timeOfDay(timer.runningSince) : "" })}
           </p>
           <p className="text-muted-foreground">{t("ui.timer.elsewhereHint")}</p>
         </>
@@ -212,7 +213,7 @@ export function TimerWhere({ issueKey, connectionId, className }: { issueKey: st
         <p>
           {t("ui.timer.orphaned", {
             device,
-            time: timer.leaseUntil ? clockTime(timer.leaseUntil.getTime() - TIMER_LEASE_MS) : "",
+            time: timer.leaseUntil ? timeOfDay(timer.leaseUntil.getTime() - TIMER_LEASE_MS) : "",
           })}
         </p>
       )}

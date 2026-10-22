@@ -18,8 +18,6 @@ export type { WorkDay } from "./workScheduleSchema";
 export type WorkSchedule = WorkDay[];
 export type ScheduleVersion = { validFrom: string; schedule: WorkSchedule };
 
-export const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"] as const;
-
 /** First version's date: covers every past day. */
 export const EPOCH_DAY = "1970-01-01";
 

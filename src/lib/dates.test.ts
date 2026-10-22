@@ -46,4 +46,17 @@ describe("civil-time formats", () => {
     expect(() => timeOfDay(Number.NaN)).toThrow(RangeError);
     expect(() => dayAndTime(Number.NaN)).toThrow(RangeError);
   });
+
+  it("timeOfDay is the local HH:MM in both languages, every minute of a day and across both DST changes", () => {
+    const hand = (t: Date) => `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+    for (const l of ["en", "it"] as const) {
+      inLocale(l);
+      for (const day of [new Date(2026, 9, 22), new Date(2026, 2, 29), new Date(2026, 9, 25)]) {
+        for (let m = 0; m < 1440; m++) {
+          const t = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m);
+          expect(timeOfDay(t)).toBe(hand(t));
+        }
+      }
+    }
+  });
 });

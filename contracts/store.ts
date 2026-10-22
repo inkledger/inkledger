@@ -13,7 +13,6 @@ export type { StoreItem } from "./storeSchema";
  */
 
 export const STORE_MODES = ["request", "paid", "soon"] as const;
-export type StoreMode = (typeof STORE_MODES)[number];
 
 /** Icons a highlight may name (mapped to lucide icons in the page). */
 export const STORE_ICONS = ["carrot", "sprout", "shirt", "trophy", "sun", "shield", "sparkles", "heart", "moon", "calendar"] as const;

@@ -34,16 +34,11 @@ export type Path<T> = {
 }[keyof T & string];
 
 let source: () => Locale | undefined = () => undefined;
-let fallback: Locale = DEFAULT_LOCALE;
+const fallback: Locale = DEFAULT_LOCALE;
 
 /** Where the current locale comes from (the browser store, the server request). */
 export function setLocaleSource(fn: () => Locale | undefined): void {
   source = fn;
-}
-
-/** The locale when the source has none (tests pin Italian here). */
-export function setFallbackLocale(locale: Locale): void {
-  fallback = locale;
 }
 
 export function currentLocale(): Locale {

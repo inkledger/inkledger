@@ -60,7 +60,6 @@ export type ProviderType = TrackerType | TimeSinkType;
 export type RoleOf<T extends ProviderType> = T extends TrackerType ? "tracker" : "timeSink";
 
 export const isTimeSinkType = (t: ProviderType): t is TimeSinkType => (TIME_SINK_TYPES as readonly ProviderType[]).includes(t);
-export const isTrackerType = (t: ProviderType): t is TrackerType => (TRACKER_TYPES as readonly ProviderType[]).includes(t);
 /** The role of a type (the cast is the type system's limit on conditional returns). */
 export const roleOf = <T extends ProviderType>(t: T): RoleOf<T> => (isTimeSinkType(t) ? "timeSink" : "tracker") as RoleOf<T>;
 
@@ -79,17 +78,6 @@ export type BuildStatus = z.infer<typeof buildStatusSchema>;
  */
 export const STATUS_CATEGORIES = ["triage", "backlog", "todo", "doing", "done", "cancelled"] as const;
 export type StatusCategory = (typeof STATUS_CATEGORIES)[number];
-
-/** Not started yet. */
-export const isInitialCategory = (c: StatusCategory) => c === "triage" || c === "backlog" || c === "todo";
-/** Being worked on. */
-export const isActiveCategory = (c: StatusCategory) => c === "doing";
-/** Finished well. */
-export const isCompletedCategory = (c: StatusCategory) => c === "done";
-/** Finished without being done (won't do, duplicate, dropped). */
-export const isCancelledCategory = (c: StatusCategory) => c === "cancelled";
-/** Finished, whichever way. */
-export const isTerminalCategory = (c: StatusCategory) => c === "done" || c === "cancelled";
 
 /**
  * The kinds of place a tracker can keep an item's workflow, and how an item
@@ -117,8 +105,6 @@ export const workflowSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("boolean"), transitions: z.literal("direct"), reasons: z.boolean() }),
 ]);
 export type WorkflowSource = z.infer<typeof workflowSourceSchema>;
-export type StatusSourceKind = WorkflowSource["kind"];
-export type TransitionMode = WorkflowSource["transitions"];
 
 // ---------- Texts ----------
 
@@ -407,15 +393,6 @@ export type TimeSinkCapabilities = z.infer<typeof timeSinkCapabilitiesSchema>;
 export const timeSinkTraitsSchema = z.strictObject({ invoices: z.boolean(), rates: z.boolean() });
 export type TimeSinkTraits = z.infer<typeof timeSinkTraitsSchema>;
 
-/** The first reference strategy of a sink that the caller can provide (compatibility with the tracker is checked after). */
-export function pickReference(c: TimeSinkCapabilities, available: readonly SinkReference[]): SinkReference | null {
-  return c.references.find((r) => available.includes(r)) ?? null;
-}
-
-/** Capabilities and traits by role, at the type level (values stay per provider, in the registry). */
-export type CapabilitiesOf<T extends ProviderType> = T extends TrackerType ? TrackerCapabilities : TimeSinkCapabilities;
-export type TraitsOf<T extends ProviderType> = T extends TrackerType ? TrackerTraits : TimeSinkTraits;
-
 // ---------- Connections ----------
 
 /**
@@ -476,4 +453,3 @@ export const connectionSummarySchema = z.discriminatedUnion("role", [
   z.strictObject({ ...summaryFields, role: z.literal("tracker"), type: z.enum(TRACKER_TYPES), capabilities: trackerCapabilitiesSchema }).refine(coherent, "status and error disagree"),
   z.strictObject({ ...summaryFields, role: z.literal("timeSink"), type: z.enum(TIME_SINK_TYPES), capabilities: timeSinkCapabilitiesSchema }).refine(coherent, "status and error disagree"),
 ]);
-export type ConnectionSummary = z.infer<typeof connectionSummarySchema>;

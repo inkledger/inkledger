@@ -5,9 +5,6 @@ import type { StatusCategory } from "./providers";
 
 export const CATEGORY_ORDER: readonly StatusCategory[] = ["triage", "backlog", "todo", "doing", "done", "cancelled"];
 
-const known = new Set<string>(CATEGORY_ORDER);
-export const isCategory = (v: string): v is StatusCategory => known.has(v);
-
 /** Finished one way or the other (`cat:closed`): done or cancelled. */
 export const isClosed = (c: string) => c === "done" || c === "cancelled";
 

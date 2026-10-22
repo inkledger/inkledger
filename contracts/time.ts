@@ -74,11 +74,6 @@ export function formatSeconds(totalSeconds: number, o: { days?: boolean } = {}):
   return parts.length > 0 ? parts.join(" ") : "0m";
 }
 
-/** Hours with the locale's decimals, e.g. 5400 → "1.5h" ("1,5h" in Italian). */
-export function formatHours(totalSeconds: number): string {
-  return `${numberFormat({ maximumFractionDigits: 1 }).format(totalSeconds / 3600)}h`;
-}
-
 /** Long human duration, e.g. 27600 → "7 h 40 min", 2400 → "40 min". */
 export function formatDurationLong(totalSeconds: number): string {
   const minutes = Math.round(Math.max(0, totalSeconds) / 60);
@@ -136,12 +131,6 @@ export function toJiraStarted(date: Date): string {
 // the Docker container inherits the host zone (docker-compose.yml).
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-
-/** Local clock time of `date` as "HH:MM". */
-export function clockTime(date: Date | number): string {
-  const d = new Date(date);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
 
 /** Local calendar day of `date` as "YYYY-MM-DD". */
 export function dayKey(date: Date): string {

@@ -250,7 +250,7 @@ A service with `feed none` can still sync when it supports period reconciliation
 
 #### Time sinks: references and targets
 
-**References.** A sink entry has to point back to its issue. The strategies, listed in order of preference (the order is behaviour; `pickReference` takes the first one that fits):
+**References.** A sink entry has to point back to its issue. The strategies, listed in order of preference:
 - `external`: an external reference field (Harvest `external_reference`);
 - `issueId`: the tracker's issue id itself (Tempo);
 - `projectTask`: the project/task the entry is filed under;

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   parseDurationToSeconds,
   formatSeconds,
-  formatHours,
   formatDurationLong,
   formatDuration,
   formatDate,
@@ -81,13 +80,6 @@ describe("formatSeconds", () => {
     for (const v of values) {
       expect(parseDurationToSeconds(formatSeconds(v))).toBe(v);
     }
-  });
-});
-
-describe("formatHours", () => {
-  it("formats decimal hours", () => {
-    expect(formatHours(3600)).toBe("1h");
-    expect(formatHours(5400)).toBe("1.5h");
   });
 });
 

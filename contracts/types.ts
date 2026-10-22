@@ -1,4 +1,3 @@
-export * from "./errors";
 export * from "./time";
 
 export type JiraDeployment = "cloud" | "server";
@@ -15,15 +14,6 @@ export type JiraCredentials = {
   secret: string;
   /** "basic" = Basic auth; "bearer" = Personal Access Token (Server/DC 8.14+ only) */
   authType: JiraAuthType;
-};
-
-export type SessionUser = {
-  id: number;
-  siteUrl: string;
-  accountId: string;
-  email: string;
-  displayName: string;
-  avatarUrl: string | null;
 };
 
 export const SESSION_COOKIE = "ikl_session";

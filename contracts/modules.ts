@@ -26,8 +26,6 @@ export const PACKAGE_CONTEXT = "inkledger-package-v1\n";
 export const LICENSE_VERSION = 1;
 export const MANIFEST_FILE = "manifest.json";
 export const SIGNATURE_FILE = "manifest.sig";
-/** An uploaded bundle (seal pack): JSON with every file in base64. */
-export const BUNDLE_EXTENSION = ".iklmod";
 export const BUNDLE_MAX_BYTES = 2 * 1024 * 1024;
 
 export type { LicensePayload, ModuleManifest } from "./modulesSchema";
