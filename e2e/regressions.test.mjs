@@ -1078,6 +1078,6 @@ test("a change that never reaches the server says so in the user's words, not th
     // The request cut on its way: the browser's own failure ("Failed to fetch").
     await page.route(u => new URL(u).pathname.includes("issues.toggleFavorite"), route => route.abort("failed"));
     await star.click();
-    await page.getByText("The server can’t be reached: check the connection and try again.").waitFor();
+    await page.getByText("The server can’t be reached. Check the connection and try again.").waitFor();
     assert.equal(await page.getByText(/Failed to fetch|TRPCClientError/).count(), 0, "no browser or library words");
   }));

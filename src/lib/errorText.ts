@@ -1,6 +1,7 @@
 import { TRPCClientError } from "@trpc/client";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { APP_BUILD_CHANGED } from "@contracts/appBuild";
 
 /**
  * An error written for the person using the app (already in their words): shown as it is.
@@ -21,8 +22,9 @@ const offline = () => typeof navigator !== "undefined" && navigator.onLine === f
 export function errorKind(e: unknown): ErrorKind {
   if (e instanceof TRPCClientError) {
     // The server answered with its own error: its words are meant to be read (internal
-    // faults already come back in general words, the details in its log).
-    if (e.data) return "said";
+    // faults already come back in general words, the details in its log). Save the signal
+    // that a newer build is serving, which reloads the page: a code, not words.
+    if (e.data) return e.message === APP_BUILD_CHANGED ? "other" : "said";
     // No answer of the server's: why the request failed, from what it carries.
     const cause = errorKind(e.cause);
     if (cause === "network" || cause === "timeout") return cause;
@@ -51,9 +53,16 @@ export function errorText(e: unknown): string {
   return t("ui.error.failed");
 }
 
-/** A fault's details for the console (general words are what the person sees). */
+const logged = new WeakSet<object>();
+
+/** A fault's details for the console (general words are what the person sees), once per error however many report it. */
 export function logFault(e: unknown): void {
-  if (errorKind(e) === "other") console.error(e);
+  if (errorKind(e) !== "other") return;
+  if (typeof e === "object" && e !== null) {
+    if (logged.has(e)) return;
+    logged.add(e);
+  }
+  console.error(e);
 }
 
 /** A failure shown other than as a toast (in a form, inside a sentence): its words, a fault's details to the console. */

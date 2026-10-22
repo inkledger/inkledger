@@ -1,6 +1,6 @@
 import { TRPCClientError } from "@trpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { errorKind, errorText, failureText, toastError, UserFacingError } from "./errorText";
+import { errorKind, errorText, failureText, logFault, toastError, UserFacingError } from "./errorText";
 
 const toastSpy = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastSpy } }));
@@ -81,5 +81,22 @@ describe("errorText", () => {
     } finally {
       log.mockRestore();
     }
+  });
+
+  it("a fault reported twice (the query cache, then a toast) is logged once", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const e = new Error("x is undefined");
+      logFault(e);
+      toastError(e);
+      expect(log).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("the new-build signal is a code, never shown as words", () => {
+    expect(errorKind(fromServer("APP_BUILD_CHANGED", "CONFLICT"))).toBe("other");
+    expect(errorText(fromServer("APP_BUILD_CHANGED", "CONFLICT"))).toBe("<ui.error.failed>");
   });
 });

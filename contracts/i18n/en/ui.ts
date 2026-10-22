@@ -337,9 +337,9 @@ export const ui = {
   },
   error: {
     unknown: "Unknown error",
-    network: "The server can’t be reached: check the connection and try again.",
-    timeout: "The server took too long to answer: try again.",
-    failed: "Something went wrong: try again.",
+    network: "The server can’t be reached. Check the connection and try again.",
+    timeout: "The server took too long to answer. Try again.",
+    failed: "Something went wrong. Try again.",
     title: "Something went wrong",
     body: "Reload the page: if a new version has just been released, it will be loaded.",
     reload: "Reload",

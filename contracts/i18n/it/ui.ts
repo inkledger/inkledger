@@ -338,9 +338,9 @@ export const ui: Shape<typeof en> = {
   },
   error: {
     unknown: "Errore sconosciuto",
-    network: "Il server non è raggiungibile: controlla la connessione e riprova.",
-    timeout: "Il server non ha risposto in tempo: riprova.",
-    failed: "Qualcosa è andato storto: riprova.",
+    network: "Il server non è raggiungibile. Controlla la connessione e riprova.",
+    timeout: "Il server non ha risposto in tempo. Riprova.",
+    failed: "Qualcosa è andato storto. Riprova.",
     title: "Qualcosa è andato storto",
     body: "Ricarica la pagina: se è appena uscita una nuova versione, verrà caricata quella.",
     reload: "Ricarica",
