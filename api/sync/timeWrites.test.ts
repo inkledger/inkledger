@@ -163,6 +163,24 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     await caller.worklogs.delete({ id: twin.id });
   });
 
+  it("a lost answer's replay never takes a newer twin's entry either: one logged while it was queued keeps its own", async () => {
+    const started3 = "2026-10-19T09:00:00+02:00";
+    tracker.offline = true;
+    const queued = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: started3, comment: "queued" });
+    tracker.offline = false;
+    const twin = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: started3, comment: "twin" });
+    expect(twin.id).toBeGreaterThan(queued.id);
+    const twinEntry = (await sinkOf(twin.id))?.remote_id;
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    const ids = (await caller.worklogs.list({ issueKey: "FAKE-1" })).map((w) => w.id);
+    expect(ids).toContain(twin.id);
+    expect(ids).toContain(queued.id);
+    expect((await sinkOf(twin.id))?.remote_id).toBe(twinEntry);
+    expect((await sinkOf(queued.id))?.remote_id).not.toBe(twinEntry);
+    await caller.worklogs.delete({ id: queued.id });
+    await caller.worklogs.delete({ id: twin.id });
+  });
+
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "to lock" });
     await q("UPDATE worklog_sinks SET locked = ? WHERE worklog_id = ?", JSON.stringify({ cause: "approved", message: "Approved by the team lead" }), made.id);

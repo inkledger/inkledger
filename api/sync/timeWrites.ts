@@ -164,14 +164,16 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
-      .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
+      .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds, comment: worklogs.comment })
       .from(worklogSinks)
       .innerJoin(worklogs, eq(worklogs.id, worklogSinks.worklogId))
       .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
       .limit(1);
-    // Another worklog's entry: only its copy a sync read back meanwhile (a worklog made after
-    // ours, the same time) is ours to take; an older one with the same time is a twin, never taken.
-    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
+    // Another worklog's entry: only its copy a sync read back meanwhile is ours to take (made
+    // after ours, with our entry's time and comment, since it is our entry); a twin the user
+    // logged, older, or with words of its own, keeps it. (A newer twin identical even in its
+    // comment can't be told from that copy.)
+    if (linked && linked.id !== local.id && (linked.id < local.id || linked.comment !== local.comment || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     return true;
   }
