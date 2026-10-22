@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { WorklogSinkState } from "@/components/issue/WorklogSinkState";
 import { OtherFields } from "@/components/issue/OtherFields";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
@@ -335,7 +335,7 @@ export default function IssueDetail({
           />
         ) : (
           <ErrorState
-            message={issue.error?.message}
+            message={issue.error ? errorText(issue.error) : undefined}
             onRetry={() => issue.refetch()}
             className="py-20"
           />
@@ -566,7 +566,7 @@ export default function IssueDetail({
                     </div>
                   ) : transitions.error ? (
                     <div className="px-2 py-1.5 text-body-sm text-danger">
-                      {transitions.error.message}
+                      {errorText(transitions.error)}
                     </div>
                   ) : transitions.data?.every(
                       tr => tr.toStatus === i.status
@@ -782,7 +782,7 @@ export default function IssueDetail({
               </div>
             ) : logs.error ? (
               <ErrorState
-                message={logs.error.message}
+                message={errorText(logs.error)}
                 onRetry={() => logs.refetch()}
               />
             ) : logRows.length === 0 ? (

@@ -1,4 +1,4 @@
-import { toastError, failureText } from "@/lib/errorText";
+import { toastError, failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ViewScope } from "@/components/ViewScope";
@@ -656,7 +656,7 @@ export default function Timesheet() {
             <Skeleton className="h-80" />
           ) : logs.error ? (
             <ErrorState
-              message={logs.error.message}
+              message={errorText(logs.error)}
               onRetry={() => logs.refetch()}
             />
           ) : (
@@ -677,7 +677,7 @@ export default function Timesheet() {
             <Skeleton className="h-64 rounded-xl" />
           ) : logs.error ? (
             <ErrorState
-              message={logs.error.message}
+              message={errorText(logs.error)}
               onRetry={() => logs.refetch()}
             />
           ) : (
@@ -739,7 +739,7 @@ export default function Timesheet() {
             <Skeleton className="h-96" />
           ) : logs.error ? (
             <ErrorState
-              message={logs.error.message}
+              message={errorText(logs.error)}
               onRetry={() => logs.refetch()}
             />
           ) : (

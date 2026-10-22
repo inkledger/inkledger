@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { useState } from "react";
@@ -91,7 +91,7 @@ export function TrackerSearchPanel() {
       ) : search.error ? (
         <ErrorState
           title={t("views.issues.search.failed", { provider })}
-          message={search.error.message}
+          message={errorText(search.error)}
           onRetry={() => search.refetch()}
           className="py-6"
         />

@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 import { formatDate } from "@contracts/time";
@@ -25,7 +26,7 @@ export function DevicesSection() {
   if (info.isPending) return <Skeleton className="m-6 h-64" />;
   if (info.error)
     return (
-      <ErrorState message={info.error.message} onRetry={() => info.refetch()} />
+      <ErrorState message={errorText(info.error)} onRetry={() => info.refetch()} />
     );
   const hosts = info.data.tailnetOrigins;
   const link = installUrl(hosts, window.location.origin);

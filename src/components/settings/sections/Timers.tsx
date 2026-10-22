@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { idleDetectionSupported, requestIdlePermission } from "@/hooks/useIdleDetection";
@@ -29,7 +30,7 @@ export function TimersSection() {
   }, []);
 
   if (query.error)
-    return <ErrorState message={query.error.message} onRetry={() => void query.refetch()} />;
+    return <ErrorState message={errorText(query.error)} onRetry={() => void query.refetch()} />;
   if (!data) return <Skeleton className="m-6 h-48" />;
 
   return (

@@ -1,4 +1,4 @@
-import { failureText } from "@/lib/errorText";
+import { failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
 import { useMemo, useState } from "react";
@@ -562,7 +562,7 @@ export default function Dashboard() {
                 <Skeleton className="h-64 rounded-xl" />
               ) : logs.error ? (
                 <ErrorState
-                  message={logs.error.message}
+                  message={errorText(logs.error)}
                   onRetry={() => logs.refetch()}
                 />
               ) : range.kind === "day" ? (
@@ -591,7 +591,7 @@ export default function Dashboard() {
               <Skeleton className="h-64 rounded-xl" />
             ) : stats.error ? (
               <ErrorState
-                message={stats.error.message}
+                message={errorText(stats.error)}
                 onRetry={() => stats.refetch()}
               />
             ) : (
@@ -656,7 +656,7 @@ export default function Dashboard() {
                 <Skeleton className="h-80" />
               ) : logs.error ? (
                 <ErrorState
-                  message={logs.error.message}
+                  message={errorText(logs.error)}
                   onRetry={() => logs.refetch()}
                 />
               ) : (
@@ -714,7 +714,7 @@ export default function Dashboard() {
                     <Skeleton className="h-72" />
                   ) : issues.error ? (
                     <ErrorState
-                      message={issues.error.message}
+                      message={errorText(issues.error)}
                       onRetry={() => issues.refetch()}
                     />
                   ) : (
@@ -732,7 +732,7 @@ export default function Dashboard() {
                     <Skeleton className="h-48" />
                   ) : recent.error ? (
                     <ErrorState
-                      message={recent.error.message}
+                      message={errorText(recent.error)}
                       onRetry={() => recent.refetch()}
                     />
                   ) : (
@@ -751,7 +751,7 @@ export default function Dashboard() {
             <Skeleton className="h-28" />
           ) : recent.error ? (
             <ErrorState
-              message={recent.error.message}
+              message={errorText(recent.error)}
               onRetry={() => recent.refetch()}
             />
           ) : (

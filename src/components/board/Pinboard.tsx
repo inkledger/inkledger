@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -505,7 +505,7 @@ export function Pinboard({
         >
           {list.error ? (
             <div className="grid h-full place-items-center">
-              <ErrorState message={list.error.message} onRetry={() => void list.refetch()} />
+              <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
             </div>
           ) : (
             <div

@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { Laptop, Smartphone } from "lucide-react";
@@ -31,7 +32,7 @@ export default function Info() {
       <>
         <PageHeader title={t("pages.info.title")} description={t("pages.info.description")} />
         {info.error ? (
-          <ErrorState message={info.error.message} onRetry={() => void info.refetch()} />
+          <ErrorState message={errorText(info.error)} onRetry={() => void info.refetch()} />
         ) : (
           <Skeleton className="m-6 h-64" />
         )}

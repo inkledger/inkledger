@@ -1,4 +1,4 @@
-import { failureText } from "@/lib/errorText";
+import { failureText, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
@@ -168,7 +168,7 @@ export function TransitionDialog({
           list.isPending ? (
             <Spinner className="h-5 w-5" />
           ) : (
-            <FormError message={list.error?.message ?? null} />
+            <FormError message={list.error ? errorText(list.error) : null} />
           )
         ) : (
           <>

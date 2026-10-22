@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { BellOff } from "lucide-react";
 import { dayKey } from "@contracts/time";
 import { notificationCenter } from "@/lib/flag";
@@ -69,7 +70,7 @@ export function NotificationCenter() {
             </div>
           ) : query.error ? (
             <ErrorState
-              message={query.error.message}
+              message={errorText(query.error)}
               onRetry={() => void query.refetch()}
             />
           ) : items.length === 0 ? (

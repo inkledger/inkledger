@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../api/router";
 import { useMemo, useState } from "react";
@@ -513,7 +513,7 @@ export default function Board() {
       </div>
     );
   } else if (query.error) {
-    body = <ErrorState message={query.error.message} onRetry={() => query.refetch()} />;
+    body = <ErrorState message={errorText(query.error)} onRetry={() => query.refetch()} />;
   } else if ((rows ?? []).length === 0 && (mode !== "lanes" || lanes.length < 2)) {
     body = <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.emptyMessage", { provider })} />;
   } else {

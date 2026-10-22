@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
 import { useNavigate } from "react-router";
@@ -142,7 +142,7 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
       {notes.isPending ? (
         <Skeleton className="h-16" />
       ) : notes.error ? (
-        <ErrorState message={notes.error.message} onRetry={() => notes.refetch()} />
+        <ErrorState message={errorText(notes.error)} onRetry={() => notes.refetch()} />
       ) : notes.data.length === 0 ? (
         <EmptyState art="chat" title={t("views.issue.privateNotes.empty")} className="py-4" />
       ) : (

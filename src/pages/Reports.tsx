@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ViewScope } from "@/components/ViewScope";
@@ -284,7 +285,7 @@ export default function Reports() {
         {header}
         <PanelSection>
           <ErrorState
-            message={failed.message}
+            message={errorText(failed)}
             onRetry={() => {
               void report.refetch();
               void byDay.refetch();

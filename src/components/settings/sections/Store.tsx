@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { FileKey, Grid3x3, LayoutGrid, Store } from "lucide-react";
 import { toast } from "sonner";
@@ -121,7 +121,7 @@ export function StoreSection() {
         }
       >
         {catalog.error ? (
-          <ErrorState message={catalog.error.message} onRetry={() => void catalog.refetch()} />
+          <ErrorState message={errorText(catalog.error)} onRetry={() => void catalog.refetch()} />
         ) : !catalog.data?.enabled ? (
           <EmptyState icon={Store} title={t("settings.store.offTitle")} message={t("settings.store.off")} />
         ) : entries.length === 0 && others.length === 0 ? (

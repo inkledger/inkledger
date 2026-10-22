@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import {
   ArrowRight,
   History,
@@ -87,7 +88,7 @@ function HistoryBody({ issueKey, connectionId }: { issueKey: string; connectionI
           </div>
         ) : history.error ? (
           <ErrorState
-            message={history.error.message}
+            message={errorText(history.error)}
             onRetry={() => void history.refetch()}
           />
         ) : events.length === 0 ? (

@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
 import { Send } from "lucide-react";
@@ -95,7 +95,7 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
         </div>
       ) : comments.error ? (
         <ErrorState
-          message={comments.error.message}
+          message={errorText(comments.error)}
           onRetry={() => comments.refetch()}
         />
       ) : comments.data.length === 0 ? (

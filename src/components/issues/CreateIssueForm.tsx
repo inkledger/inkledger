@@ -1,4 +1,4 @@
-import { failureText } from "@/lib/errorText";
+import { failureText, errorText } from "@/lib/errorText";
 import { useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
@@ -162,7 +162,7 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
             </Select>
             {targets.error && (
               <p role="alert" className="text-caption text-danger">
-                {targets.error.message}
+                {errorText(targets.error)}
               </p>
             )}
           </div>
@@ -195,7 +195,7 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
               </Select>
               {types.error && (
                 <p role="alert" className="text-caption text-danger">
-                  {types.error.message}
+                  {errorText(types.error)}
                 </p>
               )}
             </div>

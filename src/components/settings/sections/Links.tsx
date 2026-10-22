@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { Globe, Plus, Trash2 } from "lucide-react";
 import { useAllowedLinks } from "@/hooks/useAllowedLinks";
@@ -23,7 +24,7 @@ export function LinksSection() {
     );
 
   if (loading) return <Skeleton className="m-6 h-40" />;
-  if (loadError) return <ErrorState message={loadError.message} onRetry={() => void refetch()} />;
+  if (loadError) return <ErrorState message={errorText(loadError)} onRetry={() => void refetch()} />;
   return (
     <SettingsGroup
       id="links-allowed"

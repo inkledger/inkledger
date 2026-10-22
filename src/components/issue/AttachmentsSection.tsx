@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { attachmentUrl } from "@/lib/attachments";
 import { surface, surfaceFace } from "@/components/app/surface";
 import { useId, useRef, useState } from "react";
@@ -130,7 +131,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
         </div>
       ) : list.error ? (
         <ErrorState
-          message={list.error.message}
+          message={errorText(list.error)}
           onRetry={() => list.refetch()}
         />
       ) : list.data.length === 0 ? (

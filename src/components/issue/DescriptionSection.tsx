@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { RichText } from "@/components/app/RichText";
 import { EmptyState, ErrorState } from "@/components/app/States";
@@ -31,7 +32,7 @@ export function DescriptionSection({ issueKey, connectionId }: { issueKey: strin
   if (description.error) {
     return (
       <ErrorState
-        message={description.error.message}
+        message={errorText(description.error)}
         onRetry={() => description.refetch()}
       />
     );

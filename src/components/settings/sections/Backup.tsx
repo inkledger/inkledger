@@ -1,4 +1,4 @@
-import { toastError, failureText } from "@/lib/errorText";
+import { toastError, failureText, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { DatabaseBackup, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -67,7 +67,7 @@ export function BackupSection() {
   const [restoring, setRestoring] = useState<string | null>(null);
 
   if (info.isPending) return <Skeleton className="m-6 h-64" />;
-  if (info.error) return <ErrorState message={info.error.message} onRetry={() => info.refetch()} />;
+  if (info.error) return <ErrorState message={errorText(info.error)} onRetry={() => info.refetch()} />;
   const { settings, state, dir, writable, scheduled, next, files } = info.data;
 
   return (

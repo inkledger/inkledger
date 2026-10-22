@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, errorText } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -410,7 +410,7 @@ export default function Issues() {
                 </div>
               ) : query.error && !data ? (
                 <ErrorState
-                  message={query.error.message}
+                  message={errorText(query.error)}
                   onRetry={() => query.refetch()}
                 />
               ) : issues.length === 0 ? (
@@ -493,7 +493,7 @@ export default function Issues() {
             <Skeleton className="h-64 rounded-xl" />
           ) : all.error ? (
             <ErrorState
-              message={all.error.message}
+              message={errorText(all.error)}
               onRetry={() => all.refetch()}
             />
           ) : (

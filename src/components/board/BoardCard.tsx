@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { useRef, useState } from "react";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { trpc } from "@/lib/trpc";
@@ -123,7 +124,7 @@ export function BoardCard({
             <DropdownMenuSeparator />
             <DropdownMenuLabel>{t("views.board.card.moveTo")}</DropdownMenuLabel>
             {places === null ? (
-              <DropdownMenuItem disabled>{ways.error ? ways.error.message : t("views.board.card.loadingMoves")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>{ways.error ? errorText(ways.error) : t("views.board.card.loadingMoves")}</DropdownMenuItem>
             ) : places.length === 0 ? (
               <DropdownMenuItem disabled>{t("views.board.card.noMoves")}</DropdownMenuItem>
             ) : (
