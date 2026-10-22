@@ -168,12 +168,26 @@ async function issueByKey(creds: GiteaCreds, key: string): Promise<GiteaIssue | 
 /** A RFC 3339 instant, always in UTC ("Z"): a "+02:00" in a query string turns into a space and is refused. */
 const rfc3339 = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-async function search(creds: GiteaCreds, q: string, limit: number) {
+/**
+ * Issues matching the words that the user created, is assigned to or is mentioned in: without
+ * one of them Gitea searches every repository the token can see (every public one of the
+ * instance). The repositories the user left out are left out here too.
+ */
+async function search(creds: GiteaCreds, q: string, limit: number, excludeRepos: string[]) {
   const per = Math.min(PER_PAGE, Math.max(1, limit));
-  const p = new URLSearchParams({ q, type: "issues", state: "all", limit: String(per) });
-  const r = await gt<GiteaIssue[]>(creds, `/repos/issues/search?${p.toString()}`);
-  const items = (r?.data ?? []).filter((i) => !i.pull_request).slice(0, limit).map(toRemoteIssue);
-  return { items, complete: r !== null && r.next === null && (r.total === null || r.total <= items.length) };
+  const excluded = new Set(excludeRepos.map((full) => full.toLowerCase()));
+  const asked = await Promise.all(
+    (["created", "assigned", "mentioned"] as const).map((role) =>
+      gt<GiteaIssue[]>(creds, `/repos/issues/search?${new URLSearchParams({ q, type: "issues", state: "all", limit: String(per), [role]: "true" }).toString()}`),
+    ),
+  );
+  const byId = new Map<number, GiteaIssue>();
+  for (const r of asked) for (const i of r?.data ?? []) if (!i.pull_request && !excluded.has(repoOf(i).full.toLowerCase())) byId.set(i.id, i);
+  // Newest first, as each answer is.
+  const found = [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+  const items = found.slice(0, limit).map(toRemoteIssue);
+  const whole = asked.every((r) => r !== null && r.next === null && (r.total === null || r.total <= (r.data?.length ?? 0)));
+  return { items, complete: whole && found.length <= limit };
 }
 
 /** An entry of the user's tracked time. */
@@ -305,7 +319,7 @@ export const giteaProvider: TrackerProvider<"gitea", GiteaOptions> = {
   },
 
   async searchText(x, text, limit) {
-    return search(await credsOf(x), text.replace(/[^\p{L}\p{N}\s#/.-]/gu, " ").trim(), limit);
+    return search(await credsOf(x), text.replace(/[^\p{L}\p{N}\s#/.-]/gu, " ").trim(), limit, x.conn.options.excludeRepos);
   },
 
   async description(x, ref) {

@@ -104,7 +104,7 @@ export function giteaSimulator(
   const fullOf = (r: SimRepo) => `${r.owner}/${r.name}`;
   const repoById = (id: number) => [...repos.values()].find((r) => r.id === id) as SimRepo;
 
-  const add = (full: string, title: string, o: { assignee?: number | null; pr?: boolean; body?: string; state?: "open" | "closed" } = {}) => {
+  const add = (full: string, title: string, o: { assignee?: number | null; pr?: boolean; body?: string; state?: "open" | "closed"; author?: number } = {}) => {
     const repo = repos.get(repoKey(full)) ?? addRepo(full);
     const number = issues.filter((i) => i.repoId === repo.id).length + 1;
     const at = stamp();
@@ -117,7 +117,7 @@ export function giteaSimulator(
       title,
       body: o.body ?? null,
       state: o.state ?? "open",
-      userId: me.id,
+      userId: o.author ?? me.id,
       assignees: assignee === null ? [] : [assignee],
       labels: [],
       created: at,
@@ -224,6 +224,9 @@ export function giteaSimulator(
         .filter((i) => (type === "issues" ? !i.pr : type === "pulls" ? i.pr : true))
         .filter((i) => state === "all" || i.state === state)
         .filter((i) => url.searchParams.get("assigned") !== "true" || i.assignees.includes(doer.id))
+        .filter((i) => url.searchParams.get("created") !== "true" || i.userId === doer.id)
+        // Mentioned: named as @login in the text (Gitea also counts comments; the simulator doesn't).
+        .filter((i) => url.searchParams.get("mentioned") !== "true" || new RegExp(`@${doer.login}\\b`, "i").test(i.body ?? ""))
         .filter((i) => i.updated >= sinceMs)
         .filter((i) => !q || i.title.toLowerCase().includes(q) || (i.body ?? "").toLowerCase().includes(q))
         // Newest first, not by update: the order says nothing about what changed.

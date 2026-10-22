@@ -302,6 +302,20 @@ describe("gitea, as the layer sees it", () => {
     expect(cut.complete).toBe(false);
   });
 
+  it("searches only the issues the user created, is assigned to or is mentioned in, outside the repositories left out", async () => {
+    const { sim, conn } = simulated();
+    const anna = sim.user({ id: 8, login: "anna-b", full_name: "Anna Bianchi" });
+    sim.add("stranger/repo", "Export from another team", { assignee: null, author: anna.id });
+    sim.add("stranger/repo", "Export review", { assignee: null, author: anna.id, body: "cc @mrossi" });
+    sim.add("acme/left", "Export left out", { assignee: null });
+    const b = bindTracker(giteaProvider, { ...conn, options: { excludeRepos: ["acme/left"] } });
+    const hit = await b.searchText!(meta(), "export", 10);
+    expect(hit.items.map((i) => i.key).sort()).toEqual(["acme/web#2", "stranger/repo#2"]);
+    expect(hit.complete).toBe(true);
+    const asked = sim.requests.filter((r) => r.path.endsWith("/repos/issues/search")).map((r) => new URLSearchParams(r.search));
+    expect(asked.map((p) => ["created", "assigned", "mentioned"].filter((k) => p.get(k) === "true"))).toEqual([["created"], ["assigned"], ["mentioned"]]);
+  });
+
   it("knows who the token belongs to, authenticates as 'token <t>', has no rate budget of its own", async () => {
     const { sim, b } = simulated();
     expect(await b.verify(meta())).toMatchObject({ remoteId: String(sim.me.id), name: "Mario Rossi", login: "mrossi", email: "mario@example.com" });
