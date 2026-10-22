@@ -115,8 +115,11 @@ describe("backups on disk", () => {
     // Stopped, never left waiting on its input (a real one would hold the transaction and its locks).
     const alive = () => {
       if (!fs.existsSync(path.join(DIR, "psql.pid"))) return false; // stopped before it even began
+      // Stopped while writing its pid: no pid (and 0 would ask about the whole process group).
+      const pid = Number(fs.readFileSync(path.join(DIR, "psql.pid"), "utf8"));
+      if (!Number.isInteger(pid) || pid <= 0) return false;
       try {
-        process.kill(Number(fs.readFileSync(path.join(DIR, "psql.pid"), "utf8")), 0);
+        process.kill(pid, 0);
         return true;
       } catch {
         return false;
