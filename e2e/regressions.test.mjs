@@ -1069,3 +1069,15 @@ test("wide window: no tab bar", () =>
     await page.getByRole("navigation", { name: "Main navigation" }).waitFor();
     assert.equal(await page.getByRole("navigation", { name: "Quick sections" }).isVisible(), false);
   }));
+
+test("a change that never reaches the server says so in the user's words, not the browser's", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.goto(base + "/issues/DEMO-101");
+    const star = page.getByRole("button", { name: "Add DEMO-101 to favorites" }).first();
+    await star.waitFor();
+    // The request cut on its way: the browser's own failure ("Failed to fetch").
+    await page.route(u => new URL(u).pathname.includes("issues.toggleFavorite"), route => route.abort("failed"));
+    await star.click();
+    await page.getByText("The server can’t be reached: check the connection and try again.").waitFor();
+    assert.equal(await page.getByText(/Failed to fetch|TRPCClientError/).count(), 0, "no browser or library words");
+  }));
