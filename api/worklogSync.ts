@@ -11,7 +11,7 @@ import {
   type JiraWorklog,
 } from "./jira/client";
 import { isAuthoredBy, PENDING_PREFIX, rowFromJira, upsertLocal } from "./routers/worklogs";
-import { upsertIssue } from "./routers/issues";
+import { upsertIssue } from "./sync/jiraIssues";
 import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
 import { creationInFlight } from "./sync/timeWrites";
