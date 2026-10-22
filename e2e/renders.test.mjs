@@ -65,7 +65,8 @@ test("the counter: a 1 s ticker commits once a second, its plain child too, its 
 const WINDOW = 300_000;
 
 /**
- * Per five minutes, page by page: commits and component renders, at most. Before Wave 3
+ * Per five minutes, page by page: commits and component renders, at most (over once, the
+ * window is measured again; over twice fails). Before Wave 3
  * (frozen 2026-10-22, two runs within 2%): no timer 55 / 15221; with one running, issue page
  * 712 / 21929, dashboard 1013 / 73998, timesheet 1001 / 66823. After the shared clock: 41 /
  * 13840, 366 / 20452, 366 / 24399, 366 / 23704. A poll that changes nothing no longer
@@ -93,11 +94,36 @@ test("React work per five minutes, page by page", async () => {
       await page.goto(base + path);
       await clock.run(5000, 100);
     };
-    const measure = async name => {
+    // What the page asked for during a window, by procedure (the event stream as one): an
+    // over-limit count says what it did more.
+    const asked = {};
+    let counting = false;
+    page.on("request", q => {
+      if (!counting) return;
+      const k = q.resourceType() === "eventsource" ? "event stream (re)opened" : decodeURIComponent(new URL(q.url()).pathname.replace("/api/trpc/", ""));
+      asked[k] = (asked[k] ?? 0) + 1;
+    });
+    const window5min = async () => {
+      for (const k of Object.keys(asked)) delete asked[k];
+      counting = true;
       const r = await rendersOver(page, () => clock.run(WINDOW));
-      console.info(`[measure] renders per 5 min, ${name}: ${r.commits} commits, ${r.renders} component renders; most: ${r.top.slice(0, 5).map(([k, v]) => `${v} ${k}`).join(", ")}`);
-      assert.ok(r.commits <= MEASURED[name].commits, `${name}: ${r.commits} commits`);
-      assert.ok(r.renders <= MEASURED[name].renders, `${name}: ${r.renders} renders`);
+      counting = false;
+      return { ...r, asked: { ...asked } };
+    };
+    const over = (name, r) => r.commits > MEASURED[name].commits || r.renders > MEASURED[name].renders;
+    const line = (name, r) =>
+      `${name}: ${r.commits} commits, ${r.renders} component renders; most: ${r.top.slice(0, 5).map(([k, v]) => `${v} ${k}`).join(", ")}; asked: ${JSON.stringify(r.asked)}`;
+    const measure = async name => {
+      let r = await window5min();
+      console.info(`[measure] renders per 5 min, ${line(name, r)}`);
+      // Once over, measured again: on a loaded machine an answer landing late can move work into
+      // the window (seen about once in six full gates). A real regression is over both times.
+      if (over(name, r)) {
+        const first = r;
+        r = await window5min();
+        console.info(`[measure] again, ${line(name, r)}`);
+        assert.ok(!over(name, r), `over the limit twice. ${line(name, first)} | ${line(name, r)}`);
+      }
     };
     await open("/");
     await measure("dashboard, no timer");
