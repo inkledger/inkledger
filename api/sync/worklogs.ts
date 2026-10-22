@@ -139,6 +139,8 @@ export type RemoteSnapshot = { seconds: number; started: number; comment: string
 /** Entries written per statement at most (5 to 10 parameters each, 65535 per statement). */
 const PAGE_SLICE = 1000;
 
+const slices = <T>(all: T[]): T[][] => Array.from({ length: Math.ceil(all.length / PAGE_SLICE) }, (_, i) => all.slice(i * PAGE_SLICE, (i + 1) * PAGE_SLICE));
+
 /** An UPDATE … FROM (VALUES …) row: each value cast, so the first row types the column. */
 const valuesOf = (rows: SQL[][]) => sql.join(rows.map((r) => sql`(${sql.join(r, sql`, `)})`), sql`, `);
 
@@ -304,12 +306,10 @@ export async function syncEntries(
     },
     opts.since,
     async (items, gone) => {
-      // A very large page in slices, one after the other: a statement takes 65535 parameters at most.
-      for (let i = 0; i < Math.max(items.length, gone.length, 1); i += PAGE_SLICE) {
-        const page = await applyPage(conn, items.slice(i, i + PAGE_SLICE), gone.slice(i, i + PAGE_SLICE), opts.zone);
-        upserted += page.upserted;
-        removed += page.removed;
-      }
+      // A very large page in slices, one after the other (a statement takes 65535 parameters
+      // at most): all its entries first, then what is gone, as entry after entry did.
+      for (const some of slices(items)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
+      for (const someGone of slices(gone)) removed += (await applyPage(conn, [], someGone, opts.zone)).removed;
     },
   );
   return { checkpoint, upserted, removed };

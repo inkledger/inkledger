@@ -173,8 +173,10 @@ describe("the worklog feed, page by page", () => {
 
   it("a page of 2500, past what one statement takes, in slices", async () => {
     const items = Array.from({ length: 2500 }, (_, i) => entry(`huge-${String(i).padStart(4, "0")}`, { start: at(0) + i * 30_000, seconds: 30, comment: `c${i}` }));
-    expect(await pass(a, [{ items, gone: [{ remoteId: "huge-0000" }] }])).toMatchObject({ upserted: 2500, removed: 1 });
-    expect(await q("SELECT count(*)::int AS n FROM worklogs")).toEqual([{ n: 2499 }]);
+    // Gone: one in the first slice, one in the third: both end deleted (entries first, then gone).
+    expect(await pass(a, [{ items, gone: [{ remoteId: "huge-0000" }, { remoteId: "huge-2200" }] }])).toMatchObject({ upserted: 2500, removed: 2 });
+    expect(await q("SELECT count(*)::int AS n FROM worklogs")).toEqual([{ n: 2498 }]);
+    expect(await q("SELECT count(*)::int AS n FROM worklogs WHERE jira_worklog_id IN ('huge-0000', 'huge-2200')")).toEqual([{ n: 0 }]);
   });
 
   it("a page that fails halfway (the database refuses one entry) lands the same once read again", async () => {
