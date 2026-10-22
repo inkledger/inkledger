@@ -13,6 +13,10 @@ import { chromiumPath } from "../scripts/chromium.mjs";
 
 export const APP = new URL("..", import.meta.url).pathname;
 
+// The tests' own clock reads days as the server and the browser do (both Europe/Rome):
+// "today", "yesterday" and midnight are the same day everywhere.
+process.env.TZ = "Europe/Rome";
+
 const SECRET = randomBytes(32).toString("hex");
 function encrypt(plain) {
   const key = createHash("sha256").update(SECRET).digest();
