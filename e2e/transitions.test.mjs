@@ -68,5 +68,5 @@ test("a transition asking for its resolution opens a form, marks what is missing
     await page.getByRole("option", { name: "Completato" }).click();
     await dialog.getByRole("button", { name: "Move" }).click();
     await dialog.waitFor({ state: "detached" });
-    assert.deepEqual(sent.at(-1), { key: "DEMO-101", transitionId: "51", fields: { resolution: "1" } });
+    assert.deepEqual(sent.at(-1), { key: "DEMO-101", connectionId: 1, transitionId: "51", fields: { resolution: "1" } });
   }));
