@@ -23,10 +23,10 @@ import {
   parseDurationToSeconds,
 } from "@contracts/time";
 import { assertWeekOpen } from "./weeks";
-import { conflictMessage, occupiedId, overlapping } from "@contracts/placement";
 import { claimTimerSeconds } from "./timers";
 import { withOutboxLock } from "./outbox";
-import { getSettings } from "./settings";
+import { assertNoOverlap } from "../queries/overlap";
+import { occupiedId } from "@contracts/placement";
 import { TRASH_DAYS, withDeleteReason } from "../queries/trash";
 import { syncWorklogs } from "../worklogSync";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
@@ -118,44 +118,6 @@ export function isAuthoredBy(w: JiraWorklog, accountId: string): boolean {
 
 /** One write at a time per user: two parallel requests can't both pass the overlap check. */
 const withWriteLock = keyedLock<number>();
-
-/**
- * With the "block" policy, time is never logged twice: refuse a block that
- * covers another worklog of the user (local copy: last sync plus what the
- * app logged).
- */
-async function assertNoOverlap(
-  userId: number,
-  block: { start: Date; seconds: number },
-  /** The entry being edited, by `occupiedId` (a remote id alone may be on two trackers) */
-  exceptId?: string,
-): Promise<void> {
-  // Parallel work is allowed by default (D12): only "block" refuses it; the app warns.
-  if ((await getSettings(userId)).overlapPolicy !== "block") return;
-  const from = new Date(block.start.getTime() - MAX_WORKLOG_SECONDS * 1000);
-  const to = new Date(block.start.getTime() + block.seconds * 1000);
-  const near = await getDb()
-    .select({
-      connectionId: worklogs.connectionId,
-      remoteId: worklogs.remoteId,
-      issueKey: worklogs.issueKey,
-      started: worklogs.started,
-      seconds: worklogs.timeSpentSeconds,
-    })
-    .from(worklogs)
-    .where(and(eq(worklogs.userId, userId), gte(worklogs.started, from), lt(worklogs.started, to)));
-  const hits = overlapping(
-    block,
-    near.map((w) => ({ start: w.started, seconds: w.seconds, id: occupiedId(w), label: w.issueKey })),
-    exceptId,
-  );
-  if (hits.length > 0) {
-    throw new TRPCError({
-      code: "CONFLICT",
-      message: t("server.worklogs.overlapHint", { message: conflictMessage(hits) }),
-    });
-  }
-}
 
 function parseLogInput(input: { seconds?: number; timeSpent?: string; started: string }) {
   const seconds = input.seconds ?? parseDurationToSeconds(input.timeSpent ?? "");
