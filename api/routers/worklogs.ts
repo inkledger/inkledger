@@ -698,6 +698,8 @@ export const worklogsRouter = createRouter({
           if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
           await deleteThere(through.b, timeMeta(), through.ref, input.remoteId);
         } catch (e) {
+          // Gone there meanwhile (read, then deleted elsewhere): done, as for an entry read back.
+          if (e instanceof ProviderError && e.kind === "notFound") return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
           if (!(e instanceof ProviderError && e.transient)) throw e;
           await db.insert(outbox).values({ userId: ctx.user.id, connectionId: conn.id, kind: "delete", issueKey: input.issueKey, remoteId: input.remoteId });
         }

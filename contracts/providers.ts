@@ -151,7 +151,8 @@ const readWrite = z.strictObject({ read: z.boolean(), write: z.boolean() }).refi
  * Defaults a service applies; a connection's probe may report tighter ones.
  * Declared for the catalog and checked against the descriptor (core/validate),
  * not applied to writes: the app holds every entry to its own 24 h
- * (MAX_WORKLOG_SECONDS), and no tracker declares a narrower limit. Limits need
+ * (MAX_WORKLOG_SECONDS), no tracker declares a narrower duration, and one that
+ * refuses an entry it can't keep (GitLab's noFuture) says so itself. Limits need
  * not be multiples of the increment. Absent: no known limit.
  */
 export const limitsSchema = z
