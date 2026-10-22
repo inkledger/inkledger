@@ -15,7 +15,7 @@ import type { BoundTracker } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
 import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
-import { entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
+import { deleteThere, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
@@ -111,7 +111,7 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
   await dropQueuedUpdates(t.conn, current.id);
   if (remoteId) {
     try {
-      await t.b.worklogs!.delete!(meta(), t.ref, remoteId, {});
+      await deleteThere(t.b, meta(), t.ref, remoteId);
       await bumpSpent(t.conn, current.issueKey, -current.timeSpentSeconds);
     } catch (e) {
       if (e instanceof ProviderError && e.kind === "notFound") {
@@ -246,7 +246,7 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
     try {
       if (entry.kind === "delete") {
         if (entry.remoteId) {
-          await t.b.worklogs!.delete!(meta(), t.ref, entry.remoteId, {}).catch((e: unknown) => {
+          await deleteThere(t.b, meta(), t.ref, entry.remoteId).catch((e: unknown) => {
             if (!(e instanceof ProviderError && e.kind === "notFound")) throw e;
           });
           // A sync between queueing and now may have read it back.

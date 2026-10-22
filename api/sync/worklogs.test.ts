@@ -208,3 +208,24 @@ describe("worklog registry against any service, through the contract", () => {
     expect(JSON.parse(l.locked)).toEqual({ cause: "approved", message: "Approved by the team lead" });
   });
 });
+
+describe("deleteThere", () => {
+  it("a service that keeps no delete refuses in words, never with a crash", async () => {
+    const { deleteThere } = await import("./worklogs");
+    const { ProviderError } = await import("../providers/core/errors");
+    const b = { type: "plane", worklogs: { list: async () => [] } } as unknown as Parameters<typeof deleteThere>[0];
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const e = await deleteThere(b, meta, { remoteId: "r-1", key: "P-1" }, "w-1").catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ProviderError);
+    expect((e as InstanceType<typeof ProviderError>).kind).toBe("invalid");
+    expect((e as Error).message).toMatch(/Plane/);
+  });
+
+  it("deletes through the service when it can", async () => {
+    const { deleteThere } = await import("./worklogs");
+    const calls: string[] = [];
+    const b = { type: "fake", worklogs: { list: async () => [], delete: async (_m: unknown, _r: unknown, id: string) => void calls.push(id) } } as unknown as Parameters<typeof deleteThere>[0];
+    await deleteThere(b, { signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "F-1" }, "w-9");
+    expect(calls).toEqual(["w-9"]);
+  });
+});

@@ -17,6 +17,8 @@ import { eachPage } from "../providers/core/paging";
 import type { Checkpoint, IssueRef, RemoteWorklog, TimeInput, WorklogInput } from "../providers/types";
 import type { Budget } from "./budget";
 import { rounds } from "../lib/rounds";
+import { t } from "@contracts/i18n";
+import { providerName } from "@contracts/providerNames";
 
 type Local = typeof worklogs.$inferSelect;
 type Sink = typeof worklogSinks.$inferSelect;
@@ -101,7 +103,7 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
   if (!e || e.write.mode !== "entry" || e.write.update === "none") throw new ProviderError("invalid", `${b.type} entries can't be changed`);
   const input = inputOf(b, local, zone);
   if (e.write.update === "recreate") {
-    await b.worklogs!.delete!(meta, ref, sink.remoteId, { expectedVersion: sink.version ?? undefined });
+    await deleteThere(b, meta, ref, sink.remoteId, { expectedVersion: sink.version ?? undefined });
     // A new key per content: a retry of this same change lands once, the original create's key is not reused.
     const remote = await b.worklogs!.create!(meta, ref, input, { idempotencyKey: `${local.uuid}:${input.time.kind === "session" ? input.time.start : input.time.date}:${input.time.seconds}` });
     await landed(local, conn, remote);
@@ -112,13 +114,19 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
   return remote;
 }
 
+/**
+ * An entry deleted on its service. A service that keeps no delete refuses in words ("invalid":
+ * shown to the user, never queued), not with a crash.
+ */
+export async function deleteThere(b: BoundTracker, meta: CallMeta, ref: IssueRef, remoteId: string, m: { expectedVersion?: string } = {}): Promise<void> {
+  if (!b.worklogs?.delete) throw new ProviderError("invalid", t("server.issues.cannotManage", { provider: providerName(b.type) }));
+  await b.worklogs.delete(meta, ref, remoteId, m);
+}
+
 /** Gone from the service (already gone counts as done); the registry row goes with it. */
 export async function pushDelete(b: BoundTracker, conn: Pick<Connection, "id">, local: Pick<Local, "id">, ref: IssueRef, meta: CallMeta) {
   const sink = await sinkOf(local.id, conn.id);
-  if (sink?.remoteId) {
-    if (!b.worklogs?.delete) throw new ProviderError("invalid", `${b.type} entries can't be deleted`);
-    await b.worklogs.delete(meta, ref, sink.remoteId, { expectedVersion: sink.version ?? undefined });
-  }
+  if (sink?.remoteId) await deleteThere(b, meta, ref, sink.remoteId, { expectedVersion: sink.version ?? undefined });
   await getDb()
     .delete(worklogSinks)
     .where(and(eq(worklogSinks.worklogId, local.id), eq(worklogSinks.sinkConnectionId, conn.id)));

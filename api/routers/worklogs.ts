@@ -35,6 +35,7 @@ import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
 import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
 import { keyedLock } from "../lib/locks";
+import { deleteThere } from "../sync/worklogs";
 
 const timeFields = {
   /** Whole seconds: what the app sends (a typed "1d" is resolved on the device, by the work schedule) */
@@ -695,7 +696,7 @@ export const worklogsRouter = createRouter({
             : (await through.b.worklogs?.list(timeMeta(), through.ref))?.find((w) => w.remoteId === input.remoteId);
           if (!there) return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
           if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
-          await through.b.worklogs!.delete!(timeMeta(), through.ref, input.remoteId, {});
+          await deleteThere(through.b, timeMeta(), through.ref, input.remoteId);
         } catch (e) {
           if (!(e instanceof ProviderError && e.transient)) throw e;
           await db.insert(outbox).values({ userId: ctx.user.id, connectionId: conn.id, kind: "delete", issueKey: input.issueKey, remoteId: input.remoteId });
