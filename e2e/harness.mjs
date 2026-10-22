@@ -2,7 +2,6 @@
 // user, session and issues. Jira is read-only and never synced: these tests
 // never reach a real Jira. Run with `pnpm test:e2e` (builds first).
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +9,7 @@ import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import pg from "pg";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../scripts/chromium.mjs";
+import { freePort } from "../scripts/freePort.mjs";
 
 export const APP = new URL("..", import.meta.url).pathname;
 
@@ -73,8 +73,9 @@ async function syncSequences(client) {
  * has its own Postgres database, dropped at stop().
  */
 export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false } = {}) {
-  // A port nothing listens on: a random one could be another app's (the Docker stacks'),
-  // whose health check would answer for a server still starting.
+  // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
+  // random one could be another app's (the Docker stacks'), whose health check would
+  // answer for a server still starting.
   const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "ikl-e2e-"));
   // A database that stops answering fails the test, never holds the whole run.
@@ -234,17 +235,6 @@ export async function awayFromMidnight(before = 2 * 60_000, after = 3 * 60_000) 
   if (until > now) await new Promise(r => setTimeout(r, until - now));
 }
 
-/** A port the system has just handed out, so free right now. */
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = createServer();
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
-  });
-}
 
 /** Pretends to be the native app's window: records the commands it gets. */
 export async function mockNative(context, answers = {}) {

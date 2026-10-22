@@ -3,22 +3,14 @@
 // Run after `pnpm build`.
 import { spawn } from "node:child_process";
 import { request } from "node:http";
-import { createServer } from "node:net";
+import { freePort } from "./freePort.mjs";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
-// A port the system has just handed out: a random one could be another app's
-// (the Docker stacks'), and the checks would run against it.
-const port = await new Promise((resolve, reject) => {
-  const probe = createServer();
-  probe.once("error", reject);
-  probe.listen(0, "127.0.0.1", () => {
-    const { port } = probe.address();
-    probe.close(() => resolve(port));
-  });
-});
+// Nobody else's (the Docker stacks'), so the checks run against this server.
+const port = await freePort();
 const dir = mkdtempSync(join(tmpdir(), "ikl-smoke-"));
 const base = `http://127.0.0.1:${port}`;
 
