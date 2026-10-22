@@ -6,6 +6,7 @@ import { formatQuery, parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
 import type { RemoteIssue } from "../providers/types";
 import { ProviderError } from "../providers/core/errors";
+import { isRefusal } from "../providers/trpc";
 import { t } from "@contracts/i18n";
 
 function isKeyQuery(query: string): boolean {
@@ -75,8 +76,9 @@ async function askTracker(conn: Connection, query: string) {
   } catch (e) {
     // The tracker's refusal in its words, as the other calls show it; any other fault in
     // general words, its details in the log.
-    if (!(e instanceof ProviderError)) console.error(e);
-    return { ...none, failed: { connectionId: conn.id, label, message: e instanceof ProviderError ? e.message : t("server.internal.error") } };
+    const refused = e instanceof ProviderError && isRefusal(e);
+    if (!refused) console.error(e);
+    return { ...none, failed: { connectionId: conn.id, label, message: refused ? e.message : t("server.internal.error") } };
   }
   return { ...none, found, unsupported };
 }
