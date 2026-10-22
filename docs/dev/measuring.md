@@ -64,6 +64,18 @@ node scripts/bundle-size.mjs --md   # the summary table
 - **Gzip:** level 9.
 - **Entry:** the module script that `dist/public/index.html` loads.
 - **First load:** the entry, plus its `modulepreload` links and its stylesheets.
+- **Budget:** `pnpm test:smoke` fails when the entry chunk passes 925 KiB or 295 KiB gzip (its
+  size after Wave 3 plus 5%). Raising it is a deliberate, explained edit.
+
+| Entry chunk | KiB | KiB gzip |
+|---|---:|---:|
+| Before Wave 3 | 1068.7 | 334.3 |
+| Zod kept to the settings page | 997.9 | 314.6 |
+| Dialog bodies on demand | 880.8 | 280.9 |
+
+All JS together went from 441.5 to 451.4 KiB gzip (38 chunks to 57): code shared by the parts
+loaded on demand splits into chunks of its own. Those are fetched when the browser is free after
+start, so the total transferred grows a little while the first load shrinks.
 
 ## Queries per scenario
 

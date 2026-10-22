@@ -4,7 +4,8 @@
 import { spawn } from "node:child_process";
 import { request } from "node:http";
 import { freePort } from "./freePort.mjs";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -66,6 +67,16 @@ try {
     /script-src 'self' 'sha256-/.test(csp) && !/script-src[^;]*unsafe-inline/.test(csp) &&
       /connect-src 'self' ipc: http:\/\/ipc\.localhost/.test(csp),
     "CSP allows inline scripts by hash only",
+  );
+
+  // The entry chunk the page loads first, at most 5% over its size after Wave 3 (880.8 KiB,
+  // 280.9 KiB gzip; docs/dev/measuring.md). Raising the limit is a deliberate, explained edit.
+  const entry = /<script[^>]*type="module"[^>]*src="\/assets\/([^"]+)"/.exec(readFileSync("dist/public/index.html", "utf8"))?.[1];
+  const entryBytes = entry ? readFileSync(join("dist/public/assets", entry)) : Buffer.alloc(0);
+  const kib = (n) => (n / 1024).toFixed(1);
+  check(
+    !!entry && entryBytes.length <= 925 * 1024 && gzipSync(entryBytes, { level: 9 }).length <= 295 * 1024,
+    `entry chunk within budget (${kib(entryBytes.length)} KiB, ${kib(gzipSync(entryBytes, { level: 9 }).length)} KiB gzip; at most 925 / 295)`,
   );
 
   const asset = readdirSync("dist/public/assets").find((f) => f.endsWith(".js"));
