@@ -39,8 +39,9 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
   const [dragging, setDragging] = useState(false);
   const [viewing, setViewing] = useState<number | null>(null);
   const utils = trpc.useUtils();
+  // On its own tracker: the same key may be on another one.
   const list = trpc.issues.attachments.useQuery(
-    { key: issueKey },
+    { key: issueKey, connectionId: connectionId ?? undefined },
     { retry: false }
   );
   const { progress, error, upload } = useAttachmentUpload(

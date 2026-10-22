@@ -132,7 +132,9 @@ export function TransitionDialog({
   onMoved: (r: { moved: string; to: string }) => void;
 }) {
   const provider = useProviderName(connectionId);
-  const list = trpc.issues.transitions.useQuery({ key: issueKey }, { enabled: target !== null, retry: false, staleTime: 0 });
+  // On its own tracker: the same key may be on another one.
+  const where = { key: issueKey, connectionId: connectionId ?? undefined };
+  const list = trpc.issues.transitions.useQuery(where, { enabled: target !== null, retry: false, staleTime: 0 });
   const [values, setValues] = useState<Record<string, Value>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +186,7 @@ export function TransitionDialog({
                   e.preventDefault();
                   setErrors({});
                   setError(null);
-                  move.mutate({ key: issueKey, transitionId: tr.id, fields: values });
+                  move.mutate({ ...where, transitionId: tr.id, fields: values });
                 }}
               >
                 {tr.requirements.map(f => (

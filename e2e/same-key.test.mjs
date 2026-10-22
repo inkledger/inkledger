@@ -188,3 +188,34 @@ test("an entry whose tracker is archived is not deleted, and says so", { timeout
     assert.equal((await db.q("SELECT count(*)::int AS n FROM worklogs"))[0].n, 1, "still there");
   });
 });
+
+test("an issue's page reads its comments, attachments and history on its own tracker", () =>
+  withApp(
+    {
+      seed: async db => {
+        await sameKey(todayAt(0, 0) - 86_400_000)(db);
+        await db.q("UPDATE issues SET jira_updated_at = ? WHERE connection_id = ?", Date.now() - 3_600_000, github);
+      },
+    },
+    async ({ page, base }) => {
+      // Every read about the issue, by procedure: the connection it names (a key alone is ambiguous here).
+      const asked = [];
+      page.on("request", r => {
+        const u = new URL(r.url());
+        if (!u.pathname.startsWith("/api/trpc/")) return;
+        const procs = decodeURIComponent(u.pathname.slice("/api/trpc/".length)).split(",");
+        const input = JSON.parse(u.searchParams.get("input") ?? "{}");
+        procs.forEach((p, i) => asked.push({ p, connectionId: input[i]?.json?.connectionId }));
+      });
+      await page.goto(`${base}/issues/${github}/I_9`);
+      await page.getByRole("heading", { name: /Same key on GitHub/ }).first().waitFor();
+      await page.getByTitle("View history").first().click();
+      await page.getByRole("dialog").waitFor();
+      await page.waitForTimeout(500);
+      for (const p of ["issues.comments", "issues.attachments", "issues.history"]) {
+        const reads = asked.filter(a => a.p === p);
+        assert.ok(reads.length > 0, `${p} read`);
+        assert.deepEqual([...new Set(reads.map(a => a.connectionId))], [github], `${p} on its own tracker`);
+      }
+    },
+  ));

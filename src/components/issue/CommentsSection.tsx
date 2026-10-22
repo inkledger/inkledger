@@ -19,13 +19,15 @@ import { t, dateFormat } from "@/i18n";
 export function CommentsSection({ issueKey, connectionId }: { issueKey: string; connectionId?: number | null }) {
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
+  // On its own tracker: the same key may be on another one.
+  const where = { key: issueKey, connectionId: connectionId ?? undefined };
   const comments = trpc.issues.comments.useQuery(
-    { key: issueKey },
+    where,
     { retry: false }
   );
   // Same query as the attachments section (cached): resolves !image.png! embeds.
   const attachments = trpc.issues.attachments.useQuery(
-    { key: issueKey },
+    where,
     { retry: false }
   );
   const images = new Map((attachments.data ?? []).map(a => [a.filename, a.id]));
@@ -40,7 +42,7 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
     onError: e => toast.error(e.message),
   });
   const submit = () => {
-    if (text.trim() && !add.isPending) add.mutate({ key: issueKey, text });
+    if (text.trim() && !add.isPending) add.mutate({ ...where, text });
   };
   const modifier = PALETTE_SHORTCUT.startsWith("⌘") ? "⌘" : "Ctrl";
 

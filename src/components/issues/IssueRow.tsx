@@ -70,9 +70,11 @@ export type PinProps = {
 /** A date or "why it moved" text that opens the issue's history. */
 function HistoryLink({
   issueKey,
+  connectionId,
   children,
 }: {
   issueKey: string;
+  connectionId?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -82,7 +84,7 @@ function HistoryLink({
       onClick={e => {
         e.stopPropagation();
         e.preventDefault();
-        issueHistory.open(issueKey);
+        issueHistory.open(issueKey, connectionId);
       }}
       className="inline-flex items-center gap-1 rounded-sm underline decoration-dotted underline-offset-4 outline-none hover:text-foreground hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring/40"
     >
@@ -397,7 +399,7 @@ export const IssueRow = memo(function IssueRow({
         {(activity || !issue.isMine) && (
           <span className="mt-1 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
             {!issue.isMine && <Chip tone="warning">{t("views.issues.row.unassigned")}</Chip>}
-            {activity && <HistoryLink issueKey={issue.key}>{activity}</HistoryLink>}
+            {activity && <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{activity}</HistoryLink>}
           </span>
         )}
       </td>
@@ -415,7 +417,7 @@ export const IssueRow = memo(function IssueRow({
       </td>
       <td className="hidden whitespace-nowrap py-3 pr-3 text-muted-foreground 2xl:table-cell">
         {updated ? (
-          <HistoryLink issueKey={issue.key}>{updated}</HistoryLink>
+          <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{updated}</HistoryLink>
         ) : (
           "—"
         )}
@@ -466,7 +468,7 @@ export const IssueCard = memo(function IssueCard({
       <p className="[overflow-wrap:anywhere] text-body-sm">{issue.summary}</p>
       {activity && (
         <p className="-mt-1 text-caption text-muted-foreground">
-          <HistoryLink issueKey={issue.key}>{activity}</HistoryLink>
+          <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{activity}</HistoryLink>
         </p>
       )}
       <div className="flex flex-wrap items-center gap-1.5">

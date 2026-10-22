@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
-import { issueHistory, useIssueHistoryKey } from "@/lib/issueHistory";
+import { issueHistory, useIssueHistoryTarget } from "@/lib/issueHistory";
 import { relevanceText } from "@/lib/issues";
 import { ErrorState } from "@/components/app/States";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,19 +39,19 @@ const ICON = {
 
 /** Why an issue was updated, and everything before: changes, comments, creation. */
 export function IssueHistoryDialog() {
-  const key = useIssueHistoryKey();
+  const target = useIssueHistoryTarget();
   return (
-    <Dialog open={key !== null} onOpenChange={o => !o && issueHistory.close()}>
+    <Dialog open={target !== null} onOpenChange={o => !o && issueHistory.close()}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-xl">
-        {key && <HistoryBody issueKey={key} />}
+        {target && <HistoryBody issueKey={target.key} connectionId={target.connectionId} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function HistoryBody({ issueKey }: { issueKey: string }) {
+function HistoryBody({ issueKey, connectionId }: { issueKey: string; connectionId?: number }) {
   const history = trpc.issues.history.useQuery(
-    { key: issueKey },
+    { key: issueKey, connectionId },
     { retry: false, staleTime: 60_000 }
   );
   const events = history.data?.events ?? [];
