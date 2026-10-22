@@ -70,8 +70,10 @@ export function clockStepper(page) {
   const done = r => counted(r) && inflight--;
   page.on("requestfinished", done);
   page.on("requestfailed", done);
+  // Up to 30 s for a step's requests: a slow answer (a loaded machine) must not overlap the
+  // next steps' timers, or polls and refetches pile up that real time would never see.
   const settle = async () => {
-    for (let i = 0; i < 250 && inflight > 0; i++) await page.waitForTimeout(20);
+    for (let i = 0; i < 1500 && inflight > 0; i++) await page.waitForTimeout(20);
     await page.waitForTimeout(60);
   };
   return {
