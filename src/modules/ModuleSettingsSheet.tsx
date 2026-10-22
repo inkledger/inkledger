@@ -1,8 +1,10 @@
 import { useContext, useEffect, useState } from "react";
 import { getLocale } from "@/i18n";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { SettingsPanel } from "@/components/settings/sections/store/ProductSheet";
+import { lazyPart } from "@/components/app/lazyPart";
 import { ModulesContext } from "./context";
+
+const SettingsPanel = lazyPart(() => import("@/components/settings/sections/store/ProductSheet").then(m => m.SettingsPanel));
 
 /**
  * A module's settings over any page, opened by the module itself

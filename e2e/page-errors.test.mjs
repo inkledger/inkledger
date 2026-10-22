@@ -117,3 +117,40 @@ test("a page's code on its way: the page on screen stays until it is there, no s
     await app.stop();
   }
 });
+
+test("a dialog whose code never arrives: no reload by itself, the error shows in the dialog, the shell stays", async () => {
+  const app = await start();
+  try {
+    const { page, context } = app;
+    // The new-issue form's chunk, cut before the app loads: its fetch ahead of use fails too.
+    const chunk = u => /\/assets\/CreateIssueForm-[\w-]+\.js$/.test(new URL(u).pathname);
+    let cut = 0;
+    await context.route(chunk, route => {
+      cut++;
+      return route.abort("failed");
+    });
+    let loads = 0;
+    page.on("load", () => loads++);
+    await page.goto(app.base + "/issues");
+    await sidebarLink(page, "/reports").waitFor();
+    // Fetched when the browser is free after start: failing then reloads nothing.
+    for (let i = 0; i < 50 && cut === 0; i++) await page.waitForTimeout(200);
+    assert.ok(cut >= 1, "the form was fetched ahead of use");
+    await page.waitForTimeout(1500);
+    assert.equal(loads, 1, "no reload by itself");
+
+    await page.getByRole("button", { name: "New issue" }).first().click();
+    const dialog = page.getByRole("dialog");
+    const alert = dialog.getByRole("alert").filter({ hasText: "Something went wrong" });
+    await alert.waitFor();
+    assert.equal(await alert.getByRole("button", { name: "Retry" }).count(), 0, "no retry: React.lazy keeps the failure");
+    assert.ok(await sidebarLink(page, "/").isVisible(), "the sidebar stays");
+
+    await context.unroute(chunk);
+    await alert.getByRole("button", { name: "Reload" }).click();
+    await page.getByRole("button", { name: "New issue" }).first().click();
+    await page.getByRole("dialog").getByRole("combobox", { name: "Project" }).waitFor();
+  } finally {
+    await app.stop();
+  }
+});

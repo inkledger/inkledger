@@ -5,12 +5,15 @@ import "./index.css";
 import { TRPCProvider } from "@/providers/trpc";
 import App from "./App.tsx";
 import { installNativeShell, isNative } from "@/lib/native";
+import { prefetchingParts } from "@/components/app/lazyPart";
 
 // After a redeploy, lazy chunks of the old build are gone (404): reload to
 // pick up the new index.html. At most once every 10 s, so a chunk that is
 // really broken cannot loop; past that, the ErrorBoundary takes over.
 const PRELOAD_RELOAD_KEY = "ikl-preload-reload";
 window.addEventListener("vite:preloadError", event => {
+  // A dialog's code fetched ahead of use: its failure shows where it opens, no reload now.
+  if (prefetchingParts()) return;
   try {
     const last = Number(sessionStorage.getItem(PRELOAD_RELOAD_KEY)) || 0;
     if (Date.now() - last < 10_000) return;

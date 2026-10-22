@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router";
 import { pinboardDialog } from "@/lib/flag";
-import { Pinboard } from "@/components/board/Pinboard";
+import { lazyPart } from "@/components/app/lazyPart";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { t } from "@/i18n";
+
+const Pinboard = lazyPart(() => import("@/components/board/Pinboard").then(m => m.Pinboard));
 
 /**
  * The pinboard over any page (sidebar button, "p"). Never on the Board,
