@@ -147,6 +147,30 @@ describe("backups on disk", () => {
     expect(await q("SELECT id FROM sessions")).toEqual([]);
   });
 
+  it("what went wrong reaches the admin as such (the production server hides internal errors' words)", async () => {
+    const { q } = await import("./queries/connection");
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, role, created_at) VALUES ('backup-admin', 'B', 'admin', 1) RETURNING id");
+    const { appRouter } = await import("./router");
+    const { getDb } = await import("./queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await getDb().select().from(users).where(eq(users.id, u.id));
+    const admin = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null });
+    await expect(admin.backup.restore({ name: "../etc/passwd" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(admin.backup.restore({ name: "inkledger-19990101-000000.dump" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    process.env.FAKE_RESTORE_FAIL = "1";
+    try {
+      // The cause, and the safety backup that undoes whatever happened.
+      await expect(admin.backup.restore({ name: "inkledger-20200102-000000.dump" })).rejects.toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
+        message: expect.stringMatching(/broken archive[\s\S]*inkledger-\d{8}-\d{6}\.dump/),
+      });
+    } finally {
+      delete process.env.FAKE_RESTORE_FAIL;
+    }
+  });
+
   it("a folder that can't be written is an error, not a crash", async () => {
     const b = await import("./backup");
     process.env.BACKUP_DIR = path.join(DIR, "missing");

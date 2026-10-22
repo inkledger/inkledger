@@ -153,6 +153,15 @@ function run(bin: string, args: string[], childEnv: NodeJS.ProcessEnv = process.
  */
 const EMPTY_DATABASE = "SET client_min_messages = warning;\nDROP SCHEMA IF EXISTS drizzle CASCADE;\nDROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n";
 
+/** A request about a backup that can't be (no such name, no such file), as opposed to one that failed. */
+export class BackupError extends Error {
+  readonly kind: "invalid" | "notFound";
+  constructor(kind: "invalid" | "notFound", message: string) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
 const newerBackupRefused = (newest: number) =>
   `DO $$ BEGIN IF EXISTS (SELECT 1 FROM drizzle.__drizzle_migrations WHERE created_at > ${newest}) THEN ` +
   `RAISE EXCEPTION 'This backup comes from a newer inkledger: restore it there, or one taken with this version.'; END IF; END $$;\n`;
@@ -236,17 +245,22 @@ export async function restoreBackup(
   /** Whoever restores stays signed in (when their account, same id and name, is in the backup and on). */
   opts: { keepSession?: { id: string; userId: number; username: string } } = {},
 ): Promise<{ safety: string }> {
-  if (!BACKUP_FILE.test(name)) throw new Error(t("server.backup.invalid"));
+  if (!BACKUP_FILE.test(name)) throw new BackupError("invalid", t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
-  if (!fs.existsSync(file)) throw new Error(t("server.backup.notFound"));
+  if (!fs.existsSync(file)) throw new BackupError("notFound", t("server.backup.notFound"));
   restoring = name;
   try {
     const safety = await runBackup();
-    await restoreInto(pgTarget(), file);
-    // First, so no session the backup held works even for a moment (or if a migration fails).
-    await signOutAfterRestore(opts.keepSession);
-    // A backup from an older version lacks the newest columns: bring it up to date.
-    await migrateDb();
+    try {
+      await restoreInto(pgTarget(), file);
+      // First, so no session the backup held works even for a moment (or if a migration fails).
+      await signOutAfterRestore(opts.keepSession);
+      // A backup from an older version lacks the newest columns: bring it up to date.
+      await migrateDb();
+    } catch (e) {
+      // Whatever happened, the copy taken first undoes it: its name goes with the cause.
+      throw new Error(`${e instanceof Error ? e.message : String(e)} (${safety})`, { cause: e });
+    }
     return { safety };
   } finally {
     restoring = null;

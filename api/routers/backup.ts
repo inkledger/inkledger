@@ -5,6 +5,7 @@ import { env } from "../lib/env";
 import { roleOf } from "../queries/accounts";
 import { t } from "@contracts/i18n";
 import {
+  BackupError,
   backupDir,
   backupDirWritable,
   backupSettingsSchema,
@@ -20,8 +21,16 @@ import {
 /** Server-wide: for whoever may manage backups. */
 const backups = permProcedure("manageBackups");
 
+/**
+ * What went wrong, said to whoever manages backups: a name or file that can't be, or the
+ * backup tools' own cause (an internal error's words never leave a production server).
+ */
 const fail = (e: unknown) =>
-  new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e instanceof Error ? e.message : String(e) });
+  new TRPCError({
+    code: e instanceof BackupError ? (e.kind === "invalid" ? "BAD_REQUEST" : "NOT_FOUND") : "SERVICE_UNAVAILABLE",
+    message: e instanceof Error ? e.message : String(e),
+    cause: e,
+  });
 
 export const backupRouter = createRouter({
   /** Settings → Backup: schedule, state, the folder and its backups. */
