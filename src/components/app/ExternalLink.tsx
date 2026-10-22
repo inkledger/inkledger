@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useState, type ReactNode } from "react";
 import { ExternalLink as ExternalIcon, Lock } from "lucide-react";
 import { useAllowedLinks } from "@/hooks/useAllowedLinks";
@@ -76,7 +77,7 @@ export function ExternalLink({
               void allow(host).then(d => {
                 setOpen(false);
                 toast.success(t("ui.link.allowed", { domain: d }), { description: t("ui.link.manage") });
-              }, (e: unknown) => toast.error(String(e)))
+              }, (e: unknown) => toastError(e))
             }
           >
             {t("ui.link.allowAlways", { host })}

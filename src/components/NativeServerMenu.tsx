@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { Check, Plus, Settings2 } from "lucide-react";
 import { currentProfileUrl, useNativeProfiles } from "@/hooks/useNativeProfiles";
 import { Link } from "react-router";
@@ -8,7 +9,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { t } from "@/i18n";
 
 /**
@@ -21,7 +21,7 @@ export function NativeServerMenu() {
   if (!profiles) return null;
   const here = currentProfileUrl();
   const switchTo = (url: string) =>
-    openProfile(url).catch((e: unknown) => toast.error(String(e)));
+    openProfile(url).catch((e: unknown) => toastError(e));
   const several = profiles.list.length > 1;
 
   return (

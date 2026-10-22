@@ -42,11 +42,16 @@ describe("errorText", () => {
     expect(errorText(TRPCClientError.from(timeout))).toBe("<ui.error.timeout>");
   });
 
+  it("a text thrown as it is (the native shell's) is shown as it is", () => {
+    expect(errorKind("Nome del server non valido")).toBe("said");
+    expect(errorText("Nome del server non valido")).toBe("Nome del server non valido");
+  });
+
   it("the app's own words are shown; any other fault in general words, its details in the console when reported", () => {
     expect(errorText(new UserFacingError("Dominio non valido"))).toBe("Dominio non valido");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const faults = [new Error("Cannot read properties of undefined (reading 'x')"), TRPCClientError.from(new SyntaxError("Unexpected token '<'")), "boom", undefined, new DOMException("denied", "NotAllowedError")];
+      const faults = [new Error("Cannot read properties of undefined (reading 'x')"), TRPCClientError.from(new SyntaxError("Unexpected token '<'")), "", undefined, new DOMException("denied", "NotAllowedError")];
       for (const e of faults) expect(errorText(e)).toBe("<ui.error.failed>");
       expect(log).not.toHaveBeenCalled();
       for (const e of faults) toastError(e);

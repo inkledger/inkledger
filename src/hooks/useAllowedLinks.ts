@@ -1,4 +1,4 @@
-import { failureText } from "@/lib/errorText";
+import { failureText, UserFacingError } from "@/lib/errorText";
 import { useCallback, useMemo } from "react";
 import { hostAllowed, normalizeDomain } from "@contracts/links";
 import { trpc } from "@/lib/trpc";
@@ -38,7 +38,7 @@ export function useAllowedLinks() {
   const allow = useCallback(
     async (input: string) => {
       const d = normalizeDomain(input);
-      if (!d) throw new Error(t("ui.allowed.invalid"));
+      if (!d) throw new UserFacingError(t("ui.allowed.invalid"));
       if (domains.includes(d)) return d;
       await update.mutateAsync({ allowedLinkDomains: [...domains, d] });
       return d;

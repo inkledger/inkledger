@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { toastError, failureText } from "@/lib/errorText";
 import { useEffect, useState } from "react";
 import { Check, Globe, Plus, RefreshCw, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -54,7 +54,7 @@ export function DeviceAccess() {
       await setAccess.mutateAsync({ tailscaleHost: ts.dnsName, tailscalePort: port });
       toast.success(t("settings.access.reachable", { url: `https://${ts.dnsName}:${port}` }));
     } catch (e) {
-      setProblem(String(e));
+      setProblem(failureText(e));
     } finally {
       setBusy(false);
       refresh();

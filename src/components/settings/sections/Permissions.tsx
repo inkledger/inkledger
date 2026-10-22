@@ -1,3 +1,4 @@
+import { toastError, failureText } from "@/lib/errorText";
 import { useEffect, useState, type ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import {
@@ -52,7 +53,7 @@ export function PermissionsSection() {
 
   const canOpen = info !== null && CAN_OPEN_SETTINGS.has(info.platform);
   const open = (pane: SettingsPane) =>
-    openSystemSettings(pane).catch((e: unknown) => toast.error(String(e)));
+    openSystemSettings(pane).catch((e: unknown) => toastError(e));
   const busyShortcuts = info?.shortcuts.filter(s => !s.ok) ?? [];
   const notifyState = notifyStatus()[notify ?? "unknown"];
 
@@ -61,7 +62,7 @@ export function PermissionsSection() {
       await setAutostart(enabled);
       setInfo(i => (i ? { ...i, autostart: enabled } : i));
     } catch (e) {
-      toast.error(t("settings.permissions.autostartFailed", { error: String(e) }));
+      toast.error(t("settings.permissions.autostartFailed", { error: failureText(e) }));
     }
   };
 
@@ -72,7 +73,7 @@ export function PermissionsSection() {
         description: t("settings.permissions.sentHint"),
       });
     } catch (e) {
-      toast.error(t("settings.permissions.sendFailed", { error: String(e) }));
+      toast.error(t("settings.permissions.sendFailed", { error: failureText(e) }));
     }
   };
 

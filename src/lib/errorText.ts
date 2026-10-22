@@ -29,6 +29,9 @@ export function errorKind(e: unknown): ErrorKind {
     return NETWORK.test(e.message) || offline() ? "network" : "other";
   }
   if (e instanceof UserFacingError) return "said";
+  // A text thrown as it is: the native shell's (Tauri rejects an invoke with what its
+  // command wrote, in the shell's language); nothing else in the client throws one.
+  if (typeof e === "string" && e.trim() !== "") return "said";
   if (named(e, "TimeoutError")) return "timeout";
   if (e instanceof TypeError && NETWORK.test(e.message)) return "network";
   return offline() ? "network" : "other";
@@ -42,7 +45,7 @@ export function errorKind(e: unknown): ErrorKind {
  */
 export function errorText(e: unknown): string {
   const kind = errorKind(e);
-  if (kind === "said") return (e as Error).message;
+  if (kind === "said") return typeof e === "string" ? e : (e as Error).message;
   if (kind === "network") return t("ui.error.network");
   if (kind === "timeout") return t("ui.error.timeout");
   return t("ui.error.failed");

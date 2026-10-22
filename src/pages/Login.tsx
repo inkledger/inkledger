@@ -1,4 +1,4 @@
-import { failureText } from "@/lib/errorText";
+import { failureText, toastError } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { Settings2 } from "lucide-react";
@@ -10,7 +10,6 @@ import { ProfileRow } from "@/components/NativeServerMenu";
 import { AuthShell, FormError } from "@/components/auth/AuthShell";
 import { JiraLoginFields } from "@/components/auth/JiraLoginFields";
 import { emptyJiraLogin, jiraLoginPayload } from "@/lib/jiraLogin";
-import { toast } from "sonner";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSignedIn } from "@/hooks/useSignedIn";
 import { Button } from "@/components/ui/button";
@@ -60,7 +59,7 @@ export default function Login() {
   // Native app: the other servers are one click away, signed in or not.
   const { profiles } = useNativeProfiles();
   const here = currentProfileUrl();
-  const switchTo = (url: string) => openProfile(url).catch((e: unknown) => toast.error(String(e)));
+  const switchTo = (url: string) => openProfile(url).catch((e: unknown) => toastError(e));
 
   const switchMode = (next: typeof mode) => {
     setError(null);

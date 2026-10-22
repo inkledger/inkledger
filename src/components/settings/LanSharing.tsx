@@ -1,3 +1,4 @@
+import { toastError } from "@/lib/errorText";
 import { useEffect, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -46,7 +47,7 @@ export function LanSharing() {
         setStatus((await lanStop()) ?? null);
       }
     } catch (e) {
-      toast.error(String(e));
+      toastError(e);
     } finally {
       setBusy(false);
     }

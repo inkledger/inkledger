@@ -1,3 +1,4 @@
+import { toastError, failureText } from "@/lib/errorText";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Pencil, Plus, Trash2 } from "lucide-react";
@@ -34,7 +35,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 
@@ -125,7 +125,7 @@ export function ServersSection() {
                 if (!removing) return;
                 void removeProfile(removing.url)
                   .then(reload)
-                  .catch((e: unknown) => toast.error(String(e)));
+                  .catch((e: unknown) => toastError(e));
               }}
             >
               {t("common.remove")}
@@ -168,7 +168,7 @@ function ProfileRow({
   const save = async () => {
     setEditing(false);
     if (name.trim() === p.name || !name.trim()) return setName(p.name);
-    await renameProfile(p.url, name).then(onChanged, (e: unknown) => toast.error(String(e)));
+    await renameProfile(p.url, name).then(onChanged, (e: unknown) => toastError(e));
   };
 
   return (
@@ -210,7 +210,7 @@ function ProfileRow({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void openProfile(p.url).catch((e: unknown) => toast.error(String(e)))}
+            onClick={() => void openProfile(p.url).catch((e: unknown) => toastError(e))}
           >
             {t("common.open")}
           </Button>
@@ -248,7 +248,7 @@ function AddServerDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
       // The window switches to the new server: nothing else to do here.
       await addProfile(address.trim(), name.trim() || null);
     } catch (e) {
-      setError(String(e));
+      setError(failureText(e));
       setBusy(false);
     }
   };
