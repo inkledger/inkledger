@@ -5,20 +5,6 @@ export const DURATION_PRESETS = ["15m", "30m", "1h", "2h", "4h", "1d"] as const;
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
-/** Jira status categories ("To Do" / "In Progress" / "Done") in the current language. */
-export function statusCategoryLabel(category: string): string {
-  switch (category) {
-    case "To Do":
-      return t("ui.jira.todo");
-    case "In Progress":
-      return t("ui.jira.inProgress");
-    case "Done":
-      return t("ui.jira.done");
-    default:
-      return category || t("ui.jira.other");
-  }
-}
-
 /** Chip tone for a status, by its canonical category: only work in progress and done stand out. */
 export function statusCategoryTone(category: string): Tone {
   if (category === "done") return "success";
