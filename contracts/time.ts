@@ -100,6 +100,11 @@ export function formatDuration(totalSeconds: number): string {
   return formatDurationLong(totalSeconds);
 }
 
+/** Hours as a decimal number to two places (CSV exports): 5400 → 1.5, 18 → 0.01. */
+export function hoursDecimal(seconds: number): number {
+  return Math.round((seconds / 3600) * 100) / 100;
+}
+
 /** The one display format for calendar dates: "5 Oct 2026" / "5 October 2026" ("5 ott 2026"). */
 export function formatDate(date: Date | number, style: "short" | "long"): string {
   return dateFormat({ day: "numeric", month: style, year: "numeric" }).format(date);

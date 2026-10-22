@@ -199,3 +199,12 @@ describe("a typed day follows the work schedule (D14)", () => {
     expect(formatSeconds(8 * 3600)).toBe("1d");
   });
 });
+
+describe("hoursDecimal", () => {
+  it("hours to two places, as the CSV exports wrote it", async () => {
+    const { hoursDecimal } = await import("@contracts/time");
+    const hand = (s: number) => Math.round((s / 3600) * 100) / 100;
+    for (const s of [0, 1, 17, 18, 60, 1799, 1800, 5400, 3600 * 7.995, 86_400]) expect(hoursDecimal(s)).toBe(hand(s));
+    expect([hoursDecimal(5400), hoursDecimal(18), hoursDecimal(17)]).toEqual([1.5, 0.01, 0]);
+  });
+});
