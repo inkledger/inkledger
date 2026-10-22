@@ -4,7 +4,7 @@
 // Plane cloud answers on api.plane.so and shows its pages on app.plane.so; a
 // self-hosted Plane answers and shows on one host.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type PlaneCreds = {
   /** The server's root (no /api/v1): https://api.plane.so, or https://host[/prefix] */
@@ -183,7 +183,7 @@ export async function plane<T>(c: PlaneCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 && missingIsNull) || (res.status === 403 && forbiddenIsNull)) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

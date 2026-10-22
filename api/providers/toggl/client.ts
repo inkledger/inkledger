@@ -4,7 +4,7 @@
 // counts against a per-hour quota (30 on the free plan): the adapter makes as
 // few as it can, and a refusal over the quota waits for the quota to reset.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type TogglCreds = {
   /** The API root: https://api.track.toggl.com/api/v9 */
@@ -118,7 +118,7 @@ export async function toggl<T>(c: TogglCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

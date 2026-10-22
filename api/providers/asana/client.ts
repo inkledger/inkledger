@@ -3,7 +3,7 @@
 // token as a Bearer, errors in the layer's words, pages by `next_page.offset`.
 // Asana is a hosted service only, so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type AsanaCreds = {
   /** The API root: https://app.asana.com/api/1.0 */
@@ -162,7 +162,7 @@ export async function asana<T>(c: AsanaCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

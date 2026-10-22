@@ -3,7 +3,7 @@
 // layer's words, pages by the Link header.
 import { createHash } from "node:crypto";
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type GitHubCreds = {
   /** The API root: https://api.github.com, or a GitHub Enterprise Server's https://host/api/v3 */
@@ -98,7 +98,7 @@ export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { 
   });
   if (res.status === 304 && known) return { data: known.data as T, next: known.next };
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

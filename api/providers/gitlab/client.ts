@@ -3,7 +3,7 @@
 // servers, redirects re-checked), the personal token in PRIVATE-TOKEN, errors
 // in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 import { nextLink } from "../github/client";
 
 export type GitLabCreds = {
@@ -121,11 +121,11 @@ export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Prom
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (accept?.includes(res.status)) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return { data: undefined as T, next: null, headers: res.headers };
   }
   if (!res.ok) throw await refused(res);

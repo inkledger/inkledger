@@ -2,7 +2,7 @@
 // through the shared safe fetch (read-only servers, redirects re-checked),
 // errors in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type GiteaCreds = {
   /** The API root of the server: https://host/api/v1 (maybe under a sub-path: https://host/gitea/api/v1) */
@@ -137,7 +137,7 @@ export async function gt<T>(c: GiteaCreds, path: string, init: RequestInit & { m
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

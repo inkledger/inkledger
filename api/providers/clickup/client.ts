@@ -4,7 +4,7 @@
 // the layer's words, rate-limit headers read. ClickUp is a hosted service only,
 // so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type ClickUpCreds = {
   /** The API root: https://api.clickup.com/api/v2 */
@@ -155,7 +155,7 @@ export async function clickup<T>(c: ClickUpCreds, path: string, init: Call = {})
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

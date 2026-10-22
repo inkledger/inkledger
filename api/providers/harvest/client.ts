@@ -4,7 +4,7 @@
 // refuses calls without one), errors in the layer's words, pages by
 // page/next_page. The budget is 100 requests per 15 seconds, then 429.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type HarvestCreds = {
   /** https://api.harvestapp.com/v2 */
@@ -123,7 +123,7 @@ export async function hv<T>(c: HarvestCreds, path: string, init: Call = {}): Pro
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (res.status === 404 && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

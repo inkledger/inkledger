@@ -1,3 +1,4 @@
+import { discardBody } from "./providers/core/http";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { TRPCError } from "@trpc/server";
@@ -215,7 +216,7 @@ export function registerAttachmentRoutes(app: App) {
         const res = await fetchFromSite(contextFor(user, await ownConnection(user.id, row.connectionId)).creds, row.url);
         const type = (res.headers.get("content-type") ?? "image/png").split(";")[0].trim();
         if (!INLINE_TYPES.has(type) && type !== "image/svg+xml") {
-          await res.body?.cancel().catch(() => undefined);
+          await discardBody(res);
           hit = { body: null, status: 415, error: t("server.attachments.iconFormat"), at: Date.now() };
         } else {
           const body = await res.arrayBuffer();

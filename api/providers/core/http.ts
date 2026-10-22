@@ -12,6 +12,9 @@ import { callSignal, currentCall } from "./context";
 import type { ReadOnlyCause } from "./errors";
 
 /** Whether a call only reads (allowed on a read-only server) or may change something. */
+/** A response whose body nobody reads: released, so its connection goes back to the pool. */
+export const discardBody = (res: Response): Promise<void> => res.body?.cancel().catch(() => undefined) ?? Promise.resolve();
+
 export type Intent = "read" | "write";
 
 /** GET and HEAD read; anything else writes unless the call says it only reads (a POST carrying a list of ids). */
@@ -89,7 +92,7 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     }
     const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
     if (!location) return res;
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     if (hop >= MAX_REDIRECTS) throw fail(502, t("server.jira.redirectNotAllowed"));
     const next = new URL(location, target);
     const sameOrigin = next.origin === origin;

@@ -9,7 +9,7 @@
 // are form-encoded; ids are long strings, and the number in a task's link is
 // another id (the "API v2" one) that /ids converts.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type WrikeCreds = {
   /** The API root of the account's data center: https://www.wrike.com/api/v4 */
@@ -146,7 +146,7 @@ export async function wrike<T>(c: WrikeCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

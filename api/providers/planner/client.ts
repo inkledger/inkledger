@@ -3,7 +3,7 @@
 // token as a Bearer, errors in the layer's words, lists by @odata.nextLink.
 // Graph is a hosted service only, so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type PlannerCreds = {
   /** The API root: https://graph.microsoft.com/v1.0 */
@@ -115,7 +115,7 @@ export async function graph<T>(c: PlannerCreds, path: string, init: Call = {}): 
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

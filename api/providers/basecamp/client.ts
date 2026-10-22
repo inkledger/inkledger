@@ -5,7 +5,7 @@
 // Basecamp is a hosted service only, so every call goes to the public internet.
 // An account's API lives under https://3.basecampapi.com/<account id>.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 /** Where the accounts of a token are listed (a different host from the API). */
 export const LAUNCHPAD = "https://launchpad.37signals.com";
@@ -146,7 +146,7 @@ export async function bc<T>(c: BcCreds, path: string, init: Call = {}): Promise<
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

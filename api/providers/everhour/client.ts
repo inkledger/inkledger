@@ -3,7 +3,7 @@
 // X-Api-Key, errors in the layer's words, lists paged by `page` and `limit`.
 // Dates are plain days (YYYY-MM-DD, the user's own), times whole seconds.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type EverhourCreds = {
   /** The API root: https://api.everhour.com */
@@ -91,7 +91,7 @@ export async function eh<T>(c: EverhourCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (res.status === 404 && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

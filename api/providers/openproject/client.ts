@@ -13,7 +13,7 @@
 // - errors are HAL `Error` objects; a validation failure (422) lists the
 //   attributes at fault in `_embedded.errors`.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 import type { Network } from "../../lib/security";
 
 export type OpenProjectCreds = {
@@ -173,7 +173,7 @@ export async function op<T>(c: OpenProjectCreds, path: string, init: Call = {}):
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

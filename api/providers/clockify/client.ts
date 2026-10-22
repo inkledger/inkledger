@@ -2,7 +2,7 @@
 // safe fetch, the personal API key in X-Api-Key (Profile settings → API),
 // errors in the layer's words, pages by page / page-size.
 import { ProviderError, kindOfStatus, type ProviderErrorKind } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type ClockifyCreds = {
   /** https://api.clockify.me/api/v1 */
@@ -97,7 +97,7 @@ export async function cf<T>(c: ClockifyCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (res.status === 404 && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

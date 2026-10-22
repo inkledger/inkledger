@@ -7,7 +7,7 @@
 //   have no Link header or total: pages by `$skip`, ending on an empty page;
 // - timestamps are epoch milliseconds, users' avatars may be relative paths.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type YouTrackCreds = {
   /** The service root, with or without /api: https://x.youtrack.cloud, https://host/youtrack/api */
@@ -145,7 +145,7 @@ export async function yt<T>(c: YouTrackCreds, path: string, init: RequestInit & 
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

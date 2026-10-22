@@ -5,7 +5,7 @@
 // it) rather than a URL, the budget of 200 requests a minute answered with a
 // 429 and Retry-After, and validation errors as a list of messages.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type ShortcutCreds = {
   /** The API host: https://api.app.shortcut.com (a trailing /api/v3 is tolerated; the path is added here) */
@@ -133,7 +133,7 @@ export async function sc<T>(c: ShortcutCreds, path: string, init: Call = {}): Pr
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

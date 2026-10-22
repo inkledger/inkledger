@@ -9,7 +9,7 @@
 // - validation answers 422 `{ errors: ["Hours is invalid"] }`: messages, not field ids;
 // - there is no built-in rate limit, a proxy in front may answer 429 (Retry-After).
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 
 export type RedmineCreds = {
   /** The site root, with its sub-URI if it has one: https://redmine.example.com, https://host/redmine */
@@ -140,11 +140,11 @@ export async function rd<T>(c: RedmineCreds, path: string, init: Call = {}): Pro
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (res.status === 403 && hiddenIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

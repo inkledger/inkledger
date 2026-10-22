@@ -4,7 +4,7 @@
 // Paging has no single rule here: callers use what each endpoint documents
 // ($top/$skip, continuation tokens in a header or in the body).
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, type Intent } from "../core/http";
+import { safeFetch, type Intent, discardBody } from "../core/http";
 
 export type AzureCreds = {
   /** The collection's root: https://dev.azure.com/{organization}, or a Server's https://host/tfs/{collection} */
@@ -165,11 +165,11 @@ export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Pro
   });
   // A 203 (or a web page where JSON was asked) is the sign-in page: the token wasn't accepted.
   if (res.status === 203 || /text\/html/i.test(res.headers.get("content-type") ?? "")) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     throw new ProviderError("auth", "Azure DevOps did not accept the token (it answered with its sign-in page)", { status: res.status });
   }
   if (res.status === 404 && missingIsNull) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);

@@ -9,7 +9,7 @@
 // - a worklog has two ids (tempoWorklogId, the one every Tempo call takes, and jiraWorklogId, its mirror in Jira): never mixed;
 // - the limit answers 429, with Retry-After when the plan sends it.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, discardBody } from "../core/http";
 import type { TimeZone } from "@contracts/values";
 
 export type TempoCreds = {
@@ -135,7 +135,7 @@ export async function tp<T>(c: TempoCreds, path: string, init: Call = {}): Promi
     fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 && (missingIsNull || absentIsNull)) || (res.status === 403 && absentIsNull)) {
-    await res.body?.cancel().catch(() => undefined);
+    await discardBody(res);
     return null;
   }
   if (!res.ok) throw await refused(res);
