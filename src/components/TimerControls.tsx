@@ -288,7 +288,8 @@ export function ActiveTimerQuickControls({ compact = false }: { compact?: boolea
 }
 
 function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; connectionId: number; compact: boolean }) {
-  const { running, pending, heldElsewhere, ...act } = useTimerActions(issueKey, connectionId);
+  // Only what it draws: reading `fetchedAt` would re-render it on every poll.
+  const { running, pending, heldElsewhere, pause, start, stop } = useTimerActions(issueKey, connectionId);
   if (heldElsewhere) return null;
   const size = compact ? "h-7 w-7" : "h-8 w-8";
   return (
@@ -300,7 +301,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         aria-label={running ? t("ui.timer.pauseFor", { key: issueKey }) : t("ui.timer.resumeFor", { key: issueKey })}
         title={running ? t("ui.timer.pause") : t("ui.timer.resume")}
         disabled={pending}
-        onClick={running ? act.pause : act.start}
+        onClick={running ? pause : start}
       >
         {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </Button>
@@ -311,7 +312,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         aria-label={t("ui.timer.stopAndLogFor", { key: issueKey })}
         title={t("ui.timer.stopAndLog")}
         disabled={pending}
-        onClick={act.stop}
+        onClick={stop}
       >
         <Square className="h-4 w-4" />
       </Button>

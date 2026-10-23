@@ -63,7 +63,7 @@ import { PeriodNav } from "@/components/app/PeriodNav";
 import { PanelSection } from "@/components/app/Panel";
 import { Link } from "react-router";
 import { ErrorState } from "@/components/app/States";
-import { TickingElapsed, TimerRing } from "@/components/TimerControls";
+import { ActiveTimerQuickControls, TickingElapsed, TimerRing } from "@/components/TimerControls";
 import { QuickLog } from "@/components/QuickLog";
 import {
   DayTimeline,
@@ -249,6 +249,29 @@ export default function Dashboard() {
     seconds: w.timeSpentSeconds,
   }));
   const running = timers.find(tm => tm.state === "running");
+  // In the header: the running timer, else the last paused (resumed or stopped from there).
+  const headerTimer = running ?? timers[0];
+  // Built once per timer: the page re-renders as timers poll, its controls need not.
+  const headerKey = headerTimer?.issueKey;
+  const headerState = headerTimer?.state;
+  const headerElapsed = headerTimer?.elapsedSeconds ?? 0;
+  const headerFetched = headerTimer ? timerState.fetchedAt : 0;
+  const headerControls = useMemo(
+    () =>
+      headerKey === undefined || headerState === undefined ? null : (
+        // The timer at hand: paused or stopped from here (a stop asks to log, as everywhere).
+        <span className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
+          <TimerRing running={headerState === "running"} />
+          <span className="text-muted-foreground">{headerKey}</span>
+          {headerState === "running" && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: headerKey })}</span>}
+          <TickingElapsed state={headerState} elapsedSeconds={headerElapsed} fetchedAt={headerFetched} className={headerState === "running" ? undefined : "text-warning"} />
+          <ActiveTimerQuickControls />
+        </span>
+      ),
+    [headerKey, headerState, headerElapsed, headerFetched]
+  );
+  const anyRunning = running !== undefined;
+  const liveControls = useMemo(() => (anyRunning ? <ActiveTimerQuickControls compact /> : undefined), [anyRunning]);
   if (running && range.kind === "day" && range.isCurrent) {
     // Approximation: a running timer is drawn as ending now.
     timelineEntries.push({
@@ -485,19 +508,7 @@ export default function Dashboard() {
         }
         actions={
           <>
-            {running && (
-              <span className="mr-1 flex items-center gap-2 border-r pr-3 text-body-sm font-medium">
-                <TimerRing running />
-                <span className="sr-only">
-                  {t("pages.dashboard.timerRunning", { key: running.issueKey })}
-                </span>
-                <TickingElapsed
-                  state={running.state}
-                  elapsedSeconds={running.elapsedSeconds}
-                  fetchedAt={timerState.fetchedAt}
-                />
-              </span>
-            )}
+            {headerControls}
             <SegmentedControl
               label={t("pages.dashboard.period")}
               value={range.kind}
@@ -584,6 +595,7 @@ export default function Dashboard() {
                   openHole={openHole}
                   floor={<ModuleSlot id="dashboard-perch" />}
                   todoSpans={todoSpans}
+                  liveControls={liveControls}
                 />
               ) : (
                 <PeriodBars

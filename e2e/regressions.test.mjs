@@ -1417,3 +1417,24 @@ test("reconnecting GitHub asks no name: the connection keeps its own", () =>
     await dialog.getByRole("button", { name: "Sign in with GitHub" }).waitFor();
     assert.equal(await dialog.getByLabel("Name in inkledger").count(), 0);
   }));
+
+test("Dashboard: the running timer paused, resumed and stopped from its header and from its block on the day", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(base + "/issues");
+    await startTimer(page, "DEMO-101");
+    await page.goto(base + "/?period=day");
+    const main = page.getByRole("main");
+    const trend = main.getByRole("region", { name: "Period trend" });
+    // On the block that runs.
+    await trend.getByRole("button", { name: "Pause timer DEMO-101" }).click();
+    await main.getByRole("button", { name: "Resume timer DEMO-101" }).first().waitFor();
+    assert.equal((await db.q("SELECT state FROM timers"))[0].state, "paused");
+    // From the header: still there while paused, resumed, then stopped: its time to log.
+    await main.getByRole("button", { name: "Resume timer DEMO-101" }).first().click();
+    await main.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    assert.equal((await db.q("SELECT state FROM timers"))[0].state, "running");
+    await main.getByRole("button", { name: "Stop and log time on DEMO-101" }).first().click();
+    await page.getByRole("dialog").getByText("DEMO-101").first().waitFor();
+    assert.equal((await db.q("SELECT state FROM timers"))[0].state, "paused");
+  }));

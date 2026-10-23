@@ -58,6 +58,7 @@ export function DayTimeline({
   openHole,
   floor,
   todoSpans = [],
+  liveControls,
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -76,6 +77,8 @@ export function DayTimeline({
   floor?: ReactNode;
   /** TODO time that day: a thin strip over the blocks, never one of them (it is not logged time). */
   todoSpans?: { start: Date; end: Date; linked: boolean; label: string }[];
+  /** Pause and stop, on the running block's end (where "now" is). */
+  liveControls?: ReactNode;
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
@@ -261,6 +264,11 @@ export function DayTimeline({
                 style={style}
               >
                 {body}
+                {liveControls && (
+                  <div {...surface("control")} className="absolute bottom-1 right-1 z-30 rounded-md border bg-card">
+                    {liveControls}
+                  </div>
+                )}
               </div>
             );
           // A logged slice opens its issue.
