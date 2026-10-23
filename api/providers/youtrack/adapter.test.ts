@@ -101,6 +101,8 @@ describe("youtrack: sync of assigned issues", () => {
     const t = Date.UTC(2026, 9, 20, 3, 0);
     const cp = encodeCheckpoint(conn, "issues", 1, { at: t });
     sim.state.userOffsetMinutes = -12 * 60;
+    // The seeded issues changed "now": put them well before the fixed checkpoint, whatever today is.
+    for (const i of sim.issues) i.updated = t - 3 * DAY;
     sim.add("APP", "Changed a minute after", { updated: t + 60_000 });
     sim.add("APP", "Changed two days before", { updated: t - 2 * DAY });
     const got = await readPass((q) => b.listChanged(meta(), q), cp);
