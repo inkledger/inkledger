@@ -210,3 +210,45 @@ test("from a comment, a private note, a card's menu: each TODO tied to it, and i
       assert.ok(box && box.y >= 0 && box.y + box.height <= height, "the comment is in view");
     },
   ));
+
+test("reminders: today's and late TODOs in the bell and on the Dashboard; Tomorrow moves one, Hide puts one away until tomorrow", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        const add = (text, due) => db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, ?, ?, 0, ?, ?)", text, due, now, now);
+        await add("Send the invoice", inDays(-2));
+        await add("Review PR", inDays(0));
+        await add("Later thing", inDays(3));
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/");
+      // Once a day: a toast says how many.
+      await page.getByText("2 TODOs for today").waitFor();
+      // The Dashboard's card.
+      const card = page.getByRole("list", { name: "To do today" });
+      await card.getByRole("listitem", { name: "Send the invoice" }).waitFor();
+      await card.getByRole("listitem", { name: "Review PR" }).waitFor();
+      // The bell counts them.
+      const bell = page.getByRole("button", { name: "Notifications, 2 to review" }).first();
+      await bell.click();
+      const center = page.getByRole("dialog");
+      const reminders = center.getByRole("region", { name: "To do today" });
+      await reminders.getByRole("listitem", { name: "Send the invoice" }).waitFor();
+      await reminders.getByRole("listitem", { name: "Review PR" }).getByRole("button", { name: "Tomorrow", exact: true }).click();
+      await reminders.getByRole("listitem", { name: "Review PR" }).waitFor({ state: "detached" });
+      assert.equal((await db.q("SELECT due_on FROM todos WHERE text = 'Review PR'"))[0].due_on, inDays(1));
+      await reminders.getByRole("button", { name: "Hide “Send the invoice” until tomorrow" }).click();
+      await reminders.waitFor({ state: "detached" });
+      assert.equal((await db.q("SELECT reminder_seen_on FROM todos WHERE text = 'Send the invoice'"))[0].reminder_seen_on, inDays(0));
+      // Still open, still on today's list: only the reminder is away.
+      assert.equal((await db.q("SELECT done_at FROM todos WHERE text = 'Send the invoice'"))[0].done_at, null);
+      await page.keyboard.press("Escape");
+      // Back later the same day: no second toast.
+      await page.reload();
+      await card.getByRole("listitem", { name: "Send the invoice" }).waitFor();
+      await page.waitForTimeout(800);
+      assert.equal(await page.getByText(/TODOs? for today/).count(), 0);
+    },
+  ));

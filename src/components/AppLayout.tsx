@@ -42,6 +42,7 @@ import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
 import { useTodoWiring } from "@/hooks/useTodoPanel";
+import { useTodoReminderToast } from "@/hooks/useTodoReminders";
 import { TodoWidget } from "@/components/todo/TodoWidget";
 import { MakeTodoHost } from "@/components/todo/MakeTodo";
 import { HotCorner } from "@/components/todo/HotCorner";
@@ -514,6 +515,7 @@ function ShellWatchers() {
   useNativeBridge();
   useDayEndReminder();
   useNotificationAlerts();
+  useTodoReminderToast();
   return null;
 }
 

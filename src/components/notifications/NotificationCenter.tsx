@@ -10,6 +10,8 @@ import {
   type NotificationRow,
 } from "@/components/notifications/NotificationItem";
 import { Button } from "@/components/ui/button";
+import { TodoReminders } from "@/components/todo/TodoReminders";
+import { useTodoReminders } from "@/hooks/useTodoReminders";
 import { t } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -37,6 +39,7 @@ function groups(items: NotificationRow[]) {
 export function NotificationCenter() {
   const open = notificationCenter.useValue();
   const { query, items, dismiss, dismissAll } = useNotificationList();
+  const reminders = useTodoReminders().items.length;
   const close = () => notificationCenter.set(false);
 
   return (
@@ -73,7 +76,7 @@ export function NotificationCenter() {
               message={errorText(query.error)}
               onRetry={() => void query.refetch()}
             />
-          ) : items.length === 0 ? (
+          ) : items.length === 0 && reminders === 0 ? (
             <EmptyState
               icon={BellOff}
               title={t("settings.notifications.emptyTitle")}
@@ -81,6 +84,8 @@ export function NotificationCenter() {
             />
           ) : (
             <div className="grid gap-5">
+              {/* Today's TODOs first: what the user planned comes before what happened. */}
+              <TodoReminders onOpen={close} />
               {groups(items).map(g => (
                 <section key={g.label} aria-label={g.label}>
                   <SectionLabel as="h3" className="mb-2 px-2">

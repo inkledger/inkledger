@@ -37,6 +37,7 @@ import { useTimers } from "@/hooks/useTimers";
 import { dayReview } from "@/lib/flag";
 import { weekRecap } from "@/lib/recap";
 import { WeekRecapCard } from "@/components/dashboard/WeekRecapCard";
+import { TodayTodosCard } from "@/components/dashboard/TodayTodosCard";
 import { InboxCard } from "@/components/dashboard/InboxCard";
 import { projectOf, rankProjects } from "@/lib/projectColors";
 import { daysUntil } from "@/lib/dates";
@@ -430,6 +431,7 @@ export default function Dashboard() {
     activity: isVisible("activity"),
     recap: isVisible("recap"),
     inbox: isVisible("inbox"),
+    todos: isVisible("todos"),
   };
 
   return (
@@ -545,6 +547,7 @@ export default function Dashboard() {
       />
 
       {show.inbox && <InboxCard />}
+      {show.todos && <TodayTodosCard />}
 
       {/* Row 1: period chart + quick stats */}
       {(show.timeline || show.stats) && (

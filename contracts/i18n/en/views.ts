@@ -178,6 +178,13 @@ export const views = {
     fromNoteLabel: "Make a TODO from this note",
     onIssueLabel: "Add a TODO on this issue",
     menuAdd: "Add a TODO…",
+    remindersTitle: "To do today",
+    openList: "Open the list",
+    remindDone: "Done",
+    remindTomorrow: "Tomorrow",
+    remindHide: "Hide",
+    remindHideLabel: "Hide “{text}” until tomorrow",
+    dueToday: { one: "1 TODO for today", other: "{count} TODOs for today" },
   },
   board: {
     postit: {

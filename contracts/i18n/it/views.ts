@@ -183,6 +183,13 @@ export const views: Shape<typeof en> = {
     fromNoteLabel: "Crea un TODO da questa nota",
     onIssueLabel: "Aggiungi un TODO su questa issue",
     menuAdd: "Aggiungi un TODO…",
+    remindersTitle: "Da fare oggi",
+    openList: "Apri la lista",
+    remindDone: "Fatto",
+    remindTomorrow: "Domani",
+    remindHide: "Nascondi",
+    remindHideLabel: "Nascondi «{text}» fino a domani",
+    dueToday: { one: "1 TODO per oggi", other: "{count} TODO per oggi" },
   },
   board: {
     postit: {

@@ -1,3 +1,4 @@
+import { useTodoReminders } from "@/hooks/useTodoReminders";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
@@ -49,13 +50,14 @@ export function notificationTitle(n: NotificationLike): string {
   return `${what}: ${n.issueKey}`;
 }
 
-/** Undismissed notifications (sidebar badge); shares the polled query. */
+/** Undismissed notifications plus today's TODO reminders (the bell's badge); shares the polled queries. */
 export function useNotificationCount(): number {
   const count = trpc.notifications.count.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
   });
-  return count.data?.count ?? 0;
+  const reminders = useTodoReminders().items.length;
+  return (count.data?.count ?? 0) + reminders;
 }
 
 /**
