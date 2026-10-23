@@ -54,22 +54,25 @@ export function usePinboardWiring() {
 export type PinboardTarget = "panel" | "sheet" | "float" | "page" | "board";
 
 /**
- * Where "p" and the pinboard buttons open it: on the Board, its own panel (a
- * sheet on small screens) when that is on; else the floating widget; else its
- * page; else the Board with its panel. Never a second one where it already is
- * (its page), nothing when every place is off.
+ * Where "p", the palette and the "Open" toasts open it: the floating widget
+ * when that is on, wherever the user is (the Board too); else, on the Board,
+ * its own panel (a sheet on small screens); else its page; else the Board with
+ * its panel. The Board's pin button asks for its panel first (`panelFirst`).
+ * Never a second one where it already is (its page), nothing when every place is off.
  */
-export function pinboardTarget(pathname: string, wide: boolean, s: PinboardSurfaces): PinboardTarget | null {
+export function pinboardTarget(pathname: string, wide: boolean, s: PinboardSurfaces, panelFirst = false): PinboardTarget | null {
   if (pathname === "/pinboard") return null;
-  if (pathname === "/board" && s.board) return wide ? "panel" : "sheet";
+  const onBoard = pathname === "/board" && s.board ? (wide ? "panel" : "sheet") : null;
+  if (panelFirst && onBoard) return onBoard;
   if (s.widget) return "float";
+  if (onBoard) return onBoard;
   if (s.menu) return "page";
   if (s.board) return "board";
   return null;
 }
 
-/** The widget gives way where the pinboard already is: its page, the Board with its panel. */
-export const floatHidden = (pathname: string, s: PinboardSurfaces) => pathname === "/pinboard" || (pathname === "/board" && s.board);
+/** The widget gives way on the pinboard's own page. */
+export const floatHidden = (pathname: string) => pathname === "/pinboard";
 
 /** The surfaces as the layout last gave them (setPinboardSurfaces). */
 export const usePinboardSurfacesNow = (): PinboardSurfaces => useSyncExternalStore(subscribe, () => surfaces);
@@ -84,13 +87,13 @@ function openOnBoard() {
 const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
 
 /** Whether a pinboard button or key has somewhere to open it here. */
-export function usePinboardTarget(pathname: string): PinboardTarget | null {
-  return pinboardTarget(pathname, isWide(), usePinboardSurfacesNow());
+export function usePinboardTarget(pathname: string, panelFirst = false): PinboardTarget | null {
+  return pinboardTarget(pathname, isWide(), usePinboardSurfacesNow(), panelFirst);
 }
 
 /** Sidebar button, "p", palette, toasts: show or hide the pinboard where it lives (pinboardTarget). */
-export function togglePinboard(pathname = window.location.pathname) {
-  switch (pinboardTarget(pathname, isWide(), surfaces)) {
+export function togglePinboard(pathname = window.location.pathname, panelFirst = false) {
+  switch (pinboardTarget(pathname, isWide(), surfaces, panelFirst)) {
     case "panel":
       pinboardPanel.set(panel.get() === "closed" ? "open" : "closed");
       return;

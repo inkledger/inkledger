@@ -4,10 +4,15 @@ import { floatHidden, pinboardTarget } from "./usePinboardPanel";
 const on = { board: true, menu: true, widget: true };
 
 describe("where the pinboard opens (Settings → Pinboard)", () => {
-  it("on the Board, its own panel (a sheet on small screens); elsewhere the widget", () => {
-    expect(pinboardTarget("/board", true, on)).toBe("panel");
-    expect(pinboardTarget("/board", false, on)).toBe("sheet");
+  it("the widget first, wherever (the Board too); the Board's pin button asks for its panel there", () => {
+    expect(pinboardTarget("/board", true, on)).toBe("float");
     expect(pinboardTarget("/issues", true, on)).toBe("float");
+    expect(pinboardTarget("/board", true, on, true)).toBe("panel");
+    expect(pinboardTarget("/board", false, on, true)).toBe("sheet");
+    expect(pinboardTarget("/issues", true, on, true)).toBe("float");
+    // Without the widget: on the Board, its panel (a sheet on small screens).
+    expect(pinboardTarget("/board", true, { ...on, widget: false })).toBe("panel");
+    expect(pinboardTarget("/board", false, { ...on, widget: false })).toBe("sheet");
   });
 
   it("without the widget, its page; without that too, the Board with its panel", () => {
@@ -22,10 +27,9 @@ describe("where the pinboard opens (Settings → Pinboard)", () => {
     expect(pinboardTarget("/pinboard", true, on)).toBeNull();
   });
 
-  it("the widget gives way where the pinboard already is", () => {
-    expect(floatHidden("/pinboard", on)).toBe(true);
-    expect(floatHidden("/board", on)).toBe(true);
-    expect(floatHidden("/board", { ...on, board: false })).toBe(false);
-    expect(floatHidden("/issues", on)).toBe(false);
+  it("the widget gives way only on the pinboard's own page", () => {
+    expect(floatHidden("/pinboard")).toBe(true);
+    expect(floatHidden("/board")).toBe(false);
+    expect(floatHidden("/issues")).toBe(false);
   });
 });

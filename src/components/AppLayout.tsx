@@ -160,7 +160,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const inbox = useNotificationCount();
   const pinboard = usePinboardPanel();
   const navItems = useNavItems();
-  const pinTarget = usePinboardTarget(pathname);
+  // The Board's pin button opens the Board's own panel there; "p" the widget first.
+  const pinTarget = usePinboardTarget(pathname, true);
 
   return (
     <div
@@ -290,7 +291,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                   aria-label={t("ui.layout.openPinboard")}
                   title={t("ui.layout.openPinboardTitle")}
                   aria-pressed={panelOpen}
-                  onClick={() => togglePinboard(pathname)}
+                  onClick={() => togglePinboard(pathname, true)}
                   className={cn(
                     "absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring/40",
                     panelOpen && "text-primary-strong"

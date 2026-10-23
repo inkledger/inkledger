@@ -49,7 +49,7 @@ export function PinboardWidget() {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  const shown = open && surfaces.widget && !floatHidden(pathname, surfaces);
+  const shown = open && surfaces.widget && !floatHidden(pathname);
   const close = () => pinboardFloat.set(false);
 
   if (!wide) {
