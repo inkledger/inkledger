@@ -139,6 +139,29 @@ function useDashboardLayout() {
   };
 }
 
+/** Pause and stop on the running block: one element, so the timeline's renders never redraw it. */
+const LIVE_CONTROLS = <ActiveTimerQuickControls compact />;
+
+/**
+ * The header's timer: the running one, else the last paused, with its time,
+ * paused, resumed or stopped from here (a stop asks to log, as everywhere).
+ */
+function HeaderTimer() {
+  const { timers, fetchedAt } = useTimers();
+  const timer = timers.find(tm => tm.state === "running") ?? timers[0];
+  if (!timer) return null;
+  const running = timer.state === "running";
+  return (
+    <span className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
+      <TimerRing running={running} />
+      <span className="text-muted-foreground">{timer.issueKey}</span>
+      {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
+      <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
+      <ActiveTimerQuickControls />
+    </span>
+  );
+}
+
 export default function Dashboard() {
   const provider = useProviderName();
   const { range, setKind, prev, next, reset, jumpTo } = usePeriod("day");
@@ -249,29 +272,6 @@ export default function Dashboard() {
     seconds: w.timeSpentSeconds,
   }));
   const running = timers.find(tm => tm.state === "running");
-  // In the header: the running timer, else the last paused (resumed or stopped from there).
-  const headerTimer = running ?? timers[0];
-  // Built once per timer: the page re-renders as timers poll, its controls need not.
-  const headerKey = headerTimer?.issueKey;
-  const headerState = headerTimer?.state;
-  const headerElapsed = headerTimer?.elapsedSeconds ?? 0;
-  const headerFetched = headerTimer ? timerState.fetchedAt : 0;
-  const headerControls = useMemo(
-    () =>
-      headerKey === undefined || headerState === undefined ? null : (
-        // The timer at hand: paused or stopped from here (a stop asks to log, as everywhere).
-        <span className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
-          <TimerRing running={headerState === "running"} />
-          <span className="text-muted-foreground">{headerKey}</span>
-          {headerState === "running" && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: headerKey })}</span>}
-          <TickingElapsed state={headerState} elapsedSeconds={headerElapsed} fetchedAt={headerFetched} className={headerState === "running" ? undefined : "text-warning"} />
-          <ActiveTimerQuickControls />
-        </span>
-      ),
-    [headerKey, headerState, headerElapsed, headerFetched]
-  );
-  const anyRunning = running !== undefined;
-  const liveControls = useMemo(() => (anyRunning ? <ActiveTimerQuickControls compact /> : undefined), [anyRunning]);
   if (running && range.kind === "day" && range.isCurrent) {
     // Approximation: a running timer is drawn as ending now.
     timelineEntries.push({
@@ -508,7 +508,7 @@ export default function Dashboard() {
         }
         actions={
           <>
-            {headerControls}
+            <HeaderTimer />
             <SegmentedControl
               label={t("pages.dashboard.period")}
               value={range.kind}
@@ -595,7 +595,7 @@ export default function Dashboard() {
                   openHole={openHole}
                   floor={<ModuleSlot id="dashboard-perch" />}
                   todoSpans={todoSpans}
-                  liveControls={liveControls}
+                  liveControls={running ? LIVE_CONTROLS : undefined}
                 />
               ) : (
                 <PeriodBars
