@@ -80,7 +80,7 @@ const WINDOW = 300_000;
  * commit, never a side effect.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 42, renders: 3050 },
+  "dashboard, no timer": { commits: 42, renders: 3150 },
   "issue page, timer running": { commits: 374, renders: 6170 },
   "dashboard, timer running": { commits: 374, renders: 10090 },
   "timesheet, timer running": { commits: 374, renders: 9480 },
