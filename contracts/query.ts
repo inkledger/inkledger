@@ -102,6 +102,23 @@ const PRIORITY_RANKS: Record<string, number> = {
 const PRIORITY_EN = ["highest", "high", "medium", "low", "lowest"];
 const PRIORITY_IT = ["massima", "alta", "media", "bassa", "minima"];
 
+/** Names some trackers use beside the five levels, as the nearest level (the Board's filter). */
+const PRIORITY_NEAR: Record<string, number> = { major: 1, maggiore: 1, minor: 3, minore: 3 };
+
+/** The filterable priority levels, highest first. */
+export const PRIORITY_LEVELS = [0, 1, 2, 3, 4] as const;
+
+/**
+ * An issue's priority level: the rank its tracker gave (0 highest … 4 lowest),
+ * else what its name says (any language the trackers use), else null.
+ */
+export function priorityLevel(rank: number | null, name: string): number | null {
+  if (rank !== null && rank >= 0 && rank <= 4) return rank;
+  const k = name.trim().toLowerCase();
+  if (!k) return null;
+  return k in PRIORITY_RANKS ? PRIORITY_RANKS[k] : (PRIORITY_NEAR[k] ?? null);
+}
+
 /** A priority value as a rank, or null when it isn't one. */
 export function priorityRankOfValue(v: string): number | null {
   const k = v.toLowerCase();

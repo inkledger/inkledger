@@ -392,3 +392,43 @@ test("under a bucket, the pinboard switcher leaves other buckets' boards out and
       await page.keyboard.press("Escape");
     },
   ));
+
+test("the priority filter: several levels at once, Italian names without a rank too, kept in the URL", () =>
+  withApp(
+    {
+      seed: async db => {
+        await db.q("UPDATE issues SET priority_rank = 0 WHERE key = 'DEMO-101'");
+        await db.q("UPDATE issues SET priority = 'Alta', priority_rank = NULL WHERE key = 'DEMO-102'");
+        await db.q("UPDATE issues SET priority = 'Bassa', priority_rank = NULL WHERE key = 'DEMO-103'");
+        await db.q("UPDATE issues SET priority = '' WHERE key = 'DEMO-104'");
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(base + "/board");
+      const cards = page.locator("[draggable=true]");
+      await cards.filter({ hasText: "DEMO-110" }).first().waitFor();
+      const shown = async () => (await cards.allTextContents()).map(x => /(DEMO|SHOP)-\d+/.exec(x)?.[0]).filter(Boolean).sort();
+      await page.getByRole("button", { name: "Filter by priority" }).click();
+      const highest = page.getByRole("menuitemcheckbox", { name: /^Highest/ });
+      assert.match(await highest.textContent(), /1$/);
+      await highest.click();
+      // The menu stays open for a second level.
+      await page.getByRole("menuitemcheckbox", { name: /^High\b/ }).click();
+      await page.keyboard.press("Escape");
+      await page.waitForURL(/prio=0%2C1|prio=0,1/);
+      assert.deepEqual(await shown(), ["DEMO-101", "DEMO-102"]);
+      await page.reload();
+      await cards.filter({ hasText: "DEMO-101" }).first().waitFor();
+      assert.deepEqual(await shown(), ["DEMO-101", "DEMO-102"]);
+      // None and Low: the issue without a priority, the Italian "Bassa".
+      await page.goto(base + "/board?prio=none,3");
+      await cards.filter({ hasText: "DEMO-103" }).first().waitFor();
+      assert.deepEqual(await shown(), ["DEMO-103", "DEMO-104"]);
+      // Nothing left with a search: said, and one click shows every priority again.
+      await page.getByRole("searchbox", { name: "Search the board" }).fill("number 7");
+      await page.getByText("No issue with these priorities").waitFor();
+      await page.getByRole("button", { name: "Show all" }).click();
+      await cards.filter({ hasText: "DEMO-107" }).first().waitFor();
+      assert.deepEqual(await shown(), ["DEMO-107"]);
+    },
+  ));

@@ -105,3 +105,18 @@ describe("queryFieldNames", () => {
     expect(parseQuery("zzz:x").warnings.map(w => w.code)).toEqual(["unknownField"]);
   });
 });
+
+describe("an issue's priority level (the Board's filter)", () => {
+  it("the tracker's rank first, else the name in any language, else none", async () => {
+    const { priorityLevel } = await import("@contracts/query");
+    expect(priorityLevel(0, "Whatever")).toBe(0);
+    expect(priorityLevel(null, "Alta")).toBe(1);
+    expect(priorityLevel(null, " highest ")).toBe(0);
+    expect(priorityLevel(null, "Banale")).toBe(4);
+    expect(priorityLevel(null, "Major")).toBe(1);
+    expect(priorityLevel(null, "Minore")).toBe(3);
+    expect(priorityLevel(null, "Sometime")).toBeNull();
+    expect(priorityLevel(null, "")).toBeNull();
+    expect(priorityLevel(7, "Bassa")).toBe(3);
+  });
+});

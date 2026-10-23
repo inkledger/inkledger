@@ -17,7 +17,9 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { byRelevance, visibleIssues, issueId } from "@/lib/issues";
-import { statusCategoryDotTone } from "@/lib/jira";
+import { levelKey, statusCategoryDotTone } from "@/lib/jira";
+import { priorityLevel } from "@contracts/query";
+import { PriorityFilter } from "@/components/board/PriorityFilter";
 import { cn } from "@/lib/utils";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { recentFinished } from "@/lib/boardDone";
@@ -56,8 +58,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadio
 
 const DONE_LIMIT = 20;
 
-const BOARD_FIELDS: Fields<{ term: string; expanded: Set<string>; connection: number }> = {
+const BOARD_FIELDS: Fields<{ term: string; expanded: Set<string>; connection: number; prio: Set<string> }> = {
   term: { key: "q", fallback: "", codec: text },
+  // Priority levels shown ("0"…"4", "none"); none chosen: every one.
+  prio: { key: "prio", fallback: new Set(), codec: textSet },
   expanded: { key: "expanded", fallback: new Set(), codec: textSet },
   // One tracker only (0: the device's bucket as it is)
   connection: { key: "c", fallback: 0, codec: int },
@@ -225,9 +229,22 @@ export default function Board() {
     [query.data, view.connection]
   );
   const needle = term.trim().toLowerCase();
-  const shownRows = useMemo(
+  const searched = useMemo(
     () => (rows ?? []).filter(i => !needle || i.key.toLowerCase().includes(needle) || i.summary.toLowerCase().includes(needle)),
     [rows, needle]
+  );
+  // Cards per priority level in what the search leaves, for the filter's counts.
+  const levelCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of searched) {
+      const k = levelKey(priorityLevel(i.priorityRank, i.priority));
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [searched]);
+  const shownRows = useMemo(
+    () => (view.prio.size === 0 ? searched : searched.filter(i => view.prio.has(levelKey(priorityLevel(i.priorityRank, i.priority))))),
+    [searched, view.prio]
   );
 
   // The trackers on the board: those with cards, those the bucket takes, the one chosen;
@@ -632,6 +649,7 @@ export default function Board() {
         actions={
           <>
             <BoardScope connection={view.connection} onConnection={c => setView({ connection: c })} />
+            <PriorityFilter chosen={view.prio} counts={levelCounts} onChange={prio => setView({ prio })} />
             <SegmentedControl<BoardMode>
               label={t("pages.board.mode")}
               value={mode}
@@ -688,7 +706,18 @@ export default function Board() {
       />
       <PanelSection className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 gap-4">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* The priority filter hides every card here: said, with the way back. */}
+            {view.prio.size > 0 && searched.length > 0 && shownRows.length === 0 && (
+              <p role="status" className="mb-3 text-body-sm text-muted-foreground">
+                {t("pages.board.priorityEmpty")} ·{" "}
+                <button type="button" className="underline underline-offset-4 hover:text-foreground" onClick={() => setView({ prio: new Set() })}>
+                  {t("pages.board.priorityShowAll")}
+                </button>
+              </p>
+            )}
+            {body}
+          </div>
           {/* Lavagna on the right: a rail when closed, 420px, or wide. */}
           {!onBoard ? null : panel === "closed" ? (
             <button

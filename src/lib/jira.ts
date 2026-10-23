@@ -69,6 +69,15 @@ const LOW = [
   "Banale",
 ];
 
+/** A level as the Board's URL keeps it: "0"…"4", or "none" for issues without a priority. */
+export const levelKey = (level: number | null) => (level === null ? "none" : String(level));
+
+/** A priority level's tone (0 highest … 4 lowest; null: none). */
+export function toneOfLevel(level: number | null): Tone {
+  if (level === null) return "neutral";
+  return level <= 1 ? "danger" : level === 2 ? "info" : "success";
+}
+
 export function priorityTone(priority: string): Tone {
   if (URGENT.includes(priority)) return "danger";
   if (NORMAL.includes(priority)) return "info";
