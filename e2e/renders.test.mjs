@@ -81,7 +81,7 @@ const WINDOW = 300_000;
  */
 const MEASURED = {
   "dashboard, no timer": { commits: 42, renders: 3150 },
-  "issue page, timer running": { commits: 374, renders: 6170 },
+  "issue page, timer running": { commits: 383, renders: 6415 },
   "dashboard, timer running": { commits: 374, renders: 10090 },
   "timesheet, timer running": { commits: 374, renders: 9480 },
 };
