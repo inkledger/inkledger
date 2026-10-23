@@ -409,7 +409,7 @@ describe("app router (integration, in-memory SQLite)", () => {
     const caller = router.createCaller(authedCtx);
     // default layout: all known widgets, all visible
     const defaults = await caller.settings.get();
-    expect(defaults.dashboard.length).toBe(8);
+    expect(defaults.dashboard.length).toBe(6);
     expect(defaults.dashboard.every((w) => w.visible)).toBe(true);
 
     const custom = [
@@ -424,8 +424,6 @@ describe("app router (integration, in-memory SQLite)", () => {
       "activity",
       "stats",
       "tasks",
-      "inbox",
-      "todos",
       "timeline",
       "summary",
       "recap",
@@ -448,7 +446,7 @@ describe("app router (integration, in-memory SQLite)", () => {
     const legacy = await caller.settings.update({
       dashboardLayout: [{ id: "favorites", visible: true }],
     });
-    expect(legacy.dashboard[0].id).toBe("inbox");
+    expect(legacy.dashboard[0].id).toBe("timeline");
     // restore defaults for other tests
     await caller.settings.update({ timerAlertMinutes: 120 });
   });

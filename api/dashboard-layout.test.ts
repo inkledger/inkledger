@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDashboardLayout } from "@contracts/dashboard";
 
-describe("the dashboard's layout as saved, with the widgets added since", () => {
-  it("a layout saved before the TODO widget keeps its order and visibility, and gains it at the end", () => {
+describe("the dashboard's layout as saved, with the widgets added or removed since", () => {
+  it("a saved layout keeps its order and visibility, and drops the widgets that left (inbox, TODOs)", () => {
     const saved = [
       { id: "tasks", visible: true },
       { id: "inbox", visible: false },
+      { id: "todos", visible: true },
       { id: "timeline", visible: true },
       { id: "stats", visible: true },
       { id: "summary", visible: true },
       { id: "activity", visible: false },
       { id: "recap", visible: true },
     ];
-    const out = normalizeDashboardLayout(saved);
-    expect(out.slice(0, 7)).toEqual(saved);
-    expect(out[7]).toEqual({ id: "todos", visible: true });
+    expect(normalizeDashboardLayout(saved)).toEqual(saved.filter(x => x.id !== "inbox" && x.id !== "todos"));
   });
 
-  it("a layout from before the current set starts again from the defaults, the TODO widget among them", () => {
-    expect(normalizeDashboardLayout([{ id: "timeline", visible: false }]).map(x => x.id)).toEqual(["inbox", "todos", "timeline", "stats", "summary", "tasks", "activity", "recap"]);
+  it("a layout from before the current set starts again from the defaults", () => {
+    expect(normalizeDashboardLayout([{ id: "timeline", visible: false }]).map(x => x.id)).toEqual(["timeline", "stats", "summary", "tasks", "activity", "recap"]);
   });
 });

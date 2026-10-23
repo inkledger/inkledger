@@ -165,6 +165,14 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const { hint: syncHint, error: syncError } = useSyncHint();
   const unread = useUnreadCount();
   const inbox = useNotificationCount();
+  const due = useTodoReminders().items.length;
+  // The count beside a section: issues with news, TODOs due today or late.
+  const chipOf = (to: string) =>
+    to === "/issues" && unread > 0
+      ? { count: unread, title: t("ui.layout.issuesWithNews", { count: unread }), sr: t("ui.layout.withNews") }
+      : to === "/todos" && due > 0
+        ? { count: due, title: t("ui.layout.todosDue", { count: due }), sr: t("ui.layout.forToday") }
+        : null;
   const pinboard = usePinboardPanel();
   const navItems = useNavItems();
   // The Board's pin button opens the Board's own panel there; "p" the widget first.
@@ -246,6 +254,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       >
         {navItems.map(({ group, title, items }) => {
           const links = items.map(({ to, label, icon: Icon }) => {
+            const chip = chipOf(to);
             const link = (
               <RailTip key={to} collapsed={collapsed} label={label}>
                 {/* Static classes (aria-current) so Tooltip's asChild merge keeps them. */}
@@ -267,9 +276,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
                   <span className={cn(collapsed && "sr-only")}>{label}</span>
-                  {to === "/issues" && unread > 0 && (
+                  {chip && (
                     <span
-                      title={t("ui.layout.issuesWithNews", { count: unread })}
+                      title={chip.title}
                       {...surface("chip")}
                       className={cn(
                         "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
@@ -279,8 +288,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                       )}
                     >
                       <span className={cn(collapsed && "sr-only")}>
-                        {unread}
-                        <span className="sr-only">{t("ui.layout.withNews")}</span>
+                        {chip.count}
+                        <span className="sr-only">{chip.sr}</span>
                       </span>
                     </span>
                   )}

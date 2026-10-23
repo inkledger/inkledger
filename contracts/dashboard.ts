@@ -1,7 +1,5 @@
 /** Widgets available in the customizable dashboard (labels live in the dictionaries). */
 export const DASHBOARD_WIDGETS = [
-  { id: "inbox" },
-  { id: "todos" },
   { id: "timeline" },
   { id: "stats" },
   { id: "summary" },

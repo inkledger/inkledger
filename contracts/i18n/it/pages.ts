@@ -346,8 +346,6 @@ export const pages: Shape<typeof en> = {
   dashboard: {
     otherProjects: "Altro",
     widgets: {
-      inbox: "Per te (notifiche)",
-      todos: "Da fare oggi (TODO)",
       timeline: "Andamento del periodo",
       stats: "Numeri rapidi",
       summary: "Riepilogo",

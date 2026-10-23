@@ -46,7 +46,6 @@ export const views: Shape<typeof en> = {
       goalReached: "Obiettivo di oggi raggiunto",
       goalReachedHint: "Bel lavoro: il resto della giornata è margine.",
     },
-    inbox: { title: "Per te", archiveAll: "Archivia tutte" },
     quickStats: { title: "Numeri rapidi", retry: "Riprova", note: "Nota" },
     tasks: {
       due: "Scadenza",
@@ -184,7 +183,6 @@ export const views: Shape<typeof en> = {
     onIssueLabel: "Aggiungi un TODO su questa issue",
     menuAdd: "Aggiungi un TODO…",
     remindersTitle: "Da fare oggi",
-    openList: "Apri la lista",
     remindDone: "Fatto",
     remindTomorrow: "Domani",
     remindHide: "Nascondi",

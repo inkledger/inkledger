@@ -47,6 +47,7 @@ export const ui = {
     mainNav: "Main navigation",
     issuesWithNews: { one: "{count} issue with news", other: "{count} issues with news" },
     withNews: " with news",
+    forToday: " for today",
     darkTheme: "Dark theme",
     startTimerTip: "Start timer (T)",
     startTimer: "Start timer",

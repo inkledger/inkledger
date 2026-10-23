@@ -48,6 +48,7 @@ export const ui: Shape<typeof en> = {
     mainNav: "Navigazione principale",
     issuesWithNews: { one: "{count} issue con novità", other: "{count} issue con novità" },
     withNews: " con novità",
+    forToday: " per oggi",
     darkTheme: "Tema scuro",
     startTimerTip: "Avvia timer (T)",
     startTimer: "Avvia timer",

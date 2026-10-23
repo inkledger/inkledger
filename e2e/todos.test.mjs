@@ -216,7 +216,7 @@ test("from a comment, a private note, a card's menu: each TODO tied to it, and i
     },
   ));
 
-test("reminders: today's and late TODOs in the bell and on the Dashboard; Tomorrow moves one, Hide puts one away until tomorrow", () =>
+test("reminders: today's and late TODOs in the bell and beside the menu link; Tomorrow moves one, Hide puts one away until tomorrow", () =>
   withApp(
     {
       seed: async db => {
@@ -231,10 +231,10 @@ test("reminders: today's and late TODOs in the bell and on the Dashboard; Tomorr
       await page.goto(base + "/");
       // Once a day: a toast says how many.
       await page.getByText("2 TODOs for today").waitFor();
-      // The Dashboard's card.
-      const card = page.getByRole("list", { name: "To do today" });
-      await card.getByRole("listitem", { name: "Send the invoice" }).waitFor();
-      await card.getByRole("listitem", { name: "Review PR" }).waitFor();
+      // No card on the Dashboard: the menu's TODO link counts them.
+      assert.equal(await page.getByRole("list", { name: "To do today" }).count(), 0);
+      const nav = page.getByRole("link", { name: /^TODO\s*2 for today$/ });
+      await nav.waitFor();
       // The bell counts them.
       const bell = page.getByRole("button", { name: "Notifications, 2 to review" }).first();
       await bell.click();
@@ -252,7 +252,8 @@ test("reminders: today's and late TODOs in the bell and on the Dashboard; Tomorr
       await page.keyboard.press("Escape");
       // Back later the same day: no second toast.
       await page.reload();
-      await card.getByRole("listitem", { name: "Send the invoice" }).waitFor();
+      // Its reminder hidden for today: no count left beside the link.
+      await page.getByRole("link", { name: "TODO", exact: true }).waitFor();
       await page.waitForTimeout(800);
       assert.equal(await page.getByText(/TODOs? for today/).count(), 0);
     },

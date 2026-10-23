@@ -345,8 +345,6 @@ export const pages = {
   dashboard: {
     otherProjects: "Other",
     widgets: {
-      inbox: "For you (notifications)",
-      todos: "To do today (TODO)",
       timeline: "Period trend",
       stats: "Quick numbers",
       summary: "Summary",

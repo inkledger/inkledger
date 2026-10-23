@@ -44,7 +44,6 @@ export const views = {
       goalReached: "Today's goal reached",
       goalReachedHint: "Nice work: the rest of the day is margin.",
     },
-    inbox: { title: "For you", archiveAll: "Archive all" },
     quickStats: { title: "Quick stats", retry: "Retry", note: "Note" },
     tasks: {
       due: "Due",
@@ -179,7 +178,6 @@ export const views = {
     onIssueLabel: "Add a TODO on this issue",
     menuAdd: "Add a TODO…",
     remindersTitle: "To do today",
-    openList: "Open the list",
     remindDone: "Done",
     remindTomorrow: "Tomorrow",
     remindHide: "Hide",

@@ -57,7 +57,7 @@ Each person connects their own trackers; none is "the base". Jira (Cloud, Server
 - **Where time goes**: trackers that keep time (Jira, GitLab, YouTrack, Redmine…) are written through, and time logged on them directly comes back; trackers without worklogs (GitHub, Linear…) keep time in inkledger's own register. A worklog changed on both sides waits for you to pick; one the tracker locked (an approved period) stays read-only. Deleted worklogs wait 30 days in a trash, with restore
 
 **Plan and review**
-- **Dashboard**: day timeline, week/month bars, goals, quick stats, "for you" notifications
+- **Dashboard**: day timeline, week/month bars, goals, quick stats
 - **Issues and search**: one search language in English and Italian: words, keys and links (`APP-12`, `owner/repo#12`, pasted URLs) and operators such as `project:`, `status:`, `cat:`, `in:`, `client:`, `label:`, `priority>=high`, `updated:7d`, `logged:today`, `@me`, `is:watched`, combined with `-`, `OR` and parentheses. **Search your trackers** sends the same query to each of them (JQL, GitHub's qualifiers, YouTrack's and Azure's own languages…) and streams the results in; what a tracker cannot apply is filtered here and said. Recent and saved searches
 - **Issue page** for any tracker: description, comments, history and transitions, with the fields the workflow asks for (Jira) or open, closed and not planned (GitHub). On GitHub also assignees, labels, title and description edits, and new issues in a repository
 - **Board**: by tracker with its own statuses, by category, or with your own columns; a card can only be dropped where its tracker's workflow lets it go, and a refused move comes back with the reason. Plus a **pinboard** of post-its
