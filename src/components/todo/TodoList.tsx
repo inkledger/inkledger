@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { CalendarDays, Link2, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Trash2, X } from "lucide-react";
+import { Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Trash2, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,19 +9,24 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DayChip, EstimateChip, IssueChip, PriorityChip, RepeatChip, StepsChip, StepsEditor } from "@/components/todo/TodoChips";
+import type { IssueRef } from "@/components/app/IssuePicker";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { useToday } from "@/hooks/useToday";
 import { useStartTimer } from "@/hooks/useStartTimer";
 import { usePinIssue } from "@/hooks/usePinIssue";
 import { toastError } from "@/lib/errorText";
 import { issuePath } from "@/lib/issues";
-import { dayLabel, nextMonday } from "@/lib/todoDay";
+import { dayLabel } from "@/lib/todoDay";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { addDays, dayKey } from "@contracts/time";
-import { parseTodoInput } from "@contracts/todo";
+import { addDays, dayKey, formatDuration } from "@contracts/time";
+import { TODO_REPEATS, parseSteps, parseTodoInput, type TodoRepeat, type TodoStep } from "@contracts/todo";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { t, useLocale } from "@/i18n";
@@ -50,7 +55,7 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const list = useRef<HTMLUListElement>(null);
   const refresh = () => utils.todos.invalidate();
 
-  const update = (id: number, patch: { text?: string; dueOn?: string | null; done?: boolean; issueKey?: string | null }) =>
+  const update = (id: number, patch: Patch) =>
     // Today goes along: a repeating TODO ticked comes back from it.
     utils.client.todos.update.mutate({ id, today: todayKey, ...patch }).then(refresh, e => {
       toastError(e);
@@ -188,7 +193,11 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   );
 }
 
-/** The capture field: what is understood of the typed text shows under it, each part removable. */
+/**
+ * The capture field, with its parts as chips under it: the day (the tab's
+ * unless changed), the issue, the priority, the estimate, the repeat. Typing
+ * "@tomorrow" or "#APP-12" sets the same chips, for whoever likes to type.
+ */
 function Capture({
   scope,
   view,
@@ -207,20 +216,42 @@ function Capture({
   const utils = trpc.useUtils();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  // undefined: not chosen (the tab's day, the typed one); null: chosen none.
+  const [day, setDay] = useState<string | null | undefined>(undefined);
+  const [issue, setIssue] = useState<IssueRef | null | undefined>(undefined);
+  const [high, setHigh] = useState(false);
+  const [estimate, setEstimate] = useState<number | null>(null);
+  const [repeat, setRepeat] = useState<TodoRepeat | null>(null);
   const parsed = parseTodoInput(text, today, lang);
   const todayKey = dayKey(today);
-  // Without a day typed: the day of the tab it is written in.
+  // Without a day typed or chosen: the day of the tab it is written in.
   const fallbackDay = scope ? null : view === "today" ? todayKey : view === "upcoming" ? dayKey(addDays(today, 1)) : null;
-  const dueOn = parsed.dueOn ?? fallbackDay;
+  const dueOn = parsed.dueOn ?? (day === undefined ? fallbackDay : day);
+  const scoped = scope ? { key: scope.issueKey, connectionId: scope.connectionId } : null;
+  const linked: IssueRef | null = parsed.issueKey ? { key: parsed.issueKey } : issue === undefined ? scoped : issue;
   const drop = (token: string | null) => token && setText(v => v.split(/\s+/).filter(w => w !== token).join(" "));
+  const reset = () => {
+    setText("");
+    setDay(undefined);
+    setIssue(undefined);
+    setHigh(false);
+    setEstimate(null);
+    setRepeat(null);
+  };
   const add = () => {
     if (!parsed.text || busy) return;
     setBusy(true);
-    const issue = parsed.issueKey ? { issueKey: parsed.issueKey } : scope ? { issueKey: scope.issueKey, connectionId: scope.connectionId } : {};
     void utils.client.todos.add
-      .mutate({ text: parsed.text, dueOn, ...issue })
+      .mutate({
+        text: parsed.text,
+        dueOn,
+        ...(linked ? { issueKey: linked.key, connectionId: linked.connectionId } : {}),
+        priority: high ? 1 : 0,
+        estimateSeconds: estimate,
+        repeat,
+      })
       .then(row => {
-        setText("");
+        reset();
         onAdded();
         const landed: View = !row.dueOn ? "someday" : row.dueOn <= todayKey ? "today" : "upcoming";
         onLanded(landed);
@@ -228,7 +259,7 @@ function Capture({
       .finally(() => setBusy(false));
   };
   return (
-    <div className="grid gap-1">
+    <div className="grid gap-1.5">
       <Input
         data-float-search
         data-float-autofocus
@@ -246,36 +277,48 @@ function Capture({
           } else if (e.key === "Escape" && text) {
             // First Esc empties the field; the next one closes the panel.
             e.preventDefault();
-            setText("");
+            reset();
           }
         }}
       />
-      {(parsed.dueOn || parsed.issueKey || (text && fallbackDay)) && (
-        <p className="flex flex-wrap items-center gap-1 text-caption text-muted-foreground" aria-live="polite">
-          {dueOn && (
-            <Token icon={<CalendarDays className="h-3 w-3" aria-hidden />} label={dayLabel(dueOn, today)} onRemove={parsed.dayToken ? () => drop(parsed.dayToken) : undefined} />
-          )}
-          {parsed.issueKey && <Token icon={<Link2 className="h-3 w-3" aria-hidden />} label={parsed.issueKey} onRemove={() => drop(parsed.issueToken)} />}
-          <span>{t("views.todos.captureHint")}</span>
-        </p>
-      )}
+      <div role="group" aria-label={t("views.todos.captureDetails")} className="flex flex-wrap items-center gap-1 text-caption">
+        <DayChip
+          dueOn={dueOn}
+          today={today}
+          onPlan={d => {
+            drop(parsed.dayToken);
+            setDay(d);
+          }}
+        />
+        {!scope && (
+          <IssueChip
+            value={linked}
+            onChange={i => {
+              drop(parsed.issueToken);
+              setIssue(i);
+            }}
+          />
+        )}
+        <PriorityChip high={high} onChange={setHigh} />
+        <EstimateChip seconds={estimate} onChange={setEstimate} />
+        <RepeatChip repeat={repeat} onChange={setRepeat} />
+        {text && <span className="text-muted-foreground">{t("views.todos.captureHint")}</span>}
+      </div>
     </div>
   );
 }
 
-function Token({ icon, label, onRemove }: { icon: React.ReactNode; label: string; onRemove?: () => void }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-foreground">
-      {icon}
-      {label}
-      {onRemove && (
-        <button type="button" aria-label={t("views.todos.removeToken", { token: label })} onClick={onRemove} className="rounded-sm opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40">
-          <X className="h-3 w-3" aria-hidden />
-        </button>
-      )}
-    </span>
-  );
-}
+type Patch = {
+  text?: string;
+  dueOn?: string | null;
+  done?: boolean;
+  issueKey?: string | null;
+  connectionId?: number;
+  priority?: 0 | 1;
+  estimateSeconds?: number | null;
+  repeat?: TodoRepeat | null;
+  steps?: TodoStep[];
+};
 
 function TodoRow({
   x,
@@ -292,12 +335,14 @@ function TodoRow({
   today: Date;
   showIssue: boolean;
   onTick: (done: boolean) => void;
-  onUpdate: (patch: { text?: string; dueOn?: string | null; issueKey?: string | null }) => Promise<unknown>;
+  onUpdate: (patch: Patch) => Promise<unknown>;
   onRemove: () => void;
   onKeyDown: (e: KeyboardEvent<HTMLLIElement>) => void;
 }) {
-  const [mode, setMode] = useState<"view" | "edit" | "link" | "day">("view");
+  const [mode, setMode] = useState<"view" | "edit" | "link">("view");
+  const [stepsOpen, setStepsOpen] = useState(false);
   const row = useRef<HTMLLIElement>(null);
+  const linking = useRef(false);
   const [draft, setDraft] = useState(x.text);
   const start = useStartTimer({ announce: true });
   const pin = usePinIssue();
@@ -305,6 +350,8 @@ function TodoRow({
   const done = x.doneAt !== null;
   const late = !done && !!x.dueOn && x.dueOn < todayKey;
   const at = x.issueKey ? issuePath({ key: x.issueKey, connectionId: x.connectionId }) : null;
+  const steps = parseSteps(x.steps);
+  const repeat = TODO_REPEATS.find(r => r === x.repeat) ?? null;
   // Leaving a field by the keyboard: the focus back on the row (a click elsewhere keeps its own).
   const back = (refocus = false) => {
     setMode("view");
@@ -357,66 +404,34 @@ function TodoRow({
             />
           ) : (
             <p
-              className={cn("break-words text-body-sm", done && "text-muted-foreground line-through")}
+              className={cn("break-words text-body-sm", done && "text-muted-foreground line-through", x.priority === 1 && !done && "font-medium")}
               onDoubleClick={() => {
                 setDraft(x.text);
                 setMode("edit");
               }}
             >
+              {x.priority === 1 && <Flag className="mr-1 inline h-3 w-3 -translate-y-px text-primary-strong" aria-label={t("views.todos.priority")} />}
               {x.text}
             </p>
           )}
-          {mode === "link" && (
-            <Input
-              autoFocus
-              aria-label={t("views.todos.linkLabel")}
-              placeholder={t("views.todos.linkPlaceholder")}
-              onBlur={() => back()}
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === "Escape") return e.preventDefault(), back(true);
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                const key = e.currentTarget.value.trim();
-                if (key) void onUpdate({ issueKey: /^[a-z][a-z0-9_]*-\d+$/i.test(key) ? key.toUpperCase() : key });
-                back(true);
-              }}
-            />
-          )}
-          {mode === "day" && (
-            <Input
-              autoFocus
-              type="date"
-              aria-label={t("views.todos.pickDay")}
-              defaultValue={x.dueOn ?? todayKey}
-              // Kept on Enter or on leaving the field; Esc leaves it as it was.
-              onBlur={e => {
-                const v = e.currentTarget.value;
-                if (v && v !== x.dueOn) void onUpdate({ dueOn: v });
-                back();
-              }}
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  e.currentTarget.value = x.dueOn ?? "";
-                  return back(true);
-                }
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                  requestAnimationFrame(() => row.current?.focus());
-                }
-              }}
-            />
-          )}
           <div className="flex flex-wrap items-center gap-1 text-caption">
-            <PlanMenu x={x} today={today} late={late} onPlan={dueOn => void onUpdate({ dueOn })} onPick={() => setMode("day")} />
-            {showIssue && x.issueKey && at && (
-              <Link to={at} title={x.summary ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
-                <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}</span>
-              </Link>
+            <DayChip dueOn={x.dueOn} today={today} late={late} onPlan={dueOn => void onUpdate({ dueOn })} />
+            {mode === "link" ? (
+              <IssueChip
+                defaultOpen
+                onClose={() => back(true)}
+                value={x.issueKey ? { key: x.issueKey, connectionId: x.connectionId ?? undefined } : null}
+                onChange={i => void onUpdate(i ? { issueKey: i.key, connectionId: i.connectionId } : { issueKey: null })}
+              />
+            ) : (
+              showIssue &&
+              x.issueKey &&
+              at && (
+                <Link to={at} title={x.summary ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                  <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="truncate">{x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}</span>
+                </Link>
+              )
             )}
             {x.commentId && at && (
               <Link to={`${at}#comment-${encodeURIComponent(x.commentId)}`} title={x.commentExcerpt ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
@@ -430,7 +445,11 @@ function TodoRow({
                 <span className="truncate">{t("views.todos.fromNote")}</span>
               </Link>
             )}
+            {x.estimateSeconds !== null && <EstimateChip seconds={x.estimateSeconds} onChange={estimateSeconds => void onUpdate({ estimateSeconds })} />}
+            {repeat && <RepeatChip repeat={repeat} onChange={r => void onUpdate({ repeat: r })} />}
+            {(steps.length > 0 || stepsOpen) && <StepsChip steps={steps} open={stepsOpen} onToggle={() => setStepsOpen(o => !o)} />}
           </div>
+          {stepsOpen && <StepsEditor steps={steps} onChange={next => void onUpdate({ steps: next })} />}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -442,13 +461,66 @@ function TodoRow({
               <MoreHorizontal className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setMode("link")}>
+          <DropdownMenuContent
+            align="end"
+            // Off to the issue search: the focus goes there, not back to this button (which would close it).
+            onCloseAutoFocus={e => {
+              if (linking.current) e.preventDefault();
+              linking.current = false;
+            }}
+          >
+            <DropdownMenuItem
+              onSelect={() => {
+                linking.current = true;
+                setMode("link");
+              }}
+            >
               <Link2 className="h-4 w-4" aria-hidden />
               {x.issueKey ? t("views.todos.relink") : t("views.todos.link")}
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void onUpdate({ priority: x.priority === 1 ? 0 : 1 })}>
+              <Flag className="h-4 w-4" aria-hidden />
+              {x.priority === 1 ? t("views.todos.priorityOff") : t("views.todos.priorityOn")}
+            </DropdownMenuItem>
+            {x.estimateSeconds === null && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Hourglass className="h-4 w-4" aria-hidden />
+                  {t("views.todos.estimate")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {[15, 30, 60, 120, 240].map(m => (
+                    <DropdownMenuItem key={m} onSelect={() => void onUpdate({ estimateSeconds: m * 60 })}>
+                      {formatDuration(m * 60)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {!repeat && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Repeat className="h-4 w-4" aria-hidden />
+                  {t("views.todos.repeat")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {TODO_REPEATS.map(r => (
+                    <DropdownMenuItem key={r} onSelect={() => void onUpdate({ repeat: r })}>
+                      {t(`views.todos.repeats.${r}`)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {steps.length === 0 && (
+              <DropdownMenuItem onSelect={() => setStepsOpen(true)}>
+                <ListChecks className="h-4 w-4" aria-hidden />
+                {t("views.todos.stepAdd")}
+              </DropdownMenuItem>
+            )}
             {x.issueKey && (
               <>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => void onUpdate({ issueKey: null })}>
                   <X className="h-4 w-4" aria-hidden />
                   {t("views.todos.unlink")}
@@ -472,39 +544,5 @@ function TodoRow({
         </DropdownMenu>
       </li>
     </>
-  );
-}
-
-/** The day chip: when it is planned (late in red), and a menu to plan it again. */
-function PlanMenu({ x, today, late, onPlan, onPick }: { x: Todo; today: Date; late: boolean; onPlan: (dueOn: string | null) => void; onPick: () => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={x.dueOn ? t("views.todos.plannedFor", { day: dayLabel(x.dueOn, today) }) : t("views.todos.plan")}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40",
-            late ? "bg-danger-soft text-danger" : "bg-muted text-muted-foreground"
-          )}
-        >
-          <CalendarDays className="h-3 w-3" aria-hidden />
-          {x.dueOn ? dayLabel(x.dueOn, today) : t("views.todos.noDay")}
-          {late && <span className="sr-only"> {t("views.todos.late")}</span>}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem onSelect={() => onPlan(dayKey(today))}>{t("views.todos.planToday")}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onPlan(dayKey(addDays(today, 1)))}>{t("views.todos.planTomorrow")}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onPlan(nextMonday(today))}>{t("views.todos.planMonday")}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onPick}>{t("views.todos.planPick")}</DropdownMenuItem>
-        {x.dueOn && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onPlan(null)}>{t("views.todos.planNone")}</DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

@@ -296,3 +296,49 @@ test("on a phone: the header button says how many for today and opens the list; 
       await page.getByRole("dialog", { name: "TODO" }).getByRole("listitem", { name: "Call the bank" }).waitFor();
     },
   ));
+
+test("no syntax needed: day, issue, priority, estimate and repeat from chips; steps and a new issue from the row", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.goto(base + "/issues");
+    await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+    await page.keyboard.press("d");
+    const float = page.getByRole("region", { name: "Floating TODO list" });
+    const field = float.getByRole("textbox", { name: "New TODO" });
+    await field.fill("Prepare the demo");
+    const chips = float.getByRole("group", { name: "Day, issue, priority, estimate, repeat" });
+    await chips.getByRole("button", { name: /^Planned for Today/ }).click();
+    await page.getByRole("menuitem", { name: "Tomorrow" }).click();
+    await chips.getByRole("button", { name: "Tie to an issue…" }).click();
+    await page.getByPlaceholder("Search an issue by key or title…").fill("DEMO-102");
+    await page.getByRole("option", { name: /DEMO-102/ }).click();
+    await chips.getByRole("button", { name: "High priority" }).click();
+    await chips.getByRole("button", { name: "Estimate" }).click();
+    await page.getByRole("menuitemradio", { name: "30 min" }).click();
+    await chips.getByRole("button", { name: "Repeat" }).click();
+    await page.getByRole("menuitemradio", { name: "Every working day" }).click();
+    await field.focus();
+    await page.keyboard.press("Enter");
+    const row = float.getByRole("listitem", { name: "Prepare the demo" });
+    await row.waitFor();
+    const [stored] = await db.q("SELECT due_on, issue_key, priority, estimate_seconds, repeat FROM todos");
+    assert.deepEqual(stored, { due_on: inDays(1), issue_key: "DEMO-102", priority: 1, estimate_seconds: 1800, repeat: "weekdays" });
+    // The chips are back to their start for the next one.
+    await chips.getByRole("button", { name: "Tie to an issue…" }).waitFor();
+    assert.equal(await chips.getByRole("button", { name: "High priority" }).getAttribute("aria-pressed"), "false");
+    // Steps, from the row's menu.
+    await row.getByRole("button", { name: "Actions for “Prepare the demo”" }).click();
+    await page.getByRole("menuitem", { name: "Add a step" }).click();
+    const step = row.getByRole("textbox", { name: "Add a step" });
+    await step.fill("Slides");
+    await step.press("Enter");
+    await row.getByRole("checkbox", { name: "Step done: Slides" }).click();
+    await row.getByRole("button", { name: "1 of 1 steps done: show them" }).waitFor();
+    assert.deepEqual(JSON.parse((await db.q("SELECT steps FROM todos"))[0].steps).map(s => [s.text, s.done]), [["Slides", true]]);
+    // Another issue, searched, from the row's menu.
+    await row.getByRole("button", { name: "Actions for “Prepare the demo”" }).click();
+    await page.getByRole("menuitem", { name: "Tie to another issue…" }).click();
+    await page.getByPlaceholder("Search an issue by key or title…").fill("DEMO-103");
+    await page.getByRole("option", { name: /DEMO-103/ }).click();
+    await row.getByRole("link", { name: /DEMO-103/ }).waitFor();
+    assert.equal((await db.q("SELECT issue_key FROM todos"))[0].issue_key, "DEMO-103");
+  }));

@@ -43,14 +43,22 @@ export function IssuePicker({
   value,
   onChange,
   placeholder = t("ui.picker.placeholder"),
+  defaultOpen = false,
+  onOpenChange,
+  children,
 }: {
   id?: string;
   issues: PickableIssue[];
   value: IssueRef | null;
   onChange: (pick: IssueRef) => void;
   placeholder?: string;
+  /** Open at once (asked for from a menu). */
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** A trigger of its own (a chip) instead of the field. */
+  children?: React.ReactElement;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const trigger = useRef<HTMLButtonElement>(null);
   // Inside a Dialog the list must live in the dialog's DOM: its scroll lock
   // and focus trap only let wheel, clicks and focus through there.
@@ -60,6 +68,7 @@ export function IssuePicker({
       setContainer(trigger.current?.closest<HTMLElement>("[role=dialog]") ?? null);
     }
     setOpen(next);
+    onOpenChange?.(next);
   };
   const connections = useConnections().data ?? [];
   const selected = value ? issues.find(i => sameIssue(i, value)) : undefined;
@@ -78,7 +87,7 @@ export function IssuePicker({
       value={`${i.key} ${i.summary} ${i.connectionId ?? ""}`}
       onSelect={() => {
         onChange({ key: i.key, connectionId: i.connectionId });
-        setOpen(false);
+        toggle(false);
       }}
       className="gap-2"
     >
@@ -92,43 +101,49 @@ export function IssuePicker({
 
   return (
     <Popover open={open} onOpenChange={toggle}>
-      <PopoverTrigger asChild>
-        {/* surface: none — a sunk field: it never casts */}
-        <button
-          ref={trigger}
-          id={id}
-          type="button"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-body-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 dark:bg-input/30",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          {selected ? (
-            <>
-              <ProjectAvatar project={projectOf(selected.key)} size="xs" />
-              <span className="shrink-0 font-semibold text-foreground">
-                {selected.key}
-              </span>
-              <span className="truncate text-muted-foreground">
-                {selected.summary}
-              </span>
-              {labelOf(selected) && (
-                <span className="shrink-0 text-caption text-muted-foreground">
-                  {labelOf(selected)}
+      {children ? (
+        <PopoverTrigger asChild ref={trigger}>
+          {children}
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger asChild>
+          {/* surface: none — a sunk field: it never casts */}
+          <button
+            ref={trigger}
+            id={id}
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-body-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 dark:bg-input/30",
+              !selected && "text-muted-foreground"
+            )}
+          >
+            {selected ? (
+              <>
+                <ProjectAvatar project={projectOf(selected.key)} size="xs" />
+                <span className="shrink-0 font-semibold text-foreground">
+                  {selected.key}
                 </span>
-              )}
-            </>
-          ) : (
-            <span className="truncate">{placeholder}</span>
-          )}
-          <ChevronsUpDown
-            className="ml-auto h-4 w-4 shrink-0 opacity-50"
-            aria-hidden
-          />
-        </button>
-      </PopoverTrigger>
+                <span className="truncate text-muted-foreground">
+                  {selected.summary}
+                </span>
+                {labelOf(selected) && (
+                  <span className="shrink-0 text-caption text-muted-foreground">
+                    {labelOf(selected)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="truncate">{placeholder}</span>
+            )}
+            <ChevronsUpDown
+              className="ml-auto h-4 w-4 shrink-0 opacity-50"
+              aria-hidden
+            />
+          </button>
+        </PopoverTrigger>
+      )}
       <PopoverContent
         container={container}
         align="start"

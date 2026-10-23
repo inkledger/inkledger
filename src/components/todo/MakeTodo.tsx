@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { EstimateChip, PriorityChip, RepeatChip } from "@/components/todo/TodoChips";
 import { canShowTodos, showTodos } from "@/hooks/useTodoPanel";
 import { useToday } from "@/hooks/useToday";
 import { toastError } from "@/lib/errorText";
@@ -14,6 +15,7 @@ import { trpc } from "@/lib/trpc";
 import { makeTodo } from "@/lib/makeTodo";
 import { cn } from "@/lib/utils";
 import { addDays, dayKey } from "@contracts/time";
+import type { TodoRepeat } from "@contracts/todo";
 import { t } from "@/i18n";
 
 /** What a new TODO hangs on: an issue, one of its comments, or one of the user's private notes on it. */
@@ -30,6 +32,9 @@ function MakeTodoForm({ link, initial, onDone }: { link: TodoLink; initial: stri
   const today = useToday();
   const [text, setText] = useState(initial);
   const [when, setWhen] = useState<When>("today");
+  const [high, setHigh] = useState(false);
+  const [estimate, setEstimate] = useState<number | null>(null);
+  const [repeat, setRepeat] = useState<TodoRepeat | null>(null);
   const [busy, setBusy] = useState(false);
   const dueOn = { today: dayKey(today), tomorrow: dayKey(addDays(today, 1)), monday: nextMonday(today), none: null }[when];
   const save = () => {
@@ -37,7 +42,7 @@ function MakeTodoForm({ link, initial, onDone }: { link: TodoLink; initial: stri
     if (!v || busy) return;
     setBusy(true);
     void utils.client.todos.add
-      .mutate({ text: v, dueOn, ...link })
+      .mutate({ text: v, dueOn, ...link, priority: high ? 1 : 0, estimateSeconds: estimate, repeat })
       .then(() => {
         void utils.todos.invalidate();
         onDone();
@@ -65,6 +70,11 @@ function MakeTodoForm({ link, initial, onDone }: { link: TodoLink; initial: stri
           { value: "none", label: t("views.todos.planNone") },
         ]}
       />
+      <div role="group" aria-label={t("views.todos.captureDetails")} className="flex flex-wrap items-center gap-1 text-caption">
+        <PriorityChip high={high} onChange={setHigh} />
+        <EstimateChip seconds={estimate} onChange={setEstimate} />
+        <RepeatChip repeat={repeat} onChange={setRepeat} />
+      </div>
       <Button type="submit" size="sm" disabled={busy || !text.trim()}>
         {t("views.todos.add")}
       </Button>
