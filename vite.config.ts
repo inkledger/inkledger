@@ -14,13 +14,40 @@ function appBuild(): Plugin {
   }
 }
 
+/**
+ * Dev only: a new migration (drizzle/meta/_journal.json changed) is applied at
+ * once to the dev database. The API module stays loaded across edits, and its
+ * database migrates only when first opened, so without this a new table only
+ * came with a restart (and the pages failed on it meanwhile).
+ */
+function migrateOnNewMigration(): Plugin {
+  return {
+    name: "migrate-on-new-migration",
+    apply: "serve",
+    configureServer(server) {
+      const journal = path.resolve(__dirname, "drizzle/meta/_journal.json")
+      server.watcher.add(journal)
+      server.watcher.on("change", file => {
+        if (path.resolve(file) !== journal) return
+        void server
+          .ssrLoadModule("/api/queries/connection.ts")
+          .then(m => (m as { migrateDb: () => Promise<void> }).migrateDb())
+          .then(
+            () => server.config.logger.info("[db] new migrations applied"),
+            (e: unknown) => server.config.logger.error(`[db] migrating failed: ${String(e)}`)
+          )
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
     react(),
-    appBuild()],
+    appBuild(),
+    migrateOnNewMigration()],
   server: {
     port: 3000,
     // IPv4 loopback: what `tailscale serve` and the native app point at.
