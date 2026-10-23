@@ -53,3 +53,27 @@ Done (2026-10-23). Not pushed. Follows `docs/work/todos.md` (closed).
 
 ## Blocks and next action
 - None. Next: the user's visual OK on dev, then push when told.
+
+# Follow-up (2026-10-23): sidebar, timer stop, scrolling, dev migration
+
+Done. Not pushed.
+
+## Decisions
+- Sidebar: one row recipe open and closed (icon fixed at the same x, same heights; label only
+  open); no section titles, a thin line between sections; the sections never scroll, the
+  favorites do. Folding nav sections is gone (old folded state is ignored).
+- Pause/stop: in the sidebar beside the timer chip (both widths), in the Dashboard header (also
+  once paused) and on the running block of the day. Render budget "dashboard, timer running"
+  raised 10300 → 10700 (controls redrawn on each timers poll).
+- Issue page (wide) and Settings (desktop): `data-fill-page`, each column scrolls on its own;
+  below `xl` the issue page keeps one column in the usual order.
+- Issues: a new search, filter or page scrolls the list to its top.
+- Dev: the dev db had stopped at 0008 (the API module migrates once per process); a dev-only
+  Vite plugin now applies a new migration when `drizzle/meta/_journal.json` changes.
+
+## Verification
+| Command | Scope | Result |
+| ------- | ----- | ------ |
+| `pnpm lint && pnpm check && pnpm test && pnpm test:smoke` | all | green (2163 tests) |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | all | 160/161, then the one flaky phone test fixed (waits for settings) and green 3/3 |
+| Screenshots via the e2e harness | sidebar open/closed, Dashboard with timer, issue page, settings | checked |
