@@ -63,6 +63,11 @@ export const settings = {
       description: "Where the pinboard lives: on the Board, in the menu, as a floating widget.",
       keywords: "pinboard lavagna post-it notes board menu widget floating shortcut",
     },
+    todos: {
+      label: "TODO",
+      description: "Where the TODO list lives: in the menu, as a floating widget, in the bottom-right corner.",
+      keywords: "todo to do task list checklist reminder plan widget corner shortcut d",
+    },
     links: {
       label: "External links",
       description: "Sites whose links open without asking.",
@@ -685,6 +690,17 @@ export const settings = {
     inMenuHint: "A page of its own in the sidebar.",
     widget: "Floating widget",
     widgetHint: "Over any page, moved and sized as you like; P opens and closes it.",
+    off: "Off",
+  },
+  todos: {
+    placesTitle: "Where it lives",
+    placesKeywords: "menu page widget floating corner hot corner shortcut d",
+    inMenu: "In the menu",
+    inMenuHint: "A page of its own in the sidebar.",
+    widget: "Floating widget",
+    widgetHint: "Over any page, moved and sized as you like; D opens and closes it.",
+    corner: "Bottom-right corner",
+    cornerHint: "Resting the pointer in the corner of the window opens it, like Quick Note on a Mac.",
     off: "Off",
   },
   appearance: {

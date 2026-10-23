@@ -9,6 +9,7 @@ export const ui: Shape<typeof en> = {
     dashboard: "Dashboard",
     board: "Board",
     pinboard: "Lavagna",
+    todos: "TODO",
     issues: "Issue",
     timesheet: "Timesheet",
     reports: "Report",
@@ -221,6 +222,7 @@ export const ui: Shape<typeof en> = {
   },
   palette: {
     pinboard: "Lavagna",
+    todos: "Lista TODO",
     title: "Cerca",
     description: "Cerca una issue o un'azione e premi Invio",
     placeholder: "Cerca issue o azione… (esc per chiudere)",
@@ -309,6 +311,8 @@ export const ui: Shape<typeof en> = {
   shortcuts: {
     pinboardSearch: "Nella lavagna: cerca una issue da appendere",
     pinboard: "Apri o chiudi la lavagna",
+    todos: "Apri o chiudi la lista TODO",
+    todosCapture: "Nella lista TODO: scrivine uno nuovo",
     title: "Scorciatoie da tastiera",
     description: "Funzionano ovunque, tranne mentre scrivi in un campo.",
     general: "Generali",
@@ -500,6 +504,15 @@ export const ui: Shape<typeof en> = {
     moveHint: "Trascina per spostarla, oppure usa le frecce",
     resize: "Ridimensiona la lavagna",
     resizeHint: "Trascina per ridimensionarla, oppure usa le frecce",
+  },
+  todoFloat: {
+    label: "Lista TODO mobile",
+    move: "Sposta la lista TODO",
+    moveHint: "Trascina per spostarla, oppure usa le frecce",
+    resize: "Ridimensiona la lista TODO",
+    resizeHint: "Trascina per ridimensionarla, oppure usa le frecce",
+    close: "Chiudi la lista TODO",
+    open: "Apri la lista TODO",
   },
   startChoice: {
     title: "Avvia {key}",

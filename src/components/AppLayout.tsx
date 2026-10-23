@@ -41,6 +41,9 @@ import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
+import { useTodoWiring } from "@/hooks/useTodoPanel";
+import { TodoWidget } from "@/components/todo/TodoWidget";
+import { HotCorner } from "@/components/todo/HotCorner";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
 import { StartChoiceDialog } from "@/components/StartChoiceDialog";
@@ -518,6 +521,7 @@ export function AppLayout() {
   useHotkeys();
   usePinboardWiring();
   useShadowReach();
+  useTodoWiring();
   useMouseHistoryButtons(isNative());
   useThemeSync();
   useSoftKeyboard();
@@ -648,6 +652,8 @@ export function AppLayout() {
         <TimerLogHost />
         <NotificationCenter />
         <PinboardWidget />
+        <TodoWidget />
+        <HotCorner />
         <StartChoiceDialog />
         <CreateIssueDialog />
         <IssueHistoryDialog />

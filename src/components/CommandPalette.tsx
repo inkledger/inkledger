@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Layers,
   Search,
+  ListChecks,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc";
@@ -39,6 +40,7 @@ import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { createIssueDialog, dayReview, focusMode } from "@/lib/flag";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
+import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
 import { Kbd } from "@/components/app/Kbd";
 import { useProviderName } from "@/hooks/useConnections";
 import { t, useLocale } from "@/i18n";
@@ -55,7 +57,9 @@ export function CommandPalette() {
   const setOpen = commandPalette.set;
   const navigate = useNavigate();
   const { setTheme, resolvedTheme } = useTheme();
-  const pinTarget = usePinboardTarget(useLocation().pathname);
+  const { pathname } = useLocation();
+  const pinTarget = usePinboardTarget(pathname);
+  const todoTarget = useTodoTarget(pathname);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -238,6 +242,17 @@ export function CommandPalette() {
             >
               <Pin className="mr-2 h-4 w-4 -rotate-12" /> {t("ui.palette.pinboard")}
               <Kbd className="ml-auto text-muted-foreground">P</Kbd>
+            </CommandItem>
+          )}
+          {todoTarget !== null && (
+            <CommandItem
+              onSelect={() => {
+                setOpen(false);
+                requestAnimationFrame(() => toggleTodos());
+              }}
+            >
+              <ListChecks className="mr-2 h-4 w-4" /> {t("ui.palette.todos")}
+              <Kbd className="ml-auto text-muted-foreground">D</Kbd>
             </CommandItem>
           )}
           <CommandItem

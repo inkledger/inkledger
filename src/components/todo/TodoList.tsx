@@ -1,0 +1,480 @@
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Link } from "react-router";
+import { toast } from "sonner";
+import { CalendarDays, Link2, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Trash2, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { useToday } from "@/hooks/useToday";
+import { useStartTimer } from "@/hooks/useStartTimer";
+import { usePinIssue } from "@/hooks/usePinIssue";
+import { toastError } from "@/lib/errorText";
+import { issuePath } from "@/lib/issues";
+import { dayLabel, nextMonday } from "@/lib/todoDay";
+import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
+import { addDays, dayKey } from "@contracts/time";
+import { parseTodoInput } from "@contracts/todo";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../api/router";
+import { t, useLocale } from "@/i18n";
+
+type View = "today" | "upcoming" | "someday" | "done";
+type Todo = inferRouterOutputs<AppRouter>["todos"]["list"][number];
+/** The list of one issue (its page): its open TODOs, captured already tied to it. */
+type Scope = { issueKey: string; connectionId: number };
+
+/**
+ * The TODO list: quick capture at the top ("@domani", "#APP-12"), then the
+ * day's, the upcoming, the someday and the done ones; each ticked, planned,
+ * rewritten, tied to an issue or deleted in place, by mouse or by keys
+ * (j/k, x, e, 1/2/0, Delete, Alt+↑/↓). With `scope`, one issue's TODOs.
+ */
+export function TodoList({ className, scope }: { className?: string; scope?: Scope }) {
+  const utils = trpc.useUtils();
+  const today = useToday();
+  const todayKey = dayKey(today);
+  const lang = useLocale() === "it" ? "it" : "en";
+  const [view, setView] = useState<View>("today");
+  const counts = trpc.todos.counts.useQuery({ today: todayKey }, { enabled: !scope });
+  const listed = trpc.todos.list.useQuery({ view, today: todayKey }, { enabled: !scope });
+  const forIssue = trpc.todos.forIssue.useQuery(scope ?? { issueKey: "", connectionId: 0 }, { enabled: !!scope });
+  const items = useMemo(() => (scope ? forIssue.data : listed.data) ?? [], [scope, forIssue.data, listed.data]);
+  const list = useRef<HTMLUListElement>(null);
+  const refresh = () => utils.todos.invalidate();
+
+  const update = (id: number, patch: { text?: string; dueOn?: string | null; done?: boolean; issueKey?: string | null }) =>
+    utils.client.todos.update.mutate({ id, ...patch }).then(refresh, toastError);
+
+  const tick = (x: Todo, done: boolean) =>
+    void update(x.id, { done }).then(() =>
+      toast.success(t(done ? "views.todos.ticked" : "views.todos.unticked", { text: x.text }), {
+        action: { label: t("views.todos.undo"), onClick: () => void update(x.id, { done: !done }) },
+      })
+    );
+  const remove = (x: Todo) =>
+    void utils.client.todos.remove.mutate({ id: x.id }).then(gone => {
+      void refresh();
+      toast.success(t("views.todos.deleted", { text: x.text }), {
+        action: {
+          label: t("views.todos.undo"),
+          onClick: () =>
+            void utils.client.todos.restore
+              .mutate({
+                text: gone.text,
+                dueOn: gone.dueOn,
+                done: gone.doneAt !== null,
+                position: gone.position,
+                issueKey: gone.issueKey,
+                connectionId: gone.connectionId,
+                commentId: gone.commentId,
+                commentExcerpt: gone.commentExcerpt,
+                issueNoteId: gone.issueNoteId,
+              })
+              .then(refresh, toastError),
+        },
+      });
+    }, toastError);
+  /** Alt+↑/↓: one place up or down in the list shown. */
+  const shift = (x: Todo, by: -1 | 1) => {
+    const ids = items.map(i => i.id);
+    const at = ids.indexOf(x.id);
+    const to = at + by;
+    if (at < 0 || to < 0 || to >= ids.length) return;
+    [ids[at], ids[to]] = [ids[to], ids[at]];
+    void utils.client.todos.reorder.mutate({ ids }).then(refresh, toastError);
+  };
+
+  const rowKeys = (e: KeyboardEvent<HTMLLIElement>, x: Todo) => {
+    if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey) return;
+    const rows = [...(list.current?.querySelectorAll<HTMLElement>("[data-todo-row]") ?? [])];
+    const at = rows.indexOf(e.currentTarget);
+    const focus = (i: number) => rows[Math.max(0, Math.min(rows.length - 1, i))]?.focus();
+    const done = () => e.preventDefault();
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) return done(), shift(x, e.key === "ArrowUp" ? -1 : 1);
+    if (e.altKey) return;
+    switch (e.key) {
+      case "j":
+      case "ArrowDown":
+        return done(), focus(at + 1);
+      case "k":
+      case "ArrowUp":
+        return done(), focus(at - 1);
+      case "x":
+      case " ":
+        return done(), tick(x, x.doneAt === null);
+      case "Delete":
+      case "Backspace":
+        return done(), remove(x), focus(at + 1 < rows.length ? at + 1 : at - 1);
+      case "1":
+        return done(), void update(x.id, { dueOn: todayKey });
+      case "2":
+        return done(), void update(x.id, { dueOn: dayKey(addDays(today, 1)) });
+      case "0":
+        return done(), void update(x.id, { dueOn: null });
+    }
+  };
+
+  const empty = scope ? t("views.todos.emptyIssue") : t(`views.todos.empty.${view}`);
+  // The upcoming ones under the day they are planned for.
+  const dayOf = (x: Todo, i: number) => (view === "upcoming" && x.dueOn && x.dueOn !== items[i - 1]?.dueOn ? x.dueOn : null);
+
+  return (
+    <section className={cn("flex min-h-0 flex-col gap-2", className)} aria-label={t("views.todos.title")}>
+      <Capture scope={scope} view={view} today={today} lang={lang} onAdded={refresh} onLanded={v => !scope && v !== view && setView(v)} />
+      {!scope && (
+        <SegmentedControl<View>
+          label={t("views.todos.views")}
+          value={view}
+          onChange={setView}
+          className="self-start"
+          options={(["today", "upcoming", "someday", "done"] as const).map(v => {
+            const n = v === "done" ? null : (counts.data?.[v] ?? null);
+            return { value: v, label: n ? `${t(`views.todos.tabs.${v}`)} ${n}` : t(`views.todos.tabs.${v}`) };
+          })}
+        />
+      )}
+      <ul ref={list} aria-label={scope ? t("views.todos.issueList") : t(`views.todos.tabs.${view}`)} className="cast-room-x cast-room-y grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto [--room-b:0.125rem] [--room-t:0.125rem] [--room-x:0.25rem]">
+        {(scope ? forIssue.isPending : listed.isPending) ? null : items.length === 0 ? (
+          <li className="px-2 py-6 text-center text-body-sm text-muted-foreground">{empty}</li>
+        ) : (
+          items.map((x, i) => {
+            const heading = dayOf(x, i);
+            return (
+              <TodoRow
+                key={x.id}
+                x={x}
+                heading={heading ? dayLabel(heading, today) : null}
+                today={today}
+                showIssue={!scope}
+                onTick={done => tick(x, done)}
+                onUpdate={patch => update(x.id, patch)}
+                onRemove={() => remove(x)}
+                onKeyDown={e => rowKeys(e, x)}
+              />
+            );
+          })
+        )}
+      </ul>
+    </section>
+  );
+}
+
+/** The capture field: what is understood of the typed text shows under it, each part removable. */
+function Capture({
+  scope,
+  view,
+  today,
+  lang,
+  onAdded,
+  onLanded,
+}: {
+  scope?: Scope;
+  view: View;
+  today: Date;
+  lang: "it" | "en";
+  onAdded: () => void;
+  onLanded: (v: View) => void;
+}) {
+  const utils = trpc.useUtils();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const parsed = parseTodoInput(text, today, lang);
+  const todayKey = dayKey(today);
+  // Without a day typed: the day of the tab it is written in.
+  const fallbackDay = scope ? null : view === "today" ? todayKey : view === "upcoming" ? dayKey(addDays(today, 1)) : null;
+  const dueOn = parsed.dueOn ?? fallbackDay;
+  const drop = (token: string | null) => token && setText(v => v.split(/\s+/).filter(w => w !== token).join(" "));
+  const add = () => {
+    if (!parsed.text || busy) return;
+    setBusy(true);
+    const issue = parsed.issueKey ? { issueKey: parsed.issueKey } : scope ? { issueKey: scope.issueKey, connectionId: scope.connectionId } : {};
+    void utils.client.todos.add
+      .mutate({ text: parsed.text, dueOn, ...issue })
+      .then(row => {
+        setText("");
+        onAdded();
+        const landed: View = !row.dueOn ? "someday" : row.dueOn <= todayKey ? "today" : "upcoming";
+        onLanded(landed);
+      }, toastError)
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="grid gap-1">
+      <Input
+        data-float-search
+        data-float-autofocus
+        aria-label={t("views.todos.captureLabel")}
+        placeholder={t("views.todos.capturePlaceholder")}
+        value={text}
+        disabled={busy}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          } else if (e.key === "Escape" && text) {
+            // First Esc empties the field; the next one closes the panel.
+            e.preventDefault();
+            setText("");
+          }
+        }}
+      />
+      {(parsed.dueOn || parsed.issueKey || (text && fallbackDay)) && (
+        <p className="flex flex-wrap items-center gap-1 text-caption text-muted-foreground" aria-live="polite">
+          {dueOn && (
+            <Token icon={<CalendarDays className="h-3 w-3" aria-hidden />} label={dayLabel(dueOn, today)} onRemove={parsed.dayToken ? () => drop(parsed.dayToken) : undefined} />
+          )}
+          {parsed.issueKey && <Token icon={<Link2 className="h-3 w-3" aria-hidden />} label={parsed.issueKey} onRemove={() => drop(parsed.issueToken)} />}
+          <span>{t("views.todos.captureHint")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Token({ icon, label, onRemove }: { icon: React.ReactNode; label: string; onRemove?: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-foreground">
+      {icon}
+      {label}
+      {onRemove && (
+        <button type="button" aria-label={t("views.todos.removeToken", { token: label })} onClick={onRemove} className="rounded-sm opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40">
+          <X className="h-3 w-3" aria-hidden />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function TodoRow({
+  x,
+  heading,
+  today,
+  showIssue,
+  onTick,
+  onUpdate,
+  onRemove,
+  onKeyDown,
+}: {
+  x: Todo;
+  heading: string | null;
+  today: Date;
+  showIssue: boolean;
+  onTick: (done: boolean) => void;
+  onUpdate: (patch: { text?: string; dueOn?: string | null; issueKey?: string | null }) => Promise<unknown>;
+  onRemove: () => void;
+  onKeyDown: (e: KeyboardEvent<HTMLLIElement>) => void;
+}) {
+  const [mode, setMode] = useState<"view" | "edit" | "link" | "day">("view");
+  const [draft, setDraft] = useState(x.text);
+  const start = useStartTimer({ announce: true });
+  const pin = usePinIssue();
+  const todayKey = dayKey(today);
+  const done = x.doneAt !== null;
+  const late = !done && !!x.dueOn && x.dueOn < todayKey;
+  const at = x.issueKey ? issuePath({ key: x.issueKey, connectionId: x.connectionId }) : null;
+  const back = () => setMode("view");
+
+  return (
+    <>
+      {heading && <li className="px-2 pt-2 text-caption font-medium text-muted-foreground" aria-hidden>{heading}</li>}
+      <li
+        data-todo-row
+        tabIndex={0}
+        aria-label={x.text}
+        className="group flex items-start gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/40"
+        onKeyDown={e => {
+          if (mode !== "view") return;
+          if (e.target === e.currentTarget && (e.key === "e" || e.key === "Enter")) {
+            e.preventDefault();
+            setDraft(x.text);
+            setMode("edit");
+            return;
+          }
+          onKeyDown(e);
+        }}
+      >
+        <Checkbox
+          className="mt-0.5"
+          checked={done}
+          aria-label={t(done ? "views.todos.untick" : "views.todos.tick", { text: x.text })}
+          onCheckedChange={v => onTick(v === true)}
+        />
+        <div className="grid min-w-0 flex-1 gap-1">
+          {mode === "edit" ? (
+            <Input
+              autoFocus
+              aria-label={t("views.todos.editLabel")}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={back}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === "Escape") return e.preventDefault(), back();
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const v = draft.trim();
+                if (v && v !== x.text) void onUpdate({ text: v });
+                back();
+              }}
+            />
+          ) : (
+            <p
+              className={cn("break-words text-body-sm", done && "text-muted-foreground line-through")}
+              onDoubleClick={() => {
+                setDraft(x.text);
+                setMode("edit");
+              }}
+            >
+              {x.text}
+            </p>
+          )}
+          {mode === "link" && (
+            <Input
+              autoFocus
+              aria-label={t("views.todos.linkLabel")}
+              placeholder={t("views.todos.linkPlaceholder")}
+              onBlur={back}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === "Escape") return e.preventDefault(), back();
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const key = e.currentTarget.value.trim();
+                if (key) void onUpdate({ issueKey: /^[a-z][a-z0-9_]*-\d+$/i.test(key) ? key.toUpperCase() : key });
+                back();
+              }}
+            />
+          )}
+          {mode === "day" && (
+            <Input
+              autoFocus
+              type="date"
+              aria-label={t("views.todos.pickDay")}
+              defaultValue={x.dueOn ?? todayKey}
+              // Kept on Enter or on leaving the field; Esc leaves it as it was.
+              onBlur={e => {
+                const v = e.currentTarget.value;
+                if (v && v !== x.dueOn) void onUpdate({ dueOn: v });
+                back();
+              }}
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.currentTarget.value = x.dueOn ?? "";
+                  return back();
+                }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-1 text-caption">
+            <PlanMenu x={x} today={today} late={late} onPlan={dueOn => void onUpdate({ dueOn })} onPick={() => setMode("day")} />
+            {showIssue && x.issueKey && at && (
+              <Link to={at} title={x.summary ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}</span>
+              </Link>
+            )}
+            {x.commentId && at && (
+              <Link to={`${at}#comment-${encodeURIComponent(x.commentId)}`} title={x.commentExcerpt ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{t("views.todos.fromComment")}</span>
+              </Link>
+            )}
+            {x.issueNoteId && at && (
+              <Link to={`${at}#note-${x.issueNoteId}`} title={x.noteBody ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                <NotebookPen className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{t("views.todos.fromNote")}</span>
+              </Link>
+            )}
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("views.todos.actions", { text: x.text })}
+              className="rounded p-0.5 text-muted-foreground opacity-60 outline-none hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 group-hover:opacity-100 data-[state=open]:opacity-100"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setMode("link")}>
+              <Link2 className="h-4 w-4" aria-hidden />
+              {x.issueKey ? t("views.todos.relink") : t("views.todos.link")}
+            </DropdownMenuItem>
+            {x.issueKey && (
+              <>
+                <DropdownMenuItem onSelect={() => void onUpdate({ issueKey: null })}>
+                  <X className="h-4 w-4" aria-hidden />
+                  {t("views.todos.unlink")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => start.mutate({ issueKey: x.issueKey as string, connectionId: x.connectionId ?? undefined })}>
+                  <Play className="h-4 w-4" aria-hidden />
+                  {t("views.todos.startTimer")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void pin(x.issueKey as string, x.connectionId ?? undefined)}>
+                  <Pin className="h-4 w-4 -rotate-12" aria-hidden />
+                  {t("views.todos.pin")}
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onRemove} className="text-danger">
+              <Trash2 className="h-4 w-4" aria-hidden />
+              {t("views.todos.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </li>
+    </>
+  );
+}
+
+/** The day chip: when it is planned (late in red), and a menu to plan it again. */
+function PlanMenu({ x, today, late, onPlan, onPick }: { x: Todo; today: Date; late: boolean; onPlan: (dueOn: string | null) => void; onPick: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={x.dueOn ? t("views.todos.plannedFor", { day: dayLabel(x.dueOn, today) }) : t("views.todos.plan")}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40",
+            late ? "bg-danger-soft text-danger" : "bg-muted text-muted-foreground"
+          )}
+        >
+          <CalendarDays className="h-3 w-3" aria-hidden />
+          {x.dueOn ? dayLabel(x.dueOn, today) : t("views.todos.noDay")}
+          {late && <span className="sr-only"> {t("views.todos.late")}</span>}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={() => onPlan(dayKey(today))}>{t("views.todos.planToday")}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onPlan(dayKey(addDays(today, 1)))}>{t("views.todos.planTomorrow")}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onPlan(nextMonday(today))}>{t("views.todos.planMonday")}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onPick}>{t("views.todos.planPick")}</DropdownMenuItem>
+        {x.dueOn && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onPlan(null)}>{t("views.todos.planNone")}</DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

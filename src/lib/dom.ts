@@ -20,9 +20,9 @@ export function isDialogOpen(): boolean {
   );
 }
 
-/** True when the key comes from inside the floating pinboard (the page behind must not act on it). */
+/** True when the key comes from inside a floating panel, the pinboard or the TODO list (the page behind must not act on it). */
 export function inFloat(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest("[data-pinboard-float]") !== null;
+  return target instanceof Element && target.closest("[data-pinboard-float], [data-todo-float]") !== null;
 }
 
 /** Shortcut label for the command palette, per platform. */

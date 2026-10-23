@@ -61,6 +61,12 @@
       "permission": null
     },
     {
+      "id": "todos",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
       "id": "links",
       "nativeOnly": false,
       "desktopOnly": false,

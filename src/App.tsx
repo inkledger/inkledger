@@ -20,6 +20,7 @@ const Issues = lazy(() => import("@/pages/Issues"));
 const Timesheet = lazy(() => import("@/pages/Timesheet"));
 const Board = lazy(() => import("@/pages/Board"));
 const PinboardPage = lazy(() => import("@/pages/PinboardPage"));
+const TodosPage = lazy(() => import("@/pages/TodosPage"));
 const Reports = lazy(() => import("@/pages/Reports"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -111,6 +112,7 @@ export default function App() {
               <Route path="/timesheet" element={<Timesheet />} />
               <Route path="/board" element={<Board />} />
               <Route path="/pinboard" element={<PinboardPage />} />
+              <Route path="/todos" element={<TodosPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />

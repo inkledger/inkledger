@@ -17,6 +17,7 @@ import {
   Plug,
   Layers,
   Briefcase,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -36,6 +37,8 @@ import { DENSITIES, THEMES } from "@/lib/appearance";
 import { AccountSection } from "@/components/settings/sections/Account";
 import { AppearanceSection } from "@/components/settings/sections/Appearance";
 import { PinboardSection } from "@/components/settings/sections/Pinboard";
+import { TodosSection } from "@/components/settings/sections/Todos";
+import { useTodoSurfaces } from "@/hooks/useTodoPanel";
 import { usePinboardSurfaces } from "@/hooks/usePinboardPanel";
 import { NotificationsSection } from "@/components/settings/sections/Notifications";
 import { PermissionsSection } from "@/components/settings/sections/Permissions";
@@ -206,6 +209,19 @@ export const CATEGORIES: SettingsCategory[] = [
       const s = usePinboardSurfaces();
       const on = [s.board && t("settings.pinboard.onBoard"), s.menu && t("settings.pinboard.inMenu"), s.widget && t("settings.pinboard.widget")].filter(Boolean);
       return on.length ? on.join(" · ") : t("settings.pinboard.off");
+    },
+  },
+  {
+    id: "todos",
+    get label() { return t("settings.categories.todos.label"); },
+    get description() { return t("settings.categories.todos.description"); },
+    icon: ListChecks,
+    get keywords() { return t("settings.categories.todos.keywords"); },
+    Content: TodosSection,
+    Summary: function TodosSummary() {
+      const s = useTodoSurfaces();
+      const on = [s.menu && t("settings.todos.inMenu"), s.widget && t("settings.todos.widget"), s.corner && t("settings.todos.corner")].filter(Boolean);
+      return on.length ? on.join(" · ") : t("settings.todos.off");
     },
   },
   {

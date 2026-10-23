@@ -4,12 +4,14 @@ import {
   Info as InfoIcon,
   KanbanSquare,
   LayoutDashboard,
+  ListChecks,
   ListTodo,
   Pin,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { t } from "@/i18n";
 import { usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
+import { useTodoSurfacesNow } from "@/hooks/useTodoPanel";
 
 /**
  * Sidebar navigation; also the source of page breadcrumbs. A function: the
@@ -25,6 +27,7 @@ export function navItems() {
         { to: "/", label: t("ui.nav.dashboard"), icon: LayoutDashboard },
         { to: "/board", label: t("ui.nav.board"), icon: KanbanSquare },
         { to: "/pinboard", label: t("ui.nav.pinboard"), icon: Pin },
+        { to: "/todos", label: t("ui.nav.todos"), icon: ListChecks },
         { to: "/issues", label: t("ui.nav.issues"), icon: ListTodo },
         { to: "/timesheet", label: t("ui.nav.timesheet"), icon: CalendarDays },
       ],
@@ -45,10 +48,11 @@ export function navItems() {
   ];
 }
 
-/** The sections the menu shows: the pinboard's page only while it lives there (Settings → Pinboard). */
+/** The sections the menu shows: the pinboard's and the TODO list's pages only while they live there (Settings). */
 export function useNavItems() {
   const { menu } = usePinboardSurfacesNow();
-  return navItems().map(g => ({ ...g, items: g.items.filter(i => i.to !== "/pinboard" || menu) }));
+  const todos = useTodoSurfacesNow();
+  return navItems().map(g => ({ ...g, items: g.items.filter(i => (i.to !== "/pinboard" || menu) && (i.to !== "/todos" || todos.menu)) }));
 }
 
 /** Phones: the sections in the tab bar; the others are under "More". */

@@ -1,3 +1,4 @@
+import { useTodoSurfacesNow } from "@/hooks/useTodoPanel";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import { t } from "@/i18n";
 export function ShortcutsDialog() {
   const open = useShortcutsHelpOpen();
   const { board, menu, widget } = usePinboardSurfacesNow();
+  const todos = useTodoSurfacesNow();
   return (
     <Dialog open={open} onOpenChange={shortcutsHelp.set}>
       <DialogContent className="sm:max-w-md">
@@ -29,7 +31,7 @@ export function ShortcutsDialog() {
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-5">
-          {shortcuts({ pinboard: board || menu || widget }).map(({ group, items }) => (
+          {shortcuts({ pinboard: board || menu || widget, todos: todos.widget || todos.menu }).map(({ group, items }) => (
             <section key={group}>
               <SectionLabel as="h3" className="mb-2 px-0">
                 {group}

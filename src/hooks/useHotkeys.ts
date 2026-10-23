@@ -7,6 +7,7 @@ import { quickStart } from "@/lib/quickStart";
 import { createIssueDialog, focusMode, notificationCenter } from "@/lib/flag";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 import { togglePinboard } from "@/hooks/usePinboardPanel";
+import { toggleTodos } from "@/hooks/useTodoPanel";
 
 const SEQUENCES: Record<string, string> = {
   "g d": "/",
@@ -77,6 +78,13 @@ export function useHotkeys() {
         e.preventDefault();
         buffer = "";
         togglePinboard();
+        return;
+      }
+      // "d": the TODO list, unless it completes "g d" (go to the dashboard).
+      if (e.key === "d" && !buffer.endsWith("g")) {
+        e.preventDefault();
+        buffer = "";
+        toggleTodos();
         return;
       }
       // "t" starts a timer, unless it completes "g t" (go to timesheet).

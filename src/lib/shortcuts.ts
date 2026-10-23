@@ -2,8 +2,8 @@ import { useSyncExternalStore } from "react";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { t } from "@/i18n";
 
-/** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere. */
-export function shortcuts({ pinboard = true }: { pinboard?: boolean } = {}): {
+/** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere, "d" the TODO list. */
+export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolean; todos?: boolean } = {}): {
   group: string;
   items: { keys: string[]; label: string }[];
 }[] {
@@ -19,6 +19,12 @@ export function shortcuts({ pinboard = true }: { pinboard?: boolean } = {}): {
           ? [
               { keys: ["p"], label: t("ui.shortcuts.pinboard") },
               { keys: ["/"], label: t("ui.shortcuts.pinboardSearch") },
+            ]
+          : []),
+        ...(todos
+          ? [
+              { keys: ["d"], label: t("ui.shortcuts.todos") },
+              { keys: ["/"], label: t("ui.shortcuts.todosCapture") },
             ]
           : []),
         { keys: [PALETTE_SHORTCUT], label: t("ui.shortcuts.search") },

@@ -54,5 +54,9 @@
   {
     "path": "/timesheet",
     "guard": "RequireAuth"
+  },
+  {
+    "path": "/todos",
+    "guard": "RequireAuth"
   }
 ]

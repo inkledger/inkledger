@@ -35,5 +35,9 @@ export const notificationCenter = createFlag();
 export const pinboardFloat = createFlag();
 /** Set when the user opens the widget: it takes the focus then (not when it comes back on another page). */
 export const pinboardFloatFocus = createFlag();
+/** The floating TODO list, opened with "d", the hot corner, the palette or its buttons. */
+export const todoFloat = createFlag();
+/** Set when the user opens it: it takes the focus then (its capture field). */
+export const todoFloatFocus = createFlag();
 /** The Board's pinboard sheet on small screens. */
 export const pinboardSheet = createFlag();

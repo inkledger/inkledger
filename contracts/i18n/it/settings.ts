@@ -64,6 +64,11 @@ export const settings: Shape<typeof en> = {
       description: "Dove vive la lavagna: nella Board, nel menu, come widget mobile.",
       keywords: "lavagna pinboard post-it note board menu widget mobile scorciatoia",
     },
+    todos: {
+      label: "TODO",
+      description: "Dove vive la lista TODO: nel menu, come widget mobile, nell'angolo in basso a destra.",
+      keywords: "todo da fare attività lista promemoria pianifica widget angolo scorciatoia d",
+    },
     links: {
       label: "Link esterni",
       description: "I siti i cui link si aprono senza chiedere.",
@@ -686,6 +691,17 @@ export const settings: Shape<typeof en> = {
     inMenuHint: "Una pagina tutta sua nella barra laterale.",
     widget: "Widget mobile",
     widgetHint: "Sopra qualsiasi pagina, spostato e ridimensionato a piacere; P lo apre e lo chiude.",
+    off: "Disattivata",
+  },
+  todos: {
+    placesTitle: "Dove vive",
+    placesKeywords: "menu pagina widget mobile angolo scorciatoia d",
+    inMenu: "Nel menu",
+    inMenuHint: "Una pagina sua nella barra laterale.",
+    widget: "Widget mobile",
+    widgetHint: "Sopra qualsiasi pagina, spostato e ridimensionato a piacere; D lo apre e lo chiude.",
+    corner: "Angolo in basso a destra",
+    cornerHint: "Fermando il puntatore nell'angolo della finestra si apre, come le Note rapide del Mac.",
     off: "Disattivata",
   },
   appearance: {

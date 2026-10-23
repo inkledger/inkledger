@@ -8,6 +8,7 @@ export const ui = {
     dashboard: "Dashboard",
     board: "Board",
     pinboard: "Pinboard",
+    todos: "TODO",
     issues: "Issues",
     timesheet: "Timesheet",
     reports: "Reports",
@@ -220,6 +221,7 @@ export const ui = {
   },
   palette: {
     pinboard: "Pinboard",
+    todos: "TODO list",
     title: "Search",
     description: "Search for an issue or an action and press Enter",
     placeholder: "Search issues or actions… (esc to close)",
@@ -308,6 +310,8 @@ export const ui = {
   shortcuts: {
     pinboardSearch: "In the pinboard: search an issue to pin",
     pinboard: "Open or close the pinboard",
+    todos: "Open or close the TODO list",
+    todosCapture: "In the TODO list: write a new one",
     title: "Keyboard shortcuts",
     description: "They work everywhere, except while typing in a field.",
     general: "General",
@@ -499,6 +503,15 @@ export const ui = {
     moveHint: "Drag to move it, or use the arrow keys",
     resize: "Resize the pinboard",
     resizeHint: "Drag to resize it, or use the arrow keys",
+  },
+  todoFloat: {
+    label: "Floating TODO list",
+    move: "Move the TODO list",
+    moveHint: "Drag to move it, or use the arrow keys",
+    resize: "Resize the TODO list",
+    resizeHint: "Drag to resize it, or use the arrow keys",
+    close: "Close the TODO list",
+    open: "Open the TODO list",
   },
   startChoice: {
     title: "Start {key}",
