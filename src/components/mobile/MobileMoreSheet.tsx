@@ -45,7 +45,8 @@ export function MobileMoreSheet({
     .filter(i => !TAB_ROUTES.includes(i.to));
   // The pinboard opened in place (the Board's sheet, the widget); with its page in the
   // menu, that section above is the way (never two "Pinboard" tiles), but on the Board.
-  const pinTarget = usePinboardTarget(pathname);
+  // Like the sidebar's pin: on the Board, the Board's own sheet.
+  const pinTarget = usePinboardTarget(pathname, true);
   const { menu } = usePinboardSurfacesNow();
   const inPlace = pinTarget !== null && pinTarget !== "page" && !(menu && pinTarget === "float");
 
@@ -88,7 +89,7 @@ export function MobileMoreSheet({
               onClick={() => {
                 onOpenChange(false);
                 // After the sheet lets go of focus, so the pinboard keeps it.
-                requestAnimationFrame(() => togglePinboard(pathname));
+                requestAnimationFrame(() => togglePinboard(pathname, true));
               }}
               {...surface("control")}
               className={TILE}
