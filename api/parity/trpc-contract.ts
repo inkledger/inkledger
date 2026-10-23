@@ -180,6 +180,7 @@ export interface FrozenIn {
   "todos.remove": { id: number };
   "todos.reorder": { ids: number[] };
   "todos.restore": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; done: boolean; dueOn: null | string; estimateSeconds?: null | number | undefined; issueKey: null | string; issueNoteId: null | number; position: number; priority?: number | undefined; repeat?: null | string | undefined; source?: null | string | undefined; steps?: string | undefined; text: string };
+  "todos.sessions": { from: string; to: string };
   "todos.startWork": { device?: string | undefined; force?: false | true | undefined; id: number; opId?: string | undefined };
   "todos.stopWork": void;
   "todos.update": { connectionId?: number | undefined; done?: false | true | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; id: number; issueKey?: null | string | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text?: string | undefined; today?: string | undefined };
@@ -385,6 +386,7 @@ export interface FrozenOut {
   "todos.remove": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
   "todos.reorder": { ok: boolean };
   "todos.restore": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
+  "todos.sessions": { end: Date; label: string; linked: boolean; open: boolean; start: Date }[];
   "todos.startWork": { epoch: number; linked: boolean; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; tookOver: boolean };
   "todos.stopWork": { epoch: number; ok: boolean };
   "todos.update": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };

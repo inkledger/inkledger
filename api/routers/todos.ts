@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, min, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueNotes, issues, timers, todoSessions, todos, type Todo } from "@db/schema";
@@ -419,6 +419,30 @@ export const todosRouter = createRouter({
         await beginSession(tx, ctx.user.id, row, false, now);
         return { ok: true, switchedFrom, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
       });
+    }),
+
+  /**
+   * The stretches of TODO time in a period (the open one up to now), for the
+   * charts: drawn beside the logged time, never added to it.
+   */
+  sessions: protectedProcedure
+    .input(z.object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) }))
+    .query(async ({ ctx, input }) => {
+      const from = new Date(input.from);
+      const to = new Date(input.to);
+      const rows = await getDb()
+        .select({ startedAt: todoSessions.startedAt, endedAt: todoSessions.endedAt, linked: todoSessions.linked, label: todoSessions.label })
+        .from(todoSessions)
+        .where(
+          and(
+            eq(todoSessions.userId, ctx.user.id),
+            lt(todoSessions.startedAt, to),
+            or(isNull(todoSessions.endedAt), gt(todoSessions.endedAt, from)),
+          ),
+        )
+        .orderBy(asc(todoSessions.startedAt));
+      const now = new Date();
+      return rows.map((r) => ({ start: r.startedAt, end: r.endedAt ?? now, linked: r.linked === 1, label: r.label, open: r.endedAt === null }));
     }),
 
   /** Stop working on a TODO with no timer (a linked one stops with its issue's timer). */

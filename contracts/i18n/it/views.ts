@@ -3,7 +3,12 @@ import type { views as en } from "../en/views";
 
 export const views: Shape<typeof en> = {
   dashboard: {
-    bars: { toLog: " + {duration} da registrare" },
+    bars: {
+      toLog: " + {duration} da registrare",
+      todoTime: " · tempo TODO {duration} a fianco, {gap} senza issue (non contato)",
+      todoLinked: "Tempo TODO con il timer della sua issue",
+      todoGap: "Tempo TODO senza issue: non registrato, da coprire con una",
+    },
     recap: {
       daysAtGoal: {
         one: "{count} giorno su {workdays} a obiettivo",
@@ -16,6 +21,8 @@ export const views: Shape<typeof en> = {
       vsLastWeek: "{delta}% vs settimana scorsa",
     },
     timeline: {
+      todoLinked: "TODO «{text}», {duration}, con il timer della sua issue",
+      todoGap: "TODO «{text}», {duration}, senza issue (non registrato)",
       parallel: "{logged} registrate in {clock} di tempo effettivo (in parallelo)",
       break: "Pausa",
       holeTitle: "Da registrare: {from}–{to} · {duration}",

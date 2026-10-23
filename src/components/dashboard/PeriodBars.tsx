@@ -26,6 +26,7 @@ export function PeriodBars({
   dense = false,
   compact = false,
   pending,
+  parallel,
 }: {
   stacks: DayStack[];
   colorOf: (project: string) => ProjectColor;
@@ -38,6 +39,11 @@ export function PeriodBars({
   /** Timers not yet logged: hatched, live, stacked on today's bar. */
   /** Today's bar shows the time tracked and not yet logged, live. */
   pending?: boolean;
+  /**
+   * TODO time per day (dayKey): a slim mark beside each bar, never part of
+   * it. Solid: worked with an issue timer; dashed: with none (no issue covers it).
+   */
+  parallel?: Map<string, { linked: number; gap: number }>;
 }) {
   const today = dayKey(useToday());
   const live = usePendingSeconds(pending === true);
@@ -45,13 +51,16 @@ export function PeriodBars({
   const sums = stacks.map(s => s.parts.reduce((a, p) => a + p.seconds, 0));
   const totals = stacks.map((s, i) => s.worked ?? sums[i]);
   const targets = stacks.map(s => targetFor(s.day));
+  const besides = stacks.map(s => parallel?.get(dayKey(s.day)) ?? null);
   const max = Math.max(
     Math.max(0, ...targets) * 1.15,
     ...totals.map((t, i) =>
       dayKey(stacks[i].day) === today ? t + pendingSeconds : t
     ),
+    ...besides.map(b => (b ? b.linked + b.gap : 0)),
     3600
   );
+  const anyBeside = besides.some(b => b && b.linked + b.gap >= 60);
 
   return (
     <figure className="m-0">
@@ -67,10 +76,15 @@ export function PeriodBars({
             const total = totals[i];
             const isToday = dayKey(s.day) === today;
             const target = targets[i];
+            const beside = besides[i];
+            const besideText =
+              beside && beside.linked + beside.gap >= 60
+                ? t("views.dashboard.bars.todoTime", { duration: formatDurationLong(beside.linked + beside.gap), gap: formatDurationLong(beside.gap) })
+                : "";
             return (
               <div
                 key={dayKey(s.day)}
-                title={`${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}`}
+                title={`${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}${besideText}`}
                 // A day with no goal is see-through: glass, no shadow.
                 {...(target > 0 ? surface("bar") : surface("glass"))}
                 className={cn(
@@ -109,6 +123,13 @@ export function PeriodBars({
                       />
                     ))}
                 </div>
+                {beside && beside.linked + beside.gap >= 60 && (
+                  // Beside the bar, never in it: the TODO time is not logged time.
+                  <span aria-hidden className="pointer-events-none absolute inset-y-0 -right-0.5 flex w-1 flex-col-reverse sm:-right-1">
+                    {beside.linked > 0 && <span className="w-full rounded-sm bg-foreground/35" style={{ height: `${(beside.linked / max) * 100}%` }} />}
+                    {beside.gap > 0 && <span className="w-full rounded-sm border border-dashed border-primary-strong/70" style={{ height: `${(beside.gap / max) * 100}%` }} />}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -144,11 +165,27 @@ export function PeriodBars({
           );
         })}
       </div>
+      {anyBeside && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-caption text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-3 w-1 rounded-sm bg-foreground/35" />
+            {t("views.dashboard.bars.todoLinked")}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-3 w-1 rounded-sm border border-dashed border-primary-strong/70" />
+            {t("views.dashboard.bars.todoGap")}
+          </span>
+        </p>
+      )}
       <figcaption className="sr-only">
         {stacks
           .map(
             (s, i) =>
-              `${dateFormat({}).format(s.day)}: ${formatDurationLong(totals[i])}`
+              `${dateFormat({}).format(s.day)}: ${formatDurationLong(totals[i])}${
+                besides[i] && (besides[i]?.linked ?? 0) + (besides[i]?.gap ?? 0) >= 60
+                  ? t("views.dashboard.bars.todoTime", { duration: formatDurationLong((besides[i]?.linked ?? 0) + (besides[i]?.gap ?? 0)), gap: formatDurationLong(besides[i]?.gap ?? 0) })
+                  : ""
+              }`
           )
           .join("; ")}
       </figcaption>

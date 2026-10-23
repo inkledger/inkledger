@@ -700,6 +700,10 @@
     "type": "mutation"
   },
   {
+    "path": "todos.sessions",
+    "type": "query"
+  },
+  {
     "path": "todos.startWork",
     "type": "mutation"
   },

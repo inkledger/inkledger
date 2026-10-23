@@ -73,3 +73,16 @@ describe("a repeating TODO's next day, and its steps as stored", () => {
     expect(parseSteps(null)).toEqual([]);
   });
 });
+
+describe("TODO time per day", () => {
+  it("cut at midnight, with and without an issue timer apart", async () => {
+    const { todoTimeByDay } = await import("@contracts/todo");
+    const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m);
+    const by = todoTimeByDay([
+      { start: at(22, 23), end: at(23, 1), linked: false },
+      { start: at(23, 9), end: at(23, 9, 30), linked: true },
+    ]);
+    expect(by.get("2026-10-22")).toEqual({ linked: 0, gap: 3600 });
+    expect(by.get("2026-10-23")).toEqual({ linked: 1800, gap: 3600 });
+  });
+});

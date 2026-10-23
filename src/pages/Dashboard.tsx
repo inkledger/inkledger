@@ -23,6 +23,7 @@ import {
   startOfWeek,
   type TimeSpan,
 } from "@contracts/time";
+import { todoTimeByDay } from "@contracts/todo";
 import {
   DASHBOARD_WIDGETS,
   normalizeDashboardLayout,
@@ -171,6 +172,13 @@ export default function Dashboard() {
     from: recentFrom.toISOString(),
     to: recentTo.toISOString(),
   });
+  // TODO time in the period: beside the logged time, never added to it.
+  const todoSessions = trpc.todos.sessions.useQuery(
+    { from: range.from.toISOString(), to: range.to.toISOString() },
+    { placeholderData: keepPreviousData, enabled: isVisible("timeline") }
+  );
+  const todoSpans = useMemo(() => todoSessions.data ?? [], [todoSessions.data]);
+  const todoByDay = useMemo(() => todoTimeByDay(todoSpans), [todoSpans]);
   const timerState = useTimers();
   const { timers } = timerState;
   // Today on screen: its parts show the time tracked and not yet logged (they tick, not the page).
@@ -575,6 +583,7 @@ export default function Dashboard() {
                   onGap={setGap}
                   openHole={openHole}
                   floor={<ModuleSlot id="dashboard-perch" />}
+                  todoSpans={todoSpans}
                 />
               ) : (
                 <PeriodBars
@@ -583,6 +592,7 @@ export default function Dashboard() {
                   targetFor={targetFor}
                   dense={range.kind === "month"}
                   pending={pending}
+                  parallel={todoByDay}
                 />
               )}
             </section>

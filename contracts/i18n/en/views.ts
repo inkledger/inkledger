@@ -2,7 +2,12 @@ import type { Tree } from "../core";
 
 export const views = {
   dashboard: {
-    bars: { toLog: " + {duration} to log" },
+    bars: {
+      toLog: " + {duration} to log",
+      todoTime: " · TODO time {duration} beside it, {gap} of it with no issue (not counted)",
+      todoLinked: "TODO time with its issue's timer",
+      todoGap: "TODO time with no issue: not logged, to cover with one",
+    },
     recap: {
       daysAtGoal: {
         one: "{count} of {workdays} days on target",
@@ -15,6 +20,8 @@ export const views = {
       vsLastWeek: "{delta}% vs last week",
     },
     timeline: {
+      todoLinked: "TODO “{text}”, {duration}, with its issue's timer",
+      todoGap: "TODO “{text}”, {duration}, with no issue (not logged)",
       parallel: "{logged} logged in {clock} of clock time (in parallel)",
       break: "Break",
       holeTitle: "To log: {from}–{to} · {duration}",

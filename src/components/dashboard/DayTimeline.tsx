@@ -57,6 +57,7 @@ export function DayTimeline({
   onGap,
   openHole,
   floor,
+  todoSpans = [],
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -73,6 +74,8 @@ export function DayTimeline({
    * (a module's scene: its shadow falls on them; clicks pass through).
    */
   floor?: ReactNode;
+  /** TODO time that day: a thin strip over the blocks, never one of them (it is not logged time). */
+  todoSpans?: { start: Date; end: Date; linked: boolean; label: string }[];
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
@@ -276,6 +279,22 @@ export function DayTimeline({
             </Link>
           );
         })}
+        {todoSpans.length > 0 && (
+          <div className="absolute inset-x-0 top-0.5 h-1.5">
+            {todoSpans.map(s => {
+              const left = Math.max(0, pos(s.start.getTime()));
+              const width = Math.max(0.4, Math.min(100, pos(s.end.getTime())) - left);
+              return (
+                <span
+                  key={s.start.getTime()}
+                  title={t(s.linked ? "views.dashboard.timeline.todoLinked" : "views.dashboard.timeline.todoGap", { text: s.label, duration: formatDurationLong((s.end.getTime() - s.start.getTime()) / 1000) })}
+                  className={cn("absolute inset-y-0 rounded-sm", s.linked ? "bg-foreground/35" : "border border-dashed border-primary-strong/70")}
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                />
+              );
+            })}
+          </div>
+        )}
         <div className="absolute inset-x-0 bottom-2 h-2">
           {[...pauses, ...breaks.map(b => ({ ...b, id: `b${b.start.getTime()}` }))].map(p => (
             <span
@@ -357,6 +376,7 @@ export function DayTimeline({
                   `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: timeOfDay(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : ""}`
               )
               .join("; ")}
+        {todoSpans.map(s => `; ${t(s.linked ? "views.dashboard.timeline.todoLinked" : "views.dashboard.timeline.todoGap", { text: s.label, duration: formatDurationLong((s.end.getTime() - s.start.getTime()) / 1000) })}`).join("")}
       </figcaption>
     </figure>
   );

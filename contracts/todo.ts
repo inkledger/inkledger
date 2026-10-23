@@ -127,3 +127,29 @@ export function parseSteps(raw: string | null | undefined): TodoStep[] {
     return [];
   }
 }
+
+/** A stretch of TODO time as the charts get it. */
+export type TodoSpan = { start: Date; end: Date; linked: boolean };
+
+/**
+ * TODO time per day (local days), cut at midnight: with an issue timer
+ * beside it (`linked`, already counted in the logged time) and without one
+ * (`gap`: time no issue covers). Never added to the logged time.
+ */
+export function todoTimeByDay(spans: TodoSpan[]): Map<string, { linked: number; gap: number }> {
+  const out = new Map<string, { linked: number; gap: number }>();
+  for (const s of spans) {
+    let at = s.start.getTime();
+    const end = s.end.getTime();
+    while (at < end) {
+      const day = new Date(at);
+      const next = Math.min(end, addDays(new Date(day.getFullYear(), day.getMonth(), day.getDate()), 1).getTime());
+      const key = dayKey(day);
+      const cur = out.get(key) ?? { linked: 0, gap: 0 };
+      const seconds = (next - at) / 1000;
+      out.set(key, s.linked ? { ...cur, linked: cur.linked + seconds } : { ...cur, gap: cur.gap + seconds });
+      at = next;
+    }
+  }
+  return out;
+}

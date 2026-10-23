@@ -381,3 +381,31 @@ test("working on a TODO: without an issue its own time only, beside the sidebar;
       assert.equal((await db.q("SELECT count(*)::int AS n FROM todo_sessions WHERE ended_at IS NULL"))[0].n, 0);
     },
   ));
+
+test("Period trend: TODO time beside the bars and over the day's blocks", () =>
+  withApp(
+    {
+      seed: async db => {
+        const at = (h, m = 0) => {
+          const d = new Date();
+          d.setHours(h, m, 0, 0);
+          return d.getTime();
+        };
+        await db.q("INSERT INTO todo_sessions (user_id, label, linked, started_at, ended_at) VALUES (1, 'Read the RFC', 0, ?, ?)", at(7), at(8));
+        await db.q("INSERT INTO todo_sessions (user_id, label, linked, started_at, ended_at) VALUES (1, 'Fix the login', 1, ?, ?)", at(8), at(8, 30));
+      },
+    },
+    async ({ page, base }) => {
+      const today = new Date();
+      const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      await page.goto(`${base}/?period=week&from=${key}`);
+      const trend = page.getByRole("region", { name: "Period trend" });
+      await trend.getByText("TODO time with no issue: not logged, to cover with one").waitFor();
+      const caption = await trend.locator("figcaption").textContent();
+      assert.match(caption, /TODO time 1 h 30 min beside it, 1 h of it with no issue \(not counted\)/);
+      // The day: a strip over the blocks.
+      await page.goto(`${base}/?period=day&from=${key}`);
+      await trend.locator('[title="TODO “Read the RFC”, 1 h, with no issue (not logged)"]').waitFor();
+      await trend.locator('[title="TODO “Fix the login”, 30 min, with its issue\'s timer"]').waitFor();
+    },
+  ));
