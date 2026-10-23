@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ArrowLeftRight, Pause, Play, Square, X } from "lucide-react";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
+import { useTodoWorking } from "@/hooks/useTodoWork";
 import { TimerNote } from "@/components/TimerNote";
 import { formatHMS } from "@contracts/time";
 import { timeOfDay } from "@/lib/dates";
@@ -224,10 +225,31 @@ export function TimerWhere({ issueKey, connectionId, className }: { issueKey: st
   );
 }
 
-/** Compact link to the tracked issue (running first, else most recent paused). */
+/** Compact link to the tracked issue (running first, else most recent paused), or to the TODO worked on with no timer. */
 export function ActiveTimerChip({ className }: { className?: string }) {
   const { timers, fetchedAt } = useTimers();
+  const working = useTodoWorking();
   const timer = timers.find(t => t.state === "running") ?? timers[0];
+  const shadow = working.data && !working.data.linked && timer?.state !== "running" ? working.data : null;
+  if (shadow)
+    return (
+      <Link
+        to="/todos"
+        {...surface("control")}
+        className={cn("flex items-center gap-2 rounded-lg border border-dashed bg-background px-2.5 py-1.5 text-body-sm font-medium transition-colors hover:bg-accent", className)}
+      >
+        <TimerRing running />
+        <span className="sr-only">{t("views.todos.workingOn", { text: shadow.text })}</span>
+        <span className="truncate text-muted-foreground" aria-hidden>
+          {shadow.text}
+        </span>
+        <TickingElapsed
+          state="running"
+          elapsedSeconds={Math.max(0, (new Date(shadow.serverNow).getTime() - new Date(shadow.startedAt).getTime()) / 1000)}
+          fetchedAt={working.dataUpdatedAt}
+        />
+      </Link>
+    );
   if (!timer) return null;
   const running = timer.state === "running";
   return (

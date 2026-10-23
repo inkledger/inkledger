@@ -148,6 +148,7 @@ export const server: Shape<typeof en> = {
     badDay: "Non è un giorno (AAAA-MM-GG)",
     commentNeedsIssue: "Il TODO di un commento ha bisogno della sua issue",
     noteElsewhere: "Quella nota privata è su un'altra issue",
+    workDone: "Questo TODO è fatto: togli la spunta per lavorarci ancora",
   },
   pinboard: {
     followReadOnly: "Questa lavagna segue un tag: mostra quello che dice il tracker: niente si appende, si scrive o si stacca a mano.",

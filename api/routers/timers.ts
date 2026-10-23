@@ -14,6 +14,7 @@ import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
 import { dayKey } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
+import { endSession, trimSession } from "../queries/todoSessions";
 import { t as tr } from "@contracts/i18n";
 
 /** The issue's connection, when a key lives on two. */
@@ -53,7 +54,7 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  * with another one and resurrect or lose time. The lock is the database's,
  * so it holds across processes too.
  */
-function withTimerLock<T>(userId: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export function withTimerLock<T>(userId: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${userId})`);
     return fn(tx);
@@ -65,9 +66,9 @@ const timerOf = (userId: number, connectionId: number, issueKey: string) =>
   and(eq(timers.userId, userId), eq(timers.connectionId, connectionId), eq(timers.issueKey, issueKey));
 
 /** Who acts: the user, the device (x-device-id) and how that device is named. */
-type Who = { userId: number; device: string | undefined; label: string };
+export type Who = { userId: number; device: string | undefined; label: string };
 
-function whoOf(ctx: { user: { id: number }; deviceId?: string; req: Request }, label?: string): Who {
+export function whoOf(ctx: { user: { id: number }; deviceId?: string; req: Request }, label?: string): Who {
   const named = label?.trim().slice(0, 60);
   return { userId: ctx.user.id, device: ctx.deviceId, label: named || deviceLabel(ctx.req.headers.get("user-agent")) };
 }
@@ -76,7 +77,7 @@ function whoOf(ctx: { user: { id: number }; deviceId?: string; req: Request }, l
 const leaseLive = (t: Timer, now: Date) => t.state === "running" && !!t.ownerDevice && !!t.leaseUntil && t.leaseUntil.getTime() > now.getTime();
 
 /** Another device controls this running timer right now. */
-const heldElsewhere = (t: Timer, w: Who, now: Date) => leaseLive(t, now) && t.ownerDevice !== w.device;
+export const heldElsewhere = (t: Timer, w: Who, now: Date) => leaseLive(t, now) && t.ownerDevice !== w.device;
 
 /** The timer as owned by `w` from now (no device: nobody owns it, nothing to lock). */
 const ownedBy = (w: Who, now: Date) =>
@@ -86,7 +87,7 @@ const ownedBy = (w: Who, now: Date) =>
 
 const released = { ownerDevice: null, ownerLabel: "", leaseUntil: null };
 
-function refuse(reason: "held" | "moved", t: Timer): never {
+export function refuse(reason: "held" | "moved", t: Timer): never {
   throw new TRPCError({
     code: "CONFLICT",
     message:
@@ -130,14 +131,14 @@ async function once<T>(tx: Tx, userId: number, opId: string | undefined, run: ()
 }
 
 /** A timer action under the user's lock, then everyone's pages told (the timer's new epoch). */
-async function act<T extends { epoch: number }>(userId: number, opId: string | undefined, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function act<T extends { epoch: number }>(userId: number, opId: string | undefined, fn: (tx: Tx) => Promise<T>): Promise<T> {
   const r = await withTimerLock(userId, (tx) => once(tx, userId, opId, () => fn(tx)));
   publish(userId, { type: "timers", epoch: r.epoch });
   return r;
 }
 
 /** The highest epoch among the user's timers (what a page last saw of them). */
-async function epochOf(tx: Tx | Db, userId: number): Promise<number> {
+export async function epochOf(tx: Tx | Db, userId: number): Promise<number> {
   const [r] = await tx
     .select({ e: sql<number>`coalesce(max(${timers.epoch}), 0)`.mapWith(Number) })
     .from(timers)
@@ -198,9 +199,13 @@ export async function claimTimerSeconds(
   };
 }
 
-/** Pauses a running timer: its owner lets go, everyone's view moves on. */
-async function pauseTimer(db: Db | Tx, t: Timer, now: Date): Promise<number> {
+/**
+ * Pauses a running timer: its owner lets go, everyone's view moves on. The
+ * TODO worked on with it (a linked stretch) stops there too.
+ */
+export async function pauseTimer(db: Db | Tx, t: Timer, now: Date): Promise<number> {
   const epoch = t.epoch + 1;
+  if (t.state === "running") await endSession(db, t.userId, now, true);
   await db
     .update(timers)
     .set({ state: "paused", accumulatedSeconds: elapsedSeconds(t, now), pausedAt: now, updatedAt: now, epoch, ...released })
@@ -218,6 +223,71 @@ const issueInput = { issueKey: issueKeyInput, connectionId: connectionInput };
 /** One timer of the user, under the lock: its row, or nothing. */
 async function rowOf(tx: Tx, userId: number, connectionId: number, issueKey: string) {
   return (await tx.select().from(timers).where(timerOf(userId, connectionId, issueKey)).limit(1))[0];
+}
+
+/**
+ * Starts (or resumes) an issue's timer inside the user's lock: the body of
+ * `start`, shared with a TODO's start (which opens its stretch in the same
+ * transaction). See `start` for what it does to the others.
+ */
+export async function startTimerIn(tx: Tx, w: Who, userId: number, connectionId: number, issueKey: string, opts: { force?: boolean; from: Date | null }, now: Date) {
+  const from = opts.from;
+  const running = await tx
+    .select()
+    .from(timers)
+    .where(and(eq(timers.userId, userId), eq(timers.state, "running")));
+  for (const r of running) if (heldElsewhere(r, w, now) && !opts.force) refuse("held", r);
+  if (from) {
+    // Another timer's time covers it: one running (it would be paused now, its time
+    // counted twice), or one paused after it.
+    if (running.length > 0) throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromWhileRunning") });
+    const paused = await tx
+      .select({ pausedAt: timers.pausedAt })
+      .from(timers)
+      .where(and(eq(timers.userId, userId), eq(timers.state, "paused")));
+    if (paused.some((p) => p.pausedAt && p.pausedAt.getTime() > from.getTime())) {
+      throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromBeforePause") });
+    }
+  }
+  const startedAt = from ?? now;
+  // An issue timer takes the focus: a TODO worked on without one stops where this starts.
+  await endSession(tx, userId, startedAt, false);
+  // Auto-pause any other running timers (single active timer per user).
+  const others = running.filter((o) => o.issueKey !== issueKey || o.connectionId !== connectionId);
+  let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
+  let tookOver = false;
+  for (const o of others) {
+    switchedFrom = { issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now };
+    tookOver ||= heldElsewhere(o, w, now);
+    await pauseTimer(tx, o, now);
+  }
+  const existing = await rowOf(tx, userId, connectionId, issueKey);
+  if (existing?.state === "running") {
+    // Already running: this device takes control (or renews it); the time is untouched.
+    tookOver ||= heldElsewhere(existing, w, now);
+    const moves = existing.ownerDevice !== (w.device ?? null);
+    const epoch = moves ? existing.epoch + 1 : existing.epoch;
+    await tx.update(timers).set({ ...ownedBy(w, now), epoch, updatedAt: now }).where(eq(timers.id, existing.id));
+    return { ok: true, switchedFrom, tookOver, epoch: Math.max(epoch, await epochOf(tx, userId)) };
+  }
+  if (existing) {
+    await tx
+      .update(timers)
+      .set({ state: "running", startedAt, pausedAt: null, updatedAt: now, epoch: existing.epoch + 1, ...ownedBy(w, now) })
+      .where(eq(timers.id, existing.id));
+  } else {
+    await tx.insert(timers).values({
+      userId,
+      connectionId,
+      issueKey,
+      state: "running",
+      startedAt,
+      accumulatedSeconds: 0,
+      epoch: (await epochOf(tx, userId)) + 1,
+      ...ownedBy(w, now),
+    });
+  }
+  return { ok: true, switchedFrom, tookOver, epoch: await epochOf(tx, userId) };
 }
 
 export const timersRouter = createRouter({
@@ -287,62 +357,7 @@ export const timersRouter = createRouter({
       }
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.
-      return act(ctx.user.id, input.opId, async (tx) => {
-        const running = await tx
-          .select()
-          .from(timers)
-          .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
-        for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
-        if (from) {
-          // Another timer's time covers it: one running (it would be paused now, its time
-          // counted twice), or one paused after it.
-          if (running.length > 0) throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromWhileRunning") });
-          const paused = await tx
-            .select({ pausedAt: timers.pausedAt })
-            .from(timers)
-            .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "paused")));
-          if (paused.some((p) => p.pausedAt && p.pausedAt.getTime() > from.getTime())) {
-            throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromBeforePause") });
-          }
-        }
-        const startedAt = from ?? now;
-        // Auto-pause any other running timers (single active timer per user).
-        const others = running.filter((o) => o.issueKey !== input.issueKey || o.connectionId !== conn.id);
-        let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
-        let tookOver = false;
-        for (const o of others) {
-          switchedFrom = { issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now };
-          tookOver ||= heldElsewhere(o, w, now);
-          await pauseTimer(tx, o, now);
-        }
-        const existing = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
-        if (existing?.state === "running") {
-          // Already running: this device takes control (or renews it); the time is untouched.
-          tookOver ||= heldElsewhere(existing, w, now);
-          const moves = existing.ownerDevice !== (w.device ?? null);
-          const epoch = moves ? existing.epoch + 1 : existing.epoch;
-          await tx.update(timers).set({ ...ownedBy(w, now), epoch, updatedAt: now }).where(eq(timers.id, existing.id));
-          return { ok: true, switchedFrom, tookOver, epoch: Math.max(epoch, await epochOf(tx, ctx.user.id)) };
-        }
-        if (existing) {
-          await tx
-            .update(timers)
-            .set({ state: "running", startedAt, pausedAt: null, updatedAt: now, epoch: existing.epoch + 1, ...ownedBy(w, now) })
-            .where(eq(timers.id, existing.id));
-        } else {
-          await tx.insert(timers).values({
-            userId: ctx.user.id,
-            connectionId: conn.id,
-            issueKey: input.issueKey,
-            state: "running",
-            startedAt,
-            accumulatedSeconds: 0,
-            epoch: (await epochOf(tx, ctx.user.id)) + 1,
-            ...ownedBy(w, now),
-          });
-        }
-        return { ok: true, switchedFrom, tookOver, epoch: await epochOf(tx, ctx.user.id) };
-      });
+      return act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from }, now));
     }),
 
   /**
@@ -427,6 +442,7 @@ export const timersRouter = createRouter({
         if (!t) return { found: false as const, elapsedSeconds: 0, epoch: await epochOf(tx, ctx.user.id) };
         mayAct(t, w, now, input);
         const remaining = Math.max(0, elapsedSeconds(t, now) - input.seconds);
+        if (t.state === "running") await trimSession(tx, ctx.user.id, input.seconds, now);
         await tx
           .update(timers)
           .set({ accumulatedSeconds: remaining, startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
@@ -444,6 +460,7 @@ export const timersRouter = createRouter({
       const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
       if (!t) return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
+      if (t.state === "running") await endSession(tx, ctx.user.id, now, true);
       await tx.delete(timers).where(eq(timers.id, t.id));
       // Gone rows can't carry an epoch: the next one starts above it.
       return { ok: true, epoch: t.epoch + 1 };

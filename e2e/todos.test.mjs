@@ -342,3 +342,42 @@ test("no syntax needed: day, issue, priority, estimate and repeat from chips; st
     await row.getByRole("link", { name: /DEMO-103/ }).waitFor();
     assert.equal((await db.q("SELECT issue_key FROM todos"))[0].issue_key, "DEMO-103");
   }));
+
+test("working on a TODO: without an issue its own time only, beside the sidebar; with one its issue's timer, and Stop asks to log", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'Read the RFC', ?, 0, ?, ?)", inDays(0), now, now);
+        await db.q(
+          "INSERT INTO todos (user_id, text, due_on, position, connection_id, issue_key, created_at, updated_at) VALUES (1, 'Fix the login', ?, 1, 1, 'DEMO-101', ?, ?)",
+          inDays(0),
+          now,
+          now,
+        );
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/todos");
+      const plain = page.getByRole("listitem", { name: "Read the RFC" });
+      const linked = page.getByRole("listitem", { name: "Fix the login" });
+      await plain.getByRole("button", { name: "Work on “Read the RFC” (its own time, never logged)" }).click();
+      await page.getByRole("link", { name: /Working on the TODO “Read the RFC”/ }).waitFor();
+      await plain.getByRole("button", { name: "Stop working on “Read the RFC”" }).waitFor();
+      assert.equal((await db.q("SELECT count(*)::int AS n FROM timers"))[0].n, 0, "no timer for it");
+      // With its issue: the issue's timer, and the first stretch ends.
+      await linked.getByRole("button", { name: "Work on “Fix the login”: start its issue's timer" }).click();
+      await linked.getByRole("button", { name: "Stop working on “Fix the login”" }).waitFor();
+      await page.getByRole("link", { name: /Working on the TODO/ }).waitFor({ state: "detached" });
+      assert.deepEqual(await db.q("SELECT issue_key, state FROM timers"), [{ issue_key: "DEMO-101", state: "running" }]);
+      assert.deepEqual(await db.q("SELECT label, linked, ended_at IS NULL AS open FROM todo_sessions ORDER BY id"), [
+        { label: "Read the RFC", linked: 0, open: false },
+        { label: "Fix the login", linked: 1, open: true },
+      ]);
+      // Stop: the timer stops and its time waits to be logged, as from its own button.
+      await linked.getByRole("button", { name: "Stop working on “Fix the login”" }).click();
+      await page.getByRole("dialog").getByText("DEMO-101").first().waitFor();
+      assert.deepEqual(await db.q("SELECT state FROM timers"), [{ state: "paused" }]);
+      assert.equal((await db.q("SELECT count(*)::int AS n FROM todo_sessions WHERE ended_at IS NULL"))[0].n, 0);
+    },
+  ));

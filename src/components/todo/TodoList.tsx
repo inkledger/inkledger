@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Trash2, X } from "lucide-react";
+import { Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Square, Trash2, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,11 +14,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DayChip, EstimateChip, IssueChip, PriorityChip, RepeatChip, StepsChip, StepsEditor } from "@/components/todo/TodoChips";
+import { DayChip, EstimateChip, IssueChip, PriorityChip, RepeatChip, SpentChip, StepsChip, StepsEditor } from "@/components/todo/TodoChips";
 import type { IssueRef } from "@/components/app/IssuePicker";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { useToday } from "@/hooks/useToday";
-import { useStartTimer } from "@/hooks/useStartTimer";
+import { useTodoWork, useTodoWorking } from "@/hooks/useTodoWork";
 import { usePinIssue } from "@/hooks/usePinIssue";
 import { toastError } from "@/lib/errorText";
 import { issuePath } from "@/lib/issues";
@@ -54,6 +54,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const items = useMemo(() => (scope ? forIssue.data : listed.data) ?? [], [scope, forIssue.data, listed.data]);
   const list = useRef<HTMLUListElement>(null);
   const refresh = () => utils.todos.invalidate();
+  const working = useTodoWorking().data ?? null;
+  const work = useTodoWork();
 
   const update = (id: number, patch: Patch) =>
     // Today goes along: a repeating TODO ticked comes back from it.
@@ -63,7 +65,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
     });
 
   const tick = (x: Todo, done: boolean) =>
-    update(x.id, { done }).then(() =>
+    // Done while its issue's timer runs for it: that timer stops too, its time to log.
+    (done && working?.todoId === x.id && working.linked ? work.stop(working) : Promise.resolve()).then(() => update(x.id, { done })).then(() =>
       toast.success(t(done ? "views.todos.ticked" : "views.todos.unticked", { text: x.text }), {
         action: { label: t("views.todos.undo"), onClick: () => void update(x.id, { done: !done }) },
       })
@@ -184,6 +187,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
                 onUpdate={patch => update(x.id, patch).catch(() => undefined)}
                 onRemove={() => remove(x)}
                 onKeyDown={e => rowKeys(e, x)}
+                working={working?.todoId === x.id}
+                onWork={() => (working?.todoId === x.id ? work.stop(working) : work.start(x))}
               />
             );
           })
@@ -329,6 +334,8 @@ function TodoRow({
   onUpdate,
   onRemove,
   onKeyDown,
+  working,
+  onWork,
 }: {
   x: Todo;
   heading: string | null;
@@ -338,13 +345,15 @@ function TodoRow({
   onUpdate: (patch: Patch) => Promise<unknown>;
   onRemove: () => void;
   onKeyDown: (e: KeyboardEvent<HTMLLIElement>) => void;
+  /** Worked on now (its time runs). */
+  working: boolean;
+  onWork: () => void;
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "link">("view");
   const [stepsOpen, setStepsOpen] = useState(false);
   const row = useRef<HTMLLIElement>(null);
   const linking = useRef(false);
   const [draft, setDraft] = useState(x.text);
-  const start = useStartTimer({ announce: true });
   const pin = usePinIssue();
   const todayKey = dayKey(today);
   const done = x.doneAt !== null;
@@ -445,12 +454,31 @@ function TodoRow({
                 <span className="truncate">{t("views.todos.fromNote")}</span>
               </Link>
             )}
-            {x.estimateSeconds !== null && <EstimateChip seconds={x.estimateSeconds} onChange={estimateSeconds => void onUpdate({ estimateSeconds })} />}
+            {x.estimateSeconds !== null ? (
+              <EstimateChip seconds={x.estimateSeconds} spent={x.spentSeconds} onChange={estimateSeconds => void onUpdate({ estimateSeconds })} />
+            ) : (
+              x.spentSeconds >= 60 && <SpentChip seconds={x.spentSeconds} />
+            )}
             {repeat && <RepeatChip repeat={repeat} onChange={r => void onUpdate({ repeat: r })} />}
             {(steps.length > 0 || stepsOpen) && <StepsChip steps={steps} open={stepsOpen} onToggle={() => setStepsOpen(o => !o)} />}
           </div>
           {stepsOpen && <StepsEditor steps={steps} onChange={next => void onUpdate({ steps: next })} />}
         </div>
+        {!done && (
+          <button
+            type="button"
+            aria-pressed={working}
+            aria-label={t(working ? "views.todos.workStop" : x.issueKey ? "views.todos.workStartIssue" : "views.todos.workStart", { text: x.text })}
+            title={t(working ? "views.todos.workStop" : x.issueKey ? "views.todos.workStartIssue" : "views.todos.workStart", { text: x.text })}
+            onClick={onWork}
+            className={cn(
+              "rounded p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              working ? "text-primary-strong" : "text-muted-foreground opacity-60 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+            )}
+          >
+            {working ? <Square className="h-4 w-4" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -524,10 +552,6 @@ function TodoRow({
                 <DropdownMenuItem onSelect={() => void onUpdate({ issueKey: null })}>
                   <X className="h-4 w-4" aria-hidden />
                   {t("views.todos.unlink")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => start.mutate({ issueKey: x.issueKey as string, connectionId: x.connectionId ?? undefined })}>
-                  <Play className="h-4 w-4" aria-hidden />
-                  {t("views.todos.startTimer")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void pin(x.issueKey as string, x.connectionId ?? undefined)}>
                   <Pin className="h-4 w-4 -rotate-12" aria-hidden />

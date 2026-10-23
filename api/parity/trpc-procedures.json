@@ -700,8 +700,20 @@
     "type": "mutation"
   },
   {
+    "path": "todos.startWork",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.stopWork",
+    "type": "mutation"
+  },
+  {
     "path": "todos.update",
     "type": "mutation"
+  },
+  {
+    "path": "todos.working",
+    "type": "query"
   },
   {
     "path": "users.invite",

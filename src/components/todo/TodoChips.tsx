@@ -151,15 +151,22 @@ export function PriorityChip({ high, onChange }: { high: boolean; onChange: (hig
 /** Estimates offered as they are: the usual lengths, minutes. */
 const ESTIMATES = [15, 30, 60, 120, 240].map(m => m * 60);
 
-/** How long it should take. */
-export function EstimateChip({ seconds, onChange }: { seconds: number | null; onChange: (seconds: number | null) => void }) {
+/** How long it should take; on a row, with the time spent on it so far (beside the real time). */
+export function EstimateChip({ seconds, spent = 0, onChange }: { seconds: number | null; spent?: number; onChange: (seconds: number | null) => void }) {
+  const shown = seconds ? (spent >= 60 ? `${formatDuration(spent)} / ${formatDuration(seconds)}` : formatDuration(seconds)) : null;
   return (
     <Menu
-      label={seconds ? t("views.todos.estimateSet", { duration: formatDuration(seconds) }) : t("views.todos.estimate")}
+      label={
+        seconds
+          ? spent >= 60
+            ? t("views.todos.spentOfEstimate", { spent: formatDuration(spent), duration: formatDuration(seconds) })
+            : t("views.todos.estimateSet", { duration: formatDuration(seconds) })
+          : t("views.todos.estimate")
+      }
       trigger={
         <>
           <Hourglass className="h-3 w-3" aria-hidden />
-          {seconds ? formatDuration(seconds) : null}
+          {shown && <span className={cn("tabular", seconds && spent > seconds && "text-danger")}>{shown}</span>}
         </>
       }
       on={seconds !== null}
@@ -167,6 +174,17 @@ export function EstimateChip({ seconds, onChange }: { seconds: number | null; on
       options={[...ESTIMATES.map(s => ({ value: String(s), label: formatDuration(s) })), { value: "none", label: t("views.todos.estimateNone") }]}
       onChange={v => onChange(v === "none" ? null : Number(v))}
     />
+  );
+}
+
+/** Time spent on it so far, when it has no estimate: beside the real time, never counted. */
+export function SpentChip({ seconds }: { seconds: number }) {
+  return (
+    <span title={t("views.todos.spentHint")} className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5", quiet)}>
+      <Hourglass className="h-3 w-3" aria-hidden />
+      <span className="tabular">{formatDuration(seconds)}</span>
+      <span className="sr-only">{t("views.todos.spentHint")}</span>
+    </span>
   );
 }
 

@@ -147,6 +147,7 @@ export const server = {
     badDay: "Not a day (YYYY-MM-DD)",
     commentNeedsIssue: "A comment's TODO needs its issue",
     noteElsewhere: "That private note is on another issue",
+    workDone: "This TODO is done: untick it to work on it again",
   },
   pinboard: {
     followReadOnly: "This board follows a tag: it shows what the tracker says: nothing is pinned, written or taken off by hand.",

@@ -19,7 +19,8 @@ export function useLiveSync() {
     () =>
       liveEvents.open((type, data) => {
         // "hello" too: a reconnect may have missed changes.
-        if (type === "timers" || type === "hello") void utils.timers.list.invalidate();
+        // The TODO worked on follows its timer.
+        if (type === "timers" || type === "hello") void Promise.all([utils.timers.list.invalidate(), utils.todos.working.invalidate()]);
         // Another tab of this device switched the bucket: everything here follows, as there.
         if (type === "bucket" && isRecord(data) && data.deviceId === deviceId()) void utils.invalidate();
       }),

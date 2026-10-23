@@ -3,9 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, min, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { issueNotes, issues, todos, type Todo } from "@db/schema";
+import { issueNotes, issues, timers, todoSessions, todos, type Todo } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
+import { act, epochOf, heldElsewhere, pauseTimer, refuse, roundToMinute, elapsedSeconds, startTimerIn, whoOf } from "./timers";
+import { beginSession, closeStaleSession, endSession, openSession } from "../queries/todoSessions";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
 import { t } from "@contracts/i18n";
@@ -100,7 +102,12 @@ async function linkOf(
 
 const open = isNull(todos.doneAt);
 
-/** A TODO as the lists show it: with its issue (title, status) and its note's text when it has them. */
+/** Seconds worked on a TODO, its open stretch counted to now. */
+const spentOf = sql<number>`coalesce((SELECT sum(coalesce(s.ended_at, (extract(epoch from now()) * 1000)::bigint) - s.started_at) / 1000 FROM ${todoSessions} s WHERE s.todo_id = ${todos.id}), 0)`.mapWith(
+  (v: unknown) => Math.round(Number(v)),
+);
+
+/** A TODO as the lists show it: with its issue (title, status), its note's text when it has them, and its time. */
 async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
   const q = getDb()
     .select({
@@ -109,6 +116,7 @@ async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
       status: issues.status,
       statusCategory: issues.statusCategory,
       noteBody: issueNotes.body,
+      spentSeconds: spentOf,
     })
     .from(todos)
     .leftJoin(issues, eq(issues.id, todos.itemId))
@@ -122,6 +130,7 @@ async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
     status: r.status ?? null,
     statusCategory: r.statusCategory ?? null,
     noteBody: r.noteBody ?? null,
+    spentSeconds: r.spentSeconds,
   }));
 }
 
@@ -246,6 +255,9 @@ export const todosRouter = createRouter({
           .where(and(eq(todos.id, row.id), open))
           .returning();
         if (!ticked) return next;
+        // Done: no more time on it (its issue's timer, if any, is the page's to stop and log).
+        const working = await openSession(tx, ctx.user.id);
+        if (working?.todoId === ticked.id) await endSession(tx, ctx.user.id, new Date());
         const again = repeat.safeParse(ticked.repeat);
         if (again.success) {
           const today = input.today ?? dayKey(new Date());
@@ -353,6 +365,70 @@ export const todosRouter = createRouter({
       return row;
     }),
 
+  /**
+   * What the user works on now: the open stretch (its TODO, whether its
+   * issue's timer runs with it, since when), or null. A stretch with no timer
+   * forgotten from an earlier day is ended first.
+   */
+  working: protectedProcedure.query(async ({ ctx }) => {
+    await closeStaleSession(getDb(), ctx.user.id, new Date());
+    const s = await openSession(getDb(), ctx.user.id);
+    if (!s) return null;
+    const [todo] = s.todoId === null ? [] : await getDb().select().from(todos).where(eq(todos.id, s.todoId));
+    return {
+      todoId: s.todoId,
+      text: todo?.text ?? s.label,
+      linked: s.linked === 1,
+      startedAt: s.startedAt,
+      issueKey: todo?.issueKey ?? null,
+      connectionId: todo?.connectionId ?? null,
+      serverNow: new Date(),
+    };
+  }),
+
+  /**
+   * Work on a TODO now. Tied to an issue: its timer starts (the real time)
+   * and the TODO's time runs beside it. Not tied: only the TODO's time runs,
+   * never a worklog, and the running issue timer pauses (its time goes to the
+   * log as on any switch: `switchedFrom`). One focus at a time.
+   */
+  startWork: protectedProcedure
+    .input(z.object({ id: idInput, force: z.boolean().optional(), opId: z.string().min(8).max(64).optional(), device: z.string().max(60).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await own(ctx.user.id, input.id);
+      if (row.doneAt) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.todos.workDone") });
+      const now = new Date();
+      const w = whoOf(ctx, input.device);
+      const issueKey = row.issueKey;
+      if (issueKey !== null && row.connectionId !== null) {
+        const connectionId = row.connectionId;
+        return act(ctx.user.id, input.opId, async (tx) => {
+          const r = await startTimerIn(tx, w, ctx.user.id, connectionId, issueKey, { force: input.force, from: null }, now);
+          await beginSession(tx, ctx.user.id, row, true, now);
+          return { ...r, linked: true };
+        });
+      }
+      return act(ctx.user.id, input.opId, async (tx) => {
+        const running = await tx.select().from(timers).where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
+        for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
+        let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
+        for (const o of running) {
+          switchedFrom = { issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now };
+          await pauseTimer(tx, o, now);
+        }
+        await beginSession(tx, ctx.user.id, row, false, now);
+        return { ok: true, switchedFrom, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
+      });
+    }),
+
+  /** Stop working on a TODO with no timer (a linked one stops with its issue's timer). */
+  stopWork: protectedProcedure.mutation(async ({ ctx }) =>
+    act(ctx.user.id, undefined, async (tx) => {
+      await endSession(tx, ctx.user.id, new Date(), false);
+      return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
+    }),
+  ),
+
   /** Today's reminders: open TODOs due today or late, not put away today. */
   reminders: protectedProcedure.input(z.object({ today: day })).query(async ({ ctx, input }) =>
     rows(
@@ -374,4 +450,4 @@ export const todosRouter = createRouter({
   }),
 });
 
-export type TodoRow = Todo & { summary: string | null; status: string | null; statusCategory: string | null; noteBody: string | null };
+export type TodoRow = Todo & { summary: string | null; status: string | null; statusCategory: string | null; noteBody: string | null; spentSeconds: number };
