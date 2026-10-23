@@ -81,11 +81,14 @@ export function DayTimeline({
   const sorted = [...entries].sort(
     (a, b) => a.start.getTime() - b.start.getTime()
   );
-  // Clock hours, not elapsed ones: DST days keep 9:00 at 9.
-  const hours = sorted.flatMap(e => {
-    const s = wallHours(e.start.getTime(), dayStart);
-    return [s, s + e.seconds / 3600];
-  });
+  // Clock hours, not elapsed ones: DST days keep 9:00 at 9. TODO time widens the axis too.
+  const hours = [
+    ...sorted.flatMap(e => {
+      const s = wallHours(e.start.getTime(), dayStart);
+      return [s, s + e.seconds / 3600];
+    }),
+    ...todoSpans.flatMap(s => [wallHours(Math.max(dayStart, s.start.getTime()), dayStart), wallHours(s.end.getTime(), dayStart)]),
+  ];
   const work = schedule ? workBounds(day, schedule) : null;
   // The axis spans the working day (8–18 without one), widened to the entries.
   const workFrom = work ? wallHours(work.start.getTime(), dayStart) : 8;
