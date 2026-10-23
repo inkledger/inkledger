@@ -257,12 +257,19 @@
   }
 }
 
+/* The room each cast-room container asks for itself: never handed down to the containers inside it. */
+@property --room-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --room-t { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --room-b { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --room-shift-x { syntax: "<length>"; inherits: false; initial-value: 0px; }
+
 @layer utilities {
   /*
    * Room for cast shadows inside a clipping container (overflow hidden or
    * auto): padding as far as the shadows reach (--surface-reach-*, written by
    * useShadowReach from the Shadow mod; 0 without it), taken back by a
-   * negative margin so nothing moves. --room-x/t/b: the room it has anyway;
+   * negative margin so nothing moves. --room-x/t/b: the room it has anyway
+   * (sideways it was a -mx/px pair, up and down a plain padding);
    * --room-shift-x: a margin it had beyond its room (a table's -mx-1).
    */
   .cast-room-x {
@@ -273,13 +280,14 @@
     margin-left: calc((var(--room-l) + var(--room-shift-x, 0px)) * -1);
     margin-right: calc((var(--room-r) + var(--room-shift-x, 0px)) * -1);
   }
+  /* Vertically the room it has anyway is plain padding (pb-1 as before): only the reach past it is taken back. */
   .cast-room-y {
     --room-top: max(var(--room-t, 0px), var(--surface-reach-t, 0px));
     --room-bottom: max(var(--room-b, 0px), var(--surface-reach-b, 0px));
     padding-top: var(--room-top);
     padding-bottom: var(--room-bottom);
-    margin-top: calc(var(--room-top) * -1);
-    margin-bottom: calc(var(--room-bottom) * -1);
+    margin-top: calc(var(--room-t, 0px) - var(--room-top));
+    margin-bottom: calc(var(--room-b, 0px) - var(--room-bottom));
   }
   .tabular {
     font-variant-numeric: tabular-nums lining-nums;
