@@ -1040,6 +1040,21 @@ const manyIssues = async db => {
   }
 };
 
+test("issues: a new search or filter starts the list at its top", () =>
+  withApp({ seed: manyIssues }, async ({ page, base }) => {
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.goto(base + "/issues");
+    await page.getByRole("link", { name: /DEMO-2\d\d/ }).first().waitFor();
+    const main = page.locator("#main");
+    await main.evaluate(el => (el.scrollTop = 1500));
+    await page.waitForTimeout(200);
+    assert.ok((await main.evaluate(el => el.scrollTop)) > 1000);
+    await page.getByRole("searchbox").first().fill("Work item 1");
+    await page.waitForURL(u => u.searchParams.get("q") === "Work item 1");
+    await page.waitForTimeout(500);
+    assert.equal(await main.evaluate(el => el.scrollTop), 0, "the results from their top");
+  }));
+
 test("navigation: from the Board to an issue and back, with the same search and scroll", () =>
   withApp({ seed: manyIssues }, async ({ page, base }) => {
     await page.goto(base + "/board");

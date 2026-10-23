@@ -130,7 +130,16 @@ export default function Issues() {
   const fields = useMemo(() => issueFields(loadFilters()), []);
   const [url, setUrl] = useUrlFields(fields);
   const { page, ...filters } = url;
-  const setPage = (p: number) => setUrl({ page: p });
+  // A new search, filter or page: its list from the top (these replace the URL entry, which
+  // keeps the scroll as it was: right for what is typed elsewhere, not for new results here).
+  const toTop = () => {
+    document.getElementById("main")?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  };
+  const setPage = (p: number) => {
+    setUrl({ page: p });
+    toTop();
+  };
 
   const [trackerSearchOpen, setTrackerSearchOpen] = useState(false);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
@@ -140,6 +149,7 @@ export default function Issues() {
   const updateFilters = (patch: Partial<IssueFilterState>) => {
     saveFilters({ ...filters, ...patch });
     setUrl({ ...patch, page: 1 });
+    toTop();
   };
 
   const search = useDebouncedValue(filters.search.trim(), 300);
