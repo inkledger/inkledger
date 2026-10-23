@@ -42,7 +42,7 @@ import { MakeTodoButton } from "@/components/todo/MakeTodo";
 import { TodoList } from "@/components/todo/TodoList";
 import { useHashFlash } from "@/hooks/useHashFlash";
 import { PageHeader } from "@/components/app/PageHeader";
-import { PanelRow, PanelSection } from "@/components/app/Panel";
+import { PanelSection } from "@/components/app/Panel";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
 import { CommentsSection } from "@/components/issue/CommentsSection";
@@ -378,7 +378,8 @@ export default function IssueDetail({
     .join(" · ");
 
   return (
-    <>
+    // The page holds still; its columns scroll (wide screens).
+    <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       <PageHeader
         sticky
         title={i.summary}
@@ -497,424 +498,427 @@ export default function IssueDetail({
         }
       />
 
-      <PanelRow className="xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <PanelSection className="border-b xl:border-b-0 xl:border-r">
-          {/* Project, status and priority in one compact row: no decorative
-              cover taking vertical space under the fixed header. */}
-          {/* The timer runs on another device (or one gone silent): said here, with what to do. */}
-          <TimerWhere issueKey={i.key} connectionId={i.connectionId} className="mb-3" />
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <ProjectAvatar
-              project={i.projectKey || i.key}
-              connectionId={i.connectionId}
-              size="md"
-              transitionName={`issue-${i.key}`}
-            />
-            <ConnectionBadge connectionId={i.connectionId} />
-            <StatusBadge status={i.status} category={i.category} />
-            {i.priority && (
-              <Chip variant="dot" tone={priorityTone(i.priority)}>
-                {priorityLabel(i.priority)}
-              </Chip>
-            )}
-          </div>
-          <p className="mb-5 text-body-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{i.key}</span>
-            {i.projectName ? ` · ${i.projectName}` : ""}
-            {i.issueType ? ` · ${i.issueType}` : ""}
-          </p>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Detail label={t("pages.issueDetail.project")}>
-              {i.projectKey}
-              {i.projectName ? ` — ${i.projectName}` : ""}
-            </Detail>
-            <Detail label={t("pages.issueDetail.transition")}>
-              <Select
-                value=""
-                open={transOpen}
-                onOpenChange={setTransOpen}
-                onValueChange={id => {
-                  const tr = transitions.data?.find(x => x.id === id);
-                  if (tr && (tr.requirements.length > 0 || !tr.executable))
-                    setAsking({ transitionId: id });
-                  else
-                    transition.mutate({ key, connectionId, transitionId: id });
-                }}
-                disabled={transition.isPending}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="w-full max-w-48"
-                  aria-label={t("pages.issueDetail.changeStatus")}
-                >
-                  <SelectValue
-                    placeholder={
-                      transition.isPending
-                        ? t("pages.issueDetail.changing")
-                        : t("pages.issueDetail.changeTo", { status: i.status })
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {transitions.isPending && transOpen ? (
-                    <div className="px-2 py-1.5 text-body-sm text-muted-foreground">
-                      {t("pages.issueDetail.loading")}
-                    </div>
-                  ) : transitions.error ? (
-                    <div className="px-2 py-1.5 text-body-sm text-danger">
-                      {errorText(transitions.error)}
-                    </div>
-                  ) : transitions.data?.every(
-                      tr => tr.toStatus === i.status
-                    ) ? (
-                    <div className="px-2 py-1.5 text-body-sm text-muted-foreground">
-                      {t("pages.issueDetail.noTransitions")}
-                    </div>
-                  ) : (
-                    transitions.data
-                      ?.filter(tr => tr.toStatus !== i.status)
-                      .map(tr => (
-                        <SelectItem key={tr.id} value={tr.id}>
-                          {tr.toStatus}
-                        </SelectItem>
-                      ))
-                  )}
-                </SelectContent>
-              </Select>
-              <TransitionDialog
-                issueKey={key}
+      {/* Wide: two columns, each scrolling on its own. Narrower: one column in the
+          usual order (fields, time, then the issue's text and its time logs). */}
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:overflow-hidden" data-scroll-key="issue-page">
+        <div className="contents xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-r" data-scroll-key="issue-left">
+          <PanelSection className="order-1 border-b">
+            {/* Project, status and priority in one compact row: no decorative
+                cover taking vertical space under the fixed header. */}
+            {/* The timer runs on another device (or one gone silent): said here, with what to do. */}
+            <TimerWhere issueKey={i.key} connectionId={i.connectionId} className="mb-3" />
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <ProjectAvatar
+                project={i.projectKey || i.key}
                 connectionId={i.connectionId}
-                target={asking}
-                onClose={() => setAsking(null)}
-                onMoved={r => {
-                  setAsking(null);
-                  transition.reset();
-                  void transitionDone(r);
-                }}
+                size="md"
+                transitionName={`issue-${i.key}`}
               />
-            </Detail>
-            <Detail label={t("pages.issueDetail.type")}>
-              {i.issueType || "—"}
-            </Detail>
-            <Detail label={t("pages.issueDetail.assignee")}>
-              <span className="flex items-center gap-1">
-                {!i.assigneeId
-                  ? t("pages.issueDetail.unassignedCap")
-                  : i.assigneeId === ownConnection?.remoteAccountId
-                    ? t("pages.issueDetail.you")
-                    : i.assigneeName || i.assigneeId}
-                {manage.assign && !i.remote && (
-                  <AssigneesEditor
-                    issueKey={i.key}
-                    connectionId={i.connectionId}
-                  />
-                )}
-              </span>
-            </Detail>
-            <Detail label={t("pages.issueDetail.reporter")}>
-              {i.reporterName || "—"}
-            </Detail>
-            <Detail label={t("pages.issueDetail.created")}>
-              {i.remoteCreatedAt
-                ? dateTime().format(new Date(i.remoteCreatedAt))
-                : "—"}
-            </Detail>
-            <Detail label={t("pages.issueDetail.updated")}>
-              {i.remoteUpdatedAt ? (
-                <button
-                  type="button"
-                  onClick={() => issueHistory.open(i.key, i.connectionId)}
-                  title={t("pages.issueDetail.viewHistory")}
-                  className="grid rounded-sm text-left underline decoration-dotted underline-offset-4 outline-none hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring/40"
-                >
-                  {dateTime().format(new Date(i.remoteUpdatedAt))}
-                  {history.data?.reason && (
-                    <span className="line-clamp-2 text-caption text-muted-foreground no-underline">
-                      {history.data.reason}
-                    </span>
-                  )}
-                </button>
-              ) : (
-                "—"
+              <ConnectionBadge connectionId={i.connectionId} />
+              <StatusBadge status={i.status} category={i.category} />
+              {i.priority && (
+                <Chip variant="dot" tone={priorityTone(i.priority)}>
+                  {priorityLabel(i.priority)}
+                </Chip>
               )}
-            </Detail>
-            <Detail label={t("pages.issueDetail.tags")}>
-              <IssueTags
-                labels={i.labels}
-                components={i.components}
-                editor={
-                  manage.labels && !i.remote ? (
-                    <LabelsEditor
+            </div>
+            <p className="mb-5 text-body-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{i.key}</span>
+              {i.projectName ? ` · ${i.projectName}` : ""}
+              {i.issueType ? ` · ${i.issueType}` : ""}
+            </p>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+              <Detail label={t("pages.issueDetail.project")}>
+                {i.projectKey}
+                {i.projectName ? ` — ${i.projectName}` : ""}
+              </Detail>
+              <Detail label={t("pages.issueDetail.transition")}>
+                <Select
+                  value=""
+                  open={transOpen}
+                  onOpenChange={setTransOpen}
+                  onValueChange={id => {
+                    const tr = transitions.data?.find(x => x.id === id);
+                    if (tr && (tr.requirements.length > 0 || !tr.executable))
+                      setAsking({ transitionId: id });
+                    else
+                      transition.mutate({ key, connectionId, transitionId: id });
+                  }}
+                  disabled={transition.isPending}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="w-full max-w-48"
+                    aria-label={t("pages.issueDetail.changeStatus")}
+                  >
+                    <SelectValue
+                      placeholder={
+                        transition.isPending
+                          ? t("pages.issueDetail.changing")
+                          : t("pages.issueDetail.changeTo", { status: i.status })
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transitions.isPending && transOpen ? (
+                      <div className="px-2 py-1.5 text-body-sm text-muted-foreground">
+                        {t("pages.issueDetail.loading")}
+                      </div>
+                    ) : transitions.error ? (
+                      <div className="px-2 py-1.5 text-body-sm text-danger">
+                        {errorText(transitions.error)}
+                      </div>
+                    ) : transitions.data?.every(
+                        tr => tr.toStatus === i.status
+                      ) ? (
+                      <div className="px-2 py-1.5 text-body-sm text-muted-foreground">
+                        {t("pages.issueDetail.noTransitions")}
+                      </div>
+                    ) : (
+                      transitions.data
+                        ?.filter(tr => tr.toStatus !== i.status)
+                        .map(tr => (
+                          <SelectItem key={tr.id} value={tr.id}>
+                            {tr.toStatus}
+                          </SelectItem>
+                        ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <TransitionDialog
+                  issueKey={key}
+                  connectionId={i.connectionId}
+                  target={asking}
+                  onClose={() => setAsking(null)}
+                  onMoved={r => {
+                    setAsking(null);
+                    transition.reset();
+                    void transitionDone(r);
+                  }}
+                />
+              </Detail>
+              <Detail label={t("pages.issueDetail.type")}>
+                {i.issueType || "—"}
+              </Detail>
+              <Detail label={t("pages.issueDetail.assignee")}>
+                <span className="flex items-center gap-1">
+                  {!i.assigneeId
+                    ? t("pages.issueDetail.unassignedCap")
+                    : i.assigneeId === ownConnection?.remoteAccountId
+                      ? t("pages.issueDetail.you")
+                      : i.assigneeName || i.assigneeId}
+                  {manage.assign && !i.remote && (
+                    <AssigneesEditor
                       issueKey={i.key}
                       connectionId={i.connectionId}
-                      labels={i.labels}
                     />
-                  ) : undefined
-                }
-              />
-            </Detail>
-          </dl>
-        </PanelSection>
-        <PanelSection>
-          <QuickStatsCard
-            title={t("pages.issueDetail.timeOnIssue")}
-            cover={coverClass(i.key + "-time")}
-            stats={[
-              {
-                label: t("pages.issueDetail.myTime"),
-                value: logTotal !== undefined ? formatDuration(logTotal) : "—",
-              },
-              // No estimate: the number of entries instead.
-              hasEstimate
-                ? {
-                    label: t("pages.issueDetail.estimate"),
-                    value: formatDuration(estimate),
+                  )}
+                </span>
+              </Detail>
+              <Detail label={t("pages.issueDetail.reporter")}>
+                {i.reporterName || "—"}
+              </Detail>
+              <Detail label={t("pages.issueDetail.created")}>
+                {i.remoteCreatedAt
+                  ? dateTime().format(new Date(i.remoteCreatedAt))
+                  : "—"}
+              </Detail>
+              <Detail label={t("pages.issueDetail.updated")}>
+                {i.remoteUpdatedAt ? (
+                  <button
+                    type="button"
+                    onClick={() => issueHistory.open(i.key, i.connectionId)}
+                    title={t("pages.issueDetail.viewHistory")}
+                    className="grid rounded-sm text-left underline decoration-dotted underline-offset-4 outline-none hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring/40"
+                  >
+                    {dateTime().format(new Date(i.remoteUpdatedAt))}
+                    {history.data?.reason && (
+                      <span className="line-clamp-2 text-caption text-muted-foreground no-underline">
+                        {history.data.reason}
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </Detail>
+              <Detail label={t("pages.issueDetail.tags")}>
+                <IssueTags
+                  labels={i.labels}
+                  components={i.components}
+                  editor={
+                    manage.labels && !i.remote ? (
+                      <LabelsEditor
+                        issueKey={i.key}
+                        connectionId={i.connectionId}
+                        labels={i.labels}
+                      />
+                    ) : undefined
                   }
-                : {
-                    label: t("pages.issueDetail.worklogs"),
-                    value: String(logRows.length),
-                  },
-            ]}
-            extra={[
-              ...(hasEstimate
-                ? [
-                    {
-                      label: t("pages.issueDetail.progress"),
-                      value: pct !== null ? `${pct}%` : "—",
-                    },
-                    {
+                />
+              </Detail>
+            </dl>
+          </PanelSection>
+          <div className="order-3 min-w-0 border-b xl:border-b-0">
+              <PanelSection
+                title={t("pages.issueDetail.description")}
+                className="border-b"
+              >
+                <DescriptionSection
+                  issueKey={i.key}
+                  connectionId={i.connectionId}
+                />
+              </PanelSection>
+              {i.connectionId ? (
+                <PanelSection title={t("pages.issueDetail.todos")} className="border-b">
+                  <TodoList scope={{ issueKey: i.key, connectionId: i.connectionId }} />
+                </PanelSection>
+              ) : null}
+              <PanelSection
+                title={t("pages.issueDetail.privateNotes")}
+                className="border-b"
+              >
+                <PrivateNotesSection
+                  issueKey={i.key}
+                  connectionId={i.connectionId}
+                />
+              </PanelSection>
+              <PanelSection title={t("pages.issueDetail.comments")}>
+                <CommentsSection issueKey={i.key} connectionId={i.connectionId} />
+              </PanelSection>
+          </div>
+        </div>
+        <div className="contents xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto" data-scroll-key="issue-right">
+          <PanelSection className="order-2 border-b">
+            <QuickStatsCard
+              title={t("pages.issueDetail.timeOnIssue")}
+              cover={coverClass(i.key + "-time")}
+              stats={[
+                {
+                  label: t("pages.issueDetail.myTime"),
+                  value: logTotal !== undefined ? formatDuration(logTotal) : "—",
+                },
+                // No estimate: the number of entries instead.
+                hasEstimate
+                  ? {
+                      label: t("pages.issueDetail.estimate"),
+                      value: formatDuration(estimate),
+                    }
+                  : {
                       label: t("pages.issueDetail.worklogs"),
                       value: String(logRows.length),
                     },
-                  ]
-                : []),
-              ...(teamTotal === null
-                ? []
-                : [
-                    {
-                      label: t("pages.issueDetail.teamTotal"),
-                      value: formatDuration(teamTotal),
-                    },
-                  ]),
-              {
-                label: t("pages.issueDetail.due"),
-                value: due ? formatDate(due, "long") : "—",
-              },
-            ]}
-          />
-          {pct !== null && (
-            <Meter
-              lit
-              value={pct}
-              max={100}
-              tone={pct >= 100 ? "bg-danger" : "bg-primary"}
-              size="md"
-              className="mt-4"
+              ]}
+              extra={[
+                ...(hasEstimate
+                  ? [
+                      {
+                        label: t("pages.issueDetail.progress"),
+                        value: pct !== null ? `${pct}%` : "—",
+                      },
+                      {
+                        label: t("pages.issueDetail.worklogs"),
+                        value: String(logRows.length),
+                      },
+                    ]
+                  : []),
+                ...(teamTotal === null
+                  ? []
+                  : [
+                      {
+                        label: t("pages.issueDetail.teamTotal"),
+                        value: formatDuration(teamTotal),
+                      },
+                    ]),
+                {
+                  label: t("pages.issueDetail.due"),
+                  value: due ? formatDate(due, "long") : "—",
+                },
+              ]}
             />
-          )}
-        </PanelSection>
-      </PanelRow>
-
-      <PanelRow className="xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="min-w-0 border-b xl:border-b-0 xl:border-r">
-          <PanelSection
-            title={t("pages.issueDetail.description")}
-            className="border-b"
-          >
-            <DescriptionSection
-              issueKey={i.key}
-              connectionId={i.connectionId}
-            />
-          </PanelSection>
-          {i.connectionId ? (
-            <PanelSection title={t("pages.issueDetail.todos")} className="border-b">
-              <TodoList scope={{ issueKey: i.key, connectionId: i.connectionId }} />
-            </PanelSection>
-          ) : null}
-          <PanelSection
-            title={t("pages.issueDetail.privateNotes")}
-            className="border-b"
-          >
-            <PrivateNotesSection
-              issueKey={i.key}
-              connectionId={i.connectionId}
-            />
-          </PanelSection>
-          <PanelSection title={t("pages.issueDetail.comments")}>
-            <CommentsSection issueKey={i.key} connectionId={i.connectionId} />
-          </PanelSection>
-        </div>
-        <div className="min-w-0">
-          <PanelSection
-            title={t("pages.issueDetail.worklogs")}
-            className="border-b"
-            actions={
-              !timeHere && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    syncLogs.mutate({
-                      issueKey: key,
-                      connectionId: i.connectionId,
-                    })
-                  }
-                  disabled={syncLogs.isPending}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "h-4 w-4",
-                      syncLogs.isPending && "motion-safe:animate-spin"
-                    )}
-                  />
-                  {t("pages.issueDetail.sync")}
-                </Button>
-              )
-            }
-          >
-            {logs.isPending ? (
-              <div className="grid gap-2">
-                {Array.from({ length: 3 }).map((_, n) => (
-                  <Skeleton key={n} className="h-14" />
-                ))}
-              </div>
-            ) : logs.error ? (
-              <ErrorState
-                message={errorText(logs.error)}
-                onRetry={() => logs.refetch()}
+            {pct !== null && (
+              <Meter
+                lit
+                value={pct}
+                max={100}
+                tone={pct >= 100 ? "bg-danger" : "bg-primary"}
+                size="md"
+                className="mt-4"
               />
-            ) : logRows.length === 0 ? (
-              <EmptyState
-                art="inbox"
-                title={t("pages.issueDetail.noWorklogs")}
-                message={t("pages.issueDetail.noWorklogsHint")}
-              />
-            ) : (
-              <>
-              {team.error && (
-                <p className="mb-2 text-caption text-muted-foreground">
-                  {t("pages.issueDetail.othersUnavailable")}
-                </p>
-              )}
-              <ul className="divide-y" data-testid="issue-worklogs">
-                {logRows.map(row => {
-                  if (row.kind === "other") {
-                    const e = row.entry;
-                    return (
-                      <li
-                        key={`other-${e.remoteId}`}
-                        data-mine="false"
-                        className="flex items-start gap-3 border-l-2 border-transparent py-3 pl-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="tabular text-muted-foreground">
-                              {formatDuration(e.seconds)}
-                            </span>
-                            <span className="text-body-sm text-muted-foreground">
-                              {e.authorName || t("pages.issueDetail.someoneElse")}
-                            </span>
-                          </div>
-                          <div className="text-caption text-muted-foreground">
-                            {e.start !== null
-                              ? dateTime().format(new Date(e.start))
-                              : e.day
-                                ? formatDate(parseDayKey(e.day) ?? new Date(0), "long")
-                                : "—"}
-                          </div>
-                          {e.comment && (
-                            <p className="mt-1 whitespace-pre-wrap text-body-sm text-muted-foreground">
-                              {e.comment}
-                            </p>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  }
-                  const w = row.log;
-                  const pending = w.remoteId.startsWith("pending-");
-                  const started = new Date(w.started);
-                  return (
-                    <li
-                      key={w.id}
-                      data-mine="true"
-                      className={cn(
-                        "flex items-start gap-3 py-3",
-                        withOthers && "border-l-2 border-primary bg-primary-soft pl-3"
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="tabular font-medium">
-                            {formatDuration(w.timeSpentSeconds)}
-                          </span>
-                          <span className="text-body-sm font-medium">
-                            {t("pages.issueDetail.you")}
-                          </span>
-                          {pending && (
-                            <Chip tone="warning">
-                              {t("pages.issueDetail.queued")}
-                            </Chip>
-                          )}
-                          {!pending && <WorklogSinkState worklogId={w.id} sink={w.sink} provider={provider} />}
-                        </div>
-                        <div className="text-caption text-muted-foreground">
-                          {dateTime().format(started)}
-                        </div>
-                        {w.comment && (
-                          <p className="mt-1 whitespace-pre-wrap text-body-sm">
-                            {w.comment}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t("pages.issueDetail.editWorklog")}
-                        disabled={!!w.sink.locked}
-                        title={w.sink.locked ? t("views.worklogSink.locked", { provider }) : undefined}
-                        onClick={() =>
-                          setEditing({
-                            id: w.id,
-                            connectionId: issue.data?.connectionId,
-                            remoteId: w.remoteId,
-                            timeSpentSeconds: w.timeSpentSeconds,
-                            started: new Date(w.started),
-                            comment: w.comment,
-                          })
-                        }
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-muted-foreground hover:text-danger"
-                        aria-label={t("pages.issueDetail.deleteWorklog")}
-                        disabled={!!w.sink.locked}
-                        onClick={() => setDeleting(w.remoteId)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-              </>
             )}
           </PanelSection>
-          {offers.attachments && (
-            <PanelSection title={t("pages.issueDetail.attachments")}>
-              <AttachmentsSection
-                issueKey={i.key}
-                connectionId={i.connectionId}
-              />
-            </PanelSection>
-          )}
-          <OtherFields issueKey={i.key} connectionId={i.connectionId} />
-          <RemoteLinks issueKey={i.key} connectionId={i.connectionId} />
+          <div className="order-4 min-w-0">
+              <PanelSection
+                title={t("pages.issueDetail.worklogs")}
+                className="border-b"
+                actions={
+                  !timeHere && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        syncLogs.mutate({
+                          issueKey: key,
+                          connectionId: i.connectionId,
+                        })
+                      }
+                      disabled={syncLogs.isPending}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "h-4 w-4",
+                          syncLogs.isPending && "motion-safe:animate-spin"
+                        )}
+                      />
+                      {t("pages.issueDetail.sync")}
+                    </Button>
+                  )
+                }
+              >
+                {logs.isPending ? (
+                  <div className="grid gap-2">
+                    {Array.from({ length: 3 }).map((_, n) => (
+                      <Skeleton key={n} className="h-14" />
+                    ))}
+                  </div>
+                ) : logs.error ? (
+                  <ErrorState
+                    message={errorText(logs.error)}
+                    onRetry={() => logs.refetch()}
+                  />
+                ) : logRows.length === 0 ? (
+                  <EmptyState
+                    art="inbox"
+                    title={t("pages.issueDetail.noWorklogs")}
+                    message={t("pages.issueDetail.noWorklogsHint")}
+                  />
+                ) : (
+                  <>
+                  {team.error && (
+                    <p className="mb-2 text-caption text-muted-foreground">
+                      {t("pages.issueDetail.othersUnavailable")}
+                    </p>
+                  )}
+                  <ul className="divide-y" data-testid="issue-worklogs">
+                    {logRows.map(row => {
+                      if (row.kind === "other") {
+                        const e = row.entry;
+                        return (
+                          <li
+                            key={`other-${e.remoteId}`}
+                            data-mine="false"
+                            className="flex items-start gap-3 border-l-2 border-transparent py-3 pl-3"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="tabular text-muted-foreground">
+                                  {formatDuration(e.seconds)}
+                                </span>
+                                <span className="text-body-sm text-muted-foreground">
+                                  {e.authorName || t("pages.issueDetail.someoneElse")}
+                                </span>
+                              </div>
+                              <div className="text-caption text-muted-foreground">
+                                {e.start !== null
+                                  ? dateTime().format(new Date(e.start))
+                                  : e.day
+                                    ? formatDate(parseDayKey(e.day) ?? new Date(0), "long")
+                                    : "—"}
+                              </div>
+                              {e.comment && (
+                                <p className="mt-1 whitespace-pre-wrap text-body-sm text-muted-foreground">
+                                  {e.comment}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      }
+                      const w = row.log;
+                      const pending = w.remoteId.startsWith("pending-");
+                      const started = new Date(w.started);
+                      return (
+                        <li
+                          key={w.id}
+                          data-mine="true"
+                          className={cn(
+                            "flex items-start gap-3 py-3",
+                            withOthers && "border-l-2 border-primary bg-primary-soft pl-3"
+                          )}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="tabular font-medium">
+                                {formatDuration(w.timeSpentSeconds)}
+                              </span>
+                              <span className="text-body-sm font-medium">
+                                {t("pages.issueDetail.you")}
+                              </span>
+                              {pending && (
+                                <Chip tone="warning">
+                                  {t("pages.issueDetail.queued")}
+                                </Chip>
+                              )}
+                              {!pending && <WorklogSinkState worklogId={w.id} sink={w.sink} provider={provider} />}
+                            </div>
+                            <div className="text-caption text-muted-foreground">
+                              {dateTime().format(started)}
+                            </div>
+                            {w.comment && (
+                              <p className="mt-1 whitespace-pre-wrap text-body-sm">
+                                {w.comment}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={t("pages.issueDetail.editWorklog")}
+                            disabled={!!w.sink.locked}
+                            title={w.sink.locked ? t("views.worklogSink.locked", { provider }) : undefined}
+                            onClick={() =>
+                              setEditing({
+                                id: w.id,
+                                connectionId: issue.data?.connectionId,
+                                remoteId: w.remoteId,
+                                timeSpentSeconds: w.timeSpentSeconds,
+                                started: new Date(w.started),
+                                comment: w.comment,
+                              })
+                            }
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-danger"
+                            aria-label={t("pages.issueDetail.deleteWorklog")}
+                            disabled={!!w.sink.locked}
+                            onClick={() => setDeleting(w.remoteId)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  </>
+                )}
+              </PanelSection>
+              {offers.attachments && (
+                <PanelSection title={t("pages.issueDetail.attachments")}>
+                  <AttachmentsSection
+                    issueKey={i.key}
+                    connectionId={i.connectionId}
+                  />
+                </PanelSection>
+              )}
+              <OtherFields issueKey={i.key} connectionId={i.connectionId} />
+              <RemoteLinks issueKey={i.key} connectionId={i.connectionId} />
+          </div>
         </div>
-      </PanelRow>
+      </div>
 
       <LogTimeDialog
         issueKey={key}
@@ -965,6 +969,6 @@ export default function IssueDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

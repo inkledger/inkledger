@@ -1438,3 +1438,39 @@ test("Dashboard: the running timer paused, resumed and stopped from its header a
     await page.getByRole("dialog").getByText("DEMO-101").first().waitFor();
     assert.equal((await db.q("SELECT state FROM timers"))[0].state, "paused");
   }));
+
+test("issue page and settings, wide: the page holds still, each column scrolls on its own", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.setViewportSize({ width: 1440, height: 520 });
+    const columns = async (keys) => {
+      await page.waitForTimeout(300);
+      return page.evaluate(keys => {
+        const main = document.getElementById("main");
+        const cols = keys.map(k => document.querySelector(`[data-scroll-key="${k}"]`));
+        return {
+          mainScrolls: getComputedStyle(main).overflowY !== "hidden" && main.scrollHeight > main.clientHeight + 1,
+          cols: cols.map(c => c && { overflow: getComputedStyle(c).overflowY, scrolls: c.scrollHeight > c.clientHeight }),
+        };
+      }, keys);
+    };
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("heading", { name: "Comments" }).waitFor();
+    const issue = await columns(["issue-left", "issue-right"]);
+    assert.equal(issue.mainScrolls, false, "the issue page itself doesn't scroll");
+    assert.deepEqual(issue.cols.map(c => c.overflow), ["auto", "auto"]);
+    assert.ok(issue.cols[0].scrolls, "the left column scrolls");
+    // One column scrolled, the other stays.
+    await page.evaluate(() => (document.querySelector('[data-scroll-key="issue-left"]').scrollTop = 200));
+    assert.equal(await page.evaluate(() => document.querySelector('[data-scroll-key="issue-right"]').scrollTop), 0);
+    await page.goto(base + "/settings/appearance");
+    await page.getByText("Theme and density").waitFor();
+    const settings = await columns(["settings-menu", "settings-category"]);
+    assert.equal(settings.mainScrolls, false, "settings itself doesn't scroll");
+    assert.deepEqual(settings.cols.map(c => c.overflow), ["auto", "auto"]);
+    assert.ok(settings.cols[0].scrolls && settings.cols[1].scrolls);
+    // Another category starts at its top.
+    await page.evaluate(() => (document.querySelector('[data-scroll-key="settings-category"]').scrollTop = 300));
+    await page.getByRole("navigation", { name: "Settings categories" }).getByRole("link", { name: /Timers/ }).click();
+    await page.waitForURL(u => u.pathname === "/settings/timers");
+    assert.equal(await page.evaluate(() => document.querySelector('[data-scroll-key="settings-category"]').scrollTop), 0);
+  }));

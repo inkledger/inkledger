@@ -53,16 +53,18 @@ export default function Settings() {
     : categories;
 
   return (
-    <>
+    // The page holds still: the menu and the category scroll each on their own (desktop).
+    <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       <PageHeader
         title={t("pages.settings.title")}
         description={saving ? t("pages.settings.saving") : t("pages.settings.autosave")}
       />
-      <PanelRow className="min-h-0 flex-1 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <PanelRow className="min-h-0 flex-1 lg:grid-cols-[16rem_minmax(0,1fr)] lg:grid-rows-1">
         {/* Menu: always on desktop; on a phone only until a category is open. */}
         <nav
           aria-label={t("pages.settings.categories")}
-          className={cn("min-w-0 border-b py-3 pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))] lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
+          data-scroll-key="settings-menu"
+          className={cn("min-w-0 border-b py-3 pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))] lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
         >
           <div className="relative mb-3">
             <Search
@@ -93,8 +95,8 @@ export default function Settings() {
           )}
         </nav>
 
-        {/* The category: on a phone only once chosen. */}
-        <div className={cn("min-w-0", !chosen && "max-lg:hidden")}>
+        {/* The category: on a phone only once chosen. Another one starts at its top. */}
+        <div key={active.id} data-scroll-key="settings-category" className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto", !chosen && "max-lg:hidden")}>
           <div className="border-b px-5 py-4 md:px-6">
             <Link
               to="/settings"
@@ -111,7 +113,7 @@ export default function Settings() {
           </SettingsSearch.Provider>
         </div>
       </PanelRow>
-    </>
+    </div>
   );
 }
 
