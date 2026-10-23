@@ -291,8 +291,11 @@ test("on a phone: the header button says how many for today and opens the list; 
       await db.q("UPDATE settings SET todos_in_menu = 0 WHERE user_id = 1");
       await page.reload();
       m = await more();
+      // Once the settings are read (the tile shows): no section link beside it.
+      const tile = m.getByRole("button", { name: "Open the TODO list" });
+      await tile.waitFor();
       assert.equal(await m.getByRole("link", { name: "TODO" }).count(), 0);
-      await m.getByRole("button", { name: "Open the TODO list" }).click();
+      await tile.click();
       await page.getByRole("dialog", { name: "TODO" }).getByRole("listitem", { name: "Call the bank" }).waitFor();
     },
   ));
