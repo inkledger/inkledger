@@ -171,7 +171,7 @@ export interface FrozenIn {
   "timers.start": { connectionId?: number | undefined; device?: string | undefined; epoch?: number | undefined; force?: false | true | undefined; from?: string | undefined; issueKey: string; opId?: string | undefined };
   "timers.stop": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.trim": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined; seconds: number };
-  "todos.add": { commentExcerpt?: string | undefined; commentId?: string | undefined; connectionId?: number | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; issueKey?: string | undefined; issueNoteId?: number | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text: string };
+  "todos.add": { commentExcerpt?: string | undefined; commentId?: string | undefined; connectionId?: number | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; issueKey?: string | undefined; issueNoteId?: number | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; source?: string | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text: string };
   "todos.counts": { today: string };
   "todos.dismissReminder": { id: number; today: string };
   "todos.forIssue": { connectionId?: number | undefined; issueKey: string };
@@ -183,6 +183,7 @@ export interface FrozenIn {
   "todos.sessions": { from: string; to: string };
   "todos.startWork": { device?: string | undefined; force?: false | true | undefined; id: number; opId?: string | undefined };
   "todos.stopWork": void;
+  "todos.suggestions": { today: string };
   "todos.update": { connectionId?: number | undefined; done?: false | true | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; id: number; issueKey?: null | string | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text?: string | undefined; today?: string | undefined };
   "todos.working": void;
   "users.invite": { displayName: string; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules")[]; role: "admin" | "member"; username: string };
@@ -389,6 +390,7 @@ export interface FrozenOut {
   "todos.sessions": { end: Date; label: string; linked: boolean; open: boolean; start: Date }[];
   "todos.startWork": { epoch: number; linked: boolean; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; tookOver: boolean };
   "todos.stopWork": { epoch: number; ok: boolean };
+  "todos.suggestions": { at: Date; connectionId: number; issueKey: string; kind: "assigned" | "comment" | "doing" | "mention" | "news" | "review" | "status" | "watched"; source: string; status: string; summary: string }[];
   "todos.update": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
   "todos.working": null | { connectionId: null | number; issueKey: null | string; linked: boolean; serverNow: Date; startedAt: Date; text: string; todoId: null | number };
   "users.invite": { expiresAt: Date; link: string; user: { createdAt: Date; disabled: boolean; displayName: string; id: number; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules")[]; role: "admin" | "member"; username: null | string } };

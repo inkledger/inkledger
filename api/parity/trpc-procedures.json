@@ -712,6 +712,10 @@
     "type": "mutation"
   },
   {
+    "path": "todos.suggestions",
+    "type": "query"
+  },
+  {
     "path": "todos.update",
     "type": "mutation"
   },

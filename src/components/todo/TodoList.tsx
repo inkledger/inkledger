@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Square, Trash2, X } from "lucide-react";
+import { CalendarCheck, Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Square, Trash2, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +19,9 @@ import type { IssueRef } from "@/components/app/IssuePicker";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { useToday } from "@/hooks/useToday";
 import { useTodoWork, useTodoWorking } from "@/hooks/useTodoWork";
+import { Button } from "@/components/ui/button";
+import { PlanToday } from "@/components/todo/PlanToday";
+import { replanToday, usePlannedToday } from "@/lib/todoPlan";
 import { usePinIssue } from "@/hooks/usePinIssue";
 import { toastError } from "@/lib/errorText";
 import { issuePath } from "@/lib/issues";
@@ -55,6 +58,7 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const list = useRef<HTMLUListElement>(null);
   const refresh = () => utils.todos.invalidate();
   const working = useTodoWorking().data ?? null;
+  const planned = usePlannedToday(todayKey);
   const work = useTodoWork();
 
   const update = (id: number, patch: Patch) =>
@@ -159,16 +163,27 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
     <section className={cn("flex min-h-0 flex-col gap-2", className)} aria-label={t("views.todos.title")}>
       <Capture scope={scope} view={view} today={today} lang={lang} onAdded={refresh} onLanded={v => !scope && v !== view && setView(v)} />
       {!scope && (
-        <SegmentedControl<View>
-          label={t("views.todos.views")}
-          value={view}
-          onChange={setView}
-          className="self-start"
-          options={(["today", "upcoming", "someday", "done"] as const).map(v => {
-            const n = v === "done" ? null : (counts.data?.[v] ?? null);
-            return { value: v, label: n ? `${t(`views.todos.tabs.${v}`)} ${n}` : t(`views.todos.tabs.${v}`) };
-          })}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl<View>
+            label={t("views.todos.views")}
+            value={view}
+            onChange={setView}
+            className="self-start"
+            options={(["today", "upcoming", "someday", "done"] as const).map(v => {
+              const n = v === "done" ? null : (counts.data?.[v] ?? null);
+              return { value: v, label: n ? `${t(`views.todos.tabs.${v}`)} ${n}` : t(`views.todos.tabs.${v}`) };
+            })}
+          />
+          {view === "today" && planned && (
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={replanToday}>
+              <CalendarCheck className="h-4 w-4" aria-hidden />
+              {t("views.todos.planAgain")}
+            </Button>
+          )}
+        </div>
+      )}
+      {!scope && view === "today" && !planned && (
+        <PlanToday today={today} late={items.filter(x => x.dueOn !== null && x.dueOn < todayKey)} onChanged={() => void refresh()} />
       )}
       <ul ref={list} aria-label={scope ? t("views.todos.issueList") : t(`views.todos.tabs.${view}`)} className="cast-room-x cast-room-y grid min-h-0 flex-1 content-start gap-0.5 overflow-y-auto [--room-b:0.125rem] [--room-t:0.125rem] [--room-x:0.25rem]">
         {(scope ? forIssue.isPending : listed.isPending) ? null : items.length === 0 ? (

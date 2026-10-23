@@ -171,3 +171,63 @@ describe("the TODO list", () => {
     expect((await me.todos.reminders({ today })).map((x) => x.text)).toEqual(["today", "late"]);
   });
 });
+
+describe("TODOs suggested from the catalogue", () => {
+  type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
+  const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
+  let me: Caller;
+  let conn = 0;
+  let userId = 0;
+  const today = "2026-10-23";
+  const now = new Date(2026, 9, 23, 9).getTime();
+
+  beforeAll(async () => {
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('s', 'S', 1) RETURNING id");
+    userId = u.id;
+    conn = (await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, encrypted_secret, created_at) VALUES (?, 'jira', 'https://s.atlassian.net', 'acc-me', 'x', 1) RETURNING id", u.id))[0].id;
+    const issue = (key: string, o: { assignee?: string; category?: string; watching?: number; others?: number | null; seen?: number | null; status?: number | null; comment?: number | null }) =>
+      q(
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, project_key, project_name, url, synced_at, assignee_id, watching, others_activity_at, seen_at, status_changed_at, last_comment_at, activity_at) VALUES (?, ?, ?, ?, ?, 'S', ?, 'S', 'S', 'u', 1, ?, ?, ?, ?, ?, ?, ?)",
+        u.id, conn, key, key, `About ${key}`, o.category ?? "todo", o.assignee ?? "", o.watching ?? 0, o.others ?? null, o.seen ?? null, o.status ?? null, o.comment ?? null, o.others ?? null,
+      );
+    // Assigned (the sync's notice).
+    await issue("S-1", { assignee: "acc-me" });
+    await q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (?, ?, 'assigned', 'S-1', '', 'assigned:S-1:1', ?)", u.id, conn, now - 3600_000);
+    // Mine, its status changed by someone else, not seen since.
+    await issue("S-2", { assignee: "acc-me", others: now - 7200_000, seen: now - 9000_000, status: now - 7200_000 });
+    // Watched, a comment by someone else.
+    await issue("S-3", { watching: 1, others: now - 600_000, comment: now - 600_000 });
+    // Mine, news already seen: nothing.
+    await issue("S-4", { assignee: "acc-me", others: now - 7200_000, seen: now });
+    // In progress, mine.
+    await issue("S-5", { assignee: "acc-me", category: "doing" });
+    // Someone else's, closed, or with a TODO already: nothing.
+    await issue("S-6", { assignee: "other", others: now });
+    await issue("S-7", { assignee: "acc-me", category: "done", others: now, status: now });
+    await issue("S-8", { assignee: "acc-me", category: "doing" });
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await getDb().select().from(users).where(eq(users.id, u.id));
+    me = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: row, sessionId: null });
+    await me.todos.add({ text: "already", issueKey: "S-8", connectionId: conn });
+  });
+
+  it("assigned, status and comment news, then what is in progress; each once, never twice", async () => {
+    const got = await me.todos.suggestions({ today });
+    expect(got.map((s) => [s.issueKey, s.kind])).toEqual([
+      ["S-3", "comment"],
+      ["S-1", "assigned"],
+      ["S-2", "status"],
+      ["S-5", "doing"],
+    ]);
+    // Taken: it becomes a TODO tied to its issue, and is not offered again (nor twice on a double click).
+    const s1 = got[1];
+    const a = await me.todos.add({ text: s1.summary, issueKey: s1.issueKey, connectionId: s1.connectionId, dueOn: today, source: s1.source });
+    const b = await me.todos.add({ text: s1.summary, issueKey: s1.issueKey, connectionId: s1.connectionId, dueOn: today, source: s1.source });
+    expect(b.id).toBe(a.id);
+    expect((await me.todos.suggestions({ today })).map((s) => s.issueKey)).toEqual(["S-3", "S-2", "S-5"]);
+    expect(userId).toBeGreaterThan(0);
+  });
+});

@@ -409,3 +409,45 @@ test("Period trend: TODO time beside the bars and over the day's blocks", () =>
       await trend.locator('[title="TODO “Fix the login”, 30 min, with its issue\'s timer"]').waitFor();
     },
   ));
+
+test("plan today: once a day on top of Today, late ones moved in one go, an assigned issue made a TODO in a click, another put off", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'Old thing', ?, 0, ?, ?)", inDays(-3), now, now);
+        const me = (await db.q("SELECT remote_account_id FROM connections WHERE id = 1"))[0].remote_account_id;
+        await db.q("UPDATE issues SET assignee_id = ? WHERE key IN ('DEMO-101', 'DEMO-102')", me);
+        await db.q("UPDATE issues SET category = 'todo' WHERE key IN ('DEMO-101', 'DEMO-102')");
+        for (const key of ["DEMO-101", "DEMO-102"])
+          await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (1, 1, 'assigned', ?, '', ?, ?)", key, `assigned:${key}:e2e`, now - 60_000);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/todos");
+      const plan = page.getByRole("region", { name: "Plan today" });
+      await plan.getByText("1 late").waitFor();
+      await plan.getByRole("button", { name: "All to today" }).click();
+      await page.waitForFunction(() => !document.body.innerText.includes("1 late"));
+      assert.equal((await db.q("SELECT due_on FROM todos WHERE text = 'Old thing'"))[0].due_on, inDays(0));
+      const suggested = plan.getByRole("list", { name: "Suggested from your trackers" });
+      await suggested.getByRole("listitem", { name: /^DEMO-101/ }).getByText("Assigned to you").waitFor();
+      await plan.getByRole("button", { name: "Make a TODO of DEMO-101 for today" }).click();
+      await page.getByRole("listitem", { name: "Test task number 1" }).waitFor();
+      await suggested.getByRole("listitem", { name: /^DEMO-101/ }).waitFor({ state: "detached" });
+      assert.deepEqual(await db.q("SELECT issue_key, due_on, source FROM todos WHERE issue_key IS NOT NULL"), [
+        { issue_key: "DEMO-101", due_on: inDays(0), source: "n:assigned:DEMO-101:e2e" },
+      ]);
+      await plan.getByRole("button", { name: /^Not now: DEMO-102/ }).click();
+      await suggested.getByRole("listitem", { name: /^DEMO-102/ }).waitFor({ state: "detached" });
+      // Done for today: it folds away, and comes back on request.
+      await plan.getByRole("button", { name: "Done planning" }).click();
+      await plan.waitFor({ state: "detached" });
+      await page.reload();
+      await page.getByRole("listitem", { name: "Old thing" }).waitFor();
+      assert.equal(await plan.count(), 0, "once a day");
+      await page.getByRole("button", { name: "Plan today" }).click();
+      await plan.waitFor();
+      assert.equal(await suggested.getByRole("listitem", { name: /^DEMO-102/ }).count(), 0, "put off until tomorrow");
+    },
+  ));
