@@ -38,6 +38,9 @@ import { FavoriteStar } from "@/components/FavoriteStar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Chip } from "@/components/app/Chip";
 import { IssueTags } from "@/components/issue/IssueTags";
+import { MakeTodoButton } from "@/components/todo/MakeTodo";
+import { TodoList } from "@/components/todo/TodoList";
+import { useHashFlash } from "@/hooks/useHashFlash";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
@@ -161,6 +164,7 @@ export default function IssueDetail({
 }) {
   const invalidateWorklogs = useInvalidateWorklogs();
   const issue = trpc.issues.get.useQuery({ key, connectionId });
+  useHashFlash();
   const provider = useProviderName(issue.data?.connectionId);
   // Only what the issue's tracker can do is offered; time it doesn't keep is counted here.
   const offers = useTrackerOffers(issue.data?.connectionId);
@@ -452,6 +456,7 @@ export default function IssueDetail({
               </Button>
             )}
             <PinButton issueKey={i.key} connectionId={i.connectionId} />
+            <MakeTodoButton label={t("views.todos.onIssueLabel")} initial="" link={{ issueKey: i.key, connectionId: i.connectionId ?? undefined }} />
             <TimerControls issueKey={i.key} connectionId={i.connectionId} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -721,6 +726,11 @@ export default function IssueDetail({
               connectionId={i.connectionId}
             />
           </PanelSection>
+          {i.connectionId ? (
+            <PanelSection title={t("pages.issueDetail.todos")} className="border-b">
+              <TodoList scope={{ issueKey: i.key, connectionId: i.connectionId }} />
+            </PanelSection>
+          ) : null}
           <PanelSection
             title={t("pages.issueDetail.privateNotes")}
             className="border-b"

@@ -19,3 +19,9 @@ export function nextMonday(today: Date): string {
   const ahead = (8 - today.getDay()) % 7 || 7;
   return dayKey(addDays(today, ahead));
 }
+
+/** The first line of a text, short enough to be a TODO. */
+export function firstLine(s: string, max = 200): string {
+  const line = s.split("\n").find(l => l.trim())?.trim() ?? "";
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}

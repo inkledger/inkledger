@@ -325,6 +325,7 @@ export const pages = {
     worklogs: "Worklogs",
     due: "Due",
     description: "Description",
+    todos: "TODO",
     privateNotes: "Private notes",
     comments: "Comments",
     sync: "Sync",

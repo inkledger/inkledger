@@ -43,6 +43,7 @@ import { notificationCenter } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
 import { useTodoWiring } from "@/hooks/useTodoPanel";
 import { TodoWidget } from "@/components/todo/TodoWidget";
+import { MakeTodoHost } from "@/components/todo/MakeTodo";
 import { HotCorner } from "@/components/todo/HotCorner";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
@@ -653,6 +654,7 @@ export function AppLayout() {
         <NotificationCenter />
         <PinboardWidget />
         <TodoWidget />
+        <MakeTodoHost />
         <HotCorner />
         <StartChoiceDialog />
         <CreateIssueDialog />

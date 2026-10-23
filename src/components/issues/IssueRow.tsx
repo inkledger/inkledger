@@ -1,3 +1,4 @@
+import { makeTodo } from "@/lib/makeTodo";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { memo } from "react";
 import { Link } from "react-router";
@@ -15,6 +16,7 @@ import {
   GripVertical,
   MoreHorizontal,
   Star,
+  ListChecks,
 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
@@ -146,6 +148,10 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
             </DropdownMenuItem>
           )}
           <PinMenuItems issueKey={issue.key} connectionId={issue.connectionId} label={t("views.issues.row.pin")} />
+          <DropdownMenuItem onSelect={() => makeTodo.ask({ issueKey: issue.key, connectionId: issue.connectionId ?? undefined })}>
+            <ListChecks className="h-4 w-4" aria-hidden />
+            {t("views.todos.menuAdd")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void act.setWatching(issue.key, issue.watching !== 1, issue.connectionId)}
           >

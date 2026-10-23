@@ -326,6 +326,7 @@ export const pages: Shape<typeof en> = {
     worklogs: "Worklog",
     due: "Scadenza",
     description: "Descrizione",
+    todos: "TODO",
     privateNotes: "Note private",
     comments: "Commenti",
     sync: "Sincronizza",

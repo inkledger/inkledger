@@ -1,4 +1,4 @@
-import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useLocation, useParams, useSearchParams } from "react-router";
 import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
 import { issuePath } from "@/lib/issues";
@@ -66,9 +66,11 @@ export function IssueByKey() {
   const { key = "" } = useParams();
   const [params] = useSearchParams();
   const connectionId = Number(params.get("c")) || undefined;
+  // An anchor (#comment-…, a TODO's link) goes along to the issue's own link.
+  const { hash } = useLocation();
   const found = trpc.issues.locate.useQuery({ key, ...(connectionId ? { connectionId } : {}) });
   if (found.isPending) return <Loading />;
   if (found.data && "ambiguous" in found.data) return <WhichIssue issueKey={key} candidates={found.data.candidates} />;
-  if (found.data) return <Navigate to={issuePath({ key: found.data.key, connectionId: found.data.connectionId, remoteId: found.data.remoteId })} replace />;
+  if (found.data) return <Navigate to={`${issuePath({ key: found.data.key, connectionId: found.data.connectionId, remoteId: found.data.remoteId })}${hash}`} replace />;
   return <IssueDetail issueKey={key} connectionId={connectionId} />;
 }

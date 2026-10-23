@@ -1,3 +1,5 @@
+import { MakeTodoButton } from "@/components/todo/MakeTodo";
+import { firstLine } from "@/lib/todoDay";
 import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
@@ -26,6 +28,9 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
     where,
     { retry: false }
   );
+  // TODOs already made from each comment (open ones).
+  const todos = trpc.todos.forIssue.useQuery({ issueKey, connectionId: connectionId ?? undefined }, { retry: false });
+  const todosOf = (id: string) => (todos.data ?? []).filter(x => x.commentId === id).length;
   // Same query as the attachments section (cached): resolves !image.png! embeds.
   const attachments = trpc.issues.attachments.useQuery(
     where,
@@ -106,7 +111,8 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
           {[...comments.data].sort((a, b) => Date.parse(b.created) - Date.parse(a.created)).map(c => {
             const created = new Date(c.created);
             return (
-              <li key={c.id} className="flex gap-3">
+              // Its anchor: a TODO made from it links back here (#comment-…).
+              <li key={c.id} id={`comment-${c.id}`} className="flex scroll-mt-24 gap-3 rounded-xl data-[flash]:ring-2 data-[flash]:ring-primary-strong/40">
                 <ProjectAvatar
                   project={c.author}
                   label={initials(c.author)}
@@ -125,6 +131,13 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
                       {relativeTime(created, now)}
                       {c.edited && t("views.issue.comments.edited")}
                     </time>
+                    <MakeTodoButton
+                      className="ml-auto h-7"
+                      label={t("views.todos.fromCommentLabel")}
+                      count={todosOf(c.id)}
+                      initial={firstLine(c.body)}
+                      link={{ issueKey, connectionId: connectionId ?? undefined, commentId: c.id, commentExcerpt: firstLine(c.body, 280) }}
+                    />
                   </div>
                   <RichText doc={c.doc} images={images} connectionId={connectionId} />
                 </div>

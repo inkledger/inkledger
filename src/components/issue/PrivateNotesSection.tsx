@@ -1,3 +1,5 @@
+import { MakeTodoButton } from "@/components/todo/MakeTodo";
+import { firstLine } from "@/lib/todoDay";
 import { toastError, errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { surface } from "@/components/app/surface";
@@ -24,6 +26,9 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
   const utils = trpc.useUtils();
   const conn = connectionId ?? undefined;
   const notes = trpc.issueNotes.list.useQuery({ issueKey, connectionId: conn });
+  // TODOs already made from each note (open ones).
+  const todos = trpc.todos.forIssue.useQuery({ issueKey, connectionId: conn }, { retry: false });
+  const todosOf = (id: number) => (todos.data ?? []).filter(x => x.issueNoteId === id).length;
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<{ id: number; body: string } | null>(null);
   const [now] = useState(() => Date.now());
@@ -154,7 +159,8 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
             const edited = new Date(n.updatedAt).getTime() - created.getTime() > 60_000;
             const isEditing = editing?.id === n.id;
             return (
-              <li key={n.id} {...surface("card")} className="note-paper grain rounded-lg px-3.5 py-2.5" data-private-note={n.id}>
+              // Its anchor: a TODO made from it links back here (#note-…).
+              <li key={n.id} id={`note-${n.id}`} {...surface("card")} className="note-paper grain scroll-mt-24 rounded-lg px-3.5 py-2.5 data-[flash]:ring-2 data-[flash]:ring-primary-strong/40" data-private-note={n.id}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <time
                     dateTime={created.toISOString()}
@@ -172,6 +178,12 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
                   ))}
                   {!isEditing && (
                     <span className="ml-auto flex items-center gap-0.5">
+                      <MakeTodoButton
+                        label={t("views.todos.fromNoteLabel")}
+                        count={todosOf(n.id)}
+                        initial={firstLine(n.body)}
+                        link={{ issueKey, connectionId: conn, issueNoteId: n.id }}
+                      />
                       <Button size="sm" variant="ghost" aria-label={t("views.issue.privateNotes.hangLabel")} title={t("views.issue.privateNotes.hang")} onClick={() => void hang(n.id)}>
                         <Pin className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">{t("views.issue.privateNotes.hang")}</span>

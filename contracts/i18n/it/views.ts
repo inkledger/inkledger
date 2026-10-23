@@ -171,6 +171,18 @@ export const views: Shape<typeof en> = {
     delete: "Elimina",
     fromComment: "commento",
     fromNote: "nota privata",
+    made: "TODO aggiunto: {text}",
+    planMondayShort: "Lunedì",
+    add: "Aggiungi TODO",
+    short: "TODO",
+    badge: { one: "TODO ✓", other: "TODO ✓ {count}" },
+    already: { one: "già 1 TODO", other: "già {count} TODO" },
+    makeTitle: "Un TODO su {key}",
+    makeHint: "Pianificato per oggi se non scegli altro; resta legato alla issue.",
+    fromCommentLabel: "Crea un TODO da questo commento",
+    fromNoteLabel: "Crea un TODO da questa nota",
+    onIssueLabel: "Aggiungi un TODO su questa issue",
+    menuAdd: "Aggiungi un TODO…",
   },
   board: {
     postit: {

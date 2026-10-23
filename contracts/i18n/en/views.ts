@@ -166,6 +166,18 @@ export const views = {
     delete: "Delete",
     fromComment: "comment",
     fromNote: "private note",
+    made: "TODO added: {text}",
+    planMondayShort: "Monday",
+    add: "Add TODO",
+    short: "TODO",
+    badge: { one: "TODO ✓", other: "TODO ✓ {count}" },
+    already: { one: "1 TODO already", other: "{count} TODOs already" },
+    makeTitle: "A TODO on {key}",
+    makeHint: "Planned for today unless you choose otherwise; it stays tied to the issue.",
+    fromCommentLabel: "Make a TODO from this comment",
+    fromNoteLabel: "Make a TODO from this note",
+    onIssueLabel: "Add a TODO on this issue",
+    menuAdd: "Add a TODO…",
   },
   board: {
     postit: {

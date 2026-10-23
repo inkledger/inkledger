@@ -2,7 +2,7 @@
 // and where it lives (Settings → TODO).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { fakeProcedures, start } from "./harness.mjs";
 
 async function withApp(opts, body) {
   const app = await start(opts);
@@ -141,3 +141,72 @@ test("the hot corner: a rest of the pointer opens the list, a pass does not; off
     assert.equal(await page.getByRole("region", { name: /TODO/ }).count(), 0);
     assert.match(page.url(), /\/settings\/todos$/);
   }));
+
+test("from a comment, a private note, a card's menu: each TODO tied to it, and its link leads back", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO issue_notes (user_id, connection_id, issue_key, body, created_at, updated_at) VALUES (1, 1, 'DEMO-101', ?, ?, ?)", "Try the staging DB first\nthen prod", now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await fakeProcedures(page, {
+        "issues.comments": [
+          {
+            id: "10042",
+            author: "Anna Bianchi",
+            isMine: false,
+            body: "Can you check the logs?\nThanks",
+            doc: { v: 1, blocks: [{ t: "p", c: [{ t: "text", v: "Can you check the logs? Thanks" }] }] },
+            created: new Date().toISOString(),
+            edited: false,
+          },
+        ],
+      });
+      await page.goto(base + "/issues/DEMO-101");
+      // From the comment: its first line, today, tied to it.
+      await page.getByRole("button", { name: "Make a TODO from this comment" }).click();
+      const field = page.getByRole("dialog").getByRole("textbox", { name: "New TODO" });
+      assert.equal(await field.inputValue(), "Can you check the logs?");
+      await page.keyboard.press("Enter");
+      await page.getByText("TODO added: Can you check the logs?").waitFor();
+      await page.getByRole("button", { name: "Make a TODO from this comment (1 TODO already)" }).waitFor();
+      // From the private note.
+      await page.getByRole("button", { name: "Make a TODO from this note" }).click();
+      await page.getByRole("dialog").getByRole("radio", { name: "Tomorrow" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Add TODO" }).click();
+      await page.getByRole("button", { name: "Make a TODO from this note (1 TODO already)" }).waitFor();
+      const rows = await db.q("SELECT text, issue_key, comment_id, comment_excerpt, issue_note_id IS NOT NULL AS on_note, due_on FROM todos ORDER BY id");
+      assert.deepEqual(rows.map(r => [r.text, r.issue_key, r.comment_id, r.on_note]), [
+        ["Can you check the logs?", "DEMO-101", "10042", false],
+        ["Try the staging DB first", "DEMO-101", null, true],
+      ]);
+      assert.equal(rows[0].comment_excerpt, "Can you check the logs?");
+      // The issue's own TODO list shows both.
+      const issueList = page.getByRole("list", { name: "This issue's TODOs" });
+      await issueList.getByRole("listitem", { name: "Can you check the logs?" }).waitFor();
+      await issueList.getByRole("listitem", { name: "Try the staging DB first" }).waitFor();
+      // A card's menu: "Add a TODO…".
+      await page.goto(base + "/board");
+      const card = page.locator("[draggable=true]", { hasText: "DEMO-105" }).first();
+      await card.waitFor();
+      await card.getByRole("button", { name: /Actions for DEMO-105/ }).click();
+      await page.getByRole("menuitem", { name: "Add a TODO…" }).click();
+      const dialog = page.getByRole("dialog", { name: "A TODO on DEMO-105" });
+      await dialog.getByRole("textbox", { name: "New TODO" }).fill("Ask for the specs");
+      await page.keyboard.press("Enter");
+      await dialog.waitFor({ state: "detached" });
+      assert.equal((await db.q("SELECT issue_key FROM todos WHERE text = 'Ask for the specs'"))[0].issue_key, "DEMO-105");
+      // From the list, the comment's link: back on the issue, at the comment, marked.
+      await page.keyboard.press("d");
+      const float = page.getByRole("region", { name: "Floating TODO list" });
+      await float.getByRole("listitem", { name: "Can you check the logs?" }).getByRole("link", { name: "comment" }).click();
+      await page.waitForURL(/\/issues\/DEMO-101.*#comment-10042$/);
+      const comment = page.locator("#comment-10042");
+      await page.waitForFunction(() => document.getElementById("comment-10042")?.hasAttribute("data-flash"));
+      const box = await comment.boundingBox();
+      const { height } = page.viewportSize();
+      assert.ok(box && box.y >= 0 && box.y + box.height <= height, "the comment is in view");
+    },
+  ));

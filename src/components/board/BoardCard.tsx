@@ -1,10 +1,11 @@
+import { makeTodo } from "@/lib/makeTodo";
 import { errorText } from "@/lib/errorText";
 import { useRef, useState } from "react";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { trpc } from "@/lib/trpc";
 import { reachable, type BoardColumn } from "@/lib/boardTargets";
 import { Link } from "react-router";
-import { CalendarDays, Clock3, MoveRight, Star } from "lucide-react";
+import { CalendarDays, Clock3, ListChecks, MoveRight, Star } from "lucide-react";
 import { PinMenuItems } from "@/components/issue/PinMenu";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
@@ -118,6 +119,10 @@ export function BoardCard({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <PinMenuItems issueKey={issue.key} connectionId={issue.connectionId} label={t("views.board.card.pin")} />
+            <DropdownMenuItem onSelect={() => makeTodo.ask({ issueKey: issue.key, connectionId: issue.connectionId ?? undefined })}>
+              <ListChecks className="h-4 w-4" aria-hidden />
+              {t("views.todos.menuAdd")}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>{t("views.board.card.moveTo")}</DropdownMenuLabel>
             {places === null ? (
