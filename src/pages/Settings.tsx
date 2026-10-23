@@ -62,7 +62,7 @@ export default function Settings() {
         {/* Menu: always on desktop; on a phone only until a category is open. */}
         <nav
           aria-label={t("pages.settings.categories")}
-          className={cn("min-w-0 border-b p-3 lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
+          className={cn("min-w-0 border-b py-3 pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))] lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
         >
           <div className="relative mb-3">
             <Search

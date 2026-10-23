@@ -40,6 +40,7 @@ import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
+import { useShadowReach } from "@/hooks/useShadowReach";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
 import { StartChoiceDialog } from "@/components/StartChoiceDialog";
@@ -167,7 +168,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     <div
       className={cn(
         "flex h-full flex-col gap-5 py-4",
-        collapsed ? "px-2.5" : "px-3"
+        // Open: room for the shadows of what it holds (the Shadow mod's reach).
+        collapsed ? "px-2.5" : "pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))]"
       )}
     >
       <Brand collapsed={collapsed} />
@@ -234,7 +236,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         aria-label={t("ui.layout.mainNav")}
         // Top (brand, search) and bottom (timer, sync, user) never move; on a
         // very short window only this middle part of sections scrolls.
-        className="-mx-3 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-3"
+        className="cast-room-x cast-room-y flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain [--room-x:0.75rem]"
       >
         {navItems.map(({ group, title, items }) => {
           const links = items.map(({ to, label, icon: Icon }) => {
@@ -515,6 +517,7 @@ function ShellWatchers() {
 export function AppLayout() {
   useHotkeys();
   usePinboardWiring();
+  useShadowReach();
   useMouseHistoryButtons(isNative());
   useThemeSync();
   useSoftKeyboard();

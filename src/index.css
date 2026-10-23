@@ -258,6 +258,29 @@
 }
 
 @layer utilities {
+  /*
+   * Room for cast shadows inside a clipping container (overflow hidden or
+   * auto): padding as far as the shadows reach (--surface-reach-*, written by
+   * useShadowReach from the Shadow mod; 0 without it), taken back by a
+   * negative margin so nothing moves. --room-x/t/b: the room it has anyway;
+   * --room-shift-x: a margin it had beyond its room (a table's -mx-1).
+   */
+  .cast-room-x {
+    --room-l: max(var(--room-x, 0px), var(--surface-reach-l, 0px));
+    --room-r: max(var(--room-x, 0px), var(--surface-reach-r, 0px));
+    padding-left: var(--room-l);
+    padding-right: var(--room-r);
+    margin-left: calc((var(--room-l) + var(--room-shift-x, 0px)) * -1);
+    margin-right: calc((var(--room-r) + var(--room-shift-x, 0px)) * -1);
+  }
+  .cast-room-y {
+    --room-top: max(var(--room-t, 0px), var(--surface-reach-t, 0px));
+    --room-bottom: max(var(--room-b, 0px), var(--surface-reach-b, 0px));
+    padding-top: var(--room-top);
+    padding-bottom: var(--room-bottom);
+    margin-top: calc(var(--room-top) * -1);
+    margin-bottom: calc(var(--room-bottom) * -1);
+  }
   .tabular {
     font-variant-numeric: tabular-nums lining-nums;
   }

@@ -64,6 +64,10 @@ In **Settings → Store**, Shadow's badge → **Settings**, saved for you on eve
 - See-through parts (the running timer's stripes, days without a goal) never cast a shadow,
   so no dark box shows through them.
 - Focus rings stay as they are.
+- Shadows are never cut by the edge of a list, a column or a scroller: inkledger reads how far
+  they reach (`--sh-1`) and keeps that much room free inside every clipping container
+  (`--surface-reach-*`, the `cast-room-x` / `cast-room-y` utilities), so a longer shadow
+  (settings, low sun) gets more room and nothing moves.
 - Uninstalled or switched off, the interface is exactly as without it.
 
 ## Cost

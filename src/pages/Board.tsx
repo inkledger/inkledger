@@ -454,7 +454,7 @@ export default function Board() {
         </div>
         <div
           data-scroll-key={`board-col-${col.id}`}
-          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-y-auto -mx-2 px-2 max-lg:max-h-[70dvh]"
+          className="cast-room-x cast-room-y grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-2 overflow-y-auto [--room-x:0.5rem] max-lg:max-h-[70dvh]"
         >
           {shown.length === 0 && (
             <div {...surface("glass")} className="grid justify-items-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center text-caption text-muted-foreground">
@@ -567,7 +567,7 @@ export default function Board() {
           >
             <div
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
-              className="-mx-1 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-1 [scrollbar-gutter:stable]"
+              className="cast-room-x cast-room-y flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto [--room-x:0.25rem] [scrollbar-gutter:stable]"
             >
               {lane.columns.length === 0 && lane.connectionId !== null && (
                 <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.laneEmpty", { name: lane.label })} className="flex-1" />

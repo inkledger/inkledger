@@ -38,7 +38,8 @@ export function QuickStatsCard({
             {title}
           </h2>
         </div>
-        <dl className="stagger -mt-9 grid grid-cols-2 gap-2 px-3">
+        {/* The face clips (its rounded corners): the tiles keep room for their shadows. */}
+        <dl className="stagger -mt-9 grid grid-cols-2 gap-2 pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))]">
           {stats.map(s => (
             <div
               key={s.label}

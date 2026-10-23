@@ -138,7 +138,7 @@ export function TasksBoard({
                 </Link>
               </span>
             </div>
-            <div className="stagger relative -mx-2 max-h-[25rem] space-y-2 overflow-hidden px-2 pb-1 [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
+            <div className="stagger cast-room-x cast-room-y relative max-h-[25rem] space-y-2 overflow-hidden [--room-b:0.25rem] [--room-x:0.5rem] [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
               {col.issues.length === 0 ? (
                 <p className="rounded-xl border border-dashed p-4 text-center text-body-sm text-muted-foreground" {...surface("glass")}>
                   {t("views.dashboard.tasks.empty")}

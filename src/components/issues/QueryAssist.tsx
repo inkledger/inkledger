@@ -54,7 +54,7 @@ export function QueryAssist({ value, onChange }: { value: string; onChange: (val
           ))}
         </div>
       )}
-      <div role="group" aria-label={t("views.issues.assist.quick")} className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+      <div role="group" aria-label={t("views.issues.assist.quick")} className="cast-room-x cast-room-y flex snap-x gap-1.5 overflow-x-auto [--room-b:0.25rem] [--room-x:0.25rem] [scrollbar-width:none]">
         {PRESETS.map(p => (
           <ToggleChip key={p.id} size="sm" className="shrink-0 snap-start" pressed={parts.some(x => same(x, p.term))} onClick={() => toggle(p.term)}>
             {p.label()}
