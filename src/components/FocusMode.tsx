@@ -1,13 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Pause,
-  PictureInPicture2,
-  Play,
-  Repeat,
-  Square,
-  X,
-} from "lucide-react";
+import { MoveRight, Pause, PictureInPicture2, Play, Repeat, Square, X } from "lucide-react";
 import { addDays, formatDurationLong, formatHMS, startOfDay } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { useToday } from "@/hooks/useToday";
@@ -194,7 +187,7 @@ function FocusActions({
   connectionId?: number;
   compact?: boolean;
 }) {
-  const { running, pending, start, pause, stop } = useTimerActions(issueKey, connectionId);
+  const { running, pending, start, pause, stop, move } = useTimerActions(issueKey, connectionId);
   const size = compact ? "sm" : "default";
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
@@ -232,6 +225,18 @@ function FocusActions({
           }}
         >
           <Repeat className="h-4 w-4" /> {t("ui.focus.switchIssue")}
+        </Button>
+      )}
+      {!compact && (
+        <Button
+          variant="ghost"
+          disabled={pending}
+          onClick={() => {
+            focusMode.set(false);
+            move();
+          }}
+        >
+          <MoveRight className="h-4 w-4" /> {t("ui.timer.moveTo")}
         </Button>
       )}
     </div>

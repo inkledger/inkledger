@@ -21,6 +21,7 @@ import {
   Layers,
   Search,
   ListChecks,
+  MoveRight,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc";
@@ -38,6 +39,8 @@ import { commandPalette, useCommandPaletteOpen } from "@/lib/commandPalette";
 import { shortcutsHelp } from "@/lib/shortcuts";
 import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
+import { useTimers } from "@/hooks/useTimers";
+import { useTimerActions } from "@/hooks/useTimerActions";
 import { createIssueDialog, dayReview, focusMode } from "@/lib/flag";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
@@ -255,6 +258,7 @@ export function CommandPalette() {
               <Kbd className="ml-auto text-muted-foreground">D</Kbd>
             </CommandItem>
           )}
+          <MoveTimerCommand onDone={() => setOpen(false)} />
           <CommandItem
             onSelect={() => {
               setOpen(false);
@@ -316,5 +320,32 @@ export function CommandPalette() {
         </span>
       </div>
     </CommandDialog>
+  );
+}
+
+/**
+ * The timer at hand (running, else the last paused), moved to another issue
+ * from here too. Its own component: only the open palette follows the timers.
+ */
+function MoveTimerCommand({ onDone }: { onDone: () => void }) {
+  const { timers } = useTimers();
+  const current = timers.find(tm => tm.state === "running") ?? timers[0];
+  return current ? <MoveTimerItem key={issueId(current)} issueKey={current.issueKey} connectionId={current.connectionId} onDone={onDone} /> : null;
+}
+
+/** "Move the timer to another issue": the usual picker, then its count goes there. */
+function MoveTimerItem({ issueKey, connectionId, onDone }: { issueKey: string; connectionId: number; onDone: () => void }) {
+  const { move, heldElsewhere } = useTimerActions(issueKey, connectionId);
+  if (heldElsewhere) return null;
+  return (
+    <CommandItem
+      value={`${t("ui.timer.moveToFor", { key: issueKey })}`}
+      onSelect={() => {
+        onDone();
+        move();
+      }}
+    >
+      <MoveRight className="mr-2 h-4 w-4" /> {t("ui.timer.moveToFor", { key: issueKey })}
+    </CommandItem>
   );
 }

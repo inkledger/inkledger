@@ -172,6 +172,8 @@ export const server: Shape<typeof en> = {
     nameRequired: "Dai un nome alla lavagna",
   },
   timers: {
+    moveSame: "Il timer è già su quella issue.",
+    moveNone: "Nessun timer su {key} da spostare.",
     fromFuture: "Un timer non può partire nel futuro.",
     fromToday: "Un timer può partire prima solo nella giornata di oggi.",
     fromWhileRunning: "C'è un altro timer in corso: fermalo prima di contare dall'inizio del buco.",

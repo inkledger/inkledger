@@ -648,6 +648,10 @@
     "type": "query"
   },
   {
+    "path": "timers.move",
+    "type": "mutation"
+  },
+  {
     "path": "timers.pause",
     "type": "mutation"
   },

@@ -167,6 +167,7 @@ export interface FrozenIn {
   "timers.discard": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.heartbeat": void;
   "timers.list": void;
+  "timers.move": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined; toConnectionId?: number | undefined; toIssueKey: string };
   "timers.pause": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.setNote": { connectionId?: number | undefined; issueKey: string; note: string };
   "timers.start": { connectionId?: number | undefined; device?: string | undefined; epoch?: number | undefined; force?: false | true | undefined; from?: string | undefined; issueKey: string; opId?: string | undefined };
@@ -375,6 +376,7 @@ export interface FrozenOut {
   "timers.discard": { epoch: number; ok: boolean };
   "timers.heartbeat": { epoch: number; owned: boolean };
   "timers.list": { connectionId: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string }[];
+  "timers.move": { epoch: number; merged: boolean; note: string; ok: boolean; running: boolean; seconds: number; toLog: number; total: number };
   "timers.pause": { epoch: number; ok: boolean };
   "timers.setNote": { epoch: number; ok: boolean };
   "timers.start": { epoch: number; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; tookOver: boolean };

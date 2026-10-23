@@ -171,6 +171,8 @@ export const server = {
     nameRequired: "Give the board a name",
   },
   timers: {
+    moveSame: "The timer is already on that issue.",
+    moveNone: "No timer on {key} to move.",
     fromFuture: "A timer can't start in the future.",
     fromToday: "A timer can only start earlier today.",
     fromWhileRunning: "Another timer is running: stop it before counting from the start of the gap.",

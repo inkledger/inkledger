@@ -41,6 +41,15 @@ export const timerLog = {
     ];
     emit();
   },
+  /** A timer's request withdrawn (the timer moved to another issue): the time is no longer there. */
+  drop(entry: { issueKey: string; connectionId?: number }) {
+    const isTimer = (q: PendingTimerLog) => q.fromTimer ?? true;
+    const left = queue.filter(q => !(isTimer(q) && issueId(q) === issueId(entry)));
+    if (left.length === queue.length) return false;
+    queue = left;
+    emit();
+    return true;
+  },
   shift() {
     queue = queue.slice(1);
     emit();

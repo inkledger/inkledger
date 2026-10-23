@@ -1489,3 +1489,22 @@ test("issue page and settings, wide: the page holds still, each column scrolls o
     await page.waitForURL(u => u.pathname === "/settings/timers");
     assert.equal(await page.evaluate(() => document.querySelector('[data-scroll-key="settings-category"]').scrollTop), 0);
   }));
+
+test("timer started on the wrong issue: moved to another with its count, from the sidebar", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(base + "/issues");
+    await startTimer(page, "DEMO-101");
+    await db.q("UPDATE timers SET accumulated_seconds = 1500");
+    await page.reload();
+    await page.locator("aside").getByRole("button", { name: "Move the timer of DEMO-101 to another issue" }).click();
+    const picker = page.getByRole("dialog");
+    await picker.getByRole("combobox").fill("DEMO-102");
+    await picker.getByRole("option", { name: /DEMO-102/ }).first().click();
+    await page.getByText("Timer moved from DEMO-101 to DEMO-102").waitFor();
+    const [t] = await db.q("SELECT issue_key, state, accumulated_seconds FROM timers");
+    assert.equal(t.issue_key, "DEMO-102");
+    assert.equal(t.state, "running");
+    assert.ok(Number(t.accumulated_seconds) >= 1500, "its count came along");
+    await page.locator("aside").getByRole("link", { name: /DEMO-102/ }).first().waitFor();
+  }));

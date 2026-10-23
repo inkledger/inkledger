@@ -6,6 +6,7 @@ import { newOpId, timerConflictOf } from "@/lib/timerConflict";
 import { toastError } from "@/lib/errorText";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { quickStart } from "@/lib/quickStart";
 
 /**
  * Start / pause / stop / discard for one issue's timer (`connectionId`: when
@@ -43,6 +44,17 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
     },
     onError,
   });
+  const move = trpc.timers.move.useMutation({
+    onSuccess: (r, to) => {
+      void invalidate();
+      void utils.todos.invalidate();
+      toast.success(t(r.merged ? "ui.timer.movedMerged" : "ui.timer.moved", { from: issueKey, key: to.toIssueKey }));
+      // A stopped timer waiting to be logged: its request follows it to the new issue.
+      if (timerLog.drop(on) && !r.running)
+        timerLog.push({ issueKey: to.toIssueKey, connectionId: to.toConnectionId, seconds: r.toLog, note: r.note });
+    },
+    onError,
+  });
   const stop = trpc.timers.stop.useMutation({
     onSuccess: r => {
       void invalidate();
@@ -66,11 +78,17 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
     /** Another device controls it now: this one may only take it over. */
     heldElsewhere: !!timer?.heldElsewhere,
     pending:
-      start.isPending || pause.isPending || stop.isPending || discard.isPending,
+      start.isPending || pause.isPending || stop.isPending || discard.isPending || move.isPending,
     start: () => start.mutate(on),
     takeOver: () => start.mutate({ ...on, force: true }),
     pause: () => pause.mutate(guarded()),
     stop: () => stop.mutate(guarded()),
     discard: () => discard.mutate(guarded()),
+    /** To another issue with its count: the issue is picked in the usual picker. */
+    move: () =>
+      quickStart.pick(
+        to => move.mutate({ ...guarded(), toIssueKey: to.key, toConnectionId: to.connectionId }),
+        t("ui.timer.movePick", { key: issueKey })
+      ),
   };
 }

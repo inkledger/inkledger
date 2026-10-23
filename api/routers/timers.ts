@@ -5,7 +5,7 @@ import superjson from "superjson";
 import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { timerOps, timers, type Timer } from "@db/schema";
+import { issues, timerOps, timers, todos, type Timer } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { publish } from "../lib/userEvents";
@@ -14,7 +14,7 @@ import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
 import { dayKey } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
-import { endSession, trimSession } from "../queries/todoSessions";
+import { endSession, openSession, trimSession } from "../queries/todoSessions";
 import { t as tr } from "@contracts/i18n";
 
 /** The issue's connection, when a key lives on two. */
@@ -448,6 +448,83 @@ export const timersRouter = createRouter({
           .set({ accumulatedSeconds: remaining, startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
           .where(eq(timers.id, t.id));
         return { found: true as const, elapsedSeconds: remaining, epoch: t.epoch + 1 };
+      });
+    }),
+
+  /**
+   * The timer moved to another issue with its count (started on the wrong
+   * one): running it runs on there, paused it waits there. When that issue
+   * has a timer already, its time and this one's add up (notes joined). The
+   * TODO worked on with it follows to the new issue, its time running on.
+   */
+  move: protectedProcedure
+    .input(z.object({ ...issueInput, ...control, toIssueKey: issueKeyInput, toConnectionId: connectionInput }))
+    .mutation(async ({ ctx, input }) => {
+      const now = new Date();
+      const w = whoOf(ctx);
+      const from = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const to = await issueConnection(ctx.user.id, input.toIssueKey, input.toConnectionId);
+      if (from.id === to.id && input.issueKey === input.toIssueKey) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.moveSame") });
+      }
+      return act(ctx.user.id, input.opId, async (tx) => {
+        const a = await rowOf(tx, ctx.user.id, from.id, input.issueKey);
+        if (!a) throw new TRPCError({ code: "NOT_FOUND", message: tr("server.timers.moveNone", { key: input.issueKey }) });
+        mayAct(a, w, now, input);
+        const b = await rowOf(tx, ctx.user.id, to.id, input.toIssueKey);
+        const seconds = elapsedSeconds(a, now);
+        const running = a.state === "running" || b?.state === "running";
+        const epoch = Math.max(a.epoch, b?.epoch ?? 0, await epochOf(tx, ctx.user.id)) + 1;
+        // The new issue's row (set here: a key unchanged on another tracker fires no link trigger).
+        const [item] = await tx
+          .select({ id: issues.id })
+          .from(issues)
+          .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, to.id), eq(issues.key, input.toIssueKey)))
+          .limit(1);
+        const itemId = item?.id ?? null;
+        const note = [b?.note, a.note].filter((n): n is string => !!n && n.trim() !== "").join(" · ").slice(0, 500);
+        if (!b) {
+          await tx
+            .update(timers)
+            .set({
+              connectionId: to.id,
+              issueKey: input.toIssueKey,
+              itemId,
+              epoch,
+              updatedAt: now,
+              ...(a.state === "running" ? ownedBy(w, now) : {}),
+            })
+            .where(eq(timers.id, a.id));
+        } else {
+          // Two counts on one issue: added up, running if either ran.
+          const base = elapsedSeconds(b, now) + seconds;
+          const pausedAt = [a.pausedAt, b.pausedAt].filter((d): d is Date => d !== null).sort((x, y) => y.getTime() - x.getTime())[0] ?? now;
+          await tx.delete(timers).where(eq(timers.id, a.id));
+          await tx
+            .update(timers)
+            .set({
+              accumulatedSeconds: base,
+              startedAt: now,
+              state: running ? "running" : "paused",
+              pausedAt: running ? null : pausedAt,
+              note,
+              epoch,
+              updatedAt: now,
+              ...(running ? ownedBy(w, now) : released),
+            })
+            .where(eq(timers.id, b.id));
+        }
+        // The TODO worked on with it: tied to the new issue now (its comment or note stays on the old one).
+        const working = await openSession(tx, ctx.user.id);
+        if (working?.linked === 1 && working.todoId !== null) {
+          await tx
+            .update(todos)
+            .set({ connectionId: to.id, issueKey: input.toIssueKey, itemId, commentId: null, commentExcerpt: null, issueNoteId: null, updatedAt: now })
+            .where(and(eq(todos.id, working.todoId), eq(todos.userId, ctx.user.id)));
+        }
+        const total = b ? elapsedSeconds(b, now) + seconds : seconds;
+        // Stopped (paused) there: what its log asks for, rounded as a stop's.
+        return { ok: true, seconds, total, toLog: roundToMinute(total), running, note, merged: !!b, epoch };
       });
     }),
 

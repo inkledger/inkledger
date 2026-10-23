@@ -75,7 +75,8 @@ const WINDOW = 300_000;
  * menu (one link more in the sidebar, drawn with it on each of its commits): 40 / 2990,
  * 366 / 6139, 367 / 9992, 366 / 9396. Pause and stop beside the timer, in the sidebar and on the
  * Dashboard's header and running block (drawn again on each poll of the timers, whose data they
- * read): 40 / 2888, 368 / 6361, 365 / 10483, 366 / 9596.
+ * read): 40 / 2888, 368 / 6361, 365 / 10483, 366 / 9596. "Move to another issue" beside them (the
+ * same redraws, one button more): 40 / 2907, 368 / 6541, 365 / 10674, 366 / 9716.
  * Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
@@ -83,9 +84,9 @@ const WINDOW = 300_000;
  */
 const MEASURED = {
   "dashboard, no timer": { commits: 42, renders: 3150 },
-  "issue page, timer running": { commits: 383, renders: 6415 },
-  "dashboard, timer running": { commits: 374, renders: 10700 },
-  "timesheet, timer running": { commits: 374, renders: 9690 },
+  "issue page, timer running": { commits: 383, renders: 6680 },
+  "dashboard, timer running": { commits: 374, renders: 10890 },
+  "timesheet, timer running": { commits: 374, renders: 9910 },
 };
 
 test("React work per five minutes, page by page", async () => {

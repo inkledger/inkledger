@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ArrowLeftRight, Pause, Play, Square, X } from "lucide-react";
+import { ArrowLeftRight, MoveRight, Pause, Play, Square, X } from "lucide-react";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
 import { useTodoWorking } from "@/hooks/useTodoWork";
@@ -143,6 +143,16 @@ export function TimerControls({
             onClick={act.stop}
           >
             <Square className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("ui.timer.moveToFor", { key: issueKey })}
+            title={t("ui.timer.moveTo")}
+            disabled={pending}
+            onClick={act.move}
+          >
+            <MoveRight className="h-4 w-4" />
           </Button>
           {paused && (
             <Button
@@ -289,7 +299,7 @@ export function ActiveTimerQuickControls({ compact = false }: { compact?: boolea
 
 function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; connectionId: number; compact: boolean }) {
   // Only what it draws: reading `fetchedAt` would re-render it on every poll.
-  const { running, pending, heldElsewhere, pause, start, stop } = useTimerActions(issueKey, connectionId);
+  const { running, pending, heldElsewhere, pause, start, stop, move } = useTimerActions(issueKey, connectionId);
   if (heldElsewhere) return null;
   const size = compact ? "h-7 w-7" : "h-8 w-8";
   return (
@@ -316,6 +326,20 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
       >
         <Square className="h-4 w-4" />
       </Button>
+      {/* Started on the wrong issue: moved with its count (room for it only open). */}
+      {!compact && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={size}
+          aria-label={t("ui.timer.moveToFor", { key: issueKey })}
+          title={t("ui.timer.moveTo")}
+          disabled={pending}
+          onClick={move}
+        >
+          <MoveRight className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }
