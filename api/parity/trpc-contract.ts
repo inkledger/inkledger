@@ -326,7 +326,7 @@ export interface FrozenOut {
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date | null; timeSpentSeconds: number }[];
   "outbox.retry": { failed: number; remaining: number; synced: number };
   "pinboard.add": { boardId: number; boardName: string; existed: boolean; id: number };
-  "pinboard.boards": { bucket: null | { id: number; name: string }; count: number; follow: null | { connectionId: null | number; field: "component" | "label"; value: string }; hidden: number; id: number; name: string }[];
+  "pinboard.boards": { bucket: null | { id: number; name: string }; count: number; follow: null | { connectionId: null | number; field: "component" | "label"; value: string }; group: "all" | "bucket" | "shared"; hidden: number; id: number; name: string }[];
   "pinboard.copy": { boardId: number; boardName: string; existed: boolean; id: number; removed: null | { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number } };
   "pinboard.createBoard": { id: number };
   "pinboard.deleteBoard": { ok: boolean };

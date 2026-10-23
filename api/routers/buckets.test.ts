@@ -202,6 +202,16 @@ describe("pinboards for one bucket, or for every bucket", () => {
 
   const names = async (c: Caller) => (await c.pinboard.boards()).map((b) => `${b.name}${b.bucket ? `@${b.bucket.name}` : ""}`);
 
+  it("switching the bucket tells the device's other tabs, by its id", async () => {
+    const { subscribe } = await import("../lib/userEvents");
+    const [me] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'scoped'");
+    const heard: unknown[] = [];
+    const stop = subscribe(me.id, (e) => heard.push(e), () => undefined);
+    await device.buckets.setActive({ id: null });
+    stop();
+    expect(heard).toEqual([{ type: "bucket", deviceId: "device-scope-1" }]);
+  });
+
   it("under a bucket only its boards and the shared ones show; without one, all, with where they belong", async () => {
     const work = await device.buckets.save({ name: "Work", sources: [{ connectionId: conn, containerId: null }] });
     const home = await device.buckets.save({ name: "Home", sources: [{ connectionId: conn, containerId: null }] });
@@ -215,8 +225,16 @@ describe("pinboards for one bucket, or for every bucket", () => {
     expect(await names(device)).toEqual([`${first.name}`, "Ideas", "Garden@Home"]);
     await device.buckets.setActive({ id: work.id });
     expect(await names(device)).toEqual([`${first.name}`, "Sprint@Work", "Ideas"]);
+    // The switcher's groups come from the same bucket that chose the boards.
+    expect((await device.pinboard.boards()).map((b) => b.group)).toEqual(["shared", "bucket", "shared"]);
+    // Moved to another bucket, a board leaves; moved to this one, it joins its group.
+    await device.pinboard.setBoardScope({ id: sprint.id, bucketId: home.id });
+    expect(await names(device)).toEqual([`${first.name}`, "Ideas"]);
+    await device.pinboard.setBoardScope({ id: sprint.id, bucketId: work.id });
+    expect((await device.pinboard.boards()).find((b) => b.id === sprint.id)?.group).toBe("bucket");
     await device.buckets.setActive({ id: null });
     expect(await names(device)).toEqual([`${first.name}`, "Sprint@Work", "Ideas", "Garden@Home"]);
+    expect((await device.pinboard.boards()).every((b) => b.group === "all")).toBe(true);
 
     // A board of another bucket asked by id (a stale choice on this device) gives the first one shown.
     await device.buckets.setActive({ id: work.id });

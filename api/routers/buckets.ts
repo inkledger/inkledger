@@ -8,6 +8,7 @@ import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { activeBucket } from "../queries/buckets";
+import { publish } from "../lib/userEvents";
 
 const source = z.object({ connectionId: z.number().int().positive(), containerId: z.number().int().positive().nullable().default(null) });
 const boardMode = z.enum(["lanes", "category", "custom"]);
@@ -162,6 +163,8 @@ export const bucketsRouter = createRouter({
       .insert(devicePrefs)
       .values({ userId: ctx.user.id, deviceId: ctx.deviceId, bucketId: input.id, updatedAt: new Date() })
       .onConflictDoUpdate({ target: [devicePrefs.userId, devicePrefs.deviceId], set: { bucketId: input.id, updatedAt: new Date() } });
+    // This device's other tabs read with the same id: they refetch too.
+    publish(ctx.user.id, { type: "bucket", deviceId: ctx.deviceId });
     return { active: input.id };
   }),
 });

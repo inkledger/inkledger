@@ -254,12 +254,13 @@ async function own(userId: number, id: number) {
 
 export const pinboardRouter = createRouter({
   /**
-   * The boards this device shows (visibleBoards), each with its scope, the
+   * The boards this device shows (visibleBoards), each with its scope, its
+   * switcher group (the active bucket's, for every bucket, or all), the
    * post-its it shows now (bucket and tracker: see pinScope) and those the
    * filter hides; the first board is created if the user has none.
    */
   boards: protectedProcedure.input(z.object(scopeInput).optional()).query(async ({ ctx, input }) => {
-    const { boards } = await visibleBoards(ctx.user.id, ctx.deviceId);
+    const { bucket, boards } = await visibleBoards(ctx.user.id, ctx.deviceId);
     const scope = await pinScope(ctx.user.id, ctx.deviceId, input?.connectionId);
     const ids = boards.map((b) => b.id);
     const counts = ids.length
@@ -296,6 +297,8 @@ export const pinboardRouter = createRouter({
         id: b.id,
         name: boardDisplayName(b.name),
         bucket: b.bucketId === null ? null : { id: b.bucketId, name: names.get(b.bucketId) ?? "" },
+        // Its place in the switcher, by the very bucket that chose the boards (never a stale copy of it).
+        group: bucket === null ? ("all" as const) : b.bucketId === null ? ("shared" as const) : ("bucket" as const),
         follow: tag,
         count: tag ? (followed.get(b.id) ?? 0) : (c?.shown ?? 0),
         hidden: tag ? 0 : (c?.all ?? 0) - (c?.shown ?? 0),

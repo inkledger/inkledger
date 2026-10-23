@@ -393,6 +393,86 @@ test("under a bucket, the pinboard switcher leaves other buckets' boards out and
     },
   ));
 
+test("Belongs to: a board moved between buckets lands in the right group, its notes stay its own, another tab's bucket switch follows", () =>
+  withApp(
+    {
+      seed: async db => {
+        await seed(db);
+        const now = Date.now();
+        const bucket = async name => (await db.q("INSERT INTO buckets (user_id, name, position, query, created_at) VALUES (1, ?, 0, '', ?) RETURNING id", name, now))[0].id;
+        const side = await bucket("Side");
+        const jira = await bucket("Jira work");
+        await db.q("INSERT INTO bucket_sources (bucket_id, connection_id) VALUES (?, ?), (?, 1)", side, github, jira);
+        const board = async (name, bucketId, position) =>
+          (await db.q("INSERT INTO pinboards (user_id, name, position, bucket_id, created_at) VALUES (1, ?, ?, ?, ?) RETURNING id", name, position, bucketId, now))[0].id;
+        pinBoard = await board("Main", null, 0);
+        await board("Sprint", jira, 1);
+        const weekend = await board("Weekend", side, 2);
+        const note = (boardId, text, x) =>
+          db.q("INSERT INTO pinboard_notes (user_id, board_id, note, x, y, z, created_at, updated_at) VALUES (1, ?, ?, ?, 40, ?, ?, ?)", boardId, text, x, x, now, now);
+        await note(pinBoard, "main note", 40);
+        await note(weekend, "weekend note", 40);
+      },
+    },
+    async ({ page, base }) => {
+      await page.addInitScript(id => {
+        localStorage.setItem("ikl-pinboard-panel", "open");
+        if (!localStorage.getItem("ikl-pinboard-board")) localStorage.setItem("ikl-pinboard-board", String(id));
+      }, pinBoard);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(base + "/board");
+      await page.getByRole("button", { name: /^Board shows/ }).click();
+      await page.getByRole("menuitemradio", { name: "Side", exact: true }).click();
+      const board = page.locator(".paper-board");
+      await board.getByText("main note").waitFor();
+      const menu = page.getByRole("menu");
+      const scope = async to => {
+        await page.getByRole("button", { name: /^Pinboard: Main/ }).click();
+        await menu.getByRole("menuitem", { name: "Belongs to" }).click();
+        await page.getByRole("menuitemradio", { name: to, exact: true }).click();
+      };
+      // Main into this bucket: it joins "In “Side”" and leaves "For every bucket".
+      await scope("Side");
+      await page.getByText("“Main” now belongs to “Side”").waitFor();
+      await page.getByRole("button", { name: /^Pinboard: Main/ }).click();
+      await menu.getByText("In “Side”").waitFor();
+      await menu.getByRole("menuitem", { name: /Main/ }).waitFor();
+      await menu.getByRole("menuitem", { name: /Weekend/ }).waitFor();
+      assert.match(await menu.innerText(), /^In “Side”\nMain\n1\nWeekend\n1\nFor every bucket\n(?!Main)/);
+      assert.equal(await menu.getByRole("menuitem", { name: /^Main/ }).count(), 1);
+      await page.keyboard.press("Escape");
+      // Main into another bucket: it leaves, another board shows with its own notes, for good.
+      await scope("Jira work");
+      await page.getByText("“Main” now belongs to “Jira work”").waitFor();
+      const switcher = page.getByRole("button", { name: /^Pinboard: (?!Main)/ });
+      await switcher.waitFor();
+      await page.waitForTimeout(800);
+      assert.equal(await board.getByText("main note").count(), 0, "no other board's notes under this one");
+      await switcher.click();
+      assert.equal(await menu.getByRole("menuitem", { name: /^Main/ }).count(), 0);
+      await menu.getByRole("menuitem", { name: /^Weekend/ }).click();
+      await board.getByText("weekend note").waitFor();
+      // Another tab of this device switches the bucket: this one follows, groups and all.
+      const other = await page.context().newPage();
+      await other.setViewportSize({ width: 1440, height: 900 });
+      await other.goto(base + "/board");
+      await other.getByRole("button", { name: /^Board shows/ }).click();
+      await other.getByRole("menuitemradio", { name: "Jira work", exact: true }).click();
+      await other.getByRole("button", { name: /^Board shows/ }).waitFor();
+      await other.close();
+      const followed = page.getByRole("button", { name: /^Pinboard: (?!Weekend)/ });
+      await followed.waitFor({ timeout: 5000 });
+      assert.equal(await board.getByText("weekend note").count(), 0);
+      await followed.click();
+      await menu.getByText("In “Jira work”").waitFor();
+      await menu.getByRole("menuitem", { name: /^Main/ }).waitFor();
+      await menu.getByRole("menuitem", { name: /Sprint/ }).waitFor();
+      assert.equal(await menu.getByText("No pinboard of this bucket yet").count(), 0);
+      assert.equal(await menu.getByRole("menuitem", { name: /Weekend/ }).count(), 0);
+      await page.keyboard.press("Escape");
+    },
+  ));
+
 test("the priority filter: several levels at once, Italian names without a rank too, kept in the URL", () =>
   withApp(
     {

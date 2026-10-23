@@ -156,11 +156,21 @@ export function Pinboard({
   const boardsQuery = trpc.pinboard.boards.useQuery(scope);
   const boards = boardsQuery.data ?? [];
   // Under a bucket: its own boards, then those for every bucket (others never show).
+  // Grouped as the server chose them, never by this page's own idea of the bucket.
   const { buckets, active: bucket } = useBuckets();
-  const own = bucket ? boards.filter(b => b.bucket?.id === bucket.id) : boards;
-  const shared = bucket ? boards.filter(b => b.bucket === null) : [];
+  const own = boards.filter(b => b.group !== "shared");
+  const shared = boards.filter(b => b.group === "shared");
   const board = boards.find(b => b.id === storedBoard) ?? boards[0];
   const boardId = board?.id;
+  // Fresh boards without the remembered one (moved to another bucket, a switch): the shown one
+  // becomes it, here and wherever else the board is drawn. Checked on new data only, so a board
+  // just created and chosen is not undone before the list that has it arrives.
+  const freshBoards = boardsQuery.data;
+  useEffect(() => {
+    const stored = pinboardBoard.get();
+    const first = freshBoards?.[0];
+    if (first && stored !== null && !freshBoards.some(b => b.id === stored)) pinboardBoard.set(first.id);
+  }, [freshBoards]);
   // A board that follows a tag: what the tracker says, read-only.
   const follow = board?.follow ?? null;
   const listInput = { boardId, ...scope };
@@ -178,9 +188,13 @@ export function Pinboard({
   const notes = useMemo(() => list.data ?? [], [list.data]);
   type Note = (typeof notes)[number];
 
-  const refresh = () =>
+  const refresh = async () => {
+    // The boards first: a list asked for a board this device no longer shows would come back
+    // with another board's notes, kept under this one's key.
+    await utils.pinboard.boards.invalidate();
     // Where each issue is pinned too: the issue page's pin button follows the board.
-    Promise.all([utils.pinboard.list.invalidate(), utils.pinboard.boards.invalidate(), utils.pinboard.where.invalidate()]);
+    await Promise.all([utils.pinboard.list.invalidate(), utils.pinboard.where.invalidate()]);
+  };
   const fail = (e: unknown) => {
     toastError(e);
     void refresh();
@@ -423,7 +437,7 @@ export function Pinboard({
               {bucket ? t("views.board.pinboard.inBucket", { bucket: bucket.name }) : t("views.board.pinboard.boards")}
             </DropdownMenuLabel>
             {own.map(b => (
-              <BoardItem key={b.id} b={b} current={b.id === boardId} tag={!bucket && b.bucket ? b.bucket.name : null} />
+              <BoardItem key={b.id} b={b} current={b.id === boardId} tag={b.group === "all" && b.bucket ? b.bucket.name : null} />
             ))}
             {bucket && own.length === 0 && (
               <p className="px-2 py-1.5 text-body-sm text-muted-foreground">{t("views.board.pinboard.noneInBucket")}</p>

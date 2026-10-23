@@ -24,22 +24,31 @@ const set = (next: LiveState) => {
   listeners.forEach(l => l());
 };
 
+const parsed = (data: unknown): unknown => {
+  try {
+    return typeof data === "string" ? (JSON.parse(data) as unknown) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const liveEvents = {
   get: () => state,
   heardAt: () => heardAt,
-  /** Opens the stream; `on` gets each event's name. Returns the closer. */
-  open(on: (type: string) => void): () => void {
+  /** Opens the stream; `on` gets each event's name and data. Returns the closer. */
+  open(on: (type: string, data: unknown) => void): () => void {
     if (typeof EventSource === "undefined") {
       set("offline");
       return () => undefined;
     }
     const src = new EventSource("/api/events");
-    const heard = (type: string) => () => {
+    const heard = (type: string) => (e: MessageEvent) => {
       set("live");
-      on(type);
+      on(type, parsed(e.data));
     };
     src.addEventListener("hello", heard("hello"));
     src.addEventListener("timers", heard("timers"));
+    src.addEventListener("bucket", heard("bucket"));
     src.onopen = () => set("live");
     src.onerror = () => set(navigator.onLine === false ? "offline" : "connecting");
     const offline = () => set("offline");

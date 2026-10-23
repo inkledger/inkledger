@@ -3,6 +3,9 @@ import { trpc } from "@/lib/trpc";
 import { liveEvents } from "@/lib/liveEvents";
 import { useTimers } from "@/hooks/useTimers";
 import { TIMER_HEARTBEAT_MS } from "@contracts/timerLock";
+import { deviceId } from "@/lib/device";
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
 /**
  * Keeps this tab in step with the user's other pages and devices: refetches
@@ -14,9 +17,11 @@ export function useLiveSync() {
   const utils = trpc.useUtils();
   useEffect(
     () =>
-      liveEvents.open(type => {
+      liveEvents.open((type, data) => {
         // "hello" too: a reconnect may have missed changes.
         if (type === "timers" || type === "hello") void utils.timers.list.invalidate();
+        // Another tab of this device switched the bucket: everything here follows, as there.
+        if (type === "bucket" && isRecord(data) && data.deviceId === deviceId()) void utils.invalidate();
       }),
     [utils]
   );
