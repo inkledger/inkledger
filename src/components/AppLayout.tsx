@@ -65,6 +65,7 @@ import {
   ActiveTimerChip,
   ActiveTimerNote,
   ActiveTimerRailButton,
+  ActiveTimerQuickControls,
 } from "@/components/TimerControls";
 import { CommandPalette } from "@/components/CommandPalette";
 import { QuickStart } from "@/components/QuickStart";
@@ -84,8 +85,7 @@ import { useDayEndReminder } from "@/hooks/useDayEndReminder";
 import { quickStart } from "@/lib/quickStart";
 import { OutboxBanner } from "@/components/OutboxBanner";
 import { ReconnectBanner } from "@/components/ReconnectBanner";
-import { navEntryFor, useNavItems } from "@/lib/nav";
-import { SidebarSection } from "@/components/app/SidebarSection";
+import { useNavItems } from "@/lib/nav";
 import { Kbd } from "@/components/app/Kbd";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
@@ -119,11 +119,8 @@ function Brand({ collapsed }: { collapsed: boolean }) {
     <Link
       to="/"
       aria-label={t("ui.layout.homeLink")}
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-1.5 py-1",
-        collapsed &&
-          "justify-center border-transparent bg-transparent p-0 shadow-none"
-      )}
+      // The mark keeps its place open and closed, under the rows' icons.
+      className="flex h-10 shrink-0 items-center gap-3 rounded-lg pl-3"
     >
       <BrandMark className="h-9 w-9" />
       <span className={cn("min-w-0", collapsed && "sr-only")}>
@@ -178,121 +175,101 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   // The Board's pin button opens the Board's own panel there; "p" the widget first.
   const pinTarget = usePinboardTarget(pathname, true);
 
+  // One row for both widths: the icon keeps its place while the width
+  // animates, the label only shows open. Nothing moves on toggling.
+  const row =
+    "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+  const label = cn("min-w-0 truncate", collapsed && "sr-only");
+  const icon = "h-[18px] w-[18px] shrink-0";
+  // A count beside a row: a number open, a dot on the icon closed.
+  const countChip = (count: number, title?: string, sr?: string) => (
+    <span
+      title={title}
+      {...surface("chip")}
+      className={cn(
+        "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
+        collapsed ? "absolute left-[34px] top-1 h-2 w-2 bg-primary-strong" : "ml-auto px-1.5 py-px"
+      )}
+    >
+      <span className={cn(collapsed && "sr-only")}>
+        {count}
+        {sr && <span className="sr-only">{sr}</span>}
+      </span>
+    </span>
+  );
+
   return (
     <div
       className={cn(
-        "flex h-full flex-col gap-5 py-4",
-        // Open: room for the shadows of what it holds (the Shadow mod's reach).
-        collapsed ? "px-2.5" : "pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))]"
+        "flex h-full flex-col gap-3 py-4",
+        // Room for the shadows of what it holds (the Shadow mod's reach), the same open and closed.
+        "pl-[max(0.5rem,var(--surface-reach-l,0px))] pr-[max(0.5rem,var(--surface-reach-r,0px))]"
       )}
     >
       <Brand collapsed={collapsed} />
 
-      <RailTip collapsed={collapsed} label={t("ui.layout.searchTip", { shortcut: PALETTE_SHORTCUT })}>
-        <button
-          type="button"
-          onClick={() => commandPalette.set(true)}
-          aria-label={collapsed ? t("ui.layout.search") : undefined}
-          {...surface("control")}
-          className={cn(
-            "flex items-center gap-2 rounded-md border border-border/80 bg-background py-1.5 text-body-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            collapsed ? "mx-auto h-8 w-10 justify-center px-0" : "px-3"
-          )}
-        >
-          <Search className="h-4 w-4" aria-hidden />
-          {!collapsed && (
-            <>
-              {t("ui.layout.searchEllipsis")}
-              <Kbd className="ml-auto">
-                {PALETTE_SHORTCUT}
-              </Kbd>
-            </>
-          )}
-        </button>
-      </RailTip>
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <RailTip collapsed={collapsed} label={t("ui.layout.searchTip", { shortcut: PALETTE_SHORTCUT })}>
+          <button
+            type="button"
+            onClick={() => commandPalette.set(true)}
+            aria-label={collapsed ? t("ui.layout.search") : undefined}
+            {...surface("control")}
+            className={cn(row, "mb-1 border border-border/80 bg-background pl-5 font-normal hover:bg-background")}
+          >
+            <Search className={icon} aria-hidden />
+            <span className={label}>{t("ui.layout.searchEllipsis")}</span>
+            {!collapsed && <Kbd className="ml-auto">{PALETTE_SHORTCUT}</Kbd>}
+          </button>
+        </RailTip>
 
-      <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
-        <button
-          type="button"
-          onClick={() => notificationCenter.set(true)}
-          aria-label={
-            collapsed || inbox > 0
-              ? inbox > 0
-                ? t("ui.layout.notificationsUnseen", { count: inbox })
-                : t("ui.layout.notifications")
-              : undefined
-          }
-          className={cn(
-            "relative -mt-3 flex items-center gap-2.5 rounded-md py-1.5 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            collapsed ? "mx-auto h-8 w-10 justify-center px-0" : "px-3"
-          )}
-        >
-          <Bell className="h-[18px] w-[18px] shrink-0" aria-hidden />
-          {!collapsed && <span>{t("ui.layout.notifications")}</span>}
-          {inbox > 0 && (
-            <span
-              aria-hidden
-              {...surface("chip")}
-              className={cn(
-                "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
-                collapsed
-                  ? "absolute right-0.5 top-0.5 h-2 w-2 bg-primary-strong"
-                  : "ml-auto px-1.5 py-px"
-              )}
-            >
-              {!collapsed && inbox}
-            </span>
-          )}
-        </button>
-      </RailTip>
+        <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
+          <button
+            type="button"
+            onClick={() => notificationCenter.set(true)}
+            aria-label={
+              collapsed || inbox > 0
+                ? inbox > 0
+                  ? t("ui.layout.notificationsUnseen", { count: inbox })
+                  : t("ui.layout.notifications")
+                : undefined
+            }
+            className={row}
+          >
+            <Bell className={icon} aria-hidden />
+            <span className={label}>{t("ui.layout.notifications")}</span>
+            {inbox > 0 && <span aria-hidden>{countChip(inbox)}</span>}
+          </button>
+        </RailTip>
+      </div>
 
       <nav
         aria-label={t("ui.layout.mainNav")}
-        // Top (brand, search) and bottom (timer, sync, user) never move; on a
-        // very short window only this middle part of sections scrolls.
-        className="cast-room-x cast-room-y flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain [--room-x:0.75rem]"
+        // The sections never scroll: only the favorites below them do.
+        className="flex shrink-0 flex-col gap-1.5"
       >
         {navItems.map(({ group, title, items }) => {
-          const links = items.map(({ to, label, icon: Icon }) => {
+          const links = items.map(({ to, label: name, icon: Icon }) => {
             const chip = chipOf(to);
             const link = (
-              <RailTip key={to} collapsed={collapsed} label={label}>
+              <RailTip key={to} collapsed={collapsed} label={name}>
                 {/* Static classes (aria-current) so Tooltip's asChild merge keeps them. */}
                 <NavLink
                   to={to}
                   end={to === "/"}
-                  aria-label={collapsed ? label : undefined}
+                  aria-label={collapsed ? name : undefined}
                   // Stands out only while current; keeps its own ::before bar.
                   {...surface("nav", { current: true, edge: false })}
                   className={cn(
-                    "relative flex items-center gap-2.5 rounded-md py-1.5 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground",
+                    row,
                     "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
-                    "before:absolute before:inset-y-2 before:w-1 before:rounded-r-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100",
-                    collapsed
-                      ? "mx-auto h-8 w-10 justify-center px-0 before:-left-2.5"
-                      : "px-3 before:-left-3",
+                    "before:absolute before:-left-2 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100",
                     to === "/board" && !collapsed && "pr-9"
                   )}
                 >
-                  <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
-                  <span className={cn(collapsed && "sr-only")}>{label}</span>
-                  {chip && (
-                    <span
-                      title={chip.title}
-                      {...surface("chip")}
-                      className={cn(
-                        "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
-                        collapsed
-                          ? "absolute right-0.5 top-0.5 h-2 w-2 bg-primary-strong"
-                          : "ml-auto px-1.5 py-px"
-                      )}
-                    >
-                      <span className={cn(collapsed && "sr-only")}>
-                        {chip.count}
-                        <span className="sr-only">{chip.sr}</span>
-                      </span>
-                    </span>
-                  )}
+                  <Icon className={icon} aria-hidden />
+                  <span className={label}>{name}</span>
+                  {chip && countChip(chip.count, chip.title, chip.sr)}
                 </NavLink>
               </RailTip>
             );
@@ -319,168 +296,91 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
               </div>
             );
           });
-          // The icon rail keeps every group open; folded groups hint when
-          // the current page or news is inside.
-          return collapsed ? (
-            <div key={group} className="flex shrink-0 flex-col gap-1">
+          // No titles: a thin line between the sections, open or closed.
+          return (
+            <div key={group} role="group" aria-label={title} className="flex shrink-0 flex-col gap-0.5">
               <div aria-hidden className="mx-2 mb-1 border-t" />
               {links}
             </div>
-          ) : (
-            <SidebarSection
-              key={group}
-              name={group}
-              title={title}
-              className="shrink-0"
-              hint={items.some(
-                ({ to }) =>
-                  navEntryFor(pathname)?.to === to ||
-                  (to === "/issues" && unread > 0)
-              )}
-            >
-              {links}
-            </SidebarSection>
           );
         })}
-        {!collapsed && <SidebarFavorites />}
       </nav>
+
+      {/* What is left between the sections and the foot: the favorites, scrolling on their own. */}
+      <div className="flex min-h-0 flex-1 flex-col">{!collapsed && <SidebarFavorites />}</div>
 
       {collapsed ? (
         <ModuleSlot id="sidebar-rail" frame={boxes => <div className="flex shrink-0 flex-col items-center gap-1 pb-2">{boxes}</div>} />
       ) : (
         <ModuleSlot id="sidebar-footer" />
       )}
-      <div className="flex shrink-0 flex-col gap-2">
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <RailTip collapsed={collapsed} label={t("ui.layout.darkTheme")}>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={resolvedTheme === "dark"}
+            aria-label={t("ui.layout.darkTheme")}
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className={row}
+          >
+            <Moon className={icon} strokeWidth={1.75} aria-hidden />
+            <span className={label} aria-hidden>
+              {t("ui.layout.darkTheme")}
+            </span>
+            {!collapsed && <Switch tabIndex={-1} aria-hidden className="pointer-events-none ml-auto" checked={resolvedTheme === "dark"} />}
+          </button>
+        </RailTip>
         {collapsed ? (
-          <RailTip collapsed label={t("ui.layout.darkTheme")}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="mx-auto h-8 w-10"
-              aria-pressed={resolvedTheme === "dark"}
-              aria-label={t("ui.layout.darkTheme")}
-              onClick={() =>
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              }
-            >
-              <Moon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </Button>
-          </RailTip>
-        ) : (
-          <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-body-sm font-medium text-muted-foreground hover:text-foreground">
-            <Moon
-              className="h-[18px] w-[18px]"
-              strokeWidth={1.75}
-              aria-hidden
-            />
-            {t("ui.layout.darkTheme")}
-            <Switch
-              className="ml-auto"
-              checked={resolvedTheme === "dark"}
-              onCheckedChange={on => setTheme(on ? "dark" : "light")}
-            />
-          </label>
-        )}
-        {collapsed ? (
-          <ActiveTimerRailButton />
+          <div className="flex flex-col items-center gap-0.5">
+            <ActiveTimerRailButton />
+            <ActiveTimerQuickControls compact />
+          </div>
         ) : (
           <div className="grid gap-0.5">
             <div className="flex items-center gap-1">
               <ActiveTimerChip className="min-w-0 flex-1" />
+              <ActiveTimerQuickControls />
               <ActiveTimerFocusButton />
             </div>
             <ActiveTimerNote />
           </div>
         )}
         <RailTip collapsed={collapsed} label={t("ui.layout.startTimerTip")}>
-          <Button
-            variant="ghost"
-            onClick={() => quickStart.set(true)}
-            aria-label={collapsed ? t("ui.layout.startTimer") : undefined}
-            className={
-              collapsed
-                ? "mx-auto h-8 w-10 justify-center px-0"
-                : "justify-start"
-            }
-          >
-            <Play className="h-4 w-4" aria-hidden />
-            {!collapsed && (
-              <>
-                {t("ui.layout.startTimer")}
-                <Kbd className="ml-auto font-normal text-muted-foreground">
-                  T
-                </Kbd>
-              </>
-            )}
-          </Button>
+          <button type="button" onClick={() => quickStart.set(true)} aria-label={collapsed ? t("ui.layout.startTimer") : undefined} className={cn(row, "text-foreground")}>
+            <Play className={icon} aria-hidden />
+            <span className={label}>{t("ui.layout.startTimer")}</span>
+            {!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">T</Kbd>}
+          </button>
         </RailTip>
-        <RailTip collapsed={collapsed} label={t("ui.layout.syncJira", { provider })}>
-          <Button
-            variant="ghost"
+        <RailTip collapsed={collapsed} label={syncHint ? `${t("ui.layout.syncJira", { provider })} · ${syncHint}` : t("ui.layout.syncJira", { provider })}>
+          <button
+            type="button"
             onClick={() => sync.mutate()}
             disabled={sync.isPending}
             aria-label={collapsed ? t("ui.layout.syncJira", { provider }) : undefined}
-            className={
-              collapsed
-                ? "mx-auto h-8 w-10 justify-center px-0"
-                : "h-auto min-h-9 justify-start py-1.5"
-            }
+            title={collapsed ? undefined : (syncError ?? undefined)}
+            className={cn(row, "disabled:opacity-60")}
           >
-            <RefreshCw
-              className={cn(
-                "h-4 w-4",
-                sync.isPending && "motion-safe:animate-spin"
-              )}
-              aria-hidden
-            />
-            {!collapsed && (
-              <span className="flex min-w-0 flex-col items-start leading-tight">
-                {sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider })}
-                {syncHint && !sync.isPending && (
-                  <span
-                    className={cn(
-                      "truncate text-2xs font-normal",
-                      syncError
-                        ? "text-warning"
-                        : "text-muted-foreground"
-                    )}
-                    title={syncError ?? undefined}
-                  >
-                    {syncHint}
-                  </span>
-                )}
-              </span>
+            <RefreshCw className={cn(icon, sync.isPending && "motion-safe:animate-spin")} aria-hidden />
+            <span className={label}>{sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider })}</span>
+            {!collapsed && syncHint && !sync.isPending && (
+              <span className={cn("ml-auto min-w-0 truncate text-2xs font-normal", syncError ? "text-warning" : "text-muted-foreground")}>{syncHint}</span>
             )}
-          </Button>
+          </button>
         </RailTip>
         <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} />
         <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={sidebar.toggle}
-            aria-label={
-              collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")
-            }
-            className={cn(
-              "text-muted-foreground",
-              collapsed
-                ? "mx-auto h-8 w-10 justify-center px-0"
-                : "justify-start"
-            )}
+            aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")}
+            className={cn(row, "font-normal")}
           >
-            {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-            {!collapsed && <span>{t("ui.layout.collapseShort")}</span>}
-            {!collapsed && (
-              <Kbd className="ml-auto">
-                [
-              </Kbd>
-            )}
-          </Button>
+            {collapsed ? <PanelLeftOpen className={icon} aria-hidden /> : <PanelLeftClose className={icon} aria-hidden />}
+            <span className={label}>{t("ui.layout.collapseShort")}</span>
+            {!collapsed && <Kbd className="ml-auto">[</Kbd>}
+          </button>
         </RailTip>
       </div>
     </div>

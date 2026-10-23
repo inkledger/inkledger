@@ -275,6 +275,50 @@ export function ActiveTimerChip({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Pause (or resume) and stop for the timer the chip shows, from any page: the
+ * stop asks to log its time as everywhere. Held by another device, nothing
+ * here (its issue's page offers the take-over).
+ */
+export function ActiveTimerQuickControls({ compact = false }: { compact?: boolean }) {
+  const { timers } = useTimers();
+  const shown = timers.find(t => t.state === "running") ?? timers[0];
+  if (!shown) return null;
+  return <QuickControls key={issueId(shown)} issueKey={shown.issueKey} connectionId={shown.connectionId} compact={compact} />;
+}
+
+function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; connectionId: number; compact: boolean }) {
+  const { running, pending, heldElsewhere, ...act } = useTimerActions(issueKey, connectionId);
+  if (heldElsewhere) return null;
+  const size = compact ? "h-7 w-7" : "h-8 w-8";
+  return (
+    <div className="flex shrink-0 items-center">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={size}
+        aria-label={running ? t("ui.timer.pauseFor", { key: issueKey }) : t("ui.timer.resumeFor", { key: issueKey })}
+        title={running ? t("ui.timer.pause") : t("ui.timer.resume")}
+        disabled={pending}
+        onClick={running ? act.pause : act.start}
+      >
+        {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={size}
+        aria-label={t("ui.timer.stopAndLogFor", { key: issueKey })}
+        title={t("ui.timer.stopAndLog")}
+        disabled={pending}
+        onClick={act.stop}
+      >
+        <Square className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 /** Note of the timer shown in the chip (running first, else latest paused). */
 export function ActiveTimerNote({ className }: { className?: string }) {
   const { timers } = useTimers();

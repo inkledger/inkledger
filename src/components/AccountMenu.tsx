@@ -45,11 +45,8 @@ export function AccountMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(
-            "flex items-center gap-3 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            collapsed &&
-              "justify-center border-transparent bg-transparent p-1 shadow-none"
-          )}
+          // The same open and closed in the sidebar: the avatar keeps its place, the name shows open.
+          className="flex h-11 w-full shrink-0 items-center gap-3 rounded-md pl-3 pr-2 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           {/* The avatar clips its picture: it stands on a wrapper. */}
           <span {...surface("picture", { role: "wrap" })} className="shrink-0 rounded-full">

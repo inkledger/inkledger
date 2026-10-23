@@ -685,12 +685,38 @@ test("settings: old Italian section URLs still land on the renamed ones", () =>
     await page.waitForURL(u => u.pathname === "/settings/schedule");
   }));
 
-test("sidebar: sections folded before the ids were English stay folded", () =>
+test("sidebar: the same rows open and closed (nothing shifts), no section titles, the sections never scroll", () =>
   withApp({}, async ({ page, base }) => {
-    await page.addInitScript(() => localStorage.setItem("ikl-sidebar-sections", JSON.stringify(["Analisi"])));
+    // A section folded in the old menu no longer hides anything.
+    await page.addInitScript(() => localStorage.setItem("ikl-sidebar-sections", JSON.stringify(["analysis"])));
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base + "/");
-    await page.waitForFunction(() => localStorage.getItem("ikl-sidebar-sections") === '["analysis"]');
-    assert.equal(await page.locator('aside a[href="/reports"]').count(), 0, "Analysis stays folded");
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    await nav.getByRole("link", { name: /Reports/ }).waitFor();
+    assert.equal(await nav.locator("button[aria-expanded]").count(), 0, "no folding titles");
+    const rows = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll("aside nav a, aside nav + * ~ * button:not([aria-haspopup])")].flatMap(a => {
+          const svg = a.querySelector("svg");
+          if (!svg) return [];
+          const r = svg.getBoundingClientRect();
+          return [{ x: Math.round(r.left + r.width / 2), y: Math.round(r.top), h: Math.round(a.getBoundingClientRect().height) }];
+        })
+      );
+    const open = await rows();
+    const navBox = await nav.evaluate(n => ({ scroll: n.scrollHeight - n.clientHeight, overflow: getComputedStyle(n).overflowY }));
+    assert.equal(navBox.overflow, "visible", "the sections don't scroll");
+    await page.getByRole("button", { name: "Collapse sidebar" }).click();
+    await page.getByRole("button", { name: "Expand sidebar" }).waitFor();
+    await page.waitForTimeout(400);
+    const closed = await rows();
+    assert.ok(open.length > 5);
+    assert.deepEqual(
+      closed.map(r => [r.x, r.y, r.h]),
+      open.map(r => [r.x, r.y, r.h]),
+      "every icon at the same place, every row as tall"
+    );
+    assert.ok(open.filter(r => r.h > 0).every(r => r.h <= 40), "compact rows");
   }));
 
 test("settings on a phone: the menu first, then the category with a way back", () =>
