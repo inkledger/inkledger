@@ -141,6 +141,13 @@ export const server = {
     notFound: "Note not found",
     empty: "Write something first.",
   },
+  todos: {
+    notFound: "TODO not found",
+    empty: "Write what there is to do",
+    badDay: "Not a day (YYYY-MM-DD)",
+    commentNeedsIssue: "A comment's TODO needs its issue",
+    noteElsewhere: "That private note is on another issue",
+  },
   pinboard: {
     followReadOnly: "This board follows a tag: it shows what the tracker says: nothing is pinned, written or taken off by hand.",
     trackerNotFound: "This tracker isn't among yours.",

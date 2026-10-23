@@ -4,7 +4,7 @@
 // time and notes that hang on the issue, and in a full pass the issues no
 // longer among the user's asked one by one: still there, or missing.
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
-import { issueNotes, issues, itemAliases, notifications, outbox, pinboardNotes, timers, worklogs } from "@db/schema";
+import { issueNotes, issues, itemAliases, notifications, outbox, pinboardNotes, timers, todos, worklogs } from "@db/schema";
 import type { StatusCategory } from "@contracts/providers";
 import { getDb } from "../queries/connection";
 import { ensureContainer } from "../queries/containers";
@@ -86,7 +86,7 @@ async function markGone(t: Target, remoteIds: string[], reason: IssueGone["reaso
  */
 async function moveDependents(from: { id: number; key: string }, to: { id: number; key: string }) {
   const db = getDb();
-  for (const table of [worklogs, timers, outbox, issueNotes, pinboardNotes, notifications]) {
+  for (const table of [worklogs, timers, outbox, issueNotes, pinboardNotes, notifications, todos]) {
     try {
       await db.update(table).set({ itemId: to.id, issueKey: to.key }).where(eq(table.itemId, from.id));
     } catch (e) {

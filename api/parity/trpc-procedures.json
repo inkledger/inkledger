@@ -664,6 +664,46 @@
     "type": "mutation"
   },
   {
+    "path": "todos.add",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.counts",
+    "type": "query"
+  },
+  {
+    "path": "todos.dismissReminder",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "todos.list",
+    "type": "query"
+  },
+  {
+    "path": "todos.reminders",
+    "type": "query"
+  },
+  {
+    "path": "todos.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.reorder",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "todos.update",
+    "type": "mutation"
+  },
+  {
     "path": "users.invite",
     "type": "mutation"
   },

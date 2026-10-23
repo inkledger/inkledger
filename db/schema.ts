@@ -10,6 +10,7 @@ import {
   doublePrecision,
   customType,
   primaryKey,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -581,6 +582,10 @@ export const settings = pgTable("settings", {
   pinboardOnBoard: integer("pinboard_on_board").notNull().default(1),
   pinboardInMenu: integer("pinboard_in_menu").notNull().default(1),
   pinboardWidget: integer("pinboard_widget").notNull().default(1),
+  /** Where the TODO list lives, each on (1) or off (0): its page in the menu, a floating widget (D), the bottom-right hot corner */
+  todosInMenu: integer("todos_in_menu").notNull().default(1),
+  todosWidget: integer("todos_widget").notNull().default(1),
+  todosHotCorner: integer("todos_hot_corner").notNull().default(1),
 });
 
 export type User = typeof users.$inferSelect;
@@ -784,6 +789,50 @@ export const pinboardNotes = pgTable(
 );
 
 export type PinboardNote = typeof pinboardNotes.$inferSelect;
+
+/**
+ * The user's TODO list: things to do, each planned for a day or not, and
+ * tied (or not) to an issue, one of its comments (the tracker's id and a
+ * snapshot of its text) or one of the user's private notes on it.
+ */
+export const todos = pgTable(
+  "todos",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    /** The day it is planned for, "YYYY-MM-DD" in the user's zone (null: someday) */
+    dueOn: text("due_on"),
+    doneAt: ms("done_at"),
+    /** Order within its list, by hand (smaller first) */
+    position: integer("position").notNull().default(0),
+    /** Set with issue_key (a TODO of its own has neither); the server always sets it */
+    connectionId: optionalConnectionRef(),
+    itemId: itemRef(),
+    issueKey: text("issue_key"),
+    /** A comment on the issue: the tracker's id, and its first words as they were */
+    commentId: text("comment_id"),
+    commentExcerpt: text("comment_excerpt"),
+    issueNoteId: integer("issue_note_id").references(() => issueNotes.id, { onDelete: "set null" }),
+    /** The day its reminder was put away (shown again the next day it is due or late) */
+    reminderSeenOn: text("reminder_seen_on"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_todos_user_open").on(t.userId, t.doneAt, t.dueOn),
+    index("idx_todos_user_issue").on(t.userId, t.issueKey),
+    check("todos_issue_has_connection", sql`${t.issueKey} IS NULL OR ${t.connectionId} IS NOT NULL`),
+  ],
+);
+
+export type Todo = typeof todos.$inferSelect;
 
 /**
  * Work schedule versions: the schedule (JSON, contracts/workSchedule.ts)

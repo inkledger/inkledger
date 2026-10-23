@@ -142,6 +142,13 @@ export const server: Shape<typeof en> = {
     notFound: "Nota non trovata",
     empty: "Scrivi qualcosa prima.",
   },
+  todos: {
+    notFound: "TODO non trovato",
+    empty: "Scrivi cosa c'è da fare",
+    badDay: "Non è un giorno (AAAA-MM-GG)",
+    commentNeedsIssue: "Il TODO di un commento ha bisogno della sua issue",
+    noteElsewhere: "Quella nota privata è su un'altra issue",
+  },
   pinboard: {
     followReadOnly: "Questa lavagna segue un tag: mostra quello che dice il tracker: niente si appende, si scrive o si stacca a mano.",
     trackerNotFound: "Questo tracker non è tra i tuoi.",

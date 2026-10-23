@@ -95,12 +95,16 @@ export const settingsRouter = createRouter({
         pinboardOnBoard: z.boolean().optional(),
         pinboardInMenu: z.boolean().optional(),
         pinboardWidget: z.boolean().optional(),
+        todosInMenu: z.boolean().optional(),
+        todosWidget: z.boolean().optional(),
+        todosHotCorner: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       await getSettings(ctx.user.id); // ensure row exists
-      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, pinboardOnBoard, pinboardInMenu, pinboardWidget, ...rest } = input;
+      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, pinboardOnBoard, pinboardInMenu, pinboardWidget, todosInMenu, todosWidget, todosHotCorner, ...rest } = input;
+      const flag = (v: boolean | undefined) => (v === undefined ? undefined : v ? 1 : 0);
       await db
         .update(settings)
         .set({
@@ -109,6 +113,9 @@ export const settingsRouter = createRouter({
           ...(pinboardOnBoard === undefined ? {} : { pinboardOnBoard: pinboardOnBoard ? 1 : 0 }),
           ...(pinboardInMenu === undefined ? {} : { pinboardInMenu: pinboardInMenu ? 1 : 0 }),
           ...(pinboardWidget === undefined ? {} : { pinboardWidget: pinboardWidget ? 1 : 0 }),
+          ...(todosInMenu === undefined ? {} : { todosInMenu: flag(todosInMenu) }),
+          ...(todosWidget === undefined ? {} : { todosWidget: flag(todosWidget) }),
+          ...(todosHotCorner === undefined ? {} : { todosHotCorner: flag(todosHotCorner) }),
           ...(dashboardLayout
             ? { dashboardLayout: JSON.stringify(dashboardLayout) }
             : {}),

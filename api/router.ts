@@ -11,6 +11,7 @@ import { weeksRouter } from "./routers/weeks";
 import { notificationsRouter } from "./routers/notifications";
 import { workScheduleRouter } from "./routers/workSchedule";
 import { issueNotesRouter } from "./routers/issueNotes";
+import { todosRouter } from "./routers/todos";
 import { pinboardRouter } from "./routers/pinboard";
 import { infoRouter } from "./routers/info";
 import { backupRouter } from "./routers/backup";
@@ -38,6 +39,7 @@ export const appRouter = createRouter({
   workSchedule: workScheduleRouter,
   issueNotes: issueNotesRouter,
   pinboard: pinboardRouter,
+  todos: todosRouter,
   info: infoRouter,
   backup: backupRouter,
   modules: modulesRouter,

@@ -106,6 +106,27 @@ describe("nobody reaches another user's things by id", () => {
     expect(await ann.worklogs.trash()).toEqual([]);
   });
 
+  it("TODOs: someone else's by id, on someone else's issue, comment or private note", async () => {
+    const [todo] = await q<{ id: number }>("INSERT INTO todos (user_id, text, position, created_at, updated_at) SELECT id, 'Bob''s', 0, 1, 1 FROM users WHERE username = 'bob' RETURNING id");
+    const [note] = await q<{ id: number }>("INSERT INTO issue_notes (user_id, connection_id, issue_key, body, created_at, updated_at) SELECT id, ?, 'BOB-1', 'n', 1, 1 FROM users WHERE username = 'bob' RETURNING id", bob.conn);
+    const today = "2026-10-23";
+    for (const call of [
+      () => ann.todos.update({ id: todo.id, text: "mine now" }),
+      () => ann.todos.update({ id: todo.id, done: true }),
+      () => ann.todos.remove({ id: todo.id }),
+      () => ann.todos.reorder({ ids: [todo.id] }),
+      () => ann.todos.dismissReminder({ id: todo.id, today }),
+      () => ann.todos.add({ text: "x", issueKey: "BOB-1", connectionId: bob.conn }),
+      () => ann.todos.add({ text: "x", issueKey: "BOB-1", connectionId: bob.conn, commentId: "10001", commentExcerpt: "hi" }),
+      () => ann.todos.add({ text: "x", issueNoteId: note.id }),
+      () => ann.todos.forIssue({ issueKey: "BOB-1", connectionId: bob.conn }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    for (const view of ["today", "upcoming", "someday", "done"] as const) expect(await ann.todos.list({ view, today })).toEqual([]);
+    expect(await q("SELECT text, done_at FROM todos")).toEqual([{ text: "Bob's", done_at: null }]);
+  });
+
   it("buckets: save over, delete, make active; a source on someone else's connection", async () => {
     // With a source of her own, saving over Bob's bucket still finds nothing.
     const [own] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) SELECT id, 'jira', 'https://ann.example', 'ann', '{}', 'x', 1 FROM users WHERE username = 'ann' RETURNING id");
