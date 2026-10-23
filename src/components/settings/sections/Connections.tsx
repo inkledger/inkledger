@@ -86,8 +86,11 @@ function JiraForm({ reconnect, onDone }: { reconnect?: Shown; onDone: () => void
   );
 }
 
-/** Signing in on GitHub: a code to enter there, then inkledger waits for the authorization. */
-function GitHubForm({ onDone }: { onDone: () => void }) {
+/**
+ * Signing in on GitHub: a code to enter there, then inkledger waits for the
+ * authorization. A reconnection asks no name: the connection keeps its own.
+ */
+function GitHubForm({ reconnect = false, onDone }: { reconnect?: boolean; onDone: () => void }) {
   const refresh = useRefresh();
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +123,8 @@ function GitHubForm({ onDone }: { onDone: () => void }) {
             if (stopped) return;
             if (r.state === "pending") return ask(r.retryInSeconds);
             if (r.state === "done") {
-              toast.success(t("settings.connections.added", { name: r.connection.label || r.connection.displayName || "GitHub" }));
+              const name = r.connection.label || r.connection.displayName || "GitHub";
+              toast.success(reconnect ? t("settings.connections.reconnected") : t("settings.connections.added", { name }));
               finish.current();
               return;
             }
@@ -139,7 +143,7 @@ function GitHubForm({ onDone }: { onDone: () => void }) {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [flow, mutateAsync]);
+  }, [flow, mutateAsync, reconnect]);
 
   if (flow) {
     return (
@@ -178,10 +182,12 @@ function GitHubForm({ onDone }: { onDone: () => void }) {
         start.mutate({ label });
       }}
     >
-      <div className="grid gap-2">
-        <Label htmlFor="add-github-label">{t("settings.connections.label")}</Label>
-        <Input id="add-github-label" value={label} onChange={e => setLabel(e.target.value)} placeholder={t("settings.connections.labelPlaceholder")} />
-      </div>
+      {!reconnect && (
+        <div className="grid gap-2">
+          <Label htmlFor="add-github-label">{t("settings.connections.label")}</Label>
+          <Input id="add-github-label" value={label} onChange={e => setLabel(e.target.value)} placeholder={t("settings.connections.labelPlaceholder")} />
+        </div>
+      )}
       <FormError message={error} />
       <Button type="submit" disabled={start.isPending}>
         {t("settings.connections.githubStart")}
@@ -771,7 +777,7 @@ export function ConnectionsSection() {
           </DialogHeader>
           {/* Signing in again as the same account updates its connection. */}
           {target?.how === "jiraLogin" && <JiraForm reconnect={target} onDone={closeReconnect} />}
-          {target?.how === "oauthDevice" && <GitHubForm onDone={closeReconnect} />}
+          {target?.how === "oauthDevice" && <GitHubForm reconnect onDone={closeReconnect} />}
           {target?.how === "token" && <TokenForm type={target.type} asksAddress={false} reconnect={target} onDone={closeReconnect} />}
         </DialogContent>
       </Dialog>
