@@ -87,7 +87,14 @@ test("the room takes nothing from the layout: the board's columns and cards stay
       await page.goto(base + "/board");
       const card = page.locator("[draggable=true]").first();
       await card.waitFor();
-      const before = await card.boundingBox();
+      // Measured once the board has settled (its lanes, counts and fonts in place).
+      let before = await card.boundingBox();
+      for (let i = 0; i < 20; i++) {
+        await page.waitForTimeout(150);
+        const now = await card.boundingBox();
+        if (Math.abs(now.y - before.y) < 0.01 && Math.abs(now.x - before.x) < 0.01) break;
+        before = now;
+      }
       await page.evaluate(() => document.documentElement.style.setProperty("--sh-1", "-6px 6px 12px -1px hsl(0 0% 0% / 0.2)"));
       await page.waitForFunction(() => document.documentElement.style.getPropertyValue("--surface-reach-l") !== "");
       await page.waitForTimeout(150);
