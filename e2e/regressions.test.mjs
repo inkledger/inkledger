@@ -118,7 +118,7 @@ test("the open hole on the Dashboard has a Play; from now starts the timer at on
     assert.ok(Date.now() - Number(row.started_at) < 60_000, "counted from now");
   }));
 
-test("a board that follows a component shows my open issues with it, read-only, and lets the closed ones go", () =>
+test("a board that follows a component shows my open issues with it; they move and take a colour, the closed ones go", () =>
   withApp(
     {
       seed: async db => {
@@ -136,24 +136,35 @@ test("a board that follows a component shows my open issues with it, read-only, 
       const postIts = board.locator("[data-postit]");
       await board.getByRole("group", { name: /DEMO-101/ }).waitFor();
       assert.deepEqual((await postIts.allTextContents()).map(x => /DEMO-\d+/.exec(x)?.[0]).sort(), ["DEMO-101", "DEMO-102"]);
-      // Read-only: nothing to add, search, recolour or remove, and a drag moves nothing.
+      // Nothing to add, search or take off by hand.
       assert.equal(await board.getByRole("button", { name: "Note", exact: true }).count(), 0);
       assert.equal(await board.getByRole("combobox").count(), 0);
-      assert.equal(await board.getByRole("button", { name: /^Unpin|^Take the note off/ }).count(), 0);
+      await board.getByRole("button", { name: "Actions for the note DEMO-101" }).click();
+      assert.equal(await page.getByRole("menuitem", { name: /^Unpin|^Take the note off/ }).count(), 0);
+      assert.equal(await page.getByRole("menuitem", { name: /^Move to/ }).count(), 0);
+      await page.keyboard.press("Escape");
       const card = board.getByRole("group", { name: /DEMO-101/ });
       const before = await card.boundingBox();
       await page.mouse.move(before.x + 40, before.y + 60);
       await page.mouse.down();
       await page.mouse.move(before.x + 240, before.y + 260, { steps: 6 });
       await page.mouse.up();
+      // Moved where the user drops it, and a colour of their choice: both kept after a reload.
+      await card.getByRole("button", { name: "Tape 3" }).click();
+      await page.waitForTimeout(400);
       const after = await card.boundingBox();
-      assert.ok(Math.abs(after.x - before.x) < 2 && Math.abs(after.y - before.y) < 2, "not moved");
-      const [{ n: stored }] = await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_key IS NOT NULL");
-      assert.equal(stored, 0, "nothing pinned");
-      // Closed on the tracker: gone at the next read.
+      assert.ok(Math.abs(after.x - (before.x + 200)) < 4 && Math.abs(after.y - (before.y + 200)) < 4, `moved: ${JSON.stringify({ before, after })}`);
+      // Kept as this board's placement, nothing pinned anywhere else.
+      const rows = await db.q("SELECT p.issue_key, p.color, b.follow_value FROM pinboard_notes p JOIN pinboards b ON b.id = p.board_id WHERE p.issue_key IS NOT NULL");
+      assert.deepEqual(rows.map(r => [r.issue_key, r.follow_value]), [["DEMO-101", "Backend"]]);
+      // Closed on the tracker: gone at the next read; the moved one where it was left.
       await db.q("UPDATE issues SET category = 'done' WHERE key = 'DEMO-102'");
       await page.reload();
       await board.getByRole("group", { name: /DEMO-101/ }).waitFor();
+      await page.waitForTimeout(300);
+      const reloaded = await board.getByRole("group", { name: /DEMO-101/ }).boundingBox();
+      assert.ok(Math.abs(reloaded.x - after.x) < 4 && Math.abs(reloaded.y - after.y) < 4, "same place after a reload");
+      assert.equal(await board.getByRole("group", { name: /DEMO-101/ }).getByRole("button", { name: "Tape 3" }).getAttribute("aria-pressed"), "true");
       assert.equal(await board.getByRole("group", { name: /DEMO-102/ }).count(), 0);
     },
   ));
@@ -341,7 +352,7 @@ test("Settings → Pinboard: each place on or off, alone", () =>
     assert.equal(await page.getByRole("region", { name: /pinboard/i }).count(), 0);
   }));
 
-test("on the Board, the sidebar pin and P toggle its own panel, not a dialog", () =>
+test("on the Board, P opens the floating pinboard first; the sidebar pin toggles the Board's own panel", () =>
   withApp({}, async ({ page, base }) => {
     await page.addInitScript(() => {
       if (!sessionStorage.getItem("seeded")) {
@@ -352,11 +363,18 @@ test("on the Board, the sidebar pin and P toggle its own panel, not a dialog", (
     await page.goto(base + "/board");
     await page.getByRole("heading", { name: "Board" }).first().waitFor();
     await page.keyboard.press("p");
-    await page.getByRole("region", { name: "Pinboard" }).waitFor();
+    const float = page.getByRole("region", { name: "Floating pinboard" });
+    await float.waitFor();
     assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(await page.evaluate(() => localStorage.getItem("ikl-pinboard-panel")), "closed", "the panel stays closed");
+    await page.keyboard.press("p");
+    await float.waitFor({ state: "detached" });
+    const pin = page.getByRole("button", { name: "Open the pinboard", exact: true });
+    await pin.click();
+    await page.getByRole("region", { name: "Pinboard" }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem("ikl-pinboard-panel")), "open");
-    const pin = page.getByRole("button", { name: "Open the pinboard" });
     assert.equal(await pin.getAttribute("aria-pressed"), "true");
+    assert.equal(await float.count(), 0, "the pin opens the panel, not the widget");
     await pin.click();
     await page.waitForTimeout(300);
     assert.equal(await page.evaluate(() => localStorage.getItem("ikl-pinboard-panel")), "closed");
@@ -1310,4 +1328,66 @@ test("Reports' bars show logged time only, never a running timer's", () =>
     await page.getByRole("heading", { name: "Trend" }).waitFor();
     await page.waitForTimeout(1500);
     assert.equal(await page.locator(".stripes-pending").count(), 0, "no pending segment on Reports");
+  }));
+
+test("a post-it's menu copies it or moves it to another board, with Undo", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await note(db, "reminder", 60, 60);
+        await db.q("INSERT INTO pinboard_notes (user_id, board_id, issue_key, connection_id, note, color, x, y, rotation, z, created_at, updated_at) SELECT 1, 1, 'DEMO-101', connection_id, '', 'yellow', 300, 60, 1, 2, ?, ? FROM issues WHERE key = 'DEMO-101'", now, now);
+        await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Second', 1, ?)", now);
+      },
+    },
+    async ({ page, base, db }) => {
+      const board = await openPinboard(page, base);
+      const on = async key => (await db.q("SELECT b.name FROM pinboard_notes p JOIN pinboards b ON b.id = p.board_id WHERE p.issue_key IS NOT DISTINCT FROM ? ORDER BY b.name", key)).map(r => r.name);
+      // Copied: here and there.
+      await board.getByRole("button", { name: "Actions for the note free" }).click();
+      await page.getByRole("menuitem", { name: "Copy to" }).click();
+      await page.getByRole("menuitem", { name: "Second" }).click();
+      await page.getByText("The note copied to “Second”").waitFor();
+      assert.equal((await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE note = 'reminder'"))[0].n, 2);
+      // Moved: gone from here, there; Undo puts it back.
+      await board.getByRole("button", { name: "Actions for the note DEMO-101" }).click();
+      await page.getByRole("menuitem", { name: "Move to" }).click();
+      await page.getByRole("menuitem", { name: "Second" }).click();
+      await page.getByText("DEMO-101 moved to “Second”").waitFor();
+      await board.getByRole("group", { name: /DEMO-101/ }).waitFor({ state: "detached" });
+      assert.deepEqual(await on("DEMO-101"), ["Second"]);
+      await page.getByRole("button", { name: "Undo" }).click();
+      await board.getByRole("group", { name: /DEMO-101/ }).waitFor();
+      assert.equal((await on("DEMO-101")).length, 1);
+      assert.notDeepEqual(await on("DEMO-101"), ["Second"]);
+    },
+  ));
+
+test("the issue page groups its tags by kind; a component opens a menu to follow it on a pinboard", () =>
+  withApp({ seed: db => db.q("UPDATE issues SET components = '[\"Backend\"]' WHERE key = 'DEMO-101'") }, async ({ page, base, db }) => {
+    await page.goto(base + "/issues/DEMO-101");
+    const chip = page.getByRole("button", { name: "Component “Backend”: follow it on a pinboard or find its issues" });
+    await chip.click();
+    await page.getByRole("menuitem", { name: "Follow it on a pinboard" }).click();
+    await page.getByText("Pinboard “Backend” created").waitFor();
+    const followed = async () => (await db.q("SELECT count(*)::int AS n FROM pinboards WHERE follow_field = 'component' AND follow_value = 'Backend'"))[0].n;
+    assert.equal(await followed(), 1);
+    // Once made, the same menu opens it, never a second one.
+    await chip.click();
+    await page.getByRole("menuitem", { name: "Open the pinboard “Backend”" }).waitFor();
+    await page.getByRole("menuitem", { name: "Find the issues with it" }).click();
+    await page.waitForURL(/\/issues\?q=component/);
+    assert.equal(await followed(), 1);
+  }));
+
+test("reconnecting GitHub asks no name: the connection keeps its own", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const [{ id }] = await db.q(
+      "INSERT INTO connections (user_id, type, label, base_url, remote_account_id, display_name, options, encrypted_secret, status, created_at) VALUES (1, 'github', 'Side projects', 'https://api.github.com', '4242', 'Mario Rossi', '{}', 'x', 'auth_failed', ?) RETURNING id",
+      Date.now(),
+    );
+    await page.goto(base + `/settings/connections?reconnect=${id}`);
+    const dialog = page.getByRole("dialog", { name: "Reconnect Side projects" });
+    await dialog.getByRole("button", { name: "Sign in with GitHub" }).waitFor();
+    assert.equal(await dialog.getByLabel("Name in inkledger").count(), 0);
   }));

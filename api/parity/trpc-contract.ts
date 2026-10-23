@@ -125,6 +125,7 @@ export interface FrozenIn {
   "outbox.retry": void;
   "pinboard.add": { boardId?: number | undefined; color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; connectionId?: number | undefined; issueKey?: string | undefined; note?: string | undefined; x?: number | undefined; y?: number | undefined };
   "pinboard.boards": undefined | void | { connectionId?: number | undefined };
+  "pinboard.copy": { boardId: number; id: number; move: boolean };
   "pinboard.createBoard": { bucketId?: null | number | undefined; follow?: undefined | { connectionId?: null | number | undefined; field: "component" | "label"; value: string }; name: string };
   "pinboard.deleteBoard": { id: number };
   "pinboard.link": { connectionId?: number | undefined; id: number; issueKey: string };
@@ -136,7 +137,7 @@ export interface FrozenIn {
   "pinboard.setBoardScope": { bucketId: null | number; id: number };
   "pinboard.tags": void;
   "pinboard.unpinIssue": { boardId: number; connectionId?: number | undefined; issueKey: string };
-  "pinboard.update": { color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; id: number; note?: string | undefined; toFront?: false | true | undefined; x?: number | undefined; y?: number | undefined };
+  "pinboard.update": { boardId?: number | undefined; color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; id: number; note?: string | undefined; toFront?: false | true | undefined; x?: number | undefined; y?: number | undefined };
   "pinboard.where": { connectionId?: number | undefined; issueKey: string };
   "ping": void;
   "queries.clearRecent": void;
@@ -261,7 +262,7 @@ export interface FrozenOut {
   "issues.createTypes": { id: string; name: string }[];
   "issues.description": { doc: { blocks: Rec1; v: 1 }; text: string };
   "issues.edit": { assignees: string[]; key: string; labels: string[]; title: null | string };
-  "issues.get": { activityAt: null | number; assigneeId: string; assigneeName: null | string; category: string; components: string; connectionId: number; containerId: null | number; dueDate: null | string; favorite: number; favoriteRank: number; goneAt: Date | null; goneReason: null | string; hidden: number; id: number; issueType: string; key: string; labels: string[]; lastCommentAt: null | number; othersActivityAt: null | number; priority: string; priorityRank: null | number; projectAvatarUrl: null | string; projectKey: string; projectName: string; raw: null | string; remote: boolean; remoteCreatedAt: null | number; remoteId: string; remoteUpdated: null | string; remoteUpdatedAt: null | number; reporterName: null | string; seenAt: null | number; status: string; statusCategory: string; statusChangedAt: null | number; summary: string; syncedAt: Date; timeEstimateSeconds: null | number; timeSpentSeconds: null | number; url: string; userId: number; watching: number };
+  "issues.get": { activityAt: null | number; assigneeId: string; assigneeName: null | string; category: string; components: string[]; connectionId: number; containerId: null | number; dueDate: null | string; favorite: number; favoriteRank: number; goneAt: Date | null; goneReason: null | string; hidden: number; id: number; issueType: string; key: string; labels: string[]; lastCommentAt: null | number; othersActivityAt: null | number; priority: string; priorityRank: null | number; projectAvatarUrl: null | string; projectKey: string; projectName: string; raw: null | string; remote: boolean; remoteCreatedAt: null | number; remoteId: string; remoteUpdated: null | string; remoteUpdatedAt: null | number; reporterName: null | string; seenAt: null | number; status: string; statusCategory: string; statusChangedAt: null | number; summary: string; syncedAt: Date; timeEstimateSeconds: null | number; timeSpentSeconds: null | number; url: string; userId: number; watching: number };
   "issues.history": { events: ({ at: number; author: null | string; excerpt: string; kind: "comment" } | { at: number; author: null | string; items: { field: string; from: null | string; to: null | string }[]; kind: "change" } | { at: number; author: null | string; kind: "created" })[]; reason: null | string };
   "issues.import": { imported: string };
   "issues.labelOptions": string[];
@@ -316,6 +317,7 @@ export interface FrozenOut {
   "outbox.retry": { failed: number; remaining: number; synced: number };
   "pinboard.add": { boardId: number; boardName: string; existed: boolean; id: number };
   "pinboard.boards": { bucket: null | { id: number; name: string }; count: number; follow: null | { connectionId: null | number; field: "component" | "label"; value: string }; hidden: number; id: number; name: string }[];
+  "pinboard.copy": { boardId: number; boardName: string; existed: boolean; id: number; removed: null | { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; updatedAt: Date; userId: number; x: number; y: number; z: number } };
   "pinboard.createBoard": { id: number };
   "pinboard.deleteBoard": { ok: boolean };
   "pinboard.link": { ok: boolean };

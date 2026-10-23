@@ -480,6 +480,10 @@
     "type": "query"
   },
   {
+    "path": "pinboard.copy",
+    "type": "mutation"
+  },
+  {
     "path": "pinboard.createBoard",
     "type": "mutation"
   },

@@ -142,12 +142,13 @@ export const server = {
     empty: "Write something first.",
   },
   pinboard: {
-    followReadOnly: "This board follows a tag: it shows what the tracker says, nothing is pinned or moved on it.",
+    followReadOnly: "This board follows a tag: it shows what the tracker says: nothing is pinned, written or taken off by hand.",
     trackerNotFound: "This tracker isn't among yours.",
     defaultBoard: "My board",
     boardNotFound: "Board not found",
     bucketNotFound: "Bucket not found",
     noteNotFound: "Note not found",
+    sameBoard: "The note is already on this board",
     maxBoards: {
       one: "At most {count} board.",
       other: "At most {count} boards.",

@@ -143,12 +143,13 @@ export const server: Shape<typeof en> = {
     empty: "Scrivi qualcosa prima.",
   },
   pinboard: {
-    followReadOnly: "Questa lavagna segue un tag: mostra quello che dice il tracker, non ci si appende né si sposta niente.",
+    followReadOnly: "Questa lavagna segue un tag: mostra quello che dice il tracker: niente si appende, si scrive o si stacca a mano.",
     trackerNotFound: "Questo tracker non è tra i tuoi.",
     defaultBoard: "La mia lavagna",
     boardNotFound: "Lavagna non trovata",
     bucketNotFound: "Bucket non trovato",
     noteNotFound: "Post-it non trovato",
+    sameBoard: "Il post-it è già su questa lavagna",
     maxBoards: {
       one: "Al massimo {count} lavagne.",
       other: "Al massimo {count} lavagne.",

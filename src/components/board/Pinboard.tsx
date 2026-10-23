@@ -203,8 +203,10 @@ export function Pinboard({
     const n = utils.pinboard.list.getData(listInput)?.find(x => x.id === id);
     if (!n) return;
     const p = clampToCanvas(n.x + dx, n.y + dy);
-    patch(id, p, () => utils.client.pinboard.update.mutate({ id, ...p }));
+    patch(id, p, () => utils.client.pinboard.update.mutate({ id, ...onFollowed(id), ...p }));
   };
+  // A followed board's post-its (negative ids, never stored as pins) are placed on that board.
+  const onFollowed = (id: number) => (id < 0 && boardId !== undefined ? { boardId } : {});
   // Raise by z only: reordering the list would move the DOM node mid-drag.
   const toFront = (id: number) =>
     setNotes(old => {
@@ -250,6 +252,56 @@ export function Pinboard({
               .then(refresh, fail),
         },
       });
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  // Elsewhere: the other boards pinned by hand (a followed one shows the tracker's, nothing goes there).
+  const elsewhere = boards.filter(b => !b.follow && b.id !== boardId).map(b => ({ id: b.id, name: b.name }));
+
+  /** A post-it to another board, moved or copied; from a followed board, its issue pinned there. */
+  const copy = async (n: PostItData, to: number, move: boolean) => {
+    const name = n.issueKey ?? t("views.board.pinboard.theNote");
+    try {
+      if (n.id < 0) {
+        // Shown by a followed board, never stored: the issue is pinned there.
+        if (!n.issueKey) return;
+        const r = await utils.client.pinboard.add.mutate({ boardId: to, issueKey: n.issueKey, connectionId: n.connectionId ?? undefined });
+        void refresh();
+        toast.success(t(r.existed ? "ui.pin.existing" : "ui.pin.added", { key: n.issueKey, board: r.boardName }));
+        return;
+      }
+      if (move) setNotes(old => old.filter(x => x.id !== n.id));
+      const r = await utils.client.pinboard.copy.mutate({ id: n.id, boardId: to, move });
+      void refresh();
+      const removed = r.removed;
+      toast.success(
+        t(r.existed ? "views.board.pinboard.noteAlreadyThere" : move ? "views.board.pinboard.noteMovedTo" : "views.board.pinboard.noteCopiedTo", { name, board: r.boardName }),
+        removed
+          ? {
+              action: {
+                label: t("views.board.pinboard.undo"),
+                onClick: () =>
+                  void (r.existed ? Promise.resolve() : utils.client.pinboard.remove.mutate({ id: r.id }))
+                    .then(() =>
+                      utils.client.pinboard.restore.mutate({
+                        boardId: removed.boardId ?? boardId ?? 0,
+                        issueKey: removed.issueKey,
+                        connectionId: removed.connectionId ?? undefined,
+                        issueNoteId: removed.issueNoteId,
+                        note: removed.note,
+                        color: removed.color as NoteColor,
+                        x: removed.x,
+                        y: removed.y,
+                        rotation: removed.rotation,
+                      })
+                    )
+                    .then(refresh, fail),
+              },
+            }
+          : undefined
+      );
     } catch (e) {
       fail(e);
     }
@@ -520,7 +572,8 @@ export function Pinboard({
           onScroll={measure}
           onPointerDown={e => {
             const target = e.target as Element;
-            if (e.button !== 0 || target.closest("[data-postit], button, a, textarea, input")) return;
+            // A post-it's menu (a portal) bubbles here too: no pan from it.
+            if (e.button !== 0 || !e.currentTarget.contains(target) || target.closest("[data-postit], button, a, textarea, input")) return;
             const el = e.currentTarget;
             el.setPointerCapture(e.pointerId);
             pan.current = { px: e.clientX, py: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
@@ -624,7 +677,7 @@ export function Pinboard({
                     onNudge={(dx, dy) => nudge(n.id, dx, dy)}
                     onMove={(x, y) =>
                       patch(n.id, { x, y }, () =>
-                        utils.client.pinboard.update.mutate({ id: n.id, x, y, toFront: true })
+                        utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), x, y, toFront: true })
                       )
                     }
                     onNote={note =>
@@ -642,10 +695,12 @@ export function Pinboard({
                     onDrag={p => pinboardLive.set(n.id, p)}
                     onColor={color =>
                       patch(n.id, { color }, () =>
-                        utils.client.pinboard.update.mutate({ id: n.id, color })
+                        utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), color })
                       )
                     }
                     onRemove={() => void remove(n)}
+                    boards={elsewhere}
+                    onCopy={(to, move) => void copy(n, to, move)}
                     onCreateIssue={() => createIssue(n)}
                     onOpen={() => n.issueKey && void navigate(issuePath({ key: n.issueKey, connectionId: n.connectionId }))}
                   />

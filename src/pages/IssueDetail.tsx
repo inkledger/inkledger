@@ -37,6 +37,7 @@ import { TimerControls, TimerWhere } from "@/components/TimerControls";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Chip } from "@/components/app/Chip";
+import { IssueTags } from "@/components/issue/IssueTags";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
@@ -632,23 +633,20 @@ export default function IssueDetail({
                 "—"
               )}
             </Detail>
-            <Detail label={t("pages.issueDetail.labels")}>
-              {i.labels.length > 0 ? (
-                <span className="flex flex-wrap gap-1">
-                  {i.labels.map(l => (
-                    <Chip key={l}>{l}</Chip>
-                  ))}
-                </span>
-              ) : (
-                "—"
-              )}
-              {manage.labels && !i.remote && (
-                <LabelsEditor
-                  issueKey={i.key}
-                  connectionId={i.connectionId}
-                  labels={i.labels}
-                />
-              )}
+            <Detail label={t("pages.issueDetail.tags")}>
+              <IssueTags
+                labels={i.labels}
+                components={i.components}
+                editor={
+                  manage.labels && !i.remote ? (
+                    <LabelsEditor
+                      issueKey={i.key}
+                      connectionId={i.connectionId}
+                      labels={i.labels}
+                    />
+                  ) : undefined
+                }
+              />
             </Detail>
           </dl>
         </PanelSection>

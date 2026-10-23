@@ -86,10 +86,33 @@ describe("a pinboard that follows a tag", () => {
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
     const where = await me.pinboard.where({ issueKey: "APP-6", connectionId: jira });
     expect(where.boards.some((b) => b.id === followed.id)).toBe(false);
-    // A virtual post-it is nothing to move or remove.
+    // A shown post-it is nothing to remove, write on, or move without its board.
     const [shown] = await me.pinboard.list({ boardId: followed.id });
     await expect(me.pinboard.update({ id: shown.id, x: 10 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(me.pinboard.update({ id: shown.id, boardId: followed.id, note: "x" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
     await expect(me.pinboard.remove({ id: shown.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("on a followed board the user still moves and recolours: kept per issue, the rest laid out around", async () => {
+    const followed = (await me.pinboard.boards()).find((b) => b.follow?.value === "Backend")!;
+    const before = await me.pinboard.list({ boardId: followed.id });
+    const [first, second] = before;
+    await me.pinboard.update({ id: second.id, boardId: followed.id, x: 900, y: 500, toFront: true });
+    await me.pinboard.update({ id: first.id, boardId: followed.id, color: "blue" });
+    const after = await me.pinboard.list({ boardId: followed.id });
+    // Same ids (the issues'), the moved one where it was left and on top, the recoloured one in place.
+    expect(after.map((n) => n.id).sort()).toEqual(before.map((n) => n.id).sort());
+    const moved = after.find((n) => n.id === second.id)!;
+    expect(moved).toMatchObject({ x: 900, y: 500 });
+    expect(after.find((n) => n.id === first.id)).toMatchObject({ x: first.x, y: first.y, color: "blue" });
+    expect(Math.max(...after.map((n) => n.z))).toBe(moved.z);
+    // Nothing became pinned: the pin menu and the count know only the tag.
+    expect((await me.pinboard.where({ issueKey: second.issueKey!, connectionId: jira })).boards.some((b) => b.id === followed.id)).toBe(false);
+    expect((await me.pinboard.boards()).find((b) => b.id === followed.id)?.count).toBe(2);
+    // Someone else's board, or a board pinned by hand: not this way.
+    const free = (await me.pinboard.boards()).find((b) => !b.follow)!;
+    await expect(me.pinboard.update({ id: second.id, boardId: free.id, x: 1 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(other.pinboard.update({ id: second.id, boardId: followed.id, x: 1 })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("one board pinned by hand always stays", async () => {
@@ -104,5 +127,37 @@ describe("a pinboard that follows a tag", () => {
     const both = await Promise.allSettled([me.pinboard.deleteBoard({ id: free[0].id }), me.pinboard.deleteBoard({ id: second })]);
     expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect((await me.pinboard.boards()).filter((b) => !b.follow)).toHaveLength(1);
+  });
+
+  it("a post-it moves or is copied to another board, never doubled there, never onto a followed board", async () => {
+    const a = await me.pinboard.createBoard({ name: "A" });
+    const b = await me.pinboard.createBoard({ name: "B" });
+    const on = async (boardId: number) => (await me.pinboard.list({ boardId })).map((n) => n.issueKey ?? n.note).sort();
+    const issue = await me.pinboard.add({ boardId: a.id, issueKey: "APP-1", connectionId: jira, note: "check logs", color: "pink" });
+    const free = await me.pinboard.add({ boardId: a.id, note: "call Anna" });
+    // Copied: on both, with its note and colour.
+    const copied = await me.pinboard.copy({ id: issue.id, boardId: b.id, move: false });
+    expect(copied).toMatchObject({ existed: false, boardId: b.id, removed: null });
+    expect(await on(a.id)).toEqual(["APP-1", "call Anna"]);
+    expect((await me.pinboard.list({ boardId: b.id }))[0]).toMatchObject({ issueKey: "APP-1", note: "check logs", color: "pink" });
+    // Again: the one there comes forward, no double.
+    expect(await me.pinboard.copy({ id: issue.id, boardId: b.id, move: false })).toMatchObject({ id: copied.id, existed: true });
+    expect(await on(b.id)).toEqual(["APP-1"]);
+    // Moved: off A, onto B; Undo has what was taken away.
+    const moved = await me.pinboard.copy({ id: free.id, boardId: b.id, move: true });
+    expect(moved.removed).toMatchObject({ id: free.id, note: "call Anna", boardId: a.id });
+    expect(await on(a.id)).toEqual(["APP-1"]);
+    expect(await on(b.id)).toEqual(["APP-1", "call Anna"]);
+    // Moving the issue where it already is: one there, none left here.
+    await me.pinboard.copy({ id: issue.id, boardId: b.id, move: true });
+    expect(await on(a.id)).toEqual([]);
+    expect(await on(b.id)).toEqual(["APP-1", "call Anna"]);
+    // Not onto the same board, a followed one, someone else's; not someone else's post-it.
+    await expect(me.pinboard.copy({ id: copied.id, boardId: b.id, move: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const followed = await me.pinboard.createBoard({ name: "API", follow: { field: "component", value: "API" } });
+    await expect(me.pinboard.copy({ id: copied.id, boardId: followed.id, move: false })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const theirs = await other.pinboard.createBoard({ name: "Theirs" });
+    await expect(me.pinboard.copy({ id: copied.id, boardId: theirs.id, move: false })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(other.pinboard.copy({ id: copied.id, boardId: theirs.id, move: false })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

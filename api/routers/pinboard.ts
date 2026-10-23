@@ -9,6 +9,7 @@ import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { openIssuesTagged, type FollowTag } from "../queries/myIssues";
 import {
+  type NoteColor,
   clampToCanvas,
   firstFreeSlot,
   freeSlotNear,
@@ -137,7 +138,11 @@ async function pinTarget(userId: number, deviceId: string | undefined, boardId?:
 /** A post-it as a board lists it: the stored one, with its issue as the catalogue knows it. */
 type BoardNote = PinboardNote & { summary: string | null; status: string | null; statusCategory: string | null; noteBody: string | null; noteCreatedAt: Date | null };
 
-/** The post-its a followed board shows: the open issues with its tag, laid out in reading order, newest first. */
+/**
+ * The post-its a followed board shows: the open issues with its tag, laid out
+ * in reading order, newest first; those the user moved or recoloured where and
+ * as they were left (a placement row per issue). Their ids stay the issue's, negative.
+ */
 async function followedNotes(userId: number, deviceId: string | undefined, board: Pinboard, tag: FollowTag, connectionId?: number): Promise<BoardNote[]> {
   const rows = await getDb()
     .select({ id: issues.id, key: issues.key, connectionId: issues.connectionId, summary: issues.summary, status: issues.status, statusCategory: issues.statusCategory, updatedAt: issues.remoteUpdatedAt, syncedAt: issues.syncedAt })
@@ -145,10 +150,20 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
     .where(and(await openIssuesTagged(userId, deviceId, tag), connectionId ? eq(issues.connectionId, connectionId) : undefined))
     .orderBy(sql`${issues.remoteUpdatedAt} DESC NULLS LAST`, asc(issues.key))
     .limit(MAX_NOTES);
-  const placed: { x: number; y: number }[] = [];
+  // Where the user put some of them, and in which colour: kept per board, by issue.
+  const stored = await getDb()
+    .select()
+    .from(pinboardNotes)
+    .where(and(eq(pinboardNotes.userId, userId), eq(pinboardNotes.boardId, board.id), isNull(pinboardNotes.issueNoteId)));
+  const placedBy = new Map(stored.map((s) => [`${s.connectionId}:${s.issueKey}`, s]));
+  const placed: { x: number; y: number }[] = rows.flatMap((r) => {
+    const s = placedBy.get(`${r.connectionId}:${r.key}`);
+    return s ? [{ x: s.x, y: s.y }] : [];
+  });
   return rows.map((r, i) => {
-    const at = firstFreeSlot(placed);
-    placed.push(at);
+    const s = placedBy.get(`${r.connectionId}:${r.key}`);
+    const at = s ? { x: s.x, y: s.y } : firstFreeSlot(placed);
+    if (!s) placed.push(at);
     const when = new Date(r.updatedAt ?? r.syncedAt);
     return {
       // Never a stored post-it's id: these aren't stored.
@@ -160,11 +175,12 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       issueKey: r.key,
       issueNoteId: null,
       note: "",
-      color: "yellow",
+      color: s?.color ?? "yellow",
       ...at,
       // A steady tilt per issue, so the board doesn't shuffle on each read.
       rotation: ((r.id % 7) - 3) * 0.4 || 0.6,
-      z: rows.length - i,
+      // Those the user moved above the others, the last moved on top.
+      z: s ? s.z : -i,
       createdAt: when,
       updatedAt: when,
       summary: r.summary,
@@ -173,6 +189,47 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       noteBody: null,
       noteCreatedAt: null,
     };
+  });
+}
+
+/**
+ * Where an issue sits on a board that follows a tag, and in which colour: the
+ * board's placement row for it, made at the first move. Nothing is written on it.
+ */
+async function place(userId: number, deviceId: string | undefined, boardId: number | undefined, issueId: number, input: { x?: number; y?: number; color?: NoteColor; note?: string; toFront?: boolean }) {
+  if (boardId === undefined) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.noteNotFound") });
+  const board = await resolveBoard(userId, boardId);
+  if (!followOf(board)) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.noteNotFound") });
+  if (input.note !== undefined) writable(board);
+  const [issue] = await getDb()
+    .select({ key: issues.key, connectionId: issues.connectionId })
+    .from(issues)
+    .where(and(eq(issues.id, issueId), eq(issues.userId, userId)));
+  if (!issue) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.noteNotFound") });
+  const z = await nextZ(board.id);
+  // Never placed and no place given (a colour first): where the board shows it now.
+  const shown =
+    input.x === undefined || input.y === undefined ? (await followedNotes(userId, deviceId, board, followOf(board)!)).find((n) => n.id === -issueId) : undefined;
+  await getDb().transaction(async (tx) => {
+    // One placement per issue and board, whatever the requests racing.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('pinboard-place'), ${board.id})`);
+    const [had] = await tx
+      .select()
+      .from(pinboardNotes)
+      .where(and(eq(pinboardNotes.boardId, board.id), eq(pinboardNotes.connectionId, issue.connectionId), eq(pinboardNotes.issueKey, issue.key), isNull(pinboardNotes.issueNoteId)));
+    const pos = clampToCanvas(input.x ?? had?.x ?? shown?.x ?? 0, input.y ?? had?.y ?? shown?.y ?? 0);
+    // Moved or raised: on top; only recoloured: where it was in the pile (a fresh one, with the laid-out ones).
+    const raised = input.toFront || input.x !== undefined || input.y !== undefined;
+    if (had) {
+      await tx
+        .update(pinboardNotes)
+        .set({ ...pos, ...(input.color ? { color: input.color } : {}), ...(raised ? { z } : {}), updatedAt: new Date() })
+        .where(eq(pinboardNotes.id, had.id));
+    } else {
+      await tx
+        .insert(pinboardNotes)
+        .values({ userId, boardId: board.id, issueKey: issue.key, connectionId: issue.connectionId, note: "", color: input.color ?? "yellow", ...pos, rotation: 0, z: raised ? z : (shown?.z ?? 0) });
+    }
   });
 }
 
@@ -514,11 +571,17 @@ export const pinboardRouter = createRouter({
     return [...counted.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   }),
 
-  /** Move, raise, write on or recolour a post-it. */
+  /**
+   * Move, raise, write on or recolour a post-it. On a board that follows a tag
+   * (a negative id, its issue's, with `boardId`): moved and recoloured only,
+   * kept as that board's placement of the issue.
+   */
   update: protectedProcedure
     .input(
       z.object({
         id: z.number().int(),
+        /** A followed board's post-it: the board it is on. */
+        boardId: boardIdInput.optional(),
         x: coord.optional(),
         y: coord.optional(),
         note: note.optional(),
@@ -527,6 +590,10 @@ export const pinboardRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.id < 0) {
+        await place(ctx.user.id, ctx.deviceId, input.boardId, -input.id, input);
+        return { ok: true };
+      }
       const row = await own(ctx.user.id, input.id);
       const pos =
         input.x !== undefined || input.y !== undefined
@@ -613,6 +680,58 @@ export const pinboardRouter = createRouter({
         .returning();
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.noteNotFound") });
       return row;
+    }),
+
+  /**
+   * A post-it to another board, moved or copied: with its note, colour, issue
+   * and private note, on the first free spot there. Already there (the same
+   * issue, the same private note): that one comes to the front, never a double.
+   * A move returns the post-it it took away, for "Undo".
+   */
+  copy: protectedProcedure
+    .input(z.object({ id: z.number().int(), boardId: boardIdInput, move: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await own(ctx.user.id, input.id);
+      const target = await resolveBoard(ctx.user.id, input.boardId);
+      writable(target);
+      if (target.id === row.boardId) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.pinboard.sameBoard") });
+      const z = await nextZ(target.id);
+      return getDb().transaction(async (tx) => {
+        const there = await tx
+          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
+          .from(pinboardNotes)
+          .where(eq(pinboardNotes.boardId, target.id));
+        const twin = there.find((m) =>
+          row.issueNoteId !== null
+            ? m.issueNoteId === row.issueNoteId
+            : row.issueKey !== null && m.issueKey === row.issueKey && m.connectionId === row.connectionId && m.issueNoteId === null,
+        );
+        let id: number;
+        if (twin) {
+          await tx.update(pinboardNotes).set({ z, updatedAt: new Date() }).where(eq(pinboardNotes.id, twin.id));
+          id = twin.id;
+        } else {
+          if (there.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
+          const [made] = await tx
+            .insert(pinboardNotes)
+            .values({
+              userId: ctx.user.id,
+              boardId: target.id,
+              issueKey: row.issueKey,
+              connectionId: row.connectionId,
+              issueNoteId: row.issueNoteId,
+              note: row.note,
+              color: row.color,
+              ...firstFreeSlot(there),
+              rotation: randomTilt(),
+              z,
+            })
+            .returning({ id: pinboardNotes.id });
+          id = made.id;
+        }
+        if (input.move) await tx.delete(pinboardNotes).where(eq(pinboardNotes.id, row.id));
+        return { id, existed: !!twin, boardId: target.id, boardName: boardDisplayName(target.name), removed: input.move ? row : null };
+      });
     }),
 
   /** Unpin. Returns the post-it so "Undo" can put it back as it was. */

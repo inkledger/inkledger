@@ -1,6 +1,16 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import { FilePlus2, Lock, X } from "lucide-react";
+import { Copy, FilePlus2, Lock, MoreHorizontal, MoveRight, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   clampToCanvas,
   NOTE_COLORS,
@@ -63,6 +73,8 @@ export function PostIt({
   onCreateIssue,
   onOpen,
   onDrag,
+  boards = [],
+  onCopy,
   readOnly = false,
 }: {
   n: PostItData;
@@ -78,7 +90,11 @@ export function PostIt({
   onOpen: () => void;
   /** Where it is while being dragged (null when let go): the red strings follow it. */
   onDrag?: (p: { x: number; y: number } | null) => void;
-  /** On a board that follows a tag: shown as the tracker says, nothing moved or written. */
+  /** The other boards it can go to (pinned by hand). */
+  boards?: { id: number; name: string }[];
+  /** To another board: moved, or a copy left here too. */
+  onCopy?: (boardId: number, move: boolean) => void;
+  /** On a board that follows a tag: shown as the tracker says; moved and recoloured, never written on or taken off. */
   readOnly?: boolean;
 }) {
   // A private note hung here: written on, it is the note's text that changes.
@@ -104,6 +120,8 @@ export function PostIt({
   // Element, not HTMLElement: a click usually starts on a button's SVG icon.
   const isControl = (target: EventTarget) =>
     target instanceof Element && !!target.closest("button, a, textarea, input");
+  // Its menu lives in a portal, yet React bubbles its events here: never a drag or a nudge from it.
+  const fromElsewhere = (e: React.SyntheticEvent) => !(e.target instanceof Node && e.currentTarget.contains(e.target));
 
   const saveNote = () => {
     setEditing(false);
@@ -120,7 +138,7 @@ export function PostIt({
       data-dragging={drag ? "" : undefined}
       className={cn(
         "note-shadow absolute left-0 top-0 touch-none select-none rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2",
-        readOnly ? "cursor-default" : drag ? "cursor-grabbing" : !editing && "cursor-grab"
+        drag ? "cursor-grabbing" : !editing && "cursor-grab"
       )}
       style={{
         width: NOTE_SIZE,
@@ -129,7 +147,7 @@ export function PostIt({
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${tilt}deg)`,
       }}
       onPointerDown={e => {
-        if (readOnly || editing || e.button !== 0 || isControl(e.target)) return;
+        if (fromElsewhere(e) || editing || e.button !== 0 || isControl(e.target)) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         start.current = { px: e.clientX, py: e.clientY, x: n.x, y: n.y, moved: false };
       }}
@@ -157,7 +175,7 @@ export function PostIt({
         onDrag?.(null);
       }}
       onDoubleClick={e => {
-        if (readOnly || isControl(e.target)) return;
+        if (fromElsewhere(e) || readOnly || isControl(e.target)) return;
         setText(body);
         setEditing(true);
       }}
@@ -171,14 +189,14 @@ export function PostIt({
           ArrowDown: [0, step],
         };
         const m = moves[e.key];
-        if (readOnly) {
-          if (e.key === "o" && n.issueKey) {
-            e.preventDefault();
-            onOpen();
-          }
-        } else if (m) {
+        if (m) {
           e.preventDefault();
           onNudge(m[0], m[1]);
+        } else if (e.key === "o" && n.issueKey) {
+          e.preventDefault();
+          onOpen();
+        } else if (readOnly) {
+          // Nothing written on it, nothing taken off: the tracker's.
         } else if (e.key === "Enter") {
           e.preventDefault();
           setText(body);
@@ -186,9 +204,6 @@ export function PostIt({
         } else if (e.key === "Delete" || e.key === "Backspace") {
           e.preventDefault();
           onRemove();
-        } else if (e.key === "o" && n.issueKey) {
-          e.preventDefault();
-          onOpen();
         }
       }}
     >
@@ -270,7 +285,7 @@ export function PostIt({
           {isNote && n.noteCreatedAt && (
             <span className="truncate text-2xs opacity-70">{formatDate(new Date(n.noteCreatedAt), "short")}</span>
           )}
-          {!isNote && !readOnly && TAPE_ORDER.map((c, i) => (
+          {!isNote && TAPE_ORDER.map((c, i) => (
             <button
               key={c}
               type="button"
@@ -288,9 +303,8 @@ export function PostIt({
           {!isNote && n.status && (
             <span className="ml-1.5 truncate text-2xs font-normal opacity-70">{n.status}</span>
           )}
-          {!readOnly && (
           <span className="ml-auto flex items-center">
-            {!n.issueKey && (
+            {!readOnly && !n.issueKey && (
               <button
                 type="button"
                 aria-label={t("views.board.postit.createIssueLabel")}
@@ -301,19 +315,72 @@ export function PostIt({
                 <FilePlus2 className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              type="button"
-              aria-label={t(isNote ? "views.board.postit.unhangLabel" : "views.board.postit.unpinLabel")}
-              title={t("views.board.postit.unpin")}
-              onClick={onRemove}
-              className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            {/* Move, copy, unpin: one small menu (read-only, a copy onto a board pinned by hand only). */}
+            {(!readOnly || (n.issueKey && boards.length > 0)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("views.board.postit.actions", { name: n.issueKey ?? t("views.board.postit.free") })}
+                    title={t("views.board.postit.actionsTitle")}
+                    className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=open]:opacity-100"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onCloseAutoFocus={e => e.preventDefault()}>
+                  {!readOnly && (
+                    <BoardsSub label={t("views.board.postit.moveTo")} icon={<MoveRight className="h-4 w-4" aria-hidden />} boards={boards} onPick={id => onCopy?.(id, true)} />
+                  )}
+                  <BoardsSub
+                    label={t(readOnly ? "views.board.postit.copyFollowed" : "views.board.postit.copyTo")}
+                    icon={<Copy className="h-4 w-4" aria-hidden />}
+                    boards={boards}
+                    onPick={id => onCopy?.(id, false)}
+                  />
+                  {!readOnly && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={onRemove} aria-label={t(isNote ? "views.board.postit.unhangLabel" : "views.board.postit.unpinLabel")}>
+                        <X className="h-4 w-4" aria-hidden />
+                        {t("views.board.postit.unpin")}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </span>
-          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** The other boards, as a submenu (disabled, with a hint, when there are none). */
+function BoardsSub({ label, icon, boards, onPick }: { label: string; icon: React.ReactNode; boards: { id: number; name: string }[]; onPick: (id: number) => void }) {
+  if (boards.length === 0) {
+    return (
+      <DropdownMenuItem disabled>
+        {icon}
+        {label}
+        <span className="ml-auto pl-2 text-caption text-muted-foreground">{t("views.board.postit.noOtherBoard")}</span>
+      </DropdownMenuItem>
+    );
+  }
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        {icon}
+        {label}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        {boards.map(b => (
+          <DropdownMenuItem key={b.id} onSelect={() => onPick(b.id)}>
+            <span className="truncate">{b.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

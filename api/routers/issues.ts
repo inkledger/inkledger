@@ -1050,7 +1050,7 @@ export const issuesRouter = createRouter({
       return {
         issues: rows.map((r) => ({
           ...r,
-          labels: safeParseLabels(r.labels),
+          labels: safeParseStrings(r.labels),
           isMine: r.assigneeId !== null && myIds.includes(r.assigneeId),
           unread: r.othersActivityAt !== null && r.othersActivityAt > (r.seenAt ?? 0),
         })),
@@ -1156,7 +1156,7 @@ export const issuesRouter = createRouter({
             raw: null,
             ...fieldsOf(hit.issue),
           };
-          return { ...row, labels: safeParseLabels(row.labels), remote: true as boolean };
+          return { ...row, labels: safeParseStrings(row.labels), components: safeParseStrings(row.components), remote: true as boolean };
         }
         const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
         const remote = await fetchIssueByKey(creds, input.key);
@@ -1179,7 +1179,7 @@ export const issuesRouter = createRouter({
           raw: null,
           ...toRow(user.id, user.siteUrl, user.connectionId, remote),
         };
-        return { ...row, labels: safeParseLabels(row.labels), remote: true as boolean };
+        return { ...row, labels: safeParseStrings(row.labels), components: safeParseStrings(row.components), remote: true as boolean };
       }
       // Rows synced before the people columns existed: fill them once (GET only).
       if (rows[0].reporterName === null) {
@@ -1195,11 +1195,11 @@ export const issuesRouter = createRouter({
           console.warn(`[issues.get] people of ${input.key} not refreshed: ${String(e)}`);
         }
       }
-      return { ...rows[0], labels: safeParseLabels(rows[0].labels), remote: false as boolean };
+      return { ...rows[0], labels: safeParseStrings(rows[0].labels), components: safeParseStrings(rows[0].components), remote: false as boolean };
     }),
 });
 
-function safeParseLabels(raw: string): string[] {
+function safeParseStrings(raw: string): string[] {
   try {
     const v: unknown = JSON.parse(raw);
     return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
