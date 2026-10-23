@@ -77,3 +77,20 @@ Done. Not pushed.
 | `pnpm lint && pnpm check && pnpm test && pnpm test:smoke` | all | green (2163 tests) |
 | `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | all | 160/161, then the one flaky phone test fixed (waits for settings) and green 3/3 |
 | Screenshots via the e2e harness | sidebar open/closed, Dashboard with timer, issue page, settings | checked |
+
+# Follow-up (2026-10-23): move the timer, settings frame
+
+Done. Not pushed.
+- `timers.move`: the count moves to another issue (running or paused); onto a paused timer
+  the two add up, notes joined; the linked TODO follows. From timer controls, sidebar, focus
+  mode, palette. Render budgets: issue page 6680, Dashboard 10890, Timesheet 9910.
+- Settings: one page key for `/settings/*`; optimistic switches (`useSettingsSave`); saving
+  mark in the header actions. Language still redraws the whole app on purpose (the texts are
+  read at render, nothing else tells components the language changed).
+- Not changed: bucket/client/connection saves keep refreshing every list (they change what
+  every list shows).
+
+| Command | Scope | Result |
+| ------- | ----- | ------ |
+| lint, check, test (2167), smoke | all | green |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | all | 163/163 |
