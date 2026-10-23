@@ -86,12 +86,14 @@ describe("data migrations", () => {
     const [u] = await conn.q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('c', 'C', 1) RETURNING id");
     await conn.q("INSERT INTO sync_state (user_id, last_sync_at, last_full_sync_at) VALUES (?, 5, 7)", u.id);
     const { DATA_MIGRATIONS } = await import("./dataMigrations");
-    const step = DATA_MIGRATIONS.find((s) => s.id === "issue-components-full-sync")!;
-    await step.run(db);
     const { needsFullSync } = await import("../syncScheduler");
-    expect(await needsFullSync(u.id)).toBe(true);
-    const [row] = await conn.q<{ last_sync_at: number | null }>("SELECT last_sync_at FROM sync_state WHERE user_id = ?", u.id);
-    expect(Number(row.last_sync_at)).toBe(5);
+    for (const id of ["issue-components-full-sync", "issue-components-resync"]) {
+      await conn.q("UPDATE sync_state SET last_full_sync_at = 7 WHERE user_id = ?", u.id);
+      await DATA_MIGRATIONS.find((s) => s.id === id)!.run(db);
+      expect(await needsFullSync(u.id)).toBe(true);
+      const [row] = await conn.q<{ last_sync_at: number | null }>("SELECT last_sync_at FROM sync_state WHERE user_id = ?", u.id);
+      expect(Number(row.last_sync_at)).toBe(5);
+    }
   });
 
   it("a failing step stops the run and runs again next time", async () => {

@@ -76,6 +76,7 @@ const ROW_CHANGED = sql`${issues.remoteUpdated} IS DISTINCT FROM excluded.jira_u
   OR ${issues.remoteUpdatedAt} IS NULL
   OR ${issues.reporterName} IS NULL
   OR ${issues.category} IS DISTINCT FROM excluded.category
+  OR ${issues.components} IS DISTINCT FROM excluded.components
   OR (excluded.priority_rank IS NOT NULL AND ${issues.priorityRank} IS DISTINCT FROM excluded.priority_rank)`;
 
 const ACTIVITY_EXPR = `NULLIF(greatest(

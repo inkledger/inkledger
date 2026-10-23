@@ -30,6 +30,14 @@ export const DATA_MIGRATIONS: DataMigration[] = [
       await db.execute(sql`UPDATE sync_state SET last_full_sync_at = NULL`);
     },
   },
+  {
+    // The full sync above left untouched issues without components (a row was rewritten
+    // only when Jira changed it); now a different list rewrites it, so once more.
+    id: "issue-components-resync",
+    run: async (db) => {
+      await db.execute(sql`UPDATE sync_state SET last_full_sync_at = NULL`);
+    },
+  },
 ];
 
 const DONE_KEY = "data-migrations.done";

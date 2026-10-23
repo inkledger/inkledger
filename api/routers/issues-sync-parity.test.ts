@@ -25,6 +25,7 @@ const jiraIssue = (key: string, assignee = "acc-1", status = "To Do") => ({
     priority: { name: "Media" },
     assignee: { accountId: assignee },
     duedate: null,
+    components: [] as { name: string }[],
     created: "2026-01-01T10:00:00.000+0100",
     updated: new Date(Date.UTC(2026, 9, 1) + ++tick * 1000).toISOString().replace("Z", "+0000"),
   },
@@ -153,6 +154,19 @@ describe("a Jira sync's issues", () => {
     await caller.issues.sync();
     // (The one-by-one code bumped it here, its status unchanged, only because the other came first.)
     expect(await raw("SELECT jira_id, key, others_activity_at FROM issues WHERE jira_id = 'PE-1'")).toEqual([{ jira_id: "PE-1", key: "NEWE-1", others_activity_at: null }]);
+  });
+
+  it("components added in Jira without a newer updated: stored at the next sync", async () => {
+    await fresh();
+    vi.setSystemTime(T0);
+    const before = jiraIssue("PK-1");
+    assigned = [before];
+    await caller.issues.sync();
+    // Same issue, same updated (as a full sync reads an untouched one), now with its components.
+    assigned = [{ ...before, fields: { ...before.fields, components: [{ name: "Giovedì jira" }] } }];
+    vi.setSystemTime(T0 + 3_600_000);
+    await caller.issues.sync();
+    expect(await raw("SELECT components FROM issues WHERE key = 'PK-1'")).toEqual([{ components: '["Giovedì jira"]' }]);
   });
 
   it("1200 issues, past one statement's batch: all stored, in a fixed number of queries", async () => {
