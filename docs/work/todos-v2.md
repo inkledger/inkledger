@@ -1,6 +1,6 @@
 # Status: Dashboard slim, pinboard "Belongs to", TODO v2
 
-In progress (2026-10-23). Follows `docs/work/todos.md` (closed).
+Done (2026-10-23). Not pushed. Follows `docs/work/todos.md` (closed).
 
 ## Goal and completion criteria
 - Dashboard has no TODO or "For you" cards; badges carry the counts.
@@ -32,15 +32,24 @@ In progress (2026-10-23). Follows `docs/work/todos.md` (closed).
 - [x] C TODO data model (d771c82)
 - [x] D Capture without syntax (93f9c56)
 - [x] E Timer double track (001c69c)
-- [ ] F Period trend parallel series
-- [ ] G Plan the day + suggestions
-- [ ] H Live TODO post-it
+- [x] F Period trend parallel series (8b2d8dd, b04fb80)
+- [x] G Plan the day + suggestions (6c35e5f)
+- [x] H Live TODO post-it (5d2086f)
 
 ## Verification
 | Command | Scope | Result |
 | ------- | ----- | ------ |
 | `pnpm lint && pnpm check && pnpm test && pnpm build && pnpm test:smoke` | A–E, each batch | green (2159 tests after E) |
 | `PROVIDERS_READ_ONLY=1 node --test e2e/{todos,board,renders,timer*,idle*}` | A–E | green; render budgets unchanged |
+| `pnpm lint && pnpm check && pnpm test && pnpm test:smoke` | F–H | green (2163 tests) |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | everything, after H | 158/158 green |
+| Screenshots through the e2e harness (read-only, seeded) | Dashboard week/day, TODO page desktop/mobile, pinboard | checked; day axis fixed after it |
+
+## Limits
+- Suggestions per device: "Not now" is kept on this device only, until the next day.
+- Jira mentions are not suggested (comments are not in the catalogue); other trackers' inbox ones are.
+- A TODO started from its row starts now (no "from the gap" question).
+- Dev :3000 not restarted here: migration 0009 applies on its next start (dev db only).
 
 ## Blocks and next action
-- Next: batch F.
+- None. Next: the user's visual OK on dev, then push when told.
