@@ -217,7 +217,8 @@ export const views: Shape<typeof en> = {
     link: "Lega a una issue…",
     relink: "Lega a un'altra issue…",
     unlink: "Sciogli dalla issue",
-    pin: "Appendi alla lavagna",
+    pinTodo: "Appendi questo TODO alla lavagna",
+    pinIssue: "Appendi la sua issue alla lavagna",
     delete: "Elimina",
     fromComment: "commento",
     fromNote: "nota privata",
@@ -243,6 +244,9 @@ export const views: Shape<typeof en> = {
   board: {
     postit: {
       privateNote: "Nota privata",
+      todo: "TODO",
+      todoLabel: "TODO",
+      steps: "{done}/{total} passi",
       noteOn: "Nota privata su {key}",
       unhangLabel: "Stacca la nota dalla bacheca",
       label: "Post-it {name}",

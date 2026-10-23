@@ -451,3 +451,37 @@ test("plan today: once a day on top of Today, late ones moved in one go, an assi
       assert.equal(await suggested.getByRole("listitem", { name: /^DEMO-102/ }).count(), 0, "put off until tomorrow");
     },
   ));
+
+test("a TODO on the pinboard: pinned from its row, ticked on the post-it, done in the list", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'Water the plants', ?, 0, ?, ?)", inDays(0), now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/todos");
+      const row = page.getByRole("listitem", { name: "Water the plants" });
+      await row.getByRole("button", { name: "Actions for “Water the plants”" }).click();
+      await page.getByRole("menuitem", { name: "Pin this TODO to the pinboard" }).click();
+      const until = async (sql, ok) => {
+        for (let i = 0; i < 30; i++) {
+          const [r] = await db.q(sql);
+          if (ok(r)) return;
+          await page.waitForTimeout(100);
+        }
+        assert.fail(`never: ${sql}`);
+      };
+      await until("SELECT count(*)::int AS n FROM pinboard_notes WHERE todo_id IS NOT NULL", r => r.n === 1);
+      await page.goto(base + "/pinboard");
+      const note = page.getByRole("group", { name: "TODO: Water the plants" });
+      await note.waitFor();
+      await note.getByRole("checkbox", { name: "Done: Water the plants" }).click();
+      await note.getByRole("checkbox", { name: "Not done: Water the plants" }).waitFor();
+      await until("SELECT done_at FROM todos", r => r.done_at !== null);
+      await page.goto(base + "/todos");
+      await page.getByRole("radio", { name: /^Done/ }).click();
+      await page.getByRole("listitem", { name: "Water the plants" }).waitFor();
+    },
+  ));

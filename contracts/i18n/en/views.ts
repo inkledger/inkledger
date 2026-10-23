@@ -212,7 +212,8 @@ export const views = {
     link: "Tie to an issue…",
     relink: "Tie to another issue…",
     unlink: "Untie from the issue",
-    pin: "Pin to the pinboard",
+    pinTodo: "Pin this TODO to the pinboard",
+    pinIssue: "Pin its issue to the pinboard",
     delete: "Delete",
     fromComment: "comment",
     fromNote: "private note",
@@ -238,6 +239,9 @@ export const views = {
   board: {
     postit: {
       privateNote: "Private note",
+      todo: "TODO",
+      todoLabel: "TODO",
+      steps: "{done}/{total} steps",
       noteOn: "Private note on {key}",
       unhangLabel: "Take the note off the board",
       label: "Note {name}",

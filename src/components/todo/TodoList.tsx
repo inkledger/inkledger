@@ -22,7 +22,7 @@ import { useTodoWork, useTodoWorking } from "@/hooks/useTodoWork";
 import { Button } from "@/components/ui/button";
 import { PlanToday } from "@/components/todo/PlanToday";
 import { replanToday, usePlannedToday } from "@/lib/todoPlan";
-import { usePinIssue } from "@/hooks/usePinIssue";
+import { usePinIssue, usePinTodo } from "@/hooks/usePinIssue";
 import { toastError } from "@/lib/errorText";
 import { issuePath } from "@/lib/issues";
 import { dayLabel } from "@/lib/todoDay";
@@ -56,7 +56,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const forIssue = trpc.todos.forIssue.useQuery(scope ?? { issueKey: "", connectionId: 0 }, { enabled: !!scope });
   const items = useMemo(() => (scope ? forIssue.data : listed.data) ?? [], [scope, forIssue.data, listed.data]);
   const list = useRef<HTMLUListElement>(null);
-  const refresh = () => utils.todos.invalidate();
+  // A TODO hung on a pinboard shows as it is: its post-its follow.
+  const refresh = () => Promise.all([utils.todos.invalidate(), utils.pinboard.list.invalidate()]);
   const working = useTodoWorking().data ?? null;
   const planned = usePlannedToday(todayKey);
   const work = useTodoWork();
@@ -370,6 +371,7 @@ function TodoRow({
   const linking = useRef(false);
   const [draft, setDraft] = useState(x.text);
   const pin = usePinIssue();
+  const pinTodo = usePinTodo();
   const todayKey = dayKey(today);
   const done = x.doneAt !== null;
   const late = !done && !!x.dueOn && x.dueOn < todayKey;
@@ -555,6 +557,10 @@ function TodoRow({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+            <DropdownMenuItem onSelect={() => void pinTodo(x)}>
+              <Pin className="h-4 w-4 -rotate-12" aria-hidden />
+              {t("views.todos.pinTodo")}
+            </DropdownMenuItem>
             {steps.length === 0 && (
               <DropdownMenuItem onSelect={() => setStepsOpen(true)}>
                 <ListChecks className="h-4 w-4" aria-hidden />
@@ -570,7 +576,7 @@ function TodoRow({
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void pin(x.issueKey as string, x.connectionId ?? undefined)}>
                   <Pin className="h-4 w-4 -rotate-12" aria-hidden />
-                  {t("views.todos.pin")}
+                  {t("views.todos.pinIssue")}
                 </DropdownMenuItem>
               </>
             )}

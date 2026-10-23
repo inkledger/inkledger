@@ -1,6 +1,10 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import { Copy, FilePlus2, Lock, MoreHorizontal, MoveRight, X } from "lucide-react";
+import { Copy, FilePlus2, Flag, Lock, MoreHorizontal, MoveRight, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToday } from "@/hooks/useToday";
+import { dayLabel } from "@/lib/todoDay";
+import { parseSteps } from "@contracts/todo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +21,7 @@ import {
   NOTE_SIZE,
   type NoteColor,
 } from "@contracts/pinboard";
-import { formatDate } from "@contracts/time";
+import { dayKey, formatDate } from "@contracts/time";
 import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { cn } from "@/lib/utils";
@@ -42,6 +46,8 @@ export type PostItData = {
   issueNoteId?: number | null;
   noteBody?: string | null;
   noteCreatedAt?: Date | null;
+  /** A TODO hung on the board, as it is now: its text is the TODO's, ticked here is ticked there. */
+  todo?: { id: number; text: string; dueOn: string | null; done: boolean; priority: number; steps: string; issueKey: string | null; connectionId: number | null } | null;
 };
 
 /** Stored colour names → washi tape tones (--tape-1…5): the colour is on the tape. */
@@ -76,6 +82,7 @@ export function PostIt({
   boards = [],
   onCopy,
   readOnly = false,
+  onTodoTick,
 }: {
   n: PostItData;
   zoom: number;
@@ -96,10 +103,15 @@ export function PostIt({
   onCopy?: (boardId: number, move: boolean) => void;
   /** On a board that follows a tag: shown as the tracker says; moved and recoloured, never written on or taken off. */
   readOnly?: boolean;
+  /** A TODO's post-it: ticked or unticked here. */
+  onTodoTick?: (done: boolean) => void;
 }) {
   // A private note hung here: written on, it is the note's text that changes.
   const isNote = !!n.issueNoteId;
-  const body = isNote ? (n.noteBody ?? "") : n.note;
+  // A TODO hung here: the same, with the TODO's text.
+  const todo = n.todo ?? null;
+  const today = useToday();
+  const body = todo ? todo.text : isNote ? (n.noteBody ?? "") : n.note;
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   // Where it was dropped, kept until the cache says so: no frame back at the
   // old place between the release and the optimistic update.
@@ -125,14 +137,14 @@ export function PostIt({
 
   const saveNote = () => {
     setEditing(false);
-    if (text !== body && (!isNote || text.trim())) onNote(text.trim());
+    if (text !== body && (!(isNote || todo) || text.trim())) onNote(text.trim());
   };
 
   return (
     <div
       role="group"
       tabIndex={0}
-      aria-label={`${isNote && n.issueKey ? t("views.board.postit.noteOn", { key: n.issueKey }) : t("views.board.postit.label", { name: n.issueKey ?? t("views.board.postit.free") })}${body ? `: ${body}` : ""}`}
+      aria-label={`${todo ? t("views.board.postit.todoLabel") : isNote && n.issueKey ? t("views.board.postit.noteOn", { key: n.issueKey }) : t("views.board.postit.label", { name: n.issueKey ?? t("views.board.postit.free") })}${body ? `: ${body}` : ""}`}
       data-postit
       {...surface("note")}
       data-dragging={drag ? "" : undefined}
@@ -210,7 +222,20 @@ export function PostIt({
       {isNote ? <span className="note-pin" aria-hidden /> : <span {...surface("glass")} className="note-tape" data-tone={TONE[color]} aria-hidden />}
       <div className="note-paper grain flex h-full flex-col overflow-hidden rounded-sm">
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 pb-2 pt-4">
-          {isNote && n.issueKey ? (
+          {todo ? (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="text-overline uppercase opacity-70">{t("views.board.postit.todo")}</span>
+              {todo.priority === 1 && <Flag className="h-3 w-3 shrink-0 text-primary-strong" aria-label={t("views.todos.priority")} />}
+              {todo.issueKey && (
+                <Link
+                  to={issuePath({ key: todo.issueKey, connectionId: todo.connectionId })}
+                  className="ml-auto truncate text-overline uppercase underline-offset-2 hover:underline"
+                >
+                  {todo.issueKey}
+                </Link>
+              )}
+            </div>
+          ) : isNote && n.issueKey ? (
             <div className="flex min-w-0 items-center gap-1.5 pt-1">
               <Link
                 to={issuePath({ key: n.issueKey, connectionId: n.connectionId })}
@@ -254,6 +279,23 @@ export function PostIt({
               placeholder={t("views.board.postit.notePlaceholder")}
               className="min-h-0 flex-1 resize-none rounded-sm bg-card/50 p-1 text-body-sm leading-snug text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             />
+          ) : todo ? (
+            <div className="flex min-h-0 items-start gap-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={todo.done}
+                disabled={readOnly || !onTodoTick}
+                aria-label={t(todo.done ? "views.todos.untick" : "views.todos.tick", { text: todo.text })}
+                onCheckedChange={v => onTodoTick?.(v === true)}
+              />
+              <div className="grid min-w-0 gap-1">
+                <p className={cn("line-clamp-4 whitespace-pre-line break-words font-display text-body font-semibold leading-snug", todo.done && "line-through opacity-60")}>{todo.text}</p>
+                <p className="flex flex-wrap gap-x-2 text-2xs opacity-70">
+                  {todo.dueOn && <span className={cn(!todo.done && todo.dueOn < dayKey(today) && "text-danger")}>{dayLabel(todo.dueOn, today)}</span>}
+                  {steps(todo.steps)}
+                </p>
+              </div>
+            </div>
           ) : isNote ? (
             <p className="line-clamp-6 whitespace-pre-line break-words text-body-sm leading-snug">{body}</p>
           ) : n.issueKey ? (
@@ -305,7 +347,7 @@ export function PostIt({
             <span className="ml-1.5 truncate text-2xs font-normal opacity-70">{n.status}</span>
           )}
           <span className="ml-auto flex items-center">
-            {!readOnly && !n.issueKey && (
+            {!readOnly && !n.issueKey && !todo && (
               <button
                 type="button"
                 aria-label={t("views.board.postit.createIssueLabel")}
@@ -356,6 +398,12 @@ export function PostIt({
       </div>
     </div>
   );
+}
+
+/** A TODO's steps as "2/5", none when it has none. */
+function steps(raw: string) {
+  const all = parseSteps(raw);
+  return all.length > 0 ? <span className="tabular">{t("views.board.postit.steps", { done: all.filter(s => s.done).length, total: all.length })}</span> : null;
 }
 
 /** The other boards, as a submenu (disabled, with a hint, when there are none). */

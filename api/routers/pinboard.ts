@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { buckets, connections, issueNotes, issues, pinboardNotes, pinboards, type Pinboard, type PinboardNote } from "@db/schema";
+import { buckets, connections, issueNotes, issues, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { openIssuesTagged, type FollowTag } from "../queries/myIssues";
@@ -135,8 +135,18 @@ async function pinTarget(userId: number, deviceId: string | undefined, boardId?:
   return free;
 }
 
+/** A TODO hung on a board, as it is now (its text, day, done, its issue). */
+type PinnedTodo = { id: number; text: string; dueOn: string | null; done: boolean; priority: number; steps: string; issueKey: string | null; connectionId: number | null };
+
 /** A post-it as a board lists it: the stored one, with its issue as the catalogue knows it. */
-type BoardNote = PinboardNote & { summary: string | null; status: string | null; statusCategory: string | null; noteBody: string | null; noteCreatedAt: Date | null };
+type BoardNote = PinboardNote & {
+  summary: string | null;
+  status: string | null;
+  statusCategory: string | null;
+  noteBody: string | null;
+  noteCreatedAt: Date | null;
+  todo: PinnedTodo | null;
+};
 
 /**
  * The post-its a followed board shows: the open issues with its tag, laid out
@@ -189,6 +199,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       statusCategory: r.statusCategory,
       noteBody: null,
       noteCreatedAt: null,
+      todo: null,
     };
   });
 }
@@ -410,10 +421,12 @@ export const pinboardRouter = createRouter({
           statusCategory: issues.statusCategory,
           noteBody: issueNotes.body,
           noteCreatedAt: issueNotes.createdAt,
+          todo: todos,
         })
         .from(pinboardNotes)
         .leftJoin(issues, pinnedIssue)
         .leftJoin(issueNotes, eq(issueNotes.id, pinboardNotes.issueNoteId))
+        .leftJoin(todos, eq(todos.id, pinboardNotes.todoId))
         .where(and(eq(pinboardNotes.userId, ctx.user.id), eq(pinboardNotes.boardId, board.id), scope))
         .orderBy(asc(pinboardNotes.z), asc(pinboardNotes.id));
       return rows.map((r): BoardNote => ({
@@ -424,6 +437,19 @@ export const pinboardRouter = createRouter({
         // A private note hung here: its text and date (the post-it's own note stays empty).
         noteBody: r.noteBody ?? null,
         noteCreatedAt: r.noteCreatedAt ?? null,
+        // A TODO hung here: as it is now (ticked, planned or rewritten from its list too).
+        todo: r.todo
+          ? {
+              id: r.todo.id,
+              text: r.todo.text,
+              dueOn: r.todo.dueOn,
+              done: r.todo.doneAt !== null,
+              priority: r.todo.priority,
+              steps: r.todo.steps,
+              issueKey: r.todo.issueKey,
+              connectionId: r.todo.connectionId,
+            }
+          : null,
       }));
     }),
 
@@ -544,6 +570,32 @@ export const pinboardRouter = createRouter({
     }),
 
   /**
+   * Hang a TODO on a board (once per board: again, it comes to the front). Its
+   * post-it shows the TODO as it is, and ticking or rewriting it there is done
+   * on the TODO. Its issue is read through it: the post-it has none of its own.
+   */
+  pinTodo: protectedProcedure
+    .input(z.object({ todoId: z.number().int().positive(), boardId: boardIdInput.optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const [todo] = await db.select().from(todos).where(and(eq(todos.id, input.todoId), eq(todos.userId, ctx.user.id)));
+      if (!todo) throw new TRPCError({ code: "NOT_FOUND", message: t("server.todos.notFound") });
+      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
+      const mine = await db.select({ id: pinboardNotes.id, todoId: pinboardNotes.todoId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
+      const already = mine.find((m) => m.todoId === todo.id);
+      if (already) {
+        await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
+        return { id: already.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
+      }
+      if (mine.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
+      const [row] = await db
+        .insert(pinboardNotes)
+        .values({ userId: ctx.user.id, boardId: board.id, todoId: todo.id, note: "", color: "green", ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
+        .returning({ id: pinboardNotes.id });
+      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+    }),
+
+  /**
    * The tags a board can follow: the labels and components of the user's open
    * issues, each with how many carry it, most used first.
    */
@@ -603,13 +655,20 @@ export const pinboardRouter = createRouter({
         input.x !== undefined || input.y !== undefined
           ? clampToCanvas(input.x ?? row.x, input.y ?? row.y)
           : {};
+      // A TODO's text lives on the TODO: written here, it changes in its list too.
+      if (row.todoId !== null && input.note?.trim()) {
+        await getDb()
+          .update(todos)
+          .set({ text: input.note.trim().slice(0, 500), updatedAt: new Date() })
+          .where(and(eq(todos.id, row.todoId), eq(todos.userId, ctx.user.id)));
+      }
       // A private note's text lives on the note: written here, it changes there too.
-      const toNote = row.issueNoteId !== null && input.note !== undefined;
-      if (toNote && input.note?.trim()) {
+      const toNote = (row.issueNoteId !== null || row.todoId !== null) && input.note !== undefined;
+      if (toNote && row.issueNoteId !== null && input.note?.trim()) {
         await getDb()
           .update(issueNotes)
           .set({ body: input.note.trim(), updatedAt: new Date() })
-          .where(and(eq(issueNotes.id, row.issueNoteId as number), eq(issueNotes.userId, ctx.user.id)));
+          .where(and(eq(issueNotes.id, row.issueNoteId), eq(issueNotes.userId, ctx.user.id)));
       }
       await getDb()
         .update(pinboardNotes)
@@ -702,13 +761,15 @@ export const pinboardRouter = createRouter({
       const z = await nextZ(target.id);
       return getDb().transaction(async (tx) => {
         const there = await tx
-          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
+          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, todoId: pinboardNotes.todoId, x: pinboardNotes.x, y: pinboardNotes.y })
           .from(pinboardNotes)
           .where(eq(pinboardNotes.boardId, target.id));
         const twin = there.find((m) =>
-          row.issueNoteId !== null
-            ? m.issueNoteId === row.issueNoteId
-            : row.issueKey !== null && m.issueKey === row.issueKey && m.connectionId === row.connectionId && m.issueNoteId === null,
+          row.todoId !== null
+            ? m.todoId === row.todoId
+            : row.issueNoteId !== null
+              ? m.issueNoteId === row.issueNoteId
+              : row.issueKey !== null && m.issueKey === row.issueKey && m.connectionId === row.connectionId && m.issueNoteId === null,
         );
         let id: number;
         if (twin) {
@@ -724,6 +785,7 @@ export const pinboardRouter = createRouter({
               issueKey: row.issueKey,
               connectionId: row.connectionId,
               issueNoteId: row.issueNoteId,
+              todoId: row.todoId,
               note: row.note,
               color: row.color,
               ...firstFreeSlot(there),
@@ -754,6 +816,8 @@ export const pinboardRouter = createRouter({
         connectionId: z.number().int().positive().optional(),
         /** A private note's post-it: hung again (the note must still exist). */
         issueNoteId: z.number().int().positive().nullable().optional(),
+        /** A TODO's post-it: hung again while the TODO is there (else a free note with its words). */
+        todoId: z.number().int().positive().nullable().optional(),
         note,
         color,
         x: coord,
@@ -766,6 +830,9 @@ export const pinboardRouter = createRouter({
       const board = await resolveBoard(ctx.user.id, input.boardId);
       writable(board);
       if (input.issueNoteId) await ownIssueNote(ctx.user.id, input.issueNoteId);
+      const [todo] = input.todoId
+        ? await getDb().select().from(todos).where(and(eq(todos.id, input.todoId), eq(todos.userId, ctx.user.id)))
+        : [];
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : null;
       const [c] = await getDb()
         .select({ n: sql<number>`count(*)` })
@@ -782,6 +849,7 @@ export const pinboardRouter = createRouter({
           issueKey: input.issueKey,
           connectionId,
           issueNoteId: input.issueNoteId ?? null,
+          todoId: todo?.id ?? null,
           note: input.note,
           color: input.color,
           ...clampToCanvas(input.x, input.y),
@@ -796,6 +864,8 @@ export const pinboardRouter = createRouter({
     .input(z.object({ id: z.number().int(), issueKey: issueKeyInput, connectionId: z.number().int().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       const row = await own(ctx.user.id, input.id);
+      // A TODO's post-it follows its TODO's issue: tie the TODO instead.
+      if (row.todoId !== null) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.pinboard.todoLink") });
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       await getDb()
         .update(pinboardNotes)

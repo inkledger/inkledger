@@ -53,6 +53,34 @@ export function usePinIssue() {
   };
 }
 
+/** "Pin to the board" for a TODO: its post-it, live (ticked there, ticked here). */
+export function usePinTodo() {
+  const utils = trpc.useUtils();
+  const refresh = usePinRefresh();
+  return async (todo: { id: number; text: string }) => {
+    try {
+      const r = await utils.client.pinboard.pinTodo.mutate({ todoId: todo.id, boardId: pinboardBoard.get() ?? undefined });
+      refresh();
+      toast.success(
+        t(r.existed ? "ui.pin.existing" : "ui.pin.added", { key: todo.text, board: r.boardName }),
+        canShowPinboard()
+          ? {
+              action: {
+                label: t("ui.pin.open"),
+                onClick: () => {
+                  pinboardBoard.set(r.boardId);
+                  showPinboard();
+                },
+              },
+            }
+          : undefined
+      );
+    } catch (e) {
+      toastError(e);
+    }
+  };
+}
+
 /** Unpin an issue from one board; "Undo" puts it back where it was. */
 export function useUnpinIssue() {
   const utils = trpc.useUtils();

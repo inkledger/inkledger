@@ -1,5 +1,6 @@
 import { toastError, errorText } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { dayKey } from "@contracts/time";
 import { useNavigate } from "react-router";
 import {
   ArrowDown,
@@ -213,6 +214,14 @@ export function Pinboard({
     chains.current.set(id, next.catch(() => undefined));
     return next;
   };
+  /** A TODO's post-it ticked: ticked in its list too (a repeating one comes back from today). */
+  const tickTodo = (n: Note, done: boolean) => {
+    const todo = n.todo;
+    if (!todo) return;
+    patch(n.id, { todo: { ...todo, done } }, () =>
+      utils.client.todos.update.mutate({ id: todo.id, done, today: dayKey(new Date()) }).then(() => utils.todos.invalidate())
+    );
+  };
   const nudge = (id: number, dx: number, dy: number) => {
     const n = utils.pinboard.list.getData(listInput)?.find(x => x.id === id);
     if (!n) return;
@@ -257,6 +266,7 @@ export function Pinboard({
                 issueKey: removed.issueKey,
                 connectionId: removed.connectionId ?? undefined,
                 issueNoteId: removed.issueNoteId,
+                todoId: removed.todoId,
                 note: removed.note,
                 color: removed.color as NoteColor,
                 x: removed.x,
@@ -304,6 +314,7 @@ export function Pinboard({
                         issueKey: removed.issueKey,
                         connectionId: removed.connectionId ?? undefined,
                         issueNoteId: removed.issueNoteId,
+                        todoId: removed.todoId,
                         note: removed.note,
                         color: removed.color as NoteColor,
                         x: removed.x,
@@ -695,7 +706,12 @@ export function Pinboard({
                       )
                     }
                     onNote={note =>
-                      n.issueNoteId
+                      n.todo
+                        ? // A TODO: the text is the TODO's (its list shows it too).
+                          patch(n.id, { todo: { ...n.todo, text: note } }, () =>
+                            utils.client.pinboard.update.mutate({ id: n.id, note }).then(() => utils.todos.invalidate())
+                          )
+                        : n.issueNoteId
                         ? // A private note: the text is the note's (the issue page shows it too).
                           patch(n.id, { noteBody: note }, () =>
                             utils.client.pinboard.update
@@ -713,6 +729,7 @@ export function Pinboard({
                       )
                     }
                     onRemove={() => void remove(n)}
+                    onTodoTick={n.todo ? done => tickTodo(n, done) : undefined}
                     boards={elsewhere}
                     onCopy={(to, move) => void copy(n, to, move)}
                     onCreateIssue={() => createIssue(n)}

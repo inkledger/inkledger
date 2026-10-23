@@ -146,3 +146,48 @@ describe("pinboard", () => {
     await expect(other.pinboard.renameBoard({ id: mine.id, name: "mia" })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+describe("a TODO on the pinboard", () => {
+  let me: Awaited<ReturnType<typeof callerFor>>;
+  let other: Awaited<ReturnType<typeof callerFor>>;
+
+  beforeAll(async () => {
+    const conn = await import("../queries/connection");
+    await conn.resetDbForTests();
+    me = await callerFor("https://acme.atlassian.net");
+    other = await callerFor("https://other.atlassian.net");
+  });
+
+  it("hangs once per board and shows the TODO as it is; written or ticked there, it is the TODO", async () => {
+    const todo = await me.todos.add({ text: "call Anna", dueOn: "2026-10-24", priority: 1 });
+    const a = await me.pinboard.pinTodo({ todoId: todo.id });
+    const again = await me.pinboard.pinTodo({ todoId: todo.id });
+    expect(again).toMatchObject({ id: a.id, existed: true });
+    const [n] = (await me.pinboard.list()).filter((x) => x.todoId === todo.id);
+    expect(n).toMatchObject({ issueKey: null, todo: { id: todo.id, text: "call Anna", dueOn: "2026-10-24", done: false, priority: 1 } });
+    // Rewritten on the post-it: the TODO's text.
+    await me.pinboard.update({ id: a.id, note: "call Anna back" });
+    expect((await me.todos.list({ view: "upcoming", today: "2026-10-23" })).map((x) => x.text)).toEqual(["call Anna back"]);
+    // Ticked in the list: done on the post-it too.
+    await me.todos.update({ id: todo.id, done: true });
+    expect((await me.pinboard.list()).find((x) => x.id === a.id)?.todo?.done).toBe(true);
+    // Not someone else's.
+    await expect(other.pinboard.pinTodo({ todoId: todo.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // Its issue is the TODO's: no linking the post-it itself.
+    await expect(me.pinboard.link({ id: a.id, issueKey: "DEMO-1" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("copied once per board; put back by Undo while the TODO is there; gone with its TODO", async () => {
+    const todo = await me.todos.add({ text: "review" });
+    const a = await me.pinboard.pinTodo({ todoId: todo.id });
+    const second = await me.pinboard.createBoard({ name: "Second" });
+    const c1 = await me.pinboard.copy({ id: a.id, boardId: second.id, move: false });
+    const c2 = await me.pinboard.copy({ id: a.id, boardId: second.id, move: false });
+    expect(c2).toMatchObject({ id: c1.id, existed: true });
+    const gone = await me.pinboard.remove({ id: a.id });
+    await me.pinboard.restore({ boardId: gone.boardId ?? 0, issueKey: null, todoId: gone.todoId, note: gone.note, color: gone.color as "green", x: gone.x, y: gone.y, rotation: gone.rotation });
+    expect((await me.pinboard.list({ boardId: gone.boardId ?? undefined })).some((x) => x.todo?.id === todo.id)).toBe(true);
+    await me.todos.remove({ id: todo.id });
+    expect((await me.pinboard.list({ boardId: second.id })).some((x) => x.todoId === todo.id)).toBe(false);
+  });
+});

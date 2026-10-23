@@ -131,9 +131,10 @@ export interface FrozenIn {
   "pinboard.link": { connectionId?: number | undefined; id: number; issueKey: string };
   "pinboard.list": undefined | void | { boardId?: number | undefined; connectionId?: number | undefined };
   "pinboard.pinNote": { boardId?: number | undefined; noteId: number };
+  "pinboard.pinTodo": { boardId?: number | undefined; todoId: number };
   "pinboard.remove": { id: number };
   "pinboard.renameBoard": { id: number; name: string };
-  "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; note: string; rotation: number; x: number; y: number };
+  "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; note: string; rotation: number; todoId?: null | number | undefined; x: number; y: number };
   "pinboard.setBoardScope": { bucketId: null | number; id: number };
   "pinboard.tags": void;
   "pinboard.unpinIssue": { boardId: number; connectionId?: number | undefined; issueKey: string };
@@ -336,8 +337,9 @@ export interface FrozenOut {
   "pinboard.createBoard": { id: number };
   "pinboard.deleteBoard": { ok: boolean };
   "pinboard.link": { ok: boolean };
-  "pinboard.list": ({ boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; todoId: null | number; updatedAt: Date; userId: number; x: number; y: number; z: number } & { noteBody: null | string; noteCreatedAt: Date | null; status: null | string; statusCategory: null | string; summary: null | string })[];
+  "pinboard.list": ({ boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; todoId: null | number; updatedAt: Date; userId: number; x: number; y: number; z: number } & { noteBody: null | string; noteCreatedAt: Date | null; status: null | string; statusCategory: null | string; summary: null | string; todo: null | { connectionId: null | number; done: boolean; dueOn: null | string; id: number; issueKey: null | string; priority: number; steps: string; text: string } })[];
   "pinboard.pinNote": { boardId: number; boardName: string; existed: boolean; id: number };
+  "pinboard.pinTodo": { boardId: number; boardName: string; existed: boolean; id: number };
   "pinboard.remove": { boardId: null | number; color: string; connectionId: null | number; createdAt: Date; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; note: string; rotation: number; todoId: null | number; updatedAt: Date; userId: number; x: number; y: number; z: number };
   "pinboard.renameBoard": { ok: boolean };
   "pinboard.restore": { ok: boolean };

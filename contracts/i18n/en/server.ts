@@ -153,6 +153,7 @@ export const server = {
     followReadOnly: "This board follows a tag: it shows what the tracker says: nothing is pinned, written or taken off by hand.",
     trackerNotFound: "This tracker isn't among yours.",
     defaultBoard: "My board",
+    todoLink: "A TODO's post-it shows its TODO's issue: tie the TODO to one instead.",
     boardNotFound: "Board not found",
     bucketNotFound: "Bucket not found",
     noteNotFound: "Note not found",

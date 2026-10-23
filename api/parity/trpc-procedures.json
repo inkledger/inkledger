@@ -504,6 +504,10 @@
     "type": "mutation"
   },
   {
+    "path": "pinboard.pinTodo",
+    "type": "mutation"
+  },
+  {
     "path": "pinboard.remove",
     "type": "mutation"
   },

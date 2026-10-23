@@ -154,6 +154,7 @@ export const server: Shape<typeof en> = {
     followReadOnly: "Questa lavagna segue un tag: mostra quello che dice il tracker: niente si appende, si scrive o si stacca a mano.",
     trackerNotFound: "Questo tracker non è tra i tuoi.",
     defaultBoard: "La mia lavagna",
+    todoLink: "Il post-it di un TODO mostra la issue del TODO: lega il TODO a una issue.",
     boardNotFound: "Lavagna non trovata",
     bucketNotFound: "Bucket non trovato",
     noteNotFound: "Post-it non trovato",
