@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Moon, Pin, RefreshCw } from "lucide-react";
+import { ListChecks, Moon, Pin, RefreshCw } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSync } from "@/hooks/useSync";
 import { useSyncHint } from "@/hooks/useSyncHint";
 import { togglePinboard, usePinboardSurfacesNow, usePinboardTarget } from "@/hooks/usePinboardPanel";
+import { openTodosSheet, useTodoSurfacesNow } from "@/hooks/useTodoPanel";
 import { TAB_ROUTES, useNavItems } from "@/lib/nav";
 import { SidebarFavorites } from "@/components/SidebarFavorites";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -49,6 +50,9 @@ export function MobileMoreSheet({
   const pinTarget = usePinboardTarget(pathname, true);
   const { menu } = usePinboardSurfacesNow();
   const inPlace = pinTarget !== null && pinTarget !== "page" && !(menu && pinTarget === "float");
+  // The TODO list as a sheet: a tile when its page is not among the sections already.
+  const todos = useTodoSurfacesNow();
+  const todoTile = todos.widget && !todos.menu && pathname !== "/todos";
 
   // Any navigation (a section, a favorite, the account menu) closes it.
   const shown = useRef(pathname);
@@ -97,6 +101,22 @@ export function MobileMoreSheet({
               <Pin className="h-5 w-5 -rotate-12" aria-hidden />
               <span className="max-w-full truncate">{t("pages.board.pinboard")}</span>
             </button>
+            )}
+            {todoTile && (
+              <button
+                type="button"
+                aria-label={t("ui.todoFloat.open")}
+                onClick={() => {
+                  onOpenChange(false);
+                  // After the sheet lets go of focus, so the list keeps it.
+                  requestAnimationFrame(openTodosSheet);
+                }}
+                {...surface("control")}
+                className={TILE}
+              >
+                <ListChecks className="h-5 w-5" aria-hidden />
+                <span className="max-w-full truncate">{t("views.todos.title")}</span>
+              </button>
             )}
           </nav>
           <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />

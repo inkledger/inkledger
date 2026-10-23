@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   Bell,
+  ListChecks,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,8 +42,8 @@ import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
-import { useTodoWiring } from "@/hooks/useTodoPanel";
-import { useTodoReminderToast } from "@/hooks/useTodoReminders";
+import { openTodosSheet, useTodoSurfacesNow, useTodoWiring } from "@/hooks/useTodoPanel";
+import { useTodoReminders, useTodoReminderToast } from "@/hooks/useTodoReminders";
 import { TodoWidget } from "@/components/todo/TodoWidget";
 import { MakeTodoHost } from "@/components/todo/MakeTodo";
 import { HotCorner } from "@/components/todo/HotCorner";
@@ -478,6 +479,30 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
 }
 
 /** Mobile header: opens the notification center, with a dot when there is news. */
+/** The phone's way to the TODO list, beside the bell: how many are due today or late, and the list as a sheet. */
+function MobileTodos() {
+  const due = useTodoReminders().items.length;
+  const { pathname } = useLocation();
+  const s = useTodoSurfacesNow();
+  if (!(s.menu || s.widget) || pathname === "/todos") return null;
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="relative shrink-0"
+      aria-label={due > 0 ? t("ui.layout.todosDue", { count: due }) : t("ui.todoFloat.open")}
+      onClick={openTodosSheet}
+    >
+      <ListChecks className="h-5 w-5" />
+      {due > 0 && (
+        <span aria-hidden className="absolute right-1 top-1 min-w-4 rounded-full bg-primary-strong px-1 text-2xs font-semibold leading-4 text-primary-foreground tabular" {...surface("chip")}>
+          {due}
+        </span>
+      )}
+    </Button>
+  );
+}
+
 function MobileBell() {
   const inbox = useNotificationCount();
   return (
@@ -581,6 +606,7 @@ export function AppLayout() {
           >
             <Search className="h-5 w-5" />
           </Button>
+          <MobileTodos />
           <MobileBell />
         </header>
 

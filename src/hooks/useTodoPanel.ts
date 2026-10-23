@@ -79,3 +79,9 @@ export const canShowTodos = (pathname = window.location.pathname) => todoTarget(
 export function useTodoTarget(pathname: string) {
   return todoTarget(pathname, useTodoSurfacesNow());
 }
+
+/** On a phone: the list as a sheet from the bottom (More's tile, the header button), whatever the widget setting. */
+export function openTodosSheet() {
+  todoFloatFocus.set(true);
+  todoFloat.set(true);
+}

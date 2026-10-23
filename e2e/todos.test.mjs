@@ -252,3 +252,41 @@ test("reminders: today's and late TODOs in the bell and on the Dashboard; Tomorr
       assert.equal(await page.getByText(/TODOs? for today/).count(), 0);
     },
   ));
+
+test("on a phone: the header button says how many for today and opens the list; More has it too, once", () =>
+  withApp(
+    {
+      viewport: { width: 520, height: 800 },
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'Call the bank', ?, 0, ?, ?)", inDays(0), now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/issues");
+      await page.getByRole("button", { name: "TODO list, 1 for today" }).click();
+      const sheet = page.getByRole("dialog", { name: "TODO" });
+      await sheet.getByRole("listitem", { name: "Call the bank" }).waitFor();
+      await sheet.getByRole("textbox", { name: "New TODO" }).fill("Buy stamps @tomorrow");
+      await page.keyboard.press("Enter");
+      await sheet.getByRole("listitem", { name: "Buy stamps" }).waitFor();
+      await page.keyboard.press("Escape");
+      await sheet.waitFor({ state: "detached" });
+      // More: its page is a section there (the menu is on): one way in, no second tile.
+      const more = async () => {
+        await page.getByRole("navigation", { name: "Quick sections" }).getByRole("button", { name: "More" }).click();
+        return page.getByRole("dialog");
+      };
+      let m = await more();
+      await m.getByRole("link", { name: "TODO" }).waitFor();
+      assert.equal(await m.getByRole("button", { name: "Open the TODO list" }).count(), 0);
+      await page.keyboard.press("Escape");
+      // The menu off: a tile that opens the list as a sheet.
+      await db.q("UPDATE settings SET todos_in_menu = 0 WHERE user_id = 1");
+      await page.reload();
+      m = await more();
+      assert.equal(await m.getByRole("link", { name: "TODO" }).count(), 0);
+      await m.getByRole("button", { name: "Open the TODO list" }).click();
+      await page.getByRole("dialog", { name: "TODO" }).getByRole("listitem", { name: "Call the bank" }).waitFor();
+    },
+  ));
