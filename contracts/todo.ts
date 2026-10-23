@@ -84,3 +84,46 @@ export function parseTodoInput(input: string, today: Date, lang: "it" | "en"): P
   }
   return { text: kept.join(" "), dueOn, issueKey, dayToken, issueToken };
 }
+
+/** How a TODO comes back once ticked: the next day, the next working day, a week on. */
+export const TODO_REPEATS = ["daily", "weekdays", "weekly"] as const;
+export type TodoRepeat = (typeof TODO_REPEATS)[number];
+
+/** High first; normal is the default. */
+export const TODO_PRIORITIES = [0, 1] as const;
+export type TodoPriority = (typeof TODO_PRIORITIES)[number];
+
+/** A step inside a TODO: a small checklist, kept with it. */
+export type TodoStep = { id: string; text: string; done: boolean };
+export const MAX_TODO_STEPS = 20;
+export const MAX_STEP_TEXT = 200;
+
+/**
+ * The day a repeating TODO comes back on, ticked on `today`: counted from its
+ * own day or today, whichever is later, so a late one never comes back in the
+ * past. Weekdays skip Saturday and Sunday.
+ */
+export function nextOccurrence(dueOn: string | null, today: string, repeat: TodoRepeat): string {
+  const base = dueOn !== null && dueOn > today ? dueOn : today;
+  const from = parseDayKey(base) ?? new Date();
+  if (repeat === "weekly") return dayKey(addDays(from, 7));
+  let next = addDays(from, 1);
+  if (repeat === "weekdays") while (next.getDay() === 0 || next.getDay() === 6) next = addDays(next, 1);
+  return dayKey(next);
+}
+
+/** Steps as stored (JSON text): what is not a valid list reads as none. */
+export function parseSteps(raw: string | null | undefined): TodoStep[] {
+  if (!raw) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.flatMap((s: unknown) => {
+      if (typeof s !== "object" || s === null) return [];
+      const r = s as Record<string, unknown>;
+      return typeof r.id === "string" && typeof r.text === "string" && typeof r.done === "boolean" ? [{ id: r.id, text: r.text, done: r.done }] : [];
+    }).slice(0, MAX_TODO_STEPS);
+  } catch {
+    return [];
+  }
+}

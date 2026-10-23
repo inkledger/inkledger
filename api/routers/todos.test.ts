@@ -52,6 +52,30 @@ describe("the TODO list", () => {
     expect(await texts("today")).toEqual(["late", "today"]);
   });
 
+  it("details: priority, estimate, steps; a repeating one comes back once ticked, and goes again unticked", async () => {
+    await q("DELETE FROM todos");
+    const t = await me.todos.add({ text: "standup", dueOn: today, priority: 1, estimateSeconds: 900, repeat: "weekdays", steps: [{ id: "s1", text: "notes", done: true }] });
+    expect(t).toMatchObject({ priority: 1, estimateSeconds: 900, repeat: "weekdays" });
+    // Two ticks at once (two devices): one comes back, not two.
+    await Promise.all([me.todos.update({ id: t.id, done: true, today }), me.todos.update({ id: t.id, done: true, today })]);
+    const next = await me.todos.list({ view: "upcoming", today });
+    expect(next).toHaveLength(1);
+    // Friday → Monday, its checklist unticked, its details kept.
+    expect(next[0]).toMatchObject({ text: "standup", dueOn: "2026-10-26", priority: 1, estimateSeconds: 900, repeat: "weekdays", repeatOf: t.id });
+    expect(JSON.parse(next[0].steps)).toEqual([{ id: "s1", text: "notes", done: false }]);
+    // Unticked (Undo): the one it brought goes away.
+    await me.todos.update({ id: t.id, done: false, today });
+    expect(await texts("upcoming")).toEqual([]);
+    expect(await texts("today")).toEqual(["standup"]);
+    // Bad details are refused.
+    await expect(me.todos.update({ id: t.id, steps: Array.from({ length: 21 }, (_, i) => ({ id: String(i), text: "x", done: false })) })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(me.todos.add({ text: "x", estimateSeconds: 5 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // Once more for "Delete, then Undo": the details come back too.
+    const gone = await me.todos.remove({ id: t.id });
+    const back = await me.todos.restore({ ...gone, done: false });
+    expect(back).toMatchObject({ priority: 1, estimateSeconds: 900, repeat: "weekdays" });
+  });
+
   it("a day is a real day", async () => {
     await expect(me.todos.add({ text: "x", dueOn: "2026-02-30" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(me.todos.list({ view: "today", today: "23/10/2026" })).rejects.toMatchObject({ code: "BAD_REQUEST" });

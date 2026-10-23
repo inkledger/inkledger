@@ -11,6 +11,7 @@ import {
   customType,
   primaryKey,
   check,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -763,6 +764,8 @@ export const pinboardNotes = pgTable(
     issueKey: text("issue_key"),
     /** A private note hung on the board (its text is the note's; issue_key is its issue) */
     issueNoteId: integer("issue_note_id").references(() => issueNotes.id, { onDelete: "cascade" }),
+    /** A TODO hung on the board (its text is the TODO's; its issue is read through it, issue_key stays null) */
+    todoId: integer("todo_id").references((): AnyPgColumn => todos.id, { onDelete: "cascade" }),
     note: text("note").notNull().default(""),
     /** yellow | pink | blue | green | orange */
     color: text("color").notNull().default("yellow"),
@@ -785,6 +788,8 @@ export const pinboardNotes = pgTable(
     index("idx_pinboard_board").on(t.boardId),
     // A private note hangs at most once on a board.
     uniqueIndex("uq_pinboard_issue_note").on(t.boardId, t.issueNoteId),
+    // A TODO too.
+    uniqueIndex("uq_pinboard_todo").on(t.boardId, t.todoId),
   ],
 );
 
@@ -818,6 +823,18 @@ export const todos = pgTable(
     issueNoteId: integer("issue_note_id").references(() => issueNotes.id, { onDelete: "set null" }),
     /** The day its reminder was put away (shown again the next day it is due or late) */
     reminderSeenOn: text("reminder_seen_on"),
+    /** 0 normal, 1 high (contracts/todo.ts) */
+    priority: integer("priority").notNull().default(0),
+    /** How long it should take, seconds (null: not said) */
+    estimateSeconds: integer("estimate_seconds"),
+    /** Its checklist, JSON: [{ id, text, done }] (contracts/todo.ts parseSteps) */
+    steps: text("steps").notNull().default("[]"),
+    /** daily | weekdays | weekly: ticked, it comes back (null: once) */
+    repeat: text("repeat"),
+    /** The ticked TODO this one came back from (unticking it takes this one away again) */
+    repeatOf: integer("repeat_of").references((): AnyPgColumn => todos.id, { onDelete: "set null" }),
+    /** What suggested it (an issue's news, once per news): never suggested twice */
+    source: text("source"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -828,9 +845,42 @@ export const todos = pgTable(
   (t) => [
     index("idx_todos_user_open").on(t.userId, t.doneAt, t.dueOn),
     index("idx_todos_user_issue").on(t.userId, t.issueKey),
+    uniqueIndex("uq_todos_user_source").on(t.userId, t.source).where(sql`${t.source} IS NOT NULL`),
     check("todos_issue_has_connection", sql`${t.issueKey} IS NULL OR ${t.connectionId} IS NOT NULL`),
   ],
 );
+
+/**
+ * Time spent on a TODO, kept beside the real time and never counted as it:
+ * a stretch of work on it. Linked: the TODO's issue timer ran meanwhile (that
+ * timer's time is the real one); not linked: a TODO with no issue, whose time
+ * shows the gap no issue covers. Kept when the TODO goes (with its words).
+ */
+export const todoSessions = pgTable(
+  "todo_sessions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    todoId: integer("todo_id").references(() => todos.id, { onDelete: "set null" }),
+    /** The TODO's text when the stretch began */
+    label: text("label").notNull(),
+    /** 1 = its issue's timer ran with it */
+    linked: integer("linked").notNull().default(0),
+    startedAt: ms("started_at").notNull(),
+    /** null while it runs */
+    endedAt: ms("ended_at"),
+  },
+  (t) => [
+    index("idx_todo_sessions_user_start").on(t.userId, t.startedAt),
+    index("idx_todo_sessions_todo").on(t.todoId),
+    // One stretch at a time per user.
+    uniqueIndex("uq_todo_sessions_open").on(t.userId).where(sql`${t.endedAt} IS NULL`),
+  ],
+);
+
+export type TodoSession = typeof todoSessions.$inferSelect;
 
 export type Todo = typeof todos.$inferSelect;
 

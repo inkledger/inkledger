@@ -51,7 +51,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const refresh = () => utils.todos.invalidate();
 
   const update = (id: number, patch: { text?: string; dueOn?: string | null; done?: boolean; issueKey?: string | null }) =>
-    utils.client.todos.update.mutate({ id, ...patch }).then(refresh, e => {
+    // Today goes along: a repeating TODO ticked comes back from it.
+    utils.client.todos.update.mutate({ id, today: todayKey, ...patch }).then(refresh, e => {
       toastError(e);
       throw e;
     });
@@ -80,6 +81,11 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
                 commentId: gone.commentId,
                 commentExcerpt: gone.commentExcerpt,
                 issueNoteId: gone.issueNoteId,
+                priority: gone.priority,
+                estimateSeconds: gone.estimateSeconds,
+                steps: gone.steps,
+                repeat: gone.repeat,
+                source: gone.source,
               })
               .then(refresh, toastError),
         },

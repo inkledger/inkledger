@@ -53,7 +53,7 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
                 )}
               </div>
               <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant="ghost" onClick={() => act(utils.client.todos.update.mutate({ id: x.id, done: true }))}>
+                <Button size="sm" variant="ghost" onClick={() => act(utils.client.todos.update.mutate({ id: x.id, done: true, today: dayKey(today) }))}>
                   <Check className="h-3.5 w-3.5" /> {t("views.todos.remindDone")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => act(utils.client.todos.update.mutate({ id: x.id, dueOn: dayKey(addDays(today, 1)) }))}>

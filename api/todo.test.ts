@@ -50,3 +50,26 @@ describe("quick capture of a TODO", () => {
     expect(dayOfToken("2026-02-30", today, "it")).toBeNull();
   });
 });
+
+describe("a repeating TODO's next day, and its steps as stored", () => {
+  it("from its day or today, whichever is later; weekdays skip the weekend", async () => {
+    const { nextOccurrence } = await import("@contracts/todo");
+    // Friday 23 October 2026.
+    expect(nextOccurrence("2026-10-23", "2026-10-23", "daily")).toBe("2026-10-24");
+    expect(nextOccurrence("2026-10-23", "2026-10-23", "weekdays")).toBe("2026-10-26");
+    expect(nextOccurrence("2026-10-23", "2026-10-23", "weekly")).toBe("2026-10-30");
+    // Late: from today, never in the past.
+    expect(nextOccurrence("2026-10-01", "2026-10-23", "daily")).toBe("2026-10-24");
+    // Ticked early: from its own day.
+    expect(nextOccurrence("2026-10-28", "2026-10-23", "weekly")).toBe("2026-11-04");
+    // Someday: from today.
+    expect(nextOccurrence(null, "2026-10-24", "weekdays")).toBe("2026-10-26");
+  });
+
+  it("what is not a list of steps reads as none", async () => {
+    const { parseSteps } = await import("@contracts/todo");
+    expect(parseSteps('[{"id":"a","text":"one","done":true},{"id":2}]')).toEqual([{ id: "a", text: "one", done: true }]);
+    expect(parseSteps("{")).toEqual([]);
+    expect(parseSteps(null)).toEqual([]);
+  });
+});

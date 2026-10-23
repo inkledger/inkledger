@@ -7,6 +7,7 @@ import { issueNotes, issues, todos, type Todo } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
+import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
 import { t } from "@contracts/i18n";
 
 /**
@@ -25,6 +26,26 @@ const text = z.string().trim().min(1, { error: () => t("server.todos.empty") }).
 const idInput = z.number().int().positive();
 const connectionInput = z.number().int().positive().optional();
 const excerpt = z.string().trim().max(280);
+const priority = z.union([z.literal(0), z.literal(1)]);
+/** Up to a working week of estimate. */
+const estimate = z.number().int().min(60).max(7 * 24 * 3600);
+const repeat = z.enum(TODO_REPEATS);
+const steps = z
+  .array(z.object({ id: z.string().min(1).max(40), text: z.string().trim().min(1).max(MAX_STEP_TEXT), done: z.boolean() }))
+  .max(MAX_TODO_STEPS);
+/** What the user sets beside the text: all optional, the same on add, update and restore. */
+const details = {
+  priority: priority.optional(),
+  estimateSeconds: estimate.nullable().optional(),
+  steps: steps.optional(),
+  repeat: repeat.nullable().optional(),
+};
+const detailsOf = (input: { priority?: 0 | 1; estimateSeconds?: number | null; steps?: z.infer<typeof steps>; repeat?: z.infer<typeof repeat> | null }) => ({
+  ...(input.priority !== undefined ? { priority: input.priority } : {}),
+  ...(input.estimateSeconds !== undefined ? { estimateSeconds: input.estimateSeconds } : {}),
+  ...(input.steps !== undefined ? { steps: JSON.stringify(input.steps) } : {}),
+  ...(input.repeat !== undefined ? { repeat: input.repeat } : {}),
+});
 /** How long done TODOs stay in "Done". */
 const DONE_DAYS = 14;
 const DONE_MAX = 200;
@@ -168,18 +189,24 @@ export const todosRouter = createRouter({
         commentId: z.string().trim().min(1).max(200).optional(),
         commentExcerpt: excerpt.optional(),
         issueNoteId: idInput.optional(),
+        ...details,
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const link = await linkOf(ctx.user.id, input);
       const [row] = await getDb()
         .insert(todos)
-        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn ?? null, position: await firstPosition(ctx.user.id), ...link })
+        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn ?? null, position: await firstPosition(ctx.user.id), ...link, ...detailsOf(input) })
         .returning();
       return row;
     }),
 
-  /** Rewrite, plan (null: someday), tick or untick, tie to another issue (null: to none). */
+  /**
+   * Rewrite, plan (null: someday), tick or untick, tie to another issue (null:
+   * to none), set its details. Ticking a repeating TODO brings the next one
+   * (`today` says from when); unticking it takes that one back while untouched.
+   * Two ticks at once bring one: only the tick that finds it open does.
+   */
   update: protectedProcedure
     .input(
       z.object({
@@ -187,26 +214,61 @@ export const todosRouter = createRouter({
         text: text.optional(),
         dueOn: day.nullable().optional(),
         done: z.boolean().optional(),
+        today: day.optional(),
         issueKey: issueKeyInput.nullable().optional(),
         connectionId: connectionInput,
+        ...details,
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const row = await own(ctx.user.id, input.id);
       // Another issue (or none): what hung on the old one (its comment, its note) lets go.
       const relink = input.issueKey !== undefined ? await linkOf(ctx.user.id, { issueKey: input.issueKey, connectionId: input.connectionId }) : null;
-      const [next] = await getDb()
-        .update(todos)
-        .set({
+      return getDb().transaction(async (tx) => {
+        const set = {
           ...(input.text !== undefined ? { text: input.text } : {}),
           ...(input.dueOn !== undefined ? { dueOn: input.dueOn, reminderSeenOn: null } : {}),
-          ...(input.done !== undefined ? { doneAt: input.done ? (row.doneAt ?? new Date()) : null } : {}),
           ...(relink ?? {}),
+          ...detailsOf(input),
           updatedAt: new Date(),
-        })
-        .where(eq(todos.id, row.id))
-        .returning();
-      return next;
+        };
+        const [next] = await tx.update(todos).set(set).where(eq(todos.id, row.id)).returning();
+        if (input.done === undefined || !next) return next;
+        if (!input.done) {
+          const [reopened] = await tx.update(todos).set({ doneAt: null }).where(eq(todos.id, row.id)).returning();
+          // The one its tick brought, while still open: away again.
+          await tx.delete(todos).where(and(eq(todos.repeatOf, row.id), open));
+          return reopened;
+        }
+        const [ticked] = await tx
+          .update(todos)
+          .set({ doneAt: new Date() })
+          .where(and(eq(todos.id, row.id), open))
+          .returning();
+        if (!ticked) return next;
+        const again = repeat.safeParse(ticked.repeat);
+        if (again.success) {
+          const today = input.today ?? dayKey(new Date());
+          await tx.insert(todos).values({
+            userId: ticked.userId,
+            text: ticked.text,
+            dueOn: nextOccurrence(ticked.dueOn, today, again.data),
+            position: ticked.position,
+            connectionId: ticked.connectionId,
+            issueKey: ticked.issueKey,
+            commentId: ticked.commentId,
+            commentExcerpt: ticked.commentExcerpt,
+            issueNoteId: ticked.issueNoteId,
+            priority: ticked.priority,
+            estimateSeconds: ticked.estimateSeconds,
+            // Its checklist starts again, unticked.
+            steps: JSON.stringify(parseSteps(ticked.steps).map((s) => ({ ...s, done: false }))),
+            repeat: ticked.repeat,
+            repeatOf: ticked.id,
+          });
+        }
+        return ticked;
+      });
     }),
 
   /** The order by hand: these TODOs, in this order (the others keep theirs). */
@@ -249,6 +311,12 @@ export const todosRouter = createRouter({
         commentId: z.string().trim().min(1).max(200).nullable(),
         commentExcerpt: excerpt.nullable(),
         issueNoteId: idInput.nullable(),
+        // Its details as "remove" gave them back (stored form), checked again.
+        priority: z.number().int().optional(),
+        estimateSeconds: estimate.nullable().optional(),
+        steps: z.string().max(20_000).optional(),
+        repeat: z.string().nullable().optional(),
+        source: z.string().max(300).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -268,7 +336,19 @@ export const todosRouter = createRouter({
       }
       const [row] = await getDb()
         .insert(todos)
-        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn, doneAt: input.done ? new Date() : null, position: input.position, ...(link as Link) })
+        .values({
+          userId: ctx.user.id,
+          text: input.text,
+          dueOn: input.dueOn,
+          doneAt: input.done ? new Date() : null,
+          position: input.position,
+          ...(link as Link),
+          priority: input.priority === 1 ? 1 : 0,
+          estimateSeconds: input.estimateSeconds ?? null,
+          steps: JSON.stringify(parseSteps(input.steps)),
+          repeat: repeat.safeParse(input.repeat).data ?? null,
+          source: input.source ?? null,
+        })
         .returning();
       return row;
     }),

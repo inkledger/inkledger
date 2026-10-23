@@ -154,7 +154,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
   const stored = await getDb()
     .select()
     .from(pinboardNotes)
-    .where(and(eq(pinboardNotes.userId, userId), eq(pinboardNotes.boardId, board.id), isNull(pinboardNotes.issueNoteId)));
+    .where(and(eq(pinboardNotes.userId, userId), eq(pinboardNotes.boardId, board.id), isNull(pinboardNotes.issueNoteId), isNull(pinboardNotes.todoId)));
   const placedBy = new Map(stored.map((s) => [`${s.connectionId}:${s.issueKey}`, s]));
   const placed: { x: number; y: number }[] = rows.flatMap((r) => {
     const s = placedBy.get(`${r.connectionId}:${r.key}`);
@@ -174,6 +174,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       itemId: null,
       issueKey: r.key,
       issueNoteId: null,
+      todoId: null,
       note: "",
       color: s?.color ?? "yellow",
       ...at,
