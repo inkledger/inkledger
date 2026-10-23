@@ -464,6 +464,8 @@ export function AppLayout() {
   useSoftKeyboard();
   const collapsed = useSidebarCollapsed();
   const location = useLocation();
+  // One page, one key: the settings' categories are frames of one page (only the frame changes).
+  const pageKey = location.pathname.startsWith("/settings") ? "/settings" : location.pathname;
   const queryClient = useQueryClient();
   const mainRef = useRef<HTMLElement>(null);
   // A new page starts at the top; Back/Forward land where you were.
@@ -553,10 +555,10 @@ export function AppLayout() {
               {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays.
                   Outside the page's keyed box, so they outlive a navigation: the page on screen
                   stays until the next one's code is there (the router navigates in a transition). */}
-              <ErrorBoundary resetKey={location.pathname} onRetry={() => pageQueriesOf(queryClient).dropInactive(location.pathname)}>
+              <ErrorBoundary resetKey={pageKey} onRetry={() => pageQueriesOf(queryClient).dropInactive(location.pathname)}>
                 <Suspense fallback={<PageSpinner />}>
                   <div
-                    key={location.pathname}
+                    key={pageKey}
                     className="motion-safe:animate-page-in lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:min-h-0 lg:has-[[data-fill-page]]:flex-1 lg:has-[[data-fill-page]]:flex-col"
                   >
                     <Outlet />

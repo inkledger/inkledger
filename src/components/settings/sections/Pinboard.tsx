@@ -9,15 +9,15 @@ import { usePinboardSurfaces } from "@/hooks/usePinboardPanel";
 import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
+import { useSettingsSave } from "@/hooks/useSettingsForm";
 
 /**
  * Where the pinboard lives: the Board's panel, its page in the menu, the
  * floating widget ("p"), each on or off; and the boards that follow a tag.
  */
 export function PinboardSection() {
-  const utils = trpc.useUtils();
   const s = usePinboardSurfaces();
-  const save = trpc.settings.update.useMutation({ onSuccess: data => utils.settings.get.setData(undefined, data) });
+  const save = useSettingsSave();
   const rows = [
     { key: "pinboardOnBoard", on: s.board, label: t("settings.pinboard.onBoard"), hint: t("settings.pinboard.onBoardHint") },
     { key: "pinboardInMenu", on: s.menu, label: t("settings.pinboard.inMenu"), hint: t("settings.pinboard.inMenuHint") },
@@ -28,7 +28,7 @@ export function PinboardSection() {
       <SettingsGroup id="pinboard-places" title={t("settings.pinboard.placesTitle")} keywords={t("settings.pinboard.placesKeywords")}>
         {rows.map(r => (
           <SettingsRow key={r.key} label={r.label} hint={r.hint}>
-            <Switch aria-label={r.label} checked={r.on} disabled={save.isPending} onCheckedChange={v => save.mutate({ [r.key]: v })} />
+            <Switch aria-label={r.label} checked={r.on} onCheckedChange={v => save.mutate({ [r.key]: v })} />
           </SettingsRow>
         ))}
       </SettingsGroup>

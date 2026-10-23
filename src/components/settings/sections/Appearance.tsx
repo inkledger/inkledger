@@ -9,6 +9,7 @@ import { t } from "@/i18n";
 import { trpc } from "@/lib/trpc";
 import { BACKDROP_VISIBILITY, type BackdropVisibility } from "@contracts/modules";
 import { Switch } from "@/components/ui/switch";
+import { useSettingsSave } from "@/hooks/useSettingsForm";
 
 
 export function AppearanceSection() {
@@ -45,21 +46,19 @@ export function AppearanceSection() {
 
 /** Whether an add-on's light brings the night to the Dashboard after dark (e.g. Bonsai). */
 function DashboardNightRow() {
-  const utils = trpc.useUtils();
   const on = (trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data?.dashboardNight ?? 1) === 1;
-  const save = trpc.settings.update.useMutation({ onSuccess: data => utils.settings.get.setData(undefined, data) });
+  const save = useSettingsSave();
   return (
     <SettingsRow label={t("settings.appearance.night")} hint={t("settings.appearance.nightHint")}>
-      <Switch aria-label={t("settings.appearance.night")} checked={on} disabled={save.isPending} onCheckedChange={v => save.mutate({ dashboardNight: v })} />
+      <Switch aria-label={t("settings.appearance.night")} checked={on} onCheckedChange={v => save.mutate({ dashboardNight: v })} />
     </SettingsRow>
   );
 }
 
 /** How much of an add-on's dashboard backdrop shows (e.g. City Window). */
 function BackdropVisibilityRow() {
-  const utils = trpc.useUtils();
   const value = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data?.backdropVisibility ?? "normal";
-  const save = trpc.settings.update.useMutation({ onSuccess: data => utils.settings.get.setData(undefined, data) });
+  const save = useSettingsSave();
   return (
     <SettingsRow label={t("settings.appearance.backdrop")} hint={t("settings.appearance.backdropHint")}>
       <SegmentedControl

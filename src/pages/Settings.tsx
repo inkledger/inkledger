@@ -57,7 +57,13 @@ export default function Settings() {
     <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       <PageHeader
         title={t("pages.settings.title")}
-        description={saving ? t("pages.settings.saving") : t("pages.settings.autosave")}
+        description={t("pages.settings.autosave")}
+        // Saving: a small mark beside the title, never a different line (the page doesn't move).
+        actions={
+          <span role="status" aria-live="polite" className={cn("text-caption text-muted-foreground transition-opacity", !saving && "opacity-0")}>
+            {t("pages.settings.saving")}
+          </span>
+        }
       />
       <PanelRow className="min-h-0 flex-1 lg:grid-cols-[16rem_minmax(0,1fr)] lg:grid-rows-1">
         {/* Menu: always on desktop; on a phone only until a category is open. */}

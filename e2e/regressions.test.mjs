@@ -1508,3 +1508,30 @@ test("timer started on the wrong issue: moved to another with its count, from th
     assert.ok(Number(t.accumulated_seconds) >= 1500, "its count came along");
     await page.locator("aside").getByRole("link", { name: /DEMO-102/ }).first().waitFor();
   }));
+
+test("settings: a change or another category redraws only its frame; the menu and its scroll stay", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.setViewportSize({ width: 1440, height: 520 });
+    await page.goto(base + "/settings/todos");
+    const menu = page.getByRole("navigation", { name: "Settings categories" });
+    await menu.waitFor();
+    // A mark on the menu element: still there means never remounted.
+    await menu.evaluate(el => {
+      el.dataset.mark = "kept";
+      el.scrollTop = 120;
+    });
+    const corner = page.getByRole("switch", { name: "Bottom-right corner" });
+    const before = await corner.getAttribute("aria-checked");
+    await corner.click();
+    // Shown at once (optimistic), saved, and nothing else redrawn.
+    await page.waitForFunction(b => document.querySelector('[role="switch"][aria-label="Bottom-right corner"]')?.getAttribute("aria-checked") !== b, before);
+    await page.waitForFunction(() => document.querySelector("[role=status]")?.classList.contains("opacity-0"));
+    assert.equal((await db.q("SELECT todos_hot_corner FROM settings WHERE user_id = 1"))[0].todos_hot_corner, before === "true" ? 0 : 1);
+    assert.equal(await menu.getAttribute("data-mark"), "kept");
+    // Another category: the same menu, its scroll kept.
+    await menu.getByRole("link", { name: /Appearance/ }).click();
+    await page.waitForURL(u => u.pathname === "/settings/appearance");
+    await page.getByText("Theme and density").waitFor();
+    assert.equal(await menu.getAttribute("data-mark"), "kept");
+    assert.ok((await menu.evaluate(el => el.scrollTop)) > 100);
+  }));
