@@ -100,6 +100,18 @@ test("the room takes nothing from the layout: the board's columns and cards stay
       await page.waitForTimeout(150);
       const after = await card.boundingBox();
       assert.ok(Math.abs(after.x - before.x) < 0.5 && Math.abs(after.y - before.y) < 0.5 && Math.abs(after.width - before.width) < 0.5, JSON.stringify({ before, after }));
+      // A long shadow to the left: the next column's room never covers this one's cards (their right edge still answers).
+      await page.evaluate(() => document.documentElement.style.setProperty("--sh-1", "-10px 6px 14px -1px hsl(0 0% 0% / 0.2)"));
+      await page.waitForFunction(() => parseFloat(document.documentElement.style.getPropertyValue("--surface-reach-l")) > 20);
+      await page.waitForTimeout(150);
+      const hits = await page.evaluate(() =>
+        [...document.querySelectorAll("[draggable=true]")].slice(0, 12).map(c => {
+          const r = c.getBoundingClientRect();
+          const at = document.elementFromPoint(r.right - 2, r.top + r.height / 2);
+          return !r.width || r.right > window.innerWidth - 4 || at === null || c.contains(at);
+        })
+      );
+      assert.ok(hits.every(Boolean), JSON.stringify(hits));
       assert.deepEqual(app.errors, [], "no page errors");
     } finally {
       await app.stop();

@@ -112,6 +112,25 @@ describe("the TODO list", () => {
     expect(await me.todos.list({ view: "today", today })).toMatchObject([{ text: "keep me", issueKey: "APP-1", commentId: "7", commentExcerpt: "hey" }]);
   });
 
+  it("Undo puts it back even when its note went away (on its issue then); reorder fixes shared places", async () => {
+    await q("DELETE FROM todos");
+    const { id: noteId } = await me.issueNotes.add({ issueKey: "APP-1", connectionId: jira, body: "soon gone" });
+    const t = await me.todos.add({ text: "from a note", issueNoteId: noteId });
+    const gone = await me.todos.remove({ id: t.id });
+    await me.issueNotes.remove({ id: noteId });
+    const back = await me.todos.restore({ ...gone, done: false });
+    expect(back).toMatchObject({ text: "from a note", issueKey: "APP-1", connectionId: jira, issueNoteId: null });
+    // Two at the same place (an Undo and a new one): moved, they no longer tie.
+    await q("DELETE FROM todos");
+    const a = await me.todos.add({ text: "a" });
+    const c = await me.todos.add({ text: "c" });
+    await q("UPDATE todos SET position = 5");
+    await me.todos.reorder({ ids: [c.id, a.id] });
+    expect(await texts("someday")).toEqual(["c", "a"]);
+    await me.todos.reorder({ ids: [a.id, c.id] });
+    expect(await texts("someday")).toEqual(["a", "c"]);
+  });
+
   it("reminders: due today or late, until put away for the day; planned again, it comes back", async () => {
     await q("DELETE FROM todos");
     const late = await me.todos.add({ text: "late", dueOn: "2026-10-21" });

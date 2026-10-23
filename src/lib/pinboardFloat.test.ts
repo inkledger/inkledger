@@ -19,9 +19,9 @@ describe("the floating pinboard's place", () => {
 });
 
 describe("another floating panel's shape (the TODO list)", () => {
-  it("its own sizes and first place: narrow, at the bottom right", async () => {
+  it("its own sizes and first place: narrow, on the right above the toasts' corner", async () => {
     const { TODO_SHAPE } = await import("./todoFloat");
-    expect(fitFloat(null, 1600, 1000, TODO_SHAPE)).toEqual({ x: 1216, y: 556, w: 360, h: 420 });
+    expect(fitFloat(null, 1600, 1000, TODO_SHAPE)).toEqual({ x: 1216, y: 460, w: 360, h: 420 });
     // Kept where it was put, within the window.
     expect(fitFloat({ x: 40, y: 40, w: 200, h: 100 }, 1600, 1000, TODO_SHAPE)).toEqual({ x: 40, y: 40, w: 320, h: 280 });
   });

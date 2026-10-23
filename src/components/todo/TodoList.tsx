@@ -51,10 +51,13 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
   const refresh = () => utils.todos.invalidate();
 
   const update = (id: number, patch: { text?: string; dueOn?: string | null; done?: boolean; issueKey?: string | null }) =>
-    utils.client.todos.update.mutate({ id, ...patch }).then(refresh, toastError);
+    utils.client.todos.update.mutate({ id, ...patch }).then(refresh, e => {
+      toastError(e);
+      throw e;
+    });
 
   const tick = (x: Todo, done: boolean) =>
-    void update(x.id, { done }).then(() =>
+    update(x.id, { done }).then(() =>
       toast.success(t(done ? "views.todos.ticked" : "views.todos.unticked", { text: x.text }), {
         action: { label: t("views.todos.undo"), onClick: () => void update(x.id, { done: !done }) },
       })
@@ -82,15 +85,26 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
         },
       });
     }, toastError);
-  /** Alt+↑/↓: one place up or down in the list shown. */
+  /**
+   * Alt+↑/↓: one place up or down in the list shown, within its day (the
+   * lists go by day first; "Done" by when, so nothing to move there).
+   */
   const shift = (x: Todo, by: -1 | 1) => {
+    if (view === "done" && !scope) return;
     const ids = items.map(i => i.id);
     const at = ids.indexOf(x.id);
     const to = at + by;
-    if (at < 0 || to < 0 || to >= ids.length) return;
+    if (at < 0 || to < 0 || to >= ids.length || items[to].dueOn !== x.dueOn) return;
     [ids[at], ids[to]] = [ids[to], ids[at]];
-    void utils.client.todos.reorder.mutate({ ids }).then(refresh, toastError);
+    void utils.client.todos.reorder.mutate({ ids }).then(() => refresh().then(() => focusRow(to)), toastError);
   };
+  /** After a change that may take a row away: the focus on the row now at that place (or the last one). */
+  const focusRow = (at: number) =>
+    requestAnimationFrame(() => {
+      const rows = [...(list.current?.querySelectorAll<HTMLElement>("[data-todo-row]") ?? [])];
+      (rows[Math.min(at, rows.length - 1)] ?? list.current?.closest("section")?.querySelector<HTMLElement>("[data-float-search]"))?.focus();
+    });
+  const keep = (at: number, p: Promise<unknown>) => void p.then(() => refresh().then(() => focusRow(at)));
 
   const rowKeys = (e: KeyboardEvent<HTMLLIElement>, x: Todo) => {
     if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey) return;
@@ -107,18 +121,19 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
       case "k":
       case "ArrowUp":
         return done(), focus(at - 1);
+      // The row may leave the view: the focus stays in the list, on the row that takes its place.
       case "x":
       case " ":
-        return done(), tick(x, x.doneAt === null);
+        return done(), keep(at, tick(x, x.doneAt === null));
       case "Delete":
       case "Backspace":
         return done(), remove(x), focus(at + 1 < rows.length ? at + 1 : at - 1);
       case "1":
-        return done(), void update(x.id, { dueOn: todayKey });
+        return done(), keep(at, update(x.id, { dueOn: todayKey }));
       case "2":
-        return done(), void update(x.id, { dueOn: dayKey(addDays(today, 1)) });
+        return done(), keep(at, update(x.id, { dueOn: dayKey(addDays(today, 1)) }));
       case "0":
-        return done(), void update(x.id, { dueOn: null });
+        return done(), keep(at, update(x.id, { dueOn: null }));
     }
   };
 
@@ -154,8 +169,8 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
                 heading={heading ? dayLabel(heading, today) : null}
                 today={today}
                 showIssue={!scope}
-                onTick={done => tick(x, done)}
-                onUpdate={patch => update(x.id, patch)}
+                onTick={done => void tick(x, done).catch(() => undefined)}
+                onUpdate={patch => update(x.id, patch).catch(() => undefined)}
                 onRemove={() => remove(x)}
                 onKeyDown={e => rowKeys(e, x)}
               />
@@ -214,7 +229,9 @@ function Capture({
         aria-label={t("views.todos.captureLabel")}
         placeholder={t("views.todos.capturePlaceholder")}
         value={text}
-        disabled={busy}
+        // Busy, it stays focused (not disabled): the next TODO is typed at once.
+        aria-busy={busy || undefined}
+        readOnly={busy}
         onChange={e => setText(e.target.value)}
         onKeyDown={e => {
           if (e.key === "Enter") {
@@ -274,6 +291,7 @@ function TodoRow({
   onKeyDown: (e: KeyboardEvent<HTMLLIElement>) => void;
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "link" | "day">("view");
+  const row = useRef<HTMLLIElement>(null);
   const [draft, setDraft] = useState(x.text);
   const start = useStartTimer({ announce: true });
   const pin = usePinIssue();
@@ -281,12 +299,17 @@ function TodoRow({
   const done = x.doneAt !== null;
   const late = !done && !!x.dueOn && x.dueOn < todayKey;
   const at = x.issueKey ? issuePath({ key: x.issueKey, connectionId: x.connectionId }) : null;
-  const back = () => setMode("view");
+  // Leaving a field by the keyboard: the focus back on the row (a click elsewhere keeps its own).
+  const back = (refocus = false) => {
+    setMode("view");
+    if (refocus) requestAnimationFrame(() => row.current?.focus());
+  };
 
   return (
     <>
       {heading && <li className="px-2 pt-2 text-caption font-medium text-muted-foreground" aria-hidden>{heading}</li>}
       <li
+        ref={row}
         data-todo-row
         tabIndex={0}
         aria-label={x.text}
@@ -315,15 +338,15 @@ function TodoRow({
               aria-label={t("views.todos.editLabel")}
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              onBlur={back}
+              onBlur={() => back()}
               onKeyDown={e => {
                 e.stopPropagation();
-                if (e.key === "Escape") return e.preventDefault(), back();
+                if (e.key === "Escape") return e.preventDefault(), back(true);
                 if (e.key !== "Enter") return;
                 e.preventDefault();
                 const v = draft.trim();
                 if (v && v !== x.text) void onUpdate({ text: v });
-                back();
+                back(true);
               }}
             />
           ) : (
@@ -342,15 +365,15 @@ function TodoRow({
               autoFocus
               aria-label={t("views.todos.linkLabel")}
               placeholder={t("views.todos.linkPlaceholder")}
-              onBlur={back}
+              onBlur={() => back()}
               onKeyDown={e => {
                 e.stopPropagation();
-                if (e.key === "Escape") return e.preventDefault(), back();
+                if (e.key === "Escape") return e.preventDefault(), back(true);
                 if (e.key !== "Enter") return;
                 e.preventDefault();
                 const key = e.currentTarget.value.trim();
                 if (key) void onUpdate({ issueKey: /^[a-z][a-z0-9_]*-\d+$/i.test(key) ? key.toUpperCase() : key });
-                back();
+                back(true);
               }}
             />
           )}
@@ -371,11 +394,12 @@ function TodoRow({
                 if (e.key === "Escape") {
                   e.preventDefault();
                   e.currentTarget.value = x.dueOn ?? "";
-                  return back();
+                  return back(true);
                 }
                 if (e.key === "Enter") {
                   e.preventDefault();
                   e.currentTarget.blur();
+                  requestAnimationFrame(() => row.current?.focus());
                 }
               }}
             />

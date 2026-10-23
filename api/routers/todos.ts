@@ -218,9 +218,9 @@ export const todosRouter = createRouter({
         .from(todos)
         .where(and(eq(todos.userId, ctx.user.id), inArray(todos.id, ids)));
       if (found.length !== ids.length) throw new TRPCError({ code: "NOT_FOUND", message: t("server.todos.notFound") });
-      // Their places, smallest first, handed out again in the new order.
-      const places = found.map((f) => f.position).sort((a, b) => a - b);
-      for (const [i, id] of ids.entries()) await tx.update(todos).set({ position: places[i] }).where(eq(todos.id, id));
+      // From the smallest of their places, one each in the new order (two that shared a place no longer do).
+      const from = Math.min(...found.map((f) => f.position));
+      for (const [i, id] of ids.entries()) await tx.update(todos).set({ position: from + i }).where(eq(todos.id, id));
     });
     return { ok: true };
   }),
@@ -232,7 +232,11 @@ export const todosRouter = createRouter({
     return row;
   }),
 
-  /** Put back a TODO deleted by mistake (its links checked again: the issue or note may be gone). */
+  /**
+   * Put back a TODO deleted by mistake. Its links are checked again: a note
+   * deleted since leaves it on its issue, an issue no longer reachable leaves
+   * it on none; the TODO itself is never lost.
+   */
   restore: protectedProcedure
     .input(
       z.object({
@@ -248,16 +252,23 @@ export const todosRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const link = await linkOf(ctx.user.id, {
-        issueKey: input.issueKey,
-        connectionId: input.connectionId ?? undefined,
-        commentId: input.commentId ?? undefined,
-        commentExcerpt: input.commentExcerpt ?? undefined,
-        issueNoteId: input.issueNoteId ?? undefined,
-      });
+      const tries = [
+        { issueKey: input.issueKey, connectionId: input.connectionId ?? undefined, commentId: input.commentId ?? undefined, commentExcerpt: input.commentExcerpt ?? undefined, issueNoteId: input.issueNoteId ?? undefined },
+        { issueKey: input.issueKey, connectionId: input.connectionId ?? undefined, commentId: input.commentId ?? undefined, commentExcerpt: input.commentExcerpt ?? undefined },
+        {},
+      ];
+      let link: Link | null = null;
+      for (const tryLink of tries) {
+        try {
+          link = await linkOf(ctx.user.id, tryLink);
+          break;
+        } catch (e) {
+          if (!(e instanceof TRPCError) || (e.code !== "NOT_FOUND" && e.code !== "PRECONDITION_FAILED" && e.code !== "CONFLICT")) throw e;
+        }
+      }
       const [row] = await getDb()
         .insert(todos)
-        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn, doneAt: input.done ? new Date() : null, position: input.position, ...link })
+        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn, doneAt: input.done ? new Date() : null, position: input.position, ...(link as Link) })
         .returning();
       return row;
     }),

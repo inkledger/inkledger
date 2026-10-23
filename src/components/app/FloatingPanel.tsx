@@ -25,6 +25,7 @@ export function FloatingPanel({
   stored,
   shape,
   focus,
+  escapeFromFields = false,
   onClose,
   children,
 }: {
@@ -34,6 +35,8 @@ export function FloatingPanel({
   stored: ReturnType<typeof floatRectSetting>;
   shape: FloatShape;
   focus: ReturnType<typeof createFlag>;
+  /** Esc closes it from a field too (the TODO capture); the pinboard's fields keep Esc to themselves. */
+  escapeFromFields?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -125,8 +128,9 @@ export function FloatingPanel({
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
       onKeyDown={e => {
         if (e.defaultPrevented || !e.currentTarget.contains(e.target as Node)) return;
-        // Esc closes it, from a field too, unless something inside already used it (a note being written, a menu, a field it empties).
-        if (e.key === "Escape") {
+        // Esc closes it, unless something inside already used it (a note being written, a menu, a field it empties);
+        // from a field only when asked (escapeFromFields).
+        if (e.key === "Escape" && (escapeFromFields || !isTyping(e.target))) {
           e.preventDefault();
           onClose();
           return;

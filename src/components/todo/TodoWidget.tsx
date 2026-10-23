@@ -54,6 +54,7 @@ export function TodoWidget() {
       stored={stored}
       shape={TODO_SHAPE}
       focus={todoFloatFocus}
+      escapeFromFields
       onClose={close}
     >
       <div className="flex shrink-0 items-center justify-between px-3">

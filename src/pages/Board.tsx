@@ -242,9 +242,11 @@ export default function Board() {
     }
     return m;
   }, [searched]);
+  // Only the levels there are ("0"…"4", "none"): anything else in the URL is ignored.
+  const prio = useMemo(() => new Set([...view.prio].filter(k => k === "none" || /^[0-4]$/.test(k))), [view.prio]);
   const shownRows = useMemo(
-    () => (view.prio.size === 0 ? searched : searched.filter(i => view.prio.has(levelKey(priorityLevel(i.priorityRank, i.priority))))),
-    [searched, view.prio]
+    () => (prio.size === 0 ? searched : searched.filter(i => prio.has(levelKey(priorityLevel(i.priorityRank, i.priority))))),
+    [searched, prio]
   );
 
   // The trackers on the board: those with cards, those the bucket takes, the one chosen;
@@ -567,7 +569,9 @@ export default function Board() {
           >
             <div
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
-              className="cast-room-x cast-room-y flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto [--room-x:0.25rem] [scrollbar-gutter:stable]"
+              // The gap grows with long shadows: a column's room on its left (drawn over the column before it)
+              // never reaches that column, so its cards keep their clicks and drops.
+              className="cast-room-x cast-room-y flex min-h-0 flex-1 snap-x snap-mandatory gap-[max(0.75rem,var(--surface-reach-l,0px))] overflow-x-auto [--room-x:0.25rem] [scrollbar-gutter:stable]"
             >
               {lane.columns.length === 0 && lane.connectionId !== null && (
                 <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.laneEmpty", { name: lane.label })} className="flex-1" />
@@ -649,7 +653,7 @@ export default function Board() {
         actions={
           <>
             <BoardScope connection={view.connection} onConnection={c => setView({ connection: c })} />
-            <PriorityFilter chosen={view.prio} counts={levelCounts} onChange={prio => setView({ prio })} />
+            <PriorityFilter chosen={prio} counts={levelCounts} onChange={next => setView({ prio: next })} />
             <SegmentedControl<BoardMode>
               label={t("pages.board.mode")}
               value={mode}
@@ -708,7 +712,7 @@ export default function Board() {
         <div className="flex min-h-0 flex-1 gap-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The priority filter hides every card here: said, with the way back. */}
-            {view.prio.size > 0 && searched.length > 0 && shownRows.length === 0 && (
+            {prio.size > 0 && searched.length > 0 && shownRows.length === 0 && (
               <p role="status" className="mb-3 text-body-sm text-muted-foreground">
                 {t("pages.board.priorityEmpty")} ·{" "}
                 <button type="button" className="underline underline-offset-4 hover:text-foreground" onClick={() => setView({ prio: new Set() })}>

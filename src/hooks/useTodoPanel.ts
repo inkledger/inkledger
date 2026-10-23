@@ -67,6 +67,8 @@ export function toggleTodos(pathname = window.location.pathname) {
 export function showTodos(pathname = window.location.pathname) {
   const target = todoTarget(pathname, surfaces);
   if (target === "float") {
+    // Already open: nothing to focus (a flag left set would take the focus later).
+    if (todoFloat.get()) return;
     todoFloatFocus.set(true);
     todoFloat.set(true);
   } else if (target === "page") go?.("/todos");
@@ -82,6 +84,7 @@ export function useTodoTarget(pathname: string) {
 
 /** On a phone: the list as a sheet from the bottom (More's tile, the header button), whatever the widget setting. */
 export function openTodosSheet() {
+  if (todoFloat.get()) return;
   todoFloatFocus.set(true);
   todoFloat.set(true);
 }

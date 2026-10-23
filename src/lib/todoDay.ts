@@ -22,6 +22,7 @@ export function nextMonday(today: Date): string {
 
 /** The first line of a text, short enough to be a TODO. */
 export function firstLine(s: string, max = 200): string {
-  const line = s.split("\n").find(l => l.trim())?.trim() ?? "";
-  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+  // By characters, not UTF-16 units: an emoji is never cut in half.
+  const chars = Array.from(s.split("\n").find(l => l.trim())?.trim() ?? "");
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : chars.join("");
 }

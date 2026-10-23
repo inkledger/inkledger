@@ -48,6 +48,10 @@ test("d opens the list, a capture with a day and an issue lands where it belongs
     await field.fill("Write the recap");
     await page.keyboard.press("Enter");
     await float.getByRole("listitem", { name: "Write the recap" }).waitFor();
+    // The field stays ready: the next one is typed at once.
+    await page.keyboard.type("And another");
+    await page.keyboard.press("Enter");
+    await float.getByRole("listitem", { name: "And another" }).waitFor();
     assert.equal((await db.q("SELECT due_on FROM todos WHERE text = 'Write the recap'"))[0].due_on, inDays(0));
     // Esc empties the field first, then closes.
     await field.fill("half");
@@ -84,10 +88,10 @@ test("the list's keys: tick, plan, delete with Undo; the page behind gets none o
       // The issues list behind did not move its selection.
       assert.equal(await page.locator("[aria-selected=true], [data-selected]").count(), 0);
       await page.keyboard.press("1");
-      await page.waitForFunction(() => true);
       await float.getByRole("listitem", { name: "second" }).waitFor({ state: "detached" });
       assert.equal((await db.q("SELECT due_on FROM todos WHERE text = 'second'"))[0].due_on, inDays(0));
-      await float.getByRole("listitem", { name: "third" }).focus();
+      // The focus stays in the list, on the row that took its place: the next key goes on.
+      await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "third");
       await page.keyboard.press("x");
       await page.getByText("Done: third").waitFor();
       assert.notEqual((await db.q("SELECT done_at FROM todos WHERE text = 'third'"))[0].done_at, null);
@@ -117,6 +121,7 @@ test("the hot corner: a rest of the pointer opens the list, a pass does not; off
     await float.waitFor();
     await page.keyboard.press("Escape");
     await float.waitFor({ state: "detached" });
+    await page.mouse.move(width / 2, height / 2);
     // Off in Settings: the corner does nothing; neither does "d" without the widget and the menu.
     await page.goto(base + "/settings/todos");
     await page.getByRole("switch", { name: "Bottom-right corner" }).click();
