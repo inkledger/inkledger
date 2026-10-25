@@ -4,6 +4,7 @@ import { localeMiddleware } from "./lib/i18n";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
+import { compress } from "hono/compress";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
@@ -61,6 +62,9 @@ app.use(async (c, next) => {
 // the plain-HTTP servers on :47823 / :3000 no longer opened there.
 app.use(secureHeaders({ strictTransportSecurity: false }));
 app.use(localeMiddleware);
+// JSON answers travel compressed (a catalogue of issues shrinks 30×); the event stream,
+// /api/events, never is: it would be held back until a buffer filled.
+app.use("/api/trpc/*", compress());
 // Paths only: a query (tRPC inputs: an invite's token) or a webhook's token never reaches the log.
 if (env.isProduction) app.use("/api/*", requestLog());
 // JSON RPC stays small; only attachment uploads may carry files.

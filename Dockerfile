@@ -1,13 +1,17 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS build
+# Pinned by digest (reproducible builds; Dependabot proposes updates).
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS build
 WORKDIR /app
 RUN apk add --no-cache python3 make g++ && corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm run build && pnpm prune --prod --ignore-scripts
+RUN pnpm run build && pnpm prune --prod --ignore-scripts \
+    # Kept by the prune as drizzle-orm's optional peers, never loaded by the server: PGlite (tests,
+    # pglite: URLs only), TypeScript (types), better-sqlite3 (a migration script). ~70 MB less.
+    && rm -rf node_modules/.pnpm/@electric-sql+pglite@* node_modules/.pnpm/typescript@* node_modules/.pnpm/better-sqlite3@*
 
-FROM node:24-alpine
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=47823 \

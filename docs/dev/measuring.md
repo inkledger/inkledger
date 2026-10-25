@@ -72,6 +72,8 @@ node scripts/bundle-size.mjs --md   # the summary table
 | Before Wave 3 | 1068.7 | 334.3 |
 | Zod kept to the settings page | 997.9 | 314.6 |
 | Dialog bodies on demand | 880.8 | 280.9 |
+| Grown since (Wave 3 to Oct 24) | 945.0 | 300.5 |
+| Italian texts on demand (English in the bundle) | 847.7 | 268.8 |
 
 All JS together: 444.8 KiB gzip before Wave 3, 441.5 with zod kept to the settings page, 451.4
 with the dialog bodies on demand (38 chunks to 57): code shared by the parts loaded on demand
@@ -220,3 +222,44 @@ pnpm lint && pnpm check && pnpm test && pnpm build && pnpm test:smoke && PROVIDE
 - **What baseline.md records:** results, counts per file, versions and sizes only.
 - **What stays local:** raw logs and durations. They vary from run to run, so they are never
   committed.
+
+## Durations and resources
+
+`scripts/perf.mjs` times the production builds; the counts above say nothing about milliseconds
+or memory. Results land in `perf/<date>-<sha>.json` (gitignored) with a Markdown summary on
+stdout; the first run and what it shows are in [performance.md](performance.md).
+
+```sh
+pnpm build && pnpm perf server   # dist/ on a temp database, server and pages
+pnpm perf docker                 # the inkledger stack on :47824 (pnpm docker:update)
+pnpm dist && pnpm perf app       # the native builds in release/<version>/
+pnpm perf                        # all of them
+```
+
+- **server:** the e2e harness (`e2e/harness.mjs`) on a temporary Postgres database, read-only
+  towards trackers, sync off. The seed adds a year of one person's work (500 issues, 1200
+  worklogs).
+  - **Boot:** three more servers started on the same migrated database, from spawn to a 200
+    on `/api/health`, with their RSS at that moment.
+  - **Idle:** CPU % from `ps` CPU time over 10 s, and RSS; again after the load.
+  - **API:** every tRPC GET the pages made, replayed with the session cookie: 20 in a row and
+    5 × 10 at once (p50, p95), the bytes of the answer, what gzip would make of them, and per
+    procedure of a batch the size of its result.
+- **page:** each route in a new browser context (cold cache), then reloaded (warm). Navigation
+  and paint timings, LCP and long tasks from `PerformanceObserver`, CPU from CDP
+  `Performance.getMetrics` (script, layout, style), JS heap, DOM nodes, bytes transferred and
+  requests, 3 s after `load`.
+- **docker:** image size, `docker stats` of app and database every 4 s for 24 s, and latency of
+  health, the shell and the entry chunk with `Accept-Encoding: gzip, br`.
+- **app:** sizes from `release/<version>/manifest.json`; then the release `.app` launched for
+  20 s and its processes measured idle for 15 s. WebKit's helpers belong to launchd, not to the
+  app: the ones that appear after the launch are counted as the app's (keep Safari closed). It
+  opens on whatever profile the app has stored, as a user would. Skipped when inkledger is
+  already running (single instance).
+- **Memory on macOS:** RSS from `ps` moves with the system's memory compression: the same
+  build measured 58 MiB idle one day and 230–290 MiB another. Compare builds side by side in the
+  same session; the Docker stack's `docker stats` (Linux, ~54 MiB idle) is the figure that
+  matters for a server.
+- **What the numbers are worth:** milliseconds depend on the machine and on what else runs;
+  compare runs on the same machine, not across. The first route of a run includes the browser's
+  warm-up. Two runs agreed within ~15% on page timings and within a few KiB on bytes.

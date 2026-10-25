@@ -1,6 +1,6 @@
 import { readStored, writeStored } from "@/lib/storage";
 import { useSyncExternalStore } from "react";
-import { currentLocale, INTL_TAG, isLocale, setLocaleSource, type Locale } from "@contracts/i18n";
+import { currentLocale, INTL_TAG, isLocale, loadLocale, setLocaleSource, type Locale } from "@contracts/i18n";
 import { invokeNative } from "@/lib/native";
 
 export {
@@ -51,6 +51,14 @@ export function getLocale(): Locale {
 }
 
 export function setLocale(next: Locale): void {
+  if (next === currentLocale()) return;
+  // Its texts first (fetched once, when not in the bundle): never a page half in English.
+  void loadLocale(next)
+    .catch(() => undefined)
+    .then(() => apply(next));
+}
+
+function apply(next: Locale): void {
   if (next === currentLocale()) return;
   chosen = next;
   // No storage: this tab only.

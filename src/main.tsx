@@ -6,6 +6,7 @@ import { TRPCProvider } from "@/providers/trpc";
 import App from "./App.tsx";
 import { installNativeShell, isNative } from "@/lib/native";
 import { isPartFailure } from "@/components/app/lazyPart";
+import { currentLocale, LOCALES, loadLocale } from "@contracts/i18n";
 
 // After a redeploy, lazy chunks of the old build are gone (404): reload to
 // pick up the new index.html. At most once every 10 s, so a chunk that is
@@ -30,7 +31,18 @@ window.addEventListener("vite:preloadError", event => {
 
 installNativeShell();
 
-createRoot(document.getElementById("root")!).render(
+// The chosen language's texts before the first paint (English is in the bundle; another one
+// comes on demand), then the others while idle (a name in another language is recognized).
+void loadLocale(currentLocale())
+  .catch(() => undefined)
+  .finally(() => {
+    render();
+    const rest = () => LOCALES.forEach(l => void loadLocale(l).catch(() => undefined));
+    if ("requestIdleCallback" in window) window.requestIdleCallback(rest);
+    else setTimeout(rest, 2000);
+  });
+
+const render = () => createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <TRPCProvider>

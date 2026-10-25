@@ -1,21 +1,14 @@
-import { currentLocale, lookup, pick, type Locale, type Path, type Tree, type Vars } from "./core";
-import { en } from "./en";
+// Every language at once: the server and the tests. The page's build takes client.ts
+// instead (vite.config.ts), which loads a language when it is chosen.
+import type { Locale } from "./core";
+import { hasDictionary, registerDictionary } from "./base";
 import { it } from "./it";
 
-export * from "./core";
+export * from "./base";
 
-export type Messages = typeof en;
-export type MessageKey = Path<Messages>;
+registerDictionary("it", it);
 
-const DICTIONARIES: Record<Locale, Tree> = { en, it };
-
-/** The text for `key` in the current locale, `{name}` placeholders filled from `vars`. */
-export function t(key: MessageKey, vars?: Vars): string {
-  return tIn(currentLocale(), key, vars);
-}
-
-/** Same, in a given locale. A missing text falls back to English, then to the key. */
-export function tIn(locale: Locale, key: MessageKey, vars?: Vars): string {
-  const value = lookup(DICTIONARIES[locale], key) ?? lookup(en, key);
-  return value === undefined ? key : pick(value, locale, vars);
+/** Here every language is loaded already. */
+export async function loadLocale(locale: Locale): Promise<void> {
+  if (!hasDictionary(locale)) throw new Error(`No dictionary for ${locale}`);
 }

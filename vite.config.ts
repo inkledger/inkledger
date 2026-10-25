@@ -41,11 +41,31 @@ function migrateOnNewMigration(): Plugin {
   }
 }
 
+/**
+ * The page's build takes contracts/i18n/client.ts for contracts/i18n/index.ts (however it
+ * is imported): English in the first load, other languages on demand. The server (SSR, the
+ * dev server's API) keeps every language.
+ */
+function clientI18n(): Plugin {
+  const index = path.resolve(__dirname, "contracts/i18n/index.ts")
+  const client = path.resolve(__dirname, "contracts/i18n/client.ts")
+  return {
+    name: "client-i18n",
+    enforce: "pre",
+    async resolveId(source, importer, options) {
+      if (options?.ssr || !/i18n(\/index(\.ts)?)?$/.test(source)) return null
+      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
+      return resolved?.id === index ? client : null
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
     react(),
+    clientI18n(),
     appBuild(),
     migrateOnNewMigration()],
   server: {

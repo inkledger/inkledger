@@ -49,7 +49,8 @@ export function serveStaticFiles(app: App) {
     await next();
     if (c.res.ok) c.header("Cache-Control", "public, max-age=31536000, immutable");
   });
-  app.use("*", serveStatic({ root: "./dist/public" }));
+  // Each text file has .br and .gz beside it (scripts/precompress.mjs): sent by Accept-Encoding.
+  app.use("*", serveStatic({ root: "./dist/public", precompressed: true }));
 
   // SPA fallback: always revalidate the shell so new deploys are picked up.
   app.notFound((c) => {

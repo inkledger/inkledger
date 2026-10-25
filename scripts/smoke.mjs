@@ -82,6 +82,16 @@ try {
   const asset = readdirSync("dist/public/assets").find((f) => f.endsWith(".js"));
   const a = await fetch(`${base}/assets/${asset}`);
   check(a.ok && /immutable/.test(a.headers.get("cache-control") ?? ""), "hashed assets cached immutable");
+  // Precompressed at build (scripts/precompress.mjs): the entry goes as brotli, or gzip, to
+  // a client that takes it; the plain file to one that doesn't.
+  const br = await fetch(`${base}/assets/${entry}`, { headers: { "accept-encoding": "br" } });
+  const gz = await fetch(`${base}/assets/${entry}`, { headers: { "accept-encoding": "gzip" } });
+  const plain = await fetch(`${base}/assets/${entry}`, { headers: { "accept-encoding": "identity" } });
+  check(
+    br.headers.get("content-encoding") === "br" && gz.headers.get("content-encoding") === "gzip" && !plain.headers.get("content-encoding") &&
+      /accept-encoding/i.test(br.headers.get("vary") ?? "") && /immutable/.test(br.headers.get("cache-control") ?? ""),
+    "assets served precompressed (br, gzip) by Accept-Encoding, still immutable",
+  );
 
   const moduleFile = await fetch(`${base}/api/modules/x/${"0".repeat(32)}/index.js`);
   check(moduleFile.status === 401, "module code needs a session");
