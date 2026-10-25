@@ -154,6 +154,16 @@ describe("auth: sessions, cookies, login hardening", () => {
     await expect(login(from("198.51.100.201"))).resolves.toBeTruthy();
   });
 
+  it("a blocked client address is refused before the account counts: it can't lock someone else out", async () => {
+    await account("victim");
+    const from = (address: string) => ({ ...anon(), remoteAddress: address });
+    // The address spends its own budget on many names, one try each.
+    for (let i = 0; i < 30; i++) await login(from("198.51.100.150"), { username: `name${i}`, password: "wrong password!" }).catch(() => null);
+    // Blocked now: its tries on the victim are refused before they count against the victim.
+    for (let i = 0; i < 15; i++) await expect(login(from("198.51.100.150"), { username: "victim", password: "wrong password!" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    await expect(login(from("198.51.100.151"), { username: "victim" })).resolves.toMatch(/ikl_session=/);
+  });
+
   it("logout works without a session and always clears the cookie", async () => {
     const ctx = anon();
     expect(await appRouter.createCaller(ctx).auth.logout()).toEqual({ ok: true });
@@ -167,6 +177,33 @@ describe("auth: sessions, cookies, login hardening", () => {
   });
 
   describe("a new server", () => {
+    it("in production, without INKLEDGER_ADMIN_PASSWORD, the first admin gets a random password in a private file, not \"admin\"", async () => {
+      const { mkdtempSync, readFileSync, statSync, existsSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const path = await import("node:path");
+      const accounts = await import("../queries/accounts");
+      const file = path.join(mkdtempSync(path.join(tmpdir(), "ikl-admin-")), "initial-admin-password");
+      await q("DELETE FROM users WHERE username = 'admin'");
+      await q("UPDATE users SET role = 'member'");
+      process.env.INITIAL_ADMIN_PASSWORD_PATH = file;
+      try {
+        expect(await accounts.ensureAdmin({ production: true, password: null })).toBe(true);
+        const password = readFileSync(file, "utf8").trim();
+        expect(password.length).toBeGreaterThanOrEqual(20);
+        expect(statSync(file).mode & 0o777).toBe(0o600);
+        await expect(login(anon(), { username: "admin", password: "admin" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        const s = await fromCookie(await login(anon(), { username: "admin", password }));
+        expect(await appRouter.createCaller(s).auth.me()).toMatchObject({ mustChangePassword: true });
+        await appRouter.createCaller(s).auth.changePassword({ current: password, next: "the admin's own password" });
+        // Used: the file goes with the password it held.
+        expect(existsSync(file)).toBe(false);
+      } finally {
+        delete process.env.INITIAL_ADMIN_PASSWORD_PATH;
+        await q("DELETE FROM users WHERE username = 'admin'");
+        await q("UPDATE users SET role = 'admin' WHERE username = 'mario'");
+      }
+    });
+
     it("starts with one admin whose default password opens only the change of password", async () => {
       const { ensureAdmin, defaultAdminPending } = await import("../queries/accounts");
       await q("UPDATE users SET role = 'member'");
@@ -182,8 +219,10 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(changed.mustChangePassword).toBe(false);
       expect(await defaultAdminPending()).toBe(false);
       const { userFromRequest } = await import("../context");
-      const after = await userFromRequest(s.req);
-      expect(after.user, "this session stays").not.toBeNull();
+      // The session the password changed in ends too (a copy of its cookie stops working): this device gets a new one.
+      expect((await userFromRequest(s.req)).user, "the old session ends").toBeNull();
+      const renewed = await fromCookie(s.resHeaders.get("set-cookie") ?? "");
+      expect(renewed.user, "a new session for this device").toMatchObject({ username: "admin" });
       await q("UPDATE users SET role = 'admin' WHERE username = 'mario'");
     });
   });
@@ -348,9 +387,25 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(openSecret(conn.encrypted_secret, conn.id).plain).toBe("t");
     });
 
+    it("a site no account waits to activate on is never contacted: no Jira call, the same answer", async () => {
+      const calls = vi.mocked(fetch).mock.calls.length;
+      await expect(
+        appRouter.createCaller(anon()).auth.activate({ siteUrl: "https://10.0.0.5:8080", deployment: "server", authType: "basic", username: "x", secret: "t", newUsername: "probe", newPassword: "a fine password" }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(vi.mocked(fetch).mock.calls.length, "no request to the site").toBe(calls);
+    });
+
     it("a Jira login with no account behind it gets nothing; Jira failures answer as before", async () => {
+      // A site an account from before local accounts waits on (its Jira says who logs in).
+      const [waiting] = await q<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES ('w@x.it', 'Waiting', ?) RETURNING id", Date.now());
+      await q(
+        "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, legacy, status, created_at) VALUES (?, 'jira', 'https://other.atlassian.net', 'acc-other', '{}', 'x', 1, 'unreadable', ?)",
+        waiting.id,
+        Date.now(),
+      );
       const activate = (input: Record<string, string> = {}) =>
         appRouter.createCaller(anon()).auth.activate({ siteUrl: "https://other.atlassian.net", deployment: "cloud", authType: "basic", username: "x@x.it", secret: "t", newUsername: "newbie", newPassword: "a fine password", ...input });
+      // Jira says the login is acc-1: not the account waiting there.
       await expect(activate()).rejects.toMatchObject({ code: "NOT_FOUND" });
       for (const mode of ["down", "500"] as const) {
         jira = mode;

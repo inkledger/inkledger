@@ -109,10 +109,11 @@ export const env = {
     (process.env.ALLOW_MIGRATE_PRODUCTION_DB ?? "").trim().toLowerCase(),
   ),
   /**
-   * The first admin's password on a new server (INKLEDGER_ADMIN_PASSWORD, else
-   * "admin"): it must be changed at the first sign-in either way.
+   * The first admin's password on a new server (INKLEDGER_ADMIN_PASSWORD): it must be
+   * changed at the first sign-in either way. Unset, production makes a random one
+   * (ensureAdmin), anything else uses "admin".
    */
-  adminPassword: process.env.INKLEDGER_ADMIN_PASSWORD || "admin",
+  adminPassword: process.env.INKLEDGER_ADMIN_PASSWORD || null,
   /**
    * The GitHub OAuth App users sign in to GitHub with (device flow): the
    * inkledger app on the inkledger organisation. A client id is public, not

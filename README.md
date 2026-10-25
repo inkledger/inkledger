@@ -130,7 +130,7 @@ docker compose up -d --build
 curl http://127.0.0.1:47823/api/health    # {"status":"ok"}
 ```
 
-Open http://127.0.0.1:47823 and sign in as **admin** with the password `admin` (or `INKLEDGER_ADMIN_PASSWORD`): you must choose a new one first. Then:
+Open http://127.0.0.1:47823 and sign in as **admin**. Its first password is `INKLEDGER_ADMIN_PASSWORD` if you set one; otherwise the server makes a random one at the first start and writes it to a file only the server can read: `docker exec inkledger cat /app/data/initial-admin-password`. You must choose a new password first (the file goes then). Then:
 
 - connect your trackers in **Settings → Connections**: Jira with its login (for Server / Data Center your Jira URL, username and password, or a Personal Access Token, Data Center 8.14+, recommended; for Cloud your site URL, Atlassian email and an [API token](https://id.atlassian.com/manage-profile/security/api-tokens)), GitHub with a code on github.com, the others with a personal token (and your server's address for a self-hosted one);
 - invite the others from **Settings → Users**: each gets a one-time link (or a QR code) to choose their password.
@@ -174,7 +174,7 @@ Use `PROVIDERS_READ_ONLY=1` when you point a development server at a real tracke
 | `SESSION_SECRET` | dev: fixed; prod: **required** | Signs sessions; seals tracker credentials when `CREDENTIALS_KEY` is unset |
 | `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals tracker credentials (AES-256-GCM, bound to their connection); after a rotation the next start seals them again |
 | `PORT` | `3000` | Production port (Docker: `47823`) |
-| `INKLEDGER_ADMIN_PASSWORD` | `admin` | The first admin's password on a new server (it must be changed at the first sign-in) |
+| `INKLEDGER_ADMIN_PASSWORD` | prod: random, in `INITIAL_ADMIN_PASSWORD_PATH` (`data/initial-admin-password`, mode 0600); dev: `admin` | The first admin's password on a new server (it must be changed at the first sign-in) |
 | `SESSION_DAYS` | `30` | Lifetime of an unused session (sessions in use are renewed) |
 | `REMOTE_ALLOWED_HOSTS` (or `JIRA_ALLOWED_HOSTS`) | any | Comma-separated self-hosted tracker hosts accepted; services on the internet are never limited by it |
 | `GITHUB_CLIENT_ID` | the inkledger app | Your own GitHub OAuth App (device flow) for connecting GitHub, instead of inkledger's |

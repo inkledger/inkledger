@@ -113,3 +113,21 @@ describe("isAllowedHost", () => {
     expect(isAllowedHost(undefined, [])).toBe(true);
   });
 });
+
+describe("createRateLimiter, bounded", () => {
+  it("keeps at most maxKeys entries however many keys come, expired ones dropped first", () => {
+    const rl = createRateLimiter(3, 1000, { maxKeys: 100 });
+    for (let i = 0; i < 5000; i++) rl.hit(`k${i}`, i);
+    expect(rl.size()).toBeLessThanOrEqual(100);
+  });
+
+  it("an entry renewed after its window moves behind the others (expired ones sit in front)", () => {
+    const rl = createRateLimiter(1, 1000, { maxKeys: 3 });
+    rl.hit("a", 0);
+    rl.hit("b", 10);
+    rl.hit("a", 1500); // a new window for "a"
+    rl.hit("c", 1600); // "b" expired at 1010: it goes first
+    rl.hit("d", 1700);
+    expect(rl.hit("a", 1800)).toBeGreaterThan(0);
+  });
+});

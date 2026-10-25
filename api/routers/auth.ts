@@ -13,8 +13,8 @@ import { clearedSessionCookies, clientIp, readRememberCookie, rememberCookie, se
 import { normalizeSiteUrl } from "../lib/siteUrl";
 import { decoyHash, hashPassword, verifyPassword } from "../lib/password";
 import { confirmJiraLogin, jiraLoginInput } from "../lib/jiraLogin";
-import { consumeInvite, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
-import { PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
+import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
+import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
 
 export { normalizeSiteUrl };
@@ -46,7 +46,9 @@ export function publicUser(u: User) {
 }
 
 function throttle(ctx: Ctx, accountKey?: string) {
-  const wait = Math.max(ipLimiter.hit(clientIp(ctx.req, ctx.remoteAddress)), accountKey ? loginLimiter.hit(accountKey) : 0);
+  // The address first: a blocked one never counts against an account (it could lock its owner out).
+  const ipWait = ipLimiter.hit(clientIp(ctx.req, ctx.remoteAddress));
+  const wait = ipWait > 0 ? ipWait : accountKey ? loginLimiter.hit(accountKey) : 0;
   if (wait > 0) {
     throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: t("server.auth.tooManyAttempts", { count: wait }) });
   }
@@ -142,6 +144,15 @@ export const authRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       throttle(ctx, `${input.siteUrl}|${input.username.toLowerCase()}`);
       assertNewPassword(input.newPassword);
+      // Only a site an account here is connected to is ever asked: the public form must not
+      // make this server call any address it is given.
+      const [onSite] = await getDb()
+        .select({ id: connections.id })
+        .from(connections)
+        .innerJoin(users, eq(users.id, connections.userId))
+        .where(and(eq(connections.type, "jira"), eq(connections.baseUrl, input.siteUrl), isNull(users.disabledAt)))
+        .limit(1);
+      if (!onSite) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.noAccountToActivate") });
       const identity = await confirmJiraLogin(input);
       // The account whose connection this Jira login is.
       const [found] = await getDb()
@@ -220,7 +231,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.wrongPassword") });
       }
       assertNewPassword(input.next);
-      if (input.next === input.current || input.next === env.adminPassword) {
+      if (input.next === input.current || input.next === (env.adminPassword ?? "admin")) {
         throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.passwordUnchanged") });
       }
       const [user] = await getDb()
@@ -228,8 +239,11 @@ export const authRouter = createRouter({
         .set({ passwordHash: await hashPassword(input.next), mustChangePassword: 0 })
         .where(eq(users.id, ctx.user.id))
         .returning();
-      await signOutEverywhere(user.id, ctx.sessionId);
+      // This session ends too (a copy of its cookie, taken before, must not outlive the password): a new one for this device.
+      await signOutEverywhere(user.id);
+      await startSession(ctx, user.id);
       await rememberDevice(ctx, user.id);
+      if (user.username?.toLowerCase() === DEFAULT_ADMIN) forgetInitialAdminPassword();
       return publicUser(user);
     }),
 

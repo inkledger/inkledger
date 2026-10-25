@@ -72,6 +72,9 @@ const worker = {
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 
+/** Every URL this server asked for that isn't the store itself (catalog pictures). */
+const pictureCalls: string[] = [];
+
 describe("module store", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;
   let app: typeof import("../boot").default;
@@ -81,7 +84,11 @@ describe("module store", () => {
     vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith("/rest/api/3/myself")) return json({ accountId: "acc-1", displayName: "Mario" });
-      if (url.origin === "https://img.test") {
+      if (url.origin !== "https://store.test") pictureCalls.push(url.href);
+      if (url.hostname === "img.test" && url.pathname === "/moved.webp") return new Response(null, { status: 302, headers: { location: "https://img.test/hello.webp" } });
+      if (url.hostname === "img.test" && url.pathname === "/inward.webp") return new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data" } });
+      if (url.hostname === "img.test" && url.pathname === "/huge.webp") return new Response(new Uint8Array(3 * 1024 * 1024), { headers: { "content-type": "image/webp" } });
+      if (url.hostname === "img.test") {
         const svg = url.pathname.endsWith(".svg");
         return new Response(svg ? "<svg onload='alert(1)'/>" : "RIFF", { headers: { "content-type": svg ? "image/svg+xml" : "image/webp" } });
       }
@@ -131,6 +138,23 @@ describe("module store", () => {
     }
     expect((await app.request("/api/store/media/hello/1", { headers: { cookie } })).status).toBe(404);
     expect((await app.request("/api/store/media/svg/image", { headers: { cookie } })).status).toBe(404);
+  });
+
+  it("catalog pictures: https on public hosts only, redirects followed by hand and re-checked, size capped", async () => {
+    const { fetchImage } = await import("./routes");
+    // Refused (null) or failing (the route answers 404 either way, nothing kept).
+    const shown = (url: string) => fetchImage(url).catch(() => null);
+    pictureCalls.length = 0;
+    // Not https, or an internal address written out: never asked.
+    expect(await shown("http://img.test/plain.webp")).toBeNull();
+    expect(await shown("https://127.0.0.1/a.webp")).toBeNull();
+    expect(await shown("https://[::1]/a.webp")).toBeNull();
+    expect(pictureCalls).toEqual([]);
+    // A redirect to another public picture is followed; one inward is refused before it is asked.
+    expect(await shown("https://img.test/moved.webp")).toMatchObject({ type: "image/webp" });
+    expect(await shown("https://img.test/inward.webp")).toBeNull();
+    expect(pictureCalls.some((u) => u.includes("169.254.169.254"))).toBe(false);
+    expect(await shown("https://img.test/huge.webp")).toBeNull();
   });
 
   it("a licence request waits, then installs the module by itself once approved", async () => {

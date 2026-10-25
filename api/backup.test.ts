@@ -76,6 +76,21 @@ describe("backups on disk", () => {
     expect(fs.readdirSync(DIR).some((f) => f.endsWith(".partial"))).toBe(false);
   });
 
+  it("a dump is readable by this server's user only (it holds password hashes and sealed credentials)", async () => {
+    const b = await import("./backup");
+    const previous = process.umask(0o022);
+    // One file more, pruning none (the next test restores the oldest).
+    await b.setBackupSettings({ keep: 10 });
+    try {
+      const name = await b.runBackup();
+      expect(fs.statSync(path.join(DIR, name)).mode & 0o777).toBe(0o600);
+    } finally {
+      process.umask(previous);
+      fs.rmSync(path.join(DIR, b.listBackups()[0].name));
+      await b.setBackupSettings({ keep: 2 });
+    }
+  });
+
   it("restoring makes a safety backup first, and refuses unknown files", async () => {
     const b = await import("./backup");
     const [newest] = b.listBackups();

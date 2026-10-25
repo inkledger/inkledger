@@ -1,6 +1,8 @@
 // inkledger's own accounts: who exists on this server, what they may do, how they
 // get in (password, invite link), and turning access off again.
 import { createHash, randomBytes } from "node:crypto";
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, sessions, users, type User } from "@db/schema";
 import { DEFAULT_ADMIN, INVITE_DAYS, PERMISSIONS, type Permission, type Role } from "@contracts/accounts";
@@ -49,24 +51,45 @@ export async function userById(id: number): Promise<User | undefined> {
   return row;
 }
 
+/** Where a production server leaves its first admin's random password (INITIAL_ADMIN_PASSWORD_PATH, else data/). */
+export const initialAdminPasswordFile = () => process.env.INITIAL_ADMIN_PASSWORD_PATH || path.resolve("data/initial-admin-password");
+
 /**
- * A new server starts with one admin, "admin", whose password (INKLEDGER_ADMIN_PASSWORD,
- * else "admin") must be changed at the first sign-in. Nothing happens once
- * any admin exists: an upgraded server keeps the people it had, who activate
- * their own accounts. Returns whether it made the admin.
+ * A new server starts with one admin, "admin", whose password must be changed
+ * at the first sign-in: INKLEDGER_ADMIN_PASSWORD; unset, in production a random
+ * one written to a file only this server's user can read (whoever reaches the
+ * server first could otherwise take it with a public default), "admin" in
+ * development. Nothing happens once any admin exists: an upgraded server keeps
+ * the people it had, who activate their own accounts. Returns whether it made the admin.
  */
-export async function ensureAdmin(): Promise<boolean> {
+export async function ensureAdmin(o: { production?: boolean; password?: string | null } = {}): Promise<boolean> {
   const db = getDb();
   const [admin] = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin")).limit(1);
   if (admin) return false;
+  const given = o.password !== undefined ? o.password : env.adminPassword;
+  let password = given ?? "admin";
+  if (!given && (o.production ?? env.isProduction)) {
+    password = randomBytes(18).toString("base64url");
+    const file = initialAdminPasswordFile();
+    mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    writeFileSync(file, `${password}\n`, { mode: 0o600 });
+    // A file already there keeps its mode on overwrite.
+    chmodSync(file, 0o600);
+    console.log(`[accounts] the "${DEFAULT_ADMIN}" account's first password is in ${file}: sign in and change it`);
+  }
   await db.insert(users).values({
     username: DEFAULT_ADMIN,
     displayName: "Admin",
     role: "admin",
-    passwordHash: await hashPassword(env.adminPassword),
+    passwordHash: await hashPassword(password),
     mustChangePassword: 1,
   });
   return true;
+}
+
+/** The first admin's random password, once changed: its file goes. */
+export function forgetInitialAdminPassword() {
+  rmSync(initialAdminPasswordFile(), { force: true });
 }
 
 /** True while the default admin still has the password it started with (the start log warns). */
@@ -85,6 +108,14 @@ export async function signOutEverywhere(userId: number, keepSessionId?: string |
   await db.delete(rememberedDevices).where(eq(rememberedDevices.userId, userId));
   // One statement, however many sessions.
   await db.delete(sessions).where(and(eq(sessions.userId, userId), ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : [])));
+}
+
+/** Remembered devices and invite links past their date: nothing opens with them any more, so they go (with the sessions' purge). */
+export async function purgeExpiredAccess(now = Date.now()): Promise<{ devices: number; invites: number }> {
+  const db = getDb();
+  const devices = await db.delete(rememberedDevices).where(sql`${rememberedDevices.expiresAt} <= ${now}`).returning({ id: rememberedDevices.id });
+  const links = await db.delete(invites).where(sql`${invites.expiresAt} <= ${now}`).returning({ id: invites.id });
+  return { devices: devices.length, invites: links.length };
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");

@@ -54,3 +54,17 @@ describe("signOutEverywhere", () => {
     expect(await q("SELECT id FROM sessions")).toEqual([{ id: "theirs" }]);
   });
 });
+
+describe("purgeExpiredAccess", () => {
+  it("drops expired remembered devices and invite links, keeps the live ones", async () => {
+    const [{ id }] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('pa', 'Pa', 1) RETURNING id");
+    await q("DELETE FROM remembered_devices");
+    const now = Date.now();
+    await q("INSERT INTO remembered_devices (id, user_id, expires_at, last_used_at, created_at) VALUES ('d-old', ?, ?, 1, 1), ('d-live', ?, ?, 1, 1)", id, now - 1, id, now + 86_400_000);
+    await q("INSERT INTO invites (id, user_id, expires_at, created_at) VALUES ('i-old', ?, ?, 1), ('i-live', ?, ?, 1)", id, now - 1, id, now + 86_400_000);
+    const { purgeExpiredAccess } = await import("./accounts");
+    expect(await purgeExpiredAccess(now)).toEqual({ devices: 1, invites: 1 });
+    expect(await q("SELECT id FROM remembered_devices")).toEqual([{ id: "d-live" }]);
+    expect(await q("SELECT id FROM invites")).toEqual([{ id: "i-live" }]);
+  });
+});

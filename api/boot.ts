@@ -3,7 +3,6 @@ import "./lib/tz";
 import { localeMiddleware } from "./lib/i18n";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
@@ -24,6 +23,7 @@ import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
+import { requestLog } from "./lib/requestLog";
 import { allowedHostsNow } from "./lib/serverHosts";
 import { beginShutdown } from "./lib/shutdown";
 import { registerEventRoutes } from "./events";
@@ -34,7 +34,7 @@ import { settleInFlightSyncs } from "./routers/issues";
 import { startBackupScheduler } from "./backup";
 import { t } from "@contracts/i18n";
 import { DEFAULT_ADMIN } from "@contracts/accounts";
-import { defaultAdminPending, ensureAdmin } from "./queries/accounts";
+import { defaultAdminPending, ensureAdmin, purgeExpiredAccess } from "./queries/accounts";
 
 // Connect and migrate before answering anything (Postgres; PGlite in tests).
 await initDb();
@@ -60,7 +60,8 @@ app.use(async (c, next) => {
 // the plain-HTTP servers on :47823 / :3000 no longer opened there.
 app.use(secureHeaders({ strictTransportSecurity: false }));
 app.use(localeMiddleware);
-if (env.isProduction) app.use("/api/*", logger());
+// Paths only: a query (tRPC inputs: an invite's token) or a webhook's token never reaches the log.
+if (env.isProduction) app.use("/api/*", requestLog());
 // JSON RPC stays small; only attachment uploads may carry files.
 const smallBody = bodyLimit({ maxSize: 1024 * 1024 });
 const uploadBody = bodyLimit({
@@ -138,7 +139,7 @@ if (env.isProduction) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   purge();

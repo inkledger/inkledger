@@ -57,8 +57,9 @@ describe("server messages follow the request locale", () => {
       const body = (await res.json()) as { error: { json: { message: string } } };
       return body.error.json.message;
     };
-    expect(await call("en")).toBe("Only http(s) URLs are allowed");
-    expect(await call("it")).toBe("Sono ammessi solo URL http(s)");
+    // Activation answers before any URL check when no account could be activated (Batch 1): in each language.
+    expect(await call("en")).toBe("No account to activate with this Jira login. Ask an admin for an invite.");
+    expect(await call("it")).toBe("Nessun account da attivare con questo accesso Jira. Chiedi un invito a un amministratore.");
   });
 
   it("refused input reads as words with the fields named, never the validator's JSON", async () => {

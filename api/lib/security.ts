@@ -111,18 +111,28 @@ export async function assertSafeJiraUrl(
   return assertSafeUrl(raw, { allowedHosts, network: "private", ...(resolve ? { resolve } : {}) });
 }
 
-/** Fixed-window in-memory rate limiter (single-process deployment). */
-export function createRateLimiter(limit: number, windowMs: number) {
+/**
+ * Fixed-window in-memory rate limiter (single-process deployment), holding at
+ * most `maxKeys` keys: every window has the same length, so entries kept in
+ * the order their windows began are also in the order they end. A new key
+ * drops the expired ones from the front (only those), then the oldest while
+ * the limiter is still full: memory and work stay bounded however many keys come.
+ */
+export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?: number } = {}) {
+  const maxKeys = o.maxKeys ?? 10_000;
   const hits = new Map<string, { count: number; resetAt: number }>();
   return {
     /** Returns seconds to wait when blocked, 0 when the hit is allowed. */
     hit(key: string, now = Date.now()): number {
       const entry = hits.get(key);
       if (!entry || entry.resetAt <= now) {
-        hits.set(key, { count: 1, resetAt: now + windowMs });
-        if (hits.size > 10_000) {
-          for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+        // Behind the others: its window begins now.
+        hits.delete(key);
+        for (const [k, v] of hits) {
+          if (v.resetAt > now && hits.size < maxKeys) break;
+          hits.delete(k);
         }
+        hits.set(key, { count: 1, resetAt: now + windowMs });
         return 0;
       }
       entry.count++;
@@ -131,6 +141,8 @@ export function createRateLimiter(limit: number, windowMs: number) {
     reset(key: string) {
       hits.delete(key);
     },
+    /** Keys held now. */
+    size: () => hits.size,
   };
 }
 

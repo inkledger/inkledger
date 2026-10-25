@@ -219,7 +219,12 @@ export function runBackup(): Promise<string> {
     try {
       if (!backupDirWritable(dir)) throw new Error(t("server.backup.dirNotWritable", { dir }));
       const target = pgTarget();
+      // Readable by this server's user only, from the first byte: a dump holds password hashes
+      // and sealed credentials (pg_dump writes into the file made here, keeping its mode).
+      fs.closeSync(fs.openSync(tmp, "w", 0o600));
+      fs.chmodSync(tmp, 0o600);
       await run(process.env.PG_DUMP_BIN ?? "pg_dump", ["--format=custom", `--file=${tmp}`, target.url], target.env);
+      fs.chmodSync(tmp, 0o600);
       fs.renameSync(tmp, path.join(dir, name));
       const { keep } = await getBackupSettings();
       for (const old of toPrune(fs.readdirSync(dir), keep, restoring)) fs.rmSync(path.join(dir, old), { force: true });
