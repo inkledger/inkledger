@@ -180,3 +180,36 @@ checkout: they apply cleanly. Not applied: the session asked for the user to app
 - [ ] Release signing/notarization, Android release key: need the user's accounts and keys.
 - [ ] Rollback rehearsal on the stack (`--rehearse-rollback`): drops and restores the inkledger
   database, so the user runs it.
+
+## Commits (local, `main`, not pushed)
+Each commit's tree was built from the working tree in a temporary index and checked out in a
+temporary worktree. Its parity inventories were regenerated there, and `tsc -b` plus the unit
+tests passed before `main` moved to it (no amend, no rewrite).
+
+| Commit | Subject | Unit tests at that commit |
+|---|---|---|
+| c728c58 | fix(auth): safe first admin, limits, quiet logs (Batch 1, from the batch1 worktree) | 2178/2178 |
+| 0444d17 | feat(ops): docker update, dist and perf scripts | 2178/2178 |
+| 6377e17 | fix(sync): never lose or double time (Batches 0, 2, 4 + P1 #6) | 2201/2201 |
+| 22f0d52 | fix(backup): restore under maintenance (#9) | 2204/2204 |
+| 6d37b47 | fix(ui): no writes on unread data, lighter pages (Batch 3) | 2209/2209 |
+| 1ca5cbb | perf: compression, lighter bundle and image | 2211/2211 |
+| b192e4f | build(deps): upgrade past known advisories | 2211/2211 |
+| 2a7a5dd | fix(a11y): axe gate on key routes | 2211/2211 |
+| d25a65a | fix(native): serve guard, pairing check, fmt | 2211/2211 |
+| 82785c6 | fix(modules): extra key needs opt-in in prod | 2213/2213 |
+| 02935a0 | ci: e2e, native, docker and audit jobs | 2213/2213 |
+| 2c00fd9 | build(deps): declare tsx for the CLI scripts (a clean clone couldn't run parity:update) | 2213/2213 |
+
+Final gate on 2c00fd9: `pnpm lint`, `pnpm check`, `pnpm test` 2213/2213, `pnpm build`,
+`pnpm test:smoke` (17 checks, entry 848.7 KiB within 925), `PROVIDERS_READ_ONLY=1
+JIRA_READ_ONLY=1 pnpm test:e2e` 183/183, `pnpm audit --prod` clean, `cargo fmt --check`,
+`cargo clippy -D warnings`, `cargo test` 20/20.
+
+## Still open
+- Signing/notarization and an Android release key (the user's accounts and keys).
+- Rollback rehearsal on the inkledger stack (`node scripts/docker-update.mjs --rehearse-rollback`):
+  it drops and restores that database, so the user runs it.
+- `cargo audit` not installed (a global tool): Rust advisories unchecked locally. The CI's
+  Dependabot covers cargo.
+- Accepted advisories (dev only): postcss-selector-parser 6 (Tailwind 3), esbuild dev server (low).
