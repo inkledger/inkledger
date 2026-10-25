@@ -60,7 +60,7 @@ import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { PageSpinner } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { SwitchLook } from "@/components/ui/switch";
 import {
   ActiveTimerChip,
   ActiveTimerNote,
@@ -328,7 +328,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             <span className={label} aria-hidden>
               {t("ui.layout.darkTheme")}
             </span>
-            {!collapsed && <Switch tabIndex={-1} aria-hidden className="pointer-events-none ml-auto" checked={resolvedTheme === "dark"} />}
+            {!collapsed && <SwitchLook className="ml-auto" checked={resolvedTheme === "dark"} />}
           </button>
         </RailTip>
         {collapsed ? (

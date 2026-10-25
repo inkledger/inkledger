@@ -147,7 +147,7 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{c.label}</span>
-        <span className={cn("block truncate text-caption text-muted-foreground", active && "lg:text-primary-strong/80")}>
+        <span className={cn("block truncate text-caption text-muted-foreground", active && "lg:text-primary-strong")}>
           <c.Summary />
         </span>
       </span>
