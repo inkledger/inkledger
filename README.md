@@ -224,7 +224,10 @@ From **Settings → Devices** you can add a phone or another computer. Use Tails
 
 ## Security and privacy
 
-- Self-hosted, **no telemetry**; the only external services are the trackers you connect.
+- Self-hosted, **no telemetry**. Outbound calls go to the trackers you connect, to the module
+  store (only when Settings → Store is opened or a licence is pending; `STORE_URL=off` stops it)
+  and to Open-Meteo for modules that ask for weather (coordinates rounded to 0.1°; `WEATHER=off`).
+- In production, without `REMOTE_ALLOWED_HOSTS`, only an admin may connect a self-hosted tracker.
 - Tracker secrets are sealed with AES-256-GCM, bound to their connection, and only used server-to-tracker.
 - Trackers not verified on a real account only read until you allow writes; `PROVIDERS_READ_ONLY=1` refuses every write.
 - `HttpOnly` / `SameSite=Lax` cookies (`Secure` over HTTPS), session ids stored as hashes, `Origin` check on writes, rate-limited sign-in.
@@ -247,7 +250,9 @@ e2e/          Browser regressions, one per interaction that ever broke
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR, run:
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for the setup (the
+end-to-end tests need Postgres and Chromium). Security issues: [SECURITY.md](SECURITY.md). Before
+opening a PR, run:
 
 ```bash
 pnpm lint && pnpm check && pnpm test && pnpm build && pnpm test:smoke && pnpm test:e2e

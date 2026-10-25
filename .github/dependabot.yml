@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Keep the CI actions current: one grouped PR a week, only when there is news.
+  # CI actions (pinned by commit): one grouped PR a week, only when there is news.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -8,3 +8,30 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # The app's npm dependencies: security fixes as they come, the rest grouped weekly.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+  # The native shell (Rust crates).
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+  # The server image's base (node, postgres client).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  # The Android app's build.
+  - package-ecosystem: gradle
+    directory: /src-tauri/gen/android
+    schedule:
+      interval: monthly

@@ -4,19 +4,26 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # The dependency audit, weekly: advisories land without a code change.
+    - cron: "17 5 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# Read-only by default; no job writes to the repository.
+permissions:
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
           cache: pnpm
@@ -27,17 +34,97 @@ jobs:
       - run: pnpm build
       - run: pnpm test:smoke
 
+  e2e:
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      # Never a real tracker from a test server.
+      PROVIDERS_READ_ONLY: "1"
+      JIRA_READ_ONLY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
+      - run: pnpm test:e2e
+
+  native:
+    # The desktop shell: format, lints and tests (macOS: no system WebKit packages to install).
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+
   docker:
     runs-on: ubuntu-latest
     needs: check
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: false
+          load: true
           tags: inkledger:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # The image as it runs: on Postgres, migrated at boot, healthy, serving the page, backups working.
+      - name: Run the container
+        run: |
+          docker network create ikl
+          docker run -d --name db --network ikl -e POSTGRES_USER=inkledger -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=inkledger postgres:17-alpine
+          for i in $(seq 1 30); do docker exec db pg_isready -U inkledger && break; sleep 1; done
+          docker run -d --name app --network ikl -p 47823:47823 \
+            -e DATABASE_URL=postgres://inkledger:ci@db:5432/inkledger \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e INKLEDGER_ADMIN_PASSWORD=$(openssl rand -hex 16) \
+            -e PROVIDERS_READ_ONLY=1 -e STORE_URL=off -e WEATHER=off -e SYNC_INTERVAL_MIN=0 \
+            inkledger:ci
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:47823/api/health && break; sleep 1; done
+          curl -fs http://127.0.0.1:47823/api/health | grep -q '"ok"'
+          curl -fs -H 'accept: text/html' http://127.0.0.1:47823/timesheet | grep -q 'id="root"'
+          docker exec db psql -U inkledger -d inkledger -Atc "select count(*) from drizzle.__drizzle_migrations" | grep -qv '^0$'
+          docker exec app sh -c 'PGPASSWORD=ci pg_dump -h db -U inkledger -Fc inkledger > /tmp/ci.dump && test -s /tmp/ci.dump'
+      - name: Logs
+        if: failure()
+        run: docker logs app
+
+  audit:
+    # Known advisories in what ships (prod dependencies), high and above: a failing check to triage.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+      - run: pnpm audit --prod --audit-level=high
