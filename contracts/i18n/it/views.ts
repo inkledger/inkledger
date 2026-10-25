@@ -122,6 +122,7 @@ export const views: Shape<typeof en> = {
       duplicate: "Duplica giornata su oggi",
       goalOf: "Obiettivo di {label}",
       logOn: "Registra tempo su {label}",
+      selectDay: "Seleziona le voci di {label}",
       select: "Seleziona {key}",
       queued: "In coda",
       lockedThere: "Bloccato sul tracker",

@@ -128,3 +128,36 @@ test("a timer stopped on an earlier day isn't preselected to log today", async (
     await app.stop();
   }
 });
+
+test("Close the day: edited durations ask before Escape throws them away", async () => {
+  const now = Date.now();
+  const app = await start({
+    seed: async db => {
+      await db.q(
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 1800, ?, '', ?, ?)",
+        now - 3_600_000, now - 1_800_000, now, now,
+      );
+      await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
+    },
+  });
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Close the day" }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Close the day" });
+    await sheet.waitFor();
+    const duration = sheet.getByRole("textbox").first();
+    await duration.fill("45m");
+    await page.keyboard.press("Escape");
+    const ask = page.getByRole("alertdialog");
+    await ask.waitFor();
+    await ask.getByRole("button", { name: "Keep editing" }).click();
+    assert.equal(await duration.inputValue(), "45m", "kept");
+    await page.keyboard.press("Escape");
+    await page.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
+    await sheet.waitFor({ state: "detached" });
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+});

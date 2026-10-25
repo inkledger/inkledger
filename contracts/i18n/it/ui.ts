@@ -185,6 +185,12 @@ export const ui: Shape<typeof en> = {
     open: "apri",
     close: "chiudi",
   },
+  dirty: {
+    title: "Scartare le modifiche?",
+    body: "Quello che hai cambiato qui non è ancora salvato.",
+    keep: "Continua a modificare",
+    discard: "Scarta",
+  },
   dayReview: {
     placementFailed: "Non è stato possibile leggere il tempo di oggi",
     placementFailedHint: "Non si registra nulla finché non si legge: riprova.",

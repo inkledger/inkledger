@@ -184,6 +184,12 @@ export const ui = {
     open: "open",
     close: "close",
   },
+  dirty: {
+    title: "Discard your changes?",
+    body: "What you changed here isn't saved yet.",
+    keep: "Keep editing",
+    discard: "Discard",
+  },
   dayReview: {
     placementFailed: "Today's time couldn't be read",
     placementFailedHint: "Nothing is logged until it is: try again.",

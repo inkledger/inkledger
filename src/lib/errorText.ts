@@ -77,7 +77,7 @@ export function failureText(e: unknown): string {
  * once (a local and a shared handler both reporting it). In onError, call it with the error
  * alone: React Query passes the variables second.
  */
-export function toastError(e: unknown, opts?: { duration?: number }): void {
+export function toastError(e: unknown, opts?: { duration?: number; action?: { label: string; onClick: () => void } }): void {
   logFault(e);
   const text = errorText(e);
   toast.error(text, { id: `error:${text}`, ...opts });

@@ -1,6 +1,6 @@
 import { timeOfDay } from "@/lib/dates";
 import { failureText } from "@/lib/errorText";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Clock,
@@ -76,7 +76,7 @@ const nowMs = () => Date.now();
 const roundedMinutes = (s: number) => Math.max(60, Math.round(s / 60) * 60);
 
 /** The day review's content (DayReview.tsx draws its sheet): loaded on demand. */
-export function DayReviewBody() {
+export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void }) {
   const provider = useProviderName();
   const [now] = useState(() => new Date());
   const today = useMemo(() => startOfDay(now), [now]);
@@ -164,7 +164,12 @@ export function DayReviewBody() {
     );
   const selectedTotal = selected.reduce((a, d) => a + d.seconds, 0);
 
-  const patch = (id: string, p: Partial<Draft>) =>
+  // Something the user changed and didn't log yet: closing asks first (DayReview).
+  const [edited, setEdited] = useState(false);
+  const unsaved = edited && drafts.some(d => status[issueId(d)] !== "done");
+  useEffect(() => onDirty?.(unsaved), [unsaved, onDirty]);
+  const patch = (id: string, p: Partial<Draft>) => {
+    setEdited(true);
     setDrafts(ds =>
       ds.map(d =>
         issueId(d) === id
@@ -172,6 +177,7 @@ export function DayReviewBody() {
           : d
       )
     );
+  };
 
   /** Snapshot live durations for the confirmation (and the batch). */
   const openConfirm = () => {

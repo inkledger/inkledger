@@ -378,6 +378,27 @@ export function DayTimeline({
           {onGap && t("views.dashboard.timeline.tapGap")}
         </p>
       )}
+      {/* On a phone a short hole is a sliver: each one as a row big enough to tap, the same action. */}
+      {onGap && holes.length > 0 && (
+        <ul className="mt-2 grid gap-1.5 sm:hidden">
+          {holes.map(g => (
+            <li key={g.start.getTime()}>
+              <button
+                type="button"
+                {...surface("glass")}
+                onClick={() => onGap(g)}
+                aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
+                className="flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 px-3 text-body-sm outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="tabular">
+                  {timeOfDay(g.start)}–{timeOfDay(endOf(g))}
+                </span>
+                <span className="font-medium text-primary-strong tabular">{formatDuration(g.seconds)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <figcaption className="sr-only">
         {entries.length === 0
           ? t("views.dashboard.timeline.noEntries")

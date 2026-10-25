@@ -22,6 +22,8 @@ import {
   Search,
   ListChecks,
   MoveRight,
+  Pause,
+  Square,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc";
@@ -334,19 +336,30 @@ function MoveTimerCommand({ onDone }: { onDone: () => void }) {
   return current ? <MoveTimerItem key={issueId(current)} issueKey={current.issueKey} connectionId={current.connectionId} onDone={onDone} /> : null;
 }
 
-/** "Move the timer to another issue": the usual picker, then its count goes there. */
+/**
+ * The timer's own commands, as its buttons have them: pause or resume, stop and log (the usual
+ * log dialog, with its issue and time), move to another issue. Keyboard first, from any page.
+ */
 function MoveTimerItem({ issueKey, connectionId, onDone }: { issueKey: string; connectionId: number; onDone: () => void }) {
-  const { move, heldElsewhere } = useTimerActions(issueKey, connectionId);
+  const { move, pause, start, stop, running, paused, heldElsewhere } = useTimerActions(issueKey, connectionId);
   if (heldElsewhere) return null;
-  return (
+  const item = (label: string, icon: React.ReactNode, act: () => void) => (
     <CommandItem
-      value={`${t("ui.timer.moveToFor", { key: issueKey })}`}
+      value={label}
       onSelect={() => {
         onDone();
-        move();
+        act();
       }}
     >
-      <MoveRight className="mr-2 h-4 w-4" /> {t("ui.timer.moveToFor", { key: issueKey })}
+      {icon} {label}
     </CommandItem>
+  );
+  return (
+    <>
+      {running && item(t("ui.timer.pauseFor", { key: issueKey }), <Pause className="mr-2 h-4 w-4" />, pause)}
+      {paused && item(t("ui.timer.resumeFor", { key: issueKey }), <Play className="mr-2 h-4 w-4" />, start)}
+      {(running || paused) && item(t("ui.timer.stopAndLogFor", { key: issueKey }), <Square className="mr-2 h-4 w-4" />, stop)}
+      {item(t("ui.timer.moveToFor", { key: issueKey }), <MoveRight className="mr-2 h-4 w-4" />, move)}
+    </>
   );
 }

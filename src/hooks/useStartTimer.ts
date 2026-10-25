@@ -69,7 +69,8 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
           // Taking over keeps the other device's time running: never "from" a gap then.
           action: { label: t("ui.timer.takeOver"), onClick: () => mutate({ issueKey: input.issueKey, connectionId: input.connectionId, force: true }) },
         });
-      } else toastError(e);
+        // Retry: the same issue on the same tracker, nothing to search or type again.
+      } else toastError(e, { action: { label: t("common.retry"), onClick: () => send(input) } });
     },
   });
   const send = (input: StartInput) => m.mutate({ ...input, opId: newOpId(), device: thisDevice() });

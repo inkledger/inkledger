@@ -61,3 +61,63 @@ test("without the event stream the page polls, and says it may be behind", () =>
     await other.getByRole("button", { name: "Take over the timer of DEMO-101" }).first().waitFor({ timeout: 9000 });
     await other.getByText(/Reconnecting|Offline/).waitFor();
   }));
+
+test("the palette pauses, resumes and stops the running timer (keyboard only)", async () => {
+  const now = Date.now();
+  const app = await start({
+    seed: db =>
+      db.q(
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+        now - 600_000, now, now,
+      ),
+  });
+  try {
+    const { page, base, db } = app;
+    await page.goto(base + "/issues");
+    await page.getByRole("link", { name: "Board" }).first().waitFor();
+    const run = async name => {
+      await page.keyboard.press("ControlOrMeta+k");
+      const box = page.getByRole("combobox");
+      await box.waitFor();
+      await box.fill(name.split(" ")[0]);
+      await page.getByRole("option", { name }).click();
+      await page.waitForTimeout(500);
+    };
+    const state = async () => (await db.q("SELECT state FROM timers WHERE issue_key = 'DEMO-101'"))[0]?.state;
+    await run("Pause timer DEMO-101");
+    assert.equal(await state(), "paused");
+    await run("Resume timer DEMO-101");
+    assert.equal(await state(), "running");
+    await run("Stop and log time on DEMO-101");
+    // The usual log dialog, for that issue and its time.
+    await page.getByRole("dialog").filter({ hasText: "DEMO-101" }).waitFor();
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a start that fails says so with Retry, which starts the same issue (no search again)", async () => {
+  const app = await start({});
+  try {
+    const { page, base, db } = app;
+    let failOnce = true;
+    await page.route(u => new URL(u).pathname.includes("timers.start"), async route => {
+      if (!failOnce) return route.continue();
+      failOnce = false;
+      return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify([{ error: { json: { message: "down", code: -32603, data: { code: "SERVICE_UNAVAILABLE", httpStatus: 503 } } } }]) });
+    });
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
+    const ask = page.getByRole("alertdialog");
+    if (await ask.isVisible().catch(() => false)) await ask.getByRole("button", { name: "From now" }).click();
+    const toast = page.locator("[data-sonner-toast]").filter({ has: page.getByRole("button", { name: "Retry" }) });
+    await toast.waitFor();
+    await toast.getByRole("button", { name: "Retry" }).click();
+    await page.waitForTimeout(800);
+    const [row] = await db.q("SELECT state FROM timers WHERE issue_key = 'DEMO-101'");
+    assert.equal(row?.state, "running");
+  } finally {
+    await app.stop();
+  }
+});

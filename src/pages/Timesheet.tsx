@@ -345,12 +345,17 @@ export default function Timesheet() {
   const create = trpc.worklogs.create.useMutation();
 
   const selectedLogs = periodLogs.filter(w => selection.selected.has(w.id));
+  // A long delete counts its way (each entry is its own call to its tracker).
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const deleteLogs = async (targets: TimesheetLog[]) => {
     setBusy(true);
     const failed: TimesheetLog[] = [];
     let reason = "";
+    let done = 0;
+    setProgress({ done: 0, total: targets.length });
     for (const w of targets) {
+      setProgress({ done: ++done, total: targets.length });
       try {
         // By its id: its key may be on two trackers.
         await del.mutateAsync({ id: w.id });
@@ -368,6 +373,7 @@ export default function Timesheet() {
       }
     }
     setBusy(false);
+    setProgress(null);
     // What could not be deleted stays selected: easy to see, easy to retry.
     selection.setAll(failed.map(w => w.id));
     invalidate();
@@ -718,16 +724,32 @@ export default function Timesheet() {
         <PanelSection
           title={view === "week" ? t("pages.timesheet.days") : t("pages.timesheet.viewMonth")}
           actions={
-            view === "week" && !locked && selectedLogs.length > 0 ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={busy}
-                onClick={() => setConfirm({ type: "bulk" })}
-              >
-                <Trash2 className="h-4 w-4" />{" "}
-                {t("pages.timesheet.deleteSelected", { count: selectedLogs.length })}
-              </Button>
+            view === "week" && !locked && periodLogs.length > 0 ? (
+              <span className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    selectedLogs.length === periodLogs.length ? selection.clear() : selection.setAll(periodLogs.map(w => w.id))
+                  }
+                >
+                  {selectedLogs.length === periodLogs.length ? t("pages.timesheet.selectNone") : t("pages.timesheet.selectAll")}
+                </Button>
+                {selectedLogs.length > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => setConfirm({ type: "bulk" })}
+                  >
+                    <Trash2 className="h-4 w-4" />{" "}
+                    {progress
+                      ? t("pages.timesheet.deleting", { done: progress.done, total: progress.total })
+                      : t("pages.timesheet.deleteSelected", { count: selectedLogs.length })}
+                  </Button>
+                )}
+              </span>
             ) : undefined
           }
         >
@@ -764,13 +786,15 @@ export default function Timesheet() {
                   selected={selection.selected}
                   busy={busy}
                   onToggle={selection.toggle}
+                  onToggleDay={selection.selectMany}
                   onEdit={setEditing}
                   onDelete={log => setConfirm({ type: "delete", log })}
                   onDuplicate={d =>
                     setConfirm({ type: "duplicate", key: d.key, date: d.date })
                   }
                   onAdd={date => {
-                    setLogDay(dayKey(date) === todayKey ? null : date);
+                    // Named in the dialog whatever the day (today too).
+                    setLogDay(date);
                     setLogOpen(true);
                   }}
                 />

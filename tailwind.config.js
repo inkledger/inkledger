@@ -131,6 +131,8 @@ module.exports = {
       },
       spacing: {
         4.5: "1.125rem",
+        // A finger's target (44 px, platform guidance), whatever the type density: px, not rem.
+        touch: "44px",
       },
       transitionTimingFunction: {
         DEFAULT: "cubic-bezier(.2,.8,.2,1)",

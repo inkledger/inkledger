@@ -117,6 +117,7 @@ export const views = {
       duplicate: "Duplicate day to today",
       goalOf: "Goal for {label}",
       logOn: "Log time on {label}",
+      selectDay: "Select the entries of {label}",
       select: "Select {key}",
       queued: "Queued",
       lockedThere: "Locked on its tracker",

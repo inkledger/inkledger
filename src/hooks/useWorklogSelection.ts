@@ -20,6 +20,15 @@ export function useWorklogSelection(scope: string) {
       setState({ scope, ids: next });
     },
     setAll: (ids: number[]) => setState({ scope, ids: new Set(ids) }),
+    /** A group in or out (a day's entries), the other choices kept. */
+    selectMany: (ids: number[], on: boolean) => {
+      const next = new Set(selected);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      setState({ scope, ids: next });
+    },
     clear: () => setState({ scope, ids: new Set() }),
   };
 }

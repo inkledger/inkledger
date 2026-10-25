@@ -80,6 +80,8 @@ type Props = {
   selected: Set<number>;
   busy: boolean;
   onToggle: (id: number) => void;
+  /** A day's entries in or out of the selection, the rest kept. */
+  onToggleDay: (ids: number[], on: boolean) => void;
   onEdit: (w: TimesheetLog) => void;
   onDelete: (w: TimesheetLog) => void;
   onDuplicate: (day: { date: Date; key: string }) => void;
@@ -98,6 +100,7 @@ export function WeekView({
   selected,
   busy,
   onToggle,
+  onToggleDay,
   onEdit,
   onDelete,
   onDuplicate,
@@ -126,6 +129,15 @@ export function WeekView({
             aria-current={isToday ? "date" : undefined}
           >
             <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                {!locked && entries.length > 0 && (
+                  <Checkbox
+                    className="mt-0.5"
+                    aria-label={t("views.timesheet.week.selectDay", { label })}
+                    checked={entries.every(w => selected.has(w.id)) ? true : entries.some(w => selected.has(w.id)) ? "indeterminate" : false}
+                    onCheckedChange={() => onToggleDay(entries.map(w => w.id), !entries.every(w => selected.has(w.id)))}
+                  />
+                )}
               <div>
                 <h3 className="text-body-sm font-semibold capitalize">
                   {weekday().format(day.date)}
@@ -134,6 +146,7 @@ export function WeekView({
                   {dayMonth().format(day.date)}
                   {isToday && t("views.timesheet.week.todaySuffix")}
                 </p>
+              </div>
               </div>
               <div className="flex items-center gap-1">
                 {/* One more on a day that has entries already (an empty day has its own big "+"). */}

@@ -1578,3 +1578,75 @@ test("Fill the gap: while its worklogs are being saved, the pieces can't be edit
     },
   );
 });
+
+test("Fill the gap: a draft with changes asks before Escape throws it away; a clean one closes at once", () => {
+  const today = h => {
+    const d = lastWorkday();
+    d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0);
+    return d.getTime();
+  };
+  return withApp(
+    {
+      seed: async db => {
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-before', ?, 1800, 'morning', 1)", today(9));
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-102', 'w-after', ?, 1800, 'review', 1)", today(9.75));
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
+      const hole = page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ });
+      const strip = page.getByRole("group", { name: /Strip of time to log/ });
+      // Clean: Escape closes, nothing asked.
+      await hole.click();
+      await strip.waitFor();
+      await page.keyboard.press("Escape");
+      await strip.waitFor({ state: "detached" });
+      assert.equal(await page.getByRole("alertdialog").count(), 0);
+      // With a change: asked; Keep editing keeps it all.
+      await hole.click();
+      await strip.waitFor();
+      await page.getByRole("button", { name: /^Choose the issue…/ }).first().click();
+      await page.keyboard.type("DEMO-103");
+      await page.waitForTimeout(300);
+      await page.keyboard.press("Enter");
+      const comment = page.getByRole("textbox", { name: /Comment for 09:30/ });
+      await comment.fill("half done");
+      await page.keyboard.press("Escape");
+      const ask = page.getByRole("alertdialog");
+      await ask.waitFor();
+      await ask.getByRole("button", { name: "Keep editing" }).click();
+      await ask.waitFor({ state: "detached" });
+      assert.equal(await comment.inputValue(), "half done", "kept");
+      await page.keyboard.press("Escape");
+      await page.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
+      await strip.waitFor({ state: "detached" });
+    },
+  );
+});
+
+test("on a phone a 15-minute hole has a full-width row to tap, opening the same Fill the gap", () => {
+  const today = h => {
+    const d = lastWorkday();
+    d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0);
+    return d.getTime();
+  };
+  return withApp(
+    {
+      viewport: { width: 390, height: 844 },
+      seed: async db => {
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-before', ?, 1800, 'morning', 1)", today(9));
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-102', 'w-after', ?, 1800, 'review', 1)", today(9.75));
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
+      const rows = page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ });
+      await rows.first().waitFor();
+      const boxes = await rows.evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
+      const row = boxes.findIndex(b => b.w >= 300 && b.h >= 44);
+      assert.ok(row >= 0, `a full-width row to tap: ${JSON.stringify(boxes)}`);
+      await rows.nth(row).click();
+      await page.getByRole("group", { name: /Strip of time to log/ }).waitFor();
+    },
+  );
+});

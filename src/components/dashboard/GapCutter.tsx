@@ -1,6 +1,7 @@
 import { timeOfDay } from "@/lib/dates";
 import { failureText } from "@/lib/errorText";
 import { useEffect, useRef, useState } from "react";
+import { useDirtyClose } from "@/components/app/DirtyClose";
 import {
   Check,
   Loader2,
@@ -79,8 +80,12 @@ export function GapCutter({
   open?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // Escape or the overlay over unsaved pieces: asked first (a clean or saved draft closes at once).
+  const guard = useDirtyClose(() => onOpenChange(false));
   return (
-    <Sheet open={gap !== null} onOpenChange={onOpenChange}>
+    <>
+    {guard.confirm}
+    <Sheet open={gap !== null} onOpenChange={guard.onOpenChange}>
       <SheetContent
         side="right"
         className="flex w-full flex-col gap-0 bg-canvas p-0 sm:max-w-lg"
@@ -91,15 +96,20 @@ export function GapCutter({
             gap={gap}
             neighbours={neighbours}
             open={open}
-            onDone={() => onOpenChange(false)}
+            onDirty={guard.markDirty}
+            onDone={() => {
+              guard.markDirty(false);
+              onOpenChange(false);
+            }}
           />
         )}
       </SheetContent>
     </Sheet>
+    </>
   );
 }
 
-function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neighbours: Neighbours; open: boolean; onDone: () => void }) {
+function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSpan; neighbours: Neighbours; open: boolean; onDirty: (dirty: boolean) => void; onDone: () => void }) {
   const utils = trpc.useUtils();
   const invalidate = useInvalidateWorklogs();
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
@@ -115,6 +125,11 @@ function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neigh
   const focusCut = useRef<{ lane: number; at: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const strips = useRef<(HTMLDivElement | null)[]>([]);
+  // Unsaved work: a cut, a lane, an issue or words on a piece not logged yet.
+  const unsaved = lanes.some(
+    (l, li) => l.pieces.some(p => p.status !== "done") && (li > 0 || l.cuts.length > 0 || l.pieces.some(p => p.status !== "done" && (!!p.issueKey || p.comment.trim() !== "" || !!p.extend)))
+  );
+  useEffect(() => onDirty(unsaved), [unsaved, onDirty]);
   const drag = useRef<{ lane: number; k: number } | null>(null);
 
   const start = gap.start.getTime();
