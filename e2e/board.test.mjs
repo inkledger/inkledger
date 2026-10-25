@@ -538,3 +538,15 @@ test("a long column draws its first cards and the rest on request (the board sta
       assert.ok((await cards()) > 50, "more on request");
     },
   ));
+
+test("a column's + opens the catalogue on that column: its status, done ones included from a done column", () =>
+  withApp({ seed }, async ({ page, base }) => {
+    await page.goto(base + "/board");
+    const done = page.getByRole("region", { name: "Fatto" }).first();
+    await done.waitFor();
+    await done.getByRole("link", { name: /Fatto/ }).click();
+    await page.waitForURL(/\/issues\?/);
+    const params = new URL(page.url()).searchParams;
+    assert.equal(params.get("done"), "1", "done ones included");
+    assert.equal(params.get("status"), "Fatto");
+  }));

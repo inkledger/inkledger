@@ -400,6 +400,7 @@ export const pages: Shape<typeof en> = {
     logPick: "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
   },
   timesheet: {
+    logTimeToday: "Registra oggi",
     trash: "Eliminati di recente",
     trashHint: "I worklog eliminati negli ultimi 30 giorni, qui o su {provider}. Ripristinarne uno lo registra di nuovo.",
     trashEmpty: "Nulla di eliminato negli ultimi 30 giorni.",

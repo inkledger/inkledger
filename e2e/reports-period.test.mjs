@@ -30,3 +30,32 @@ test("Reports open on \"This month\", the preset's own range", async () => {
     await app.stop();
   }
 });
+
+test("Export by days waits for the days and stays off when they couldn't be read (never a click that does nothing)", async () => {
+  const today = new Date();
+  today.setHours(9, 0, 0, 0);
+  const app = await start({
+    seed: db => db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-rep', ?, 3600, '', 1)", today.getTime()),
+  });
+  try {
+    const { page, base } = app;
+    let down = true;
+    await page.route(u => new URL(u).pathname.includes("reports.daily"), async route => {
+      if (!down) return route.continue();
+      const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1]).split(",");
+      const json = await (await route.fetch()).json();
+      const out = procs.map((p, i) => (p === "reports.daily" ? { error: { json: { message: "down", code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500, path: p } } } } : json[i]));
+      return route.fulfill({ status: 207, contentType: "application/json", body: JSON.stringify(out) });
+    });
+    await page.goto(base + "/reports?group=days");
+    const exportButton = page.locator("main").getByRole("button", { name: "Export CSV" });
+    await exportButton.waitFor();
+    await page.waitForTimeout(1500);
+    assert.equal(await exportButton.isDisabled(), true, "off: the days couldn't be read");
+    down = false;
+    await page.reload();
+    await exportButton.and(page.locator(":enabled")).waitFor({ timeout: 10_000 });
+  } finally {
+    await app.stop();
+  }
+});

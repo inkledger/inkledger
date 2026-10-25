@@ -399,6 +399,7 @@ export const pages = {
     logPick: "Pick the issue and the duration: saved straight to {provider}.",
   },
   timesheet: {
+    logTimeToday: "Log time today",
     trash: "Recently deleted",
     trashHint: "Worklogs deleted in the last 30 days, here or on {provider}. Restoring one logs it again.",
     trashEmpty: "Nothing deleted in the last 30 days.",

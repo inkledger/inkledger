@@ -328,7 +328,7 @@ export default function Issues() {
         }
       />
 
-      {trackerSearchOpen && <TrackerSearchPanel />}
+      {trackerSearchOpen && <TrackerSearchPanel initialQuery={filters.search.trim()} />}
 
       <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
         <PanelSection

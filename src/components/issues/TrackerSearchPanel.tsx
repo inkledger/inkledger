@@ -23,12 +23,13 @@ import { issuePath } from "@/lib/issues";
 type SearchResult = inferRouterOutputs<AppRouter>["issues"]["searchOn"]["results"][number];
 
 /** Search every connected tracker at once (any issue, not only mine): open, import or watch what comes back. */
-export function TrackerSearchPanel() {
+export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: string }) {
   const provider = useProviderName();
   // The connection is named on each result only when there is more than one.
   const several = (useConnections().data ?? []).filter(c => c.role === "tracker").length > 1;
   const utils = trpc.useUtils();
-  const [input, setInput] = useState("");
+  // What the local search already holds: the trackers are asked the same at once, no typing it again.
+  const [input, setInput] = useState(initialQuery);
   const query = useDebouncedValue(input.trim(), 300);
   const enabled = query.length >= 2;
   // One question per tracker: each answer shows as it arrives.

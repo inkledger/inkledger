@@ -370,6 +370,15 @@ export default function Board() {
   // Custom columns: cards no column takes, said apart (they can't be dropped back there).
   const unmapped = mode === "custom" ? shownRows.filter(r => columnOf({ connectionId: r.connectionId, status: r.status, category: r.category }, allColumns) === null) : [];
 
+  /** The catalogue on this column: its status (a tracker's status column), done ones included from a done column. */
+  const catalogOf = (col: Lane["columns"][number], done: boolean) => {
+    const q = new URLSearchParams();
+    if (col.kind === "status") q.set("status", col.status);
+    if (done) q.set("done", "1");
+    const s = q.toString();
+    return s ? `/issues?${s}` : "/issues";
+  };
+
   const renderColumn = (col: Lane["columns"][number]) => {
     const items = cardsOf(col);
     const isDone = col.category !== "" && isClosed(col.category);
@@ -443,7 +452,7 @@ export default function Board() {
           <h2 className="truncate">{col.title}</h2>
           <span className="text-muted-foreground tabular">{items.length}</span>
           <Button asChild variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground">
-            <Link to="/issues" aria-label={t("pages.board.openCatalog", { status: col.title })}>
+            <Link to={catalogOf(col, isDone)} aria-label={t("pages.board.openCatalog", { status: col.title })}>
               <Plus className="h-4 w-4" />
             </Link>
           </Button>

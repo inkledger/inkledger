@@ -87,7 +87,9 @@ export function usePeriod(initial: PeriodKind = "day") {
 
   return {
     range,
-    setKind: (k: PeriodKind) => set({ kind: k, anchor: null }),
+    // Another granularity over the same days: the period that contains the date looked at
+    // (today's period stays "today", following midnight).
+    setKind: (k: PeriodKind) => set({ kind: k, anchor: anchor === null ? null : anchorFor(k, range.from) }),
     prev: () => set({ anchor: anchorFor(kind, shiftPeriod(kind, range.from, -1)) }),
     next: () => set({ anchor: anchorFor(kind, shiftPeriod(kind, range.from, 1)) }),
     reset: () => set({ anchor: null }),

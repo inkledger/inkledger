@@ -88,3 +88,18 @@ test("a dialog taller than a short screen scrolls: its last action stays reachab
     await app.stop();
   }
 });
+
+test("searching the trackers starts from what the local search already holds (no typing it again)", async () => {
+  const app = await start({});
+  try {
+    const { page, base } = app;
+    await page.goto(`${base}/issues`);
+    await page.getByRole("searchbox", { name: "Filter the local catalogue" }).fill("Safari crash");
+    await page.getByRole("button", { name: /^Search / }).first().click();
+    const box = page.getByRole("textbox", { name: /^Search / }).or(page.getByRole("searchbox", { name: /^Search / })).first();
+    await box.waitFor();
+    assert.equal(await box.inputValue(), "Safari crash");
+  } finally {
+    await app.stop();
+  }
+});

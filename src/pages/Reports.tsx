@@ -156,6 +156,12 @@ export default function Reports() {
 
   const hours = hoursDecimal;
 
+  // What the export writes must be there: the days themselves for "Days" (not the issues' totals).
+  const exportable =
+    groupBy === "days"
+      ? !!daily.data && daily.data.days.some(d => d.issues.length > 0)
+      : !!data && data.rows.length > 0;
+
   const exportDaysCsv = () => {
     if (!daily.data) return;
     const line = (day: string, r: ReportRow) => [
@@ -232,7 +238,7 @@ export default function Reports() {
           <Button
             variant="outline"
             onClick={exportCsv}
-            disabled={!data || data.rows.length === 0}
+            disabled={!exportable}
           >
             <Download className="h-4 w-4" />
             {t("pages.reports.exportCsv")}

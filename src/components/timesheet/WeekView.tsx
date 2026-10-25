@@ -136,6 +136,18 @@ export function WeekView({
                 </p>
               </div>
               <div className="flex items-center gap-1">
+                {/* One more on a day that has entries already (an empty day has its own big "+"). */}
+                {!locked && entries.length > 0 && onAdd && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("views.timesheet.week.logOn", { label })}
+                    title={t("views.timesheet.week.logOn", { label })}
+                    onClick={() => onAdd(day.date)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
                 {!isToday && !locked && entries.length > 0 && (
                   <Button
                     variant="ghost"

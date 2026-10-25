@@ -170,7 +170,9 @@ export default function Timesheet() {
         ? addDays(period.from, dir * 7)
         : new Date(period.from.getFullYear(), period.from.getMonth() + dir, 1)
     );
-  const switchView = (v: View) => setShown({ view: v, anchor: today });
+  // Week ↔ Month over the same days: the period that contains the one looked at (today's when it is there).
+  const switchView = (v: View) =>
+    setShown({ view: v, anchor: period.from <= today && today < period.to ? today : period.from });
 
   // --- data ---
   const issues = trpc.issues.all.useQuery();
@@ -625,14 +627,15 @@ export default function Timesheet() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Always today, said as such (another day: its own "+" in the week). */}
             <Button
               onClick={() => {
-                setLogDay(null);
+                setLogDay(today);
                 setLogOpen(true);
               }}
             >
               <Plus className="h-4 w-4" />
-              {t("pages.timesheet.logTime")}
+              {t("pages.timesheet.logTimeToday")}
             </Button>
           </>
         }
