@@ -36,7 +36,11 @@ pub(crate) fn clock(elapsed_seconds: f64, running: bool, since_report: Duration)
 fn title(timer: &Option<(TrayTimer, Instant)>) -> Option<String> {
     timer.as_ref().map(|(t, at)| {
         let c = clock(t.elapsed_seconds, t.running, at.elapsed());
-        if t.running { c } else { format!("❚❚ {c}") }
+        if t.running {
+            c
+        } else {
+            format!("❚❚ {c}")
+        }
     })
 }
 

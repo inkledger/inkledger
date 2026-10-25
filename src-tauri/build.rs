@@ -26,9 +26,6 @@ fn main() {
         "tailscale_info",
         "tailscale_serve",
     ];
-    tauri_build::try_build(
-        tauri_build::Attributes::new()
-            .app_manifest(tauri_build::AppManifest::new().commands(commands)),
-    )
-    .expect("failed to run tauri-build");
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(commands)))
+        .expect("failed to run tauri-build");
 }

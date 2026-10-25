@@ -47,11 +47,7 @@ fn set_current(locale: Locale) {
 
 /// Loads the saved language (call once at startup).
 pub fn init(app: &AppHandle) {
-    let saved = app
-        .store(STORE)
-        .ok()
-        .and_then(|s| s.get(KEY))
-        .and_then(|v| v.as_str().and_then(Locale::parse));
+    let saved = app.store(STORE).ok().and_then(|s| s.get(KEY)).and_then(|v| v.as_str().and_then(Locale::parse));
     if let Some(l) = saved {
         set_current(l);
     }
@@ -155,6 +151,11 @@ const TABLE: &[(&str, &str, &str)] = &[
         "Nella tailnet i certificati HTTPS sono spenti: console di Tailscale → DNS → HTTPS Certificates → Enable, poi riprova.",
     ),
     ("ts.serve_failed", "Tailscale did not enable Serve: {out}", "Tailscale non ha attivato Serve: {out}"),
+    (
+        "ts.only_this_server",
+        "Only the server this window shows from this computer (localhost) can be published",
+        "Si può pubblicare solo il server che questa finestra mostra da questo computer (localhost)",
+    ),
     // Wi-Fi sharing
     ("lan.only_this_mac", "Only a server on this computer can be shared", "Si può condividere solo un server di questo computer"),
     (
@@ -196,8 +197,8 @@ const TABLE: &[(&str, &str, &str)] = &[
     ),
     (
         "welcome.fingerprint",
-        "Fingerprint to compare with the one in the inkledger app on that computer:",
-        "Impronta da confrontare con quella nell'app inkledger su quel computer:",
+        "Before trusting the certificate, compare the SHA-256 fingerprint your phone shows for it with the one in the inkledger app on that computer (this page alone proves nothing):",
+        "Prima di fidarti del certificato, confronta l'impronta SHA-256 che il telefono mostra per esso con quella nell'app inkledger su quel computer (questa pagina da sola non prova nulla):",
     ),
     ("welcome.step2", "2. Open inkledger", "2. Apri inkledger"),
     (

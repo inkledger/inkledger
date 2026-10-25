@@ -72,7 +72,7 @@ if (!args.has("--no-build")) {
 
 const apk = latestApk();
 const body = readFileSync(apk);
-const version = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8")).version;
+const version = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version; // one version for the server and the apps (tauri.conf.json reads it too)
 const manifest = {
   android: {
     version,

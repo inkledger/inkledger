@@ -4,16 +4,16 @@
 
 use std::time::Duration;
 
+mod i18n;
 #[cfg(desktop)]
 mod idle;
 #[cfg(desktop)]
 mod lan;
-#[cfg(desktop)]
-mod tailscale;
-mod i18n;
 mod profiles;
 #[cfg(desktop)]
 mod shortcuts;
+#[cfg(desktop)]
+mod tailscale;
 #[cfg(desktop)]
 mod tray;
 
@@ -54,8 +54,7 @@ fn is_local_host(host: &str) -> bool {
 /// A Mac on the same Wi-Fi (private address or Bonjour name): its HTTPS uses
 /// the local CA (lan.rs), which only the webview is asked to trust.
 fn on_lan(host: &str) -> bool {
-    host.ends_with(".local")
-        || host.parse::<std::net::Ipv4Addr>().is_ok_and(|ip| ip.is_private())
+    host.ends_with(".local") || host.parse::<std::net::Ipv4Addr>().is_ok_and(|ip| ip.is_private())
 }
 
 /// Normalized server origin: http(s) only, no path, no credentials. Without a
@@ -87,16 +86,12 @@ fn parse_server(raw: &str) -> Result<Url, String> {
 /// The server is inkledger and answers over its scheme (TLS included):
 /// `GET /api/health` → `{"status":"ok"}`. Done here, not in the page, so the
 /// webview's network rules don't get in the way.
-async fn reachable(server: &Url) -> Result<(), String> {
+pub(crate) async fn reachable(server: &Url) -> Result<(), String> {
     let unreachable = |why: &str| unreachable_message(server, why);
     // The probe only reads /api/health; on the LAN the certificate is the
     // local CA's, which the webview (not this client) has been told to trust.
     let lan = on_lan(server.host_str().unwrap_or_default());
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(6))
-        .danger_accept_invalid_certs(lan)
-        .build()
-        .map_err(fault)?;
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(6)).danger_accept_invalid_certs(lan).build().map_err(fault)?;
     let health = server.join("api/health").map_err(fault)?;
     let res = client.get(health).send().await.map_err(|e| {
         if e.is_timeout() {
@@ -306,9 +301,7 @@ fn manage_servers(app: &AppHandle) {
 /// To the start page, optionally telling why; it offers the way back to the
 /// server the window came from.
 fn change_server(app: &AppHandle, error: Option<&str>) {
-    let from = current_server(app).or_else(|| {
-        profiles::load(app).active.and_then(|a| Url::parse(&a).ok())
-    });
+    let from = current_server(app).or_else(|| profiles::load(app).active.and_then(|a| Url::parse(&a).ok()));
     let mut url = local_page(app, "?change=1");
     if let Some(e) = error {
         url.query_pairs_mut().append_pair("error", e);
@@ -518,7 +511,13 @@ fn native_info(app: AppHandle) -> NativeInfo {
         }
     }
     #[cfg(mobile)]
-    NativeInfo { version: app.package_info().version.to_string(), platform: std::env::consts::OS, desktop: false, autostart: None, shortcuts: vec![] }
+    NativeInfo {
+        version: app.package_info().version.to_string(),
+        platform: std::env::consts::OS,
+        desktop: false,
+        autostart: None,
+        shortcuts: vec![],
+    }
 }
 
 /// Open at login (hidden in the menu bar).
@@ -582,10 +581,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![HIDDEN_ARG]),
-        ))
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .manage(tray::TrayState::default())
         .manage(lan::LanState::default())
         .manage(shortcuts::Failed::default())
@@ -600,15 +596,13 @@ pub fn run() {
         .setup(|app| {
             i18n::init(app.handle());
             app.set_menu(app_menu(app.handle())?)?;
-            app.on_menu_event(|app, event| {
-                match event.id().as_ref().strip_prefix("app-") {
-                    Some("back") => history_step(app, true),
-                    Some("forward") => history_step(app, false),
-                    Some(id) => {
-                        on_server_menu(app, id);
-                    }
-                    None => {}
+            app.on_menu_event(|app, event| match event.id().as_ref().strip_prefix("app-") {
+                Some("back") => history_step(app, true),
+                Some("forward") => history_step(app, false),
+                Some(id) => {
+                    on_server_menu(app, id);
                 }
+                None => {}
             });
             tray::create(app.handle())?;
             shortcuts::register(app.handle())?;
@@ -638,9 +632,7 @@ pub fn run() {
         Ok(())
     });
 
-    let app = builder
-        .build(tauri::generate_context!())
-        .expect("error while building inkledger");
+    let app = builder.build(tauri::generate_context!()).expect("error while building inkledger");
     app.run(|_app, _event| {
         // Dock icon clicked with the window hidden: show it again.
         #[cfg(target_os = "macos")]

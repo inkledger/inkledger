@@ -15,8 +15,8 @@ use std::sync::{Arc, Mutex};
 
 use base64::Engine;
 use rcgen::{
-    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
-    KeyUsagePurpose, SanType,
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair, KeyUsagePurpose,
+    SanType,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, Url};
@@ -233,7 +233,9 @@ pub async fn start(app: &AppHandle, state: &LanState, target: Url, extra: &[Stri
     let (cert_pem, key_pem) = issue_server_cert(&ca, &names, &ips)?;
 
     let tls = tls_acceptor(&cert_pem, &key_pem, &ca.cert_pem)?;
-    let proxy = TcpListener::bind(("0.0.0.0", TLS_PORT)).await.map_err(|e| trf("lan.port_busy", &[("port", &TLS_PORT.to_string()), ("err", &e.to_string())]))?;
+    let proxy = TcpListener::bind(("0.0.0.0", TLS_PORT))
+        .await
+        .map_err(|e| trf("lan.port_busy", &[("port", &TLS_PORT.to_string()), ("err", &e.to_string())]))?;
     let welcome_l = TcpListener::bind(("0.0.0.0", WELCOME_PORT))
         .await
         .map_err(|e| trf("lan.port_busy", &[("port", &WELCOME_PORT.to_string()), ("err", &e.to_string())]))?;
@@ -249,10 +251,8 @@ pub async fn start(app: &AppHandle, state: &LanState, target: Url, extra: &[Stri
         error: None,
     };
     let page = Arc::new(Welcome { ca_pem: ca.cert_pem.clone(), mac, hosts, fingerprint: fingerprint(&ca.cert_pem) });
-    let tasks = vec![
-        tauri::async_runtime::spawn(serve_proxy(proxy, tls, upstream)),
-        tauri::async_runtime::spawn(serve_welcome(welcome_l, page)),
-    ];
+    let tasks =
+        vec![tauri::async_runtime::spawn(serve_proxy(proxy, tls, upstream)), tauri::async_runtime::spawn(serve_welcome(welcome_l, page))];
     *state.0.lock().map_err(fault)? = Some(Running { status: status.clone(), tasks });
     Ok(status)
 }
@@ -333,22 +333,17 @@ async fn serve_welcome(listener: TcpListener, page: Arc<Welcome>) {
 /// What the welcome server answers: the CA (two formats) or the steps.
 fn welcome_response(page: &Welcome, path: &str) -> (&'static str, Vec<u8>, Option<&'static str>) {
     match path {
-        "/ikl.mobileconfig" => (
-            "application/x-apple-aspen-config",
-            mobileconfig(&page.ca_pem, &page.mac).into_bytes(),
-            Some("ikl.mobileconfig"),
-        ),
+        "/ikl.mobileconfig" => {
+            ("application/x-apple-aspen-config", mobileconfig(&page.ca_pem, &page.mac).into_bytes(), Some("ikl.mobileconfig"))
+        }
         "/ikl-ca.crt" => ("application/x-x509-ca-cert", pem_der(&page.ca_pem).unwrap_or_default(), Some("ikl-ca.crt")),
         _ => ("text/html; charset=utf-8", welcome_html(page).into_bytes(), None),
     }
 }
 
 fn welcome_html(page: &Welcome) -> String {
-    let links: String = page
-        .hosts
-        .iter()
-        .map(|h| format!(r#"<li><a href="https://{h}:{TLS_PORT}/install">https://{h}:{TLS_PORT}</a></li>"#))
-        .collect();
+    let links: String =
+        page.hosts.iter().map(|h| format!(r#"<li><a href="https://{h}:{TLS_PORT}/install">https://{h}:{TLS_PORT}</a></li>"#)).collect();
     format!(
         r#"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title>

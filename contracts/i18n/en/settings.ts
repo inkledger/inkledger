@@ -122,7 +122,7 @@ export const settings = {
     step2Title: "Then open inkledger",
     step2: "In the Android app add the server; on iPhone open it in Safari and add it to the Home Screen:",
     step3Title: "Check the fingerprint",
-    step3: "The page on the phone shows the same certificate fingerprint:",
+    step3: "Before trusting it, compare this with the SHA-256 fingerprint the phone itself shows for the certificate (iPhone: the profile's details in Settings → General → VPN & Device Management; Android: the certificate's details). Not the page's: anyone on the Wi-Fi could change the page and the certificate together.",
     qrLabel: "QR code: {url}",
     scan: "Scan with your phone",
     warning: "Use it on trusted networks (home, office): anyone on the same Wi-Fi sees inkledger's sign-in page. The first time, the system may ask whether to allow incoming connections: answer Allow.",

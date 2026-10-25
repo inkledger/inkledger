@@ -123,7 +123,7 @@ export const settings: Shape<typeof en> = {
     step2Title: "Poi apri inkledger",
     step2: "Nell'app Android aggiungi il server; su iPhone aprilo in Safari e aggiungilo alla schermata Home:",
     step3Title: "Controlla l'impronta",
-    step3: "La pagina sul telefono mostra la stessa impronta del certificato:",
+    step3: "Prima di fidarti, confronta questa con l'impronta SHA-256 che il telefono stesso mostra per il certificato (iPhone: i dettagli del profilo in Impostazioni → Generali → VPN e gestione dispositivi; Android: i dettagli del certificato). Non quella della pagina: chiunque sulla Wi-Fi potrebbe cambiare pagina e certificato insieme.",
     qrLabel: "QR code: {url}",
     scan: "Inquadra col telefono",
     warning: "Usala su reti fidate (casa, ufficio): chiunque sia sulla stessa Wi-Fi vede la pagina di accesso di inkledger. La prima volta il sistema può chiedere se consentire le connessioni in entrata: rispondi Consenti.",

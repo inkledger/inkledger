@@ -58,22 +58,11 @@ pub fn parse(status: &Value, serve: &Value) -> TailscaleInfo {
         })
         .unwrap_or_default();
     serves.sort_by_key(|s| s.port);
-    TailscaleInfo {
-        installed: true,
-        running: status["BackendState"].as_str() == Some("Running"),
-        dns_name,
-        https,
-        serves,
-    }
+    TailscaleInfo { installed: true, running: status["BackendState"].as_str() == Some("Running"), dns_name, https, serves }
 }
 
 fn json_of(bin: &str, args: &[&str]) -> Value {
-    Command::new(bin)
-        .args(args)
-        .output()
-        .ok()
-        .and_then(|o| serde_json::from_slice(&o.stdout).ok())
-        .unwrap_or(Value::Null)
+    Command::new(bin).args(args).output().ok().and_then(|o| serde_json::from_slice(&o.stdout).ok()).unwrap_or(Value::Null)
 }
 
 #[tauri::command]
@@ -91,14 +80,29 @@ pub fn approval_link(output: &str) -> Option<String> {
 /// same port as here, so each server of this Mac (dev, container) keeps its
 /// own address, and a local web server on 443 can't shadow it. If Tailscale
 /// first wants Serve approved in the browser, returns that link as error.
+/// Serve publishes only the server the window shows from this computer, on its own port:
+/// a page from elsewhere (a tailnet name, a hostile one too) can't publish this machine's
+/// other services (a database, another app) by asking for their port.
+pub fn serves_itself(shown: &tauri::Url, port: u16) -> bool {
+    shown.scheme() == "http" && matches!(shown.host_str(), Some("127.0.0.1") | Some("localhost")) && shown.port() == Some(port)
+}
+
 #[tauri::command]
-pub async fn tailscale_serve(port: u16) -> Result<TailscaleInfo, String> {
+pub async fn tailscale_serve(webview: tauri::Webview, port: u16) -> Result<TailscaleInfo, String> {
+    let shown = webview.url().map_err(fault)?;
+    if !serves_itself(&shown, port) {
+        return Err(tr("ts.only_this_server").into());
+    }
+    // And it is inkledger answering there, not some other program on that port.
+    let local = tauri::Url::parse(&format!("http://127.0.0.1:{port}/")).map_err(fault)?;
+    crate::reachable(&local).await?;
     let bin = binary().ok_or_else(|| tr("ts.not_installed").to_string())?;
     let target = format!("http://127.0.0.1:{port}");
     let https = format!("--https={port}");
-    let out = tauri::async_runtime::spawn_blocking(move || run_with_timeout(&bin, &["serve", "--bg", &https, &target], Duration::from_secs(15)))
-        .await
-        .map_err(fault)??;
+    let out =
+        tauri::async_runtime::spawn_blocking(move || run_with_timeout(&bin, &["serve", "--bg", &https, &target], Duration::from_secs(15)))
+            .await
+            .map_err(fault)??;
     let info = tailscale_info();
     if info.serves.iter().any(|s| s.port == port && s.target == format!("http://127.0.0.1:{port}")) {
         return Ok(info);
@@ -112,12 +116,7 @@ pub async fn tailscale_serve(port: u16) -> Result<TailscaleInfo, String> {
 
 /// Output of a command; killed after `limit` (Serve may wait for approval).
 fn run_with_timeout(bin: &str, args: &[&str], limit: Duration) -> Result<String, String> {
-    let mut child = Command::new(bin)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(fault)?;
+    let mut child = Command::new(bin).args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(fault)?;
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
     let reader = std::thread::spawn(move || {
@@ -146,6 +145,19 @@ fn run_with_timeout(bin: &str, args: &[&str], limit: Duration) -> Result<String,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn serve_only_publishes_the_local_server_the_window_shows() {
+        use super::serves_itself;
+        let u = |s: &str| tauri::Url::parse(s).unwrap();
+        assert!(serves_itself(&u("http://127.0.0.1:47823/settings/devices"), 47823));
+        assert!(serves_itself(&u("http://localhost:3000/"), 3000));
+        // Another port of this machine (a database), asked by the page.
+        assert!(!serves_itself(&u("http://127.0.0.1:47823/"), 5432));
+        // A page from the tailnet (or anywhere else) publishes nothing here.
+        assert!(!serves_itself(&u("https://evil.tail1234.ts.net:47823/"), 47823));
+        assert!(!serves_itself(&u("http://192.168.1.4:47823/"), 47823));
+    }
+
     use super::*;
     use serde_json::json;
 

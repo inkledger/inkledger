@@ -3,10 +3,10 @@
 //! active and shown in the window; switching is a navigation, and every
 //! server keeps its own session (its cookie name carries the port).
 
+use crate::i18n::fault;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Url};
 use tauri_plugin_store::StoreExt;
-use crate::i18n::fault;
 
 const STORE: &str = "settings.json";
 const KEY: &str = "profiles";
@@ -59,12 +59,7 @@ impl Profiles {
                     p.name = n;
                 }
             }
-            None => self.list.push(Profile {
-                url: id.clone(),
-                name: name.unwrap_or_else(|| default_name(url)),
-                user: None,
-                jira: None,
-            }),
+            None => self.list.push(Profile { url: id.clone(), name: name.unwrap_or_else(|| default_name(url)), user: None, jira: None }),
         }
         self.active = Some(id);
     }
