@@ -44,6 +44,8 @@ const jira = {
   deleted: [] as { worklogId: number }[],
   list: [] as ReturnType<typeof wl>[],
   posts: [] as string[],
+  /** A first import over more issues than one search used to read (5000): 51 pages, the last one new. */
+  big: false,
 };
 
 vi.stubGlobal(
@@ -54,8 +56,15 @@ vi.stubGlobal(
     if (p.endsWith("/myself")) return json({ accountId: "acc-1", displayName: "Mario", avatarUrls: {} });
     if (p.endsWith("/search/jql")) {
       const jql = url.searchParams.get("jql") ?? "";
+      if (jira.big && jql.includes("worklogAuthor")) {
+        const page = Number(url.searchParams.get("nextPageToken") ?? "0");
+        return page < 50
+          ? json({ isLast: false, nextPageToken: String(page + 1), issues: Array.from({ length: 100 }, () => issue("10", "PRJ-1")) })
+          : json({ isLast: true, issues: [issue("19", "PRJ-9")] });
+      }
       return json({ isLast: true, issues: jql.includes("worklogAuthor") ? [issue("10", "PRJ-1")] : [] });
     }
+    if (p.endsWith("/issue/PRJ-9/worklog")) return json({ worklogs: [wl("900", "acc-1", now - 3 * DAY)], total: 1 });
     if (p.endsWith("/issue/PRJ-1/worklog")) return json({ worklogs: jira.prj1, total: jira.prj1.length });
     if (p.endsWith("/worklog/updated")) return json({ values: jira.updated, lastPage: true, until: now + 1000 });
     if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: now + 1000 });
@@ -126,6 +135,18 @@ describe("worklogs from Jira", () => {
     const r = await me.worklogs.reimport();
     expect(r.initial).toBe(true);
     expect((await mine()).map(w => w.id)).toEqual(["100"]);
+  });
+
+  it("a first import over more than 5000 issues reads them all (none left out by a cap)", async () => {
+    jira.big = true;
+    try {
+      const r = await me.worklogs.reimport();
+      expect(r.initial).toBe(true);
+      expect((await mine()).map((w) => w.id)).toEqual(["100", "900"]);
+    } finally {
+      jira.big = false;
+    }
+    await q("DELETE FROM worklogs WHERE jira_worklog_id = '900'");
   });
 
   it("deleted here while Jira still has it (its delete on the way): never read back as new", async () => {

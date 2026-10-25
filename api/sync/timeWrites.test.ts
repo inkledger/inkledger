@@ -3,7 +3,11 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 process.env.DATABASE_URL = ":memory:";
 
 /** The test's tracker that keeps entries (the contract's fake, as "gitlab"), and whether it answers. */
-type TestTracker = { adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string; recreating?: boolean; recreator?: unknown };
+type TestTracker = {
+  adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string; recreating?: boolean; recreator?: unknown;
+  /** After the call landed, what the answer turns into (a timeout, an answer outside the contract), by call name. */
+  afterLanding?: Partial<Record<string, (signal: AbortSignal) => Promise<unknown>>>;
+};
 const tracker: TestTracker = vi.hoisted(() => ({ adapter: null, offline: false, refuse: false, loseAnswer: false, calls: [] }));
 
 vi.mock("../providers/registry", async (importOriginal) => {
@@ -36,6 +40,8 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
           const out = await (fn as (...a: unknown[]) => unknown)(...args);
           // It landed, but the answer never came back.
           if (tracker.loseAnswer && name === "create") throw new ProviderError("unavailable", "fake: timed out");
+          const after = tracker.afterLanding?.[name];
+          if (after) await after((args[0] as { signal: AbortSignal }).signal);
           return out;
         },
       ]),
@@ -90,6 +96,30 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     tracker.calls.length = 0;
   });
 
+  it("the user's own Sync never answers success when every tracker failed; a background pass stays quiet", async () => {
+    const { syncUser } = await import("./orchestrator");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const [user] = await getDb().select().from(users).limit(1);
+    const quiet = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { fakeTracker } = await import("../providers/fake/adapter");
+    const real = tracker.adapter;
+    // The tracker down for everything, its issues too.
+    const down = fakeTracker([{ key: "FAKE-1", title: "First" }]);
+    const { ProviderError } = await import("../providers/core/errors");
+    down.listChanged = async () => { throw new ProviderError("unavailable", "fake: down"); };
+    tracker.adapter = down;
+    try {
+      await expect(caller.issues.sync()).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+      await expect(syncUser(user, { background: true })).resolves.toMatchObject({ failed: [{ connectionId: connId }] });
+    } finally {
+      tracker.adapter = real;
+      quiet.mockRestore();
+    }
+    await expect(caller.issues.sync()).resolves.toMatchObject({ failed: [] });
+    tracker.calls = [];
+  });
+
   it("logs, changes and deletes on the tracker at once", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started, comment: "on it" });
     expect(made.remoteId).not.toMatch(/^(new|pending)-/);
@@ -137,6 +167,163 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     } finally {
       tracker.refuse = false;
     }
+  });
+
+  /** Rows here and entries there for one start, after the test's own steps. */
+  const countsAt = async (startedIso: string) => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const there = await boundTracker(conn)!.worklogs!.list({ signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "FAKE-1" });
+    const here = await q<{ id: number }>("SELECT id FROM worklogs WHERE connection_id = ? AND started = ?", connId, Date.parse(startedIso));
+    return { here: here.length, there: there.filter((w) => w.span.kind === "session" && Number(w.span.start) === Date.parse(startedIso)).length };
+  };
+
+  it("a create whose call times out after it landed is kept and queued (a timeout is not a cancel), then adopted once", async () => {
+    const at = "2026-10-16T08:00:00+02:00";
+    // The call's own deadline, short: the signal aborts with a TimeoutError, as fetch's does.
+    const spy = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const c = new AbortController();
+      setTimeout(() => c.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError")), 5);
+      return c.signal;
+    });
+    tracker.afterLanding = {
+      create: (signal) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason as Error), { once: true })),
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1500, started: at, comment: "slow" });
+      expect(made.remoteId).toMatch(/^pending-/);
+    } finally {
+      tracker.afterLanding = undefined;
+      spy.mockRestore();
+    }
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    expect(await countsAt(at)).toEqual({ here: 1, there: 1 });
+    const [row] = await q<{ id: number }>("SELECT id FROM worklogs WHERE started = ?", Date.parse(at));
+    await caller.worklogs.delete({ id: row.id });
+  });
+
+  it("a create answered outside the contract after it landed is kept and adopted, never deleted", async () => {
+    const at = "2026-10-16T10:00:00+02:00";
+    const { ProviderError } = await import("../providers/core/errors");
+    tracker.afterLanding = { create: async () => { throw new ProviderError("incompatible", "fake: odd answer"); } };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1500, started: at, comment: "odd" });
+      expect(made.remoteId).toMatch(/^pending-/);
+    } finally {
+      tracker.afterLanding = undefined;
+    }
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    expect(await countsAt(at)).toEqual({ here: 1, there: 1 });
+    const [row] = await q<{ id: number }>("SELECT id FROM worklogs WHERE started = ?", Date.parse(at));
+    await caller.worklogs.delete({ id: row.id });
+  });
+
+  it("a local fault after the tracker accepted a create keeps the worklog; the replay links it, not a second entry", async () => {
+    const at = "2026-10-16T12:00:00+02:00";
+    // The database refuses to record the tracker's id on this worklog (a fault after the tracker said yes).
+    await q(`CREATE FUNCTION refuse_link() RETURNS trigger AS $$ BEGIN
+      IF NEW.comment = 'local fault' AND NEW.jira_worklog_id NOT LIKE 'new-%' AND NEW.jira_worklog_id NOT LIKE 'pending-%' THEN RAISE EXCEPTION 'disk full'; END IF;
+      RETURN NEW; END $$ LANGUAGE plpgsql`);
+    await q("CREATE TRIGGER refuse_link BEFORE UPDATE ON worklogs FOR EACH ROW EXECUTE FUNCTION refuse_link()");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1500, started: at, comment: "local fault" });
+      expect(made.remoteId).toMatch(/^(new|pending)-/);
+    } finally {
+      await q("DROP TRIGGER refuse_link ON worklogs");
+      await q("DROP FUNCTION refuse_link()");
+      errors.mockRestore();
+    }
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    expect(await countsAt(at)).toEqual({ here: 1, there: 1 });
+    const [row] = await q<{ id: number; remote_id: string }>("SELECT id, jira_worklog_id AS remote_id FROM worklogs WHERE started = ?", Date.parse(at));
+    expect(row.remote_id).not.toMatch(/^(new|pending)-/);
+    await caller.worklogs.delete({ id: row.id });
+  });
+
+  it("an edit answered outside the contract is kept and queued, not refused (it may have landed)", async () => {
+    const at = "2026-10-16T14:00:00+02:00";
+    const { ProviderError } = await import("../providers/core/errors");
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "before" });
+    tracker.afterLanding = { update: async () => { throw new ProviderError("incompatible", "fake: odd answer"); } };
+    try {
+      const changed = await caller.worklogs.update({ id: made.id, seconds: 900, started: at, comment: "after" });
+      expect(changed).toMatchObject({ timeSpentSeconds: 900, comment: "after" });
+    } finally {
+      tracker.afterLanding = undefined;
+    }
+    expect(await q("SELECT kind FROM outbox WHERE worklog_id = ?", made.id)).toEqual([{ kind: "update" }]);
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("a queued edit another process is sending right now is never dropped: a new edit, a delete or a discard waits (CONFLICT)", async () => {
+    const at = "2026-10-16T16:00:00+02:00";
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "v1" });
+    tracker.offline = true;
+    await caller.worklogs.update({ id: made.id, seconds: 900, started: at, comment: "v2" });
+    tracker.offline = false;
+    const [queued] = await q<{ id: number }>("SELECT id FROM outbox WHERE worklog_id = ? AND kind = 'update'", made.id);
+    // Another server process on this database claimed it and is sending it.
+    await q("UPDATE outbox SET claimed_at = ? WHERE id = ?", Date.now(), queued.id);
+    await expect(caller.worklogs.update({ id: made.id, seconds: 1200, started: at, comment: "v3" })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(caller.worklogs.delete({ id: made.id })).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(caller.outbox.discard({ id: queued.id })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await q("SELECT id, claimed_at IS NOT NULL AS claimed FROM outbox WHERE worklog_id = ?", made.id)).toEqual([{ id: queued.id, claimed: true }]);
+    expect(await q("SELECT time_spent_seconds AS s, comment FROM worklogs WHERE id = ?", made.id)).toEqual([{ s: 900, comment: "v2" }]);
+    // Its sender done (or gone past its lease): free again.
+    await q("UPDATE outbox SET claimed_at = NULL WHERE id = ?", queued.id);
+    const changed = await caller.worklogs.update({ id: made.id, seconds: 1200, started: at, comment: "v3" });
+    expect(changed).toMatchObject({ timeSpentSeconds: 1200, comment: "v3" });
+    expect(await q("SELECT id FROM outbox WHERE worklog_id = ?", made.id)).toEqual([]);
+    await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("an edit the tracker refuses keeps the older queued edit (it is the user's last accepted change)", async () => {
+    const at = "2026-10-16T17:00:00+02:00";
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "v1" });
+    tracker.offline = true;
+    await caller.worklogs.update({ id: made.id, seconds: 900, started: at, comment: "v2" });
+    tracker.offline = false;
+    tracker.refuseOnly = "update";
+    try {
+      await expect(caller.worklogs.update({ id: made.id, seconds: 1200, started: at, comment: "v3" })).rejects.toThrow(/fake: no/);
+    } finally {
+      tracker.refuseOnly = undefined;
+    }
+    expect(await q("SELECT kind, claimed_at FROM outbox WHERE worklog_id = ?", made.id)).toEqual([{ kind: "update", claimed_at: null }]);
+    expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+    await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("another server process writing this user's time: a create waits for it, then sees what it did (the week it closed)", async () => {
+    const at = "2026-10-21T09:00:00+02:00";
+    const [{ id: userId }] = await q<{ id: number }>("SELECT id FROM users LIMIT 1");
+    // The other process holds the user's write lease while it closes that week.
+    await q("INSERT INTO write_leases (user_id, holder, expires_at) VALUES (?, 'other-process', ?)", userId, Date.now() + 60_000);
+    let settled = false;
+    const creating = caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "racing" }).finally(() => (settled = true));
+    creating.catch(() => {});
+    await new Promise((r) => setTimeout(r, 150));
+    expect(settled).toBe(false);
+    await q("INSERT INTO week_locks (user_id, week_start, note, closed_at) VALUES (?, '2026-10-19', '', ?) ON CONFLICT DO NOTHING", userId, Date.now());
+    await q("DELETE FROM write_leases WHERE holder = 'other-process'");
+    await expect(creating).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await q("DELETE FROM week_locks WHERE week_start = '2026-10-19'");
+    expect(await q("SELECT count(*)::int AS n FROM write_leases")).toEqual([{ n: 0 }]);
+  });
+
+  it("a write lease whose holder died runs out: the next write goes on", async () => {
+    const at = "2026-10-21T11:00:00+02:00";
+    const [{ id: userId }] = await q<{ id: number }>("SELECT id FROM users LIMIT 1");
+    await q("INSERT INTO write_leases (user_id, holder, expires_at) VALUES (?, 'dead-process', ?)", userId, Date.now() - 1);
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "after" });
+    expect(made.remoteId).not.toMatch(/^(new|pending)-/);
+    expect(await q("SELECT count(*)::int AS n FROM write_leases")).toEqual([{ n: 0 }]);
+    await caller.worklogs.delete({ id: made.id });
   });
 
   it("a create that landed but whose answer was lost is adopted at the replay, not logged twice", async () => {

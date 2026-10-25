@@ -295,7 +295,7 @@ export interface FrozenOut {
   "issues.searchOn": { connectionId: number; failed: null | { connectionId: number; label: string; message: string }; results: { assignee: null | string; canWatch: boolean; category: string; client: null | string; connectionId: number; connectionLabel: string; imported: boolean; isMine: boolean; key: string; projectKey: string; remoteId: string; status: string; summary: string; updatedAt: null | number; url: string; watching: boolean }[]; unsupported: string[] };
   "issues.setHidden": { hidden: boolean; key: string; previousRank: number; wasFavorite: boolean };
   "issues.setLabels": { assignees: string[]; key: string; labels: string[]; title: null | string };
-  "issues.sync": { at: Date; full: boolean; outbox: { failed: number; remaining: number; synced: number }; synced: number };
+  "issues.sync": { at: Date; failed: { connectionId: number; label: string; message: string }[]; full: boolean; outbox: { failed: number; remaining: number; synced: number }; synced: number };
   "issues.syncConnection": { missing: number; synced: number } | { missing?: undefined; synced: number };
   "issues.syncStatus": { intervalMin: number; lastError: null | string; lastSyncAt: Date | null };
   "issues.toggleFavorite": { favorite: boolean; key: string };

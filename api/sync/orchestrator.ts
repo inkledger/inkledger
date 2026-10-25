@@ -6,7 +6,11 @@ import { connections, type Connection, type User } from "@db/schema";
 import { syncConnectionEntries, syncConnectionIssues, syncInbox, withStream } from "./engine";
 import { replayContract } from "./timeWrites";
 import { t } from "@contracts/i18n";
+import { providerName } from "@contracts/providerNames";
+import { ProviderError } from "../providers/core/errors";
+import { providerTrpcError } from "../providers/trpc";
 import { isShuttingDown } from "../lib/shutdown";
+import { inMaintenance } from "../lib/maintenance";
 import { syncWorklogs } from "../worklogSync";
 import { runSync, type SyncResult } from "./jiraIssues";
 
@@ -66,10 +70,13 @@ async function syncConnections(user: User, full: boolean, background: boolean): 
     .from(connections)
     .where(and(eq(connections.userId, user.id), isNull(connections.archivedAt)))
     .orderBy(asc(connections.id));
-  let result: SyncResult | undefined;
+  let result: Omit<SyncResult, "failed"> | undefined;
+  const failed: SyncResult["failed"] = [];
+  let tried = 0;
   const one = async (conn: Connection) => {
     // Waiting to be reconnected: only the user's own sync tries it again.
     if (background && conn.status !== "ok") return;
+    tried++;
     if (conn.type === "jira") {
       const run = await withStream(conn, "issues", { full, background }, async () => ({ result: await runSync(user, conn, full) }));
       if (run.ran) result = run.result;
@@ -85,6 +92,8 @@ async function syncConnections(user: User, full: boolean, background: boolean): 
         await syncInbox(conn, { background });
       } catch (e) {
         console.warn(`[sync] connection ${conn.id} (${conn.type}): ${e instanceof Error ? e.message : String(e)}`);
+        // Said in the answer (the user's own Sync shows it), never failing the others.
+        failed.push({ connectionId: conn.id, label: conn.label ?? providerName(conn.type), message: e instanceof ProviderError ? providerTrpcError(e).message : t("server.internal.error") });
       }
     }
   };
@@ -92,7 +101,11 @@ async function syncConnections(user: User, full: boolean, background: boolean): 
   const outcomes = await inPool(conns, SYNC_CONCURRENCY, one);
   const failure = outcomes.find((o): o is PromiseRejectedResult => o.status === "rejected");
   if (failure) throw failure.reason instanceof Error ? failure.reason : new Error(String(failure.reason));
-  return result ?? { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } };
+  // The user's own Sync: every tracker it tried failed, so it failed (never "done" with nothing done).
+  if (!background && tried > 0 && failed.length === tried) {
+    throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: failed.map((f) => `${f.label}: ${f.message}`).join(" · ") });
+  }
+  return { ...(result ?? { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } }), failed };
 }
 
 /**
@@ -106,6 +119,9 @@ export function syncUser(user: User, opts: { full?: boolean; background?: boolea
     return Promise.reject(
       new TRPCError({ code: "SERVICE_UNAVAILABLE", message: t("server.issues.shuttingDown") }),
     );
+  }
+  if (inMaintenance()) {
+    return Promise.reject(new TRPCError({ code: "SERVICE_UNAVAILABLE", message: t("server.maintenance") }));
   }
   const full = opts.full ?? true;
   const running = syncInFlight.get(user.id);

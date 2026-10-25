@@ -113,6 +113,21 @@ describe("a time sink's failed delete, retried", () => {
     expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
   });
 
+  it("Retry on the queue page sends a sink's deletes too (a sink has no tracker to replay against)", async () => {
+    await queue("e-retry", { attempts: MAX_OUTBOX_ATTEMPTS + 1 });
+    refuse = false;
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await getDb().select().from(users).where(eq(users.id, userId));
+    const caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null });
+    const r = await caller.outbox.retry();
+    expect(calls).toEqual(["e-retry"]);
+    expect(r).toMatchObject({ remaining: 0 });
+    expect(await q<{ n: number }>("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
   it("a delete that goes through leaves the queue", async () => {
     refuse = false;
     await queue("e-ok");

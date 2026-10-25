@@ -124,6 +124,38 @@ describe("module licences active per server (WP-19)", () => {
     }
   });
 
+  it("a grace comes only from this server's own token, ends with it, and is never made anew", async () => {
+    const L3 = { id: "L-3", product: "inkledger.hello", text: "L-3:inkledger.hello" };
+    worker.mode = "down";
+    try {
+      // Never activated here: the store out of reach starts no grace (else a blocked store would mean no activation, ever).
+      expect(await a.activate(L3.text, L3.id)).toEqual({ ok: false, reason: "unreachable" });
+      a.forgetActivations();
+      expect((await a.activationStates([L3])).get("L-3")).toEqual({ state: "missing" });
+    } finally {
+      worker.mode = "ok";
+    }
+    // Activated with a short token, then the store goes down for good.
+    worker.exp = Date.now() + 1000;
+    await a.activate(L3.text, L3.id);
+    worker.exp = 0;
+    worker.mode = "down";
+    try {
+      const t1 = Date.now() + 2 * DAY;
+      await a.activate(L3.text, L3.id, t1);
+      a.forgetActivations();
+      const g = (await a.activationStates([L3], t1)).get("L-3");
+      expect(g).toMatchObject({ state: "grace" });
+      // The grace ran out; the next try, still unreachable, doesn't start another one.
+      const t2 = t1 + 40 * DAY;
+      await a.activate(L3.text, L3.id, t2);
+      a.forgetActivations();
+      expect((await a.activationStates([L3], t2)).get("L-3")).toEqual({ state: "missing" });
+    } finally {
+      worker.mode = "ok";
+    }
+  });
+
   it("deactivated: the slot goes back; offline: the code is signed for this server, its token accepted", async () => {
     await a.activate(LIC.text, LIC.id);
     await a.deactivate(LIC.text, LIC.id);

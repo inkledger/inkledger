@@ -546,6 +546,7 @@ export const ui: Shape<typeof en> = {
     failed: "Impostazioni non salvate: {message}",
   },
   sync: {
+    partial: "Non sincronizzati questa volta — {list}",
     done: { one: "Sincronizzata {count} issue da {provider}", other: "Sincronizzate {count} issue da {provider}" },
     failed: "Sincronizzazione non riuscita: {message}",
   },

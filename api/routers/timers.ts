@@ -14,6 +14,7 @@ import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
 import { dayKey } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
+import { withWriteLease } from "../queries/writeLease";
 import { endSession, openSession, trimSession } from "../queries/todoSessions";
 import { t as tr } from "@contracts/i18n";
 
@@ -349,15 +350,18 @@ export const timersRouter = createRouter({
       const w = whoOf(ctx, input.device);
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       const from = input.from === undefined ? null : new Date(input.from);
-      if (from) {
-        if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
-        if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
-        // From a gap's start: the time must be free, whatever the overlap policy (it would count twice).
-        await assertNoOverlap(ctx.user.id, { start: from, seconds: Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000)) }, undefined, true);
-      }
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.
-      return act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from }, now));
+      const start = () => act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from }, now));
+      if (!from) return start();
+      if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
+      if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
+      // From a gap's start: the time must be free, whatever the overlap policy (it would count
+      // twice), checked and started under the write lease, so no worklog lands in it meanwhile.
+      return withWriteLease(ctx.user.id, async () => {
+        await assertNoOverlap(ctx.user.id, { start: from, seconds: Math.max(1, Math.floor((now.getTime() - from.getTime()) / 1000)) }, undefined, true);
+        return start();
+      });
     }),
 
   /**

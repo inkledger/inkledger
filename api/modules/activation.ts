@@ -123,11 +123,12 @@ export async function activate(license: string, licenseId: string, now = Date.no
     if (!(e instanceof StoreError)) throw e;
     if (e.code === "off") return { ok: false, reason: "off" };
     if (e.code === "unreachable") {
-      // Not the licence's fault: what it had keeps working a while longer.
-      const had = (await activationStates([{ id: licenseId, product: "" }], now)).get(licenseId);
+      // Not the licence's fault: what this server had keeps working a while longer, counted
+      // from its token's end (so outages never stretch it), and only when it held a token of
+      // its own for this licence (a store never reached starts nothing).
       const current = (await tokens())[me.id]?.[licenseId];
       const p = current ? readActivation(current) : null;
-      if (!had || had.state !== "grace") await setGrace(licenseId, Math.max(p ? p.exp + GRACE_MS : 0, now + GRACE_MS));
+      if (p && p.inst === me.id && p.lic === licenseId && p.exp + GRACE_MS > now) await setGrace(licenseId, p.exp + GRACE_MS);
       forgetActivations();
       return { ok: false, reason: "unreachable" };
     }

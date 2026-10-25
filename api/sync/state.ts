@@ -14,6 +14,26 @@ export const PROCESS_ID = randomUUID();
 
 /** A lease outlives a crashed holder by this much at most. */
 export const LEASE_MS = 10 * 60_000;
+/** A live holder renews its lease this often (a pass may take longer than LEASE_MS). */
+export const HEARTBEAT_MS = LEASE_MS / 4;
+
+/** The stream was taken over by another process (this one's lease ran out): its pass records nothing. */
+export class LeaseLostError extends Error {
+  constructor(connectionId: number, stream: Stream) {
+    super(`Sync lease lost: connection ${connectionId}, ${stream} (another process holds it)`);
+    this.name = "LeaseLostError";
+  }
+}
+
+/** Renews this process's lease on the stream; false when it no longer holds it. */
+export async function renew(connectionId: number, stream: Stream, now = Date.now()): Promise<boolean> {
+  const rows = await getDb()
+    .update(connectionSync)
+    .set({ leaseUntil: new Date(now + LEASE_MS) })
+    .where(mine(connectionId, stream))
+    .returning({ id: connectionSync.connectionId });
+  return rows.length > 0;
+}
 
 /**
  * After failures in a row: the first is retried at the next pass (one
@@ -65,9 +85,9 @@ export async function acquire(
 const mine = (connectionId: number, stream: Stream) =>
   and(eq(connectionSync.connectionId, connectionId), eq(connectionSync.stream, stream), eq(connectionSync.leaseOwner, PROCESS_ID));
 
-/** A pass went through: the lease goes, the checkpoint (when given) is kept, failures reset. */
+/** A pass went through: the lease goes, the checkpoint (when given) is kept, failures reset. Throws when the lease was lost. */
 export async function succeeded(connectionId: number, stream: Stream, outcome: { checkpoint?: string | null; full: boolean }, now = new Date()) {
-  await getDb()
+  const done = await getDb()
     .update(connectionSync)
     .set({
       leaseOwner: null,
@@ -78,7 +98,10 @@ export async function succeeded(connectionId: number, stream: Stream, outcome: {
       ...(outcome.full ? { lastFullAt: now } : {}),
       ...(outcome.checkpoint !== undefined ? { checkpoint: outcome.checkpoint } : {}),
     })
-    .where(mine(connectionId, stream));
+    .where(mine(connectionId, stream))
+    .returning({ id: connectionSync.connectionId });
+  // Another process holds it now: its checkpoint stands, this pass is not the stream's.
+  if (done.length === 0) throw new LeaseLostError(connectionId, stream);
   await getDb().update(connections).set({ status: "ok" }).where(and(eq(connections.id, connectionId), eq(connections.status, "auth_failed")));
 }
 

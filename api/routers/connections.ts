@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
-import { connections, connectionSync, containers, issues, type Connection } from "@db/schema";
+import { connections, connectionSync, containers, issues, worklogs, worklogSinks, type Connection, type User } from "@db/schema";
 import { TIME_SINK_TYPES, TRACKER_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
 import { openSecret, sealSecret } from "../lib/crypto";
 import { webhookPath } from "../hooks";
@@ -129,6 +129,25 @@ async function shown(c: Connection) {
 /** A tracker's or a time sink's build status, by type. */
 const statusOfType = (type: string) => ((TIME_SINK_TYPES as readonly string[]).includes(type) ? sinkStatus(type as TimeSinkType) : trackerStatus(type as TrackerType));
 
+const isJiraCloud = (siteUrl: string) => {
+  try {
+    return /\.atlassian\.net$/i.test(new URL(siteUrl).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * A self-hosted tracker is reached on the server's own network. In production with no
+ * REMOTE_ALLOWED_HOSTS to bound it, only an admin adds one (a member could make the server
+ * reach any address it can); listing the hosts there opens them to everyone.
+ */
+function assertMayAddSelfHosted(user: Pick<User, "role">) {
+  if (env.isProduction && env.remoteAllowedHosts.length === 0 && user.role !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: t("server.connections.selfHostedAdmin") });
+  }
+}
+
 export const connectionsRouter = createRouter({
   /** The user's connections, with their service's name and what it can do: the app decides by capability, never by type. */
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -155,6 +174,7 @@ export const connectionsRouter = createRouter({
 
   /** A new Jira connection, its login confirmed live. Another account's Jira login stays theirs. */
   addJira: protectedProcedure.input(jiraLoginInput.extend({ label })).mutation(async ({ input, ctx }) => {
+    if (!isJiraCloud(input.siteUrl)) assertMayAddSelfHosted(ctx.user);
     const identity = await confirmJiraLogin(input);
     const db = getDb();
     const [taken] = await db
@@ -179,6 +199,7 @@ export const connectionsRouter = createRouter({
 
   /** New credentials for a connection, for the same account on the same site. */
   reconnectJira: protectedProcedure.input(jiraLoginInput.extend({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+    if (!isJiraCloud(input.siteUrl)) assertMayAddSelfHosted(ctx.user);
     const conn = await ownConnection(ctx.user.id, input.id);
     const identity = await confirmJiraLogin(input);
     if (identity.siteUrl !== conn.baseUrl || identity.accountId !== conn.remoteAccountId) {
@@ -220,6 +241,7 @@ export const connectionsRouter = createRouter({
       if (!form || !(isSink ? sinkAdapter(input.type as TimeSinkType) : trackerAdapter(input.type as TrackerType))) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.connections.notConnectable", { provider: providerName(input.type) }) });
       const baseUrl = (form.apiBase ?? input.baseUrl ?? "").replace(/\/+$/, "");
       if (!baseUrl) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.url.invalid") });
+      if (form.selfHosted) assertMayAddSelfHosted(ctx.user);
       await assertSafeUrl(baseUrl, { allowedHosts: form.selfHosted ? env.remoteAllowedHosts : [], network: form.selfHosted ? "private" : "public" }).catch((e: unknown) => {
         throw new TRPCError({ code: "BAD_REQUEST", message: e instanceof Error ? e.message : String(e) });
       });
@@ -298,6 +320,18 @@ export const connectionsRouter = createRouter({
       options = JSON.parse(conn.options) as Record<string, unknown>;
     } catch {
       options = {};
+    }
+    // Time it filed for its current tracker and hasn't sent yet: moving the stand-in now would
+    // leave it filed nowhere (the tracker's rows wait for this sink). Sent, or discarded, first.
+    const current = typeof options[k.option] === "number" ? (options[k.option] as number) : null;
+    if (current !== null && current !== input.trackerId) {
+      const [waiting] = await getDb()
+        .select({ id: worklogSinks.id })
+        .from(worklogSinks)
+        .innerJoin(worklogs, eq(worklogs.id, worklogSinks.worklogId))
+        .where(and(eq(worklogSinks.sinkConnectionId, conn.id), ne(worklogSinks.state, "synced"), eq(worklogs.connectionId, current)))
+        .limit(1);
+      if (waiting) throw new TRPCError({ code: "CONFLICT", message: t("server.connections.standInBusy", { provider: providerName(conn.type) }) });
     }
     const rest = Object.fromEntries(Object.entries(options).filter(([key]) => key !== k.option && key !== "accountId"));
     const next = input.trackerId === null ? rest : { ...rest, [k.option]: input.trackerId, accountId: account };

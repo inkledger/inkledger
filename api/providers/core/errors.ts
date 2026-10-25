@@ -92,9 +92,11 @@ export function normalizeError(e: unknown, signal?: AbortSignal): ProviderError 
   if (e instanceof ProviderError) return e;
   const marked = (e as { providerKind?: unknown } | null)?.providerKind;
   if (marked === "readOnly") return new ProviderError("readOnly", e instanceof Error ? e.message : "Read-only", { cause: e });
-  if (signal?.aborted) return new ProviderError("cancelled", "Cancelled", { cause: e });
+  // A deadline (AbortSignal.timeout) aborts the signal too: that is no answer in time, not the caller giving up.
   const name = e instanceof Error ? e.name : "";
-  if (name === "TimeoutError") return new ProviderError("timeout", "No answer in time", { cause: e });
+  const reason = (signal?.reason as { name?: unknown } | undefined)?.name;
+  if (name === "TimeoutError" || (signal?.aborted && reason === "TimeoutError")) return new ProviderError("timeout", "No answer in time", { cause: e });
+  if (signal?.aborted) return new ProviderError("cancelled", "Cancelled", { cause: e });
   if (name === "AbortError") return new ProviderError("cancelled", "Cancelled", { cause: e });
   const status = (e as { status?: unknown } | null)?.status;
   if (typeof status === "number") return new ProviderError(kindOfStatus(status), e instanceof Error ? e.message : `HTTP ${status}`, { status, cause: e });

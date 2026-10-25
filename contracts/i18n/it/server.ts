@@ -2,6 +2,7 @@ import type { Shape } from "../core";
 import type { server as en } from "../en/server";
 
 export const server: Shape<typeof en> = {
+  maintenance: "Il server sta ripristinando un backup: riprova tra un minuto.",
   input: {
     invalid: "Qualcosa nella richiesta non è valido: controlla i campi e riprova.",
     invalidField: "Non valido",
@@ -25,6 +26,8 @@ export const server: Shape<typeof en> = {
   connections: {
     notConnectable: "{provider} non si può ancora collegare da inkledger.",
     noStandIn: "{provider} non può stare al posto di questa connessione.",
+    selfHostedAdmin: "Qui solo un admin può collegare un tracker self-hosted, a meno che il suo host sia in REMOTE_ALLOWED_HOSTS.",
+    standInBusy: "{provider} deve ancora inviare del tempo per questo tracker: invialo (o scartalo) dalla coda prima.",
     noWebhooks: "Questo tracker non manda webhook che inkledger sappia ricevere.",
     notExcludable: "{provider} non permette di escludere repository dal sync.",
     otherAccount: "Queste credenziali sono di un altro account: per collegarlo, aggiungi una nuova connessione.",
@@ -189,6 +192,7 @@ export const server: Shape<typeof en> = {
     noConflict: "Questo worklog non ha conflitti da risolvere.",
     notFound: "Questo worklog non esiste più.",
     justSynced: "Il worklog è appena stato inviato al tuo tracker: aggiorna e riprova",
+    busy: "Un'altra modifica al tuo tempo è ancora in salvataggio: riprova tra un momento.",
     invalidDuration: 'Durata non valida: "{value}". Usa formati come "2h 30m", "1d", "45m".',
     minDuration: "Una registrazione deve durare almeno 1 minuto.",
     maxDuration: "Una singola registrazione non può superare le 24 ore.",

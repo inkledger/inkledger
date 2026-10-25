@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { withWriteLease } from "../queries/writeLease";
 import { weekLocks } from "@db/schema";
 import { parseDayKey, weekStartKey } from "@contracts/time";
 import { t } from "@contracts/i18n";
@@ -66,30 +67,35 @@ export const weeksRouter = createRouter({
   /** Close a week: its worklogs become read-only. Idempotent. */
   close: protectedProcedure
     .input(weekInput.extend({ note: z.string().max(500).default("") }))
-    .mutation(async ({ ctx, input }) => {
-      const weekStart = normalizeWeek(input.week);
-      const db = getDb();
-      await db
-        .insert(weekLocks)
-        .values({ userId: ctx.user.id, weekStart, note: input.note })
-        .onConflictDoNothing();
-      const rows = await db
-        .select()
-        .from(weekLocks)
-        .where(and(eq(weekLocks.userId, ctx.user.id), eq(weekLocks.weekStart, weekStart)));
-      return rows[0];
-    }),
+    .mutation(({ ctx, input }) =>
+      // Under the write lease: a worklog being written into this week lands before it closes, or not at all.
+      withWriteLease(ctx.user.id, async () => {
+        const weekStart = normalizeWeek(input.week);
+        const db = getDb();
+        await db
+          .insert(weekLocks)
+          .values({ userId: ctx.user.id, weekStart, note: input.note })
+          .onConflictDoNothing();
+        const rows = await db
+          .select()
+          .from(weekLocks)
+          .where(and(eq(weekLocks.userId, ctx.user.id), eq(weekLocks.weekStart, weekStart)));
+        return rows[0];
+      }),
+    ),
 
   /** Reopen a closed week. Idempotent. */
-  reopen: protectedProcedure.input(weekInput).mutation(async ({ ctx, input }) => {
-    await getDb()
-      .delete(weekLocks)
-      .where(
-        and(
-          eq(weekLocks.userId, ctx.user.id),
-          eq(weekLocks.weekStart, normalizeWeek(input.week)),
-        ),
-      );
-    return { ok: true };
-  }),
+  reopen: protectedProcedure.input(weekInput).mutation(({ ctx, input }) =>
+    withWriteLease(ctx.user.id, async () => {
+      await getDb()
+        .delete(weekLocks)
+        .where(
+          and(
+            eq(weekLocks.userId, ctx.user.id),
+            eq(weekLocks.weekStart, normalizeWeek(input.week)),
+          ),
+        );
+      return { ok: true };
+    }),
+  ),
 });

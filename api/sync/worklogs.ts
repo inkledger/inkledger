@@ -49,7 +49,7 @@ async function sinkOf(worklogId: number, connectionId: number): Promise<Sink | u
 }
 
 /** The registry follows what the service now has: its id (the primary sink's id on the worklog too) and revision. */
-async function landed(local: Local, conn: Pick<Connection, "id">, remote: RemoteWorklog) {
+export async function landed(local: Local, conn: Pick<Connection, "id">, remote: RemoteWorklog) {
   if (local.connectionId === conn.id) {
     // A copy of it a sync read back meanwhile is the same worklog: it goes, without a trace.
     await withDeleteReason("merged", async (tx) => {
@@ -87,10 +87,15 @@ function inputOf(b: BoundTracker, local: Local, zone: TimeZone): WorklogInput {
   return { time: timeInput(e.shape, local, zone), comment: local.comment };
 }
 
-/** A new worklog on the service: a retry with the same uuid lands once (natively, or by inkledger's own key). */
-export async function pushCreate(b: BoundTracker, conn: Pick<Connection, "id">, local: Local, ref: IssueRef, meta: CallMeta, zone: TimeZone) {
+/** A new worklog on the service, nothing recorded here yet: a retry with the same uuid lands once (natively, or by inkledger's own key). */
+export async function createThere(b: BoundTracker, local: Local, ref: IssueRef, meta: CallMeta, zone: TimeZone) {
   if (!b.worklogs?.create) throw cannotDoIt(b);
-  const remote = await b.worklogs.create(meta, ref, inputOf(b, local, zone), { idempotencyKey: local.uuid });
+  return b.worklogs.create(meta, ref, inputOf(b, local, zone), { idempotencyKey: local.uuid });
+}
+
+/** A new worklog on the service, and its id recorded here. */
+export async function pushCreate(b: BoundTracker, conn: Pick<Connection, "id">, local: Local, ref: IssueRef, meta: CallMeta, zone: TimeZone) {
+  const remote = await createThere(b, local, ref, meta, zone);
   await landed(local, conn, remote);
   return remote;
 }

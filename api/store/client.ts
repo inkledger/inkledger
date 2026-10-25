@@ -32,19 +32,62 @@ export class StoreError extends Error {
   }
 }
 
+/** The most an answer of the store may hold (the catalog is a few KB): anything larger is refused unread. */
+const MAX_ANSWER_BYTES = 1024 * 1024;
+
+/** The answer's body, read up to the limit (declared or not): over it, refused. */
+async function bounded(res: Response): Promise<Uint8Array<ArrayBuffer>> {
+  const declared = Number(res.headers.get("content-length") ?? "0");
+  if (declared > MAX_ANSWER_BYTES) throw new StoreError("rejected", res.status, "too large");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader();
+  if (!reader) return new Uint8Array(new ArrayBuffer(0));
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_ANSWER_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new StoreError("rejected", res.status, "too large");
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(new ArrayBuffer(size));
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
+}
+
 async function call(path: string, init?: RequestInit): Promise<Response> {
   if (!env.storeUrl) throw new StoreError("off");
   let res: Response;
   try {
-    res = await fetch(`${env.storeUrl}${path}`, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    // The store's own address only: a redirect elsewhere (another host, this network) is refused.
+    res = await fetch(`${env.storeUrl}${path}`, { ...init, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch {
     throw new StoreError("unreachable");
   }
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new StoreError(res.status >= 500 ? "unreachable" : "rejected", res.status, body.error ?? "");
+  let body: Uint8Array<ArrayBuffer>;
+  try {
+    body = await bounded(res);
+  } catch (e) {
+    if (e instanceof StoreError) throw e;
+    throw new StoreError("unreachable");
   }
-  return res;
+  if (!res.ok) {
+    let error = "";
+    try {
+      error = (JSON.parse(new TextDecoder().decode(body)) as { error?: string }).error ?? "";
+    } catch {
+      // not JSON: no detail
+    }
+    throw new StoreError(res.status >= 500 ? "unreachable" : "rejected", res.status, error);
+  }
+  return new Response(body, { status: res.status, headers: res.headers });
 }
 
 const postJson = (path: string, data: unknown) =>

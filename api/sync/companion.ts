@@ -11,6 +11,7 @@ import { connections, outbox, worklogs, worklogSinks, type Connection, type Work
 import { getDb } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import { ProviderError } from "../providers/core/errors";
+import { certainRefusal } from "../providers/trpc";
 import { boundSink, pushOne, sinksSoon, trackerOfSink } from "./extraSinks";
 
 const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `companion-${Date.now()}` });
@@ -53,11 +54,14 @@ export async function createViaCompanion(
   try {
     await pushOne(b, sink, row, null);
   } catch (e) {
-    if (!transient(e)) {
+    // Only a certain refusal drops it: no answer, an odd answer or a fault here may have landed.
+    if (certainRefusal(e)) {
       await withDeleteReason("merged", (tx) => tx.delete(worklogs).where(eq(worklogs.id, row.id)));
       throw e;
     }
-    // Kept here, pending on the sink: sent on a later pass.
+    if (!transient(e)) console.error(e);
+    // Kept here, pending on the sink: sent on a later pass (with the same key: filed once).
+    sinksSoon(input.userId);
   }
   return reread(row.id);
 }
@@ -91,7 +95,8 @@ export async function updateViaCompanion(
     try {
       await pushOne(bound(entry.sink), entry.sink, next, entry.remoteId);
     } catch (e) {
-      if (!transient(e)) throw e;
+      if (certainRefusal(e)) throw e;
+      if (!transient(e)) console.error(e);
       await setState(current.id, entry.sink.id, "pending");
       sinksSoon(current.userId);
     }
@@ -110,7 +115,9 @@ export async function deleteViaCompanion(entry: { sink: Connection; remoteId: st
     } catch (e) {
       if (e instanceof ProviderError && e.kind === "notFound") {
         // already gone there
-      } else if (transient(e)) {
+      } else if (!certainRefusal(e)) {
+        // Deleting again is safe, so anything but a refusal is tried later.
+        if (!transient(e)) console.error(e);
         await getDb()
           .insert(outbox)
           .values({ userId: current.userId, connectionId: entry.sink.id, kind: "delete", issueKey: current.issueKey, remoteId: entry.remoteId, timeSpentSeconds: current.timeSpentSeconds, started: current.started });

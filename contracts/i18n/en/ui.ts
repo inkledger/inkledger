@@ -545,6 +545,7 @@ export const ui = {
     failed: "Settings not saved: {message}",
   },
   sync: {
+    partial: "Not synced this time — {list}",
     done: { one: "Synced {count} issue from {provider}", other: "Synced {count} issues from {provider}" },
     failed: "Sync failed: {message}",
   },

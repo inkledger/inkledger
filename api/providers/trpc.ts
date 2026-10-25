@@ -35,6 +35,14 @@ export function isRefusal(e: ProviderError): boolean {
   return typeof cause?.status === "number" || cause?.providerKind === "readOnly";
 }
 
+/**
+ * A write the service certainly didn't take: its own refusal, or refused before it left. No
+ * answer, a cancel, an odd answer or a fault of ours leave it open: it may have landed.
+ */
+export function certainRefusal(e: unknown): boolean {
+  return e instanceof ProviderError && !e.transient && e.kind !== "cancelled" && isRefusal(e);
+}
+
 // A client's fallback when the tracker said nothing of its own: "GitHub answered 429", "monday: answered 500".
 const BARE_STATUS = /^(?:[A-Za-z][\w .-]*?:? )?answered \d{3}$/;
 const REFUSED = ["auth", "forbidden", "notFound", "invalid", "conflict", "rateLimit"] as const;

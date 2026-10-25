@@ -14,7 +14,7 @@ import type { Checkpoint, Stream, TrackerProbe } from "../providers/types";
 import { budgetOf, type Budget } from "./budget";
 import { syncIssues, type IssuePassResult } from "./issues";
 import { entriesOf, syncEntries } from "./worklogs";
-import { acquire, failed, succeeded } from "./state";
+import { acquire, failed, HEARTBEAT_MS, LeaseLostError, renew, succeeded } from "./state";
 import { observePass } from "./observe";
 import { insertNotifications } from "../routers/notifications";
 
@@ -37,12 +37,17 @@ export async function withStream<R>(
   let got = await acquire(conn.id, stream);
   if (!got.ok && got.reason === "waiting" && !opts.background) got = await acquire(conn.id, stream, Date.now(), { ignoreWait: true });
   if (!got.ok) return { ran: false, reason: got.reason, until: got.until };
+  // Kept alive while the pass runs: a long one is never taken over as if its holder had died.
+  const beat = setInterval(() => void renew(conn.id, stream).catch(() => undefined), HEARTBEAT_MS);
   try {
     const out = await pass(opts.full ? null : (got.state.checkpoint as Checkpoint | null));
+    clearInterval(beat);
     await succeeded(conn.id, stream, { checkpoint: out.checkpoint, full: opts.full });
     return { ran: true, result: out.result };
   } catch (e) {
-    await failed(conn.id, stream, e).catch(() => undefined);
+    clearInterval(beat);
+    // Lost to another process: its state stands, nothing of this pass is recorded on it.
+    if (!(e instanceof LeaseLostError)) await failed(conn.id, stream, e).catch(() => undefined);
     throw e;
   }
 }

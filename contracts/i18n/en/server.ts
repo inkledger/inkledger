@@ -1,6 +1,7 @@
 import type { Tree } from "../core";
 
 export const server = {
+  maintenance: "The server is restoring a backup: try again in a minute.",
   input: {
     invalid: "Something in the request isn't valid: check the fields and try again.",
     invalidField: "Not valid",
@@ -24,6 +25,8 @@ export const server = {
   connections: {
     notConnectable: "{provider} can’t be connected from inkledger yet.",
     noStandIn: "{provider} can’t stand in for this connection.",
+    selfHostedAdmin: "Only an admin can connect a self-hosted tracker here, unless its host is listed in REMOTE_ALLOWED_HOSTS.",
+    standInBusy: "{provider} still has time to send for this tracker: send it (or discard it) from the queue first.",
     noWebhooks: "This tracker sends no webhooks inkledger can take.",
     notExcludable: "{provider} can't leave repositories out of the sync.",
     otherAccount: "These credentials are for another account: to connect it, add a new connection.",
@@ -188,6 +191,7 @@ export const server = {
     noConflict: "This worklog has no conflict to settle.",
     notFound: "This worklog no longer exists.",
     justSynced: "The worklog was just sent to your tracker: refresh and try again",
+    busy: "Another change to your time is still being saved: try again in a moment.",
     invalidDuration: 'Invalid duration: "{value}". Use formats like "2h 30m", "1d", "45m".',
     minDuration: "A worklog must last at least 1 minute.",
     maxDuration: "A single worklog can't exceed 24 hours.",

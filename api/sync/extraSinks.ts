@@ -12,7 +12,7 @@
 import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { connections, issues, outbox, sinkMappings, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
-import { instant, localDateOf } from "@contracts/values";
+import { instant, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
 import { bindSink, type BoundSink } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
@@ -20,11 +20,12 @@ import { connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
 import { withDeleteReason } from "../queries/trash";
-import { linkSink, timeInput } from "./worklogs";
+import { linkSink, sameTime, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
 import { CLAIM_TTL_MS } from "./timeWrites";
+import { inMaintenance } from "../lib/maintenance";
 
 const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `sink-${Date.now()}` });
 const SINKS = new Set<string>(TIME_SINK_TYPES);
@@ -193,6 +194,50 @@ async function adoptTrackerId(w: Worklog, trackerId: string) {
   await linkSink(w.id, connectionId, trackerId, null);
 }
 
+/** How far a sink's clock may be behind ours when it stamps an entry it just made. */
+const CLOCK_SKEW_MS = 60_000;
+
+/**
+ * Where the sink honours no idempotency key (Tempo), a create sent before with its answer lost
+ * (no answer, an odd one, a fault here) may be there already: before sending it again, the
+ * day's entries are read. Ours: on its issue, the same time, by this account, made after the
+ * first send, and linked to no other worklog. The first send's time is on its link (syncedAt).
+ */
+async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, zone: TimeZone): Promise<RemoteWorklog | null> {
+  if (b.capabilities.entries.idempotency !== "local") return null;
+  const db = getDb();
+  const [link] = await db
+    .select({ sentAt: worklogSinks.syncedAt })
+    .from(worklogSinks)
+    .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id)));
+  if (!link?.sentAt) return null;
+  const day = localDateOf(instant(w.started.getTime()), zone);
+  const there = await b.entries.list(meta(), { from: day, to: day });
+  for (const e of there) {
+    if (e.authorRemoteId !== sink.remoteAccountId || e.span.kind !== "session") continue;
+    if (!e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
+    if (!sameTime({ started: new Date(e.span.start), seconds: e.span.seconds }, { started: w.started, seconds: w.timeSpentSeconds })) continue;
+    if (e.createdAt != null && Number(e.createdAt) < link.sentAt.getTime() - CLOCK_SKEW_MS) continue;
+    const [taken] = await db
+      .select({ id: worklogSinks.id })
+      .from(worklogSinks)
+      .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.remoteId, e.remoteId)));
+    if (!taken) return e;
+  }
+  return null;
+}
+
+/** A create on the sink, its first send's time kept on the link (landedBefore reads it). */
+async function createOnce(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, target: SinkTarget | null, input: WorklogInput): Promise<RemoteWorklog> {
+  if (b.capabilities.entries.idempotency === "local") {
+    await getDb()
+      .update(worklogSinks)
+      .set({ syncedAt: new Date() })
+      .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id), isNull(worklogSinks.syncedAt)));
+  }
+  return b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
+}
+
 /** One worklog onto one sink: created, changed, or its day's total set. */
 export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remoteId: string | null) {
   const c = b.capabilities;
@@ -220,7 +265,7 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
     landed =
       remoteId && b.entries.update
         ? await b.entries.update(meta(), remoteId, input, {})
-        : await b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
+        : ((await landedBefore(b, sink, w, ref, zone)) ?? (await createOnce(b, sink, w, ref, target, input)));
   }
   await getDb()
     .update(worklogSinks)
@@ -246,7 +291,8 @@ const SINK_BATCH = 100;
 export const deleteRetryDelayMs = (attempts: number) => backoffMs(attempts + 1);
 
 export async function pushSinks(userId: number, now: () => number = Date.now, o: { force?: boolean } = {}): Promise<{ sent: number; failed: number }> {
-  if (running.has(userId)) return { sent: 0, failed: 0 };
+  // A restore replacing the database: the next pass sends it.
+  if (running.has(userId) || inMaintenance()) return { sent: 0, failed: 0 };
   running.add(userId);
   let sent = 0;
   let failed = 0;
@@ -255,22 +301,41 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
     for (const sink of [...(await sinkConnections(userId)), ...(await companionConnections(userId))]) {
       const b = boundSink(sink);
       if (!b || !mayWrite(sink)) continue;
+      const leaseOver = () => or(isNull(worklogSinks.claimedAt), lt(worklogSinks.claimedAt, now() - CLAIM_TTL_MS));
       const due = await db
-        .select({ w: worklogs, remoteId: worklogSinks.remoteId })
+        .select({ w: worklogs, remoteId: worklogSinks.remoteId, linkId: worklogSinks.id })
         .from(worklogSinks)
         .innerJoin(worklogs, eq(worklogs.id, worklogSinks.worklogId))
-        .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.state, "pending")))
+        .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.state, "pending"), leaseOver()))
         .orderBy(asc(worklogs.id))
         .limit(SINK_BATCH);
-      for (const { w, remoteId } of due) {
-        try {
-          await pushOne(b, sink, w, remoteId);
-          sent++;
-        } catch (e) {
-          if (e instanceof ProviderError && e.transient) break;
-          failed++;
-          await fail(w.id, sink.id, e instanceof Error ? e.message : String(e));
+      // Claimed first, all at once: another server process on this database skips them
+      // (two passes would send an entry twice, or race a day's total).
+      const mine = due.length
+        ? new Set(
+            (
+              await db
+                .update(worklogSinks)
+                .set({ claimedAt: now() })
+                .where(and(inArray(worklogSinks.id, due.map((d) => d.linkId)), leaseOver()))
+                .returning({ id: worklogSinks.id })
+            ).map((r) => r.id),
+          )
+        : new Set<number>();
+      try {
+        for (const { w, remoteId, linkId } of due) {
+          if (!mine.has(linkId)) continue;
+          try {
+            await pushOne(b, sink, w, remoteId);
+            sent++;
+          } catch (e) {
+            if (e instanceof ProviderError && e.transient) break;
+            failed++;
+            await fail(w.id, sink.id, e instanceof Error ? e.message : String(e));
+          }
         }
+      } finally {
+        if (mine.size) await db.update(worklogSinks).set({ claimedAt: null }).where(inArray(worklogSinks.id, [...mine]));
       }
       // Deletes still to try (under the attempts cap, their wait over), oldest first;
       // the user's own "Send now" tries them all, waiting or stuck.

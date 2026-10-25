@@ -92,14 +92,20 @@ type Ctx = ReturnType<typeof contextFor>;
 
 async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass> {
   const from = Date.now() - WORKLOG_HISTORY_DAYS * 86_400_000;
+  // Every page, however many: the checkpoint written after this pass says the history is
+  // complete, so a cap here would leave the rest out for good. Each issue once (paging over
+  // a changing result may repeat one).
   const found = await searchIssues(
     creds,
     `worklogAuthor = currentUser() AND worklogDate >= -${WORKLOG_HISTORY_DAYS}d ORDER BY updated DESC`,
-    5000,
+    Infinity,
   );
+  const seen = new Set<string>();
   let imported = 0;
   let deleted = 0;
   for (const issue of found) {
+    if (seen.has(issue.key)) continue;
+    seen.add(issue.key);
     await ensureIssue(user, issue.key, () => Promise.resolve(issue));
     const mine = (await fetchWorklogs(creds, issue.key)).filter(
       (w) => isAuthoredBy(w, user.accountId) && Date.parse(w.started) >= from,

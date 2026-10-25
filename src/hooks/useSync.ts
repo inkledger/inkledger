@@ -24,6 +24,9 @@ export function useSync() {
   return trpc.issues.sync.useMutation({
     onSuccess: r => {
       toast.success(t("ui.sync.done", { count: r.synced, provider }));
+      // The others went on; the ones that failed are said, never left out.
+      if (r.failed.length > 0)
+        toast.warning(t("ui.sync.partial", { list: r.failed.map(f => `${f.label}: ${f.message}`).join(" · ") }));
       invalidateJiraData(utils);
     },
     onError: e => toast.error(t("ui.sync.failed", { message: failureText(e) })),

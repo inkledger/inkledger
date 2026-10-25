@@ -480,7 +480,10 @@ export const worklogSinks = pgTable(
     locked: text("locked"),
     /** In conflict: what the service has now, JSON { seconds, started, comment }, until the user picks */
     remoteSnapshot: text("remote_snapshot"),
+    /** Synced: when the service last took it. Not synced yet: when its create was first sent (an answer lost is looked for after it) */
     syncedAt: ms("synced_at"),
+    /** A sink pass (of any server process on this database) is sending it: others skip it until then, or past the lease */
+    claimedAt: epochMs("claimed_at"),
   },
   (t) => [
     uniqueIndex("uq_worklog_sinks_worklog_sink").on(t.worklogId, t.sinkConnectionId),
@@ -638,6 +641,19 @@ export const outbox = pgTable(
     index("idx_outbox_worklog").on(t.worklogId).where(sql`${t.worklogId} IS NOT NULL`),
   ],
 );
+
+/**
+ * A user's time writes one at a time across every server process on this database (overlap,
+ * closed weeks, a timer's time): held by one write, others wait; a holder that died lets go
+ * once expiresAt passes. The tracker's call happens under it, so no database lock is held.
+ */
+export const writeLeases = pgTable("write_leases", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  holder: text("holder").notNull(),
+  expiresAt: epochMs("expires_at").notNull(),
+});
 
 /**
  * Closed weeks: one row per user/week. A closed week is locked against

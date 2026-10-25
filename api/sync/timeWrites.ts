@@ -4,20 +4,21 @@
 // Jira the calls are the ones its own path made (jira-gate.test.ts).
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { connections, issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import type { TimeZone } from "@contracts/values";
-import { getDb } from "../queries/connection";
+import { getDb, type Db } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import { connOf } from "../providers/connections";
 import type { BoundTracker } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
 import { t as tr } from "@contracts/i18n";
-import { providerTrpcError } from "../providers/trpc";
+import { certainRefusal, providerTrpcError } from "../providers/trpc";
 import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
-import { deleteThere, dropOld, entriesOf, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
+import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
@@ -27,6 +28,13 @@ const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `time-
 
 /** A failure worth trying again later (the tracker unreachable, busy, slow), not a refusal. */
 const queueable = (e: unknown) => e instanceof ProviderError && e.transient;
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** A fault's details to the log (a ProviderError is the tracker's own words, shown to the user). */
+const logFault = (e: unknown) => {
+  if (!(e instanceof ProviderError)) console.error(e);
+};
 
 /** The issue's time through the contract, or null: a tracker keeping no entries (its time stays in inkledger). */
 export async function contractTime(userId: number, conn: Connection, issueKey: string): Promise<ContractTime | null> {
@@ -46,8 +54,8 @@ async function reread(id: number): Promise<Worklog> {
   return row;
 }
 
-async function queue(t: ContractTime, w: Worklog, kind: "create" | "update" | "delete", remoteId = "") {
-  const [entry] = await getDb()
+async function queue(t: ContractTime, w: Worklog, kind: "create" | "update" | "delete", remoteId = "", db: Db | Tx = getDb()) {
+  const [entry] = await db
     .insert(outbox)
     .values({ userId: w.userId, connectionId: t.conn.id, kind, issueKey: w.issueKey, remoteId: remoteId, worklogId: kind === "delete" ? null : w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started, comment: w.comment })
     .returning();
@@ -70,16 +78,31 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
       syncedAt: new Date(),
     })
     .returning();
+  // Queued: its replay first looks whether it landed (adoptLanded), so it is never logged twice.
+  const queueIt = async () => {
+    const entry = await queue(t, row, "create");
+    await getDb().update(worklogs).set({ remoteId: `pending-${entry.id}` }).where(eq(worklogs.id, row.id));
+  };
+  let remote;
   try {
-    await pushCreate(t.b, t.conn, row, t.ref, meta(), t.zone);
-    await bumpSpent(t.conn, input.issueKey, input.seconds);
+    remote = await createThere(t.b, row, t.ref, meta(), t.zone);
   } catch (e) {
-    if (!queueable(e)) {
+    // Only a certain refusal drops it: no answer, a cancel or an odd answer may have landed.
+    if (certainRefusal(e)) {
       await withDeleteReason("merged", (tx) => tx.delete(worklogs).where(eq(worklogs.id, row.id)));
       throw e;
     }
-    const entry = await queue(t, row, "create");
-    await getDb().update(worklogs).set({ remoteId: `pending-${entry.id}` }).where(eq(worklogs.id, row.id));
+    logFault(e);
+    await queueIt();
+    return reread(row.id);
+  }
+  try {
+    await landed(row, t.conn, remote);
+    await bumpSpent(t.conn, input.issueKey, input.seconds);
+  } catch (e) {
+    // The tracker has it, this side failed to record it: kept, and linked at the replay.
+    console.error(e);
+    await queueIt().catch((err: unknown) => console.error(err));
   }
   return reread(row.id);
 }
@@ -87,17 +110,27 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
 /** A changed worklog: on the tracker now, or kept here and queued. Refused: nothing changes. */
 export async function updateThrough(t: ContractTime, current: Worklog, fields: { timeSpentSeconds: number; started: Date; comment: string }): Promise<Worklog> {
   const next = { ...current, ...fields };
+  // Older queued edits taken first: no replay sends them under this one.
+  const older = await claimQueuedUpdates(t.conn, current.id);
+  let queued = false;
   try {
     await pushUpdate(t.b, t.conn, next, t.ref, meta(), t.zone);
-    await bumpSpent(t.conn, current.issueKey, fields.timeSpentSeconds - current.timeSpentSeconds);
-    // An older queued edit replayed later would undo this one.
-    await dropQueuedUpdates(t.conn, current.id);
   } catch (e) {
-    if (!queueable(e)) throw e;
-    await dropQueuedUpdates(t.conn, current.id);
-    await queue(t, next, "update", current.remoteId);
+    // Only a certain refusal changes nothing: otherwise it may have landed, and sending the same values again is safe.
+    if (certainRefusal(e)) {
+      await releaseClaims(older);
+      throw e;
+    }
+    logFault(e);
+    queued = true;
   }
-  await getDb().update(worklogs).set({ ...fields, syncedAt: new Date() }).where(eq(worklogs.id, current.id));
+  // This side in one go: an older queued edit replayed later would undo this one.
+  await getDb().transaction(async (tx) => {
+    await dropQueuedUpdates(older, tx);
+    if (queued) await queue(t, next, "update", current.remoteId, tx);
+    else await bumpSpent(t.conn, current.issueKey, fields.timeSpentSeconds - current.timeSpentSeconds, tx);
+    await tx.update(worklogs).set({ ...fields, syncedAt: new Date() }).where(eq(worklogs.id, current.id));
+  });
   return reread(current.id);
 }
 
@@ -112,7 +145,7 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
   // (local-, new-, pending-), on the row or copied to its link, names nothing there yet.
   const known = sink?.remoteId ?? current.remoteId;
   const remoteId = /^(local|new|pending)-/.test(known) ? null : known;
-  await dropQueuedUpdates(t.conn, current.id);
+  const older = await claimQueuedUpdates(t.conn, current.id);
   if (remoteId) {
     try {
       await deleteThere(t.b, meta(), t.ref, remoteId);
@@ -120,14 +153,20 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
     } catch (e) {
       if (e instanceof ProviderError && e.kind === "notFound") {
         // already gone there
-      } else if (queueable(e)) {
+      } else if (!certainRefusal(e)) {
+        // Deleting again is safe (gone already: done), so anything but a refusal is tried later.
+        logFault(e);
         await queue(t, current, "delete", remoteId);
       } else {
+        await releaseClaims(older);
         throw e;
       }
     }
   }
-  await withDeleteReason("user", (tx) => tx.delete(worklogs).where(eq(worklogs.id, current.id)));
+  await withDeleteReason("user", async (tx) => {
+    await dropQueuedUpdates(older, tx);
+    await tx.delete(worklogs).where(eq(worklogs.id, current.id));
+  });
 }
 
 /**
@@ -227,6 +266,24 @@ async function adoptRecreated(t: ContractTime, conn: Connection, local: Worklog,
   return adoptLanded(t, conn, local, queuedAt, { remoteId: sink.remoteId, version: sink.version });
 }
 
+/**
+ * The service's entry for this worklog already holds its time and words (a queued edit that
+ * landed, its answer lost): its new revision is recorded, nothing is sent again. True when so.
+ */
+async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog): Promise<boolean> {
+  if (!t.b.worklogs?.list) return false;
+  const [sink] = await getDb()
+    .select({ remoteId: worklogSinks.remoteId })
+    .from(worklogSinks)
+    .where(and(eq(worklogSinks.worklogId, local.id), eq(worklogSinks.sinkConnectionId, conn.id)))
+    .limit(1);
+  const id = sink?.remoteId ?? local.remoteId;
+  const w = (await t.b.worklogs.list(meta(), t.ref)).find((x) => x.remoteId === id);
+  if (!w || w.span.kind !== "session" || !sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, { started: local.started, seconds: local.timeSpentSeconds }) || !sameWords(w.comment, local.comment)) return false;
+  await linkSink(local.id, conn.id, w.remoteId, w.version ?? null);
+  return true;
+}
+
 /** The worklog is the service's entry `remoteId`: a copy of it a sync read back meanwhile goes (no trace). */
 async function landedOn(local: Worklog, conn: Connection, remoteId: string, version: string | null) {
   await withDeleteReason("merged", async (tx) => {
@@ -313,7 +370,10 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
             if (!(await adoptLanded(t, conn, local, entry.createdAt))) await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
             await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds);
           } else if (!(await adoptRecreated(t, conn, local, entry.createdAt))) {
-            await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone);
+            await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone).catch(async (e: unknown) => {
+              // An earlier try landed, its answer lost: the entry moved on to these very values.
+              if (!(e instanceof ProviderError && e.kind === "conflict" && (await alreadyUpdated(t, conn, local)))) throw e;
+            });
           }
         }
       }
@@ -336,20 +396,49 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
   return { synced, failed, remaining: remaining.length };
 }
 
-/** A newer edit (or the delete) supersedes queued edits of the same worklog. */
-async function dropQueuedUpdates(conn: Pick<Connection, "id">, worklogId: number) {
-  await getDb()
-    .delete(outbox)
+/**
+ * The worklog's queued edits, claimed for a newer change (or its delete), which supersedes
+ * them: a replay (here or in another process on this database) skips them meanwhile. One a
+ * replay is sending right now is never taken from under it: the change waits (CONFLICT).
+ */
+async function claimQueuedUpdates(conn: Pick<Connection, "id">, worklogId: number): Promise<number[]> {
+  const db = getDb();
+  const now = Date.now();
+  const queued = await db
+    .select({ id: outbox.id })
+    .from(outbox)
     .where(and(eq(outbox.connectionId, conn.id), eq(outbox.kind, "update"), eq(outbox.worklogId, worklogId)));
+  if (queued.length === 0) return [];
+  const ids = queued.map((r) => r.id);
+  const taken = await db
+    .update(outbox)
+    .set({ claimedAt: now })
+    .where(and(inArray(outbox.id, ids), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, now - CLAIM_TTL_MS))))
+    .returning({ id: outbox.id });
+  if (taken.length < ids.length) {
+    await releaseClaims(taken.map((r) => r.id));
+    throw new TRPCError({ code: "CONFLICT", message: tr("server.worklogs.justSynced") });
+  }
+  return ids;
+}
+
+/** Claimed edits given back to the queue (the change that claimed them was refused). */
+async function releaseClaims(ids: number[]) {
+  if (ids.length) await getDb().update(outbox).set({ claimedAt: null }).where(inArray(outbox.id, ids));
+}
+
+/** Claimed edits a newer change superseded: gone. */
+async function dropQueuedUpdates(ids: number[], db: Db | Tx = getDb()) {
+  if (ids.length) await db.delete(outbox).where(inArray(outbox.id, ids));
 }
 
 /**
  * The tracker's total on the issue moved by what it just accepted: shown at
  * once instead of at the next sync, which sets the exact figure anyway.
  */
-async function bumpSpent(conn: Pick<Connection, "id" | "userId">, issueKey: string, delta: number) {
+async function bumpSpent(conn: Pick<Connection, "id" | "userId">, issueKey: string, delta: number, db: Db | Tx = getDb()) {
   if (delta === 0) return;
-  await getDb()
+  await db
     .update(issues)
     .set({ timeSpentSeconds: sql`greatest(0, coalesce(${issues.timeSpentSeconds}, 0) + ${delta})` })
     .where(and(eq(issues.userId, conn.userId), eq(issues.connectionId, conn.id), eq(issues.key, issueKey)));

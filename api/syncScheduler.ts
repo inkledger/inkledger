@@ -8,6 +8,7 @@ import { syncUser } from "./routers/issues";
 import { JiraApiError } from "./jira/client";
 import { UnreadableCredentialsError } from "./middleware";
 import { isShuttingDown } from "./lib/shutdown";
+import { inMaintenance } from "./lib/maintenance";
 
 /**
  * Jira refused the stored credentials (revoked token) or they can't be decrypted: retrying
@@ -55,7 +56,7 @@ export async function syncActiveUsers(): Promise<{ ok: number; failed: number }>
   let ok = 0;
   let failed = 0;
   for (const user of await activeUsers()) {
-    if (isShuttingDown()) break; // the rest waits for the next boot
+    if (isShuttingDown() || inMaintenance()) break; // the rest waits for the next boot (or pass)
     try {
       await syncUser(user, { full: await needsFullSync(user.id), background: true });
       // Time still waiting for the user's time sinks goes now too.

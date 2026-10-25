@@ -26,6 +26,8 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
   let tempoId = 0;
   let issueId = 0;
   let down = false;
+  /** Tempo takes the next write but answers outside its API (the answer lost on the way, a proxy's page). */
+  let garbleNext = false;
   const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
   const push = async () => (await import("./extraSinks")).pushSinks(userId);
   type Entries = { list(x: unknown, ref: { remoteId: string; key: string }): Promise<{ remoteId: string; span: { seconds: number } }[]> };
@@ -41,6 +43,10 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     issueId = issue.id;
     vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
       if (down) return Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error("refused"), { code: "ECONNREFUSED" }) }));
+      if (garbleNext && init?.method === "POST") {
+        garbleNext = false;
+        return Promise.resolve(sim.fetch(input, init)).then(() => new Response("<html>gateway</html>", { status: 200, headers: { "content-type": "text/html" } }));
+      }
       return sim.fetch(input, init);
     });
     const { fakeTracker } = await import("../providers/fake/adapter");
@@ -134,6 +140,53 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     await push();
     expect(sim.worklogs).toEqual([]);
     expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
+  it("Tempo took it but answered outside its API: kept here, pending, and on Tempo once after the next pass", async () => {
+    const at = "2026-10-19T09:00:00+02:00";
+    garbleNext = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "odd" });
+      expect(await tempoRow(made.id)).toMatchObject({ state: "pending" });
+      await push();
+      expect(sim.worklogs.filter((w) => w.timeSpentSeconds === 900 && w.description.endsWith("\nodd"))).toHaveLength(1);
+      expect(await tempoRow(made.id)).toMatchObject({ state: "synced" });
+      await caller.worklogs.delete({ id: made.id });
+    } finally {
+      garbleNext = false;
+      quiet.mockRestore();
+    }
+  });
+
+  it("a pending entry another server process is sending is left to it; past its lease, sent", async () => {
+    const at = "2026-10-20T09:00:00+02:00";
+    down = true;
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "leased" });
+    down = false;
+    const n = sim.worklogs.length;
+    await q("UPDATE worklog_sinks SET claimed_at = ? WHERE worklog_id = ? AND sink_connection_id = ?", Date.now(), made.id, tempoId);
+    await push();
+    expect(sim.worklogs).toHaveLength(n);
+    expect(await tempoRow(made.id)).toMatchObject({ state: "pending" });
+    // Its sender died: the lease runs out, the next pass sends it.
+    await q("UPDATE worklog_sinks SET claimed_at = ? WHERE worklog_id = ? AND sink_connection_id = ?", Date.now() - 10 * 60_000, made.id, tempoId);
+    await push();
+    expect(sim.worklogs).toHaveLength(n + 1);
+    expect(await q("SELECT state, claimed_at FROM worklog_sinks WHERE worklog_id = ? AND sink_connection_id = ?", made.id, tempoId)).toEqual([{ state: "synced", claimed_at: null }]);
+    await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("Tempo can't stop standing in while it still has that tracker's time to send", async () => {
+    const at = "2026-10-21T09:00:00+02:00";
+    down = true;
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "waiting" });
+    down = false;
+    await expect(caller.connections.standIn({ id: tempoId, trackerId: null })).rejects.toMatchObject({ code: "CONFLICT" });
+    // Still the stand-in, still sent on the next pass.
+    await push();
+    expect(await tempoRow(made.id)).toMatchObject({ state: "synced" });
+    await caller.worklogs.delete({ id: made.id });
   });
 
   it("refused by Tempo: nothing kept", async () => {

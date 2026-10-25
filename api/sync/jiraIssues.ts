@@ -263,6 +263,8 @@ export type SyncResult = {
   /** Full catalog refresh (with watchers) rather than the recent-changes window */
   full: boolean;
   outbox: ReplayResult;
+  /** Trackers (other than Jira) whose sync failed this time, in the user's words: the others went on */
+  failed: { connectionId: number; label: string; message: string }[];
 };
 
 async function recordSync(userId: number, outcome: { ok: true; full: boolean } | { error: string }) {
@@ -398,7 +400,7 @@ async function syncWatchers(
 const assigneeOf = (i: JiraSearchedIssue) =>
   i.fields.assignee?.accountId ?? i.fields.assignee?.name ?? "";
 
-export async function runSync(account: User, conn: Connection, wantFull: boolean): Promise<SyncResult> {
+export async function runSync(account: User, conn: Connection, wantFull: boolean): Promise<Omit<SyncResult, "failed">> {
   const syncStart = Date.now();
   let full = wantFull;
   try {

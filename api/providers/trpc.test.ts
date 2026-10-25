@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizeError, ProviderError } from "./core/errors";
-import { isRefusal, providerTrpcError } from "./trpc";
+import { certainRefusal, isRefusal, providerTrpcError } from "./trpc";
 
 describe("isRefusal", () => {
   it("a tracker's own no: said on purpose, its HTTP answer, the read-only guard", () => {
@@ -50,5 +50,37 @@ describe("isRefusal", () => {
     expect(providerTrpcError(new ProviderError("notFound", "answered 404", { status: 404 })).message).not.toMatch(/answered/);
     // The tracker's own words stay as they are.
     expect(providerTrpcError(new ProviderError("invalid", "GitLab: title is too long", { status: 400 })).message).toBe("GitLab: title is too long");
+  });
+});
+
+describe("a timeout is no answer, not a cancel", () => {
+  it("a deadline that aborts the call's signal (AbortSignal.timeout) is a timeout; the caller's own abort is a cancel", async () => {
+    const deadline = AbortSignal.timeout(1);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(deadline.aborted).toBe(true);
+    // fetch rejects with the signal's reason, and the adapter's own wrapping may hide its name.
+    expect(normalizeError(deadline.reason, deadline).kind).toBe("timeout");
+    expect(normalizeError(new Error("This operation was aborted"), deadline).kind).toBe("timeout");
+    const c = new AbortController();
+    c.abort();
+    expect(normalizeError(c.signal.reason, c.signal).kind).toBe("cancelled");
+    expect(normalizeError(new Error("aborted"), c.signal).kind).toBe("cancelled");
+  });
+});
+
+describe("certainRefusal: what a write may drop", () => {
+  it("only the service's own no, or one before the call left", () => {
+    expect(certainRefusal(new ProviderError("invalid", "GitLab: is invalid"))).toBe(true);
+    expect(certainRefusal(normalizeError(Object.assign(new Error("no"), { status: 400 })))).toBe(true);
+    expect(certainRefusal(normalizeError(Object.assign(new Error("ro"), { providerKind: "readOnly" })))).toBe(true);
+  });
+
+  it("never what may have landed: no answer, a cancel, an odd answer, a fault of ours, a server error", () => {
+    expect(certainRefusal(normalizeError(new DOMException("t", "TimeoutError")))).toBe(false);
+    expect(certainRefusal(new ProviderError("cancelled", "Cancelled"))).toBe(false);
+    expect(certainRefusal(new ProviderError("incompatible", "odd"))).toBe(false);
+    expect(certainRefusal(normalizeError(new TypeError("Cannot read properties of undefined (reading 'id')")))).toBe(false);
+    expect(certainRefusal(normalizeError(Object.assign(new Error("Bad Gateway"), { status: 502 })))).toBe(false);
+    expect(certainRefusal(new Error("disk full"))).toBe(false);
   });
 });
