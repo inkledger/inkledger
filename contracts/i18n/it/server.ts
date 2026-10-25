@@ -112,6 +112,8 @@ export const server: Shape<typeof en> = {
     },
   },
   backup: {
+    broughtBack: "Il ripristino non è riuscito ({cause}): sono stati riportati i dati di prima ({safety}).",
+    stuck: "Il ripristino non è riuscito ({cause}) e non è stato possibile riportare la copia fatta prima ({safety}) ({again}): il server resta chiuso alle modifiche finché non lo si ripristina a mano.",
     dirNotWritable: "Cartella dei backup non scrivibile: {dir}",
     exitedWith: "{bin} uscito con {code}",
     invalid: "Backup non valido",

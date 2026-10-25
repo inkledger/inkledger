@@ -24,6 +24,7 @@ import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
 import { requestLog } from "./lib/requestLog";
+import { inMaintenance } from "./lib/maintenance";
 import { allowedHostsNow } from "./lib/serverHosts";
 import { beginShutdown } from "./lib/shutdown";
 import { registerEventRoutes } from "./events";
@@ -79,6 +80,17 @@ app.use((c, next) =>
       ? moduleBody(c, next)
       : smallBody(c, next),
 );
+
+// A restore replacing the database: no write lands meanwhile (said, not lost). The
+// backup's own calls go on (a restore by hand when one failed and left the server closed).
+app.use("/api/*", async (c, next) => {
+  // Every procedure of a batch must be the backup's: a write batched behind one is refused too.
+  const backupOnly = c.req.path.startsWith("/api/trpc/") && decodeURIComponent(c.req.path.slice("/api/trpc/".length)).split(",").every((p) => p.startsWith("backup."));
+  if (inMaintenance() && c.req.method !== "GET" && c.req.method !== "HEAD" && !backupOnly) {
+    return c.json({ error: t("server.maintenance") }, 503);
+  }
+  await next();
+});
 
 // CSRF defence in depth (cookies are SameSite=Lax): state-changing requests
 // must come from our own origin when the browser sends one.

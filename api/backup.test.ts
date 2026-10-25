@@ -17,7 +17,7 @@ fs.writeFileSync(
 // psql is up, so the test sees psql stopped rather than never started).
 fs.writeFileSync(
   path.join(BIN, "pg_restore"),
-  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_FAIL" ] && { i=0; while [ ! -s "${DIR}/psql.pid" ] && [ $i -lt 100 ]; do sleep 0.02; i=$((i+1)); done; echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
+  `#!/bin/sh\nfor a in "$@"; do f="$a"; done\n[ -f "$f" ] || { echo "no file $f" >&2; exit 1; }\necho "$@ pw=$PGPASSWORD" > "${DIR}/restored.txt"\necho "-- the dump's SQL"\n[ -n "$FAKE_RESTORE_SLOW" ] && sleep 0.6\n[ -n "$FAKE_RESTORE_FAIL" ] && { i=0; while [ ! -s "${DIR}/psql.pid" ] && [ $i -lt 100 ]; do sleep 0.02; i=$((i+1)); done; echo "broken archive" >&2; exit 1; }\necho "-- end of dump"\n`,
   { mode: 0o755 },
 );
 // psql: records its pid, its arguments and what it was fed; "committed" only once its input ended.
@@ -33,6 +33,22 @@ process.env.PG_RESTORE_BIN = path.join(BIN, "pg_restore");
 process.env.PSQL_BIN = path.join(BIN, "psql");
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi);
+
+/** Migrations failing after a restore, as many times as asked (a backup the schema of now can't take). */
+const migrate = vi.hoisted(() => ({ failures: 0 }));
+vi.mock("./queries/connection", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./queries/connection")>();
+  return {
+    ...real,
+    migrateDb: async () => {
+      if (migrate.failures > 0) {
+        migrate.failures--;
+        throw new Error("migration failed");
+      }
+      return real.migrateDb();
+    },
+  };
+});
 
 describe("backup schedule", () => {
   it("computes the next run", async () => {
@@ -117,6 +133,46 @@ describe("backups on disk", () => {
     // The oldest of `keep` files: the safety backup must not prune it away.
     expect(fs.existsSync(path.join(DIR, "inkledger-20200102-000000.dump"))).toBe(true);
     await expect(b.restoreBackup("../etc/passwd")).rejects.toThrow(/Invalid backup/);
+  });
+
+  it("while a restore runs the server is in maintenance: writes wait, syncs don't start", async () => {
+    const b = await import("./backup");
+    const m = await import("./lib/maintenance");
+    fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    await new Promise((r) => setTimeout(r, 1100));
+    process.env.FAKE_RESTORE_SLOW = "1";
+    try {
+      const restoring = b.restoreBackup("inkledger-20200102-000000.dump");
+      await expect.poll(() => m.inMaintenance()).toBe(true);
+      const { syncUser } = await import("./sync/orchestrator");
+      await expect(syncUser({ id: 1 } as Parameters<typeof syncUser>[0])).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+      await restoring;
+    } finally {
+      delete process.env.FAKE_RESTORE_SLOW;
+    }
+    expect(m.inMaintenance()).toBe(false);
+  });
+
+  it("a failure after the backup went in brings the safety copy back; if that fails too, the server stays closed", async () => {
+    const b = await import("./backup");
+    const m = await import("./lib/maintenance");
+    fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    await new Promise((r) => setTimeout(r, 1100));
+    migrate.failures = 1;
+    const err = await b.restoreBackup("inkledger-20200102-000000.dump").catch((e: unknown) => e as Error);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/brought back/);
+    // The last thing restored is the safety copy taken first.
+    const last = fs.readFileSync(path.join(DIR, "restored.txt"), "utf8");
+    expect(last).toMatch(/inkledger-\d{8}-\d{6}\.dump/);
+    expect(last).not.toContain("inkledger-20200102-000000.dump");
+    expect(m.inMaintenance()).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 1100));
+    migrate.failures = 2;
+    await expect(b.restoreBackup("inkledger-20200102-000000.dump")).rejects.toThrow(/stays closed/);
+    expect(m.inMaintenance()).toBe(true);
+    m.leaveMaintenance();
   });
 
   it("a dump that breaks halfway is never committed: psql is stopped before its input ends", async () => {

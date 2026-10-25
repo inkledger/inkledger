@@ -7,6 +7,7 @@ import { getServerSetting, setServerSetting } from "./lib/serverSettings";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { rememberedDevices, sessions, users } from "@db/schema";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
+import { enterMaintenance, leaveMaintenance } from "./lib/maintenance";
 import { t } from "@contracts/i18n";
 
 /**
@@ -276,18 +277,40 @@ export async function restoreBackup(
             )
         )[0]
       : undefined;
-    const safety = await runBackup();
+    // Nothing writes while the database is replaced: syncs under way finish first, new ones wait.
+    enterMaintenance("restore");
+    let closed = false;
     try {
-      await restoreInto(pgTarget(), file);
-      // A backup from an older version lacks the newest columns: bring it up to date.
-      await migrateDb();
-      // On the schema of now: whoever restored signs in on.
-      await signOutAfterRestore(opts.keepSession, device);
-    } catch (e) {
-      // Whatever happened, the copy taken first undoes it: its name goes with the cause.
-      throw new Error(`${e instanceof Error ? e.message : String(e)} (${safety})`, { cause: e });
+      const { settleInFlightSyncs } = await import("./sync/orchestrator");
+      await settleInFlightSyncs(30_000);
+      const safety = await runBackup();
+      let replaced = false;
+      try {
+        await restoreInto(pgTarget(), file);
+        replaced = true;
+        // A backup from an older version lacks the newest columns: bring it up to date.
+        await migrateDb();
+        // On the schema of now: whoever restored signs in on.
+        await signOutAfterRestore(opts.keepSession, device);
+      } catch (e) {
+        const cause = e instanceof Error ? e.message : String(e);
+        // Not replaced (the transaction never committed): the data is as it was.
+        if (!replaced) throw new Error(`${cause} (${safety})`, { cause: e });
+        // Replaced, then it failed: the safety copy taken first goes back in.
+        try {
+          await restoreInto(pgTarget(), path.join(backupDir(), safety));
+          await migrateDb();
+        } catch (e2) {
+          // Neither: the server stays closed to writes until someone restores by hand.
+          closed = true;
+          throw new Error(t("server.backup.stuck", { cause, safety, again: e2 instanceof Error ? e2.message : String(e2) }), { cause: e });
+        }
+        throw new Error(t("server.backup.broughtBack", { cause, safety }), { cause: e });
+      }
+      return { safety };
+    } finally {
+      if (!closed) leaveMaintenance();
     }
-    return { safety };
   } finally {
     restoring = null;
   }

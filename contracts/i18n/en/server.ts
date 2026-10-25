@@ -111,6 +111,8 @@ export const server = {
     },
   },
   backup: {
+    broughtBack: "The restore failed ({cause}): the data as it was before is brought back ({safety}).",
+    stuck: "The restore failed ({cause}) and the copy taken first ({safety}) couldn't be brought back ({again}): the server stays closed to changes until it is restored by hand.",
     dirNotWritable: "Backup folder is not writable: {dir}",
     exitedWith: "{bin} exited with {code}",
     invalid: "Invalid backup",
