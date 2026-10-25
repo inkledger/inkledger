@@ -51,7 +51,7 @@ const licensed = (...ids) => db =>
 async function withModules({ modules = [], seed, path = "/issues", viewport, userAgent }, body) {
   const modulesDir = join(mkdtempSync(join(tmpdir(), "ikl-e2e-modules-")), "modules");
   for (const id of modules) install(modulesDir, id);
-  const app = await start({ seed, viewport, userAgent, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM } });
+  const app = await start({ seed, viewport, userAgent, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   try {
     await app.page.goto(app.base + path);
     await app.page.getByRole("link", { name: "Board" }).first().waitFor();
@@ -562,3 +562,20 @@ test("a module over the day timeline lets a logged slice under it open its issue
     assert.equal(await page.evaluate(() => window.__perchHits), 0);
   });
 });
+
+test("modules no longer allowed (permission taken away) stop at once, every one of them", () =>
+  withModules({ modules: ["kit", "hello"], seed: licensed("kit", "hello"), path: "/settings/store" }, async ({ page }) => {
+    await page.getByTestId("module-hello").waitFor();
+    await page.getByTestId("kit-sidebar-footer").waitFor();
+    // From now on the server says this user may not use modules.
+    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("modules.list"), async route => {
+      const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1]).split(",");
+      const json = await (await route.fetch()).json();
+      const out = procs.map((p, i) => (p === "modules.list" ? { result: { data: { json: { ...json[i].result.data.json, canUse: false } } } } : json[i]));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(out) });
+    });
+    // Something that reads the list again (a Store switch).
+    await page.getByRole("switch", { name: "kit on" }).click();
+    await page.getByTestId("module-hello").waitFor({ state: "detached" });
+    await page.getByTestId("kit-sidebar-footer").waitFor({ state: "detached" });
+  }));

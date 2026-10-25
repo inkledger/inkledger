@@ -176,6 +176,14 @@ export function QuickLog({
               : t("ui.quickLog.submit")}
         </Button>
       </div>
+      {placement.error && (
+        <p role="alert" className="flex items-center gap-2 text-body-sm text-danger">
+          {t("ui.logTime.placementFailed")}
+          <Button type="button" variant="outline" size="sm" onClick={placement.retry}>
+            {t("common.retry")}
+          </Button>
+        </p>
+      )}
     </form>
   );
 }

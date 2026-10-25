@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CheckSquare, Image as ImageIcon, Paperclip, Square } from "lucide-react";
 import { plainText, type Block, type Inline, type RichDoc } from "@contracts/richtext";
 import { safeExternalUrl } from "@contracts/links";
@@ -202,12 +202,32 @@ export function RichText({
   const [expanded, setExpanded] = useState(false);
   const words = plainText(doc);
   const long = words.length > collapseAfter || words.split("\n").length > 14;
+  const collapsed = long && !expanded;
   const ctx = { images, connectionId };
+  const box = useRef<HTMLDivElement>(null);
+  // Collapsed, what is cut off can't be focused (Tab would land on something unseen): out of
+  // the tab order until "Show all"; back in once shown.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const limit = el.clientHeight;
+    for (const f of el.querySelectorAll<HTMLElement>("a[href], button, [tabindex]")) {
+      if (collapsed && f.offsetTop + f.offsetHeight > limit) {
+        if (!f.hasAttribute("data-clipped")) f.setAttribute("data-clipped", f.getAttribute("tabindex") ?? "");
+        f.setAttribute("tabindex", "-1");
+      } else if (f.hasAttribute("data-clipped")) {
+        const before = f.getAttribute("data-clipped");
+        if (before) f.setAttribute("tabindex", before);
+        else f.removeAttribute("tabindex");
+        f.removeAttribute("data-clipped");
+      }
+    }
+  }, [collapsed, doc]);
   return (
     <div className="mt-1">
-      <div className={cn("relative grid gap-2 text-body-sm", long && !expanded && "max-h-56 overflow-hidden")}>
+      <div ref={box} className={cn("relative grid gap-2 text-body-sm", collapsed && "max-h-56 overflow-hidden")}>
         {doc.blocks.length === 0 ? <p className="text-muted-foreground">—</p> : doc.blocks.map((b, i) => block(b, i, ctx))}
-        {long && !expanded && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background" />}
+        {collapsed && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background" />}
       </div>
       {long && (
         <button

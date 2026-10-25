@@ -139,6 +139,16 @@ export function TransitionDialog({
   const [values, setValues] = useState<Record<string, Value>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // A fresh form for each ask: another issue, tracker or transition (the Board reuses one
+  // dialog for every card), or the same one asked again, never gets the last one's values.
+  const identity = target ? `${connectionId ?? ""}:${issueKey}:${"transitionId" in target ? target.transitionId : target.toStatus}` : null;
+  const [asked, setAsked] = useState(identity);
+  if (asked !== identity) {
+    setAsked(identity);
+    setValues({});
+    setErrors({});
+    setError(null);
+  }
   const tr = target
     ? list.data?.find(x => ("transitionId" in target ? x.id === target.transitionId : x.toStatus.toLowerCase() === target.toStatus.toLowerCase()))
     : undefined;

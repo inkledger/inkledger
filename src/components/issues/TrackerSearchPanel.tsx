@@ -43,7 +43,7 @@ export function TrackerSearchPanel() {
   const unsupported = [...new Set(answers.flatMap(a => a.data?.unsupported ?? []))];
   const refresh = () =>
     // The trackers' answers too: imported and watching are read afresh with them.
-    Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate(), utils.issues.search.invalidate(), utils.issues.searchOn.invalidate()]);
+    Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate(), utils.issues.favorites.invalidate(), utils.issues.search.invalidate(), utils.issues.searchOn.invalidate()]);
   const importIssue = trpc.issues.import.useMutation({
     onSuccess: async r => {
       toast.success(t("views.issues.search.imported", { key: r.imported }));

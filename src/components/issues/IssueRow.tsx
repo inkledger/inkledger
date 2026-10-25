@@ -344,7 +344,7 @@ export const IssueRow = memo(function IssueRow({
   const activity = activityText(issue);
   return (
     <tr
-      data-issue-key={issue.key}
+      data-issue-id={issueId(issue)}
       aria-selected={selected || undefined}
       className={cn(
         "group border-t transition-[opacity,background-color]",
@@ -451,7 +451,7 @@ export const IssueCard = memo(function IssueCard({
   const due = dueText(issue);
   const activity = activityText(issue);
   return (
-    <li className="grid gap-2 py-3">
+    <li data-issue-id={issueId(issue)} className="grid gap-2 py-3">
       <div className="flex items-center gap-1">
         {issue.hidden === 1 ? (
           <EyeOff

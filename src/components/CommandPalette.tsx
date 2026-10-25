@@ -143,7 +143,8 @@ export function CommandPalette() {
           {visibleIssues(issues.data ?? []).map(i => (
             <CommandItem
               key={issueId(i)}
-              value={`${i.key} ${i.summary}`}
+              // Its connection too: one key and title on two trackers are two options, never one.
+              value={`${i.key} ${i.summary} ${issueId(i)}`}
               onSelect={() => go(issuePath(i))}
             >
               <span className="mr-2 text-caption text-muted-foreground">
@@ -161,7 +162,7 @@ export function CommandPalette() {
         {extra.length > 0 && (
           <CommandGroup heading={t("ui.palette.moreIssues")}>
             {extra.map(i => (
-              <CommandItem key={issueId(i)} value={`${i.key} ${i.summary}`} onSelect={() => go(issuePath(i))}>
+              <CommandItem key={issueId(i)} value={`${i.key} ${i.summary} ${issueId(i)}`} onSelect={() => go(issuePath(i))}>
                 <span className="mr-2 text-caption text-muted-foreground">{i.key}</span>
                 <span className="truncate">{i.summary}</span>
               </CommandItem>

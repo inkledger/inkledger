@@ -179,6 +179,8 @@ export default function IssueDetail({
   const seen = trpc.issues.markSeen.useMutation({
     onSuccess: () => {
       void seenUtils.issues.all.invalidate();
+      void seenUtils.issues.favorites.invalidate();
+      void seenUtils.issues.unreadCount.invalidate();
       void seenUtils.issues.list.invalidate();
     },
   });
@@ -229,7 +231,7 @@ export default function IssueDetail({
     await Promise.all([
       utils.issues.get.invalidate(),
       utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(),
+      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
     ]);
   };
   const transition = trpc.issues.transition.useMutation({
@@ -243,7 +245,7 @@ export default function IssueDetail({
       await Promise.all([
         utils.issues.get.invalidate({ key }),
         utils.issues.list.invalidate(),
-        utils.issues.all.invalidate(),
+        utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
         utils.issues.search.invalidate(),
       ]);
     },

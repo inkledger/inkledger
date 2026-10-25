@@ -1,4 +1,4 @@
-import { toastError } from "@/lib/errorText";
+import { errorText, toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorState } from "@/components/app/States";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ function useAfterChange(done: () => void) {
     void Promise.all([
       utils.issues.get.invalidate(),
       utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(),
+      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
       utils.issues.description.invalidate(),
     ]);
     done();
@@ -96,17 +97,34 @@ function AssigneesForm({
     onSuccess: after,
     onError: e => toastError(e),
   });
+  // Never a form over what wasn't read: its Save would unassign everyone.
+  if (people.error || issue.error)
+    return (
+      <ErrorState
+        className="py-4"
+        message={errorText(people.error ?? issue.error)}
+        onRetry={() => {
+          if (people.error) void people.refetch();
+          if (issue.error) void issue.refetch();
+        }}
+      />
+    );
   if (people.isPending || issue.isPending)
     return (
       <p className="text-body-sm text-muted-foreground">
         {t("common.loading")}
       </p>
     );
-  const current = new Set(
-    (people.data ?? [])
-      .filter(p => p.remoteId === issue.data?.assigneeId)
-      .map(p => p.remoteId)
-  );
+  // The current assignee, even where the tracker no longer offers them: kept unless unticked.
+  const assigneeId = issue.data.assigneeId;
+  const options =
+    assigneeId && !people.data.some(p => p.remoteId === assigneeId)
+      ? [
+          { remoteId: assigneeId, name: issue.data.assigneeName || assigneeId, handle: null, avatarUrl: null, isMe: false },
+          ...people.data,
+        ]
+      : people.data;
+  const current = new Set(assigneeId ? [assigneeId] : []);
   const chosen = picked ?? current;
   const toggle = (id: string, on: boolean) => {
     const next = new Set(chosen);
@@ -121,7 +139,7 @@ function AssigneesForm({
         e.preventDefault();
         assign.mutate({
           ...where,
-          people: (people.data ?? [])
+          people: options
             .filter(p => chosen.has(p.remoteId))
             .map(p => ({
               remoteId: p.remoteId,
@@ -132,7 +150,7 @@ function AssigneesForm({
       }}
     >
       <ul className="grid max-h-72 gap-1.5 overflow-y-auto">
-        {people.data?.map(p => (
+        {options.map(p => (
           <li key={p.remoteId}>
             <label className="flex items-center gap-2 text-body-sm">
               <Checkbox
@@ -281,13 +299,22 @@ function EditForm({
     onSuccess: after,
     onError: e => toastError(e),
   });
+  // Never a form over a description that wasn't read: its Save would blank it.
+  if (description.error)
+    return (
+      <ErrorState
+        className="py-4"
+        message={errorText(description.error)}
+        onRetry={() => void description.refetch()}
+      />
+    );
   if (description.isPending)
     return (
       <p className="text-body-sm text-muted-foreground">
         {t("common.loading")}
       </p>
     );
-  const body = draft.body ?? description.data?.text ?? "";
+  const body = draft.body ?? description.data.text;
   return (
     <form
       className="grid gap-4"

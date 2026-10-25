@@ -14,7 +14,8 @@ import { surface } from "@/components/app/surface";
  * start its timer without leaving the page.
  */
 export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
-  const all = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
+  // The favorites alone: this sidebar is on every page, the whole catalogue isn't needed here.
+  const all = trpc.issues.favorites.useQuery(undefined, { staleTime: 60_000 });
   const favorites = visibleIssues(all.data ?? []).filter(i => i.favorite === 1);
   const { timers } = useTimers();
   const start = useStartTimer({ announce: true });

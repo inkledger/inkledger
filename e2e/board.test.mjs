@@ -512,3 +512,29 @@ test("the priority filter: several levels at once, Italian names without a rank 
       assert.deepEqual(await shown(), ["DEMO-107"]);
     },
   ));
+
+test("a long column draws its first cards and the rest on request (the board stays light)", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        for (let i = 1; i <= 120; i++) {
+          await db.q(
+            `INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, status_category, category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at)
+             VALUES (1, 1, ?, ?, ?, 'To Do', 'To Do', 'todo', 'LONG', 'Long', 'Task', 'Medium', '[]', 'mrossi', ?, ?)`,
+            `L-${i}`, `LONG-${i}`, `Long column card ${i}`, `https://jira.example.it/browse/LONG-${i}`, now,
+          );
+        }
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(base + "/board");
+      const column = page.getByRole("region", { name: "To Do" }).first();
+      await column.getByText("Long column card", { exact: false }).first().waitFor();
+      const cards = () => column.getByText(/^Long column card \d+$/).count();
+      assert.ok((await cards()) <= 50, `at most 50 drawn at first (${await cards()})`);
+      await column.getByRole("button", { name: /^Show \d+ more$/ }).click();
+      await page.waitForTimeout(300);
+      assert.ok((await cards()) > 50, "more on request");
+    },
+  ));

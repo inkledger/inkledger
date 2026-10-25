@@ -219,3 +219,35 @@ test("an issue's page reads its comments, attachments and history on its own tra
       }
     },
   ));
+
+test("the command palette tells one key on two trackers apart, even with the same title", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        [{ id: github }] = await db.q(
+          "INSERT INTO connections (user_id, type, label, base_url, remote_account_id, display_name, options, encrypted_secret, created_at) VALUES (1, 'github', 'Side projects', 'https://api.github.com', '4242', 'Mario Rossi', '{}', 'x', ?) RETURNING id",
+          now,
+        );
+        await db.q(
+          `INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, status_category, category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at)
+           VALUES (1, ?, 'I_9', 'DEMO-101', 'Test task number 1', 'Open', 'To Do', 'todo', 'acme/web', 'acme/web', 'Issue', '', '[]', '4242', 'https://github.com/acme/web/issues/9', ?)`,
+          github, now,
+        );
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(base + "/");
+      await page.getByRole("button", { name: /^Search/ }).first().click();
+      const palette = page.getByRole("dialog");
+      await palette.getByRole("combobox").fill("DEMO-101 Test task number 1");
+      const items = palette.getByRole("option", { name: /DEMO-101\s*Test task number 1/ });
+      await items.nth(1).waitFor();
+      assert.equal(await items.count(), 2);
+      await page.keyboard.press("ArrowDown");
+      // One option highlighted at a time, never both twins.
+      assert.equal(await palette.locator('[cmdk-item][data-selected="true"]').count(), 1);
+      await page.keyboard.press("Enter");
+      await page.waitForURL(u => new URL(u).pathname === `/issues/${github}/I_9`);
+    },
+  ));

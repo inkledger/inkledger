@@ -21,6 +21,7 @@ import {
 } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { logSpan } from "@/lib/timerLog";
+import { timerOnDay } from "@/lib/timerDay";
 import { issueId } from "@/lib/issues";
 import { useTimers } from "@/hooks/useTimers";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
@@ -47,6 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { GoalProgress } from "@/components/dashboard/PeriodSummary";
 import { SectionLabel } from "@/components/app/PageHeader";
+import { ErrorState } from "@/components/app/States";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
@@ -98,7 +100,8 @@ export function DayReviewBody() {
   const draftFor = (t: (typeof timers)[number]): Draft => ({
     issueKey: t.issueKey,
     connectionId: t.connectionId,
-    include: t.elapsedSeconds >= 60,
+    // Only today's time is preselected: one stopped on an earlier day is logged from its timer.
+    include: t.elapsedSeconds >= 60 && timerOnDay(t, today, new Date(nowMs())),
     duration: formatSeconds(roundedMinutes(t.elapsedSeconds), { days: false }),
     touched: false,
     comment: t.note,
@@ -185,6 +188,8 @@ export function DayReviewBody() {
   const logging = useRef(false);
 
   const logAll = async () => {
+    // Never on guesses: what the day already holds must be known (the button waits for it too).
+    if (!placement.ready) return;
     logging.current = true;
     setConfirming(false);
     setRunning(true);
@@ -412,6 +417,15 @@ export function DayReviewBody() {
         </section>
       </div>
 
+      {placement.error && (
+        <ErrorState
+          className="border-t py-4"
+          title={t("ui.dayReview.placementFailed")}
+          message={t("ui.dayReview.placementFailedHint")}
+          onRetry={placement.retry}
+        />
+      )}
+
       <SheetFooter className="flex-row items-center gap-3 border-t p-5">
         <p className="mr-auto text-body-sm text-muted-foreground">
           {selected.length > 0
@@ -427,7 +441,7 @@ export function DayReviewBody() {
           )}
         </p>
         <Button
-          disabled={selected.length === 0 || running}
+          disabled={selected.length === 0 || running || !placement.ready}
           onClick={openConfirm}
         >
           {running ? (

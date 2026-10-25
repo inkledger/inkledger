@@ -37,6 +37,27 @@ describe("buckets, per device", () => {
 
   const keys = async (c: Caller) => (await c.issues.list({ includeUnassigned: true, sort: "key" })).issues.map((i) => i.key);
 
+  it("the sidebar's favorites come alone (not the whole catalogue), in their order, as issues.all gives them", async () => {
+    const desk = await onDevice("device-desk-fav");
+    await q("UPDATE issues SET favorite = 1, favorite_rank = 2 WHERE key = 'ONE-1'");
+    await q("UPDATE issues SET favorite = 1, favorite_rank = 1 WHERE key = 'OPS-1'");
+    try {
+      const favs = await desk.issues.favorites();
+      expect(favs.map((i) => i.key)).toEqual(["OPS-1", "ONE-1"]);
+      const all = await desk.issues.all();
+      expect(favs[0]).toEqual(all.find((i) => i.key === "OPS-1"));
+    } finally {
+      await q("UPDATE issues SET favorite = 0, favorite_rank = 0");
+    }
+  });
+
+  it("the sidebar's unread counter is one number, the same one issues.all gives", async () => {
+    const desk = await onDevice("device-desk-unread");
+    const { isClosed } = await import("@contracts/categories");
+    const count = (rows: Awaited<ReturnType<Caller["issues"]["all"]>>) => rows.filter((i) => i.hidden !== 1 && i.unread && i.isMine && !isClosed(i.category)).length;
+    expect(await desk.issues.unreadCount()).toBe(count(await desk.issues.all()));
+  });
+
   it("a bucket on one device narrows that device's lists only", async () => {
     const phone = await onDevice("device-phone-1");
     const desk = await onDevice("device-desk-1");

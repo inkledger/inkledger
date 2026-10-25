@@ -206,6 +206,49 @@ const textOf = (b: RemoteBody | null) => (b === null ? "" : b.kind === "text" ? 
 /** Which connection an issue is on, when the caller knows (its link says it): needed only when a key is on two. */
 const onConnection = { connectionId: z.number().int().positive().optional() };
 
+/** The user's issues in compact form (board, palette, pickers, the sidebar's favorites), narrowed by `narrow`. */
+async function compactIssues(userId: number, narrow: SQL | undefined) {
+  const rows = await getDb()
+    .select({
+      key: issues.key,
+      // Its identity, for links that survive a key change
+      connectionId: issues.connectionId,
+      remoteId: issues.remoteId,
+      summary: issues.summary,
+      status: issues.status,
+      statusCategory: issues.statusCategory,
+      category: issues.category,
+      projectKey: issues.projectKey,
+      issueType: issues.issueType,
+      priority: issues.priority,
+      priorityRank: issues.priorityRank,
+      favorite: issues.favorite,
+      favoriteRank: issues.favoriteRank,
+      hidden: issues.hidden,
+      watching: issues.watching,
+      dueDate: issues.dueDate,
+      assigneeId: issues.assigneeId,
+      remoteUpdated: issues.remoteUpdated,
+      remoteUpdatedAt: issues.remoteUpdatedAt,
+      remoteCreatedAt: issues.remoteCreatedAt,
+      activityAt: issues.activityAt,
+      unread: UNREAD,
+    })
+    .from(issues)
+    .where(and(eq(issues.userId, userId), onLiveConnection, narrow))
+    .orderBy(desc(issues.favorite), asc(issues.favoriteRank), ...BY_UPDATED)
+    .limit(LIST_MAX_ROWS);
+  // Mine: assigned to me on any of my connections (Jira, GitHub…).
+  const myIds = new Set(await myRemoteIds(userId));
+  return rows.map(({ assigneeId, unread, remoteUpdatedAt, remoteCreatedAt, activityAt, ...r }) => ({
+    ...r,
+    unread: unread === 1,
+    isMine: assigneeId !== null && myIds.has(assigneeId),
+    /** Most relevant moment: last change, activity (comment, status) or creation */
+    relevantAt: Math.max(remoteUpdatedAt ?? 0, activityAt ?? 0, remoteCreatedAt ?? 0) || null,
+  }));
+}
+
 export const issuesRouter = createRouter({
   /** Pull assigned (and watched) issues from Jira and upsert them locally: always full. */
   sync: protectedProcedure.mutation(({ ctx }) => syncUser(ctx.user, { full: true })),
@@ -852,46 +895,17 @@ export const issuesRouter = createRouter({
     // "bucket": only this device's bucket (Board, palette); "all" for what counts time (pickers, timesheet).
     .input(z.object({ scope: z.enum(["bucket", "all"]).default("all") }).optional())
     .query(async ({ ctx, input }) => {
-    const inBucket = input?.scope === "bucket" ? await issuesInBucket(ctx.user.id, ctx.deviceId) : undefined;
-    const rows = await getDb()
-      .select({
-        key: issues.key,
-        // Its identity, for links that survive a key change
-        connectionId: issues.connectionId,
-        remoteId: issues.remoteId,
-        summary: issues.summary,
-        status: issues.status,
-        statusCategory: issues.statusCategory,
-        category: issues.category,
-        projectKey: issues.projectKey,
-        issueType: issues.issueType,
-        priority: issues.priority,
-        priorityRank: issues.priorityRank,
-        favorite: issues.favorite,
-        favoriteRank: issues.favoriteRank,
-        hidden: issues.hidden,
-        watching: issues.watching,
-        dueDate: issues.dueDate,
-        assigneeId: issues.assigneeId,
-        remoteUpdated: issues.remoteUpdated,
-        remoteUpdatedAt: issues.remoteUpdatedAt,
-        remoteCreatedAt: issues.remoteCreatedAt,
-        activityAt: issues.activityAt,
-        unread: UNREAD,
-      })
-      .from(issues)
-      .where(and(eq(issues.userId, ctx.user.id), onLiveConnection, inBucket))
-      .orderBy(desc(issues.favorite), asc(issues.favoriteRank), ...BY_UPDATED)
-      .limit(LIST_MAX_ROWS);
-    // Mine: assigned to me on any of my connections (Jira, GitHub…).
-    const myIds = new Set(await myRemoteIds(ctx.user.id));
-    return rows.map(({ assigneeId, unread, remoteUpdatedAt, remoteCreatedAt, activityAt, ...r }) => ({
-      ...r,
-      unread: unread === 1,
-      isMine: assigneeId !== null && myIds.has(assigneeId),
-      /** Most relevant moment: last change, activity (comment, status) or creation */
-      relevantAt: Math.max(remoteUpdatedAt ?? 0, activityAt ?? 0, remoteCreatedAt ?? 0) || null,
-    }));
+      const inBucket = input?.scope === "bucket" ? await issuesInBucket(ctx.user.id, ctx.deviceId) : undefined;
+      return compactIssues(ctx.user.id, inBucket);
+    }),
+
+  /** The favorites alone, as issues.all gives them: the sidebar (on every page) needs no more. */
+  favorites: protectedProcedure.query(({ ctx }) => compactIssues(ctx.user.id, eq(issues.favorite, 1))),
+
+  /** Open issues of mine with news since my last visit, counted here: the sidebar's counter (every page) needs one number. */
+  unreadCount: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await compactIssues(ctx.user.id, eq(issues.hidden, 0));
+    return rows.filter((i) => i.unread && i.isMine && !isClosed(i.category)).length;
   }),
 
   list: protectedProcedure

@@ -208,6 +208,7 @@ export const pages = {
     noIssues: "No issues",
     emptyMessage: "No issues: press Sync {provider} in the sidebar",
     showAll: "Show older ({hidden})",
+    showMore: "Show {count} more",
     lanesLabel: "Trackers",
     laneEmpty: "Connected: nothing for you on {name} yet",
     showLess: "Show less",
@@ -230,6 +231,7 @@ export const pages = {
     pinboardDescription: "Pinboard of reminders and pinned issues",
   },
   issues: {
+    staleError: "This list couldn't be refreshed, so it may be out of date ({reason}).",
     cleanupDone: "Cleanup complete: {deleted} issues deleted, {kept} with history kept",
     title: "Issues",
     inView: "{shown} in view · {total} in catalog",

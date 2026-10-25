@@ -260,6 +260,10 @@
     "type": "mutation"
   },
   {
+    "path": "issues.favorites",
+    "type": "query"
+  },
+  {
     "path": "issues.get",
     "type": "query"
   },
@@ -345,6 +349,10 @@
   },
   {
     "path": "issues.transitions",
+    "type": "query"
+  },
+  {
+    "path": "issues.unreadCount",
     "type": "query"
   },
   {

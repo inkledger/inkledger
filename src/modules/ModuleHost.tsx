@@ -55,15 +55,24 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
     };
   }, [entries]);
 
-  // One hub for the app's lifetime, made when the first module loads.
-  const hub = modules.length > 0 ? sharedHub(queryClient, utils) : null;
+  // Not allowed any more (or switched off): none of the loaded ones keeps running.
+  const running = useMemo(() => (entries ? modules.filter(m => entries.some(e => e.id === m.entry.id)) : []), [entries, modules]);
+
+  // One hub while any module runs: made when the first loads, let go after the last.
+  const hub = running.length > 0 ? sharedHub(queryClient, utils) : null;
+  useEffect(() => {
+    if (running.length === 0 && shared) {
+      shared.dispose();
+      shared = null;
+    }
+  }, [running.length]);
 
   useEffect(() => {
     hub?.route(pathname);
   }, [hub, pathname]);
 
   return (
-    <ModulesContext.Provider value={hub ? { hub, modules } : null}>
+    <ModulesContext.Provider value={hub ? { hub, modules: running } : null}>
       {children}
     </ModulesContext.Provider>
   );

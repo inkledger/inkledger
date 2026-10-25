@@ -20,7 +20,7 @@ import { issueId } from "@/lib/issues";
  * with: the worklogs of that day plus the timers (running until now, paused
  * until their stop). The one entry point for every "Log time".
  * `ready` is false until worklogs, schedule and timers are loaded: nothing
- * may be placed on guesses.
+ * may be placed on guesses. `error`: one of them failed (`retry` reads it again).
  */
 export function useBlockPlacement(
   day?: Date,
@@ -86,5 +86,12 @@ export function useBlockPlacement(
     [occupied]
   );
 
-  return { ready, place, conflictOf, occupied };
+  /** What the placement needs couldn't be read: nothing may be placed until a retry reads it. */
+  const error = !ready && (logs.isError || timersQuery.isError);
+  const retry = useCallback(() => {
+    if (logs.isError) void logs.refetch();
+    if (timersQuery.isError) void timersQuery.refetch();
+  }, [logs, timersQuery]);
+
+  return { ready, error, retry, place, conflictOf, occupied };
 }

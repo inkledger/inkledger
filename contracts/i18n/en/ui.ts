@@ -135,6 +135,7 @@ export const ui = {
     enter: "Enter",
   },
   logTime: {
+    placementFailed: "The day's time couldn't be read: nothing is placed on guesses.",
     descriptionHere: "{provider} keeps no time: this entry stays in inkledger, in your timesheet and reports.",
     loggedHere: "Time logged",
     updatedHere: "Time entry updated",
@@ -184,6 +185,8 @@ export const ui = {
     close: "close",
   },
   dayReview: {
+    placementFailed: "Today's time couldn't be read",
+    placementFailedHint: "Nothing is logged until it is: try again.",
     otherDay: "Stopped on another day: log it from its timer",
     logged: { one: "Logged {count} entry to {provider}", other: "Logged {count} entries to {provider}" },
     title: "Close the day",
@@ -392,6 +395,7 @@ export const ui = {
     spanPlaceholder: "Log the gap on… (key or title)",
   },
   timerNote: {
+    notSaved: "Note not saved: it is kept here and sent again with your next change.",
     label: "What are you working on in {key}?",
     placeholder: "What are you working on?",
   },

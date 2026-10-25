@@ -84,7 +84,7 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
     onSuccess: async ({ key, connectionId, remoteId }) => {
       toast.success(t("views.issues.create.createdIn", { key }));
       prefill?.onCreated?.(key, connectionId);
-      await Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate()]);
+      await Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate(), utils.issues.favorites.invalidate()]);
       onClose();
       void navigate(issuePath({ key, connectionId, remoteId: remoteId }));
     },

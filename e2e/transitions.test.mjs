@@ -72,3 +72,25 @@ test("a transition asking for its resolution opens a form, marks what is missing
     await dialog.waitFor({ state: "detached" });
     assert.deepEqual(sent.at(-1), { key: "DEMO-101", connectionId: 1, transitionId: "51", fields: { resolution: "1" } });
   }));
+
+test("a transition's form starts clean each time: no value or error left from the last one", () =>
+  withApp({}, async ({ page, base }) => {
+    const sent = [];
+    await fakeJiraTransitions(page, sent);
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("combobox", { name: "Change status" }).click();
+    await page.getByRole("option", { name: "Chiuso" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Move" }).click();
+    await dialog.getByText("Required").waitFor();
+    await dialog.getByRole("combobox", { name: "Risoluzione" }).click();
+    await page.getByRole("option", { name: "Non risolvibile" }).click();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await dialog.waitFor({ state: "detached" });
+    // Asked again: what was typed and refused before is gone.
+    await page.getByRole("combobox", { name: "Change status" }).click();
+    await page.getByRole("option", { name: "Chiuso" }).click();
+    await dialog.getByRole("heading", { name: "Move to Chiuso" }).waitFor();
+    assert.equal(await dialog.getByText("Required").count(), 0, "no error left over");
+    assert.doesNotMatch(await dialog.getByRole("combobox", { name: "Risoluzione" }).innerText(), /Non risolvibile/, "no value left over");
+  }));

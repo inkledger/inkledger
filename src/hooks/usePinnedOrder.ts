@@ -45,7 +45,7 @@ export function usePinnedOrder(items: IssueItem[]) {
           if (mine !== seq.current) return;
           void Promise.all([
             utils.issues.list.invalidate(),
-            utils.issues.all.invalidate(),
+            utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
           ]).then(() => {
             if (mine === seq.current) setDraft(null);
           });

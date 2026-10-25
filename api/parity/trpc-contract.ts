@@ -70,6 +70,7 @@ export interface FrozenIn {
   "issues.createTypes": { connectionId: number; container: string };
   "issues.description": { connectionId?: number | undefined; key: string };
   "issues.edit": { body?: string | undefined; connectionId?: number | undefined; key: string; title?: string | undefined };
+  "issues.favorites": void;
   "issues.get": { connectionId?: number | undefined; key: string };
   "issues.history": { connectionId?: number | undefined; key: string };
   "issues.import": { connectionId?: number | undefined; key: string };
@@ -92,6 +93,7 @@ export interface FrozenIn {
   "issues.toggleFavorite": { connectionId?: number | undefined; key: string };
   "issues.transition": { connectionId?: number | undefined; fields?: undefined | { [key: string]: number | string | string[] | { date: string } | { user: string } }; key: string; toStatus?: string | undefined; transitionId?: string | undefined };
   "issues.transitions": { connectionId?: number | undefined; key: string };
+  "issues.unreadCount": void;
   "issues.watch": { connectionId?: number | undefined; key: string; watch: boolean };
   "modules.acceptToken": { product: string; token: string };
   "modules.activate": { product: string };
@@ -279,6 +281,7 @@ export interface FrozenOut {
   "issues.createTypes": { id: string; name: string }[];
   "issues.description": { doc: { blocks: Rec1; v: 1 }; text: string };
   "issues.edit": { assignees: string[]; key: string; labels: string[]; title: null | string };
+  "issues.favorites": { category: string; connectionId: number; dueDate: null | string; favorite: number; favoriteRank: number; hidden: number; isMine: boolean; issueType: string; key: string; priority: string; priorityRank: null | number; projectKey: string; relevantAt: null | number; remoteId: string; remoteUpdated: null | string; status: string; statusCategory: string; summary: string; unread: boolean; watching: number }[];
   "issues.get": { activityAt: null | number; assigneeId: string; assigneeName: null | string; category: string; components: string[]; connectionId: number; containerId: null | number; dueDate: null | string; favorite: number; favoriteRank: number; goneAt: Date | null; goneReason: null | string; hidden: number; id: number; issueType: string; key: string; labels: string[]; lastCommentAt: null | number; othersActivityAt: null | number; priority: string; priorityRank: null | number; projectAvatarUrl: null | string; projectKey: string; projectName: string; raw: null | string; remote: boolean; remoteCreatedAt: null | number; remoteId: string; remoteUpdated: null | string; remoteUpdatedAt: null | number; reporterName: null | string; seenAt: null | number; status: string; statusCategory: string; statusChangedAt: null | number; summary: string; syncedAt: Date; timeEstimateSeconds: null | number; timeSpentSeconds: null | number; url: string; userId: number; watching: number };
   "issues.history": { events: ({ at: number; author: null | string; excerpt: string; kind: "comment" } | { at: number; author: null | string; items: { field: string; from: null | string; to: null | string }[]; kind: "change" } | { at: number; author: null | string; kind: "created" })[]; reason: null | string };
   "issues.import": { imported: string };
@@ -301,6 +304,7 @@ export interface FrozenOut {
   "issues.toggleFavorite": { favorite: boolean; key: string };
   "issues.transition": { moved: string; to: string };
   "issues.transitions": { executable: boolean; id: string; name: string; remoteUrl: null | string; requirements: ({ id: string; name: string; required: boolean } & { multiline: boolean; type: "text" } | { id: string; name: string; required: boolean } & { nativeType: string; type: "unknown" } | { id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "choice" } | { id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "multiChoice" } | { id: string; name: string; required: boolean } & { type: "date" } | { id: string; name: string; required: boolean } & { type: "number" } | { id: string; name: string; required: boolean } & { type: "user" })[]; toCategory: "backlog" | "cancelled" | "doing" | "done" | "todo" | "triage"; toStatus: string }[];
+  "issues.unreadCount": number;
   "issues.watch": { key: string; watching: boolean };
   "modules.acceptToken": { ok: boolean };
   "modules.activate": { active: number; exp: number; limit: number; ok: true };

@@ -404,6 +404,16 @@ export default function Issues() {
               </SectionLabel>
             )}
 
+          {showMain && query.error && data && (
+            // The rows below are from before: said, never shown as current.
+            <p role="alert" className="mb-2 flex flex-wrap items-center gap-2 text-body-sm text-danger">
+              {t("pages.issues.staleError", { reason: errorText(query.error) })}
+              <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
+                {t("common.retry")}
+              </Button>
+            </p>
+          )}
+
           {showMain && (
             <div aria-busy={query.isFetching}>
               {query.isPending ? (

@@ -16,7 +16,7 @@ export function useIssueActions() {
   const refresh = () =>
     Promise.all([
       utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(),
+      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
       utils.issues.get.invalidate(),
       utils.stats.invalidate(),
     ]);

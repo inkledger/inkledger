@@ -60,3 +60,71 @@ test("while the day is being logged, the summary shows what is being logged", { 
     await app.stop();
   }
 });
+
+test("the day is never logged on guesses: while today's worklogs can't be read, Log waits, says why, and retries", async () => {
+  const now = Date.now();
+  const app = await start({
+    seed: async db => {
+      await db.q(
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 1800, ?, '', ?, ?)",
+        now - 3_600_000, now - 1_800_000, now, now,
+      );
+      await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
+    },
+  });
+  try {
+    const { page, base } = app;
+    // Today's worklogs: no answer the page can use (the server fails), until the test lets them through.
+    let failing = true;
+    const creates = [];
+    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.includes("worklogs.create")) creates.push(path);
+      if (failing && path.includes("worklogs.list")) return route.fulfill({ status: 500, contentType: "application/json", body: "[]" });
+      return route.continue();
+    });
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Close the day" }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Close the day" });
+    await sheet.waitFor();
+    await sheet.getByRole("alert").getByText("Today's time couldn't be read").waitFor();
+    const log = sheet.getByRole("button", { name: /^Log 1 to / });
+    assert.equal(await log.isDisabled(), true, "Log waits for today's worklogs");
+    failing = false;
+    await sheet.getByRole("alert").getByRole("button", { name: "Retry" }).click();
+    await sheet.getByRole("alert").waitFor({ state: "detached" });
+    // Enabled once everything the placement needs is read (the timers may land a moment later).
+    await log.and(page.locator(":enabled")).waitFor({ timeout: 10_000 });
+    assert.deepEqual(creates, [], "nothing was logged meanwhile");
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a timer stopped on an earlier day isn't preselected to log today", async () => {
+  const now = Date.now();
+  const yesterday = new Date(now - 86_400_000).setHours(17, 0, 0, 0);
+  const app = await start({
+    seed: async db => {
+      await db.q(
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 3600, ?, '', ?, ?)",
+        yesterday - 3_600_000, yesterday, now, now,
+      );
+      await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
+    },
+  });
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Close the day" }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Close the day" });
+    await sheet.waitFor();
+    const row = sheet.getByRole("checkbox").first();
+    await row.waitFor();
+    assert.equal(await row.getAttribute("data-state"), "unchecked");
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+});

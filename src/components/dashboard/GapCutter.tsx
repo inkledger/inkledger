@@ -554,6 +554,8 @@ function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neigh
         {p.issueKey && p.status !== "done" && (
           <Input
             value={p.comment}
+            // Locked while saving: what is sent is what is shown.
+            disabled={saving}
             onChange={e => patch(li, i, { comment: e.target.value })}
             placeholder={t("views.dashboard.gap.commentPlaceholder")}
             aria-label={t("views.dashboard.gap.commentFor", { from: timeOfDay(s.start), to: timeOfDay(endOf(s)) })}
@@ -576,7 +578,7 @@ function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neigh
       className="flex min-h-0 flex-1 flex-col"
       onKeyDown={e => {
         const el = e.target as HTMLElement;
-        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return;
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || saving) return;
         if (e.key === "c" || e.key === "C") {
           e.preventDefault();
           // At the pointer when it is on a strip, else mid longest piece.
@@ -641,6 +643,7 @@ function GapCutterBody({ gap, neighbours, open, onDone }: { gap: TimeSpan; neigh
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={saving}
                 onClick={() =>
                   pick(
                     ({ key, connectionId }) =>

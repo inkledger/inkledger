@@ -136,6 +136,7 @@ export const ui: Shape<typeof en> = {
     enter: "Invio",
   },
   logTime: {
+    placementFailed: "Non è stato possibile leggere il tempo del giorno: niente viene collocato a caso.",
     descriptionHere: "{provider} non tiene il tempo: questa registrazione resta in inkledger, nella Timesheet e nei report.",
     loggedHere: "Tempo registrato",
     updatedHere: "Registrazione aggiornata",
@@ -185,6 +186,8 @@ export const ui: Shape<typeof en> = {
     close: "chiudi",
   },
   dayReview: {
+    placementFailed: "Non è stato possibile leggere il tempo di oggi",
+    placementFailedHint: "Non si registra nulla finché non si legge: riprova.",
     otherDay: "Fermato in un altro giorno: registralo dal suo timer",
     logged: { one: "Registrata {count} voce su {provider}", other: "Registrate {count} voci su {provider}" },
     title: "Chiudi la giornata",
@@ -393,6 +396,7 @@ export const ui: Shape<typeof en> = {
     spanPlaceholder: "Registra lo spazio vuoto su… (chiave o titolo)",
   },
   timerNote: {
+    notSaved: "Nota non salvata: resta qui e viene inviata di nuovo alla prossima modifica.",
     label: "Cosa stai facendo su {key}?",
     placeholder: "Cosa stai facendo?",
   },

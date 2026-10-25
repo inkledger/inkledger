@@ -209,6 +209,7 @@ export const pages: Shape<typeof en> = {
     noIssues: "Nessuna issue",
     emptyMessage: "Nessuna issue: premi Sincronizza {provider} nella barra laterale",
     showAll: "Mostra i più vecchi ({hidden})",
+    showMore: "Mostra altre {count}",
     lanesLabel: "Tracker",
     laneEmpty: "Collegato: ancora niente per te su {name}",
     showLess: "Mostra meno",
@@ -231,6 +232,7 @@ export const pages: Shape<typeof en> = {
     pinboardDescription: "Lavagna dei promemoria e delle issue fissate",
   },
   issues: {
+    staleError: "Non è stato possibile aggiornare questo elenco, quindi potrebbe non essere aggiornato ({reason}).",
     cleanupDone: "Pulizia completata: {deleted} issue eliminate, {kept} con storico conservate",
     title: "Issue",
     inView: "{shown} in vista · {total} nel catalogo",

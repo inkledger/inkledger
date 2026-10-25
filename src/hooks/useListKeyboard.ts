@@ -68,7 +68,7 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
   useEffect(() => {
     if (!selected) return;
     document
-      .querySelector(`[data-issue-key="${CSS.escape(selected)}"]:not([hidden])`)
+      .querySelector(`[data-issue-id="${CSS.escape(selected)}"]:not([hidden])`)
       ?.scrollIntoView({ block: "nearest" });
   }, [selected]);
 

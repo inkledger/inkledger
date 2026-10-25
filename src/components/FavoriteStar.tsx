@@ -21,7 +21,7 @@ export function FavoriteStar({
     onSuccess: () =>
       Promise.all([
         utils.issues.list.invalidate(),
-        utils.issues.all.invalidate(),
+        utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
         utils.issues.get.invalidate(),
       ]),
     onError: e => toastError(e),

@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { timerOnDay } from "@/lib/timerDay";
 import { trpc } from "@/lib/trpc";
 import { useLiveState } from "@/lib/liveEvents";
 import { clockNow, subscribeClock } from "@/lib/clock";
@@ -50,7 +51,7 @@ export function useElapsed(
 export type PendingTime = { pending: number; running: boolean };
 
 /**
- * Tracked time not yet logged to Jira (running + paused timers), ticking
+ * Today's tracked time not yet logged (running timers, and those stopped today), ticking
  * live while a timer runs. Feeds the hatched "pending" segments of the bars;
  * read by the parts that draw it, so only they tick. Undefined unless `shown`.
  */
@@ -58,12 +59,16 @@ export function usePendingSeconds(shown: boolean): PendingTime | undefined {
   const { timers, fetchedAt } = useTimers();
   const running = timers.some(t => t.state === "running");
   const now = useNow(shown && running);
-  const pending = timers.reduce(
-    (sum, t) =>
-      sum +
-      t.elapsedSeconds +
-      (t.state === "running" ? Math.max(0, now - fetchedAt) / 1000 : 0),
-    0
-  );
+  // Today's only: a timer stopped on an earlier day is that day's time.
+  const today = new Date(now);
+  const pending = timers
+    .filter(t => timerOnDay(t, today, today))
+    .reduce(
+      (sum, t) =>
+        sum +
+        t.elapsedSeconds +
+        (t.state === "running" ? Math.max(0, now - fetchedAt) / 1000 : 0),
+      0
+    );
   return shown ? { pending, running } : undefined;
 }

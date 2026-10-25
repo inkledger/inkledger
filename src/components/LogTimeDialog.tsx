@@ -334,10 +334,10 @@ function LogTimeForm({
           />
           <p
             id={`${id}-started-hint`}
-            role={conflict || overlapWarning ? "alert" : undefined}
+            role={conflict || overlapWarning || (waiting && placement.error) ? "alert" : undefined}
             className={cn(
               "text-body-sm",
-              conflict
+              conflict || (waiting && placement.error)
                 ? "text-danger"
                 : overlapWarning
                   ? "text-warning"
@@ -347,13 +347,20 @@ function LogTimeForm({
             {conflict ??
               overlapWarning ??
               (waiting
-                ? t("ui.logTime.computing")
+                ? placement.error
+                  ? t("ui.logTime.placementFailed")
+                  : t("ui.logTime.computing")
                 : !startedTouched && startedShown
                   ? endAt
                     ? t("ui.logTime.endsAtStop")
                     : t("ui.logTime.endsNow")
                   : "\u00a0")}
           </p>
+          {waiting && placement.error && (
+            <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={placement.retry}>
+              {t("common.retry")}
+            </Button>
+          )}
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${id}-comment`}>{t("ui.logTime.comment")}</Label>

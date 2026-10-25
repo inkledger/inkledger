@@ -857,6 +857,8 @@ test("language: English until Italian is picked, and the choice stays", () =>
     await page.reload();
     await page.getByText("Tema e densità").waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.lang), "it");
+    // Italian's texts come on demand (not in the first bundle): loaded before the first paint, never English meanwhile.
+    assert.equal(await page.getByText("Theme and density").count(), 0);
   }));
 
 test("native app: links to other sites open in the system browser", () =>
@@ -1535,3 +1537,44 @@ test("settings: a change or another category redraws only its frame; the menu an
     assert.equal(await menu.getAttribute("data-mark"), "kept");
     assert.ok((await menu.evaluate(el => el.scrollTop)) > 100);
   }));
+
+test("Fill the gap: while its worklogs are being saved, the pieces can't be edited (what is saved is what is shown)", () => {
+  const today = h => {
+    const d = lastWorkday();
+    d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0);
+    return d.getTime();
+  };
+  return withApp(
+    {
+      seed: async db => {
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-before', ?, 1800, 'morning', 1)", today(9));
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-102', 'w-after', ?, 1800, 'review', 1)", today(9.75));
+      },
+    },
+    async ({ page, base }) => {
+      let release = () => {};
+      const held = new Promise(r => (release = r));
+      await page.route(/\/api\/trpc\/worklogs\.create/, async route => {
+        await held;
+        const body = JSON.parse(route.request().postData() ?? "{}");
+        const input = body[0]?.json ?? body.json;
+        const made = { id: 77, issueKey: input.issueKey, timeSpentSeconds: input.seconds, comment: input.comment };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
+      });
+      await page.goto(`${base}/?period=day&from=${lastWorkdayKey()}`);
+      await page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ }).click();
+      await page.getByRole("group", { name: /Strip of time to log/ }).waitFor();
+      await page.getByRole("button", { name: /^Choose the issue…/ }).first().click();
+      await page.keyboard.type("DEMO-103");
+      await page.waitForTimeout(300);
+      await page.keyboard.press("Enter");
+      const comment = page.getByRole("textbox", { name: /Comment for 09:30/ });
+      await comment.fill("planned");
+      await page.getByRole("button", { name: "Log", exact: true }).click();
+      await page.waitForTimeout(200);
+      assert.equal(await comment.isDisabled(), true, "the comment is locked while saving");
+      release();
+      await page.getByText("1 worklog created").waitFor();
+    },
+  );
+});

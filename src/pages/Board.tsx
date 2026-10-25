@@ -57,6 +57,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const DONE_LIMIT = 20;
+/** Cards a column draws at first, and how many more each "Show more" adds (500 cards made 11k nodes). */
+const COLUMN_PAGE = 50;
 
 const BOARD_FIELDS: Fields<{ term: string; expanded: Set<string>; connection: number; prio: Set<string> }> = {
   term: { key: "q", fallback: "", codec: text },
@@ -144,6 +146,8 @@ export default function Board() {
   const setTerm = (v: string) => setView({ term: v });
   const [dragOver, setDragOver] = useState<string | null>(null);
   const showAllDone = view.expanded;
+  // Cards drawn per column beyond the first page (this visit only).
+  const [pages, setPages] = useState<Record<string, number>>({});
   const setShowAllDone = (f: (s: Set<string>) => Set<string>) => setView({ expanded: f(showAllDone) });
 
   // Column ids carry their connection or category (s:6:Done, k:done): kept apart as "board:".
@@ -214,7 +218,7 @@ export default function Board() {
       void utils.issues.transitions.reset({ key: v.key });
       void utils.issues.get.invalidate({ key: v.key });
       void utils.issues.list.invalidate();
-      return utils.issues.all.invalidate();
+      return Promise.all([utils.issues.all.invalidate(), utils.issues.favorites.invalidate()]);
     },
   });
 
@@ -373,7 +377,9 @@ export default function Board() {
     // Finished columns: the last two weeks (at most DONE_LIMIT), the older ones on request.
     const finished = isDone && !expanded ? recentFinished(items, openedAt, DONE_LIMIT) : null;
     const hidden = finished?.older ?? 0;
-    const shown = finished ? finished.shown : items;
+    const all = finished ? finished.shown : items;
+    const shown = all.slice(0, pages[col.id] ?? COLUMN_PAGE);
+    const more = all.length - shown.length;
     // While a card is dragged: on where it can go, off (and dimmed) elsewhere; its own column stays as is.
     const own = dragging ? columnOf({ connectionId: dragging.card.connectionId, status: dragging.card.status, category: dragging.card.category }, [col]) === col.id : false;
     const allowed = targets.has(col.id);
@@ -480,7 +486,12 @@ export default function Board() {
               onPrefetch={() => prefetch(i)}
             />
           ))}
-          {hidden > 0 && (
+          {more > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setPages(p => ({ ...p, [col.id]: (p[col.id] ?? COLUMN_PAGE) + COLUMN_PAGE }))}>
+              {t("pages.board.showMore", { count: Math.min(more, COLUMN_PAGE) })}
+            </Button>
+          )}
+          {more === 0 && hidden > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setShowAllDone(s => new Set(s).add(col.id))}>
               {t("pages.board.showAll", { hidden })}
             </Button>
@@ -618,6 +629,7 @@ export default function Board() {
           void utils.issues.transitions.reset();
           void utils.issues.list.invalidate();
           void utils.issues.all.invalidate();
+          void utils.issues.favorites.invalidate();
         }}
       />
       <Dialog open={choosing !== null} onOpenChange={o => !o && setChoosing(null)}>
