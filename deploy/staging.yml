@@ -1,0 +1,48 @@
+# The inkledger stack beside the old jtt one: its own ports, database and volumes, and
+# read-only towards the trackers until the swap. Updated by `pnpm docker:update`, which
+# builds the image first (so no `build:` here). Secrets: ../.env.inkledger (see .env.example).
+name: inkledger
+
+services:
+  db:
+    image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+    container_name: inkledger-db
+    restart: unless-stopped
+    env_file: ../.env.inkledger # POSTGRES_PASSWORD
+    environment:
+      POSTGRES_USER: inkledger
+      POSTGRES_DB: inkledger
+    ports:
+      - "127.0.0.1:54330:5432"
+    volumes:
+      - inkledger-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inkledger -d inkledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  inkledger:
+    image: inkledger:latest
+    container_name: inkledger
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ../.env.inkledger
+    environment:
+      NODE_ENV: production
+      PORT: "47823"
+      SYNC_INTERVAL_MIN: "5"
+      PROVIDERS_READ_ONLY: "1"
+    ports:
+      - "127.0.0.1:47824:47823"
+    volumes:
+      - inkledger-data:/app/data
+      - ${INKLEDGER_BACKUP_DIR:-~/Backups/inkledger}:/backups
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+volumes:
+  inkledger-data:
+  inkledger-pgdata:

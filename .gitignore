@@ -13,3 +13,7 @@ CLAUDE.md
 # Demo (local only)
 studio/
 .claude/worktrees/
+
+# Release builds and perf runs (pnpm dist, pnpm perf)
+release/
+perf/

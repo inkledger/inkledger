@@ -10,3 +10,10 @@ coverage
 CLAUDE.md
 docs
 *.log
+# Not part of the server image (the native shell has its own builds)
+src-tauri
+studio
+e2e
+release
+perf
+deploy

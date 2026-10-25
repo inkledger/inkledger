@@ -55,6 +55,27 @@ pnpm tauri:dev        # opens the app; on first launch it asks for the server ad
 pnpm tauri:build      # .app and .dmg in src-tauri/target/release/bundle/
 ```
 
+To hand the apps out, `pnpm dist` builds them in release mode and collects them in
+`release/<version>/` (gitignored) with `SHA256SUMS` and a `manifest.json` (sizes, commit, build
+times). The version is `tauri.conf.json`'s.
+
+```sh
+pnpm dist             # macOS (.dmg + .app.zip, arm64) and Android (.apk, also published to the container)
+pnpm dist --mac       # macOS only
+pnpm dist --android   # Android only (runs pnpm native:publish)
+```
+
+- **Unsigned:** macOS asks to confirm the first launch (right click → Open); the APK is signed
+  with the debug key.
+- **Source:** the script refuses uncommitted changes unless given `--allow-dirty`. Each file
+  in `manifest.json` names its own commit and whether the tree was dirty. The release-wide
+  `commit` is set only when all files agree, and the script warns when they don't (e.g. an APK
+  left from an earlier build).
+- **Never stale:** the previous `.app`/`.dmg` are removed before the build. A build that
+  fails before making the `.app` fails the script, and an APK older than this run is refused.
+- **The .dmg** is made by Tauri, which drives Finder; when that step fails (headless, Finder
+  automation denied) the script makes a plain compressed image of the .app with `hdiutil`.
+
 - **Profiles:** each server (e.g. `localhost:3000`, `localhost:47823`,
   `my-mac.<tailnet>.ts.net:47823`) is a profile with its own Jira and user. Add them from
   Settings → Server; switch between them from the **Server** menu (app and menu bar), the
@@ -132,7 +153,7 @@ the open server (it must be on this Mac, e.g. `localhost:47823`) over Wi-Fi.
 | 1 | Tauri project (`src-tauri/`), "connect to the server" screen, `src/lib/native.ts` bridge | done (desktop) |
 | 2 | Desktop: menu bar timer, system notifications, global shortcuts, system idle, launch at login | done (focus mini window: to do) |
 | 3 | Mobile: safe area and touch, Android app downloadable via Tailscale, iPhone web app | done |
-| 4 | Build and signing (dmg, apk/aab, TestFlight) | to do |
+| 4 | Build and signing (dmg, apk/aab, TestFlight) | unsigned builds done (`pnpm dist`); signing: to do |
 
 ### Prerequisites for phases 1–4
 - Rust (`rustup`), Xcode, Android Studio with SDK and NDK.
