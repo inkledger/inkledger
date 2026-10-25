@@ -52,7 +52,11 @@ export function asPem(key: string): string {
  */
 export function extraKey(): string | null {
   const raw = process.env.MODULES_TRUST_EXTRA_KEY?.trim();
-  return raw ? asPem(raw.replace(/\\n/g, "\n")) : null;
+  if (!raw) return null;
+  // A production server takes it only when told twice (MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION=1:
+  // the e2e tests and the studio run the production bundle with it); a stray env var never does.
+  if (process.env.NODE_ENV === "production" && process.env.MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION !== "1") return null;
+  return asPem(raw.replace(/\\n/g, "\n"));
 }
 
 const withExtra = (keys: readonly string[]): string[] => {

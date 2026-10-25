@@ -82,7 +82,7 @@ async function stubWorker(state) {
 async function withStore(state, body, seed) {
   state.calls = [];
   const worker = await stubWorker(state);
-  const app = await start({ seed, env: { STORE_URL: worker.url, MODULES_TRUST_EXTRA_KEY: PEM } });
+  const app = await start({ seed, env: { STORE_URL: worker.url, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   try {
     await app.page.goto(app.base + "/settings/store");
     await app.page.locator('[data-store-item="hello"]').waitFor();
