@@ -2013,7 +2013,7 @@ dependencies = [
 name = "inkledger"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "local-ip-address",
  "rcgen",
  "reqwest 0.12.28",
