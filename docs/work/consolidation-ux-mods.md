@@ -73,3 +73,13 @@ Decision (owner, 2026-10-26): SSR is Kimi's; this plan stops at A11y/BP/SEO 100 
 - Gate: `pnpm build && PROVIDERS_READ_ONLY=1 JIRA_READ_ONLY=1 node scripts/lighthouse.mjs --gate`
   (fixed matrix, 3 runs × desktop/mobile; method in docs/dev/measuring.md § Lighthouse). Keep the
   CSP (inline scripts by hash only), zod jitless in the page, and A11y/BP/SEO at 100.
+
+## SSR (Kimi), catalogued
+- 32f38b5 client stores render on a server (server snapshots, window guards).
+- db9fde2 service worker keeps only the anonymous /offline.html (navigation HTML may hold user data).
+- a83e4e6 SSR of /login and the dashboard day; react/react-dom/tRPC/Query clients are runtime
+  dependencies (checked with a prod-only install). ddad20e adds the SERVE_BUILD flag it uses
+  (committed while env.ts was still being edited).
+- 0446fbd `pnpm dev:build` / `pnpm preview`: optimized build on the dev backend.
+- Checks: lint, check, 2221 unit, build, smoke (21 ok incl. SSR/CSP/offline), e2e 216/218 in the
+  full run (the 2 pass alone and in their files: load flakiness), preview + SSR e2e 7/7.
