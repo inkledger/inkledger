@@ -208,7 +208,8 @@ kept Accessibility, Best Practices and SEO at 100 everywhere. Performance was 99
 81–97 mobile; Dashboard scored 100 desktop and 88–90 mobile, login 92–97 mobile. All 217 E2E and
 2221 unit tests passed.
 
-To measure the optimized build against development data, run `PORT=4173 pnpm dev:build` and point
-Lighthouse at `http://127.0.0.1:4173`. This serves the same built assets and SSR as production but
-keeps the development environment, login, APIs and database. `pnpm preview` is an alias. The normal
-`pnpm lighthouse` remains the reproducible matrix on its seeded, temporary database.
+To measure the optimized build against development data, run `pnpm preview` and point Lighthouse
+at `http://127.0.0.1:4173`. This serves the same built assets and SSR as production but keeps the
+development environment, login, APIs and database. `PORT=4173 pnpm dev:build` is the explicit
+equivalent; port 3000 belongs to Vite/HMR. The normal `pnpm lighthouse` remains the reproducible
+matrix on its seeded, temporary database.
