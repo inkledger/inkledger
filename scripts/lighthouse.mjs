@@ -11,7 +11,6 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as chromeLauncher from "chrome-launcher";
 import { start } from "../e2e/harness.mjs";
 import { chromiumPath } from "./chromium.mjs";
 
@@ -102,7 +101,6 @@ const app = await start({
 const cookie = (await app.context.cookies(app.base)).map(c => `${c.name}=${c.value}`).join("; ");
 await app.page.close();
 
-const chrome = await chromeLauncher.launch({ chromePath: chromiumPath(), chromeFlags: ["--headless=new", "--no-first-run"] });
 const results = [];
 try {
   const scenarios = [...SCENARIOS];
@@ -116,7 +114,6 @@ try {
     for (const form of forms) {
       for (let run = 1; run <= runs; run++) {
         const flags = {
-          port: chrome.port,
           output: ["json", "html"],
           logLevel: "error",
           onlyCategories: CATEGORIES,
@@ -130,7 +127,9 @@ try {
         };
         const name = `${s.id}.${form}.${run}`;
         // Each run in its own process (memory stays bounded over the whole matrix).
-        await promisify(execFile)(process.execPath, [new URL("./lighthouse-run.mjs", import.meta.url).pathname, `${app.base}${s.path}`, JSON.stringify(flags), join(OUT, name)], { maxBuffer: 1 << 20 });
+        const once = () => promisify(execFile)(process.execPath, [new URL("./lighthouse-run.mjs", import.meta.url).pathname, `${app.base}${s.path}`, JSON.stringify(flags), join(OUT, name)], { maxBuffer: 1 << 22 });
+        // A run that broke (the browser, not the page) is tried once more; its score is never touched.
+        await once().catch(once);
         const lhr = JSON.parse(readFileSync(join(OUT, `${name}.json`), "utf8"));
         const scores = Object.fromEntries(CATEGORIES.map(c => [c, Math.round((lhr.categories[c]?.score ?? 0) * 100)]));
         const metric = id => lhr.audits[id]?.numericValue ?? null;
@@ -138,12 +137,12 @@ try {
           .filter(a => a.score !== null && a.score < 1 && a.scoreDisplayMode !== "informative" && a.scoreDisplayMode !== "notApplicable" && a.scoreDisplayMode !== "manual")
           .map(a => a.id);
         results.push({ scenario: s.id, path: s.path, form, run, scores, lcp: metric("largest-contentful-paint"), cls: metric("cumulative-layout-shift"), tbt: metric("total-blocking-time"), failing, url: lhr.finalDisplayedUrl });
+        writeFileSync(join(OUT, "summary.partial.json"), JSON.stringify(results));
         console.log(`${name.padEnd(36)} ${CATEGORIES.map(c => String(scores[c]).padStart(3)).join(" ")}  ${failing.slice(0, 6).join(",")}`);
       }
     }
   }
 } finally {
-  await chrome.kill();
   await app.stop();
 }
 
