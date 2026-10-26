@@ -8,6 +8,10 @@ import { installNativeShell, isNative } from "@/lib/native";
 import { isPartFailure } from "@/components/app/lazyPart";
 import { currentLocale, LOCALES, loadLocale } from "@contracts/i18n";
 
+// zod without its JIT in the page: it would probe `new Function` (an eval the CSP blocks and
+// reports). Set before any chunk with zod loads (none is in the first load); validation is the same.
+(globalThis as { __zod_globalConfig?: { jitless?: boolean } }).__zod_globalConfig = { jitless: true };
+
 // After a redeploy, lazy chunks of the old build are gone (404): reload to
 // pick up the new index.html. At most once every 10 s, so a chunk that is
 // really broken cannot loop; past that, the ErrorBoundary takes over.

@@ -199,7 +199,8 @@ export function DayTimeline({
             onClick={() => onGap?.(g)}
             title={t("views.dashboard.timeline.holeTitle", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
-            className="absolute bottom-6 top-3 z-10 flex min-w-1 items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+            className="absolute bottom-6 top-3 z-10 flex min-w-target items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
+            // A short hole still takes a 24 px tap (min-w-target: WCAG 2.2 target size).
             style={{ left: `${g.left}%`, width: `${g.width}%` }}
           >
             {g.width > 7 && (
@@ -218,7 +219,7 @@ export function DayTimeline({
               onClick={() => quickStart.set(true)}
               aria-label={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
               title={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
-              className="absolute bottom-7 z-20 flex h-6 w-6 -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute bottom-7 z-20 flex size-target -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               style={{ left: `calc(${h.left + h.width}% - 2px)` }}
             >
               <Play className="h-3 w-3 fill-current" aria-hidden />
@@ -389,13 +390,16 @@ export function DayTimeline({
                 type="button"
                 {...surface("glass")}
                 onClick={() => onGap(g)}
-                aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
                 className="flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 px-3 text-body-sm outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="tabular">
+                {/* Named in words; the short form shown is for the eye (a label must contain what is shown). */}
+                <span className="sr-only">
+                  {t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
+                </span>
+                <span aria-hidden className="tabular">
                   {timeOfDay(g.start)}–{timeOfDay(endOf(g))}
                 </span>
-                <span className="font-medium text-primary-strong tabular">{formatDuration(g.seconds)}</span>
+                <span aria-hidden className="font-medium text-primary-strong tabular">{formatDuration(g.seconds)}</span>
               </button>
             </li>
           ))}

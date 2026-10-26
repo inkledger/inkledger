@@ -1759,3 +1759,15 @@ test("settings search finds what the trackers call things (webhook, repository, 
     await page.getByRole("searchbox").first().fill("chiave api");
     await page.getByRole("navigation").getByRole("link", { name: /^Connessioni/ }).first().waitFor({ timeout: 5000 });
   }));
+
+test("Settings run within the page's CSP: no blocked eval (zod without JIT)", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.addInitScript(() => {
+      window.__cspv = [];
+      document.addEventListener("securitypolicyviolation", e => window.__cspv.push(`${e.violatedDirective} ${e.blockedURI}`));
+    });
+    await page.goto(base + "/settings/links");
+    await page.getByRole("searchbox").first().waitFor();
+    await page.waitForTimeout(1500);
+    assert.deepEqual(await page.evaluate(() => window.__cspv), []);
+  }));
