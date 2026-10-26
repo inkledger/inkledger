@@ -26,13 +26,19 @@ import type {
 
 type Utils = ReturnType<typeof trpc.useUtils>;
 
-const guard = (moduleId: string, fn: () => void) => {
+const guard = (moduleId: string, fn: () => unknown) => {
+  const fail = (e: unknown) => console.error(`[module ${moduleId}]`, e);
   try {
-    fn();
+    const r = fn();
+    // An async callback that rejects is caught too: never an unhandled rejection in the page.
+    if (r instanceof Promise) r.catch(fail);
   } catch (e) {
-    console.error(`[module ${moduleId}]`, e);
+    fail(e);
   }
 };
+
+/** What a stopped module's late read gets: no answer (never made-up data it could save). */
+const never = <T,>() => new Promise<T>(() => {});
 
 /** A value with subscribers that get the latest at once (same value: no call). */
 function store<T>(initial: T) {
@@ -130,10 +136,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
             ? { state: "paused", issueKey: paused.issueKey }
             : { state: "idle", issueKey: null }
       );
-      if (running && running.issueKey !== lastRunning) {
+      // By identity, as the other events: the same key on two trackers is two timers.
+      const runningId = running ? `${running.connectionId ?? ""}:${running.issueKey}` : null;
+      if (running && runningId !== lastRunning) {
         emit("timer-started", { issueKey: running.issueKey, ...(running.connectionId ? { ref: { connectionId: running.connectionId, key: running.issueKey } } : {}) });
       }
-      lastRunning = running?.issueKey ?? null;
+      lastRunning = runningId;
     }
 
     const issues = utils.issues.all.getData();
@@ -232,6 +240,17 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           throw e;
         }
       };
+      // Data reads: once stopped (or refused) they stay unanswered; there is no empty value to fake.
+      const read = async <T,>(call: () => Promise<T>): Promise<T> => {
+        if (disposed) return never<T>();
+        try {
+          return await call();
+        } catch (e) {
+          const code = (e as { data?: { code?: string } } | null)?.data?.code;
+          if (disposed || code === "FORBIDDEN") return never<T>();
+          throw e;
+        }
+      };
       const own = (off: () => void) => {
         owned.add(off);
         return () => {
@@ -252,11 +271,11 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         today: sub(today),
         theme: sub(theme),
         // Fresh every time: a module asks after an event, when hours just changed.
-        totals: () => utils.modules.totals.fetch({ moduleId }, { staleTime: 0 }),
-        history: { daily: (since?: number) => utils.modules.historyDaily.fetch({ moduleId, ...(since === undefined ? {} : { since }) }, { staleTime: 60_000 }) },
-        weather: ({ lat, lon }) => utils.modules.weather.fetch({ moduleId, lat, lon }, { staleTime: 10 * 60_000 }),
+        totals: () => read(() => utils.modules.totals.fetch({ moduleId }, { staleTime: 0 })),
+        history: { daily: (since?: number) => read(() => utils.modules.historyDaily.fetch({ moduleId, ...(since === undefined ? {} : { since }) }, { staleTime: 60_000 })) },
+        weather: ({ lat, lon }) => read(() => utils.modules.weather.fetch({ moduleId, lat, lon }, { staleTime: 10 * 60_000 })),
         geocode: query =>
-          utils.modules.geocode.fetch({ moduleId, query, language: getLocale() === "it" ? "it" : "en" }),
+          read(() => utils.modules.geocode.fetch({ moduleId, query, language: getLocale() === "it" ? "it" : "en" })),
         // Since the Shadow module the host draws no light: kept so older modules still load.
         ambient() {},
         surfaces: { catalog: () => SURFACES },
