@@ -116,3 +116,19 @@ describe("data migrations", () => {
     expect(await runDataMigrations(db, steps)).toEqual(["flaky", "after"]);
   });
 });
+
+describe("migrations over a draft of 0010", () => {
+  it("a database that took the draft 0010 (claimed_at only) still migrates to the end", async () => {
+    const { query, up } = await fresh();
+    await up();
+    // As a dev database left by the draft: the column there, the lease table and the final 0010 not.
+    const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
+    await query('DROP TABLE "write_leases"');
+    await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
+    await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [w10]);
+    await query("insert into drizzle.__drizzle_migrations (hash, created_at) values ('draft', $1)", [w10 - 1]);
+    await expect(up()).resolves.toBeUndefined();
+    const t = await query("select to_regclass('write_leases') as t");
+    expect((t.rows[0] as { t: string | null }).t).toBe("write_leases");
+  });
+});
