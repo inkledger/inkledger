@@ -2,7 +2,7 @@
 // After `vite build`: a brotli (.br) and a gzip (.gz) copy of each text asset in
 // dist/public, at the highest levels, so the server sends them as they are
 // (serveStatic precompressed, api/lib/vite.ts) instead of compressing per request.
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 
@@ -29,5 +29,6 @@ const walk = (dir) => {
     }
   }
 };
+copyFileSync(join(ROOT, "index.html"), join(ROOT, "offline.html"));
 walk(ROOT);
 console.log(`precompressed ${files} files: ${(before / 1024).toFixed(0)} KiB → ${(after / 1024).toFixed(0)} KiB brotli`);

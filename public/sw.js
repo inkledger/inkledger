@@ -1,10 +1,9 @@
-// inkledger service worker: makes the app installable and opens the shell when
-// the server is briefly unreachable. API calls are never cached.
-//
-// The cache name stays fixed (this file is not rebuilt per deploy); instead,
-// whenever a new shell arrives, /assets/* entries the new build no longer
+// inkledger service worker: makes the app installable and opens the anonymous
+// shell when the server is briefly unreachable. API calls are never cached.
+// Whenever a new shell arrives, /assets/* entries the new build no longer
 // references are pruned, so old chunks don't pile up and errors never stick.
-const CACHE = "inkledger-shell-v1";
+const CACHE = "inkledger-shell-v2";
+const SHELL = "/offline.html";
 const ASSET_REF = /\/?assets\/[\w.@~-]+/g;
 
 const isHtml = (res) =>
@@ -47,29 +46,27 @@ async function prune(html) {
 async function storeShell(res) {
   const cache = await caches.open(CACHE);
   const html = await res.clone().text();
-  const old = await cache.match("/");
+  const old = await cache.match(SHELL);
   const oldHtml = old ? await old.text() : null;
-  await cache.put("/", res);
+  await cache.put(SHELL, res);
   if (html !== oldHtml) await prune(html);
 }
 
+async function precacheShell() {
+  const res = await fetch(SHELL, { cache: "no-store" });
+  if (!isHtml(res)) throw new Error("offline shell unavailable");
+  await storeShell(res);
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    fetch("/")
-      .then((res) => (isHtml(res) ? storeShell(res) : undefined))
-      .catch(() => undefined),
-  );
-  self.skipWaiting();
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
+    precacheShell()
+      .then(() => caches.keys())
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => fetch("/", { cache: "no-store" }))
-      .then((res) => (isHtml(res) ? res.text().then(prune) : undefined))
-      .catch(() => undefined) // offline: prune on the next navigation
       .then(() => self.clients.claim()),
   );
 });
@@ -80,16 +77,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Pages: network first, cached shell as fallback. Only real HTML pages are
-  // stored, never an error page or a proxy's 502.
+  // Pages: network first, anonymous shell as fallback. Navigation HTML may
+  // contain private SSR data and is never stored.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (isHtml(res)) event.waitUntil(storeShell(res.clone()).catch(() => undefined));
-          return res;
-        })
-        .catch(() => caches.match("/").then((hit) => hit ?? Response.error())),
+      fetch(request).catch(() =>
+        caches.match(SHELL).then((hit) => hit ?? Response.error()),
+      ),
     );
     return;
   }
