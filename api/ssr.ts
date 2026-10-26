@@ -33,6 +33,8 @@ async function render(url: string, context: SSRTRPCContext, locale: Locale, now:
 
 type SSRContext = Pick<Context<{ Bindings: HttpBindings }>, "req" | "header" | "redirect" | "html">;
 
+const localLayoutScript = `(function(){try{var local=localStorage.getItem("ikl-sidebar-collapsed")==="1"||localStorage.getItem("inkledger-modules-off")==="1"||localStorage.getItem("ikl-first-tracker-skipped")==="1";for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);if(key&&key.indexOf("ikl.timerNote.")===0)local=true}if(local)document.getElementById("root").replaceChildren()}catch(e){}})()`;
+
 export async function renderSSR(c: SSRContext, indexHtml: string, contentSecurityPolicy: (html: string) => string): Promise<Response | null> {
   const url = new URL(c.req.url);
   if (!supportsSSR(url)) return null;
@@ -72,9 +74,10 @@ export async function renderSSR(c: SSRContext, indexHtml: string, contentSecurit
       if (!current.user || current.sessionId !== sessionId) return c.redirect("/login");
     }
     const payload = jsonForHtml({ state: helpers.dehydrate(), locale, day: dayKey(new Date(now)), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, now });
+    const layout = url.pathname === "/" ? `<script>${localLayoutScript}</script>` : "";
     const html = indexHtml
       .replace(/<html lang="[^"]*">/, `<html lang="${locale}">`)
-      .replace('<div id="root"></div>', `<div id="root">${app}</div><script id="inkledger-ssr-state" type="application/json">${payload}</script>`);
+      .replace('<div id="root"></div>', `<div id="root">${app}</div>${layout}<script id="inkledger-ssr-state" type="application/json">${payload}</script>`);
     resHeaders.forEach((value, key) => c.header(key, value));
     c.header("Cache-Control", "private, no-store");
     c.header("Content-Security-Policy", contentSecurityPolicy(html));

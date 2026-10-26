@@ -63,17 +63,8 @@ const render = () => {
       </BrowserRouter>
     </StrictMode>
   );
-  let localLayout = false;
-  try {
-    localLayout = localStorage.getItem("ikl-sidebar-collapsed") === "1" || localStorage.getItem("inkledger-modules-off") === "1" || localStorage.getItem("ikl-first-tracker-skipped") === "1";
-    for (let i = 0; i < localStorage.length; i++) {
-      if (localStorage.key(i)?.startsWith("ikl.timerNote.")) localLayout = true;
-    }
-  } catch {
-    // Storage is optional.
-  }
   const sameDay = ssr?.day === dayKey(new Date()) && ssr.timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (ssr && root.hasChildNodes() && ssr.locale === currentLocale() && sameDay && !isNative() && !localLayout) {
+  if (ssr && root.hasChildNodes() && ssr.locale === currentLocale() && sameDay && !isNative()) {
     hydrateRoot(root, tree, { onRecoverableError: error => console.error("[hydration]", error) });
   } else {
     root.replaceChildren();

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { start } from "./harness.mjs";
 
 test("dashboard arrives with data and hydrates without browser or server errors", async () => {
@@ -23,6 +24,52 @@ test("dashboard arrives with data and hydrates without browser or server errors"
     assert.deepEqual(app.errors, []);
     assert.deepEqual(consoleErrors, []);
     assert.doesNotMatch(app.log(), /Unexpected tRPC fetch during SSR|\[ssr\]/);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a local layout opts out before the first paint, without hydration errors or layout shifts", async () => {
+  const app = await start();
+  try {
+    await app.page.addInitScript(() => {
+      localStorage.setItem("ikl-sidebar-collapsed", "1");
+      window.__ssrLayoutShifts = 0;
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.__ssrLayoutShifts += entry.value;
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    const consoleErrors = [];
+    app.page.on("console", message => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    let release = () => {};
+    const held = new Promise(resolve => (release = resolve));
+    await app.page.route(/\/assets\/index-.*\.js$/, async route => {
+      await held;
+      await route.continue();
+    });
+    const navigation = app.page.goto(`${app.base}/`);
+    await app.page.locator("#inkledger-ssr-state").waitFor({ state: "attached" });
+    assert.equal(await app.page.locator("#root").evaluate(root => root.childNodes.length), 0);
+    release();
+    const response = await navigation;
+    const html = await response.text();
+    assert.match(html, /Quick stats/);
+    const bootstrap = /<script>(\(function\(\)\{try\{var local=[\s\S]*?)<\/script>/.exec(html)?.[1];
+    assert.ok(bootstrap);
+    const hash = createHash("sha256").update(bootstrap).digest("base64");
+    assert.match(response.headers()["content-security-policy"], new RegExp(`sha256-${hash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+    assert.equal(await app.page.locator("aside").evaluate(aside => getComputedStyle(aside).width), "76px");
+    for (let i = 0; i < 3; i++) {
+      await app.page.reload();
+      await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+      assert.equal(await app.page.locator("aside").evaluate(aside => getComputedStyle(aside).width), "76px");
+    }
+    assert.equal(await app.page.evaluate(() => window.__ssrLayoutShifts), 0);
+    assert.deepEqual(app.errors, []);
+    assert.deepEqual(consoleErrors, []);
   } finally {
     await app.stop();
   }
