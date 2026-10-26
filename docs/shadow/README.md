@@ -25,7 +25,7 @@ stands at its own height and casts a shadow away from the light:
   faces the equator).
 - **The moon.** Faint, cool shadows by moonlight, as strong as its phase. A night with neither
   sun nor moon up has no shadows at all. Only the shadows change: the page keeps its colours.
-- **Clouds.** With the weather on, an overcast sky softens and lightens every shadow.
+- **Clouds (off by default).** Turn on "Clouds from the weather" in its settings and an overcast sky softens and lightens every shadow. Only then does the server ask a weather service (Open-Meteo) about your area, with coordinates rounded to about 10 km, every 30 minutes; off, nothing is asked and no place leaves the page.
 
 The place is estimated from your browser's time zone.
 

@@ -81,3 +81,98 @@ test("all six modules load with the real loader, the dashboard and the Store sta
     await page.getByRole("heading", { name: /Store/ }).first().waitFor();
     assert.deepEqual(await axe(page), [], "the Store");
   }));
+
+test("Stitch's sheet on a phone is modal: Tab stays inside, a redraw keeps the focus, Escape gives it back", { skip: skip || (!IDS.includes("stitch") && "no stitch"), timeout: 600_000 }, () =>
+  withAll({ viewport: { width: 390, height: 844 } }, async ({ page, base }) => {
+    await page.goto(base + "/");
+    const card = page.locator("[data-stitch-card]").first();
+    await card.waitFor({ timeout: 30_000 });
+    await card.focus();
+    await page.keyboard.press("Enter");
+    const sheet = page.locator("[data-stitch-panel]");
+    await sheet.waitFor();
+    assert.equal(await sheet.getAttribute("aria-modal"), "true", "modal on a phone");
+    for (let i = 0; i < 25; i++) {
+      await page.keyboard.press("Tab");
+      assert.equal(await page.evaluate(() => !!document.activeElement?.closest("[data-stitch-panel]")), true, `Tab ${i + 1} stays inside`);
+    }
+    // A pattern for next week: the sheet redraws, the focus stays on that tile.
+    const tile = sheet.locator('button[aria-pressed]:not([disabled]):not([aria-disabled="true"])').last();
+    await tile.focus();
+    const label = await tile.getAttribute("aria-label");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? null), label, "focus kept through the redraw");
+    await page.keyboard.press("Escape");
+    await sheet.waitFor({ state: "hidden" });
+    assert.equal(await card.evaluate(el => el === document.activeElement || el.contains(document.activeElement)), true, "focus back on the card");
+  }));
+
+test("Kanbunny's panel takes the focus, keeps it through its two-step reset, and gives it back", { skip: skip || (!IDS.includes("kanbunny") && "no kanbunny"), timeout: 600_000 }, () =>
+  withAll({}, async ({ page, base }) => {
+    await page.goto(base + "/");
+    const hit = page.locator("[data-kanbunny-hit]").first();
+    await hit.waitFor({ state: "attached", timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await hit.focus();
+    await page.keyboard.press("Enter");
+    const panel = page.locator("[data-kanbunny-panel]");
+    await panel.waitFor();
+    assert.equal(await panel.evaluate(el => el.contains(document.activeElement)), true, "focus moved into the panel");
+    const restart = panel.getByRole("button", { name: "Start over…" });
+    await restart.focus();
+    await page.keyboard.press("Enter");
+    await panel.getByRole("button", { name: /^Sure\?/ }).waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent ?? ""), "Sure? A new egg hatches", "focus stays on the reset button");
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    assert.equal(await hit.evaluate(el => el === document.activeElement), true, "focus back where it was");
+  }));
+
+test("Bonsai's film is a modal dialog: Tab stays inside, the slider says where it is, Escape gives the focus back", { skip: skip || (!IDS.includes("bonsai") && "no bonsai"), timeout: 600_000 }, () =>
+  withAll({}, async ({ page, base }) => {
+    await page.goto(base + "/settings/store");
+    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+    await page.getByRole("menuitem", { name: "Settings" }).click();
+    const watch = page.getByRole("button", { name: "Watch it grow" });
+    await watch.waitFor({ timeout: 30_000 });
+    await watch.focus();
+    await page.keyboard.press("Enter");
+    const film = page.getByRole("dialog", { name: "Your bonsai over time" });
+    await film.waitFor({ timeout: 30_000 });
+    assert.equal(await film.getAttribute("aria-modal"), "true");
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press("Tab");
+      assert.equal(await film.evaluate(el => el.contains(document.activeElement)), true, `Tab ${i + 1} stays inside`);
+    }
+    const slider = film.getByRole("slider", { name: "Position in the film" });
+    await page.waitForFunction(() => document.querySelector('input[type="range"][aria-valuetext]'));
+    assert.match((await slider.getAttribute("aria-valuetext")) ?? "", /moment 1 of \d+/);
+    await page.keyboard.press("Escape");
+    await film.waitFor({ state: "detached" });
+    assert.equal(await watch.evaluate(el => el === document.activeElement), true, "focus back on the button");
+  }));
+
+test("Shadow asks no weather until the person turns it on", { skip: skip || (!IDS.includes("shadow") && "no shadow"), timeout: 600_000 }, () =>
+  withAll({}, async ({ page, base }) => {
+    const asked = [];
+    page.on("request", r => {
+      if (r.url().includes("modules.weather") && decodeURIComponent(r.url()).includes('"moduleId":"shadow"')) asked.push(r.url());
+    });
+    await page.goto(base + "/");
+    await page.locator('[data-module="shadow"]').first().waitFor({ state: "attached", timeout: 30_000 });
+    await page.waitForTimeout(3000);
+    assert.deepEqual(asked, [], "no weather request by default");
+    await page.goto(base + "/settings/store");
+    await page.locator('[data-store-item="shadow"]').getByRole("button", { name: /^Manage Shadow/ }).click();
+    await page.getByRole("menuitem", { name: "Settings" }).click();
+    const box = page.getByRole("checkbox", { name: /Clouds from the weather/ });
+    await box.waitFor();
+    await page.waitForFunction(() => !document.querySelector('[data-pref="weather"]')?.disabled);
+    const saved = page.waitForResponse(r => /modules\.storageSet(If)?/.test(r.url()) && r.request().postData()?.includes("shadow"));
+    await box.check();
+    await saved;
+    await page.goto(base + "/");
+    for (let i = 0; i < 30 && !asked.length; i++) await page.waitForTimeout(200);
+    assert.ok(asked.length > 0, "asked once turned on");
+  }));
