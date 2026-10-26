@@ -70,19 +70,21 @@ export async function restUser(req: Request, permission?: Permission): Promise<{
  * A session in use doesn't run out: past half its life it is extended to a
  * full one again (cookie too). Only an idle one expires.
  */
-async function renewIfHalfSpent(
-  opts: FetchCreateContextFnOptions,
+export async function renewIfHalfSpent(
+  opts: Pick<FetchCreateContextFnOptions, "req" | "resHeaders">,
   sessionId: string,
   cookie: string,
   expiresAt: Date,
-) {
+): Promise<Date | null> {
   const lifeMs = env.sessionDays * 24 * 3600 * 1000;
-  if (expiresAt.getTime() - Date.now() > lifeMs / 2) return;
+  if (expiresAt.getTime() - Date.now() > lifeMs / 2) return null;
+  const renewed = new Date(Date.now() + lifeMs);
   await getDb()
     .update(sessions)
-    .set({ expiresAt: new Date(Date.now() + lifeMs) })
+    .set({ expiresAt: renewed })
     .where(eq(sessions.id, sessionId));
   opts.resHeaders.append("Set-Cookie", sessionCookie(opts.req, cookie, lifeMs / 1000));
+  return renewed;
 }
 
 export async function createContext(

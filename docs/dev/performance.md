@@ -179,3 +179,36 @@ chunk), and the requested page's chunk starts with the session check instead of 
 Measured on login, dashboard, issue and a Settings section (2 runs each): login 100; the signed-in
 pages 99 (LCP ≈ 0.88–0.98 s, FCP ≈ 0.53 s). 100 there needs LCP ≈ 0.75 s, i.e. the page's data
 before its script (server rendering or a data preload): the same boundary as mobile, left out.
+
+### SSR: login and dashboard day
+
+`api/ssr.ts` renders only `/login` and the current Dashboard day; other periods and every other
+route keep the SPA. Per-request tRPC helpers populate React Query's dehydrated state, with no
+loopback HTTP or shared query client. The client hydrates that state; the native shell and
+local-only layouts use a client render instead. HTML is `private, no-store`, its CSP hashes the
+final inline scripts, and the service worker precaches only the anonymous `offline.html`.
+The dehydrated script is removed from the DOM as soon as it is read. Device-scoped timer and
+notification queries stay client-side; locale and initial clock are request-scoped. Hydration
+runs only when the local day/time zone and local-only layout match, otherwise the client renders.
+The session is revalidated before the HTML is sent, so a logout during rendering cannot restore it.
+
+The authenticated document reissues the existing session cookie with its remaining lifetime:
+Lighthouse supplies the cookie only for the navigation, so without it the later API calls failed
+and the run measured a redirect to login. Before hardening, mobile Dashboard scored 90 with
+LCP ≈ 2.85 s and TBT ≈ 20 ms, against 79–81 Performance and LCP ≈ 4.2–4.4 s before. After the
+security fixes, its three final runs scored 88, 89 and 95 (the other categories stayed 100);
+login scored 92 in all three (`perf/lighthouse/2026-10-26-12-50-26ab84a/summary.json`).
+
+Inlining the whole compiled CSS into SSR HTML was measured and reverted: the larger document made
+Performance fall to 80. SSR does not address Board/Issues DOM and hydration cost; their
+virtualization remains separate.
+
+The full matrix on this build (186 runs, `perf/lighthouse/2026-10-26-12-51-26ab84a/summary.json`)
+kept Accessibility, Best Practices and SEO at 100 everywhere. Performance was 99–100 desktop and
+81–97 mobile; Dashboard scored 100 desktop and 88–90 mobile, login 92–97 mobile. All 217 E2E and
+2221 unit tests passed.
+
+To measure the optimized build against development data, run `PORT=4173 pnpm dev:build` and point
+Lighthouse at `http://127.0.0.1:4173`. This serves the same built assets and SSR as production but
+keeps the development environment, login, APIs and database. `pnpm preview` is an alias. The normal
+`pnpm lighthouse` remains the reproducible matrix on its seeded, temporary database.

@@ -1,5 +1,5 @@
 // Boots the production bundle (dist/boot.js) on a free port with a temp
-// database and checks health, SPA fallback, asset caching and headers.
+// database and checks health, SSR, SPA/offline fallback, assets and headers.
 // Run after `pnpm build`.
 import { spawn } from "node:child_process";
 import { request } from "node:http";
@@ -57,6 +57,15 @@ async function waitForHealth() {
 try {
   const health = await waitForHealth();
   check((await health.json()).status === "ok", "/api/health reports ok");
+
+  const login = await fetch(`${base}/login`, { headers: { accept: "text/html" } });
+  const loginHtml = await login.text();
+  check(login.ok && loginHtml.includes('id="inkledger-ssr-state"') && loginHtml.includes("<form"), "login is rendered on the server");
+  check(login.headers.get("cache-control") === "private, no-store", "SSR HTML is private and never cached");
+  const loginCsp = login.headers.get("content-security-policy") ?? "";
+  check(loginCsp.split("sha256-").length >= 3 && !/script-src[^;]*unsafe-inline/.test(loginCsp), "SSR CSP hashes the final inline scripts");
+  const offline = await fetch(`${base}/offline.html`);
+  check(offline.ok && (await offline.text()).includes('<div id="root"></div>'), "offline shell is anonymous and client-rendered");
 
   const page = await fetch(`${base}/timesheet`, { headers: { accept: "text/html" } });
   check(page.ok && (await page.text()).includes('<div id="root">'), "SPA fallback serves index.html");

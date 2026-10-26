@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import "./index.css";
 import { TRPCProvider } from "@/providers/trpc";
@@ -7,6 +7,9 @@ import App from "./App.tsx";
 import { installNativeShell, isNative } from "@/lib/native";
 import { isPartFailure } from "@/components/app/lazyPart";
 import { currentLocale, LOCALES, loadLocale } from "@contracts/i18n";
+import { readSSRState } from "@/ssrState";
+import { SSRClockProvider } from "@/ssrClock";
+import { dayKey } from "@contracts/time";
 
 // zod without its JIT in the page: it would probe `new Function` (an eval the CSP blocks and
 // reports). Set before any chunk with zod loads (none is in the first load); validation is the same.
@@ -34,6 +37,7 @@ window.addEventListener("vite:preloadError", event => {
 });
 
 installNativeShell();
+const ssr = readSSRState();
 
 // The chosen language's texts before the first paint (English is in the bundle; another one
 // comes on demand), then the others while idle (a name in another language is recognized).
@@ -46,15 +50,36 @@ void loadLocale(currentLocale())
     else setTimeout(rest, 2000);
   });
 
-const render = () => createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <TRPCProvider>
-        <App />
-      </TRPCProvider>
-    </BrowserRouter>
-  </StrictMode>
-);
+const render = () => {
+  const root = document.getElementById("root")!;
+  const tree = (
+    <StrictMode>
+      <BrowserRouter>
+        <SSRClockProvider now={ssr?.now ?? null}>
+          <TRPCProvider dehydratedState={ssr?.dehydratedState}>
+            <App />
+          </TRPCProvider>
+        </SSRClockProvider>
+      </BrowserRouter>
+    </StrictMode>
+  );
+  let localLayout = false;
+  try {
+    localLayout = localStorage.getItem("ikl-sidebar-collapsed") === "1" || localStorage.getItem("inkledger-modules-off") === "1" || localStorage.getItem("ikl-first-tracker-skipped") === "1";
+    for (let i = 0; i < localStorage.length; i++) {
+      if (localStorage.key(i)?.startsWith("ikl.timerNote.")) localLayout = true;
+    }
+  } catch {
+    // Storage is optional.
+  }
+  const sameDay = ssr?.day === dayKey(new Date()) && ssr.timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (ssr && root.hasChildNodes() && ssr.locale === currentLocale() && sameDay && !isNative() && !localLayout) {
+    hydrateRoot(root, tree, { onRecoverableError: error => console.error("[hydration]", error) });
+  } else {
+    root.replaceChildren();
+    createRoot(root).render(tree);
+  }
+};
 
 // Installable app (PWA). Only in production: the dev server must stay uncached.
 // Not in the native app: its window loads the server live, no offline shell.

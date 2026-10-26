@@ -117,6 +117,8 @@ jobs:
           for _ in {1..60}; do curl -fs http://127.0.0.1:47823/api/health && break; sleep 1; done
           curl -fs http://127.0.0.1:47823/api/health | grep -q '"ok"'
           curl -fs -H 'accept: text/html' http://127.0.0.1:47823/timesheet | grep -q 'id="root"'
+          curl -fs -H 'accept: text/html' http://127.0.0.1:47823/login | grep -q 'id="inkledger-ssr-state"'
+          curl -fs http://127.0.0.1:47823/offline.html | grep -q '<div id="root"></div>'
           docker exec db psql -U inkledger -d inkledger -Atc "select count(*) from drizzle.__drizzle_migrations" | grep -qv '^0$'
           docker exec app sh -c 'PGPASSWORD=ci pg_dump -h db -U inkledger -Fc inkledger > /tmp/ci.dump && test -s /tmp/ci.dump'
       - name: Logs

@@ -83,7 +83,9 @@ test("the day is never logged on guesses: while today's worklogs can't be read, 
       if (failing && path.includes("worklogs.list")) return route.fulfill({ status: 500, contentType: "application/json", body: "[]" });
       return route.continue();
     });
-    await page.goto(base + "/");
+    // The explicit date keeps this on the SPA: the route failure is a client-side one,
+    // not a successful prefetch in the SSR document for today's plain URL.
+    await page.goto(base + "/?from=" + new Date().toLocaleDateString("en-CA"));
     await page.getByRole("button", { name: "Close the day" }).first().click();
     const sheet = page.getByRole("dialog", { name: "Close the day" });
     await sheet.waitFor();

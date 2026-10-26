@@ -32,6 +32,13 @@ let chosen: Locale | undefined = read();
 const listeners = new Set<() => void>();
 setLocaleSource(() => chosen);
 
+function rememberForServer() {
+  if (typeof document !== "undefined") {
+    document.cookie = `${KEY}=${currentLocale()}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  }
+}
+rememberForServer();
+
 function applyToDocument() {
   if (typeof document === "undefined") return; // node tests
   document.documentElement.lang = INTL_TAG[currentLocale()].slice(0, 2);
@@ -63,6 +70,7 @@ function apply(next: Locale): void {
   chosen = next;
   // No storage: this tab only.
   writeStored(KEY, next);
+  rememberForServer();
   applyToDocument();
   tellNativeShell();
   listeners.forEach(l => l());
@@ -75,6 +83,7 @@ export function useLocale(): Locale {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    currentLocale,
     currentLocale
   );
 }

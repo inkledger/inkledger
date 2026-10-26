@@ -62,9 +62,11 @@ app.use(async (c, next) => {
 // the plain-HTTP servers on :47823 / :3000 no longer opened there.
 app.use(secureHeaders({ strictTransportSecurity: false }));
 app.use(localeMiddleware);
-// JSON answers travel compressed (a catalogue of issues shrinks 30×); the event stream,
-// /api/events, never is: it would be held back until a buffer filled.
+// JSON and populated SSR HTML travel compressed; the event stream never is:
+// it would be held back until a buffer filled.
 app.use("/api/trpc/*", compress());
+app.use("/", compress());
+app.use("/login", compress());
 // Paths only: a query (tRPC inputs: an invite's token) or a webhook's token never reaches the log.
 if (env.isProduction) app.use("/api/*", requestLog());
 // JSON RPC stays small; only attachment uploads may carry files.
@@ -150,7 +152,7 @@ const g = globalThis as { __iklStopSync?: () => Promise<void> };
 void g.__iklStopSync?.();
 g.__iklStopSync = startSyncScheduler(env.syncIntervalMin);
 
-if (env.isProduction) {
+if (env.isProduction || env.serveBuild) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
@@ -158,24 +160,26 @@ if (env.isProduction) {
     void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
-  purge();
-  const purging = setInterval(purge, 6 * 3600 * 1000);
-  purging.unref();
-  // Module licences active on this server: renewed before they end (WP-19).
-  if (ACTIVATION_KEYS.length === 0) console.warn("[modules] no activation key in this build: licences are not tied to a server");
+  const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;
+  purging?.unref();
   const renew = () =>
     void validLicenses()
       .then((l) => renewActivations(l))
       .then((done) => done.forEach((d) => !d.result.ok && console.warn(`[modules] licence ${d.id.slice(0, 6)}…: ${d.result.reason}`)))
       .catch((e: unknown) => console.warn(`[modules] renewal: ${String(e)}`));
-  renew();
-  const renewing = setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs);
-  renewing.unref();
-  // Scheduled database backups (Settings → Backup): only here, not in dev.
-  const stopBackups = startBackupScheduler();
+  const renewing = env.isProduction ? setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs) : undefined;
+  renewing?.unref();
+  const stopBackups = env.isProduction ? startBackupScheduler() : undefined;
+  if (env.isProduction) {
+    purge();
+    // Module licences active on this server: renewed before they end (WP-19).
+    if (ACTIVATION_KEYS.length === 0) console.warn("[modules] no activation key in this build: licences are not tied to a server");
+    renew();
+  }
 
   const server = serve({ fetch: app.fetch, port: env.port }, () => {
     console.log(`Server running on http://localhost:${env.port}/`);
+    if (env.serveBuild) console.log("Serving the production build with the development configuration");
     if (env.readOnly) console.log("Read-only (PROVIDERS_READ_ONLY / JIRA_READ_ONLY): writes to trackers are refused");
   });
 
@@ -188,7 +192,7 @@ if (env.isProduction) {
     // Nor a purge, a licence renewal or a scheduled backup against a database about to close.
     clearInterval(purging);
     clearInterval(renewing);
-    stopBackups();
+    stopBackups?.();
     // Open event streams would keep server.close waiting forever.
     closeAllStreams();
     // Bounded: a pass stuck on Jira must not hold the exit until the hard kill.

@@ -1,39 +1,15 @@
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
+import { renderSSR } from "../ssr";
+import { contentSecurityPolicy } from "./csp";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
-/**
- * Content-Security-Policy for the built app. Inline scripts of the shell (theme preload) are
- * allowed by hash, nothing else inline; styles may be inline (style attributes, the cached
- * theme CSS, the Picture-in-Picture window).
- */
-export function contentSecurityPolicy(indexHtml: string): string {
-  const hashes = [...indexHtml.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
-    .map(([, code]) => `'sha256-${createHash("sha256").update(code).digest("base64")}'`);
-  return [
-    "default-src 'self'",
-    `script-src 'self' ${hashes.join(" ")}`.trim(),
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
-    // ipc: / ipc.localhost = the Tauri shell's bridge (native app, docs/native.md)
-    "connect-src 'self' ipc: http://ipc.localhost",
-    "worker-src 'self'",
-    "manifest-src 'self'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-  ].join("; ");
-}
-
 export function serveStaticFiles(app: App) {
-  const distPath = path.resolve(import.meta.dirname, "../dist/public");
+  const distPath = path.resolve(process.cwd(), "dist/public");
   const indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
   const csp = contentSecurityPolicy(indexHtml);
   app.use("*", async (c, next) => {
@@ -44,6 +20,14 @@ export function serveStaticFiles(app: App) {
     }
   });
 
+  app.use("*", async (c, next) => {
+    if ((c.req.header("accept") ?? "").includes("text/html")) {
+      const rendered = await renderSSR(c, indexHtml, contentSecurityPolicy);
+      if (rendered) return rendered;
+    }
+    await next();
+  });
+
   // Hashed build assets never change: cache them for a year.
   app.use("/assets/*", async (c, next) => {
     await next();
@@ -52,7 +36,7 @@ export function serveStaticFiles(app: App) {
   // Each text file has .br and .gz beside it (scripts/precompress.mjs): sent by Accept-Encoding.
   app.use("*", serveStatic({ root: "./dist/public", precompressed: true }));
 
-  // SPA fallback: always revalidate the shell so new deploys are picked up.
+  // Every route outside the SSR manifest keeps the SPA shell.
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";
     if (!accept.includes("text/html")) {

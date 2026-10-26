@@ -3,14 +3,17 @@ import { timerOnDay } from "@/lib/timerDay";
 import { trpc } from "@/lib/trpc";
 import { useLiveState } from "@/lib/liveEvents";
 import { clockNow, subscribeClock } from "@/lib/clock";
+import { useSSRClock } from "@/ssrClock";
 
 /** Current time, refreshed every `periodMs` while `active`, from one clock shared by every reader. */
 export function useNow(active: boolean, periodMs = 1000): number {
+  const initial = useSSRClock();
   const subscribe = useCallback(
     (listener: () => void) => (active ? subscribeClock(periodMs, listener) : () => {}),
     [active, periodMs]
   );
-  return useSyncExternalStore(subscribe, () => clockNow(periodMs));
+  const now = () => initial ?? clockNow(periodMs);
+  return useSyncExternalStore(subscribe, now, now);
 }
 
 /**
