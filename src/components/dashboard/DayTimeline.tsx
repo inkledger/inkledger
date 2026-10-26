@@ -199,7 +199,7 @@ export function DayTimeline({
             onClick={() => onGap?.(g)}
             title={t("views.dashboard.timeline.holeTitle", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
-            className="absolute bottom-6 top-3 z-10 flex min-w-1 items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none"
+            className="absolute bottom-6 top-3 z-10 flex min-w-1 items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
             style={{ left: `${g.left}%`, width: `${g.width}%` }}
           >
             {g.width > 7 && (
@@ -218,7 +218,7 @@ export function DayTimeline({
               onClick={() => quickStart.set(true)}
               aria-label={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
               title={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
-              className="absolute bottom-7 z-20 flex h-6 w-6 -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="absolute bottom-7 z-20 flex h-6 w-6 -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               style={{ left: `calc(${h.left + h.width}% - 2px)` }}
             >
               <Play className="h-3 w-3 fill-current" aria-hidden />
@@ -265,7 +265,9 @@ export function DayTimeline({
               >
                 {body}
                 {liveControls && (
-                  <div {...surface("control")} className="absolute bottom-1 right-1 z-30 rounded-md border bg-card">
+                  // At the block's end, unless that is the axis' first stretch (just past midnight):
+                  // there they'd stick out of the chart, so they open rightwards from its start.
+                  <div {...surface("control")} className={cn("absolute bottom-1 z-30 rounded-md border bg-card", b.left + b.width < 8 ? "left-1" : "right-1")}>
                     {liveControls}
                   </div>
                 )}
@@ -280,7 +282,7 @@ export function DayTimeline({
               aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: timeOfDay(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
               {...surface("bar")}
               className={cn(
-                "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
+                "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring",
                 b.lanes === 1 && "bottom-6 top-3",
                 b.color.solid
               )}

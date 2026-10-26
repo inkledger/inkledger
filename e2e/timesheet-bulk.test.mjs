@@ -7,11 +7,15 @@ import { awayFromMidnight, start } from "./harness.mjs";
 let github = 0;
 test("Select all, a day's own checkbox, and a delete that counts x/y", { timeout: 600_000 }, async () => {
   await awayFromMidnight();
-  // Two days of this week that are not today, each with three entries.
+  // Two days of this week that are not today (dates by local midnight, DST aside), each with three entries.
   const monday = new Date();
   monday.setHours(9, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const days = [0, 1].map(n => new Date(monday.getTime() + n * 86_400_000)).filter(d => d.toDateString() !== new Date().toDateString());
+  // Always two (on a Monday: Tuesday and Wednesday).
+  const days = [0, 1, 2]
+    .map(n => new Date(monday.getTime() + n * 86_400_000))
+    .filter(d => d.toDateString() !== new Date().toDateString())
+    .slice(0, 2);
   const app = await start({
     seed: async db => {
       const now = Date.now();

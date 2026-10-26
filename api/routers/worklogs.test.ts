@@ -105,7 +105,8 @@ describe("worklogs and stats", () => {
     const stats = await caller.stats.dashboard();
     expect(stats.todaySeconds).toBe(3600);
     expect(stats.weekSeconds).toBe(sumIn(weekStart, addDays(weekStart, 7)));
-    expect(stats.weekSeconds).toBeLessThan(3600 + 7200);
+    // Next week's entry never counts (next month's first day may fall in this week: a month's last week).
+    expect(stats.weekSeconds).toBeLessThan(3600 + 7200 + (sumIn(weekStart, addDays(weekStart, 7)) - 3600));
     expect(stats.monthSeconds).toBe(
       sumIn(monthStart, new Date(now.getFullYear(), now.getMonth() + 1, 1)),
     );
