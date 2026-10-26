@@ -87,7 +87,7 @@ export function QuickStatsCard({
                     <button
                       type="button"
                       onClick={s.onRetry}
-                      className="rounded-sm underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/40"
+                      className="rounded-sm underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {s.value} · {t("views.dashboard.quickStats.retry")}
                     </button>

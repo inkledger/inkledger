@@ -169,5 +169,9 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // coarse: a touch screen (a finger, not a mouse): bigger tap areas, same look.
+    ({ addVariant }) => addVariant("coarse", "@media (pointer: coarse)"),
+  ],
 };

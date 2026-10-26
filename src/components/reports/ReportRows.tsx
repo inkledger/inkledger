@@ -1,3 +1,4 @@
+import { surface } from "@/components/app/surface";
 import { useState } from "react";
 import { Link } from "react-router";
 import { formatDuration } from "@contracts/time";
@@ -157,6 +158,25 @@ export function ReportRows({
           ))}
         </tbody>
       </Table>
+      {/* The table's column sorts, on a phone: one native select (its own picker, big enough to tap). */}
+      <label className="flex items-center justify-end gap-2 pb-2 text-body-sm text-muted-foreground md:hidden">
+        {t("views.reports.rows.sortBy")}
+        <select
+          {...surface("control")}
+          className="min-h-touch rounded-md border bg-background px-2 text-body-sm text-foreground"
+          value={sort ? `${sort.key}:${sort.dir}` : ""}
+          onChange={e => {
+            const [key, dir] = e.target.value.split(":");
+            setSort(key ? { key: key as SortKey, dir: dir === "1" ? 1 : -1 } : null);
+          }}
+        >
+          <option value="">{t("views.reports.rows.sortDefault")}</option>
+          <option value="seconds:-1">{t("views.reports.rows.sortHoursDesc")}</option>
+          <option value="seconds:1">{t("views.reports.rows.sortHoursAsc")}</option>
+          <option value="label:1">{t("views.reports.rows.sortName")}</option>
+          <option value="entries:-1">{t("views.reports.rows.sortEntries")}</option>
+        </select>
+      </label>
       <ul className="divide-y border-t md:hidden">
         {sorted.map(r => (
           <li key={r.id ?? r.key} className="grid gap-2 py-3">
@@ -166,7 +186,7 @@ export function ReportRows({
               </div>
               <span className="shrink-0 text-body-sm tabular">
                 <span className="font-medium">{formatDuration(r.seconds)}</span>
-                <span className="text-muted-foreground"> · {r.entries}</span>
+                <span className="text-muted-foreground"> · {t("views.reports.rows.entryCount", { count: r.entries })}</span>
               </span>
             </div>
             <Meter

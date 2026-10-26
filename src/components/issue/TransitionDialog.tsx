@@ -60,7 +60,7 @@ function FieldInput({ field, value, error, onChange, provider }: { field: Field;
     case "multiChoice": {
       const picked = Array.isArray(value) ? value : [];
       return (
-        <fieldset className="grid gap-2">
+        <fieldset className="grid gap-2" id={id} tabIndex={-1} {...described}>
           <legend className="mb-1 text-body-sm font-medium">{field.name}</legend>
           {field.options.map(o => (
             <label key={o.id} className="flex items-center gap-2 text-body-sm">
@@ -161,6 +161,9 @@ export function TransitionDialog({
       const fields = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields;
       setErrors(fields ?? {});
       setError(fields ? null : failureText(e));
+      // The first refused field takes the focus (its error is tied to it): not left on Move.
+      const first = fields && tr?.requirements.find(f => fields[f.id]);
+      if (first) requestAnimationFrame(() => document.getElementById(`tf-${first.id}`)?.focus());
     },
   });
   const set = (id: string, v: Value | undefined) =>
@@ -175,11 +178,18 @@ export function TransitionDialog({
     <Dialog open={target !== null} onOpenChange={open => !open && onClose()}>
       <DialogContent>
         {!tr ? (
-          list.isPending ? (
-            <Spinner className="h-5 w-5" />
-          ) : (
-            <FormError message={list.error ? errorText(list.error) : null} />
-          )
+          // Named while it loads or fails: a screen reader says what opened.
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("pages.issueDetail.changeStatus")}</DialogTitle>
+              <DialogDescription className="sr-only">{issueKey}</DialogDescription>
+            </DialogHeader>
+            {list.isPending ? (
+              <Spinner className="h-5 w-5" />
+            ) : (
+              <FormError message={list.error ? errorText(list.error) : null} />
+            )}
+          </>
         ) : (
           <>
             <DialogHeader>

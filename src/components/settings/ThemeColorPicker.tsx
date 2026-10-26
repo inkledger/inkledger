@@ -150,20 +150,41 @@ export function ThemeColorPicker() {
         role="radiogroup"
         aria-label={t("settings.theme.presets")}
         className="flex flex-wrap gap-2"
+        // One radio group: arrows and Home/End choose, the focus follows (roving tabindex).
+        onKeyDown={e => {
+          const keys: Record<string, (i: number, n: number) => number> = {
+            ArrowRight: (i, n) => (i + 1) % n,
+            ArrowDown: (i, n) => (i + 1) % n,
+            ArrowLeft: (i, n) => (i - 1 + n) % n,
+            ArrowUp: (i, n) => (i - 1 + n) % n,
+            Home: () => 0,
+            End: (_, n) => n - 1,
+          };
+          const go = keys[e.key];
+          if (!go) return;
+          e.preventDefault();
+          const i = Math.max(0, THEME_PRESETS.findIndex(p => p.hex === current));
+          const n = go(i, THEME_PRESETS.length);
+          choose(THEME_PRESETS[n].hex);
+          e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[n]?.focus();
+        }}
       >
-        {THEME_PRESETS.map(p => {
+        {THEME_PRESETS.map((p, i) => {
           const active = p.hex === current;
+          // One Tab stop: the chosen preset (or the first, when a custom colour is chosen).
+          const stop = active || (!THEME_PRESETS.some(x => x.hex === current) && i === 0);
           return (
             <button
               key={p.hex}
               type="button"
               role="radio"
               aria-checked={active}
+              tabIndex={stop ? 0 : -1}
               {...surface("control")}
               title={p.name}
               onClick={() => choose(p.hex)}
               className={cn(
-                "group flex items-center gap-2 rounded-lg border bg-background py-1.5 pl-1.5 pr-3 text-caption transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "group flex items-center gap-2 rounded-lg border bg-background py-1.5 pl-1.5 pr-3 text-caption transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 active && "border-primary-strong/40 bg-primary-soft"
               )}
             >

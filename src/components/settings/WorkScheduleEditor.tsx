@@ -386,7 +386,7 @@ export function WorkScheduleEditor() {
                     setViewing(viewing === v.validFrom ? null : v.validFrom)
                   }
                   className={cn(
-                    "rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
                     viewing === v.validFrom && "font-semibold"
                   )}
                 >

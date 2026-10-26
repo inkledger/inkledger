@@ -2,6 +2,7 @@ import type { Tree } from "../core";
 
 export const ui = {
   nav: {
+    backTo: "Back to {label} ({keys})",
     main: "Main",
     analysis: "Analysis",
     other: "More",
@@ -183,6 +184,10 @@ export const ui = {
     start: "start",
     open: "open",
     close: "close",
+  },
+  toast: {
+    region: "Notifications",
+    close: "Close notification",
   },
   dirty: {
     title: "Discard your changes?",

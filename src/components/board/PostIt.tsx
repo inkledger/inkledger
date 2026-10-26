@@ -149,7 +149,7 @@ export function PostIt({
       {...surface("note")}
       data-dragging={drag ? "" : undefined}
       className={cn(
-        "note-shadow absolute left-0 top-0 touch-none select-none rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2",
+        "note-shadow absolute left-0 top-0 touch-none select-none rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         drag ? "cursor-grabbing" : !editing && "cursor-grab"
       )}
       style={{
@@ -277,7 +277,7 @@ export function PostIt({
               }}
               aria-label={t("views.board.postit.noteLabel")}
               placeholder={t("views.board.postit.notePlaceholder")}
-              className="min-h-0 flex-1 resize-none rounded-sm bg-card/50 p-1 text-body-sm leading-snug text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="min-h-0 flex-1 resize-none rounded-sm bg-card/50 p-1 text-body-sm leading-snug text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           ) : todo ? (
             <div className="flex min-h-0 items-start gap-2">
@@ -337,7 +337,7 @@ export function PostIt({
               {...surface("chip")}
               onClick={() => onColor(c)}
               className={cn(
-                "h-3 w-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "h-3 w-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 c === color && "ring-1 ring-foreground/50 ring-offset-1 ring-offset-transparent"
               )}
               style={{ background: tape(c) }}
@@ -353,7 +353,7 @@ export function PostIt({
                 aria-label={t("views.board.postit.createIssueLabel")}
                 title={t("views.board.postit.createIssue")}
                 onClick={onCreateIssue}
-                className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40"
+                className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
               </button>
@@ -366,7 +366,7 @@ export function PostIt({
                     type="button"
                     aria-label={t("views.board.postit.actions", { name: n.issueKey ?? t("views.board.postit.free") })}
                     title={t("views.board.postit.actionsTitle")}
-                    className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=open]:opacity-100"
+                    className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100"
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </button>

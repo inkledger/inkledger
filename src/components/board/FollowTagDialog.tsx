@@ -60,7 +60,7 @@ function TagList({ onPick }: { onPick: (tag: FollowedTag) => Promise<unknown> })
                   setBusy(true);
                   void onPick({ field: x.field, value: x.value }).finally(() => setBusy(false));
                 }}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               >
                 <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{x.value}</span>

@@ -76,7 +76,7 @@ export default function Login() {
               type="button"
               disabled={p.url === here}
               onClick={() => void switchTo(p.url)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body-sm transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:hover:bg-transparent"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body-sm transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:hover:bg-transparent"
             >
               <ProfileRow profile={p} current={p.url === here} />
             </button>

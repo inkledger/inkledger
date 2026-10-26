@@ -341,7 +341,7 @@ export const pages: Shape<typeof en> = {
     deleteWorklog: "Elimina worklog",
     attachments: "Allegati",
     deleteTitle: "Eliminare il worklog?",
-    deleteText: "Verrà eliminato sia da {provider} sia dall'archivio locale. L'operazione non è reversibile.",
+    deleteText: "Verrà eliminato da {provider} e da qui. Resta in Eliminati di recente per 30 giorni: ripristinarlo lo registra di nuovo come nuova voce su {provider}.",
     cancel: "Annulla",
     delete: "Elimina",
   },

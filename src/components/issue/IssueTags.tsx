@@ -71,7 +71,7 @@ function TagChip({ field, value }: { field: Field; value: string }) {
           type="button"
           {...surface("chip")}
           aria-label={t(field === "component" ? "pages.issueDetail.tagComponentActions" : "pages.issueDetail.tagLabelActions", { value })}
-          className="inline-flex max-w-full items-center rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="inline-flex max-w-full items-center rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="truncate">{value}</span>
         </button>

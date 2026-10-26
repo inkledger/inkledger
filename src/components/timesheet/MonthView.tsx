@@ -56,7 +56,7 @@ export function MonthView({
                   onClick={() => onOpenDay(c.date)}
                   {...surface("control")}
                   className={cn(
-                    "flex w-full flex-col gap-1.5 rounded-xl border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "flex w-full flex-col gap-1.5 rounded-xl border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     c.key === todayKey &&
                       "border-primary-strong/40 bg-primary-soft"
                   )}
@@ -106,7 +106,7 @@ export function MonthView({
                 }`}
                 aria-current={isToday ? "date" : undefined}
                 className={cn(
-                  "flex min-h-20 flex-col justify-between rounded-xl border p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "flex min-h-20 flex-col justify-between rounded-xl border p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   !c.inMonth && "bg-canvas text-muted-foreground",
                   isToday && "border-primary-strong/40 bg-primary-soft"
                 )}

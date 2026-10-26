@@ -131,7 +131,7 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
       aria-current={active ? "page" : undefined}
       {...surface("nav", { current: true, edge: false })}
       className={cn(
-        "group flex min-w-0 items-center gap-3 rounded-md px-3 py-2 outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring/40",
+        "group flex min-w-0 items-center gap-3 rounded-md px-3 py-2 outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring",
         active && "lg:bg-primary-soft lg:text-primary-strong"
       )}
     >

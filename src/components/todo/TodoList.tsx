@@ -392,7 +392,7 @@ function TodoRow({
         data-todo-row
         tabIndex={0}
         aria-label={x.text}
-        className="group flex items-start gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="group flex items-start gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
         onKeyDown={e => {
           if (mode !== "view") return;
           if (e.target === e.currentTarget && (e.key === "e" || e.key === "Enter")) {
@@ -453,20 +453,20 @@ function TodoRow({
               showIssue &&
               x.issueKey &&
               at && (
-                <Link to={at} title={x.summary ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+                <Link to={at} title={x.summary ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                   <Link2 className="h-3 w-3 shrink-0" aria-hidden />
                   <span className="truncate">{x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}</span>
                 </Link>
               )
             )}
             {x.commentId && at && (
-              <Link to={`${at}#comment-${encodeURIComponent(x.commentId)}`} title={x.commentExcerpt ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+              <Link to={`${at}#comment-${encodeURIComponent(x.commentId)}`} title={x.commentExcerpt ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                 <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{t("views.todos.fromComment")}</span>
               </Link>
             )}
             {x.issueNoteId && at && (
-              <Link to={`${at}#note-${x.issueNoteId}`} title={x.noteBody ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40">
+              <Link to={`${at}#note-${x.issueNoteId}`} title={x.noteBody ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                 <NotebookPen className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="truncate">{t("views.todos.fromNote")}</span>
               </Link>
@@ -489,7 +489,7 @@ function TodoRow({
             title={t(working ? "views.todos.workStop" : x.issueKey ? "views.todos.workStartIssue" : "views.todos.workStart", { text: x.text })}
             onClick={onWork}
             className={cn(
-              "rounded p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              "rounded p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring",
               working ? "text-primary-strong" : "text-muted-foreground opacity-60 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
             )}
           >
@@ -501,7 +501,7 @@ function TodoRow({
             <button
               type="button"
               aria-label={t("views.todos.actions", { text: x.text })}
-              className="rounded p-0.5 text-muted-foreground opacity-60 outline-none hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/40 group-hover:opacity-100 data-[state=open]:opacity-100"
+              className="rounded p-0.5 text-muted-foreground opacity-60 outline-none hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 data-[state=open]:opacity-100"
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>

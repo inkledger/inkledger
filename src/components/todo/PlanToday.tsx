@@ -88,7 +88,7 @@ export function PlanToday({ today, late, onChanged }: { today: Date; late: { id:
                   aria-label={t("views.todos.putOff", { key: s.issueKey })}
                   title={t("views.todos.putOff", { key: s.issueKey })}
                   onClick={() => putOff(s.source)}
-                  className="rounded p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="rounded p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden />
                 </button>

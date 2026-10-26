@@ -67,7 +67,7 @@ export function MobileTimerSheet({
               <Link
                 to={issuePath({ key: timer.issueKey, connectionId: timer.connectionId })}
                 onClick={() => onOpenChange(false)}
-                className="flex min-w-0 items-baseline gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                className="flex min-w-0 items-baseline gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="shrink-0 text-body-sm font-semibold tabular">{timer.issueKey}</span>
                 <span className="truncate text-body-sm text-muted-foreground">

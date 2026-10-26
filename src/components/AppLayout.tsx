@@ -178,7 +178,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   // One row for both widths: the icon keeps its place while the width
   // animates, the label only shows open. Nothing moves on toggling.
   const row =
-    "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+    "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   const label = cn("min-w-0 truncate", collapsed && "sr-only");
   const icon = "h-[18px] w-[18px] shrink-0";
   // A count beside a row: a number open, a dot on the icon closed.
@@ -287,7 +287,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                   aria-pressed={panelOpen}
                   onClick={() => togglePinboard(pathname, true)}
                   className={cn(
-                    "absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
                     panelOpen && "text-primary-strong"
                   )}
                 >
@@ -503,7 +503,7 @@ export function AppLayout() {
           <Link
             to="/"
             aria-label={t("ui.layout.homeLink")}
-            className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <BrandMark className="h-8 w-8" />
             <span className="font-display font-semibold">{BRAND_SHORT}</span>

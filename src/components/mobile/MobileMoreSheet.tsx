@@ -23,7 +23,7 @@ import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 
 const TILE =
-  "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+  "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * "More" from the tab bar: the sections not in the bar, the pinboard and the

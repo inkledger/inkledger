@@ -59,19 +59,19 @@ export function PeriodPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1.5">
-        <ul role="listbox" aria-label={t("views.reports.period.preset")} className="grid">
+        {/* Plain buttons (Tab moves, Enter picks): no listbox it couldn't be operated as. */}
+        <ul aria-label={t("views.reports.period.preset")} className="grid">
           {PRESET_OPTIONS.map(p => (
             <li key={p.value}>
               <button
                 type="button"
-                role="option"
-                aria-selected={p.value === preset}
+                aria-pressed={p.value === preset}
                 onClick={() => {
                   onPreset(p.value);
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-body-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-body-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   p.value === preset && "font-medium"
                 )}
               >

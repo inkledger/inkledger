@@ -4,6 +4,13 @@ import type { views as en } from "../en/views";
 export const views: Shape<typeof en> = {
   dashboard: {
     bars: {
+      tableCaption: "Ore per giorno",
+      day: "Giorno",
+      logged: "Registrato",
+      target: "Obiettivo",
+      pending: "Tracciato, non registrato",
+      projects: "Progetti",
+      todo: "Tempo TODO (non conteggiato)",
       toLog: " + {duration} da registrare",
       todoTime: " · tempo TODO {duration} a fianco, {gap} senza issue (non contato)",
       todoLinked: "Tempo TODO con il timer della sua issue",
@@ -608,6 +615,13 @@ export const views: Shape<typeof en> = {
   reports: {
     period: { preset: "Periodo predefinito", from: "Dal", to: "Al" },
     rows: {
+      sortBy: "Ordina per",
+      sortDefault: "Come in elenco",
+      sortHoursDesc: "Ore, prima le più alte",
+      sortHoursAsc: "Ore, prima le più basse",
+      sortName: "Nome, dalla A alla Z",
+      sortEntries: "Voci, prima le più numerose",
+      entryCount: { one: "{count} voce", other: "{count} voci" },
       day: "Giorno",
       issue: "Issue",
       project: "Progetto",

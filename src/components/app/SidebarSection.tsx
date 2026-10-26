@@ -40,7 +40,7 @@ export function SidebarSection({
           aria-expanded={open}
           aria-controls={id}
           onClick={() => sidebarSections.toggle(name)}
-          className="group flex items-center gap-1 rounded-sm px-3 text-overline uppercase text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="group flex items-center gap-1 rounded-sm px-3 text-overline uppercase text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           {title ?? name}
           <ChevronDown

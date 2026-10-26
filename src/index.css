@@ -739,3 +739,18 @@ html.ikl-hit-cursor,
 html.ikl-hit-cursor * {
   cursor: pointer !important;
 }
+
+/*
+ * Reduced motion, app-wide: dialogs, sheets, menus, popovers and spinners stand still. A near-zero
+ * duration (not none) so exits that wait for animationend (Radix presence) still finish at once.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

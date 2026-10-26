@@ -87,7 +87,7 @@ function HistoryLink({
         e.preventDefault();
         issueHistory.open(issueKey, connectionId);
       }}
-      className="inline-flex items-center gap-1 rounded-sm underline decoration-dotted underline-offset-4 outline-none hover:text-foreground hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring/40"
+      className="inline-flex items-center gap-1 rounded-sm underline decoration-dotted underline-offset-4 outline-none hover:text-foreground hover:decoration-solid focus-visible:ring-2 focus-visible:ring-ring"
     >
       <History className="h-3 w-3" aria-hidden />
       {children}

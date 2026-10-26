@@ -139,7 +139,7 @@ export function NotificationItem({
           onDismiss(n.id);
           onOpen?.();
         }}
-        className="min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="min-w-0 flex-1 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="flex min-w-0 items-center gap-2">
           <ProjectAvatar project={projectOf(n.issueKey)} size="xs" connectionId={n.connectionId} />

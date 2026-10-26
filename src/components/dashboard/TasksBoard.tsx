@@ -100,7 +100,7 @@ export function TasksBoard({
             aria-label={t("views.dashboard.tasks.expandColumn", { title: col.title, total: col.total })}
             title={t("views.dashboard.tasks.expand", { title: col.title })}
             {...surface("control")}
-            className="flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-11 sm:flex-col sm:px-0 sm:py-3"
+            className="flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:w-11 sm:flex-col sm:px-0 sm:py-3"
           >
             <ChevronsLeftRight
               className="h-4 w-4 text-muted-foreground"
@@ -125,7 +125,7 @@ export function TasksBoard({
                   aria-expanded
                   aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
                   title={t("views.dashboard.tasks.collapse", { title: col.title })}
-                  className="rounded p-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="rounded p-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ChevronsRightLeft className="h-4 w-4" />
                 </button>

@@ -46,7 +46,7 @@ export function AccountMenu({
         <button
           type="button"
           // The same open and closed in the sidebar: the avatar keeps its place, the name shows open.
-          className="flex h-11 w-full shrink-0 items-center gap-3 rounded-md pl-3 pr-2 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="flex h-11 w-full shrink-0 items-center gap-3 rounded-md pl-3 pr-2 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {/* The avatar clips its picture: it stands on a wrapper. */}
           <span {...surface("picture", { role: "wrap" })} className="shrink-0 rounded-full">

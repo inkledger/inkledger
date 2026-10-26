@@ -79,7 +79,7 @@ export function SettingsGroup({
               aria-expanded={shown}
               aria-controls={bodyId}
               onClick={toggle}
-              className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-left font-semibold outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-left font-semibold outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ChevronRight
                 aria-hidden
@@ -182,7 +182,7 @@ export function SettingsDisclosure({
           setOpen(!shown);
           writeOpen(id, !shown);
         }}
-        className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-body-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-body-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight aria-hidden className={cn("h-4 w-4 transition-transform", shown && "rotate-90")} />
         {title}

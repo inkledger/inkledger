@@ -148,7 +148,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
                   type="button"
                   onClick={() => setViewing(index)}
                   aria-label={t("views.issue.attachments.open", { name: a.filename })}
-                  className="group block w-full overflow-hidden rounded-xl border bg-card text-left outline-none transition-shadow hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="group block w-full overflow-hidden rounded-xl border bg-card text-left outline-none transition-shadow hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex h-24 items-center justify-center overflow-hidden bg-muted">
                     {isImage ? (

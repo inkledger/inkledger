@@ -14,7 +14,7 @@ export const settings: Shape<typeof en> = {
     connections: {
       label: "Connessioni",
       description: "I tracker che colleghi: Jira, GitHub e altri.",
-      keywords: "connessioni tracker jira github aggiungi collega",
+      keywords: "connessioni tracker jira github gitlab azure linear redmine aggiungi collega webhook repository repo token chiave api accesso personale siti account",
       count: { one: "1 tracker", other: "{count} tracker" },
     },
     buckets: {
@@ -25,7 +25,7 @@ export const settings: Shape<typeof en> = {
     clients: {
       label: "Committenti",
       description: "Per chi è il lavoro, tra i tracker: ricerca, bucket e report per committente.",
-      keywords: "committenti clienti progetti report",
+      keywords: "committenti clienti progetti repository repo report",
       count: { one: "1 committente", other: "{count} committenti" },
     },
     users: {
@@ -37,7 +37,7 @@ export const settings: Shape<typeof en> = {
     schedule: {
       label: "Orario di lavoro",
       description: "Ore e pause della settimana, con lo storico delle versioni.",
-      keywords: "orario ore pausa pranzo settimana obiettivo giorni storico versioni",
+      keywords: "orario ore pausa pranzo settimana obiettivo giorni giorni lavorativi storico versioni",
       summary: "{duration}/sett.",
     },
     timer: {

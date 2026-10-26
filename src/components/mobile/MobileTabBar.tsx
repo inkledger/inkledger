@@ -15,7 +15,7 @@ import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 
 const CELL =
-  "relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+  "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 /** Active tab: accent text and a short bar on the top edge (as in the sidebar). */
 const ACTIVE =
   "text-primary-strong before:absolute before:-top-1 before:h-0.5 before:w-6 before:rounded-full before:bg-primary";
@@ -37,7 +37,7 @@ function Tab({ to }: { to: string }) {
         // Tapping the page you are on takes you back to its top.
         if (pathname !== to) return;
         e.preventDefault();
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       }}
       className={({ isActive }) => cn(CELL, isActive && ACTIVE)}
       // Stands out only while it is the current page (aria-current, set by NavLink).
@@ -74,7 +74,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
   // Raised by its offset, not a transform: a transform would make it its own
   // layer and a light's shadow would fall on its face.
   const round =
-    "relative -top-3 flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring/60";
+    "relative -top-3 flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring";
 
   if (!timer) {
     return (

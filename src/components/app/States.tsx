@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 export function PageSpinner() {
   return (
     <div className="flex min-h-[50vh] items-center justify-center" role="status">
-      <Spinner className="h-6 w-6" />
+      <Spinner decorative className="h-6 w-6" />
       <span className="sr-only">{t("ui.app.loading")}</span>
     </div>
   );

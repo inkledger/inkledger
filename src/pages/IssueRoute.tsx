@@ -44,7 +44,7 @@ function WhichIssue({ issueKey, candidates }: { issueKey: string; candidates: { 
             <Link
               to={issuePath({ key: c.key, connectionId: c.connectionId, remoteId: c.remoteId })}
               {...surface("card")}
-              className="block rounded-lg border bg-card p-3 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="block rounded-lg border bg-card p-3 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="block truncate text-body-sm font-medium">{c.summary}</span>
               <span className="block truncate text-caption text-muted-foreground">{where(c.connectionId)}</span>

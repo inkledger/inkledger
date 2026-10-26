@@ -189,6 +189,38 @@ export function PeriodBars({
           )
           .join("; ")}
       </figcaption>
+      {/* What the bars draw, as a table for a screen reader: projects, target and pending per day. */}
+      <table className="sr-only">
+        <caption>{t("views.dashboard.bars.tableCaption")}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t("views.dashboard.bars.day")}</th>
+            <th scope="col">{t("views.dashboard.bars.logged")}</th>
+            <th scope="col">{t("views.dashboard.bars.target")}</th>
+            {pending && <th scope="col">{t("views.dashboard.bars.pending")}</th>}
+            <th scope="col">{t("views.dashboard.bars.projects")}</th>
+            {parallel && <th scope="col">{t("views.dashboard.bars.todo")}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {stacks.map((s, i) => (
+            <tr key={dayKey(s.day)}>
+              <th scope="row">{dateFormat({}).format(s.day)}</th>
+              <td>{formatDurationLong(totals[i])}</td>
+              <td>{targets[i] > 0 ? formatDurationLong(targets[i]) : "—"}</td>
+              {pending && <td>{dayKey(s.day) === today && pendingSeconds > 0 ? formatDurationLong(pendingSeconds) : "—"}</td>}
+              <td>
+                {s.parts
+                  .filter(p => p.seconds > 0)
+                  .sort((a, b) => b.seconds - a.seconds)
+                  .map(p => `${p.project} ${formatDurationLong(p.seconds)}`)
+                  .join(", ") || "—"}
+              </td>
+              {parallel && <td>{besides[i] && besides[i].linked + besides[i].gap >= 60 ? formatDurationLong(besides[i].linked + besides[i].gap) : "—"}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </figure>
   );
 }

@@ -340,7 +340,7 @@ export const pages = {
     deleteWorklog: "Delete worklog",
     attachments: "Attachments",
     deleteTitle: "Delete the worklog?",
-    deleteText: "It will be deleted from both {provider} and the local archive. This can't be undone.",
+    deleteText: "It will be deleted from {provider} and from here. It stays in Recently deleted for 30 days: restoring it logs it again as a new entry on {provider}.",
     cancel: "Cancel",
     delete: "Delete",
   },

@@ -3,6 +3,13 @@ import type { Tree } from "../core";
 export const views = {
   dashboard: {
     bars: {
+      tableCaption: "Hours per day",
+      day: "Day",
+      logged: "Logged",
+      target: "Target",
+      pending: "Tracked, not logged",
+      projects: "Projects",
+      todo: "TODO time (not counted)",
       toLog: " + {duration} to log",
       todoTime: " · TODO time {duration} beside it, {gap} of it with no issue (not counted)",
       todoLinked: "TODO time with its issue's timer",
@@ -600,6 +607,13 @@ export const views = {
   reports: {
     period: { preset: "Preset period", from: "From", to: "To" },
     rows: {
+      sortBy: "Sort by",
+      sortDefault: "As listed",
+      sortHoursDesc: "Hours, most first",
+      sortHoursAsc: "Hours, least first",
+      sortName: "Name, A to Z",
+      sortEntries: "Entries, most first",
+      entryCount: { one: "{count} entry", other: "{count} entries" },
       day: "Day",
       issue: "Issue",
       project: "Project",

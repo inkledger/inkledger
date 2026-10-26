@@ -1,3 +1,4 @@
+import { MOD_KEY } from "@/lib/dom";
 import { toastError } from "@/lib/errorText";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -274,7 +275,7 @@ export function QuickStart() {
           {onPick ? t("ui.quickStart.pick") : t("ui.quickStart.start")}
         </span>
         <span className="flex items-center gap-1">
-          <Kbd>{`⌘ ${t("ui.keys.enter")}`}</Kbd>{" "}
+          <Kbd>{`${MOD_KEY} ${t("ui.keys.enter")}`}</Kbd>{" "}
           {t("ui.quickStart.open")}
         </span>
         <span className="flex items-center gap-1">

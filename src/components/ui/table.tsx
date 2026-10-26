@@ -70,7 +70,7 @@ function SortableHead({
         type="button"
         onClick={onSort}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
+          "inline-flex items-center gap-1.5 rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
           sort !== "none" && "text-foreground"
         )}
       >

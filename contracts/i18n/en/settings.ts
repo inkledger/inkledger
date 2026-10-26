@@ -13,7 +13,7 @@ export const settings = {
     connections: {
       label: "Connections",
       description: "The trackers you connect: Jira, GitHub and more.",
-      keywords: "connections trackers jira github add connect",
+      keywords: "connections trackers jira github gitlab azure linear redmine add connect webhook repository repo token api key personal access sites accounts",
       count: { one: "1 tracker", other: "{count} trackers" },
     },
     buckets: {
@@ -24,7 +24,7 @@ export const settings = {
     clients: {
       label: "Clients",
       description: "Who the work is for, across trackers: searches, buckets and reports by client.",
-      keywords: "clients customers committenti projects reports",
+      keywords: "clients customers committenti projects repositories repos reports",
       count: { one: "1 client", other: "{count} clients" },
     },
     users: {
@@ -36,7 +36,7 @@ export const settings = {
     schedule: {
       label: "Work schedule",
       description: "Weekly hours and breaks, with the history of versions.",
-      keywords: "schedule hours break lunch week target days history versions",
+      keywords: "schedule hours break lunch week target days working days history versions",
       summary: "{duration}/wk",
     },
     timer: {

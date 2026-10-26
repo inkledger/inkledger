@@ -94,3 +94,34 @@ test("a transition's form starts clean each time: no value or error left from th
     assert.equal(await dialog.getByText("Required").count(), 0, "no error left over");
     assert.doesNotMatch(await dialog.getByRole("combobox", { name: "Risoluzione" }).innerText(), /Non risolvibile/, "no value left over");
   }));
+
+test("the transition dialog is named while it loads, and a refused field takes the focus with its error tied to it", () =>
+  withApp({}, async ({ page, base }) => {
+    const sent = [];
+    let release = () => {};
+    const held = new Promise(r => (release = r));
+    await fakeJiraTransitions(page, sent);
+    // Registered last, asked first: the list held, then the fake above answers.
+    let asked = 0;
+    await page.route(/\/api\/trpc\/[^?]*issues\.transitions/, async route => {
+      // The menu's own read goes; the dialog's (it reads afresh on opening) is held.
+      if (++asked > 1) await held;
+      return route.fallback();
+    });
+    await page.goto(base + "/issues/DEMO-101");
+    await page.getByRole("combobox", { name: "Change status" }).click();
+    await page.getByRole("option", { name: "Chiuso" }).click().catch(() => {});
+    // Loading: still a named dialog (a screen reader says what opened).
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+    // Named from the first frame (the loading branch has its own title, "Change status").
+    assert.ok((await dialog.getByRole("heading").count()) >= 1, "named while it loads");
+    release();
+    await dialog.getByRole("heading", { name: "Move to Chiuso" }).waitFor();
+    await dialog.getByRole("button", { name: "Move" }).click();
+    await dialog.getByText("Required").waitFor();
+    const field = dialog.getByRole("combobox", { name: "Risoluzione" });
+    assert.equal(await field.evaluate(el => el === document.activeElement), true, "focus on the refused field");
+    const described = await field.getAttribute("aria-describedby");
+    assert.ok(described && (await page.locator(`[id="${described}"]`).innerText()).includes("Required"), "its error tied to it");
+  }));

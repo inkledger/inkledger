@@ -433,7 +433,7 @@ export function Pinboard({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 font-display text-body font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 font-display text-body font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t("views.board.pinboard.switch", { name: board?.name ?? "…" })}
             >
               <span className="truncate">{board?.name ?? t("views.board.pinboard.title")}</span>
@@ -591,7 +591,7 @@ export function Pinboard({
           tabIndex={0}
           aria-label={t("views.board.pinboard.area")}
           className={cn(
-            "no-scrollbar h-full overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40",
+            "no-scrollbar h-full overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
             panning ? "cursor-grabbing" : "cursor-grab"
           )}
           onScroll={measure}
@@ -764,7 +764,7 @@ export function Pinboard({
                 aria-label={t("views.board.pinboard.beyondLabel", { count: e.count, edge: edgeLabel(edge) })}
                 title={t("views.board.pinboard.beyond", { count: e.count, edge: edgeLabel(edge) })}
                 className={cn(
-                  "absolute z-[1000] flex items-center gap-1 rounded-full border bg-card/95 px-2 py-0.5 text-caption font-medium text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "absolute z-[1000] flex items-center gap-1 rounded-full border bg-card/95 px-2 py-0.5 text-caption font-medium text-muted-foreground shadow-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
                   EDGE_PLACE[edge]
                 )}
               >

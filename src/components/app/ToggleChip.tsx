@@ -21,7 +21,7 @@ export function ToggleChip({
       // Stands out when it has a ground of its own: pressed, or the small filters' (always opaque).
       {...surface("control", { on: pressed || size === "sm" })}
       className={cn(
-        "rounded-md border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
+        "rounded-md border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
         size === "md"
           ? "px-2.5 py-1 text-body-sm tabular"
           : "inline-flex h-7 items-center gap-1.5 px-2.5 text-caption font-medium",

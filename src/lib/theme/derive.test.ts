@@ -225,4 +225,21 @@ describe("static fallback tokens", () => {
       }
     }
   });
+  it("the focus ring stands out at 3:1 on cards, the canvas and popovers, in every preset and extreme, light and dark", () => {
+    const surfaces = ["--card", "--canvas", "--popover", "--background"];
+    for (const base of [...THEME_PRESETS.map(p => p.hex), ...EXTREMES, DEFAULT_BASE]) {
+      const pal = derivePalette(base);
+      for (const mode of ["light", "dark"] as const) {
+        const ring = rgbOf(pal[mode]["--ring"]);
+        for (const sfc of surfaces) {
+          if (!pal[mode][sfc]) continue;
+          const bg = rgbOf(pal[mode][sfc]);
+          expect(contrast(ring, bg), `${base} ${mode} ring on ${sfc}`).toBeGreaterThanOrEqual(3);
+          // The ring at 40% (what the app used): mixed into the surface, it fell under 3:1.
+          const mixed = { r: ring.r * 0.4 + bg.r * 0.6, g: ring.g * 0.4 + bg.g * 0.6, b: ring.b * 0.4 + bg.b * 0.6 };
+          if (base === DEFAULT_BASE && mode === "light" && sfc === "--card") expect(contrast(mixed, bg)).toBeLessThan(3);
+        }
+      }
+    }
+  });
 });

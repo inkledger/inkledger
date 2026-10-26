@@ -3,6 +3,7 @@ import type { ui as en } from "../en/ui";
 
 export const ui: Shape<typeof en> = {
   nav: {
+    backTo: "Torna a {label} ({keys})",
     main: "Principale",
     analysis: "Analisi",
     other: "Altro",
@@ -184,6 +185,10 @@ export const ui: Shape<typeof en> = {
     start: "avvia",
     open: "apri",
     close: "chiudi",
+  },
+  toast: {
+    region: "Notifiche",
+    close: "Chiudi notifica",
   },
   dirty: {
     title: "Scartare le modifiche?",

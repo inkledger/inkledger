@@ -25,6 +25,14 @@ export function inFloat(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("[data-pinboard-float], [data-todo-float]") !== null;
 }
 
+const APPLE = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** The platform's command key, as shortcuts are written: ⌘ on Apple devices, Ctrl elsewhere. */
+export const MOD_KEY = APPLE ? "⌘" : "Ctrl";
+
+/** "Back" by keyboard, as the platform has it. */
+export const BACK_KEYS = APPLE ? "⌘[" : "Alt+←";
+
 /** Shortcut label for the command palette, per platform. */
 export const PALETTE_SHORTCUT =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)

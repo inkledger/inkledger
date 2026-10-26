@@ -122,7 +122,7 @@ export function TimerNote({
         placeholder={t("ui.timerNote.placeholder")}
         aria-invalid={failed || undefined}
         className={cn(
-          "w-full rounded-md bg-transparent px-2 py-1 text-caption outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent/60 focus:bg-background focus:ring-1 focus:ring-ring/30",
+          "w-full rounded-md bg-transparent px-2 py-1 text-caption outline-none transition-colors placeholder:text-muted-foreground hover:bg-accent/60 focus:bg-background focus-visible:ring-1 focus-visible:ring-ring",
           inputClassName
         )}
       />

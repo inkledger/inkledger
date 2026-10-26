@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -39,7 +40,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         className="toaster group"
         // Every toast can be closed by hand, without acting on it.
         closeButton
+        containerAriaLabel={t("ui.toast.region")}
         toastOptions={{
+          closeButtonAriaLabel: t("ui.toast.close"),
           classNames: {
             // No !important shadow: a module drawing the light (Shadow) must be able to replace it.
             toast: "!rounded-xl !font-sans",

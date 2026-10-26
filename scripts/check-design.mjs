@@ -66,6 +66,19 @@ function* walkAll(dir) {
     else if (p.endsWith(".tsx")) yield p;
   }
 }
+// The keyboard focus must show (3:1 against what is around it): the ring colour opaque, never
+// faded (ring-ring/40 measured 1.7:1 on a card). ui primitives included.
+const FADED_FOCUS = /\b(?:focus|focus-visible|focus-within):ring-ring\/\d+/g;
+for (const file of walkAll(ROOT)) {
+  readFileSync(file, "utf8")
+    .split("\n")
+    .forEach((line, i) => {
+      for (const m of line.matchAll(FADED_FOCUS)) {
+        problems++;
+        console.log(`${relative(process.cwd(), file)}:${i + 1}  ${m[0]}  → focus ring faded under 3:1: use ring-ring (opaque)`);
+      }
+    });
+}
 for (const file of walkAll(ROOT)) {
   readFileSync(file, "utf8")
     .split("\n")

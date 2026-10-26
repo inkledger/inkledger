@@ -1643,10 +1643,119 @@ test("on a phone a 15-minute hole has a full-width row to tap, opening the same 
       const rows = page.getByRole("button", { name: /Log missing time from 09:30 to 09:45/ });
       await rows.first().waitFor();
       const boxes = await rows.evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
-      const row = boxes.findIndex(b => b.w >= 300 && b.h >= 44);
+      // 44 px to the pixel (layout may land a hair under: 43.99997).
+      const row = boxes.findIndex(b => b.w >= 300 && Math.round(b.h) >= 44);
       assert.ok(row >= 0, `a full-width row to tap: ${JSON.stringify(boxes)}`);
       await rows.nth(row).click();
       await page.getByRole("group", { name: /Strip of time to log/ }).waitFor();
     },
   );
 });
+
+test("the period bars have a table equivalent: each day's projects, target and pending time", () =>
+  withApp(
+    {
+      seed: async db => {
+        const d = lastWorkday();
+        d.setHours(9, 0, 0, 0);
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-bar1', ?, 3600, '', 1)", d.getTime());
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'SHOP-7', 'w-bar2', ?, 1800, '', 1)", d.getTime() + 3_600_000);
+      },
+    },
+    async ({ page, base }) => {
+      await page.goto(`${base}/?period=week&from=${lastWorkdayKey()}`);
+      const table = page.locator("figure table").first();
+      await table.waitFor({ state: "attached" });
+      const text = await table.innerText().catch(async () => table.evaluate(el => el.textContent ?? ""));
+      const all = (await table.evaluate(el => el.textContent ?? ""));
+      assert.match(all, /DEMO/, `projects named: ${all.slice(0, 200)}`);
+      assert.match(all, /SHOP/, "each project");
+      assert.ok((await table.locator("th").count()) >= 4, `headers: ${text.slice(0, 120)}`);
+    },
+  ));
+
+test("theme presets are one radio group: one Tab stop, arrows and Home/End choose", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.goto(base + "/settings/appearance");
+    const group = page.getByRole("radiogroup", { name: "Preset colours" }).or(page.getByRole("radiogroup", { name: /preset/i })).first();
+    await group.waitFor();
+    const radios = group.getByRole("radio");
+    const tabbable = await radios.evaluateAll(els => els.filter(e => e.tabIndex === 0).length);
+    assert.equal(tabbable, 1, "one Tab stop");
+    const start = await radios.evaluateAll(els => els.findIndex(e => e.getAttribute("aria-checked") === "true"));
+    await radios.nth(Math.max(0, start)).focus();
+    await page.keyboard.press("ArrowRight");
+    const after = (Math.max(0, start) + 1) % (await radios.count());
+    await radios.nth(after).and(page.locator('[aria-checked="true"]')).waitFor({ timeout: 5000 });
+    assert.equal(await radios.nth(after).evaluate(el => el === document.activeElement), true, "focus follows");
+    await page.keyboard.press("End");
+    await radios.last().and(page.locator('[aria-checked="true"]')).waitFor({ timeout: 5000 });
+  }));
+
+test("with reduced motion, dialogs, sheets and spinners don't animate", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(base + "/timesheet");
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Recently deleted" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+    const d = await dialog.evaluate(el => {
+      const cs = getComputedStyle(el);
+      return { anim: parseFloat(cs.animationDuration) * (cs.animationDuration.endsWith("ms") ? 1 : 1000), trans: parseFloat(cs.transitionDuration) * (cs.transitionDuration.endsWith("ms") ? 1 : 1000) };
+    });
+    assert.ok(d.anim <= 1 && d.trans <= 1, `no motion: ${JSON.stringify(d)}`);
+  }));
+
+test("on a touch screen icon buttons and dialog close buttons take a 44 px tap", async () => {
+  const app = await start({ viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" });
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/");
+    await page.getByRole("link", { name: "Board" }).first().waitFor().catch(() => {});
+    const hit = async loc =>
+      loc.evaluate(el => {
+        const a = getComputedStyle(el, "::after");
+        const r = el.getBoundingClientRect();
+        return { w: Math.max(r.width, parseFloat(a.width) || 0), h: Math.max(r.height, parseFloat(a.height) || 0), coarse: matchMedia("(pointer: coarse)").matches };
+      });
+    const bell = page.getByRole("button", { name: /^Notifications/ }).first();
+    await bell.waitFor();
+    const b = await hit(bell);
+    assert.ok(b.coarse, "emulated touch");
+    assert.ok(Math.round(b.w) >= 44 && Math.round(b.h) >= 44, `icon button tap area: ${JSON.stringify(b)}`);
+  } finally {
+    await app.stop();
+  }
+});
+
+test("platform and language: the back button's hint is in the app's language, toasts are labelled in it", () =>
+  withApp({}, async ({ page, base, context }) => {
+    await page.goto(base + "/issues");
+    await page.getByRole("link", { name: /DEMO-101/ }).first().click();
+    const back = page.getByRole("main").getByRole("button", { name: "Issues", exact: true }).first();
+    await back.waitFor();
+    const title = await back.getAttribute("title");
+    assert.match(title ?? "", /^Back to Issues/, `English hint: ${title}`);
+    assert.doesNotMatch(title ?? "", /Torna/);
+    await context.addInitScript(() => localStorage.setItem("ikl-locale", "it"));
+    await page.goto(base + "/");
+    // The toasts' region is there before any toast (its list only with one).
+    await page.locator("section[aria-live]").first().waitFor({ state: "attached" });
+    const label = await page.evaluate(() => document.querySelector("section[aria-live]")?.getAttribute("aria-label") ?? "");
+    assert.match(label, /^Notifiche/, `toaster labelled in Italian: ${label}`);
+  }));
+
+test("settings search finds what the trackers call things (webhook, repository, token), in both languages", () =>
+  withApp({}, async ({ page, base, context }) => {
+    await page.goto(base + "/settings");
+    const search = page.getByRole("searchbox").first();
+    for (const q of ["webhook", "repository", "token"]) {
+      await search.fill(q);
+      await page.getByRole("navigation").getByRole("link", { name: /^Connections/ }).first().waitFor({ timeout: 5000 }).catch(() => assert.fail(`nothing for "${q}"`));
+    }
+    await context.addInitScript(() => localStorage.setItem("ikl-locale", "it"));
+    await page.goto(base + "/settings");
+    await page.getByRole("searchbox").first().fill("chiave api");
+    await page.getByRole("navigation").getByRole("link", { name: /^Connessioni/ }).first().waitFor({ timeout: 5000 });
+  }));

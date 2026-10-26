@@ -47,7 +47,7 @@ export function QueryAssist({ value, onChange }: { value: string; onChange: (val
               aria-selected={false}
               onClick={() => complete(n)}
               {...surface("chip")}
-              className="rounded-md border bg-card px-2 py-0.5 text-caption font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="rounded-md border bg-card px-2 py-0.5 text-caption font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {n}:
             </button>
