@@ -85,6 +85,7 @@ export function useShortcutsHelpOpen(): boolean {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => open,
     () => open
   );
 }

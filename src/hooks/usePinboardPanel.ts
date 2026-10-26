@@ -75,7 +75,7 @@ export function pinboardTarget(pathname: string, wide: boolean, s: PinboardSurfa
 export const floatHidden = (pathname: string) => pathname === "/pinboard";
 
 /** The surfaces as the layout last gave them (setPinboardSurfaces). */
-export const usePinboardSurfacesNow = (): PinboardSurfaces => useSyncExternalStore(subscribe, () => surfaces);
+export const usePinboardSurfacesNow = (): PinboardSurfaces => useSyncExternalStore(subscribe, () => surfaces, () => surfaces);
 
 /** Opens the Board with its pinboard (panel, or sheet on small screens). */
 function openOnBoard() {
@@ -84,7 +84,7 @@ function openOnBoard() {
   go?.("/board");
 }
 
-const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
+const isWide = () => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches;
 
 /** Whether a pinboard button or key has somewhere to open it here. */
 export function usePinboardTarget(pathname: string, panelFirst = false): PinboardTarget | null {

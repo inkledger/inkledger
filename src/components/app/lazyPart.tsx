@@ -16,6 +16,7 @@ const AFTER_LOAD_MS = 1500;
 
 /** After start, once the page has loaded and shown its content, when the browser is free. */
 function whenIdle(run: () => void) {
+  if (typeof window === "undefined") return;
   const idle = () => {
     if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 5000 });
     else run();

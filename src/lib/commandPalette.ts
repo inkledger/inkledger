@@ -28,6 +28,7 @@ export function useCommandPaletteOpen(): boolean {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => open,
     () => open
   );
 }

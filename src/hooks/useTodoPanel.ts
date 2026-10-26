@@ -21,7 +21,7 @@ export function useTodoSurfaces(): TodoSurfaces {
 }
 
 /** The surfaces as the layout last gave them: for "d", the palette and the buttons outside React. */
-export const useTodoSurfacesNow = (): TodoSurfaces => useSyncExternalStore(subscribe, () => surfaces);
+export const useTodoSurfacesNow = (): TodoSurfaces => useSyncExternalStore(subscribe, () => surfaces, () => surfaces);
 
 let go: ((to: string) => void) | null = null;
 

@@ -21,5 +21,5 @@ export const startChoice = {
     pending = next;
     listeners.forEach(l => l());
   },
-  use: (): StartChoice | null => useSyncExternalStore(subscribe, () => pending),
+  use: (): StartChoice | null => useSyncExternalStore(subscribe, () => pending, () => pending),
 };

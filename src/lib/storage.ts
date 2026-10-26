@@ -58,6 +58,6 @@ export function deviceSetting<T>(key: string, parse: (raw: string | null) => T, 
       writeStored(key, format(next));
       listeners.forEach(l => l());
     },
-    use: (): T => useSyncExternalStore(subscribe, () => value),
+    use: (): T => useSyncExternalStore(subscribe, () => value, () => value),
   };
 }

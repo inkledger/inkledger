@@ -33,6 +33,7 @@ function useQuickStartState(): State {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => state,
     () => state
   );
 }

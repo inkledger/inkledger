@@ -13,5 +13,5 @@ export function useNativeProfiles(): { profiles: ServerProfiles | null; reload: 
 
 /** The profile this window shows: the one whose server is this origin. */
 export function currentProfileUrl(): string {
-  return window.location.origin;
+  return typeof window === "undefined" ? "" : window.location.origin;
 }

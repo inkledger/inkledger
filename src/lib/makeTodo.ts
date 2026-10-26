@@ -21,6 +21,7 @@ export const makeTodo = {
         listeners.add(l);
         return () => listeners.delete(l);
       },
+      () => asked,
       () => asked
     ),
 };

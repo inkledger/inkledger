@@ -21,6 +21,7 @@ function usePreview(): string | null {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => preview,
     () => preview
   );
 }

@@ -16,7 +16,7 @@ export function createFlag() {
       listeners.forEach(l => l());
     },
     useValue: (): boolean => {
-      return useSyncExternalStore(subscribe, () => value);
+      return useSyncExternalStore(subscribe, () => value, () => value);
     },
     get: () => value,
     subscribe,

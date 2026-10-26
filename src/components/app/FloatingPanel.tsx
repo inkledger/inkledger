@@ -7,7 +7,7 @@ import { surface } from "@/components/app/surface";
 
 const STEP = 16;
 
-const viewport = () => ({ vw: window.innerWidth, vh: window.innerHeight });
+const viewport = () => typeof window === "undefined" ? { vw: 1024, vh: 768 } : { vw: window.innerWidth, vh: window.innerHeight };
 
 /**
  * A panel floating over any page, never in the way of the page's keys (not a

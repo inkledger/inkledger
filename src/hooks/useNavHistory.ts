@@ -32,9 +32,9 @@ export function useNavHistoryRecorder() {
 export function useBack(): (NavFrom & { go: () => void }) | null {
   const location = useLocation();
   const navigate = useNavigate();
-  useSyncExternalStore(navHistory.subscribe, navHistory.snapshot);
+  useSyncExternalStore(navHistory.subscribe, navHistory.snapshot, navHistory.snapshot);
   const from = navHistory.from(location.key);
-  const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+  const idx = typeof window === "undefined" ? 0 : (window.history.state as { idx?: number } | null)?.idx ?? 0;
   if (from && idx > 0) return { ...from, go: () => void navigate(-1) };
   const parent = parentOf(location.pathname);
   return parent ? { ...parent, go: () => void navigate(parent.path) } : null;

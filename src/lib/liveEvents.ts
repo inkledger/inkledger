@@ -70,5 +70,6 @@ export function useLiveState(): LiveState {
       return () => listeners.delete(l);
     },
     () => state,
+    () => state,
   );
 }

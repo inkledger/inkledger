@@ -67,6 +67,7 @@ export function useTimerLogQueue(): PendingTimerLog[] {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => queue,
     () => queue
   );
 }

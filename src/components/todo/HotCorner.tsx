@@ -16,7 +16,7 @@ const DWELL_MS = 300;
  */
 export function HotCorner() {
   const { corner, widget, menu } = useTodoSurfacesNow();
-  const [fine, setFine] = useState(() => window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  const [fine, setFine] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Switched off during the rest: the waiting timer opens nothing.
   const on = corner && (widget || menu);
@@ -29,6 +29,7 @@ export function HotCorner() {
   useEffect(() => {
     const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
     const on = () => setFine(mq.matches);
+    on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);

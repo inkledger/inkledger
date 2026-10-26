@@ -24,10 +24,11 @@ export function TodoWidget() {
   const open = todoFloat.useValue();
   const { pathname } = useLocation();
   const surfaces = useTodoSurfacesNow();
-  const [wide, setWide] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
+  const [wide, setWide] = useState(true);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const on = () => setWide(mq.matches);
+    on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);

@@ -6,6 +6,7 @@ const OFF_KEY = "inkledger-modules-off";
 
 /** Kill switch: ?modules=off, or the toggle in Settings → Extras (per device). */
 export function modulesDisabled(): boolean {
+  if (typeof window === "undefined") return false;
   if (new URLSearchParams(window.location.search).get("modules") === "off") return true;
   return readStored(OFF_KEY) === "1";
 }

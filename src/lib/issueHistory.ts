@@ -24,6 +24,7 @@ export function useIssueHistoryTarget(): IssueHistoryTarget | null {
       listeners.add(l);
       return () => listeners.delete(l);
     },
+    () => target,
     () => target
   );
 }
