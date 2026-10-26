@@ -3,9 +3,50 @@
 Plans: the audit's `hulkling-namor-wasp.md` (UX) and `argent-green-lantern-green-lantern.md`
 (mods, Store, Lighthouse). The technical plan is in consolidation-batch0.md.
 
+## Constraints
+No push, deploy, signing, publishing or real services; test servers with PROVIDERS_READ_ONLY=1,
+JIRA_READ_ONLY=1; mods stay 1.0.0; never `pnpm build` in inkledger-modules (it signs).
+
 ## UX
 - [x] UX-A (32822c9): a day with entries takes one more on that day; the header says "today";
   Day/Week/Month keep the period; trackers' search starts from the local query; Board column
   → catalogue on its status and done ones; Days export waits for the days.
-- [x] UX-C.14/15 TransitionDialog: title in every branch (loading branch by review: not reachable deterministically from e2e), first refused field focused, multi-choice errors tied to their fieldset.
-- [x] UX-C.19 loading: PageSpinner one status (spinner decorative inside it), skeletons aria-hidden (by review).
+- [x] UX-B (70e5ac8): dirty-close guard, palette timer actions, Retry on start, 44 px day rows,
+  Timesheet bulk select with progress.
+- [x] UX-C (6c92e37): full-strength focus rings (lint rule + 3:1 test), TransitionDialog named in
+  every state and focus on the first refused field (loading branch by review), PeriodBars table
+  equivalent, roving radio groups (SegmentedControl, theme presets), PeriodPicker plain buttons,
+  app-wide reduced motion, one loading status (skeletons aria-hidden, by review), coarse-pointer
+  44 px tap areas, Reports mobile sort + entry label.
+- [x] UX-D (6c92e37): localized back hint and platform keys, toaster labels, trash copy, settings
+  synonyms, docs/dev/ux-patterns.md. README screenshots NOT regenerated: studio's reseed writes
+  inkledger_demo in the jtt-db Postgres (prod instance) — left to the user.
+- [x] f33b8a7: live timer controls inside the day chart just past midnight; weekday-independent tests.
+
+## Mods (app side)
+- [x] 57ef404 MOD-P1-04 timer-started by connectionId:key; MOD-P1-05 async-safe guard, reads of a
+  stopped module stay unanswered.
+- [x] 0dcb7ef MOD-P1-07 advisory-locked caps (60 parallel writers, real Postgres e2e);
+  MOD-P1-06 revisions (0011), storageSetIf, optional host `storage.update` (CAS + replay),
+  import bumps revisions.
+
+## Mods (inkledger-modules)
+- [x] 0d4f5f3 MOD-P1-01/02 per-account reload (Desk Radio, Bonsai prefs/pictures/film);
+  MOD-P1-03 worker jobs settle, bitmaps closed (Bonsai, City Window); MOD-P1-05 late async ignored;
+  MOD-P1-06 all six mods save through `shared/saved.ts` (ops replayed, events counted once).
+- [ ] M3 a11y: MOD-P1-08 Stitch sheet, P1-09 Bonsai player, P1-10 Kanbunny focus, P2-11..13.
+- [ ] M4 Store Worker: atomic fulfilment, accessible pages/claim, body limits, docs prices.
+- [ ] M5 CI + unsigned build ×2.
+- [ ] Lighthouse harness, baseline, iteration.
+
+## Verifications
+| Command | Scope | Result |
+| ------- | ----- | ------ |
+| pnpm lint/check/test/build/test:smoke | app after UX-C/D | pass (2216 unit) |
+| PROVIDERS_READ_ONLY=1 pnpm test:e2e | app after UX-C/D | 203/204, the 1 fixed (sub-pixel) and rerun |
+| e2e/modules.test.mjs | app after CAS/locks | 26/26 |
+| pnpm typecheck && pnpm test | inkledger-modules after M1 | 266/266 |
+
+## Open
+- Commit f33b8a7's subject is 55 chars (rule ≤50); left as is (no history rewrite).
+- Manual: VoiceOver/NVDA, physical devices, Desk Radio listening pass.

@@ -125,14 +125,14 @@ export function TasksBoard({
                   aria-expanded
                   aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
                   title={t("views.dashboard.tasks.collapse", { title: col.title })}
-                  className="rounded p-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ChevronsRightLeft className="h-4 w-4" />
                 </button>
                 <Link
                   to="/board"
                   aria-label={t("views.dashboard.tasks.openBoard", { title: col.title })}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="inline-flex size-target items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
                   <Plus className="h-4 w-4" />
                 </Link>

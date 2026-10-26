@@ -22,7 +22,7 @@ test("key routes have no serious or critical accessibility violation", async () 
       // Run in the page as the test (the app's CSP rightly refuses inline scripts).
       await page.evaluate(AXE);
       const result = await page.evaluate(async () =>
-        (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } })).violations.map(v => ({
+        (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } })).violations.map(v => ({
           id: v.id,
           impact: v.impact,
           help: v.help,
