@@ -60,3 +60,16 @@ Status: complete, except mobile Performance 100 (decided out of scope).
 - Manual: VoiceOver/NVDA, physical devices, Desk Radio listening pass.
 - Owner: LEDGER Durable Object binding on the next Store deploy; README screenshots (studio writes
   to the prod Postgres instance); restart the dev server after 93c521f.
+
+## Handoff: Lighthouse Performance 100 (SSR, owner: Kimi)
+Decision (owner, 2026-10-26): SSR is Kimi's; this plan stops at A11y/BP/SEO 100 in all 186 runs.
+- Now: desktop login 100, signed-in pages 99 (FCP ≈ 0.53 s, LCP ≈ 0.88–0.98 s; 100 needs LCP ≈ 0.75 s);
+  mobile 77–92 (FCP ≈ 2.1 s, LCP ≈ 4.3 s on the dashboard; 100 needs ≈ 1 s / 1.3 s).
+- Critical chain (signed-in): index.html → entry (~227 KB br) → auth.me + layout chunk → page chunk
+  (now started beside auth.me, 821f3d3) → the page's tRPC batch → render. Showing the Quick stats
+  card before its data did not move LCP: the chain before the data is the cost.
+- Tried and kept: dialog hosts lazy (116a822), parts prefetched 1.5 s after load and the page
+  chunk early (821f3d3). Entry: react-dom ~181 KB raw, app code ~335 KB (i18n en ~98 KB of it).
+- Gate: `pnpm build && PROVIDERS_READ_ONLY=1 JIRA_READ_ONLY=1 node scripts/lighthouse.mjs --gate`
+  (fixed matrix, 3 runs × desktop/mobile; method in docs/dev/measuring.md § Lighthouse). Keep the
+  CSP (inline scripts by hash only), zod jitless in the page, and A11y/BP/SEO at 100.
