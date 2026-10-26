@@ -35,7 +35,7 @@ export const ui: Shape<typeof en> = {
     openPinboardTitle: "Apri la lavagna (P)",
     focusMode: "Modalità focus (F)",
     now: "adesso",
-    homeLink: "inkledger, vai alla dashboard",
+    homeLink: ", vai alla dashboard",
     syncFailed: "Sync non riuscito · riprova",
     updated: "Aggiornato {when}",
     logoutFailed: "Uscita non riuscita",

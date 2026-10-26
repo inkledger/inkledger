@@ -48,7 +48,8 @@ export function PlanToday({ today, late, onChanged }: { today: Date; late: { id:
   return (
     <section aria-label={t("views.todos.planTitle")} {...surface("card")} className="grid gap-2 rounded-lg border bg-card p-3">
       <div className="flex items-center gap-2">
-        <h3 className="min-w-0 flex-1 text-body-sm font-semibold">{t("views.todos.planTitle")}</h3>
+        {/* Under the page's h1 directly: h2, styled small. */}
+        <h2 className="min-w-0 flex-1 text-body-sm font-semibold">{t("views.todos.planTitle")}</h2>
         <Button size="sm" variant="ghost" onClick={done}>
           {t("views.todos.planDone")}
         </Button>

@@ -87,5 +87,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    // Public source (the repo is open): stack traces and devtools read the real code.
+    sourcemap: true,
   },
 });

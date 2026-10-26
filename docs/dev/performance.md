@@ -132,3 +132,33 @@ Ranked by gain for the cost. Each claim has its evidence in the numbers above.
 - The API latency (5–30 ms single, local Postgres).
 - Idle server CPU (0.1%).
 - The native bundle sizes (4.7–8.9 MiB, Tauri's floor).
+
+## Lighthouse baseline (2026-10-26, 40e5e3a, Lighthouse 13.5.0)
+
+Method in measuring.md § Lighthouse. Lowest of three runs per scenario, modules off.
+Categories: Performance / Accessibility / Best Practices / SEO.
+
+| Scenario group | Desktop | Mobile |
+| --- | --- | --- |
+| Public (login, install, invite) | 99 / 100 / 100 / 100 | 85–87 / 100 / 100 / 100 |
+| Signed-in pages (dashboard, issues, issue, board, settings sections…) | 98–99 / 95–97 / 96–100 / 100 | 80–85 / 98–100 / 96–100 / 100 |
+| /info | 99 / 89 / 100 / 100 | 85 / 92 / 100 / 100 |
+
+186 runs, 184 below 100 somewhere. Causes found and fixed after the baseline:
+
+- **Accessibility:** the brand link's name did not start with its visible text (2.5.3); the
+  Favorites header and its "All" link were under 24 px; /info's address list broke `<dl>` rules;
+  the TODO "Plan today" heading skipped a level.
+- **Best Practices:** projects without an icon answered 404 (console errors) — now 204; the large
+  script had no source map — now published (the source is public).
+
+Re-measured after the fixes (dashboard, login): Accessibility, Best Practices and SEO 100 on
+desktop and mobile; Performance 99 desktop, 79–87 mobile (the spread is the local CPU: Lighthouse's
+simulation scales observed task times).
+
+**What mobile Performance 100 needs.** Under the simulated mobile profile (slow 4G, 4× CPU) the
+page paints only after the entry script (~230 KB brotli: react-dom alone ~60 KB) runs and the first
+tRPC batch answers: FCP ≈ 2.1 s, LCP ≈ 4.3 s on the dashboard. A 100 needs FCP ≈ 1 s and LCP ≈ 1.3 s,
+which a client-rendered app cannot reach by trimming: it needs the first screen rendered on the
+server (with its data) and hydrated after. Trimming done so far (dialog hosts lazy-loaded) does not
+move the score beyond the run-to-run spread. This is an architecture decision, not a tuning step.

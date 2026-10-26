@@ -1,3 +1,6 @@
+import { lazyPart } from "@/components/app/lazyPart";
+// The palette owns ⌘K: in the first load, so a key pressed at once is never lost.
+import { CommandPalette } from "@/components/CommandPalette";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
 import { Suspense, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,7 +40,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
 import { notificationCenter } from "@/lib/flag";
@@ -49,12 +51,9 @@ import { MakeTodoHost } from "@/components/todo/MakeTodo";
 import { HotCorner } from "@/components/todo/HotCorner";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
-import { StartChoiceDialog } from "@/components/StartChoiceDialog";
 import { DashboardBackdrop, ModuleSlot, ModulesProvider } from "@/modules/ModuleHost";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
-import { CreateIssueDialog } from "@/components/issues/CreateIssueDialog";
-import { IssueHistoryDialog } from "@/components/issue/IssueHistoryDialog";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
@@ -67,11 +66,6 @@ import {
   ActiveTimerRailButton,
   ActiveTimerQuickControls,
 } from "@/components/TimerControls";
-import { CommandPalette } from "@/components/CommandPalette";
-import { QuickStart } from "@/components/QuickStart";
-import { IdleDialog } from "@/components/IdleDialog";
-import { DayReview } from "@/components/DayReview";
-import { FocusMode } from "@/components/FocusMode";
 import { LiveTitle } from "@/components/LiveTitle";
 import { SidebarFavorites } from "@/components/SidebarFavorites";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
@@ -93,6 +87,16 @@ import { BrandMark } from "@/components/app/BrandMark";
 import { BRAND_SHORT } from "@/lib/brand";
 import { pageQueriesOf } from "@/lib/pageQueries";
 import { surface, surfaceFace } from "@/components/app/surface";
+
+// Dialogs and hosts opened on demand: out of the first load (each fetched right after it).
+const QuickStart = lazyPart(() => import("@/components/QuickStart").then(m => m.QuickStart));
+const IdleDialog = lazyPart(() => import("@/components/IdleDialog").then(m => m.IdleDialog));
+const DayReview = lazyPart(() => import("@/components/DayReview").then(m => m.DayReview));
+const FocusMode = lazyPart(() => import("@/components/FocusMode").then(m => m.FocusMode));
+const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog));
+const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog));
+const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
+const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog));
 
 /** Opens the focus view; shown only while a timer exists. */
 function ActiveTimerFocusButton() {
@@ -116,9 +120,9 @@ function Brand({ collapsed }: { collapsed: boolean }) {
   // The site of the tracker it was set up with, else the account itself.
   const host = useTrackerSites()[0]?.host ?? user?.username ?? "";
   return (
+    // Named by what it shows (brand, site), then where it leads: the spoken name starts with the visible one.
     <Link
       to="/"
-      aria-label={t("ui.layout.homeLink")}
       // The mark keeps its place open and closed, under the rows' icons.
       className="flex h-10 shrink-0 items-center gap-3 rounded-lg pl-3"
     >
@@ -131,6 +135,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
           {host}
         </span>
       </span>
+      <span className="sr-only">{t("ui.layout.homeLink")}</span>
     </Link>
   );
 }
@@ -502,11 +507,11 @@ export function AppLayout() {
         <header {...surface("glass")} className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
           <Link
             to="/"
-            aria-label={t("ui.layout.homeLink")}
             className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <BrandMark className="h-8 w-8" />
             <span className="font-display font-semibold">{BRAND_SHORT}</span>
+            <span className="sr-only">{t("ui.layout.homeLink")}</span>
           </Link>
           <Button
             variant="ghost"

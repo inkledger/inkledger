@@ -263,3 +263,25 @@ pnpm perf                        # all of them
 - **What the numbers are worth:** milliseconds depend on the machine and on what else runs;
   compare runs on the same machine, not across. The first route of a run includes the browser's
   warm-up. Two runs agreed within ~15% on page timings and within a few KiB on bytes.
+
+## Lighthouse
+
+`pnpm build && node scripts/lighthouse.mjs [--only id,…] [--form desktop|mobile] [--runs 3] [--mods <dir>] [--gate]`
+
+- **Server:** the production bundle on a temporary Postgres database through `e2e/harness.mjs`, with
+  `PROVIDERS_READ_ONLY=1`, `JIRA_READ_ONLY=1`, `STORE_URL=off`, `WEATHER=off`, `SYNC_INTERVAL_MIN=0`
+  and the harness's fictitious data. Signed-in scenarios send the harness's session cookie as a
+  header; signed-out ones (login, install, a valid invite seeded by the script) send none.
+- **Browser:** the Chromium of `scripts/chromium.mjs`, launched by `chrome-launcher`; Lighthouse is
+  a pinned devDependency (no global install). Desktop uses Lighthouse's desktop throttling
+  (40 ms RTT, 10 Mbps, no CPU slowdown); mobile uses the version's default simulated mobile profile.
+- **Matrix:** every scenario in the script (public pages, every signed-in route, every Settings
+  section), desktop and mobile, three runs each. With `--mods <inkledger-modules/build-unsigned>`
+  the six modules are installed (signed with a throwaway key) and the dashboard and Store are added.
+  The list is fixed in the script: scenarios are never chosen after seeing scores.
+- **Output:** `perf/lighthouse/<date>-<sha>/` (git-ignored): each run's JSON and HTML report and
+  `summary.json` (scores, LCP/CLS/TBT, failing audits, Lighthouse and Chromium versions).
+- **Gate:** `--gate` exits 1 unless every run of every scenario has 100 in Performance,
+  Accessibility, Best Practices and SEO; an average never hides a run below 100.
+- Interactive states Lighthouse does not open (dialogs, module panels) are covered by axe and the
+  e2e tests (`e2e/a11y.test.mjs`, `e2e/mods-real.test.mjs`).

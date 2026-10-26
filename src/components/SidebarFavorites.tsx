@@ -35,7 +35,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
         <Link
           to="/issues?favorites"
           onClick={onNavigate}
-          className="text-2xs text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-target items-center text-2xs text-muted-foreground hover:text-foreground"
         >
           {t("ui.sidebar.allFavorites", { count: favorites.length })}
         </Link>

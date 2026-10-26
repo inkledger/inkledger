@@ -233,13 +233,14 @@ describe("issues: focused views, hidden, favorite order, activity", () => {
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
     expect(res.headers.get("content-security-policy")).toContain("sandbox");
     expect((await app.request("/api/projects/A/avatar")).status).toBe(401);
-    expect((await app.request("/api/projects/ZZZ/avatar", { headers: { cookie } })).status).toBe(404);
+    // No icon of its own: nothing to show, not an error.
+    expect((await app.request("/api/projects/ZZZ/avatar", { headers: { cookie } })).status).toBe(204);
   });
 
   it("treats Jira's stock project avatar as no icon", async () => {
     (await q("UPDATE issues SET project_key = 'B', project_avatar_url = ? WHERE key = 'A-2'", `${SITE}/secure/projectavatar?avatarId=10324`));
     const res = await app.request("/api/projects/B/avatar", { headers: { cookie } });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(204);
   });
 
   it("notices a status change between syncs when Jira does not report it", async () => {

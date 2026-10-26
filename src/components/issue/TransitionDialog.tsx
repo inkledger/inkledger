@@ -1,5 +1,5 @@
 import { failureText, errorText } from "@/lib/errorText";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { ExternalLink } from "lucide-react";
@@ -138,6 +138,8 @@ export function TransitionDialog({
   const list = trpc.issues.transitions.useQuery(where, { enabled: target !== null, retry: false, staleTime: 0 });
   const [values, setValues] = useState<Record<string, Value>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Bumped by a refusal: after that render, the first refused field takes the focus (not left on Move).
+  const [focusRefused, setFocusRefused] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // A fresh form for each ask: another issue, tracker or transition (the Board reuses one
   // dialog for every card), or the same one asked again, never gets the last one's values.
@@ -152,6 +154,13 @@ export function TransitionDialog({
   const tr = target
     ? list.data?.find(x => ("transitionId" in target ? x.id === target.transitionId : x.toStatus.toLowerCase() === target.toStatus.toLowerCase()))
     : undefined;
+  useEffect(() => {
+    if (!focusRefused) return;
+    const first = tr?.requirements.find(f => errors[f.id]);
+    if (first) document.getElementById(`tf-${first.id}`)?.focus();
+    // Only on a new refusal (its errors are in this render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRefused]);
   const move = trpc.issues.transition.useMutation({
     onSuccess: r => {
       setValues({});
@@ -161,9 +170,8 @@ export function TransitionDialog({
       const fields = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields;
       setErrors(fields ?? {});
       setError(fields ? null : failureText(e));
-      // The first refused field takes the focus (its error is tied to it): not left on Move.
-      const first = fields && tr?.requirements.find(f => fields[f.id]);
-      if (first) requestAnimationFrame(() => document.getElementById(`tf-${first.id}`)?.focus());
+      // The first refused field takes the focus once drawn with its error (see the effect below).
+      if (fields) setFocusRefused(n => n + 1);
     },
   });
   const set = (id: string, v: Value | undefined) =>

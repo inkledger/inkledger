@@ -189,6 +189,9 @@ export function registerAttachmentRoutes(app: App) {
    * Jira project icon, proxied (Jira serves it only to authenticated users).
    * SVG is fine here: it is only ever used as <img>, and sandboxed by CSP.
    */
+  // A project with no icon of its own is not an error: 204 (the initials stay), never a
+  // failed request in the console; kept a while so it isn't asked again on every page.
+  const noIcon = () => new Response(null, { status: 204, headers: { "Cache-Control": "private, max-age=3600" } });
   app.get("/api/projects/:key/avatar", async (c) => {
     const key = c.req.param("key");
     if (!/^[A-Z][A-Z0-9_]{0,31}$/i.test(key)) return c.json({ error: t("server.attachments.invalidProject") }, 400);
@@ -211,7 +214,7 @@ export function registerAttachmentRoutes(app: App) {
           ),
         )
         .limit(1);
-      if (!row?.url) return c.json({ error: t("server.attachments.noIcon") }, 404);
+      if (!row?.url) return noIcon();
       try {
         const res = await fetchFromSite(contextFor(user, await ownConnection(user.id, row.connectionId)).creds, row.url);
         const type = (res.headers.get("content-type") ?? "image/png").split(";")[0].trim();
@@ -227,11 +230,14 @@ export function registerAttachmentRoutes(app: App) {
         cacheIcon(cacheKey, hit);
       } catch (e) {
         const { status, message } = jiraErrorResponse(e);
-        if (status === 404) cacheIcon(cacheKey, { body: null, status, error: message, at: Date.now() });
+        if (status === 404) {
+          cacheIcon(cacheKey, { body: null, status, error: message, at: Date.now() });
+          return noIcon();
+        }
         return c.json({ error: message }, status);
       }
     }
-    if (!hit.body) return c.json({ error: hit.error }, hit.status);
+    if (!hit.body) return hit.status === 404 ? noIcon() : c.json({ error: hit.error }, hit.status);
     return new Response(hit.body, {
       headers: {
         "Content-Type": hit.type,

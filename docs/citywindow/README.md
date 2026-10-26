@@ -18,7 +18,7 @@ City Window is an [add-on module](../../README.md#add-on-modules) for inkledger.
 
 ## What it does
 
-- **Seven worlds, five routes.** Countryside, coast, mountains, forest, desert, Japan and its neon alleys, seen from a tuk-tuk. The hours you log move you along routes such as the Meadow Line or the Night Market Loop.
+- **Eight worlds, five routes.** Countryside, coast, city, mountains, forest, desert, Japan and its neon alleys, seen from a tuk-tuk. The hours you log move you along routes such as the Meadow Line or the Night Market Loop.
 - **A light for every ticket.** Every ticket you close lights a window along the line; a high-priority one lights a golden window. A card moved on the Board sends a train past on the other track.
 - **A station at your goal.** Reach your daily goal and the train pulls into a station with fireworks.
 - **The real sky.** Sunrise, sunset and the moon follow your location; the weather is sunny, rainy, variable or the real one near you.

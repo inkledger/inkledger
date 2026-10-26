@@ -45,7 +45,8 @@ export default function Info() {
       <PanelRow className="xl:grid-cols-2">
         <div className="min-w-0 border-b xl:border-b-0 xl:border-r">
           <PanelSection title={t("pages.info.server")} className="border-b">
-            <dl className="grid gap-3 text-body-sm">
+            {/* A list of addresses (each with its icon and copy button, which a <dl> may not hold). */}
+            <ul className="grid gap-3 text-body-sm">
               {hosts.map(h => (
                 <Address key={h} label={t("pages.info.tailscaleHost")} value={h} icon={<Smartphone className="h-4 w-4" />} />
               ))}
@@ -54,7 +55,7 @@ export default function Info() {
                 value={window.location.host}
                 icon={<Laptop className="h-4 w-4" />}
               />
-            </dl>
+            </ul>
           </PanelSection>
           <PanelSection title={t("pages.info.apps")}>
             <dl className="grid gap-2 text-body-sm sm:grid-cols-[7rem_1fr]">
@@ -110,15 +111,15 @@ export default function Info() {
 
 function Address({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <li className="flex items-center gap-3">
       <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground" {...surface("picture")}>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <dt className="text-caption text-muted-foreground">{label}</dt>
-        <dd className="truncate font-medium">{value}</dd>
+        <span className="block text-caption text-muted-foreground">{label}</span>
+        <span className="block truncate font-medium">{value}</span>
       </div>
       <CopyButton text={value} />
-    </div>
+    </li>
   );
 }

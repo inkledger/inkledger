@@ -34,7 +34,7 @@ export const ui = {
     openPinboardTitle: "Open the pinboard (P)",
     focusMode: "Focus mode (F)",
     now: "just now",
-    homeLink: "inkledger, go to dashboard",
+    homeLink: ", go to the dashboard",
     syncFailed: "Sync failed · try again",
     updated: "Updated {when}",
     logoutFailed: "Sign out failed",
