@@ -23,7 +23,7 @@ services:
 
   inkledger:
     build: .
-    image: inkledger:latest
+    image: ghcr.io/inkledger/inkledger:latest
     container_name: inkledger
     restart: unless-stopped
     depends_on:

@@ -162,3 +162,11 @@ tRPC batch answers: FCP ≈ 2.1 s, LCP ≈ 4.3 s on the dashboard. A 100 needs F
 which a client-rendered app cannot reach by trimming: it needs the first screen rendered on the
 server (with its data) and hydrated after. Trimming done so far (dialog hosts lazy-loaded) does not
 move the score beyond the run-to-run spread. This is an architecture decision, not a tuning step.
+
+### Final matrix (2026-10-26, 8bd14a7)
+
+All 31 scenarios × desktop/mobile × 3 runs (186 runs, modules off): **Accessibility, Best Practices
+and SEO 100 in every run.** Performance: desktop 98–99, mobile 77–92. Further fixes after the
+baseline: zod runs jitless in the page (its eval probe broke the CSP on Settings), 24 px day-chart
+targets, hole rows named in words. Mobile Performance 100 was left out by decision (it needs server
+rendering, see above); the harness runs each Lighthouse in its own process and browser.

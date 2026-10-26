@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Updates the inkledger Docker stack (deploy/staging.yml) to the current checkout:
-// backs up its database, builds a new image, swaps the app container and waits
-// for it to be healthy, rolling back to the previous image if it is not.
+// Updates the inkledger Docker stack (deploy/staging.yml): backs up its database,
+// builds this checkout (or pulls INKLEDGER_RELEASE_IMAGE), swaps the app container
+// and waits for it to be healthy, rolling back to the previous image if it is not.
 // The old jtt stack is never touched.
 //
 //   pnpm docker:update              backup + build + swap
@@ -25,6 +25,8 @@ const DB = "inkledger-db";
 const IMAGE = "inkledger";
 const HEALTH = "http://127.0.0.1:47824/api/health";
 const BACKUPS = process.env.INKLEDGER_BACKUP_DIR ?? join(homedir(), "Backups/inkledger");
+const ENV_FILE = process.env.INKLEDGER_ENV_FILE ?? join(ROOT, ".env.inkledger");
+const RELEASE_IMAGE = process.env.INKLEDGER_RELEASE_IMAGE;
 const args = new Set(process.argv.slice(2));
 const dry = args.has("--dry-run");
 
@@ -32,7 +34,7 @@ const dry = args.has("--dry-run");
 for (const name of [PROJECT, APP, DB, IMAGE]) {
   if (/^jtt/.test(name)) throw new Error(`docker-update: refusing to touch ${name}`);
 }
-if (!existsSync(join(ROOT, ".env.inkledger"))) throw new Error("docker-update: .env.inkledger is missing (see .env.example)");
+if (!existsSync(ENV_FILE)) throw new Error(`docker-update: ${ENV_FILE} is missing (see .env.example)`);
 
 const out = (cmd, argv) => spawnSync(cmd, argv, { cwd: ROOT, encoding: "utf8" }).stdout?.trim() ?? "";
 function run(cmd, argv, opts = {}) {
@@ -79,7 +81,7 @@ const thisRunsDump = () =>
 const psql = (sql) => ["exec", DB, "psql", "-v", "ON_ERROR_STOP=1", "-U", "inkledger", "-d", "postgres", "-c", sql];
 
 const sha = out("git", ["rev-parse", "--short", "HEAD"]);
-if (out("git", ["status", "--porcelain"])) console.log("! The working tree has uncommitted changes: they go into the image too.");
+if (!RELEASE_IMAGE && out("git", ["status", "--porcelain"])) console.log("! The working tree has uncommitted changes: they go into the image too.");
 const previous = out("docker", ["image", "inspect", "-f", "{{.Id}}", `${IMAGE}:latest`]);
 
 // 1. Backup (the database the new image migrates at boot).
@@ -100,9 +102,15 @@ if (!args.has("--no-backup")) {
 // 2. Keep the running image for a rollback.
 if (previous) run("docker", ["tag", `${IMAGE}:latest`, `${IMAGE}:prev`]);
 
-// 3. Build.
+// 3. Build locally, or use the exact image published by a tagged release.
 const b0 = Date.now();
-run("docker", ["build", "-t", `${IMAGE}:${sha}`, "-t", `${IMAGE}:latest`, "."]);
+if (RELEASE_IMAGE) {
+  run("docker", ["pull", RELEASE_IMAGE]);
+  run("docker", ["tag", RELEASE_IMAGE, `${IMAGE}:${sha}`]);
+  run("docker", ["tag", RELEASE_IMAGE, `${IMAGE}:latest`]);
+} else {
+  run("docker", ["build", "-t", `${IMAGE}:${sha}`, "-t", `${IMAGE}:latest`, "."]);
+}
 const buildMs = Date.now() - b0;
 
 // 4. Swap the app container (the database keeps running).

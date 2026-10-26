@@ -12,6 +12,9 @@ RUN pnpm run build && pnpm prune --prod --ignore-scripts \
     && rm -rf node_modules/.pnpm/@electric-sql+pglite@* node_modules/.pnpm/typescript@* node_modules/.pnpm/better-sqlite3@*
 
 FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+LABEL org.opencontainers.image.source="https://github.com/inkledger/inkledger" \
+      org.opencontainers.image.description="inkledger — your time, from every tracker" \
+      org.opencontainers.image.licenses="MIT"
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=47823 \

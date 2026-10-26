@@ -34,10 +34,18 @@ JIRA_READ_ONLY=1; mods stay 1.0.0; never `pnpm build` in inkledger-modules (it s
 - [x] 0d4f5f3 MOD-P1-01/02 per-account reload (Desk Radio, Bonsai prefs/pictures/film);
   MOD-P1-03 worker jobs settle, bitmaps closed (Bonsai, City Window); MOD-P1-05 late async ignored;
   MOD-P1-06 all six mods save through `shared/saved.ts` (ops replayed, events counted once).
-- [ ] M3 a11y: MOD-P1-08 Stitch sheet, P1-09 Bonsai player, P1-10 Kanbunny focus, P2-11..13.
-- [ ] M4 Store Worker: atomic fulfilment, accessible pages/claim, body limits, docs prices.
-- [ ] M5 CI + unsigned build ×2.
-- [ ] Lighthouse harness, baseline, iteration.
+- [x] 3ebec0f M3 a11y: MOD-P1-08 Stitch sheet, P1-09 Bonsai film, P1-10 Kanbunny focus, P2-11..13
+  (roving groups, locked rewards reachable, search status, host font, retried saves, Shadow weather
+  opt-in); e2e on the real modules (40e5e3a, e2e/mods-real.test.mjs).
+- [x] 7563421 M4 Store Worker: Ledger DO (atomic fulfilment), accessible pages, /claim cookie,
+  body caps, fail-closed config, limiter, README/catalog truth. Needs the LEDGER binding at deploy.
+- [x] 41448af M5 CI + unsigned reproducible build ×2.
+- [x] Lighthouse: harness (116a822, 3efff82, 88d1f25), baseline and final matrix in
+  docs/dev/performance.md. A11y/BP/SEO 100 in all 186 runs; mobile Performance 100 left out by the
+  owner's decision (needs SSR).
+- [x] 93c521f migration 0010 idempotent (a draft had run on the dev database).
+
+Status: complete, except mobile Performance 100 (decided out of scope).
 
 ## Verifications
 | Command | Scope | Result |
@@ -50,3 +58,5 @@ JIRA_READ_ONLY=1; mods stay 1.0.0; never `pnpm build` in inkledger-modules (it s
 ## Open
 - Commit f33b8a7's subject is 55 chars (rule ≤50); left as is (no history rewrite).
 - Manual: VoiceOver/NVDA, physical devices, Desk Radio listening pass.
+- Owner: LEDGER Durable Object binding on the next Store deploy; README screenshots (studio writes
+  to the prod Postgres instance); restart the dev server after 93c521f.

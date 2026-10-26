@@ -126,7 +126,8 @@ CREDENTIALS_KEY=$(openssl rand -hex 32)
 REMOTE_ALLOWED_HOSTS=jira.example.com,gitlab.example.com
 EOF
 
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 curl http://127.0.0.1:47823/api/health    # {"status":"ok"}
 ```
 
@@ -138,6 +139,43 @@ Open http://127.0.0.1:47823 and sign in as **admin**. Its first password is `INK
 Upgrading a server from before local accounts: everyone keeps their data, and activates their account from the sign-in page ("Activate your account") with the login of any tracker they had connected, choosing a username and password. Locked out? `docker exec inkledger node dist/cli.js reset-password <username>` prints a temporary password.
 
 Migrations run at start. Backups are scheduled from **Settings → Backup** and land in `~/Backups/inkledger` on the host (`INKLEDGER_BACKUP_DIR` to change it). The container restarts with Docker (`restart: unless-stopped`).
+
+### Local stack updates and CI deployment
+
+`deploy/staging.yml` runs the local stack on `http://127.0.0.1:47824`, beside the legacy `jtt` stack. `pnpm docker:update` dumps its database, builds the current checkout, swaps only the app container and rolls back the image and database if the health check fails. Use `pnpm docker:update --dry-run` to inspect the operation or `--rehearse-rollback` to test recovery.
+
+Releases and deployment run **only on version tags**, never on a push or merge to `main`. Set the version in `package.json`, commit it, then tag that exact commit (`v1.2.3` for version `1.2.3`) and push the tag. CI rejects a tag that does not match the package version.
+
+A successful tag run publishes:
+
+- `ghcr.io/inkledger/inkledger:vX.Y.Z` and `latest`, for both `linux/amd64` and `linux/arm64`;
+- a GitHub Release containing the macOS `.dmg`, Windows NSIS `.exe` and SHA-256 checksums;
+- the local production update, using the published image digest after every check and artifact build passes.
+
+No Docker Hub account is needed. After the first publication, make the GHCR package public in its GitHub package settings for anonymous downloads. While it is private, add a GitHub PAT with only `read:packages` as the `GHCR_READ_TOKEN` Actions secret so the deployment runner can pull it.
+
+The `deploy` job requires:
+
+- a runner registered for this repository on the Docker host, with the custom label `inkledger` and access to Docker;
+- a GitHub `production` environment and an Actions variable `INKLEDGER_ENV_FILE` containing the absolute path of `.env.inkledger` outside the runner checkout;
+- the backup directory in `INKLEDGER_BACKUP_DIR`, or its default `~/Backups/inkledger`.
+
+Only tag workflows reach this runner; pull requests run on GitHub-hosted runners. Production deployments are serialized and are not cancelled by another release. The previous image and database dump remain available for recovery.
+
+### Moving real data from development
+
+Do this once, not after every deployment. Stop `pnpm dev` first so no new work is written after the dump. Keep the Docker stack read-only towards trackers until the imported data and connections have been checked.
+
+If dev has no explicit `CREDENTIALS_KEY`, temporarily set `CREDENTIALS_KEY_OLD` in `.env.inkledger` to dev's `SESSION_SECRET`; otherwise set it to dev's old credential key. At boot the server seals the imported tracker credentials again with the Docker stack's `CREDENTIALS_KEY`.
+
+```bash
+pnpm docker:from-dev --dry-run
+pnpm docker:from-dev --yes
+```
+
+The command dumps both databases before changing anything, imports dev's Postgres database and installed modules, and restores the previous Docker database automatically if the import or health check fails. Dumps are private files in the backup directory. Check the application and its logs, then remove `PROVIDERS_READ_ONLY` from `deploy/staging.yml` (or set it to `"0"`) and run `pnpm docker:update` to enable tracker writes. After a successful credential re-seal, remove `CREDENTIALS_KEY_OLD`.
+
+From now on the Docker database is the only live copy. Development uses its own database: running the import again replaces newer production data, and continuing to log in dev does not synchronize it to Docker.
 
 ## Development
 

@@ -4,6 +4,7 @@
 // (data/modules). The stack's own database is backed up first and replaced.
 // The instance key is not copied: a copied database is not a copied server
 // (api/modules/instance.ts), so mod licences are activated for this one.
+// A failed import puts the stack's previous database back before exiting.
 //
 //   pnpm docker:from-dev --yes      backup + replace
 //   pnpm docker:from-dev --dry-run  print the steps, change nothing
@@ -56,42 +57,62 @@ if (!dry) mkdirSync(BACKUPS, { recursive: true, mode: 0o700 });
 const before = join(BACKUPS, `inkledger-${t}.dump`);
 const fromDev = join(BACKUPS, `dev-${devDb}-${t}.dump`);
 
+function replaceDatabase(dump) {
+  run("docker", psql("DROP DATABASE IF EXISTS inkledger WITH (FORCE)"));
+  run("docker", psql("CREATE DATABASE inkledger OWNER inkledger"));
+  run("docker", ["exec", "-i", DB, "pg_restore", "-U", "inkledger", "-d", "inkledger", "--no-owner", "--no-acl", "--exit-on-error"], { in: dump });
+}
+
+async function waitHealthy() {
+  const t0 = Date.now();
+  while (Date.now() - t0 < 120_000) {
+    if (await fetch(HEALTH).then((r) => r.ok, () => false)) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
 // 1. Both dumps first: nothing changes until each exists.
 run("docker", ["exec", DB, "pg_dump", "-U", "inkledger", "-Fc", "inkledger"], { out: before });
 run("docker", ["exec", DEV_PG, "pg_dump", "-U", devUser, "-Fc", "--no-owner", "--no-acl", devDb], { out: fromDev });
 
-// 2. The app stops, so nothing writes while the database is replaced.
-run("docker", [...COMPOSE, "stop", APP]);
-run("docker", psql("DROP DATABASE IF EXISTS inkledger WITH (FORCE)"));
-run("docker", psql("CREATE DATABASE inkledger OWNER inkledger"));
-run("docker", ["exec", "-i", DB, "pg_restore", "-U", "inkledger", "-d", "inkledger", "--no-owner", "--no-acl", "--exit-on-error"], { in: fromDev });
-
-// 3. The mods dev has installed (files on disk, the database names them).
 const modules = join(ROOT, "data/modules");
-if (existsSync(modules)) run("docker", ["cp", modules, `${APP}:/app/data/`]);
+try {
+  // 2. The app stops, so nothing writes while the database is replaced.
+  run("docker", [...COMPOSE, "stop", APP]);
+  replaceDatabase(fromDev);
 
-// 4. Up again: migrations and the credential re-seal run at boot.
-run("docker", [...COMPOSE, "up", "-d", "--no-deps", "--no-build", APP]);
-if (existsSync(modules)) run("docker", ["exec", "-u", "root", APP, "chown", "-R", "node:node", "/app/data/modules"]);
-if (dry) process.exit(0);
+  // 3. The mods dev has installed (files on disk, the database names them).
+  if (existsSync(modules)) run("docker", ["cp", modules, `${APP}:/app/data/`]);
 
-const t0 = Date.now();
-let healthy = false;
-while (Date.now() - t0 < 120_000 && !healthy) {
-  healthy = await fetch(HEALTH).then((r) => r.ok, () => false);
-  if (!healthy) await new Promise((r) => setTimeout(r, 250));
-}
-// What the server said about the copied state. Unreadable credentials show only once a
-// tracker is used (the first sync or page), so the log is read a little after boot.
-if (healthy) await new Promise((r) => setTimeout(r, 15_000));
-const log = spawnSync("docker", ["logs", "--since", `${Math.ceil((Date.now() - t0) / 1000) + 5}s`, APP], { encoding: "utf8" });
-const notes = [...new Set(`${log.stdout}${log.stderr}`.split("\n").filter((l) => /\[credentials\]|UnreadableCredentials|migrat|licen/i.test(l)).map((l) => l.trim()))];
-for (const l of notes) console.log(`  ${l}`);
-if (notes.some((l) => /UnreadableCredentials/.test(l))) {
-  console.log("! Some tracker credentials don't open with this stack's keys: CREDENTIALS_KEY_OLD in .env.inkledger must open dev's (sha256 hex of dev's SESSION_SECRET when dev has no CREDENTIALS_KEY).");
-}
-if (!healthy) {
-  console.error(`✗ Not healthy in 120 s. The stack's previous database: pg_restore --clean from ${before}`);
+  // 4. Up again: migrations and the credential re-seal run at boot.
+  run("docker", [...COMPOSE, "up", "-d", "--no-deps", "--no-build", APP]);
+  if (existsSync(modules)) run("docker", ["exec", "-u", "root", APP, "chown", "-R", "node:node", "/app/data/modules"]);
+  if (dry) process.exit(0);
+
+  const t0 = Date.now();
+  const healthy = await waitHealthy();
+  // What the server said about the copied state. Unreadable credentials show only once a
+  // tracker is used (the first sync or page), so the log is read a little after boot.
+  if (healthy) await new Promise((r) => setTimeout(r, 15_000));
+  const log = spawnSync("docker", ["logs", "--since", `${Math.ceil((Date.now() - t0) / 1000) + 5}s`, APP], { encoding: "utf8" });
+  const notes = [...new Set(`${log.stdout}${log.stderr}`.split("\n").filter((l) => /\[credentials\]|UnreadableCredentials|migrat|licen/i.test(l)).map((l) => l.trim()))];
+  for (const l of notes) console.log(`  ${l}`);
+  if (notes.some((l) => /UnreadableCredentials/.test(l))) {
+    console.log("! Some tracker credentials don't open with this stack's keys: CREDENTIALS_KEY_OLD in .env.inkledger must open dev's (sha256 hex of dev's SESSION_SECRET when dev has no CREDENTIALS_KEY).");
+  }
+  if (!healthy) throw new Error("not healthy in 120 s");
+} catch (error) {
+  console.error(`✗ Import failed: ${error.message}`);
+  try {
+    run("docker", [...COMPOSE, "stop", APP]);
+    replaceDatabase(before);
+    run("docker", [...COMPOSE, "up", "-d", "--no-deps", "--no-build", APP]);
+    if (!(await waitHealthy())) throw new Error("the restored stack is not healthy");
+    console.error(`✓ Previous database restored from ${before}`);
+  } catch (rollbackError) {
+    console.error(`✗ Rollback failed: ${rollbackError.message}. The previous database dump is ${before}`);
+  }
   process.exit(1);
 }
 console.log(`✓ inkledger now runs on dev's state (${devDb}) · previous database saved in ${before}`);

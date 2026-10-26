@@ -1,6 +1,7 @@
 # The inkledger stack beside the old jtt one: its own ports, database and volumes, and
 # read-only towards the trackers until the swap. Updated by `pnpm docker:update`, which
-# builds the image first (so no `build:` here). Secrets: ../.env.inkledger (see .env.example).
+# builds the image first (so no `build:` here). Secrets: INKLEDGER_ENV_FILE,
+# default ../.env.inkledger (see .env.example).
 name: inkledger
 
 services:
@@ -8,7 +9,7 @@ services:
     image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
     container_name: inkledger-db
     restart: unless-stopped
-    env_file: ../.env.inkledger # POSTGRES_PASSWORD
+    env_file: "${INKLEDGER_ENV_FILE:-../.env.inkledger}" # POSTGRES_PASSWORD
     environment:
       POSTGRES_USER: inkledger
       POSTGRES_DB: inkledger
@@ -29,7 +30,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: ../.env.inkledger
+    env_file: "${INKLEDGER_ENV_FILE:-../.env.inkledger}"
     environment:
       NODE_ENV: production
       PORT: "47823"

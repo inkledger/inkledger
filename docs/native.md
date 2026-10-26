@@ -65,8 +65,13 @@ pnpm dist --mac       # macOS only
 pnpm dist --android   # Android only (runs pnpm native:publish)
 ```
 
-- **Unsigned:** macOS asks to confirm the first launch (right click → Open); the APK is signed
-  with the debug key.
+A version tag matching `package.json` (`v1.2.3` for version `1.2.3`) also builds a macOS
+`.dmg` and a Windows NSIS `.exe` on their native GitHub runners. Once all checks and builds
+pass, CI attaches both installers and their SHA-256 checksums to the GitHub Release.
+
+- **Unsigned:** macOS asks to confirm the first launch (right click → Open), Windows may show
+  SmartScreen, and the APK is signed with the debug key. Desktop signing/notarization is not
+  configured yet.
 - **Source:** the script refuses uncommitted changes unless given `--allow-dirty`. Each file
   in `manifest.json` names its own commit and whether the tree was dirty. The release-wide
   `commit` is set only when all files agree, and the script warns when they don't (e.g. an APK
