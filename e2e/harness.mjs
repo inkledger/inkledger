@@ -86,7 +86,7 @@ export async function startTimer(page, key) {
   await running.waitFor();
 }
 
-export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false } = {}) {
+export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would
   // answer for a server still starting.
@@ -110,11 +110,12 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   }
   const dbUrl = new URL(adminUrl());
   dbUrl.pathname = `/${dbName}`;
-  const server = spawn(process.execPath, ["dist/boot.js"], {
+  const server = spawn(process.execPath, devBuild ? ["--import", "tsx", "api/boot.ts"] : ["dist/boot.js"], {
     cwd: APP,
     env: {
       ...process.env,
-      NODE_ENV: "production",
+      NODE_ENV: devBuild ? "development" : "production",
+      SERVE_BUILD: devBuild ? "1" : "0",
       PORT: String(port),
       DATABASE_URL: dbUrl.toString(),
       SESSION_SECRET: SECRET,

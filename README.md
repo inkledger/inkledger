@@ -191,9 +191,12 @@ The production server marks its database as its own: a development or test proce
 
 Use `PROVIDERS_READ_ONLY=1` when you point a development server at a real tracker.
 
+For Lighthouse against the real development data, use `pnpm dev:build` (or its alias `pnpm preview`). It builds the optimized frontend, then serves its assets and SSR from the development backend: login, APIs and the `.env` database keep working. This does not set `NODE_ENV=production` or mark the development database as production-owned. Use `PORT=4173 pnpm dev:build` to run beside the HMR server; rerun the command after frontend changes to rebuild them.
+
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Dev server with HMR (port 3000) |
+| `pnpm dev:build` / `pnpm preview` | Optimized build and SSR served by the development backend, with working login, APIs and `.env` database |
 | `pnpm build` / `pnpm start` | Production build (`dist/`) and server |
 | `pnpm lint` | ESLint and the design-token check |
 | `pnpm check` | TypeScript (strict) |
