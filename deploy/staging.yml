@@ -1,6 +1,6 @@
-# The inkledger stack beside the old jtt one: its own ports, database and volumes, and
-# read-only towards the trackers until the swap. Updated by `pnpm docker:update`, which
-# builds the image first (so no `build:` here). Secrets: INKLEDGER_ENV_FILE,
+# The inkledger stack beside the old jtt one: its own ports, database and volumes.
+# Updated by `pnpm docker:update`, which builds the image first (so no `build:` here).
+# Secrets: INKLEDGER_ENV_FILE,
 # default ../.env.inkledger (see .env.example).
 name: inkledger
 
@@ -35,7 +35,7 @@ services:
       NODE_ENV: production
       PORT: "47823"
       SYNC_INTERVAL_MIN: "5"
-      PROVIDERS_READ_ONLY: "1"
+      PROVIDERS_READ_ONLY: "0"
     ports:
       - "127.0.0.1:47824:47823"
     volumes:

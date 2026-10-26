@@ -170,3 +170,12 @@ and SEO 100 in every run.** Performance: desktop 98–99, mobile 77–92. Furthe
 baseline: zod runs jitless in the page (its eval probe broke the CSP on Settings), 24 px day-chart
 targets, hole rows named in words. Mobile Performance 100 was left out by decision (it needs server
 rendering, see above); the harness runs each Lighthouse in its own process and browser.
+
+### Desktop load order (after the final matrix)
+
+Desktop Performance was held back by LCP only (FCP ≈ 0.44 s, LCP ≈ 0.95–1.09 s). Two changes:
+on-demand parts are prefetched 1.5 s after the page's load (they competed with the page's own
+chunk), and the requested page's chunk starts with the session check instead of after it.
+Measured on login, dashboard, issue and a Settings section (2 runs each): login 100; the signed-in
+pages 99 (LCP ≈ 0.88–0.98 s, FCP ≈ 0.53 s). 100 there needs LCP ≈ 0.75 s, i.e. the page's data
+before its script (server rendering or a data preload): the same boundary as mobile, left out.

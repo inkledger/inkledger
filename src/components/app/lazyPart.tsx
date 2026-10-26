@@ -11,10 +11,18 @@ const partFailures = new WeakSet<object>();
  */
 export const isPartFailure = (e: unknown): boolean => typeof e === "object" && e !== null && partFailures.has(e);
 
-/** After start, when the browser is free (or soon, where it cannot say). */
+/** How long after the page's load the parts are fetched: never competing with the page's own content. */
+const AFTER_LOAD_MS = 1500;
+
+/** After start, once the page has loaded and shown its content, when the browser is free. */
 function whenIdle(run: () => void) {
-  if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 5000 });
-  else setTimeout(run, 2000);
+  const idle = () => {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(run, { timeout: 5000 });
+    else run();
+  };
+  const later = () => setTimeout(idle, AFTER_LOAD_MS);
+  if (document.readyState === "complete") later();
+  else window.addEventListener("load", later, { once: true });
 }
 
 /**

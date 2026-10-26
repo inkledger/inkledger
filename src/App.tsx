@@ -10,22 +10,62 @@ import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { PageSpinner } from "@/components/app/States";
 
-const Login = lazy(() => import("@/pages/Login"));
-const IssueByKey = lazy(() => import("@/pages/IssueRoute").then(m => ({ default: m.IssueByKey })));
-const IssueByRef = lazy(() => import("@/pages/IssueRoute").then(m => ({ default: m.IssueByRef })));
-const Invite = lazy(() => import("@/pages/Invite"));
-const ChangePassword = lazy(() => import("@/pages/ChangePassword"));
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Issues = lazy(() => import("@/pages/Issues"));
-const Timesheet = lazy(() => import("@/pages/Timesheet"));
-const Board = lazy(() => import("@/pages/Board"));
-const PinboardPage = lazy(() => import("@/pages/PinboardPage"));
-const TodosPage = lazy(() => import("@/pages/TodosPage"));
-const Reports = lazy(() => import("@/pages/Reports"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
-const Info = lazy(() => import("@/pages/Info"));
-const Install = lazy(() => import("@/pages/Install"));
+const load = {
+  login: () => import("@/pages/Login"),
+  issue: () => import("@/pages/IssueRoute"),
+  invite: () => import("@/pages/Invite"),
+  changePassword: () => import("@/pages/ChangePassword"),
+  dashboard: () => import("@/pages/Dashboard"),
+  issues: () => import("@/pages/Issues"),
+  timesheet: () => import("@/pages/Timesheet"),
+  board: () => import("@/pages/Board"),
+  pinboard: () => import("@/pages/PinboardPage"),
+  todos: () => import("@/pages/TodosPage"),
+  reports: () => import("@/pages/Reports"),
+  settings: () => import("@/pages/Settings"),
+  notFound: () => import("@/pages/NotFound"),
+  info: () => import("@/pages/Info"),
+  install: () => import("@/pages/Install"),
+};
+
+// The page asked for starts downloading at once, beside the session check (not after it): its
+// chunk is the same one its route then renders (the module is fetched once).
+const FIRST: [RegExp, keyof typeof load][] = [
+  [/^\/$/, "dashboard"],
+  [/^\/login\/?$/, "login"],
+  [/^\/install\/?$/, "install"],
+  [/^\/invite\//, "invite"],
+  [/^\/issues\/?$/, "issues"],
+  [/^\/issues\/.+/, "issue"],
+  [/^\/timesheet/, "timesheet"],
+  [/^\/board/, "board"],
+  [/^\/pinboard/, "pinboard"],
+  [/^\/todos/, "todos"],
+  [/^\/reports/, "reports"],
+  [/^\/settings/, "settings"],
+  [/^\/info/, "info"],
+];
+if (typeof window !== "undefined") {
+  const first = FIRST.find(([re]) => re.test(window.location.pathname))?.[1];
+  if (first) void load[first]().catch(() => undefined);
+}
+
+const Login = lazy(load.login);
+const IssueByKey = lazy(() => load.issue().then(m => ({ default: m.IssueByKey })));
+const IssueByRef = lazy(() => load.issue().then(m => ({ default: m.IssueByRef })));
+const Invite = lazy(load.invite);
+const ChangePassword = lazy(load.changePassword);
+const Dashboard = lazy(load.dashboard);
+const Issues = lazy(load.issues);
+const Timesheet = lazy(load.timesheet);
+const Board = lazy(load.board);
+const PinboardPage = lazy(load.pinboard);
+const TodosPage = lazy(load.todos);
+const Reports = lazy(load.reports);
+const Settings = lazy(load.settings);
+const NotFound = lazy(load.notFound);
+const Info = lazy(load.info);
+const Install = lazy(load.install);
 
 /** auth.me failed (network, 5xx): keep the route and keep trying. */
 function Reconnecting({

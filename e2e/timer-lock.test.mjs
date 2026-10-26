@@ -110,8 +110,10 @@ test("a start that fails says so with Retry, which starts the same issue (no sea
     await page.goto(base + "/issues/DEMO-101");
     await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
     const ask = page.getByRole("alertdialog");
-    if (await ask.isVisible().catch(() => false)) await ask.getByRole("button", { name: "From now" }).click();
     const toast = page.locator("[data-sonner-toast]").filter({ has: page.getByRole("button", { name: "Retry" }) });
+    // The start may first ask from when (a gap before now): whichever comes first, as startTimer does.
+    if (await Promise.race([ask.waitFor().then(() => true), toast.waitFor().then(() => false)]))
+      await ask.getByRole("button", { name: "From now" }).click();
     await toast.waitFor();
     await toast.getByRole("button", { name: "Retry" }).click();
     await page.waitForTimeout(800);
