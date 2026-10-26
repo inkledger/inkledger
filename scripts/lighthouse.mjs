@@ -5,13 +5,13 @@
 //                                             [--runs 3] [--mods <unsigned modules build>] [--gate]
 // --gate: exit 1 unless every run of every scenario scores 100 in all four categories.
 // Nothing is chosen after seeing scores: the scenarios below are the whole matrix (LH-1).
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as chromeLauncher from "chrome-launcher";
-import lighthouse from "lighthouse";
 import { start } from "../e2e/harness.mjs";
 import { chromiumPath } from "./chromium.mjs";
 
@@ -128,12 +128,10 @@ try {
           extraHeaders: s.auth === false ? {} : { Cookie: cookie },
           disableStorageReset: false,
         };
-        const r = await lighthouse(`${app.base}${s.path}`, flags);
-        if (!r) throw new Error(`no result for ${s.id}`);
         const name = `${s.id}.${form}.${run}`;
-        writeFileSync(join(OUT, `${name}.json`), r.report[0]);
-        writeFileSync(join(OUT, `${name}.html`), r.report[1]);
-        const lhr = r.lhr;
+        // Each run in its own process (memory stays bounded over the whole matrix).
+        await promisify(execFile)(process.execPath, [new URL("./lighthouse-run.mjs", import.meta.url).pathname, `${app.base}${s.path}`, JSON.stringify(flags), join(OUT, name)], { maxBuffer: 1 << 20 });
+        const lhr = JSON.parse(readFileSync(join(OUT, `${name}.json`), "utf8"));
         const scores = Object.fromEntries(CATEGORIES.map(c => [c, Math.round((lhr.categories[c]?.score ?? 0) * 100)]));
         const metric = id => lhr.audits[id]?.numericValue ?? null;
         const failing = Object.values(lhr.audits)
