@@ -54,6 +54,7 @@ export function storeUrl(raw: string): string | null {
 
 export const env = {
   isProduction,
+  serveBuild: !isProduction && process.env.SERVE_BUILD === "1",
   /** HTTP port for the production server */
   port: Number(process.env.PORT || 3000),
   /** SQLite file path, or ":memory:" for tests */
