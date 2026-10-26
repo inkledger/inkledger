@@ -984,6 +984,8 @@ export const moduleStorage = pgTable(
     moduleId: text("module_id").notNull(),
     key: text("key").notNull(),
     value: text("value").notNull(),
+    /** Bumped on every write: a module may write only over the value it read (storage.update). */
+    revision: integer("revision").notNull().default(0),
     updatedAt: ms("updated_at")
       .notNull()
       .$defaultFn(() => new Date()),

@@ -579,3 +579,27 @@ test("modules no longer allowed (permission taken away) stop at once, every one 
     await page.getByTestId("module-hello").waitFor({ state: "detached" });
     await page.getByTestId("kit-sidebar-footer").waitFor({ state: "detached" });
   }));
+
+test("the storage and file caps hold under parallel writes (one Postgres, no lost or extra rows)", () =>
+  withModules({ modules: ["kit"], seed: licensed("kit"), path: "/settings/store" }, async ({ page, db }) => {
+    const call = (proc, input) =>
+      page.evaluate(([p, i]) => fetch(`/api/trpc/modules.${p}?batch=1`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ 0: { json: i } }),
+      }).then(r => r.status), [proc, input]);
+    // 60 keys at once, 64 allowed with 10 already there: 54 fit, 6 are refused, never 70.
+    for (let i = 0; i < 10; i++) assert.equal(await call("storageSet", { moduleId: "kit", key: `pre${i}`, value: i }), 200);
+    const keys = await Promise.all(Array.from({ length: 60 }, (_, i) => call("storageSet", { moduleId: "kit", key: `k${i}`, value: i })));
+    const [{ n }] = await db.q("SELECT count(*)::int AS n FROM module_storage WHERE module_id = 'kit' AND key NOT LIKE '\\_\\_%'");
+    assert.ok(n <= 64, `at most 64 keys, got ${n}`);
+    const [{ ks }] = await db.q("SELECT count(*)::int AS ks FROM module_storage WHERE module_id = 'kit' AND key LIKE 'k%'");
+    assert.equal(keys.filter(s => s === 200).length, ks, `every accepted write is there (keys ${n}, k* ${ks})`);
+    // The same key 20 times at once: one row, the cap untouched.
+    await Promise.all(Array.from({ length: 20 }, (_, i) => call("storageSet", { moduleId: "kit", key: "pre0", value: i })));
+    // 60 files at once, 48 allowed: the oldest go, never more than 48.
+    const png = "iVBORw0KGgo=";
+    const files = await Promise.all(Array.from({ length: 60 }, (_, i) => call("filePut", { moduleId: "kit", key: `f${i}`, contentType: "image/png", data: png })));
+    assert.ok(files.every(s => s === 200), `all written: ${files}`);
+    const [{ f }] = await db.q("SELECT count(*)::int AS f FROM module_files WHERE module_id = 'kit'");
+    assert.ok(f <= 48, `at most 48 files, got ${f}`);
+  }));

@@ -279,10 +279,10 @@ describe("add-on modules", () => {
     await upload(bundle());
     await (await import("./registry")).addLicense(license("inkledger.hello"));
     await caller.modules.storageSet({ moduleId: "hello", key: "state", value: { stage: "egg" } });
-    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toEqual({ value: { stage: "egg" } });
+    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toMatchObject({ value: { stage: "egg" } });
     await expect(caller.modules.storageSet({ moduleId: "hello", key: "big", value: "x".repeat(20_000) })).rejects.toThrow();
     await caller.modules.storageDelete({ moduleId: "hello", key: "state" });
-    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toEqual({ value: null });
+    expect((await caller.modules.storageGet({ moduleId: "hello", key: "state" })).value).toBeNull();
     for (let i = 0; i < 64; i++) await caller.modules.storageSet({ moduleId: "hello", key: `k${i}`, value: i });
     await expect(caller.modules.storageSet({ moduleId: "hello", key: "one-more", value: 1 })).rejects.toThrow();
     await caller.modules.storageSet({ moduleId: "hello", key: "k0", value: "overwrite is fine" });
@@ -445,6 +445,24 @@ describe("add-on modules", () => {
     expect((await caller.modules.historyDaily({ moduleId: "hello", since: 0 })).map((d) => d.date)).not.toContain(ymd(noon(40)));
   });
 
+  it("storage revisions: a write over a value read before another write is refused with the latest; an import bumps them", async () => {
+    await activate();
+    const first = await caller.modules.storageGet({ moduleId: "hello", key: "state" });
+    expect(first).toEqual({ value: null, revision: 0 });
+    expect(await caller.modules.storageSetIf({ moduleId: "hello", key: "state", value: { n: 1 }, ifRevision: 0 })).toEqual({ revision: 1 });
+    // Another tab read revision 0 too: its write is refused, with what is there now.
+    expect(await caller.modules.storageSetIf({ moduleId: "hello", key: "state", value: { n: 9 }, ifRevision: 0 })).toEqual({ conflict: true, value: { n: 1 }, revision: 1 });
+    // A plain write (older hosts) still goes, and moves the revision on.
+    await caller.modules.storageSet({ moduleId: "hello", key: "state", value: { n: 2 } });
+    expect((await caller.modules.storageGet({ moduleId: "hello", key: "state" })).revision).toBe(2);
+    const file = await caller.modules.exportProgress({ id: "hello" });
+    expect(JSON.stringify(file)).not.toContain("revision");
+    await caller.modules.importProgress({ text: JSON.stringify(file) });
+    const after = await caller.modules.storageGet({ moduleId: "hello", key: "state" });
+    expect(after.value).toEqual({ n: 2 });
+    expect(after.revision).toBeGreaterThan(2);
+  });
+
   it("host keys are reserved and don't count toward the limit", async () => {
     await activate();
     await expect(caller.modules.storageSet({ moduleId: "hello", key: "__since", value: 0 })).rejects.toThrow();
@@ -461,13 +479,13 @@ describe("add-on modules", () => {
 
     await caller.modules.uninstall({ id: "hello" });
     await activate(false);
-    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toEqual({ value: null });
+    expect((await caller.modules.storageGet({ moduleId: "hello", key: "state" })).value).toBeNull();
     expect((await caller.modules.totals({ moduleId: "hello" })).since).toBeGreaterThanOrEqual(since);
 
     await expect(caller.modules.importProgress({ text: JSON.stringify({ ...file, data: { state: { stage: "legend" } } }) })).rejects.toThrow();
     await expect(caller.modules.importProgress({ text: "nonsense" })).rejects.toThrow();
     await caller.modules.importProgress({ text: JSON.stringify(file) });
-    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toEqual({ value: { stage: "adult" } });
+    expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toMatchObject({ value: { stage: "adult" } });
     expect((await caller.modules.totals({ moduleId: "hello" })).since).toBe(since);
   });
 });

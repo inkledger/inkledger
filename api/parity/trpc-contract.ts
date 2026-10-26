@@ -114,6 +114,7 @@ export interface FrozenIn {
   "modules.storageDelete": { key: string; moduleId: string };
   "modules.storageGet": { key: string; moduleId: string };
   "modules.storageSet": { key: string; moduleId: string; value: unknown };
+  "modules.storageSetIf": { ifRevision: number; key: string; moduleId: string; value: unknown };
   "modules.totals": { moduleId: string };
   "modules.uninstall": { id: string };
   "modules.weather": { lat: number; lon: number; moduleId: string };
@@ -323,8 +324,9 @@ export interface FrozenOut {
   "modules.removeLicense": void;
   "modules.setEnabled": { enabled: boolean };
   "modules.storageDelete": void;
-  "modules.storageGet": { value: unknown };
+  "modules.storageGet": { revision: number; value: unknown };
   "modules.storageSet": void;
+  "modules.storageSetIf": { conflict: true; revision: number; value: unknown } | { revision: number };
   "modules.totals": { lifetimeLoggedSeconds: number; since: number; weekLoggedSeconds: number };
   "modules.uninstall": { removed: boolean };
   "modules.weather": null | { cloudCover: number; condition: "clear" | "cloudy" | "fog" | "rain" | "snow" | "storm"; isDay: boolean; precipitation: number; tempC: number };

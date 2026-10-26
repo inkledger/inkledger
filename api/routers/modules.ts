@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, gte, not, like } from "drizzle-orm";
+import { and, count, eq, gte, not, like, sql } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can } from "../queries/accounts";
@@ -54,6 +54,48 @@ async function requireActive(moduleId: string) {
 
 
 type Db = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** One writer at a time per user and module (caps and revisions hold under parallel writes). */
+const lockStorage = (tx: Tx, userId: number, moduleId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`module-storage:${moduleId}`}), ${userId})`);
+
+/**
+ * One write of a module's key: under the user+module lock, within the key cap; with `ifRevision`
+ * only over that revision (else the latest comes back). Every write moves the revision on.
+ */
+async function writeStorage(userId: number, moduleId: string, key: string, value: unknown, ifRevision?: number) {
+  const json = JSON.stringify(value ?? null);
+  if (Buffer.byteLength(json) > STORAGE_MAX_BYTES) {
+    throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageTooLarge") });
+  }
+  const mine = and(eq(moduleStorage.userId, userId), eq(moduleStorage.moduleId, moduleId));
+  return getDb().transaction(async (tx): Promise<{ revision: number } | { conflict: true; value: unknown; revision: number }> => {
+    await lockStorage(tx, userId, moduleId);
+    const [{ n } = { n: 0 }] = await tx.select({ n: count() }).from(moduleStorage).where(and(mine, not(moduleKeys)));
+    const [exists] = await tx
+      .select({ value: moduleStorage.value, revision: moduleStorage.revision })
+      .from(moduleStorage)
+      .where(and(mine, eq(moduleStorage.key, key)))
+      .limit(1);
+    const current = exists?.revision ?? 0;
+    if (ifRevision !== undefined && ifRevision !== current) {
+      return { conflict: true as const, value: exists ? (JSON.parse(exists.value) as unknown) : null, revision: current };
+    }
+    if (!exists && n >= STORAGE_MAX_KEYS) {
+      throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageFull") });
+    }
+    const revision = current + 1;
+    await tx
+      .insert(moduleStorage)
+      .values({ userId, moduleId, key, value: json, revision, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [moduleStorage.userId, moduleStorage.moduleId, moduleStorage.key],
+        set: { value: json, revision, updatedAt: new Date() },
+      });
+    return { revision };
+  });
+}
 
 /**
  * When this user's progress in a module starts: set the first time the module
@@ -254,12 +296,16 @@ export const modulesRouter = createRouter({
     }
     const now = new Date();
     await getDb().transaction(async (tx) => {
+      await lockStorage(tx, ctx.user.id, module);
+      const mine = and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.moduleId, module), not(eq(moduleStorage.key, OFF)));
+      // Revisions are never imported: each key moves past the one an open tab may hold.
+      const before = new Map(
+        (await tx.select({ key: moduleStorage.key, revision: moduleStorage.revision }).from(moduleStorage).where(mine)).map(r => [r.key, r.revision]),
+      );
       // Everything but the on/off switch, which stays as the user set it.
-      await tx
-        .delete(moduleStorage)
-        .where(and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.moduleId, module), not(eq(moduleStorage.key, OFF))));
+      await tx.delete(moduleStorage).where(mine);
       await tx.insert(moduleStorage).values(
-        [[SINCE, String(since)] as const, ...entries].map(([key, value]) => ({ userId: ctx.user.id, moduleId: module, key, value, updatedAt: now })),
+        [[SINCE, String(since)] as const, ...entries].map(([key, value]) => ({ userId: ctx.user.id, moduleId: module, key, value, revision: (before.get(key) ?? 0) + 1, updatedAt: now })),
       );
     });
     return { module };
@@ -268,7 +314,7 @@ export const modulesRouter = createRouter({
   storageGet: use.input(storageRef).query(async ({ ctx, input }) => {
     await requireActive(input.moduleId);
     const [row] = await getDb()
-      .select({ value: moduleStorage.value })
+      .select({ value: moduleStorage.value, revision: moduleStorage.revision })
       .from(moduleStorage)
       .where(
         and(
@@ -278,35 +324,23 @@ export const modulesRouter = createRouter({
         ),
       )
       .limit(1);
-    return { value: row ? (JSON.parse(row.value) as unknown) : null };
+    // revision 0: no value (storage.update writes over what it read, or is told what is there now).
+    return { value: row ? (JSON.parse(row.value) as unknown) : null, revision: row?.revision ?? 0 };
   }),
 
   storageSet: use
     .input(storageRef.extend({ value: z.unknown() }))
     .mutation(async ({ ctx, input }) => {
       await requireActive(input.moduleId);
-      const json = JSON.stringify(input.value ?? null);
-      if (Buffer.byteLength(json) > STORAGE_MAX_BYTES) {
-        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageTooLarge") });
-      }
-      const db = getDb();
-      const mine = and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.moduleId, input.moduleId));
-      const [{ n } = { n: 0 }] = await db.select({ n: count() }).from(moduleStorage).where(and(mine, not(moduleKeys)));
-      const [exists] = await db
-        .select({ key: moduleStorage.key })
-        .from(moduleStorage)
-        .where(and(mine, eq(moduleStorage.key, input.key)))
-        .limit(1);
-      if (!exists && n >= STORAGE_MAX_KEYS) {
-        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageFull") });
-      }
-      await db
-        .insert(moduleStorage)
-        .values({ userId: ctx.user.id, moduleId: input.moduleId, key: input.key, value: json, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: [moduleStorage.userId, moduleStorage.moduleId, moduleStorage.key],
-          set: { value: json, updatedAt: new Date() },
-        });
+      await writeStorage(ctx.user.id, input.moduleId, input.key, input.value);
+    }),
+
+  /** Newer hosts' storage.update: written only over `ifRevision`, else the latest comes back to merge. */
+  storageSetIf: use
+    .input(storageRef.extend({ value: z.unknown(), ifRevision: z.number().int().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      await requireActive(input.moduleId);
+      return writeStorage(ctx.user.id, input.moduleId, input.key, input.value, input.ifRevision);
     }),
 
   storageDelete: use.input(storageRef).mutation(async ({ ctx, input }) => {

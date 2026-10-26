@@ -24,30 +24,33 @@ export async function getModuleFile(userId: number, moduleId: string, key: strin
 }
 
 export async function putModuleFile(userId: number, moduleId: string, key: string, contentType: string, data: Buffer) {
-  const db = getDb();
   const now = new Date();
-  await db
-    .insert(moduleFiles)
-    .values({ userId, moduleId, key, contentType, data, size: data.length, updatedAt: now, usedAt: now })
-    .onConflictDoUpdate({
-      target: [moduleFiles.userId, moduleFiles.moduleId, moduleFiles.key],
-      set: { contentType, data, size: data.length, updatedAt: now, usedAt: now },
-    });
-  // Over the caps: the least recently used go, never the one just written.
-  const rows = await db
-    .select({ key: moduleFiles.key, size: moduleFiles.size })
-    .from(moduleFiles)
-    .where(own(userId, moduleId))
-    .orderBy(asc(moduleFiles.usedAt));
-  let count = rows.length;
-  let total = rows.reduce((a, r) => a + r.size, 0);
-  for (const r of rows) {
-    if (count <= FILES_MAX_COUNT && total <= FILES_MAX_TOTAL_BYTES) break;
-    if (r.key === key) continue;
-    await db.delete(moduleFiles).where(and(own(userId, moduleId), eq(moduleFiles.key, r.key)));
-    count -= 1;
-    total -= r.size;
-  }
+  // Write and trim as one step per user and module: parallel writes never leave more than the caps.
+  await getDb().transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`module-files:${moduleId}`}), ${userId})`);
+    await tx
+      .insert(moduleFiles)
+      .values({ userId, moduleId, key, contentType, data, size: data.length, updatedAt: now, usedAt: now })
+      .onConflictDoUpdate({
+        target: [moduleFiles.userId, moduleFiles.moduleId, moduleFiles.key],
+        set: { contentType, data, size: data.length, updatedAt: now, usedAt: now },
+      });
+    // Over the caps: the least recently used go, never the one just written.
+    const rows = await tx
+      .select({ key: moduleFiles.key, size: moduleFiles.size })
+      .from(moduleFiles)
+      .where(own(userId, moduleId))
+      .orderBy(asc(moduleFiles.usedAt));
+    let count = rows.length;
+    let total = rows.reduce((a, r) => a + r.size, 0);
+    for (const r of rows) {
+      if (count <= FILES_MAX_COUNT && total <= FILES_MAX_TOTAL_BYTES) break;
+      if (r.key === key) continue;
+      await tx.delete(moduleFiles).where(and(own(userId, moduleId), eq(moduleFiles.key, r.key)));
+      count -= 1;
+      total -= r.size;
+    }
+  });
 }
 
 export async function deleteModuleFile(userId: number, moduleId: string, key: string) {

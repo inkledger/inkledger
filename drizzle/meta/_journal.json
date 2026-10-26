@@ -78,6 +78,13 @@
       "when": 1792856382779,
       "tag": "0010_write_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792973176453,
+      "tag": "0011_module_storage_revision",
+      "breakpoints": true
     }
   ]
 }

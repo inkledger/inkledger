@@ -37,6 +37,9 @@ const guard = (moduleId: string, fn: () => unknown) => {
   }
 };
 
+/** storage.update: tries before giving up on a key that keeps changing elsewhere. */
+const UPDATE_TRIES = 8;
+
 /** What a stopped module's late read gets: no answer (never made-up data it could save). */
 const never = <T,>() => new Promise<T>(() => {});
 
@@ -334,6 +337,19 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           },
           delete: async key => {
             await quiet(() => utils.client.modules.storageDelete.mutate({ moduleId, key }), undefined);
+          },
+          update: async <T,>(key: string, change: (current: T | null) => T): Promise<T> => {
+            if (disposed) return never<T>();
+            let read = await utils.client.modules.storageGet.query({ moduleId, key });
+            // Another tab or device wrote between the read and the write: change again on theirs.
+            for (let tries = 0; tries < UPDATE_TRIES; tries++) {
+              if (disposed) return never<T>();
+              const next = change(read.value as T | null);
+              const r = await utils.client.modules.storageSetIf.mutate({ moduleId, key, value: next, ifRevision: read.revision });
+              if (!("conflict" in r)) return next;
+              read = r;
+            }
+            throw new Error(`storage.update: "${key}" kept changing elsewhere`);
           },
         },
       };

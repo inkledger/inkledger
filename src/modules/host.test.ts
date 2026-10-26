@@ -81,3 +81,37 @@ describe("host hub: a stopped or failing module never breaks the page", () => {
     hub.dispose();
   });
 });
+
+describe("host hub: storage.update", () => {
+  it("writes over what it read; when another tab wrote first, changes again on theirs (nothing lost)", async () => {
+    const { createHub } = await import("./host");
+    // The server: one key, a revision per write, the conditional write refused when behind.
+    let saved: { value: unknown; revision: number } = { value: { closed: ["A"] }, revision: 1 };
+    let sneak = true;
+    const client = {
+      modules: {
+        storageGet: { query: async () => ({ ...saved }) },
+        storageSetIf: {
+          mutate: async ({ value, ifRevision }: { value: unknown; ifRevision: number }) => {
+            // Another tab writes between this tab's read and its write, once.
+            if (sneak) {
+              sneak = false;
+              saved = { value: { closed: ["A", "B"] }, revision: 2 };
+            }
+            if (ifRevision !== saved.revision) return { conflict: true as const, ...saved };
+            saved = { value, revision: saved.revision + 1 };
+            return { revision: saved.revision };
+          },
+        },
+      },
+    };
+    const hub = createHub(new QueryClient(), { ...fakeUtils(() => []), client } as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    const add = (id: string) => (cur: { closed: string[] } | null) => ({ closed: [...new Set([...(cur?.closed ?? []), id])] });
+    const out = await api.storage.update?.("state", add("C"));
+    expect(out).toEqual({ closed: ["A", "B", "C"] });
+    expect(saved).toEqual({ value: { closed: ["A", "B", "C"] }, revision: 3 });
+    dispose();
+    hub.dispose();
+  });
+});

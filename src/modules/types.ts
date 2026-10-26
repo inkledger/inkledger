@@ -198,6 +198,14 @@ export type HostApiV1 = {
     get<T>(key: string): Promise<T | null>;
     set(key: string, value: unknown): Promise<void>;
     delete(key: string): Promise<void>;
+    /**
+     * Changes a value from the latest one saved, as one step across tabs and devices: `change`
+     * gets the saved value (null if none) and returns the new one; when another tab or device
+     * wrote meanwhile, `change` runs again on what they wrote. Keep it pure (it may run more
+     * than once) and idempotent per event (say, a set of event ids already counted). Resolves
+     * with the value saved. Optional: hosts before it lack it (use `set` there).
+     */
+    update?<T>(key: string, change: (current: T | null) => T): Promise<T>;
   };
 };
 

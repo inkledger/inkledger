@@ -436,6 +436,10 @@
     "type": "mutation"
   },
   {
+    "path": "modules.storageSetIf",
+    "type": "mutation"
+  },
+  {
     "path": "modules.totals",
     "type": "query"
   },
