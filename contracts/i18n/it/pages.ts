@@ -21,26 +21,33 @@ export const pages: Shape<typeof en> = {
     whichDevice: "Su che dispositivo sei?",
     device: "Dispositivo",
     lanTitle: "Sei sulla rete locale del server",
-    lanText: "Il telefono raggiunge già il server sulla Wi-Fi, con il certificato di inkledger.",
+    lanText:
+      "Il telefono raggiunge già il server sulla Wi-Fi, con il certificato di inkledger.",
     tailscaleTitle: "Tailscale è attivo",
-    tailscaleText: "Se vedi questa pagina, il telefono raggiunge già il server.",
+    tailscaleText:
+      "Se vedi questa pagina, il telefono raggiunge già il server.",
     android: {
       download: "Scarica l'app",
       downloadButton: "Scarica inkledger per Android",
       build: "Versione {version} · {size} · {date}",
-      unpublished: "L'app Android non è ancora pubblicata su questo server: chiedi a chi lo gestisce (pnpm native:publish).",
+      unpublished:
+        "L'app Android non è ancora pubblicata su questo server: chiedi a chi lo gestisce (pnpm native:publish).",
       checking: "Controllo…",
       installTitle: "Installala",
-      installText: "Apri il file scaricato. Se Android lo chiede, consenti l'installazione da questa fonte (Impostazioni → App → il browser → Installa app sconosciute).",
+      installText:
+        "Apri il file scaricato. Se Android lo chiede, consenti l'installazione da questa fonte (Impostazioni → App → il browser → Installa app sconosciute).",
     },
     addServer: "Aggiungi questo server",
     ios: {
       safariTitle: "Apri questa pagina in Safari",
-      safariText: "Le altre app del browser non possono aggiungerla alla schermata Home.",
+      safariText:
+        "Le altre app del browser non possono aggiungerla alla schermata Home.",
       homeTitle: "Aggiungi alla schermata Home",
-      homeText: "Tocca Condividi (il quadrato con la freccia), poi «Aggiungi alla schermata Home».",
+      homeText:
+        "Tocca Condividi (il quadrato con la freccia), poi «Aggiungi alla schermata Home».",
       openTitle: "Apri inkledger dalla Home e accedi",
-      openText: "Si apre a tutto schermo, come un'app, con il tuo accesso a inkledger.",
+      openText:
+        "Si apre a tutto schermo, come un'app, con il tuo accesso a inkledger.",
       note: "Su iPhone le notifiche arrivano solo con inkledger aperto; timer, registrazioni e tutto il resto funzionano come sul computer.",
     },
     desktop: {
@@ -48,14 +55,16 @@ export const pages: Shape<typeof en> = {
       browserText: "Usa inkledger da qui: accedi e ritrovi tutto.",
       openTempo: "Apri inkledger",
       appTitle: "Oppure l'app desktop",
-      appText: "Nell'app aggiungi questo server; sul computer su cui gira inkledger funziona anche senza Tailscale, tramite il suo indirizzo locale.",
+      appText:
+        "Nell'app aggiungi questo server; sul computer su cui gira inkledger funziona anche senza Tailscale, tramite il suo indirizzo locale.",
     },
     footerLan: "Pagina raggiungibile solo dalla rete locale del server.",
     footerTailscale: "Pagina raggiungibile solo dalla tua rete Tailscale.",
   },
   info: {
     title: "Info",
-    description: "Indirizzi di questo server, app disponibili e come raggiungerlo.",
+    description:
+      "Indirizzi di questo server, app disponibili e come raggiungerlo.",
     server: "Questo server",
     tailscaleHost: "Tailscale (da altri dispositivi)",
     onThisComputer: "Su questo computer",
@@ -68,17 +77,21 @@ export const pages: Shape<typeof en> = {
     usingApp: "Stai usando l'app",
     desktopOrBrowser: "App desktop o il browser",
     addDevice: "Aggiungere un dispositivo",
-    addDeviceText: "Dall'app desktop: Impostazioni → Dispositivi, con i passi e il QR code da inquadrare col telefono. Oppure apri sul dispositivo, con Tailscale attivo:",
+    addDeviceText:
+      "Dall'app desktop: Impostazioni → Dispositivi, con i passi e il QR code da inquadrare col telefono. Oppure apri sul dispositivo, con Tailscale attivo:",
     copyLink: "Copia link",
     openDevices: "Apri Impostazioni → Dispositivi",
     noTailscale: "Senza Tailscale",
-    noTailscale1: "Sul computer su cui gira inkledger non serve Tailscale: nel browser o nell'app desktop usa il suo indirizzo locale (localhost e la porta del server).",
+    noTailscale1:
+      "Sul computer su cui gira inkledger non serve Tailscale: nel browser o nell'app desktop usa il suo indirizzo locale (localhost e la porta del server).",
     noTailscaleHere: "Questo server:",
-    noTailscale2: "Tailscale serve solo per arrivare qui da un altro dispositivo.",
+    noTailscale2:
+      "Tailscale serve solo per arrivare qui da un altro dispositivo.",
   },
   login: {
     pageTitle: "Accedi",
-    benefit1: "Timer e registrazione rapida, salvati direttamente sui tuoi tracker",
+    benefit1:
+      "Timer e registrazione rapida, salvati direttamente sui tuoi tracker",
     benefit2: "Le tue issue sempre sincronizzate",
     benefit3: "Report e obiettivi per tenere il conto delle ore",
     tagline: "Il tuo tempo, senza attrito.",
@@ -106,7 +119,8 @@ export const pages: Shape<typeof en> = {
     createToken: "Crea un API token su Atlassian",
     newTab: "(si apre in una nuova scheda)",
     patHint: "Il PAT si crea in Jira: Profilo → Personal Access Tokens.",
-    passwordHint: "La password è usata solo per le API e salvata cifrata in locale.",
+    passwordHint:
+      "La password è usata solo per le API e salvata cifrata in locale.",
     verifying: "Verifica credenziali…",
     submit: "Accedi",
     encrypted: "Le credenziali sono cifrate e restano nel database locale.",
@@ -116,10 +130,12 @@ export const pages: Shape<typeof en> = {
     accountUsername: "Nome utente",
     accountPassword: "Password",
     signInSubmit: "Accedi",
-    activateLink: "Usavi inkledger con il tuo accesso Jira? Attiva il tuo account",
+    activateLink:
+      "Usavi inkledger con il tuo accesso Jira? Attiva il tuo account",
     backToSignIn: "Torna all'accesso",
     activateHeading: "Attiva il tuo account",
-    activateIntro: "Conferma chi sei con l'accesso Jira che usavi, poi scegli come accederai a inkledger da ora in poi.",
+    activateIntro:
+      "Conferma chi sei con l'accesso Jira che usavi, poi scegli come accederai a inkledger da ora in poi.",
     jiraSection: "Il tuo accesso Jira",
     newAccountSection: "Il tuo account inkledger",
     newUsername: "Scegli un nome utente",
@@ -130,15 +146,18 @@ export const pages: Shape<typeof en> = {
   invite: {
     pageTitle: "Invito",
     heading: "Benvenuto, {name}",
-    intro: "Scegli una password per il tuo account «{username}». Da ora accederai con questa.",
+    intro:
+      "Scegli una password per il tuo account «{username}». Da ora accederai con questa.",
     password: "Password",
     submit: "Imposta la password e accedi",
-    invalid: "Questo invito è scaduto o è già stato usato. Chiedine uno nuovo a un amministratore.",
+    invalid:
+      "Questo invito è scaduto o è già stato usato. Chiedine uno nuovo a un amministratore.",
   },
   changePassword: {
     pageTitle: "Nuova password",
     heading: "Scegli una nuova password",
-    introDefault: "Questo account ha ancora una password predefinita o temporanea. Scegline una tua prima di continuare.",
+    introDefault:
+      "Questo account ha ancora una password predefinita o temporanea. Scegline una tua prima di continuare.",
     current: "Password attuale",
     next: "Nuova password",
     submit: "Salva la password",
@@ -165,7 +184,8 @@ export const pages: Shape<typeof en> = {
     description: "Ore registrate nel periodo scelto",
     exportCsv: "Esporta CSV",
     rangeTooLong: "Intervallo troppo lungo: al massimo {max} giorni.",
-    rangeInvalid: "Intervallo non valido: controlla che le due date siano compilate e che «Dal» non sia successiva ad «Al».",
+    rangeInvalid:
+      "Intervallo non valido: controlla che le due date siano compilate e che «Dal» non sia successiva ad «Al».",
     emptyTitle: "Nessun worklog",
     emptyMessage: "Non ci sono registrazioni nel periodo selezionato.",
     trend: "Andamento",
@@ -188,10 +208,12 @@ export const pages: Shape<typeof en> = {
     scopeLabel: "La board mostra: {name}",
     scopeBuckets: "Bucket",
     scopeTrackers: "Un solo tracker",
-    cantGo: "{key} non può andare in {column}: dal suo stato il tracker non offre una strada fin lì.",
+    cantGo:
+      "{key} non può andare in {column}: dal suo stato il tracker non offre una strada fin lì.",
     unmapped: "In nessuna colonna",
     chooseTitle: "Sposta {key} in…",
-    chooseHint: "Da qui si raggiunge più di uno stato di quella colonna: scegline uno.",
+    chooseHint:
+      "Da qui si raggiunge più di uno stato di quella colonna: scegline uno.",
     categories: {
       triage: "Smistamento",
       backlog: "Backlog",
@@ -207,14 +229,16 @@ export const pages: Shape<typeof en> = {
     collapseLabel: "Comprimi {status}",
     collapseTitle: "Comprimi colonna",
     noIssues: "Nessuna issue",
-    emptyMessage: "Nessuna issue: premi Sincronizza {provider} nella barra laterale",
+    emptyMessage:
+      "Nessuna issue: premi Sincronizza {provider} nella barra laterale",
     showAll: "Mostra i più vecchi ({hidden})",
     showMore: "Mostra altre {count}",
     lanesLabel: "Tracker",
     laneEmpty: "Collegato: ancora niente per te su {name}",
     showLess: "Mostra meno",
     title: "Board",
-    description: "Trascina le card o usa Sposta in… per cambiare stato su {provider}",
+    description:
+      "Trascina le card o usa Sposta in… per cambiare stato su {provider}",
     cut: "Mostrate le {shown} più recenti su {total}: restringi con un bucket.",
     pinboard: "Lavagna",
     search: "Cerca nella board",
@@ -223,7 +247,13 @@ export const pages: Shape<typeof en> = {
     priorityLabel: "Filtra per priorità",
     priorityAll: "Tutte le priorità",
     priorityNone: "Senza priorità",
-    priorityLevels: { highest: "Massima", high: "Alta", medium: "Media", low: "Bassa", lowest: "Minima" },
+    priorityLevels: {
+      highest: "Massima",
+      high: "Alta",
+      medium: "Media",
+      low: "Bassa",
+      lowest: "Minima",
+    },
     priorityEmpty: "Nessuna issue con queste priorità",
     priorityShowAll: "Mostra tutte",
     searchPlaceholder: "Cerca nella board…",
@@ -232,8 +262,10 @@ export const pages: Shape<typeof en> = {
     pinboardDescription: "Lavagna dei promemoria e delle issue fissate",
   },
   issues: {
-    staleError: "Non è stato possibile aggiornare questo elenco, quindi potrebbe non essere aggiornato ({reason}).",
-    cleanupDone: "Pulizia completata: {deleted} issue eliminate, {kept} con storico conservate",
+    staleError:
+      "Non è stato possibile aggiornare questo elenco, quindi potrebbe non essere aggiornato ({reason}).",
+    cleanupDone:
+      "Pulizia completata: {deleted} issue eliminate, {kept} con storico conservate",
     title: "Issue",
     inView: "{shown} in vista · {total} nel catalogo",
     new: "Nuova issue",
@@ -246,8 +278,10 @@ export const pages: Shape<typeof en> = {
     allOthers: "Tutte le altre",
     openAssigned: "Aperte e assegnate a te",
     noIssues: "Nessuna issue",
-    emptyCatalog: "Nessuna issue: premi Sincronizza {provider} nella barra laterale.",
-    emptyFiltered: "Nessuna issue corrisponde ai filtri. Prova a modificarli, oppure premi Sincronizza {provider} nella barra laterale.",
+    emptyCatalog:
+      "Nessuna issue: premi Sincronizza {provider} nella barra laterale.",
+    emptyFiltered:
+      "Nessuna issue corrisponde ai filtri. Prova a modificarli, oppure premi Sincronizza {provider} nella barra laterale.",
     pagination: "Paginazione",
     pageOf: "Pagina {page} di {total}",
     previous: "Precedente",
@@ -259,14 +293,16 @@ export const pages: Shape<typeof en> = {
     todo: "Da fare",
     done: "Completate",
     cleanupTitle: "Pulire il catalogo locale?",
-    cleanupText: "Verranno eliminate dal catalogo locale le issue senza storico di tracking (nessun worklog) e non preferite. Su {provider} non cambia nulla.",
+    cleanupText:
+      "Verranno eliminate dal catalogo locale le issue senza storico di tracking (nessun worklog) e non preferite. Su {provider} non cambia nulla.",
     cancel: "Annulla",
   },
   issueDetail: {
     whichOne: "Questa chiave è su più di una delle tue connessioni: quale?",
     transitionTitle: "Sposta in {status}",
     transitionIntro: "{provider} chiede questi dati per spostarla in {status}.",
-    transitionUnfillable: "Spostarla in {status} richiede dati che inkledger non sa ancora compilare. Fallo su {provider}: l'issue torna qui al prossimo sync.",
+    transitionUnfillable:
+      "Spostarla in {status} richiede dati che inkledger non sa ancora compilare. Fallo su {provider}: l'issue torna qui al prossimo sync.",
     openOnProvider: "Apri su {provider}",
     choose: "Scegli…",
     move: "Sposta",
@@ -279,9 +315,11 @@ export const pages: Shape<typeof en> = {
     unassigned: "non assegnata",
     assignedToYou: "assegnata a te",
     notFoundTitle: "Issue {key} non trovata",
-    notFoundMessage: "Non è nel catalogo locale. Sincronizza {provider} o importala dalla ricerca su {provider}.",
+    notFoundMessage:
+      "Non è nel catalogo locale. Sincronizza {provider} o importala dalla ricerca su {provider}.",
     backToIssues: "Torna alle issue",
-    remoteTitle: "Vista da {provider} in sola lettura: non è nel catalogo locale",
+    remoteTitle:
+      "Vista da {provider} in sola lettura: non è nel catalogo locale",
     notInCatalog: "Non nel catalogo",
     import: "Importa",
     hidden: "Nascosta",
@@ -315,8 +353,10 @@ export const pages: Shape<typeof en> = {
     tags: "Tag",
     tagLabels: "Etichette",
     tagComponents: "Componenti",
-    tagLabelActions: "Etichetta «{value}»: seguila con una lavagna o trova le sue issue",
-    tagComponentActions: "Componente «{value}»: seguilo con una lavagna o trova le sue issue",
+    tagLabelActions:
+      "Etichetta «{value}»: seguila con una lavagna o trova le sue issue",
+    tagComponentActions:
+      "Componente «{value}»: seguilo con una lavagna o trova le sue issue",
     tagFollow: "Seguilo con una lavagna",
     tagOpenBoard: "Apri la lavagna «{name}»",
     tagSearch: "Trova le issue che lo hanno",
@@ -336,12 +376,14 @@ export const pages: Shape<typeof en> = {
     noWorklogsHint: "Inizia con “Registra tempo”.",
     queued: "In coda",
     someoneElse: "Altro utente",
-    othersUnavailable: "Impossibile leggere i worklog degli altri: sono mostrati solo i tuoi.",
+    othersUnavailable:
+      "Impossibile leggere i worklog degli altri: sono mostrati solo i tuoi.",
     editWorklog: "Modifica worklog",
     deleteWorklog: "Elimina worklog",
     attachments: "Allegati",
     deleteTitle: "Eliminare il worklog?",
-    deleteText: "Verrà eliminato da {provider} e da qui. Resta in Eliminati di recente per 30 giorni: ripristinarlo lo registra di nuovo come nuova voce su {provider}.",
+    deleteText:
+      "Verrà eliminato da {provider} e da qui. Resta in Eliminati di recente per 30 giorni: ripristinarlo lo registra di nuovo come nuova voce su {provider}.",
     cancel: "Annulla",
     delete: "Elimina",
   },
@@ -360,8 +402,13 @@ export const pages: Shape<typeof en> = {
     periodMonth: "Mese",
     prefNotSaved: "Preferenza non salvata: {message}",
     weekTitle: "Settimana {from} – {to}",
-    overdueOne: { one: "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.", other: "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila." },
-    overdueMany: "{count} issue scadute; la più vecchia è {key} (da {days} giorni).",
+    overdueOne: {
+      one: "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.",
+      other:
+        "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.",
+    },
+    overdueMany:
+      "{count} issue scadute; la più vecchia è {key} (da {days} giorni).",
     notWorkingDay: "Oggi non è un giorno lavorativo.",
     remaining: "Mancano {duration} all'obiettivo di oggi.",
     goalReached: "Obiettivo di oggi raggiunto.",
@@ -397,7 +444,8 @@ export const pages: Shape<typeof en> = {
     doing: "In corso",
     done: "Completate",
     logOnDay: "Su {day}: viene salvato direttamente su {provider}.",
-    logPick: "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
+    logPick:
+      "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
   },
   timesheet: {
     selectAll: "Seleziona tutto",
@@ -405,7 +453,8 @@ export const pages: Shape<typeof en> = {
     deleting: "Eliminazione {done}/{total}…",
     logTimeToday: "Registra oggi",
     trash: "Eliminati di recente",
-    trashHint: "I worklog eliminati negli ultimi 30 giorni, qui o su {provider}. Ripristinarne uno lo registra di nuovo.",
+    trashHint:
+      "I worklog eliminati negli ultimi 30 giorni, qui o su {provider}. Ripristinarne uno lo registra di nuovo.",
     trashEmpty: "Nulla di eliminato negli ultimi 30 giorni.",
     restore: "Ripristina",
     restored: "{key}: worklog ripristinato",
@@ -416,11 +465,21 @@ export const pages: Shape<typeof en> = {
     weekTitle: "Settimana {from} – {to}",
     weekClosed: "Settimana chiusa: registrazioni bloccate",
     weekReopened: "Settimana riaperta",
-    deletedOne: { one: "Worklog eliminato", other: "{count} worklog eliminati" },
-    deletedSome: { one: "Eliminati {ok} di {total}: quello rimasto è selezionato", other: "Eliminati {ok} di {total}: quelli rimasti sono selezionati" },
-    todayNotLoaded: "Registrazioni di oggi non ancora caricate: riprova tra un attimo",
+    deletedOne: {
+      one: "Worklog eliminato",
+      other: "{count} worklog eliminati",
+    },
+    deletedSome: {
+      one: "Eliminati {ok} di {total}: quello rimasto è selezionato",
+      other: "Eliminati {ok} di {total}: quelli rimasti sono selezionati",
+    },
+    todayNotLoaded:
+      "Registrazioni di oggi non ancora caricate: riprova tra un attimo",
     notDuplicated: "Non duplicata: {reason}",
-    duplicated: { one: "{count} worklog duplicati su oggi", other: "{count} worklog duplicati su oggi" },
+    duplicated: {
+      one: "{count} worklog duplicati su oggi",
+      other: "{count} worklog duplicati su oggi",
+    },
     duplicatePartial: "Duplicati {done} di {total}{list}: {message}",
     csvDate: "Data",
     csvIssue: "Issue",
@@ -429,14 +488,25 @@ export const pages: Shape<typeof en> = {
     csvComment: "Commento",
     csvTracker: "Tracker",
     csvContainer: "Progetto o repository",
-    exported: { one: "Esportati {count} worklog", other: "Esportati {count} worklog" },
+    exported: {
+      one: "Esportati {count} worklog",
+      other: "Esportati {count} worklog",
+    },
     deleteOneTitle: "Eliminare {key}?",
-    deleteOneBody: "Il worklog di {duration} verrà eliminato anche da {provider}.",
+    deleteOneBody:
+      "Il worklog di {duration} verrà eliminato anche da {provider}.",
     deleteAction: "Elimina",
-    bulkTitle: { one: "Eliminare {count} worklog?", other: "Eliminare {count} worklog?" },
+    bulkTitle: {
+      one: "Eliminare {count} worklog?",
+      other: "Eliminare {count} worklog?",
+    },
     bulkBody: "I worklog selezionati verranno eliminati anche da {provider}.",
     duplicateTitle: "Duplicare la giornata su oggi?",
-    duplicateBody: { one: "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).", other: "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato)." },
+    duplicateBody: {
+      one: "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).",
+      other:
+        "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).",
+    },
     duplicateAction: "Duplica",
     hoursWeek: "Ore registrate nella settimana",
     hoursMonth: "Ore registrate nel mese",
@@ -460,11 +530,15 @@ export const pages: Shape<typeof en> = {
     status: "Stato",
     goal: "Obiettivo",
     days: "Giorni",
-    deleteSelected: { one: "Elimina {count} selezionati", other: "Elimina {count} selezionati" },
+    deleteSelected: {
+      one: "Elimina {count} selezionati",
+      other: "Elimina {count} selezionati",
+    },
     emptyWeek: "Nessuna registrazione in questa settimana",
     emptyMonth: "Nessuna registrazione in questo mese",
     emptyHint: "Registra tempo da una issue o dal timer: comparirà qui.",
     cancel: "Annulla",
-    logPick: "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
+    logPick:
+      "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
   },
 };

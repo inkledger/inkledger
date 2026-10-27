@@ -20,24 +20,29 @@ export const pages = {
     whichDevice: "Which device are you on?",
     device: "Device",
     lanTitle: "You're on the server's local network",
-    lanText: "Your phone already reaches the server over Wi-Fi, with inkledger's certificate.",
+    lanText:
+      "Your phone already reaches the server over Wi-Fi, with inkledger's certificate.",
     tailscaleTitle: "Tailscale is on",
-    tailscaleText: "If you can see this page, your phone already reaches the server.",
+    tailscaleText:
+      "If you can see this page, your phone already reaches the server.",
     android: {
       download: "Download the app",
       downloadButton: "Download inkledger for Android",
       build: "Version {version} · {size} · {date}",
-      unpublished: "The Android app isn't published on this server yet: ask whoever runs it (pnpm native:publish).",
+      unpublished:
+        "The Android app isn't published on this server yet: ask whoever runs it (pnpm native:publish).",
       checking: "Checking…",
       installTitle: "Install it",
-      installText: "Open the downloaded file. If Android asks, allow installs from this source (Settings → Apps → your browser → Install unknown apps).",
+      installText:
+        "Open the downloaded file. If Android asks, allow installs from this source (Settings → Apps → your browser → Install unknown apps).",
     },
     addServer: "Add this server",
     ios: {
       safariTitle: "Open this page in Safari",
       safariText: "Other browser apps can't add it to the Home Screen.",
       homeTitle: "Add to Home Screen",
-      homeText: "Tap Share (the square with an arrow), then \"Add to Home Screen\".",
+      homeText:
+        'Tap Share (the square with an arrow), then "Add to Home Screen".',
       openTitle: "Open inkledger from the Home Screen and sign in",
       openText: "It opens full screen, like an app, signed in to inkledger.",
       note: "On iPhone, notifications only arrive while inkledger is open; timers, entries and everything else work like on the computer.",
@@ -47,7 +52,8 @@ export const pages = {
       browserText: "Use inkledger from here: sign in and everything is there.",
       openTempo: "Open inkledger",
       appTitle: "Or the desktop app",
-      appText: "Add this server in the app; on the computer running inkledger it works without Tailscale too, through its local address.",
+      appText:
+        "Add this server in the app; on the computer running inkledger it works without Tailscale too, through its local address.",
     },
     footerLan: "Page reachable only from the server's local network.",
     footerTailscale: "Page reachable only from your Tailscale network.",
@@ -67,13 +73,16 @@ export const pages = {
     usingApp: "You're using the app",
     desktopOrBrowser: "Desktop app or the browser",
     addDevice: "Add a device",
-    addDeviceText: "From the desktop app: Settings → Devices, with the steps and the QR code to scan with your phone. Or open this on the device, with Tailscale on:",
+    addDeviceText:
+      "From the desktop app: Settings → Devices, with the steps and the QR code to scan with your phone. Or open this on the device, with Tailscale on:",
     copyLink: "Copy link",
     openDevices: "Open Settings → Devices",
     noTailscale: "Without Tailscale",
-    noTailscale1: "On the computer running inkledger you don't need Tailscale: in the browser or the desktop app use its local address (localhost and the server's port).",
+    noTailscale1:
+      "On the computer running inkledger you don't need Tailscale: in the browser or the desktop app use its local address (localhost and the server's port).",
     noTailscaleHere: "This server:",
-    noTailscale2: "Tailscale is only needed to reach this server from another device.",
+    noTailscale2:
+      "Tailscale is only needed to reach this server from another device.",
   },
   login: {
     pageTitle: "Sign in",
@@ -105,7 +114,8 @@ export const pages = {
     createToken: "Create an API token on Atlassian",
     newTab: "(opens in a new tab)",
     patHint: "Create the PAT in Jira: Profile → Personal Access Tokens.",
-    passwordHint: "The password is only used for the APIs and is stored encrypted locally.",
+    passwordHint:
+      "The password is only used for the APIs and is stored encrypted locally.",
     verifying: "Verifying credentials…",
     submit: "Sign in",
     encrypted: "Credentials are encrypted and stay in the local database.",
@@ -115,10 +125,12 @@ export const pages = {
     accountUsername: "Username",
     accountPassword: "Password",
     signInSubmit: "Sign in",
-    activateLink: "Used inkledger with your Jira login before? Activate your account",
+    activateLink:
+      "Used inkledger with your Jira login before? Activate your account",
     backToSignIn: "Back to sign in",
     activateHeading: "Activate your account",
-    activateIntro: "Confirm who you are with the Jira login you used before, then choose how you'll sign in to inkledger from now on.",
+    activateIntro:
+      "Confirm who you are with the Jira login you used before, then choose how you'll sign in to inkledger from now on.",
     jiraSection: "Your Jira login",
     newAccountSection: "Your inkledger account",
     newUsername: "Choose a username",
@@ -129,15 +141,18 @@ export const pages = {
   invite: {
     pageTitle: "Invite",
     heading: "Welcome, {name}",
-    intro: "Choose a password for your account “{username}”. You'll sign in with it from now on.",
+    intro:
+      "Choose a password for your account “{username}”. You'll sign in with it from now on.",
     password: "Password",
     submit: "Set password and sign in",
-    invalid: "This invite link has expired or was already used. Ask an admin for a new one.",
+    invalid:
+      "This invite link has expired or was already used. Ask an admin for a new one.",
   },
   changePassword: {
     pageTitle: "New password",
     heading: "Choose a new password",
-    introDefault: "This account still has a default or temporary password. Choose your own before going on.",
+    introDefault:
+      "This account still has a default or temporary password. Choose your own before going on.",
     current: "Current password",
     next: "New password",
     submit: "Save password",
@@ -164,7 +179,8 @@ export const pages = {
     description: "Hours logged in the selected period",
     exportCsv: "Export CSV",
     rangeTooLong: "Range too long: {max} days at most.",
-    rangeInvalid: "Invalid range: make sure both dates are filled in and \"From\" is not after \"To\".",
+    rangeInvalid:
+      'Invalid range: make sure both dates are filled in and "From" is not after "To".',
     emptyTitle: "No worklogs",
     emptyMessage: "There are no entries in the selected period.",
     trend: "Trend",
@@ -187,10 +203,12 @@ export const pages = {
     scopeLabel: "Board shows: {name}",
     scopeBuckets: "Buckets",
     scopeTrackers: "One tracker",
-    cantGo: "{key} can’t go to {column}: its tracker offers no way there from its status.",
+    cantGo:
+      "{key} can’t go to {column}: its tracker offers no way there from its status.",
     unmapped: "In no column",
     chooseTitle: "Move {key} to…",
-    chooseHint: "More than one status of that column can be reached from here: pick one.",
+    chooseHint:
+      "More than one status of that column can be reached from here: pick one.",
     categories: {
       triage: "Triage",
       backlog: "Backlog",
@@ -222,7 +240,13 @@ export const pages = {
     priorityLabel: "Filter by priority",
     priorityAll: "All priorities",
     priorityNone: "No priority",
-    priorityLevels: { highest: "Highest", high: "High", medium: "Medium", low: "Low", lowest: "Lowest" },
+    priorityLevels: {
+      highest: "Highest",
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+      lowest: "Lowest",
+    },
     priorityEmpty: "No issue with these priorities",
     priorityShowAll: "Show all",
     searchPlaceholder: "Search the board…",
@@ -231,8 +255,10 @@ export const pages = {
     pinboardDescription: "Pinboard of reminders and pinned issues",
   },
   issues: {
-    staleError: "This list couldn't be refreshed, so it may be out of date ({reason}).",
-    cleanupDone: "Cleanup complete: {deleted} issues deleted, {kept} with history kept",
+    staleError:
+      "This list couldn't be refreshed, so it may be out of date ({reason}).",
+    cleanupDone:
+      "Cleanup complete: {deleted} issues deleted, {kept} with history kept",
     title: "Issues",
     inView: "{shown} in view · {total} in catalog",
     new: "New issue",
@@ -246,7 +272,8 @@ export const pages = {
     openAssigned: "Open and assigned to you",
     noIssues: "No issues",
     emptyCatalog: "No issues: press Sync {provider} in the sidebar.",
-    emptyFiltered: "No issues match the filters. Try changing them, or press Sync {provider} in the sidebar.",
+    emptyFiltered:
+      "No issues match the filters. Try changing them, or press Sync {provider} in the sidebar.",
     pagination: "Pagination",
     pageOf: "Page {page} of {total}",
     previous: "Previous",
@@ -258,14 +285,16 @@ export const pages = {
     todo: "To do",
     done: "Completed",
     cleanupTitle: "Clean up the local catalog?",
-    cleanupText: "Issues with no tracking history (no worklogs) that aren't favorites will be removed from the local catalog. Nothing changes in {provider}.",
+    cleanupText:
+      "Issues with no tracking history (no worklogs) that aren't favorites will be removed from the local catalog. Nothing changes in {provider}.",
     cancel: "Cancel",
   },
   issueDetail: {
     whichOne: "This key is on more than one of your connections: which one?",
     transitionTitle: "Move to {status}",
     transitionIntro: "{provider} asks for these to move it to {status}.",
-    transitionUnfillable: "Moving it to {status} asks for something inkledger can't fill in yet. Do it on {provider}: the issue comes back here at the next sync.",
+    transitionUnfillable:
+      "Moving it to {status} asks for something inkledger can't fill in yet. Do it on {provider}: the issue comes back here at the next sync.",
     openOnProvider: "Open on {provider}",
     choose: "Choose…",
     move: "Move",
@@ -278,7 +307,8 @@ export const pages = {
     unassigned: "unassigned",
     assignedToYou: "assigned to you",
     notFoundTitle: "Issue {key} not found",
-    notFoundMessage: "It isn't in the local catalog. Sync {provider} or import it from the {provider} search.",
+    notFoundMessage:
+      "It isn't in the local catalog. Sync {provider} or import it from the {provider} search.",
     backToIssues: "Back to issues",
     remoteTitle: "Read-only view from {provider}: not in the local catalog",
     notInCatalog: "Not in catalog",
@@ -314,8 +344,10 @@ export const pages = {
     tags: "Tags",
     tagLabels: "Labels",
     tagComponents: "Components",
-    tagLabelActions: "Label “{value}”: follow it on a pinboard or find its issues",
-    tagComponentActions: "Component “{value}”: follow it on a pinboard or find its issues",
+    tagLabelActions:
+      "Label “{value}”: follow it on a pinboard or find its issues",
+    tagComponentActions:
+      "Component “{value}”: follow it on a pinboard or find its issues",
     tagFollow: "Follow it on a pinboard",
     tagOpenBoard: "Open the pinboard “{name}”",
     tagSearch: "Find the issues with it",
@@ -335,12 +367,14 @@ export const pages = {
     noWorklogsHint: "Start with “Log time”.",
     queued: "Queued",
     someoneElse: "Someone else",
-    othersUnavailable: "Others' worklogs couldn't be read: only yours are shown.",
+    othersUnavailable:
+      "Others' worklogs couldn't be read: only yours are shown.",
     editWorklog: "Edit worklog",
     deleteWorklog: "Delete worklog",
     attachments: "Attachments",
     deleteTitle: "Delete the worklog?",
-    deleteText: "It will be deleted from {provider} and from here. It stays in Recently deleted for 30 days: restoring it logs it again as a new entry on {provider}.",
+    deleteText:
+      "It will be deleted from {provider} and from here. It stays in Recently deleted for 30 days: restoring it logs it again as a new entry on {provider}.",
     cancel: "Cancel",
     delete: "Delete",
   },
@@ -359,8 +393,13 @@ export const pages = {
     periodMonth: "Month",
     prefNotSaved: "Preference not saved: {message}",
     weekTitle: "Week {from} – {to}",
-    overdueOne: { one: "{key} has been overdue for {days} day: update the due date or close it.", other: "{key} has been overdue for {days} days: update the due date or close it." },
-    overdueMany: "{count} overdue issues; the oldest is {key} (overdue by {days}d).",
+    overdueOne: {
+      one: "{key} has been overdue for {days} day: update the due date or close it.",
+      other:
+        "{key} has been overdue for {days} days: update the due date or close it.",
+    },
+    overdueMany:
+      "{count} overdue issues; the oldest is {key} (overdue by {days}d).",
     notWorkingDay: "Today is not a working day.",
     remaining: "{duration} left to reach today's goal.",
     goalReached: "Today's goal reached.",
@@ -404,7 +443,8 @@ export const pages = {
     deleting: "Deleting {done}/{total}…",
     logTimeToday: "Log time today",
     trash: "Recently deleted",
-    trashHint: "Worklogs deleted in the last 30 days, here or on {provider}. Restoring one logs it again.",
+    trashHint:
+      "Worklogs deleted in the last 30 days, here or on {provider}. Restoring one logs it again.",
     trashEmpty: "Nothing deleted in the last 30 days.",
     restore: "Restore",
     restored: "{key}: worklog restored",
@@ -416,10 +456,16 @@ export const pages = {
     weekClosed: "Week closed: entries locked",
     weekReopened: "Week reopened",
     deletedOne: { one: "Worklog deleted", other: "{count} worklogs deleted" },
-    deletedSome: { one: "Deleted {ok} of {total}: the one left is selected", other: "Deleted {ok} of {total}: the ones left are selected" },
+    deletedSome: {
+      one: "Deleted {ok} of {total}: the one left is selected",
+      other: "Deleted {ok} of {total}: the ones left are selected",
+    },
     todayNotLoaded: "Today's entries aren't loaded yet: try again in a moment",
     notDuplicated: "Not duplicated: {reason}",
-    duplicated: { one: "{count} worklog duplicated to today", other: "{count} worklogs duplicated to today" },
+    duplicated: {
+      one: "{count} worklog duplicated to today",
+      other: "{count} worklogs duplicated to today",
+    },
     duplicatePartial: "Duplicated {done} of {total}{list}: {message}",
     csvDate: "Date",
     csvIssue: "Issue",
@@ -428,14 +474,25 @@ export const pages = {
     csvComment: "Comment",
     csvTracker: "Tracker",
     csvContainer: "Project or repository",
-    exported: { one: "Exported {count} worklog", other: "Exported {count} worklogs" },
+    exported: {
+      one: "Exported {count} worklog",
+      other: "Exported {count} worklogs",
+    },
     deleteOneTitle: "Delete {key}?",
-    deleteOneBody: "The {duration} worklog will also be deleted from {provider}.",
+    deleteOneBody:
+      "The {duration} worklog will also be deleted from {provider}.",
     deleteAction: "Delete",
-    bulkTitle: { one: "Delete {count} worklog?", other: "Delete {count} worklogs?" },
+    bulkTitle: {
+      one: "Delete {count} worklog?",
+      other: "Delete {count} worklogs?",
+    },
     bulkBody: "The selected worklogs will also be deleted from {provider}.",
     duplicateTitle: "Duplicate the day to today?",
-    duplicateBody: { one: "{count} worklog ({duration}) from {date} will be created today, in the same order and back to back, ending now (or earlier, if that time is already taken).", other: "{count} worklogs ({duration}) from {date} will be created today, in the same order and back to back, ending now (or earlier, if that time is already taken)." },
+    duplicateBody: {
+      one: "{count} worklog ({duration}) from {date} will be created today, in the same order and back to back, ending now (or earlier, if that time is already taken).",
+      other:
+        "{count} worklogs ({duration}) from {date} will be created today, in the same order and back to back, ending now (or earlier, if that time is already taken).",
+    },
     duplicateAction: "Duplicate",
     hoursWeek: "Hours logged in the week",
     hoursMonth: "Hours logged in the month",
@@ -459,7 +516,10 @@ export const pages = {
     status: "Status",
     goal: "Goal",
     days: "Days",
-    deleteSelected: { one: "Delete {count} selected", other: "Delete {count} selected" },
+    deleteSelected: {
+      one: "Delete {count} selected",
+      other: "Delete {count} selected",
+    },
     emptyWeek: "No entries this week",
     emptyMonth: "No entries this month",
     emptyHint: "Log time from an issue or the timer: it will show up here.",
