@@ -51,6 +51,8 @@ export const ui = {
     forToday: " for today",
     darkTheme: "Dark theme",
     startTimerTip: "Start timer (T)",
+    screensaver: "Screensaver",
+    screensaverTip: "Screensaver (Z)",
     startTimer: "Start timer",
     syncJira: "Sync {provider}",
     syncing: "Syncing…",
@@ -259,6 +261,7 @@ export const ui = {
     actions: "Actions",
     closeDay: "Close the day",
     focusMode: "Focus mode",
+    screensaver: "Screensaver",
     newIssue: "New issue",
     startTimer: "Start timer…",
     syncJira: "Sync from {provider}",
@@ -338,6 +341,7 @@ export const ui = {
     general: "General",
     startTimer: "Start a timer on an issue",
     focus: "Timer focus mode",
+    screensaver: "Screensaver (any key closes it, ← → switch scene)",
     notifications: "Notification center",
     newIssue: "New issue in your tracker",
     search: "Search issues and actions",
@@ -570,6 +574,10 @@ export const ui = {
   startTimer: {
     started: "Timer started on {key}",
     switched: "Timer on {key} stopped: log the time",
+  },
+  screensaver: {
+    title: "Screensaver",
+    scene: { ink: "Ink" },
   },
   alert: {
     title: "Timer running for {duration}",

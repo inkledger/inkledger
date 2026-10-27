@@ -16,6 +16,7 @@ import {
   Search,
   Bell,
   ListChecks,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,7 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { TimerLogHost } from "@/components/TimerLogHost";
 import { commandPalette } from "@/lib/commandPalette";
-import { notificationCenter } from "@/lib/flag";
+import { notificationCenter, screensaver } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
 import { openTodosSheet, useTodoSurfacesNow, useTodoWiring } from "@/hooks/useTodoPanel";
 import { useTodoReminders, useTodoReminderToast } from "@/hooks/useTodoReminders";
@@ -93,6 +94,7 @@ const QuickStart = lazyPart(() => import("@/components/QuickStart").then(m => m.
 const IdleDialog = lazyPart(() => import("@/components/IdleDialog").then(m => m.IdleDialog));
 const DayReview = lazyPart(() => import("@/components/DayReview").then(m => m.DayReview));
 const FocusMode = lazyPart(() => import("@/components/FocusMode").then(m => m.FocusMode));
+const Screensaver = lazyPart(() => import("@/components/screensaver/Screensaver").then(m => m.Screensaver));
 const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog));
 const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog));
 const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
@@ -334,6 +336,13 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
               {t("ui.layout.darkTheme")}
             </span>
             {!collapsed && <SwitchLook className="ml-auto" checked={resolvedTheme === "dark"} />}
+          </button>
+        </RailTip>
+        <RailTip collapsed={collapsed} label={t("ui.layout.screensaverTip")}>
+          <button type="button" onClick={() => screensaver.set(true)} aria-label={collapsed ? t("ui.layout.screensaver") : undefined} className={row}>
+            <Sparkles className={icon} strokeWidth={1.75} aria-hidden />
+            <span className={label}>{t("ui.layout.screensaver")}</span>
+            {!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">Z</Kbd>}
           </button>
         </RailTip>
         {collapsed ? (
@@ -592,6 +601,7 @@ export function AppLayout() {
         <IdleDialog />
         <DayReview />
         <FocusMode />
+        <Screensaver />
         <LiveTitle />
         <ShortcutsDialog />
         <TimerLogHost />

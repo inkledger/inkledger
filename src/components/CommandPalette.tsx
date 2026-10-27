@@ -24,6 +24,7 @@ import {
   MoveRight,
   Pause,
   Square,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc";
@@ -43,7 +44,7 @@ import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
-import { createIssueDialog, dayReview, focusMode } from "@/lib/flag";
+import { createIssueDialog, dayReview, focusMode, screensaver } from "@/lib/flag";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
 import { Kbd } from "@/components/app/Kbd";
@@ -229,6 +230,15 @@ export function CommandPalette() {
             <Kbd className="ml-auto text-muted-foreground">
               F
             </Kbd>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              screensaver.set(true);
+            }}
+          >
+            <Sparkles className="mr-2 h-4 w-4" /> {t("ui.palette.screensaver")}
+            <Kbd className="ml-auto text-muted-foreground">Z</Kbd>
           </CommandItem>
           <CommandItem
             onSelect={() => {

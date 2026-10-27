@@ -57,7 +57,7 @@ export const settings: Shape<typeof en> = {
     appearance: {
       label: "Aspetto",
       description: "Tema, densità e colore dell'app.",
-      keywords: "tema chiaro scuro densità compatta colore palette",
+      keywords: "tema chiaro scuro densità compatta colore palette salvaschermo screensaver",
     },
     pinboard: {
       label: "Lavagna",
@@ -718,6 +718,14 @@ export const settings: Shape<typeof en> = {
     colorTitle: "Colore",
     colorDescription: "Un colore base: primario, sfondi, grafici e copertine ne derivano, con contrasto leggibile garantito.",
     colorKeywords: "colore tinta palette accento",
+    screensaverTitle: "Salvaschermo",
+    screensaverKeywords: "salvaschermo screensaver inchiostro scena schermo intero orologio z",
+    screensaverScene: "Scena",
+    screensaverSceneHint: "Disegnata da capo a ogni avvio. Le mod possono aggiungerne di loro; ← → cambiano scena mentre è aperto.",
+    screensaverOverlay: "Orologio e timer",
+    screensaverOverlayHint: "Sopra la scena, svaniscono dopo qualche secondo; muovendo il puntatore ritornano.",
+    screensaverTry: "Prova",
+    screensaverStart: "Avvia (Z)",
   },
   links: {
     invalid: "Non è un dominio: per esempio drive.google.com o atlassian.net",

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
-import { ListChecks, Moon, Pin, RefreshCw } from "lucide-react";
+import { ListChecks, Moon, Pin, RefreshCw, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSync } from "@/hooks/useSync";
 import { useSyncHint } from "@/hooks/useSyncHint";
@@ -21,6 +21,7 @@ import { ModuleSlot } from "@/modules/ModuleHost";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { screensaver } from "@/lib/flag";
 
 const TILE =
   "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -118,6 +119,18 @@ export function MobileMoreSheet({
                 <span className="max-w-full truncate">{t("views.todos.title")}</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false);
+                screensaver.set(true);
+              }}
+              {...surface("control")}
+              className={TILE}
+            >
+              <Sparkles className="h-5 w-5" aria-hidden />
+              <span className="max-w-full truncate">{t("ui.layout.screensaver")}</span>
+            </button>
           </nav>
           <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />
 

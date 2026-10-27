@@ -69,8 +69,9 @@ async function syncSequences(client) {
  * Starts the app and a browser page logged in as "mrossi". `seed(db)` adds
  * rows before the page opens (db.q(sql, ...params), may be async);
  * `viewport` overrides the 1400×900 default; `env` adds server variables
- * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). Each run
- * has its own Postgres database, dropped at stop().
+ * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). `devBuild`
+ * serves the production bundle through tsx; `viteDev` starts the real Vite dev
+ * server. Each run has its own Postgres database, dropped at stop().
  */
 /**
  * Play on an issue. With a hole of today still open the app asks first (from its start, or
@@ -86,7 +87,7 @@ export async function startTimer(page, key) {
   await running.waitFor();
 }
 
-export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false } = {}) {
+export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would
   // answer for a server still starting.
@@ -110,12 +111,17 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
   }
   const dbUrl = new URL(adminUrl());
   dbUrl.pathname = `/${dbName}`;
-  const server = spawn(process.execPath, devBuild ? ["--import", "tsx", "api/boot.ts"] : ["dist/boot.js"], {
+  const command = viteDev
+    ? ["node_modules/vite/bin/vite.js", "--port", String(port), "--strictPort"]
+    : devBuild
+      ? ["--import", "tsx", "api/boot.ts"]
+      : ["dist/boot.js"];
+  const server = spawn(process.execPath, command, {
     cwd: APP,
     env: {
       ...process.env,
-      NODE_ENV: devBuild ? "development" : "production",
-      SERVE_BUILD: devBuild ? "1" : "0",
+      NODE_ENV: devBuild || viteDev ? "development" : "production",
+      SERVE_BUILD: devBuild && !viteDev ? "1" : "0",
       PORT: String(port),
       DATABASE_URL: dbUrl.toString(),
       SESSION_SECRET: SECRET,
@@ -143,7 +149,7 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     // Up, or the test fails here (seeding a database still migrating would fail less clearly).
     // Ours: it says it listens on this port (it migrates first), and then answers. A health
     // answer alone could come from another test's server that took the same port first.
-    const listening = `Server running on http://localhost:${port}/`;
+    const listening = viteDev ? `Local:   http://127.0.0.1:${port}/` : `Server running on http://localhost:${port}/`;
     for (let i = 0; ; i++) {
       if (server.exitCode !== null || server.signalCode !== null) throw new Error(`the server stopped before it was up:\n${log}`);
       if (log.includes(listening)) {

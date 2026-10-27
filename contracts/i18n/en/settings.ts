@@ -56,7 +56,7 @@ export const settings = {
     appearance: {
       label: "Appearance",
       description: "Theme, density and colour of the app.",
-      keywords: "theme light dark density compact color colour palette language",
+      keywords: "theme light dark density compact color colour palette language screensaver screen saver",
     },
     pinboard: {
       label: "Pinboard",
@@ -717,6 +717,14 @@ export const settings = {
     colorTitle: "Colour",
     colorDescription: "One base colour: primary, backgrounds, charts and covers are derived from it, with readable contrast guaranteed.",
     colorKeywords: "colour color tint palette accent",
+    screensaverTitle: "Screensaver",
+    screensaverKeywords: "screensaver screen saver ink scene fullscreen clock z",
+    screensaverScene: "Scene",
+    screensaverSceneHint: "Drawn anew at every start. Add-ons can bring their own; ← → switch while it shows.",
+    screensaverOverlay: "Clock and timer",
+    screensaverOverlayHint: "Over the scene, fading after a few seconds; moving the pointer brings them back.",
+    screensaverTry: "Try it",
+    screensaverStart: "Start (Z)",
   },
   links: {
     invalid: "Not a domain: for example drive.google.com or atlassian.net",

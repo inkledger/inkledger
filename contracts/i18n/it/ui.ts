@@ -52,6 +52,8 @@ export const ui: Shape<typeof en> = {
     forToday: " per oggi",
     darkTheme: "Tema scuro",
     startTimerTip: "Avvia timer (T)",
+    screensaver: "Salvaschermo",
+    screensaverTip: "Salvaschermo (Z)",
     startTimer: "Avvia timer",
     syncJira: "Sincronizza {provider}",
     syncing: "Sincronizzazione…",
@@ -260,6 +262,7 @@ export const ui: Shape<typeof en> = {
     actions: "Azioni",
     closeDay: "Chiudi la giornata",
     focusMode: "Focus mode",
+    screensaver: "Salvaschermo",
     newIssue: "Nuova issue",
     startTimer: "Avvia timer…",
     syncJira: "Sincronizza da {provider}",
@@ -339,6 +342,7 @@ export const ui: Shape<typeof en> = {
     general: "Generali",
     startTimer: "Avvia un timer su una issue",
     focus: "Focus mode del timer",
+    screensaver: "Salvaschermo (un tasto qualsiasi lo chiude, ← → cambiano scena)",
     notifications: "Centro notifiche",
     newIssue: "Nuova issue nel tuo tracker",
     search: "Cerca issue e azioni",
@@ -571,6 +575,10 @@ export const ui: Shape<typeof en> = {
   startTimer: {
     started: "Timer avviato su {key}",
     switched: "Timer di {key} fermato: registra il tempo",
+  },
+  screensaver: {
+    title: "Salvaschermo",
+    scene: { ink: "Inchiostro" },
   },
   alert: {
     title: "Timer attivo da {duration}",

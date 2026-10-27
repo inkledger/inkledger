@@ -13,6 +13,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
       items: [
         { keys: ["t"], label: t("ui.shortcuts.startTimer") },
         { keys: ["f"], label: t("ui.shortcuts.focus") },
+        { keys: ["z"], label: t("ui.shortcuts.screensaver") },
         { keys: ["n"], label: t("ui.shortcuts.notifications") },
         { keys: ["i"], label: t("ui.shortcuts.newIssue") },
         ...(pinboard

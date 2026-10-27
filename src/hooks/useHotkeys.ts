@@ -4,7 +4,7 @@ import { isDialogOpen, isTyping } from "@/lib/dom";
 import { shortcutsHelp } from "@/lib/shortcuts";
 import { sidebar } from "@/hooks/useSidebar";
 import { quickStart } from "@/lib/quickStart";
-import { createIssueDialog, focusMode, notificationCenter } from "@/lib/flag";
+import { createIssueDialog, focusMode, notificationCenter, screensaver } from "@/lib/flag";
 import { hotkeySequence } from "@/lib/hotkeySequence";
 import { togglePinboard } from "@/hooks/usePinboardPanel";
 import { toggleTodos } from "@/hooks/useTodoPanel";
@@ -72,6 +72,12 @@ export function useHotkeys() {
         e.preventDefault();
         buffer = "";
         focusMode.set(true);
+        return;
+      }
+      if (e.key === "z" && !buffer.endsWith("g")) {
+        e.preventDefault();
+        buffer = "";
+        screensaver.set(true);
         return;
       }
       if (e.key === "p" && !buffer.endsWith("g")) {
