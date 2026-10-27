@@ -131,6 +131,8 @@ const BOX: Partial<Record<SlotId, string>> = {
   "dashboard-perch": "pointer-events-none absolute inset-0 [&_*]:!pointer-events-none",
   // App-wide and unseen (a module's light over every page): mounted once, never with a page.
   "app-stage": "hidden",
+  // The whole screen while the screensaver shows this module's scene.
+  screensaver: "absolute inset-0",
 };
 
 /** The Dashboard's backdrop: fills the panel behind the page, veiled so text stays readable. */

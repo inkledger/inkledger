@@ -82,6 +82,29 @@ describe("host hub: a stopped or failing module never breaks the page", () => {
   });
 });
 
+describe("host hub: screensaver", () => {
+  it("replays the current state to a scene mounted after activation", async () => {
+    const { createHub } = await import("./host");
+    const { screensaver } = await import("@/lib/flag");
+    const hub = createHub(new QueryClient(), fakeUtils(() => []) as never);
+    const { api, dispose } = hub.apiFor("test", "screensaver");
+    const heard: unknown[] = [];
+    try {
+      screensaver.set(true);
+      api.on("screensaver", d => heard.push(d));
+      await Promise.resolve();
+      expect(heard).toEqual([{ on: true }]);
+      dispose();
+      await Promise.resolve();
+      expect(heard).toEqual([{ on: true }]);
+    } finally {
+      dispose();
+      hub.dispose();
+      screensaver.set(false);
+    }
+  });
+});
+
 describe("host hub: storage.update", () => {
   it("writes over what it read; when another tab wrote first, changes again on theirs (nothing lost)", async () => {
     const { createHub } = await import("./host");

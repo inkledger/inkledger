@@ -18,7 +18,7 @@ export const HOST_API_VERSION = 1;
  * Where modules draw. Adding a slot is compatible (host API stays v1); an
  * older inkledger refuses a manifest naming one it does not know.
  */
-export const SLOT_IDS = ["sidebar-footer", "dashboard-overlay", "panel-edge", "dashboard-widget", "dashboard-backdrop", "dashboard-action", "settings", "sidebar-rail", "mobile-more", "mobile-dock", "dashboard-perch", "app-stage"] as const;
+export const SLOT_IDS = ["sidebar-footer", "dashboard-overlay", "panel-edge", "dashboard-widget", "dashboard-backdrop", "dashboard-action", "settings", "sidebar-rail", "mobile-more", "mobile-dock", "dashboard-perch", "app-stage", "screensaver"] as const;
 export type SlotId = (typeof SLOT_IDS)[number];
 
 export const LICENSE_CONTEXT = "inkledger-license-v1\n";

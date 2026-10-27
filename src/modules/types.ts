@@ -80,6 +80,8 @@ export type HostEvents = {
   "worklog-changed": { seconds: number; ref?: IssueRef };
   "goal-reached": Record<string, never>;
   "focus-mode": { on: boolean };
+  /** Opened or closed; a scene subscribed after activation gets the current state once. */
+  screensaver: { on: boolean };
   route: { pathname: string };
 };
 export type HostEventName = keyof HostEvents;

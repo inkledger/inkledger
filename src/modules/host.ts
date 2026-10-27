@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { trpc } from "@/lib/trpc";
-import { focusMode } from "@/lib/flag";
+import { focusMode, screensaver } from "@/lib/flag";
 import { expectedSeconds, scheduleFor, workBounds } from "@contracts/workSchedule";
 import { onAppEvent } from "./appEvents";
 import { getLocale } from "@/i18n";
@@ -217,6 +217,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   const onMotion = () => theme.set(readTheme(nightOf()));
   motion.addEventListener("change", onMotion);
   const unsubFocus = focusMode.subscribe(() => emit("focus-mode", { on: focusMode.get() }));
+  const unsubScreensaver = screensaver.subscribe(() => emit("screensaver", { on: screensaver.get() }));
 
   look();
 
@@ -311,6 +312,11 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           listeners.set(event, set);
           const wrapped = (d: never) => guard(moduleId, () => fn(d));
           set.add(wrapped);
+          if (event === "screensaver") {
+            queueMicrotask(() => {
+              if (!disposed && set.has(wrapped)) wrapped({ on: screensaver.get() } as never);
+            });
+          }
           return own(() => set.delete(wrapped));
         },
         files: {
@@ -369,6 +375,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
       themeObserver.disconnect();
       motion.removeEventListener("change", onMotion);
       unsubFocus();
+      unsubScreensaver();
     },
   };
 }

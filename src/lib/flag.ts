@@ -27,6 +27,8 @@ export function createFlag() {
 export const dayReview = createFlag();
 /** Full-screen focus mode of the running timer. */
 export const focusMode = createFlag();
+/** The screensaver (key "z", the palette, the sidebar, More on phones). */
+export const screensaver = createFlag();
 /** "New issue" dialog (key i, palette, Issues page). */
 export const createIssueDialog = createFlag();
 /** Notification center (right-side panel, like macOS). */
