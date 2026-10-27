@@ -85,6 +85,13 @@
       "when": 1792973176453,
       "tag": "0011_module_storage_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793098893266,
+      "tag": "0012_markdown_notes",
+      "breakpoints": true
     }
   ]
 }

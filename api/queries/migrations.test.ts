@@ -125,6 +125,8 @@ describe("migrations over a draft of 0010", () => {
     const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
+    await query('DROP TABLE "markdown_note_versions"');
+    await query('DROP TABLE "markdown_notes"');
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [w10]);
     await query("insert into drizzle.__drizzle_migrations (hash, created_at) values ('draft', $1)", [w10 - 1]);
     await expect(up()).resolves.toBeUndefined();
