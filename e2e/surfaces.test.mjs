@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { start } from "./harness.mjs";
 
-const PAGES = ["/", "/issues", "/board", "/timesheet", "/reports", "/settings", "/settings/store", "/issues/DEMO-101", "/info"];
+const PAGES = ["/", "/issues", "/board", "/timesheet", "/reports", "/settings", "/settings/store", "/issues/DEMO-101", "/info", "/notes", "/notes/new", "/notes/trash"];
 
 /** The page's unmarked boxes that stand out, as short descriptions. */
 const unmarked = page =>
