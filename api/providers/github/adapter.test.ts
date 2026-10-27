@@ -13,7 +13,9 @@ vi.mock("node:dns/promises", () => ({
 
 function simulated() {
   const sim = githubSimulator();
-  sim.add("acme/web", "Login fails on Safari", { body: "Steps:\n\n1. open\n2. **fail**" });
+  sim.add("acme/web", "Login fails on Safari", {
+    body: "Steps:\n\n1. open\n2. **fail**",
+  });
   sim.add("acme/web", "Export to CSV");
   sim.add("acme/web", "A pull request", { pr: true });
   sim.add("acme/api", "Someone else's", { assignee: null });
@@ -44,39 +46,87 @@ function simulated() {
 
 trackerConformance("github (simulated)", async () => {
   const { conn } = simulated();
-  return { provider: githubProvider, conn, key: "acme/web#1", writable: true, url: "https://github.com/acme/web/issues/1" };
+  return {
+    provider: githubProvider,
+    conn,
+    key: "acme/web#1",
+    writable: true,
+    url: "https://github.com/acme/web/issues/1",
+  };
 });
 
-const meta = () => ({ signal: new AbortController().signal, correlationId: "t" });
+const meta = () => ({
+  signal: new AbortController().signal,
+  correlationId: "t",
+});
 
 describe("github, as the layer sees it", () => {
   it("lists every issue of the repositories the user follows (member or watched), no pull requests, keyed owner/repo#n", async () => {
     const { conn } = simulated();
     const b = bindTracker(githubProvider, conn);
-    const all = await readPass((q) => b.listChanged(meta(), q), null);
-    expect(all.items.map((i) => [i.key, i.container.key, i.status.name])).toEqual([
-      ["acme/web#1", "acme/web", "Open"],
-      ["acme/web#2", "acme/web", "Open"],
-      ["acme/api#1", "acme/api", "Open"],
-      ["oss/lib#1", "oss/lib", "Open"],
-    ]);
+    const all = await readPass(q => b.listChanged(meta(), q), null);
+    expect(all.items.map(i => [i.key, i.container.key, i.status.name])).toEqual(
+      [
+        ["acme/web#1", "acme/web", "Open"],
+        ["acme/web#2", "acme/web", "Open"],
+        ["acme/api#1", "acme/api", "Open"],
+        ["oss/lib#1", "oss/lib", "Open"],
+      ]
+    );
     // The user's own repositories, even one with no issue yet (a bucket can pick it), and the
     // org ones they can write to: not every org repository, nor the ones only watched.
-    expect((await b.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/api", "acme/empty", "acme/web", "bigorg/team"]);
+    expect((await b.containers!(meta())).map(c => c.key).sort()).toEqual([
+      "acme/api",
+      "acme/empty",
+      "acme/web",
+      "bigorg/team",
+    ]);
     // Repositories left out by the user are neither read nor listed.
-    const narrow = bindTracker(githubProvider, { ...conn, options: { excludeRepos: ["acme/api", "OSS/lib"] } });
-    expect((await readPass((q) => narrow.listChanged(meta(), q), null)).items.map((i) => i.key)).toEqual(["acme/web#1", "acme/web#2"]);
-    expect((await narrow.containers!(meta())).map((c) => c.key).sort()).toEqual(["acme/empty", "acme/web", "bigorg/team"]);
-    expect((await b.description!(meta(), { remoteId: all.items[0].remoteId, key: "acme/web#1" }))?.kind).toBe("text");
+    const narrow = bindTracker(githubProvider, {
+      ...conn,
+      options: { excludeRepos: ["acme/api", "OSS/lib"] },
+    });
+    expect(
+      (await readPass(q => narrow.listChanged(meta(), q), null)).items.map(
+        i => i.key
+      )
+    ).toEqual(["acme/web#1", "acme/web#2"]);
+    expect((await narrow.containers!(meta())).map(c => c.key).sort()).toEqual([
+      "acme/empty",
+      "acme/web",
+      "bigorg/team",
+    ]);
+    expect(
+      (
+        await b.description!(meta(), {
+          remoteId: all.items[0].remoteId,
+          key: "acme/web#1",
+        })
+      )?.kind
+    ).toBe("text");
   });
 
   it("searches only the issues the user is involved in, unless a repository or a person is named", async () => {
     const { sim, conn } = simulated();
-    sim.add("stranger/repo", "Login on someone else's site", { assignee: null, author: { id: 5151, login: "anna-b", name: "Anna Bianchi" } });
+    sim.add("stranger/repo", "Login on someone else's site", {
+      assignee: null,
+      author: { id: 5151, login: "anna-b", name: "Anna Bianchi" },
+    });
     const b = bindTracker(githubProvider, conn);
-    const ask = async (q: string) => (await b.query!(meta(), b.translate!(parseQuery(q).expr, new Date()).query, 25)).items.map((i) => i.key).sort();
+    const ask = async (q: string) =>
+      (
+        await b.query!(
+          meta(),
+          b.translate!(parseQuery(q).expr, new Date()).query,
+          25
+        )
+      ).items
+        .map(i => i.key)
+        .sort();
     expect(await ask("login")).toEqual(["acme/web#1"]);
-    expect(await ask("login project:stranger/repo")).toEqual(["stranger/repo#2"]);
+    expect(await ask("login project:stranger/repo")).toEqual([
+      "stranger/repo#2",
+    ]);
     expect(await ask("login author:anna-b")).toEqual(["stranger/repo#2"]);
   });
 
@@ -85,35 +135,72 @@ describe("github, as the layer sees it", () => {
     const b = bindTracker(githubProvider, conn);
     const ref = { remoteId: "I_1001", key: "acme/web#1" };
     const closed = await b.transitions!.apply!(meta(), ref, "not_planned", {});
-    expect(closed?.status).toMatchObject({ name: "Not planned", category: "cancelled", nativeReason: "not_planned" });
-    expect((await b.transitions!.list!(meta(), ref)).map((t) => t.name)).toEqual(["Reopen", "Close as completed"]);
-    await b.comments!.add!(meta(), ref, "Looks **fixed**" as never, { idempotencyKey: "c1" });
-    expect((await b.comments!.list(meta(), ref)).map((c) => c.body)).toEqual([{ kind: "text", format: "gfm", text: "Looks **fixed**" }]);
+    expect(closed?.status).toMatchObject({
+      name: "Not planned",
+      category: "cancelled",
+      nativeReason: "not_planned",
+    });
+    expect((await b.transitions!.list!(meta(), ref)).map(t => t.name)).toEqual([
+      "Reopen",
+      "Close as completed",
+    ]);
+    await b.comments!.add!(meta(), ref, "Looks **fixed**" as never, {
+      idempotencyKey: "c1",
+    });
+    expect((await b.comments!.list(meta(), ref)).map(c => c.body)).toEqual([
+      { kind: "text", format: "gfm", text: "Looks **fixed**" },
+    ]);
   });
 
   it("a spent quota is a wait, not a refusal", async () => {
     const { conn } = simulated();
-    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ message: "API rate limit exceeded" }), { status: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 120) } }));
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+          status: 403,
+          headers: {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 120),
+          },
+        })
+    );
     const b = bindTracker(githubProvider, conn);
     const err = await b.verify(meta()).catch((e: unknown) => e);
     expect(err).toMatchObject({ kind: "rateLimit" });
-    expect((err as { rateLimit?: { retryAfterMs?: number } }).rateLimit?.retryAfterMs).toBeGreaterThan(60_000);
+    expect(
+      (err as { rateLimit?: { retryAfterMs?: number } }).rateLimit?.retryAfterMs
+    ).toBeGreaterThan(60_000);
   });
 });
 
 describe("github, a refused call", () => {
   beforeEach(() => forgetRefusalVerdicts());
-  const refusing = (sim: ReturnType<typeof githubSimulator>, refuse: (url: string) => boolean) =>
-    vi.stubGlobal("fetch", async (input: Request | URL | string, init?: RequestInit) =>
-      refuse(String(input instanceof Request ? input.url : input)) ? Response.json({ message: "Bad credentials" }, { status: 401 }) : sim.fetch(input, init));
+  const refusing = (
+    sim: ReturnType<typeof githubSimulator>,
+    refuse: (url: string) => boolean
+  ) =>
+    vi.stubGlobal(
+      "fetch",
+      async (input: Request | URL | string, init?: RequestInit) =>
+        refuse(String(input instanceof Request ? input.url : input))
+          ? Response.json({ message: "Bad credentials" }, { status: 401 })
+          : sim.fetch(input, init)
+    );
 
   it("one endpoint's 401 while the token still opens /user is that call's alone: the connection stays usable", async () => {
     const { sim, conn } = simulated();
-    refusing(sim, (url) => url.includes("/user/repos"));
+    refusing(sim, url => url.includes("/user/repos"));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const b = bindTracker(githubProvider, conn);
-    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "forbidden", status: 401, message: "GitHub: Bad credentials" });
-    expect(warn.mock.calls.flat().join(" ")).toMatch(/connection 7 \(github\) containers, 401 .*verify still accepted/);
+    await expect(b.containers!(meta())).rejects.toMatchObject({
+      kind: "forbidden",
+      status: 401,
+      message: "GitHub: Bad credentials",
+    });
+    expect(warn.mock.calls.flat().join(" ")).toMatch(
+      /connection 7 \(github\) containers, 401 .*verify still accepted/
+    );
     warn.mockRestore();
   });
 
@@ -121,13 +208,24 @@ describe("github, a refused call", () => {
     const { conn } = simulated();
     let identity = 0;
     vi.stubGlobal("fetch", async (input: Request | URL | string) => {
-      if (String(input instanceof Request ? input.url : input).endsWith("/user")) identity++;
+      if (
+        String(input instanceof Request ? input.url : input).endsWith("/user")
+      )
+        identity++;
       return Response.json({ message: "Bad credentials" }, { status: 401 });
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const b = bindTracker(githubProvider, conn);
-    const all = await Promise.allSettled(Array.from({ length: 5 }, () => b.containers!(meta())));
-    expect(all.every((r) => r.status === "rejected" && (r.reason as { kind: string }).kind === "auth")).toBe(true);
+    const all = await Promise.allSettled(
+      Array.from({ length: 5 }, () => b.containers!(meta()))
+    );
+    expect(
+      all.every(
+        r =>
+          r.status === "rejected" &&
+          (r.reason as { kind: string }).kind === "auth"
+      )
+    ).toBe(true);
     await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "auth" });
     expect(identity).toBe(1);
     warn.mockRestore();
@@ -137,7 +235,10 @@ describe("github, a refused call", () => {
     const { conn } = simulated();
     let identity = 0;
     vi.stubGlobal("fetch", async (input: Request | URL | string) => {
-      if (String(input instanceof Request ? input.url : input).endsWith("/user")) identity++;
+      if (
+        String(input instanceof Request ? input.url : input).endsWith("/user")
+      )
+        identity++;
       return Response.json({ message: "Bad credentials" }, { status: 401 });
     });
     const b = bindTracker(githubProvider, conn);
@@ -153,8 +254,140 @@ describe("github, a refused call", () => {
     refusing(sim, () => true);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const b = bindTracker(githubProvider, conn);
-    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "auth", status: 401 });
+    await expect(b.containers!(meta())).rejects.toMatchObject({
+      kind: "auth",
+      status: 401,
+    });
     expect(warn.mock.calls.flat().join(" ")).toMatch(/verify refused too/);
+    warn.mockRestore();
+  });
+
+  it("an expired token is refreshed and the original call retried once with the new Bearer", async () => {
+    const { sim, conn: base } = simulated();
+    let token = "gho_old";
+    const seen: string[] = [];
+    const refreshCredential = vi.fn(async (mode: "ifExpired" | "force") => {
+      if (mode !== "ifExpired") return false;
+      token = "gho_new";
+      return true;
+    });
+    const conn = {
+      ...base,
+      credential: async () => ({
+        kind: "oauth" as const,
+        accessToken: token,
+        expiresAt: null,
+      }),
+      refreshCredential,
+    };
+    vi.stubGlobal(
+      "fetch",
+      async (input: Request | URL | string, init?: RequestInit) => {
+        const auth = new Headers(init?.headers).get("Authorization") ?? "";
+        seen.push(auth);
+        return auth === "Bearer gho_old"
+          ? Response.json({ message: "Bad credentials" }, { status: 401 })
+          : sim.fetch(input, init);
+      }
+    );
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).resolves.toBeDefined();
+    expect(refreshCredential.mock.calls).toEqual([["ifExpired", "gho_old"]]);
+    expect(seen.filter(v => v === "Bearer gho_new")).toHaveLength(2);
+  });
+
+  it("an endpoint-only 401 does not force a refresh while /user still accepts the token", async () => {
+    const { sim, conn: base } = simulated();
+    const refreshCredential = vi.fn(async () => false);
+    const conn = {
+      ...base,
+      credential: async () => ({
+        kind: "oauth" as const,
+        accessToken: "gho_test",
+        expiresAt: null,
+      }),
+      refreshCredential,
+    };
+    refusing(sim, url => url.includes("/user/repos"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).rejects.toMatchObject({
+      kind: "forbidden",
+      status: 401,
+    });
+    expect(refreshCredential.mock.calls).toEqual([["ifExpired", "gho_test"]]);
+    warn.mockRestore();
+  });
+
+  it("a token refused by /user is force-refreshed before one retry", async () => {
+    const { sim, conn: base } = simulated();
+    let token = "gho_old";
+    const refreshCredential = vi.fn(async (mode: "ifExpired" | "force") => {
+      if (mode !== "force") return false;
+      token = "gho_new";
+      return true;
+    });
+    const conn = {
+      ...base,
+      credential: async () => ({
+        kind: "oauth" as const,
+        accessToken: token,
+        expiresAt: null,
+      }),
+      refreshCredential,
+    };
+    vi.stubGlobal(
+      "fetch",
+      async (input: Request | URL | string, init?: RequestInit) =>
+        new Headers(init?.headers).get("Authorization") === "Bearer gho_old"
+          ? Response.json({ message: "Bad credentials" }, { status: 401 })
+          : sim.fetch(input, init)
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).resolves.toBeDefined();
+    expect(refreshCredential.mock.calls).toEqual([
+      ["ifExpired", "gho_old"],
+      ["force", "gho_old"],
+    ]);
+    warn.mockRestore();
+  });
+
+  it("a second 401 follows the normal refusal path without another refresh or retry", async () => {
+    const { conn: base } = simulated();
+    let token = "gho_old";
+    let calls = 0;
+    const refreshCredential = vi.fn(async (mode: "ifExpired" | "force") => {
+      if (mode !== "force") return false;
+      token = "gho_new";
+      return true;
+    });
+    const conn = {
+      ...base,
+      credential: async () => ({
+        kind: "oauth" as const,
+        accessToken: token,
+        expiresAt: null,
+      }),
+      refreshCredential,
+    };
+    vi.stubGlobal("fetch", async (input: Request | URL | string) => {
+      if (
+        String(input instanceof Request ? input.url : input).includes(
+          "/user/repos"
+        )
+      )
+        calls++;
+      return Response.json({ message: "Bad credentials" }, { status: 401 });
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).rejects.toMatchObject({
+      kind: "auth",
+      status: 401,
+    });
+    expect(calls).toBe(4);
+    expect(refreshCredential).toHaveBeenCalledTimes(2);
     warn.mockRestore();
   });
 });

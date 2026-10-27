@@ -57,9 +57,21 @@ import type {
   TrackerType,
   WorkflowSource,
 } from "@contracts/providers";
-import type { Instant, JsonValue, LocalDate, Markdown, TimeZone } from "@contracts/values";
+import type {
+  Instant,
+  JsonValue,
+  LocalDate,
+  Markdown,
+  TimeZone,
+} from "@contracts/values";
 
-export type { Instant, JsonValue, LocalDate, Markdown, TimeZone } from "@contracts/values";
+export type {
+  Instant,
+  JsonValue,
+  LocalDate,
+  Markdown,
+  TimeZone,
+} from "@contracts/values";
 
 // ---------- Calls and connections ----------
 
@@ -85,6 +97,10 @@ export type Conn<T extends ProviderType = ProviderType, O = unknown> = {
   /** Where this connection's LocalDates are counted (the user's zone) */
   timeZone: TimeZone;
   credential: () => Promise<Credential>;
+  refreshCredential?: (
+    mode: "ifExpired" | "force",
+    rejectedAccessToken?: string
+  ) => Promise<boolean>;
 };
 
 /** Every call: the connection, a way to cancel it, and an id tying its logs, retries and requests together. */
@@ -101,17 +117,40 @@ export type RefContext<O = unknown> = { baseUrl: string; options: O };
 
 /** Someone on a service. */
 /** A person on a service; `handle` is what the service names them by in requests (GitHub login), when not their id. */
-export type RemotePerson = { remoteId: string; name: string; avatarUrl?: string | null; handle?: string };
+export type RemotePerson = {
+  remoteId: string;
+  name: string;
+  avatarUrl?: string | null;
+  handle?: string;
+};
 
 /** A new issue, as the app writes it. */
 /** A new issue; `type` is one of the container's issue types (manage.types), required where the service asks for one. */
-export type IssueDraft = { title: string; body?: Markdown; labels?: string[]; assignees?: RemotePerson[]; type?: string };
+export type IssueDraft = {
+  title: string;
+  body?: Markdown;
+  labels?: string[];
+  assignees?: RemotePerson[];
+  type?: string;
+};
 
 /** An issue type a new issue can have in a container (Jira: Task, Bug…). */
 export type IssueTypeOption = { id: string; name: string };
 
 /** Canonical container kinds; a service's own word goes after "x-" ("x-space"). */
-export type ContainerKind = "project" | "repository" | "board" | "list" | "section" | "team" | "space" | "folder" | "workspace" | "database" | "plan" | `x-${string}`;
+export type ContainerKind =
+  | "project"
+  | "repository"
+  | "board"
+  | "list"
+  | "section"
+  | "team"
+  | "space"
+  | "folder"
+  | "workspace"
+  | "database"
+  | "plan"
+  | `x-${string}`;
 
 /** The project, repository, board, list… an issue belongs to. */
 export type ContainerRef = {
@@ -131,25 +170,35 @@ export type ContainerRef = {
 export type ContainerHint = Pick<ContainerRef, "remoteId" | "key">;
 
 /** Which issue, fully: what the core holds and every operation takes. */
-export type IssueRef = { remoteId: string; key: string; container?: ContainerHint };
+export type IssueRef = {
+  remoteId: string;
+  key: string;
+  container?: ContainerHint;
+};
 
 /**
  * Which issue, as a feed, a time entry or a person says it: at least its id
  * or its key, with its container when the key alone isn't unique (repo#12).
  */
-export type IssueHandle = ({ remoteId: string; key?: string } | { remoteId?: undefined; key: string }) & { container?: ContainerHint };
+export type IssueHandle = (
+  { remoteId: string; key?: string } | { remoteId?: undefined; key: string }
+) & { container?: ContainerHint };
 
 /** A local mapping's id (a connection's category mapping), never a service id: built by mappingId. */
 export type MappingId = number & { readonly __mappingId: unique symbol };
 /** A version of one mapping (each mapping counts its own, from 1): items are recomputed when it changes. Built by mappingVersion. */
-export type MappingVersion = number & { readonly __mappingVersion: unique symbol };
+export type MappingVersion = number & {
+  readonly __mappingVersion: unique symbol;
+};
 
 const positiveInt = (n: number, what: string) => {
   if (!Number.isInteger(n) || n < 1) throw new Error(`Not a ${what}: ${n}`);
   return n;
 };
-export const mappingId = (n: number) => positiveInt(n, "mapping id") as MappingId;
-export const mappingVersion = (n: number) => positiveInt(n, "mapping version") as MappingVersion;
+export const mappingId = (n: number) =>
+  positiveInt(n, "mapping id") as MappingId;
+export const mappingVersion = (n: number) =>
+  positiveInt(n, "mapping version") as MappingVersion;
 
 /** Where a status was read from, precisely: which field, board or label scope, of which container. */
 export type StatusSourceRef =
@@ -166,7 +215,9 @@ export type RemoteStatus = {
   name: string;
   category: StatusCategory;
   /** Said by the service, or by a version of the connection's mapping */
-  categoryOrigin: { by: "native" } | { by: "mapping"; mapping: MappingId; version: MappingVersion };
+  categoryOrigin:
+    | { by: "native" }
+    | { by: "mapping"; mapping: MappingId; version: MappingVersion };
   source: StatusSourceRef;
   /** The service's own reason or sub-state (GitHub's state_reason, Jira's resolution) */
   nativeReason?: string | null;
@@ -234,7 +285,8 @@ export type ReportedIssueGone =
  * The engine's view: what services report, plus "missing" (absent at
  * reconciliation, cause unknown), which only the engine concludes.
  */
-export type IssueGone = ReportedIssueGone | { remoteId: string; reason: "missing" };
+export type IssueGone =
+  ReportedIssueGone | { remoteId: string; reason: "missing" };
 
 /** A time entry removed, as its service says it (only when its feed declares removals). */
 export type ReportedEntryGone = { remoteId: string; reason: "deleted" };
@@ -268,7 +320,8 @@ export type FieldReq = { id: string; name: string; required: boolean } & (
  * and the core checks them against it (required, options, types) before the
  * adapter gets them: values are never interpreted without their FieldReq.
  */
-export type FieldValue = string | number | string[] | { date: LocalDate } | { user: string };
+export type FieldValue =
+  string | number | string[] | { date: LocalDate } | { user: string };
 
 /**
  * A way out of the current status, as the service offers it now (the core
@@ -277,7 +330,13 @@ export type FieldValue = string | number | string[] | { date: LocalDate } | { us
  * core's computation from the requirements (a required field of unknown type:
  * not here; then remoteUrl, the service's own page, or null when it has none).
  */
-export type Transition = { id: string; name: string; to: RemoteStatus; requirements: FieldReq[]; remoteUrl: string | null };
+export type Transition = {
+  id: string;
+  name: string;
+  to: RemoteStatus;
+  requirements: FieldReq[];
+  remoteUrl: string | null;
+};
 
 /**
  * An active workflow source of a connection: a declared kind with its
@@ -285,7 +344,10 @@ export type Transition = { id: string; name: string; to: RemoteStatus; requireme
  * has a column reference).
  */
 export type ActiveWorkflowSource = {
-  [K in WorkflowSource["kind"]]: Extract<WorkflowSource, { kind: K }> & { ref: Extract<StatusSourceRef, { kind: K }>; name: string };
+  [K in WorkflowSource["kind"]]: Extract<WorkflowSource, { kind: K }> & {
+    ref: Extract<StatusSourceRef, { kind: K }>;
+    name: string;
+  };
 }[WorkflowSource["kind"]];
 
 // ---------- Time ----------
@@ -298,12 +360,21 @@ export type RemoteTimeSpan =
   | { kind: "dayTotal"; date: LocalDate; seconds: number };
 
 /** Time to write an entry: what an "entries" service takes (its shape, checked by the core). */
-export type TimeInput = { kind: "session"; start: Instant; seconds: number } | { kind: "date"; date: LocalDate; seconds: number };
+export type TimeInput =
+  | { kind: "session"; start: Instant; seconds: number }
+  | { kind: "date"; date: LocalDate; seconds: number };
 
 /** Why an entry can't be changed: canonical, the service's own words beside it. */
-export type LockCause = "approved" | "submitted" | "invoiced" | "periodClosed" | "permission" | "other";
+export type LockCause =
+  | "approved"
+  | "submitted"
+  | "invoiced"
+  | "periodClosed"
+  | "permission"
+  | "other";
 
-export type ApprovalState = "none" | "draft" | "submitted" | "approved" | "rejected";
+export type ApprovalState =
+  "none" | "draft" | "submitted" | "approved" | "rejected";
 
 /** A time entry on a service. */
 export type RemoteWorklog = {
@@ -374,19 +445,30 @@ export type WebhookCheck = {
 /** A comment's body: text in a markup, or a structured document (authoritative) with a text preview. */
 export type RemoteBody =
   | { kind: "text"; format: TextFormat; text: string }
-  | { kind: "structured"; format: StructuredFormat; payload: JsonValue; preview: string };
+  | {
+      kind: "structured";
+      format: StructuredFormat;
+      payload: JsonValue;
+      preview: string;
+    };
 
 /**
  * Why a CommonMark text wasn't kept exactly: a canonical code and the feature
  * (shown by the app in its words), and a detail for the server log only (the
  * binding strips it before anything leaves the server).
  */
-export type ConversionWarning = { code: "unsupportedFeature" | "approximated" | "stripped"; feature?: MarkdownFeature; serverDetail?: string };
+export type ConversionWarning = {
+  code: "unsupportedFeature" | "approximated" | "stripped";
+  feature?: MarkdownFeature;
+  serverDetail?: string;
+};
 /** A conversion warning as it may leave the server. */
 export type PublicConversionWarning = Omit<ConversionWarning, "serverDetail">;
 
 /** The warning without its server detail: removed from the object, not only from the type. */
-export function publicConversionWarning(warning: ConversionWarning): PublicConversionWarning {
+export function publicConversionWarning(
+  warning: ConversionWarning
+): PublicConversionWarning {
   const shown: ConversionWarning = { ...warning };
   delete shown.serverDetail;
   return shown;
@@ -441,15 +523,28 @@ export type TrackerProbe = {
   rateLimit?: RateLimitFigure;
   verifiedAt: Instant;
 };
-export type TimeSinkProbe = { capabilities: TimeSinkCapabilities; rateLimit?: RateLimitFigure; verifiedAt: Instant };
+export type TimeSinkProbe = {
+  capabilities: TimeSinkCapabilities;
+  rateLimit?: RateLimitFigure;
+  verifiedAt: Instant;
+};
 
 /** Looking an issue up by a handle: found, none the user can see, or several a key alone can't tell apart (never a silent pick). */
-export type FindResult = { kind: "found"; issue: RemoteIssue } | { kind: "none" } | { kind: "ambiguous"; candidates: [RemoteIssue, RemoteIssue, ...RemoteIssue[]] };
+export type FindResult =
+  | { kind: "found"; issue: RemoteIssue }
+  | { kind: "none" }
+  | {
+      kind: "ambiguous";
+      candidates: [RemoteIssue, RemoteIssue, ...RemoteIssue[]];
+    };
 
 // ---------- Trackers ----------
 
 /** An issue tracker. O: its options, as parseOptions makes them. */
-export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknown> {
+export interface TrackerProvider<
+  T extends TrackerType = TrackerType,
+  O = unknown,
+> {
   role: "tracker";
   type: T;
   capabilities: TrackerCapabilities;
@@ -473,7 +568,10 @@ export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknow
    * tracker's own query language, for `query`; the terms it can't say are
    * named in `unsupported`. Pure, no I/O.
    */
-  translate?(expr: QueryExpr | null, now: Date): { query: string; unsupported: string[] };
+  translate?(
+    expr: QueryExpr | null,
+    now: Date
+  ): { query: string; unsupported: string[] };
   /**
    * Present when capabilities.sync.webhooks: how the service's deliveries
    * are checked. Pure, no I/O. The core also checks the connection's own
@@ -483,12 +581,17 @@ export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknow
   webhook?: WebhookCheck;
 
   /** Checks the credentials: who they belong to (cheap). */
-  verify(x: CallContext<T, O>): Promise<RemotePerson & { login?: string; email?: string }>;
+  verify(
+    x: CallContext<T, O>
+  ): Promise<RemotePerson & { login?: string; email?: string }>;
   /** What this connection can do (cached by the core). */
   probe(x: CallContext<T, O>): Promise<TrackerProbe>;
 
   /** The user's items changed since a checkpoint, a page at a time. */
-  listChanged(x: CallContext<T, O>, q: PageQuery): Promise<Page<RemoteIssue, ReportedIssueGone>>;
+  listChanged(
+    x: CallContext<T, O>,
+    q: PageQuery
+  ): Promise<Page<RemoteIssue, ReportedIssueGone>>;
   getIssue(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteIssue | null>;
   /**
    * An issue by a handle (a key typed, a URL parsed). getIssue and every
@@ -497,49 +600,119 @@ export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknow
   findIssue(x: CallContext<T, O>, handle: IssueHandle): Promise<FindResult>;
 
   /** Present when capabilities.searchText. Only what the connection may see; complete false when cut short. */
-  searchText?(x: CallContext<T, O>, text: string, limit: number): Promise<Limited<RemoteIssue>>;
+  searchText?(
+    x: CallContext<T, O>,
+    text: string,
+    limit: number
+  ): Promise<Limited<RemoteIssue>>;
   /** Present when capabilities.query (the service's own query language). */
-  query?(x: CallContext<T, O>, query: string, limit: number): Promise<Limited<RemoteIssue>>;
+  query?(
+    x: CallContext<T, O>,
+    query: string,
+    limit: number
+  ): Promise<Limited<RemoteIssue>>;
 
   /** Present when capabilities.statuses: every status of a source (its reference names the container when statuses are per container). */
-  statuses?(x: CallContext<T, O>, source: ActiveWorkflowSource): Promise<RemoteStatus[]>;
+  statuses?(
+    x: CallContext<T, O>,
+    source: ActiveWorkflowSource
+  ): Promise<RemoteStatus[]>;
 
   /** list when capabilities.transitions.read, apply when .write. */
   transitions?: {
     list?(x: CallContext<T, O>, ref: IssueRef): Promise<Transition[]>;
     /** The issue as it is after, when the service says it (else the engine reads it again) */
-    apply?(x: CallContext<T, O>, ref: IssueRef, transitionId: string, fields: Record<string, FieldValue>): Promise<RemoteIssue | null>;
+    apply?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      transitionId: string,
+      fields: Record<string, FieldValue>
+    ): Promise<RemoteIssue | null>;
   };
 
   /** Present when capabilities.time.mode is "entries"; each operation as the entries' capabilities say. */
   worklogs?: {
     list(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteWorklog[]>;
     /** One entry by its id, null when gone (optional: without it the core reads the issue's list) */
-    get?(x: CallContext<T, O>, ref: IssueRef, id: string): Promise<RemoteWorklog | null>;
+    get?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      id: string
+    ): Promise<RemoteWorklog | null>;
     /** Present for an incremental or window feed */
-    changed?(x: CallContext<T, O>, q: PageQuery): Promise<Page<RemoteWorklog, ReportedEntryGone>>;
-    create?(x: CallContext<T, O>, ref: IssueRef, w: WorklogInput, m: CreateOptions): Promise<RemoteWorklog>;
-    update?(x: CallContext<T, O>, ref: IssueRef, id: string, w: WorklogInput, m: ChangeOptions): Promise<RemoteWorklog>;
-    delete?(x: CallContext<T, O>, ref: IssueRef, id: string, m: ChangeOptions): Promise<void>;
+    changed?(
+      x: CallContext<T, O>,
+      q: PageQuery
+    ): Promise<Page<RemoteWorklog, ReportedEntryGone>>;
+    create?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      w: WorklogInput,
+      m: CreateOptions
+    ): Promise<RemoteWorklog>;
+    update?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      id: string,
+      w: WorklogInput,
+      m: ChangeOptions
+    ): Promise<RemoteWorklog>;
+    delete?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      id: string,
+      m: ChangeOptions
+    ): Promise<void>;
     /** Present for a dayTotals service that can be written: sets the day's total, whole seconds ≥ 0 (0 removes it) */
-    setDayTotal?(x: CallContext<T, O>, ref: IssueRef, date: LocalDate, seconds: number, m: SetOptions): Promise<RemoteWorklog | null>;
+    setDayTotal?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      date: LocalDate,
+      seconds: number,
+      m: SetOptions
+    ): Promise<RemoteWorklog | null>;
     /** Present when activities are writable: those an entry on this issue may have (no issue: the connection's whole catalogue) */
-    activities?(x: CallContext<T, O>, scope: { issue?: IssueRef }, limit: number): Promise<Limited<CatalogItem>>;
+    activities?(
+      x: CallContext<T, O>,
+      scope: { issue?: IssueRef },
+      limit: number
+    ): Promise<Limited<CatalogItem>>;
   };
 
   /** Present when capabilities.time.mode is "counter"; each operation as declared. */
   /** Amounts are positive whole seconds (the method says the direction; checked by the core). */
   timeCounter?: {
-    read?(x: CallContext<T, O>, ref: IssueRef): Promise<{ seconds: number; version: string | null }>;
-    increment?(x: CallContext<T, O>, ref: IssueRef, seconds: number, m: ChangeOptions): Promise<{ seconds: number; version: string | null }>;
-    decrement?(x: CallContext<T, O>, ref: IssueRef, seconds: number, m: ChangeOptions): Promise<{ seconds: number; version: string | null }>;
+    read?(
+      x: CallContext<T, O>,
+      ref: IssueRef
+    ): Promise<{ seconds: number; version: string | null }>;
+    increment?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      seconds: number,
+      m: ChangeOptions
+    ): Promise<{ seconds: number; version: string | null }>;
+    decrement?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      seconds: number,
+      m: ChangeOptions
+    ): Promise<{ seconds: number; version: string | null }>;
   };
 
   /** Present unless capabilities.comments.mode is "none"; add when "readWrite". */
   comments?: {
     list(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteComment[]>;
     /** The comment as stored, or null when the service doesn't give it back yet (read again); warnings for what didn't convert exactly */
-    add?(x: CallContext<T, O>, ref: IssueRef, body: Markdown, m: CreateOptions): Promise<{ comment: RemoteComment | null; warnings: ConversionWarning[] }>;
+    add?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      body: Markdown,
+      m: CreateOptions
+    ): Promise<{
+      comment: RemoteComment | null;
+      warnings: ConversionWarning[];
+    }>;
   };
 
   /** Present when capabilities.description: the issue's body as its service keeps it (null: it has none). */
@@ -551,19 +724,44 @@ export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknow
   /** Present as capabilities.manage says. Each change gives the issue back as it now is (null: read it again). */
   manage?: {
     /** manage.assign: who can be assigned in a container */
-    assignable?(x: CallContext<T, O>, container: ContainerHint): Promise<RemotePerson[]>;
+    assignable?(
+      x: CallContext<T, O>,
+      container: ContainerHint
+    ): Promise<RemotePerson[]>;
     /** manage.assign: the issue's assignees become exactly these */
-    assign?(x: CallContext<T, O>, ref: IssueRef, people: RemotePerson[]): Promise<RemoteIssue | null>;
+    assign?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      people: RemotePerson[]
+    ): Promise<RemoteIssue | null>;
     /** manage.labels: the labels a container offers */
-    labelOptions?(x: CallContext<T, O>, container: ContainerHint): Promise<string[]>;
+    labelOptions?(
+      x: CallContext<T, O>,
+      container: ContainerHint
+    ): Promise<string[]>;
     /** manage.labels: the issue's labels become exactly these */
-    setLabels?(x: CallContext<T, O>, ref: IssueRef, labels: string[]): Promise<RemoteIssue | null>;
+    setLabels?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      labels: string[]
+    ): Promise<RemoteIssue | null>;
     /** manage.create */
-    create?(x: CallContext<T, O>, container: ContainerHint, draft: IssueDraft): Promise<RemoteIssue>;
+    create?(
+      x: CallContext<T, O>,
+      container: ContainerHint,
+      draft: IssueDraft
+    ): Promise<RemoteIssue>;
     /** manage.edit: a new title and/or body */
-    edit?(x: CallContext<T, O>, ref: IssueRef, patch: { title?: string; body?: Markdown }): Promise<RemoteIssue | null>;
+    edit?(
+      x: CallContext<T, O>,
+      ref: IssueRef,
+      patch: { title?: string; body?: Markdown }
+    ): Promise<RemoteIssue | null>;
     /** manage.types: the issue types a new issue can have in a container (sub-tasks left out: they need a parent) */
-    createTypes?(x: CallContext<T, O>, container: ContainerHint): Promise<IssueTypeOption[]>;
+    createTypes?(
+      x: CallContext<T, O>,
+      container: ContainerHint
+    ): Promise<IssueTypeOption[]>;
   };
 
   /** Present when capabilities.watch. */
@@ -577,12 +775,22 @@ export interface TrackerProvider<T extends TrackerType = TrackerType, O = unknow
    * `cursor` (null: its recent unread), and the cursor to ask from next time.
    * `notModified` when nothing changed (no item, the cursor kept).
    */
-  inbox?(x: CallContext<T, O>, cursor: string | null): Promise<{ items: InboxItem[]; cursor: string | null; notModified?: boolean }>;
+  inbox?(
+    x: CallContext<T, O>,
+    cursor: string | null
+  ): Promise<{
+    items: InboxItem[];
+    cursor: string | null;
+    notModified?: boolean;
+  }>;
   /** Present when capabilities.inbox: one item read on the service too. */
   markRead?(x: CallContext<T, O>, id: string): Promise<void>;
 
   /** Present when capabilities.otherFields: the issue's fields inkledger doesn't map, as the service names them, values as text (empty ones left out). */
-  otherFields?(x: CallContext<T, O>, ref: IssueRef): Promise<{ name: string; value: string }[]>;
+  otherFields?(
+    x: CallContext<T, O>,
+    ref: IssueRef
+  ): Promise<{ name: string; value: string }[]>;
 }
 
 /** One item of a service's own inbox, about one issue. */
@@ -604,13 +812,25 @@ export type InboxItem = {
  * issue (trackerType is checked against the connection); the snapshot only
  * describes, never reconciles.
  */
-export type ExternalRef = { trackerType: TrackerType; trackerConnectionId: number; issue: IssueRef; snapshot: { url: string; title: string } };
+export type ExternalRef = {
+  trackerType: TrackerType;
+  trackerConnectionId: number;
+  issue: IssueRef;
+  snapshot: { url: string; title: string };
+};
 
 /** A project, task (or the like) a time sink files entries under; path: its ancestors, root first, itself excluded. */
-export type SinkTarget = { remoteId: string; name: string; path: { remoteId: string; name: string }[] };
+export type SinkTarget = {
+  remoteId: string;
+  name: string;
+  path: { remoteId: string; name: string }[];
+};
 
 /** A service that only receives time. */
-export interface TimeSinkProvider<T extends TimeSinkType = TimeSinkType, O = unknown> {
+export interface TimeSinkProvider<
+  T extends TimeSinkType = TimeSinkType,
+  O = unknown,
+> {
   role: "timeSink";
   type: T;
   capabilities: TimeSinkCapabilities;
@@ -621,19 +841,51 @@ export interface TimeSinkProvider<T extends TimeSinkType = TimeSinkType, O = unk
   probe(x: CallContext<T, O>): Promise<TimeSinkProbe>;
 
   /** Present when targets are used and found by searching: a limited search, complete false when cut short. */
-  targets?(x: CallContext<T, O>, query: string, limit: number): Promise<Limited<SinkTarget>>;
+  targets?(
+    x: CallContext<T, O>,
+    query: string,
+    limit: number
+  ): Promise<Limited<SinkTarget>>;
 
   entries: {
     /** The user's entries from `from` to `to`, both days included, in the connection's time zone (the adapter reads every page; the core splits long ranges into the reconcile span) */
-    list(x: CallContext<T, O>, range: { from: LocalDate; to: LocalDate }): Promise<RemoteWorklog[]>;
-    changed?(x: CallContext<T, O>, q: PageQuery): Promise<Page<RemoteWorklog, ReportedEntryGone>>;
+    list(
+      x: CallContext<T, O>,
+      range: { from: LocalDate; to: LocalDate }
+    ): Promise<RemoteWorklog[]>;
+    changed?(
+      x: CallContext<T, O>,
+      q: PageQuery
+    ): Promise<Page<RemoteWorklog, ReportedEntryGone>>;
     /** target: null exactly when the capabilities' target use is "none" (checked by the core) */
-    create?(x: CallContext<T, O>, ref: ExternalRef, target: SinkTarget | null, w: WorklogInput, m: CreateOptions): Promise<RemoteWorklog>;
-    update?(x: CallContext<T, O>, id: string, w: WorklogInput, m: ChangeOptions): Promise<RemoteWorklog>;
+    create?(
+      x: CallContext<T, O>,
+      ref: ExternalRef,
+      target: SinkTarget | null,
+      w: WorklogInput,
+      m: CreateOptions
+    ): Promise<RemoteWorklog>;
+    update?(
+      x: CallContext<T, O>,
+      id: string,
+      w: WorklogInput,
+      m: ChangeOptions
+    ): Promise<RemoteWorklog>;
     delete?(x: CallContext<T, O>, id: string, m: ChangeOptions): Promise<void>;
-    setDayTotal?(x: CallContext<T, O>, ref: ExternalRef, target: SinkTarget | null, date: LocalDate, seconds: number, m: SetOptions): Promise<RemoteWorklog | null>;
+    setDayTotal?(
+      x: CallContext<T, O>,
+      ref: ExternalRef,
+      target: SinkTarget | null,
+      date: LocalDate,
+      seconds: number,
+      m: SetOptions
+    ): Promise<RemoteWorklog | null>;
     /** Those an entry under this target may have (no target: the connection's whole catalogue) */
-    activities?(x: CallContext<T, O>, scope: { target?: SinkTarget }, limit: number): Promise<Limited<CatalogItem>>;
+    activities?(
+      x: CallContext<T, O>,
+      scope: { target?: SinkTarget },
+      limit: number
+    ): Promise<Limited<CatalogItem>>;
   };
 }
 
@@ -666,12 +918,29 @@ export type TrackerShape = {
   query?: Op;
   statuses?: Op;
   transitions?: { list?: Op; apply?: Op };
-  worklogs?: { list: Op; get?: Op; changed?: Op; create?: Op; update?: Op; delete?: Op; setDayTotal?: Op; activities?: Op };
+  worklogs?: {
+    list: Op;
+    get?: Op;
+    changed?: Op;
+    create?: Op;
+    update?: Op;
+    delete?: Op;
+    setDayTotal?: Op;
+    activities?: Op;
+  };
   timeCounter?: { read?: Op; increment?: Op; decrement?: Op };
   comments?: { list: Op; add?: Op };
   description?: Op;
   containers?: Op;
-  manage?: { assignable?: Op; assign?: Op; labelOptions?: Op; setLabels?: Op; create?: Op; edit?: Op; createTypes?: Op };
+  manage?: {
+    assignable?: Op;
+    assign?: Op;
+    labelOptions?: Op;
+    setLabels?: Op;
+    create?: Op;
+    edit?: Op;
+    createTypes?: Op;
+  };
   watch?: Op;
   history?: Op;
   inbox?: Op;
@@ -687,7 +956,15 @@ export type TimeSinkShape = {
   verify: Op;
   probe: Op;
   targets?: Op;
-  entries: { list: Op; changed?: Op; create?: Op; update?: Op; delete?: Op; setDayTotal?: Op; activities?: Op };
+  entries: {
+    list: Op;
+    changed?: Op;
+    create?: Op;
+    update?: Op;
+    delete?: Op;
+    setDayTotal?: Op;
+    activities?: Op;
+  };
 };
 export type ProviderShape = TrackerShape | TimeSinkShape;
 
