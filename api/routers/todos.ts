@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { issueNotes, issues, notifications, timers, todoSessions, todos, type Todo } from "@db/schema";
+import { issueNotes, issues, mails, notifications, timers, todoSessions, todos, type Todo } from "@db/schema";
 import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
 import { issueKeyInput } from "../lib/inputs";
@@ -110,6 +110,14 @@ async function linkOf(
 
 const open = isNull(todos.doneAt);
 
+/** A mail of the user's, for a TODO to be about (null: about none). */
+async function mailOf(userId: number, mailId: number | null): Promise<number | null> {
+  if (mailId === null) return null;
+  const [m] = await getDb().select({ id: mails.id }).from(mails).where(and(eq(mails.id, mailId), eq(mails.userId, userId)));
+  if (!m) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
+  return m.id;
+}
+
 /** Seconds worked on a TODO, its open stretch counted to now. */
 const spentOf = sql<number>`coalesce((SELECT sum(coalesce(s.ended_at, (extract(epoch from now()) * 1000)::bigint) - s.started_at) / 1000 FROM ${todoSessions} s WHERE s.todo_id = ${todos.id}), 0)`.mapWith(
   (v: unknown) => Math.round(Number(v)),
@@ -125,10 +133,12 @@ async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
       statusCategory: issues.statusCategory,
       noteBody: issueNotes.body,
       spentSeconds: spentOf,
+      mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, webLink: mails.webLink },
     })
     .from(todos)
     .leftJoin(issues, eq(issues.id, todos.itemId))
     .leftJoin(issueNotes, eq(issueNotes.id, todos.issueNoteId))
+    .leftJoin(mails, eq(mails.id, todos.mailId))
     .where(where)
     .orderBy(...order);
   const list = await (limit ? q.limit(limit) : q);
@@ -139,6 +149,8 @@ async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
     statusCategory: r.statusCategory ?? null,
     noteBody: r.noteBody ?? null,
     spentSeconds: r.spentSeconds,
+    // The mail it is about: its subject and the link back to it.
+    mail: r.mail?.id != null ? r.mail : null,
   }));
 }
 
@@ -206,6 +218,8 @@ export const todosRouter = createRouter({
         commentId: z.string().trim().min(1).max(200).optional(),
         commentExcerpt: excerpt.optional(),
         issueNoteId: idInput.optional(),
+        /** The mail it is about. */
+        mailId: idInput.optional(),
         ...details,
         /** A suggestion taken (its key): never suggested again. */
         source: z.string().min(1).max(300).optional(),
@@ -213,13 +227,14 @@ export const todosRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const link = await linkOf(ctx.user.id, input);
+      const mailId = await mailOf(ctx.user.id, input.mailId ?? null);
       if (input.source) {
         const [taken] = await getDb().select().from(todos).where(and(eq(todos.userId, ctx.user.id), eq(todos.source, input.source)));
         if (taken) return taken;
       }
       const [row] = await getDb()
         .insert(todos)
-        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn ?? null, position: await firstPosition(ctx.user.id), ...link, ...detailsOf(input), source: input.source ?? null })
+        .values({ userId: ctx.user.id, text: input.text, dueOn: input.dueOn ?? null, position: await firstPosition(ctx.user.id), ...link, mailId, ...detailsOf(input), source: input.source ?? null })
         .returning();
       return row;
     }),
@@ -240,11 +255,14 @@ export const todosRouter = createRouter({
         today: day.optional(),
         issueKey: issueKeyInput.nullable().optional(),
         connectionId: connectionInput,
+        /** Another mail it is about (null: none). */
+        mailId: idInput.nullable().optional(),
         ...details,
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const row = await own(ctx.user.id, input.id);
+      const mail = input.mailId !== undefined ? { mailId: await mailOf(ctx.user.id, input.mailId) } : {};
       // Another issue (or none): what hung on the old one (its comment, its note) lets go.
       const relink = input.issueKey !== undefined ? await linkOf(ctx.user.id, { issueKey: input.issueKey, connectionId: input.connectionId }) : null;
       return getDb().transaction(async (tx) => {
@@ -252,6 +270,7 @@ export const todosRouter = createRouter({
           ...(input.text !== undefined ? { text: input.text } : {}),
           ...(input.dueOn !== undefined ? { dueOn: input.dueOn, reminderSeenOn: null } : {}),
           ...(relink ?? {}),
+          ...mail,
           ...detailsOf(input),
           updatedAt: new Date(),
         };
@@ -285,6 +304,7 @@ export const todosRouter = createRouter({
             commentId: ticked.commentId,
             commentExcerpt: ticked.commentExcerpt,
             issueNoteId: ticked.issueNoteId,
+            mailId: ticked.mailId,
             priority: ticked.priority,
             estimateSeconds: ticked.estimateSeconds,
             // Its checklist starts again, unticked.
@@ -337,6 +357,7 @@ export const todosRouter = createRouter({
         commentId: z.string().trim().min(1).max(200).nullable(),
         commentExcerpt: excerpt.nullable(),
         issueNoteId: idInput.nullable(),
+        mailId: idInput.nullable().optional(),
         // Its details as "remove" gave them back (stored form), checked again.
         priority: z.number().int().optional(),
         estimateSeconds: estimate.nullable().optional(),
@@ -360,6 +381,11 @@ export const todosRouter = createRouter({
           if (!(e instanceof TRPCError) || (e.code !== "NOT_FOUND" && e.code !== "PRECONDITION_FAILED" && e.code !== "CONFLICT")) throw e;
         }
       }
+      // Its mail, unless forgotten meanwhile.
+      const mailId = await mailOf(ctx.user.id, input.mailId ?? null).catch((e: unknown) => {
+        if (e instanceof TRPCError && e.code === "NOT_FOUND") return null;
+        throw e;
+      });
       const [row] = await getDb()
         .insert(todos)
         .values({
@@ -369,6 +395,7 @@ export const todosRouter = createRouter({
           doneAt: input.done ? new Date() : null,
           position: input.position,
           ...(link as Link),
+          mailId,
           priority: input.priority === 1 ? 1 : 0,
           estimateSeconds: input.estimateSeconds ?? null,
           steps: JSON.stringify(parseSteps(input.steps)),

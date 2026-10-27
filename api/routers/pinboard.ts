@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { buckets, connections, issueNotes, issues, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
+import { buckets, connections, issueNotes, issues, mails, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { openIssuesTagged, type FollowTag } from "../queries/myIssues";
@@ -146,7 +146,11 @@ type BoardNote = PinboardNote & {
   noteBody: string | null;
   noteCreatedAt: Date | null;
   todo: PinnedTodo | null;
+  mail: PinnedMail | null;
 };
+
+/** A mail hung on a board: what opens it again. */
+type PinnedMail = { id: number; subject: string; fromName: string | null; fromAddress: string | null; receivedAt: Date | null; webLink: string | null };
 
 /**
  * The post-its a followed board shows: the open issues with its tag, laid out
@@ -164,7 +168,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
   const stored = await getDb()
     .select()
     .from(pinboardNotes)
-    .where(and(eq(pinboardNotes.userId, userId), eq(pinboardNotes.boardId, board.id), isNull(pinboardNotes.issueNoteId), isNull(pinboardNotes.todoId)));
+    .where(and(eq(pinboardNotes.userId, userId), eq(pinboardNotes.boardId, board.id), isNull(pinboardNotes.issueNoteId), isNull(pinboardNotes.todoId), isNull(pinboardNotes.mailId)));
   const placedBy = new Map(stored.map((s) => [`${s.connectionId}:${s.issueKey}`, s]));
   const placed: { x: number; y: number }[] = rows.flatMap((r) => {
     const s = placedBy.get(`${r.connectionId}:${r.key}`);
@@ -201,6 +205,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       noteBody: null,
       noteCreatedAt: null,
       todo: null,
+      mail: null,
     };
   });
 }
@@ -423,11 +428,13 @@ export const pinboardRouter = createRouter({
           noteBody: issueNotes.body,
           noteCreatedAt: issueNotes.createdAt,
           todo: todos,
+          mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, fromAddress: mails.fromAddress, receivedAt: mails.receivedAt, webLink: mails.webLink },
         })
         .from(pinboardNotes)
         .leftJoin(issues, pinnedIssue)
         .leftJoin(issueNotes, eq(issueNotes.id, pinboardNotes.issueNoteId))
         .leftJoin(todos, eq(todos.id, pinboardNotes.todoId))
+        .leftJoin(mails, eq(mails.id, pinboardNotes.mailId))
         .where(and(eq(pinboardNotes.userId, ctx.user.id), eq(pinboardNotes.boardId, board.id), scope))
         .orderBy(asc(pinboardNotes.z), asc(pinboardNotes.id));
       return rows.map((r): BoardNote => ({
@@ -451,6 +458,8 @@ export const pinboardRouter = createRouter({
               connectionId: r.todo.connectionId,
             }
           : null,
+        // A mail hung here: its subject and the link back to it.
+        mail: r.mail?.id != null ? r.mail : null,
       }));
     }),
 
@@ -592,6 +601,28 @@ export const pinboardRouter = createRouter({
       const [row] = await db
         .insert(pinboardNotes)
         .values({ userId: ctx.user.id, boardId: board.id, todoId: todo.id, note: "", color: "green", ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
+        .returning({ id: pinboardNotes.id });
+      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+    }),
+
+  /** Hangs a pinned mail on a board (once per board: again brings it to the front). */
+  pinMail: protectedProcedure
+    .input(z.object({ mailId: z.number().int().positive(), boardId: boardIdInput.optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const [mail] = await db.select({ id: mails.id }).from(mails).where(and(eq(mails.id, input.mailId), eq(mails.userId, ctx.user.id)));
+      if (!mail) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
+      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
+      const mine = await db.select({ id: pinboardNotes.id, mailId: pinboardNotes.mailId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
+      const already = mine.find((m) => m.mailId === mail.id);
+      if (already) {
+        await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
+        return { id: already.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
+      }
+      if (mine.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
+      const [row] = await db
+        .insert(pinboardNotes)
+        .values({ userId: ctx.user.id, boardId: board.id, mailId: mail.id, note: "", color: "blue", ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
         .returning({ id: pinboardNotes.id });
       return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
     }),
@@ -762,12 +793,14 @@ export const pinboardRouter = createRouter({
       const z = await nextZ(target.id);
       return getDb().transaction(async (tx) => {
         const there = await tx
-          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, todoId: pinboardNotes.todoId, x: pinboardNotes.x, y: pinboardNotes.y })
+          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, todoId: pinboardNotes.todoId, mailId: pinboardNotes.mailId, x: pinboardNotes.x, y: pinboardNotes.y })
           .from(pinboardNotes)
           .where(eq(pinboardNotes.boardId, target.id));
         const twin = there.find((m) =>
           row.todoId !== null
             ? m.todoId === row.todoId
+            : row.mailId !== null
+              ? m.mailId === row.mailId
             : row.issueNoteId !== null
               ? m.issueNoteId === row.issueNoteId
               : row.issueKey !== null && m.issueKey === row.issueKey && m.connectionId === row.connectionId && m.issueNoteId === null,
@@ -787,6 +820,7 @@ export const pinboardRouter = createRouter({
               connectionId: row.connectionId,
               issueNoteId: row.issueNoteId,
               todoId: row.todoId,
+              mailId: row.mailId,
               note: row.note,
               color: row.color,
               ...firstFreeSlot(there),

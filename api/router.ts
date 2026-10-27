@@ -24,6 +24,7 @@ import { clientsRouter } from "./routers/clients";
 import { queriesRouter } from "./routers/queries";
 import { sinksRouter } from "./routers/sinks";
 import { notesRouter } from "./routers/notes";
+import { mailsRouter } from "./routers/mails";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -52,6 +53,7 @@ export const appRouter = createRouter({
   queries: queriesRouter,
   sinks: sinksRouter,
   notes: notesRouter,
+  mails: mailsRouter,
 });
 
 export type AppRouter = typeof appRouter;

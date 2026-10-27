@@ -147,6 +147,11 @@ export const server: Shape<typeof en> = {
     notFound: "Nota non trovata",
     empty: "Scrivi qualcosa prima.",
   },
+  mails: {
+    notFound: "Mail non trovata",
+    badLink: "Non è un link apribile: incolla il link della mail in Outlook (https).",
+    empty: "Scrivi prima l'oggetto della mail.",
+  },
   notes: {
     notFound: "Appunto non trovato",
     deleted: "Questo appunto è nel cestino: ripristinalo prima di modificarlo.",

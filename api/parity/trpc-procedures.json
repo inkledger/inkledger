@@ -360,6 +360,38 @@
     "type": "mutation"
   },
   {
+    "path": "mails.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "mails.forNote",
+    "type": "query"
+  },
+  {
+    "path": "mails.pin",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.recent",
+    "type": "query"
+  },
+  {
+    "path": "mails.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.save",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.unpin",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.update",
+    "type": "mutation"
+  },
+  {
     "path": "modules.acceptToken",
     "type": "mutation"
   },
@@ -574,6 +606,10 @@
   {
     "path": "pinboard.list",
     "type": "query"
+  },
+  {
+    "path": "pinboard.pinMail",
+    "type": "mutation"
   },
   {
     "path": "pinboard.pinNote",

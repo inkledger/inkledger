@@ -146,6 +146,11 @@ export const server = {
     notFound: "Note not found",
     empty: "Write something first.",
   },
+  mails: {
+    notFound: "Mail not found",
+    badLink: "Not a link to open: paste the mail's Outlook link (https).",
+    empty: "Write the mail's subject first.",
+  },
   notes: {
     notFound: "Note not found",
     deleted: "This note is in the trash: restore it before changing it.",
