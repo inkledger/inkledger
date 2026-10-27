@@ -5,8 +5,11 @@
  * page with no stream left keeps polling, so nothing depends on delivery.
  */
 
-/** timers: a timer changed; bucket: a device switched its bucket (its other tabs follow). */
-export type UserEvent = { type: "timers"; epoch: number } | { type: "bucket"; deviceId: string };
+/** timers: a timer changed; bucket: a device switched its bucket; notes: a Markdown note changed. */
+export type UserEvent =
+  | { type: "timers"; epoch: number }
+  | { type: "bucket"; deviceId: string }
+  | { type: "notes"; id: string; change: "create" | "content" | "move" | "issue" | "delete" | "restore" | "version" };
 
 type Listener = (e: UserEvent) => void;
 

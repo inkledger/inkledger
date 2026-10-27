@@ -146,6 +146,16 @@ export const server = {
     notFound: "Note not found",
     empty: "Write something first.",
   },
+  notes: {
+    notFound: "Note not found",
+    deleted: "This note is in the trash: restore it before changing it.",
+    empty: "Write a title or some Markdown first.",
+    badCursor: "This search page is no longer valid: search again.",
+    tooLarge: "This operation involves too many notes (maximum {count}).",
+    tooDeep: "Notes can be nested at most {count} levels deep.",
+    cycle: "A note can't be moved inside itself or one of its descendants.",
+    parentDeleted: "Restore the parent first, or restore this batch at the root.",
+  },
   todos: {
     notFound: "TODO not found",
     empty: "Write what there is to do",

@@ -452,6 +452,70 @@
     "type": "query"
   },
   {
+    "path": "notes.compactVersions",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.create",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.deleteVersion",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "notes.get",
+    "type": "query"
+  },
+  {
+    "path": "notes.move",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.restoreVersion",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.saveVersion",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.search",
+    "type": "query"
+  },
+  {
+    "path": "notes.setIssue",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.trash",
+    "type": "query"
+  },
+  {
+    "path": "notes.tree",
+    "type": "query"
+  },
+  {
+    "path": "notes.updateContent",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.versions",
+    "type": "query"
+  },
+  {
     "path": "notifications.count",
     "type": "query"
   },

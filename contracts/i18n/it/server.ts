@@ -147,6 +147,16 @@ export const server: Shape<typeof en> = {
     notFound: "Nota non trovata",
     empty: "Scrivi qualcosa prima.",
   },
+  notes: {
+    notFound: "Appunto non trovato",
+    deleted: "Questo appunto è nel cestino: ripristinalo prima di modificarlo.",
+    empty: "Scrivi prima un titolo o del Markdown.",
+    badCursor: "Questa pagina di ricerca non è più valida: ripeti la ricerca.",
+    tooLarge: "L'operazione coinvolge troppi appunti (massimo {count}).",
+    tooDeep: "Gli appunti possono avere al massimo {count} livelli di profondità.",
+    cycle: "Un appunto non può essere spostato dentro sé stesso o un suo discendente.",
+    parentDeleted: "Ripristina prima il genitore oppure riporta questo batch alla radice.",
+  },
   todos: {
     notFound: "TODO non trovato",
     empty: "Scrivi cosa c'è da fare",

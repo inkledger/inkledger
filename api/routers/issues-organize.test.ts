@@ -492,12 +492,18 @@ describe("issues: focused views, hidden, favorite order, activity", () => {
       await caller.issues.sync();
       await raw("INSERT INTO worklogs (user_id, issue_key, jira_worklog_id, time_spent_seconds, started, synced_at) SELECT user_id, 'OLD-1', '9001', 600, 1, 1 FROM issues WHERE key = 'OLD-1'");
       await raw("INSERT INTO issue_notes (user_id, issue_key, body, created_at, updated_at) SELECT user_id, 'OLD-1', 'mine', 1, 1 FROM issues WHERE key = 'OLD-1'");
+      await raw("INSERT INTO markdown_notes (user_id, connection_id, issue_key, title, body, created_at, updated_at) SELECT user_id, connection_id, 'OLD-1', 'active markdown', 'secret', 1, 1 FROM issues WHERE key = 'OLD-1'");
+      await raw("INSERT INTO markdown_notes (user_id, connection_id, issue_key, title, body, deleted_at, delete_batch, created_at, updated_at) SELECT user_id, connection_id, 'OLD-1', 'trashed markdown', 'secret', 1, gen_random_uuid(), 1, 1 FROM issues WHERE key = 'OLD-1'");
       assigned = [moved("NEW-1")];
       await caller.issues.sync();
       expect(await raw("SELECT key, jira_id FROM issues WHERE jira_id = '77'")).toEqual([{ key: "NEW-1", jira_id: "77" }]);
       expect(await raw("SELECT a.key FROM item_aliases a JOIN issues i ON i.id = a.item_id WHERE i.key = 'NEW-1'")).toEqual([{ key: "OLD-1" }]);
       expect(await raw("SELECT issue_key FROM worklogs WHERE jira_worklog_id = '9001'")).toEqual([{ issue_key: "NEW-1" }]);
       expect(await raw("SELECT issue_key FROM issue_notes WHERE body = 'mine'")).toEqual([{ issue_key: "NEW-1" }]);
+      expect(await raw("SELECT title, issue_key FROM markdown_notes ORDER BY title")).toEqual([
+        { title: "active markdown", issue_key: "NEW-1" },
+        { title: "trashed markdown", issue_key: "NEW-1" },
+      ]);
     } finally {
       assigned = DEFAULT_ASSIGNED();
     }

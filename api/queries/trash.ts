@@ -3,6 +3,7 @@
 import { lt, sql } from "drizzle-orm";
 import { worklogTrash } from "@db/schema";
 import { getDb } from "./connection";
+import { purgeMarkdownNotes } from "./notes";
 
 /** How long deleted worklogs can be restored. */
 export const TRASH_DAYS = 30;
@@ -27,11 +28,12 @@ export function withDeleteReason<T>(reason: "user" | "merged", fn: (tx: Tx) => P
   });
 }
 
-/** Trash older than TRASH_DAYS goes for good. */
+/** Worklog trash and Markdown notes older than TRASH_DAYS go for good. */
 export async function purgeTrash(now: number = Date.now()): Promise<number> {
   const gone = await getDb()
     .delete(worklogTrash)
     .where(lt(worklogTrash.deletedAt, new Date(now - TRASH_DAYS * 86_400_000)))
     .returning({ id: worklogTrash.id });
-  return gone.length;
+  const notes = await purgeMarkdownNotes(now);
+  return gone.length + notes;
 }

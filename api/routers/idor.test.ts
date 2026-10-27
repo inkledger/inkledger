@@ -15,7 +15,7 @@ vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errorMessages: 
 describe("nobody reaches another user's things by id", () => {
   type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
   let ann: Caller;
-  let bob: { conn: number; bucket: number; worklog: number; trash: number };
+  let bob: { conn: number; bucket: number; worklog: number; trash: number; note: string; version: string; batch: string };
   const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
 
   beforeAll(async () => {
@@ -39,7 +39,11 @@ describe("nobody reaches another user's things by id", () => {
     await q("DELETE FROM worklogs WHERE jira_worklog_id = 'local-y'");
     const [tr] = await q<{ id: number }>("SELECT id FROM worklog_trash WHERE user_id = ?", b.id);
     const [bk] = await q<{ id: number }>("INSERT INTO buckets (user_id, name, position, created_at) VALUES (?, 'Bob', 0, 1) RETURNING id", b.id);
-    bob = { conn: c.id, bucket: bk.id, worklog: w.id, trash: tr.id };
+    const [note] = await q<{ id: string }>("INSERT INTO markdown_notes (user_id, title, body, created_at, updated_at) VALUES (?, 'Bob note', 'secret', 1, 1) RETURNING id", b.id);
+    const [version] = await q<{ id: string }>("INSERT INTO markdown_note_versions (note_id, user_id, title, body, content_revision, origin, created_at) VALUES (?, ?, 'Bob note', 'secret', 1, 'manual', 1) RETURNING id", note.id, b.id);
+    const [deleted] = await q<{ id: string; batch: string }>("INSERT INTO markdown_notes (user_id, title, body, deleted_at, delete_batch, delete_root_id, created_at, updated_at) VALUES (?, 'Bob trash', 'secret', 1, gen_random_uuid(), NULL, 1, 1) RETURNING id, delete_batch AS batch", b.id);
+    await q("UPDATE markdown_notes SET delete_root_id = id WHERE id = ?", deleted.id);
+    bob = { conn: c.id, bucket: bk.id, worklog: w.id, trash: tr.id, note: note.id, version: version.id, batch: deleted.batch };
     const { appRouter } = await import("../router");
     const { getDb } = await import("../queries/connection");
     const { users } = await import("@db/schema");
@@ -125,6 +129,30 @@ describe("nobody reaches another user's things by id", () => {
     }
     for (const view of ["today", "upcoming", "someday", "done"] as const) expect(await ann.todos.list({ view, today })).toEqual([]);
     expect(await q("SELECT text, done_at FROM todos")).toEqual([{ text: "Bob's", done_at: null }]);
+  });
+
+  it("Markdown notes: every id, parent, issue, batch and version stays private", async () => {
+    for (const call of [
+      () => ann.notes.get({ id: bob.note }),
+      () => ann.notes.updateContent({ id: bob.note, title: "mine", body: "mine", expectedRevision: 1 }),
+      () => ann.notes.move({ id: bob.note, parentId: null, index: 0 }),
+      () => ann.notes.setIssue({ id: bob.note, issue: null }),
+      () => ann.notes.remove({ id: bob.note }),
+      () => ann.notes.restore({ batch: bob.batch, toRoot: false }),
+      () => ann.notes.versions({ id: bob.note }),
+      () => ann.notes.saveVersion({ id: bob.note }),
+      () => ann.notes.restoreVersion({ id: bob.note, versionId: bob.version, expectedRevision: 1 }),
+      () => ann.notes.create({ title: "mine", body: "", parentId: bob.note, issue: null }),
+      () => ann.notes.create({ title: "mine", body: "", parentId: null, issue: { connectionId: bob.conn, issueKey: "BOB-1" } }),
+      () => ann.notes.forIssue({ connectionId: bob.conn, issueKey: "BOB-1" }),
+      () => ann.notes.search({ query: "secret", issue: { connectionId: bob.conn, issueKey: "BOB-1" }, filter: "all", limit: 30 }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    expect(await ann.notes.tree()).toEqual([]);
+    expect(await ann.notes.trash()).toEqual([]);
+    expect((await ann.notes.search({ query: "secret", filter: "all", limit: 30 })).results).toEqual([]);
+    expect(await q("SELECT title, body FROM markdown_notes WHERE id = ?", bob.note)).toEqual([{ title: "Bob note", body: "secret" }]);
   });
 
   it("buckets: save over, delete, make active; a source on someone else's connection", async () => {
