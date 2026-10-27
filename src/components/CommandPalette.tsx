@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ListTodo,
   Moon,
+  NotebookPen,
   Play,
   Sunset,
   Maximize2,
@@ -53,6 +54,7 @@ import { t, useLocale } from "@/i18n";
 import { BUCKET_SCOPE, useBuckets } from "@/hooks/useBuckets";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatQuery, parseQuery } from "@contracts/query";
+import { newDraftId } from "@/components/notes/drafts";
 
 /**
  * Global ⌘K palette: jump to any issue, navigate, sync, toggle theme.
@@ -98,6 +100,7 @@ export function CommandPalette() {
   const pasted = query.length >= 2 && parseQuery(query).expr?.kind === "ref";
   const opened = trpc.issues.open.useQuery({ text: query }, { enabled: open && pasted, staleTime: 30_000 });
   const kept = trpc.queries.list.useQuery(undefined, { enabled: open, staleTime: 60_000 });
+  const noteResults = trpc.notes.search.useQuery({ query, filter: "all", limit: 8 }, { enabled: open && query.length >= 2, staleTime: 15_000 });
   const lang = useLocale() === "it" ? "it" : "en";
   const buckets = useBuckets();
   const listed = new Set((issues.data ?? []).map(i => issueId(i)));
@@ -138,6 +141,16 @@ export function CommandPalette() {
                 <Search className="mr-2 h-4 w-4" />
                 <span className="mr-2">{s.name}</span>
                 <span className="truncate text-caption text-muted-foreground">{formatQuery(parseQuery(s.query).expr, lang) || s.query}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {(noteResults.data?.results ?? []).length > 0 && (
+          <CommandGroup heading={t("ui.palette.noteResults")} forceMount>
+            {(noteResults.data?.results ?? []).map(note => (
+              <CommandItem key={note.id} value={`note ${note.title} ${note.snippet} ${note.id}`} forceMount onSelect={() => go(`/notes/${note.id}`)}>
+                <NotebookPen className="mr-2 h-4 w-4" />
+                <span className="min-w-0"><span className="block truncate">{note.title || t("pages.notes.untitled")}</span>{note.snippet && <span className="block truncate text-caption text-muted-foreground">{note.snippet}</span>}</span>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -195,6 +208,10 @@ export function CommandPalette() {
           <CommandItem onSelect={() => go("/issues")}>
             <ListTodo className="mr-2 h-4 w-4" /> {t("ui.nav.issues")}
           </CommandItem>
+          <CommandItem onSelect={() => go("/notes")}>
+            <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.nav.notes")}
+            <Kbd className="ml-auto text-muted-foreground">G N</Kbd>
+          </CommandItem>
           <CommandItem onSelect={() => go("/timesheet")}>
             <CalendarDays className="mr-2 h-4 w-4" /> {t("ui.nav.timesheet")}
           </CommandItem>
@@ -239,6 +256,9 @@ export function CommandPalette() {
           >
             <Sparkles className="mr-2 h-4 w-4" /> {t("ui.palette.screensaver")}
             <Kbd className="ml-auto text-muted-foreground">Z</Kbd>
+          </CommandItem>
+          <CommandItem onSelect={() => go(`/notes/new?draft=${newDraftId()}`)}>
+            <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.palette.newNote")}
           </CommandItem>
           <CommandItem
             onSelect={() => {

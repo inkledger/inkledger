@@ -479,7 +479,11 @@ export function AppLayout() {
   const collapsed = useSidebarCollapsed();
   const location = useLocation();
   // One page, one key: the settings' categories are frames of one page (only the frame changes).
-  const pageKey = location.pathname.startsWith("/settings") ? "/settings" : location.pathname;
+  const pageKey = location.pathname.startsWith("/settings")
+    ? "/settings"
+    : location.pathname.startsWith("/notes")
+      ? "/notes"
+      : location.pathname;
   const queryClient = useQueryClient();
   const mainRef = useRef<HTMLElement>(null);
   // A new page starts at the top; Back/Forward land where you were.

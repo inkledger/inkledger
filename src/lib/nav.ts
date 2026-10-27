@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ListChecks,
   ListTodo,
+  NotebookPen,
   Pin,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export function navItems() {
         { to: "/pinboard", label: t("ui.nav.pinboard"), icon: Pin },
         { to: "/todos", label: t("ui.nav.todos"), icon: ListChecks },
         { to: "/issues", label: t("ui.nav.issues"), icon: ListTodo },
+        { to: "/notes", label: t("ui.nav.notes"), icon: NotebookPen },
         { to: "/timesheet", label: t("ui.nav.timesheet"), icon: CalendarDays },
       ],
     },

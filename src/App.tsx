@@ -21,6 +21,7 @@ const load = {
   board: () => import("@/pages/Board"),
   pinboard: () => import("@/pages/PinboardPage"),
   todos: () => import("@/pages/TodosPage"),
+  notes: () => import("@/pages/NotesPage"),
   reports: () => import("@/pages/Reports"),
   settings: () => import("@/pages/Settings"),
   notFound: () => import("@/pages/NotFound"),
@@ -41,6 +42,7 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/board/, "board"],
   [/^\/pinboard/, "pinboard"],
   [/^\/todos/, "todos"],
+  [/^\/notes/, "notes"],
   [/^\/reports/, "reports"],
   [/^\/settings/, "settings"],
   [/^\/info/, "info"],
@@ -61,6 +63,7 @@ const Timesheet = lazy(load.timesheet);
 const Board = lazy(load.board);
 const PinboardPage = lazy(load.pinboard);
 const TodosPage = lazy(load.todos);
+const NotesPage = lazy(load.notes);
 const Reports = lazy(load.reports);
 const Settings = lazy(load.settings);
 const NotFound = lazy(load.notFound);
@@ -153,6 +156,10 @@ export default function App() {
               <Route path="/board" element={<Board />} />
               <Route path="/pinboard" element={<PinboardPage />} />
               <Route path="/todos" element={<TodosPage />} />
+              <Route path="/notes" element={<NotesPage />} />
+              <Route path="/notes/new" element={<NotesPage />} />
+              <Route path="/notes/trash" element={<NotesPage />} />
+              <Route path="/notes/:noteId" element={<NotesPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />

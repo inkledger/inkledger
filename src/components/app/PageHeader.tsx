@@ -14,6 +14,7 @@ export function PageHeader({
   documentTitle,
   description,
   titleAddon,
+  titleClassName,
   breadcrumbCurrent,
   actions,
   sticky = false,
@@ -25,6 +26,7 @@ export function PageHeader({
   documentTitle?: string;
   description?: React.ReactNode;
   titleAddon?: React.ReactNode;
+  titleClassName?: string;
   /** Extra breadcrumb level (e.g. the issue key on a detail page) */
   breadcrumbCurrent?: string;
   actions?: React.ReactNode;
@@ -69,7 +71,7 @@ export function PageHeader({
         {back ? <BackButton fallback={<Breadcrumb current={breadcrumbCurrent} />} /> : <Breadcrumb current={breadcrumbCurrent} />}
         <div className="flex min-w-0 items-center gap-2">
           <h1
-            className="line-clamp-2 min-w-0 break-words font-display text-heading sm:text-title"
+            className={cn("line-clamp-2 min-w-0 break-words font-display text-heading sm:text-title", titleClassName)}
             aria-live="polite"
           >
             {title}

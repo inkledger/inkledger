@@ -12,6 +12,7 @@ import { toggleTodos } from "@/hooks/useTodoPanel";
 const SEQUENCES: Record<string, string> = {
   "g d": "/",
   "g i": "/issues",
+  "g n": "/notes",
   "g t": "/timesheet",
   "g b": "/board",
   "g r": "/reports",

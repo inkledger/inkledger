@@ -47,6 +47,7 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
 import { CommentsSection } from "@/components/issue/CommentsSection";
 import { PrivateNotesSection } from "@/components/issue/PrivateNotesSection";
+import { LinkedNotesSection } from "@/components/issue/LinkedNotesSection";
 import { DescriptionSection } from "@/components/issue/DescriptionSection";
 import {
   AssigneesEditor,
@@ -685,6 +686,7 @@ export default function IssueDetail({
                   connectionId={i.connectionId}
                 />
               </PanelSection>
+              {i.connectionId && <PanelSection title={t("pages.notes.linkedNotes")} className="border-b"><LinkedNotesSection issueKey={i.key} connectionId={i.connectionId} /></PanelSection>}
               <PanelSection title={t("pages.issueDetail.comments")}>
                 <CommentsSection issueKey={i.key} connectionId={i.connectionId} />
               </PanelSection>

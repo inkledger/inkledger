@@ -49,6 +49,7 @@ export const liveEvents = {
     src.addEventListener("hello", heard("hello"));
     src.addEventListener("timers", heard("timers"));
     src.addEventListener("bucket", heard("bucket"));
+    src.addEventListener("notes", heard("notes"));
     src.onopen = () => set("live");
     src.onerror = () => set(navigator.onLine === false ? "offline" : "connecting");
     const offline = () => set("offline");

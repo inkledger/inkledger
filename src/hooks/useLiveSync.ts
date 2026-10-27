@@ -4,6 +4,7 @@ import { liveEvents } from "@/lib/liveEvents";
 import { useTimers } from "@/hooks/useTimers";
 import { TIMER_HEARTBEAT_MS } from "@contracts/timerLock";
 import { deviceId } from "@/lib/device";
+import { isNoteDirty, publishServerNote } from "@/components/notes/noteSync";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -23,9 +24,41 @@ export function useLiveSync() {
         if (type === "timers" || type === "hello") void Promise.all([utils.timers.list.invalidate(), utils.todos.working.invalidate()]);
         // Another tab of this device switched the bucket: everything here follows, as there.
         if (type === "bucket" && isRecord(data) && data.deviceId === deviceId()) void utils.invalidate();
+        if (type === "notes" || type === "hello") {
+          void utils.notes.tree.invalidate();
+          void utils.notes.trash.invalidate();
+          void utils.notes.search.invalidate();
+        }
+        if (type === "notes" && isRecord(data) && typeof data.id === "string") {
+          const id = data.id;
+          if (isNoteDirty(id)) {
+            void utils.client.notes.get.query({ id }).then(publishServerNote).catch(() => undefined);
+          } else {
+            void utils.notes.get.invalidate({ id });
+          }
+        }
+        if (type === "hello") void utils.notes.get.invalidate();
       }),
     [utils]
   );
+
+  useEffect(() => {
+    const refresh = () => {
+      void utils.notes.tree.invalidate();
+      void utils.notes.trash.invalidate();
+      void utils.notes.search.invalidate();
+      void utils.notes.get.invalidate();
+    };
+    const focus = () => document.visibilityState === "visible" && refresh();
+    window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", focus);
+    return () => {
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", focus);
+    };
+  }, [utils]);
 
   const { timers } = useTimers();
   const owned = timers.some(t => t.state === "running" && t.ownedHere);

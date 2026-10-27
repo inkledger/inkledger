@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import { CheckSquare, Image as ImageIcon, Paperclip, Square } from "lucide-react";
 import { plainText, type Block, type Inline, type RichDoc } from "@contracts/richtext";
 import { safeExternalUrl } from "@contracts/links";
@@ -12,7 +13,14 @@ type Ctx = {
   /** The issue's attachments by file name → their id (images are loaded only through the proxy) */
   images: Map<string, string>;
   connectionId?: number | null;
+  internalLinks?: boolean;
+  headingLevel?: number;
 };
+
+function internalNoteOrIssue(value: string): string | null {
+  if (!value.startsWith("/") || value.startsWith("//") || /[\s\\]/.test(value)) return null;
+  return /^\/notes\/[0-9a-f-]{36}(?:[?#].*)?$/i.test(value) || /^\/issues\/[^?#]+(?:[?#].*)?$/.test(value) ? value : null;
+}
 
 const PANEL_TONE: Record<string, string> = {
   info: "border-info/40 bg-info-soft",
@@ -40,10 +48,13 @@ function inlines(xs: Inline[], ctx: Ctx): ReactNode[] {
           </code>
         );
       case "link": {
-        // Only http(s) and mailto open; anything else stays its text.
+        // Documents can follow only validated in-app note and issue paths; other schemes stay text.
+        const internal = ctx.internalLinks ? internalNoteOrIssue(x.url) : null;
         const url = safeExternalUrl(x.url);
         const label = x.c.length ? inlines(x.c, ctx) : x.url;
-        return url ? (
+        return internal ? (
+          <Link key={i} to={internal} className="text-primary-strong underline underline-offset-4">{label}</Link>
+        ) : url ? (
           <ExternalLink key={i} url={url.href}>
             {label}
           </ExternalLink>
@@ -81,10 +92,10 @@ function block(b: Block, key: number, ctx: Ctx): ReactNode {
         </p>
       );
     case "h": {
-      // Headings inside a text stay text-sized: the page has its own.
-      const cls = b.level <= 2 ? "text-body font-semibold" : "text-body-sm font-semibold";
+      const document = ctx.headingLevel !== undefined;
+      const cls = document ? (b.level <= 2 ? "mt-4 font-display text-heading font-semibold first:mt-0" : "mt-3 text-body font-semibold first:mt-0") : (b.level <= 2 ? "text-body font-semibold" : "text-body-sm font-semibold");
       return (
-        <p key={key} role="heading" aria-level={Math.min(6, b.level + 2)} className={cls}>
+        <p key={key} role="heading" aria-level={Math.min(6, document ? (ctx.headingLevel ?? 2) + b.level - 1 : b.level + 2)} className={cls}>
           {inlines(b.c, ctx)}
         </p>
       );
@@ -192,18 +203,24 @@ export function RichText({
   images,
   connectionId,
   collapseAfter = 700,
+  variant = "text",
+  headingLevel,
 }: {
   doc: RichDoc;
   images: Map<string, string>;
   connectionId?: number | null;
   /** Characters after which the text is collapsed behind "Show all" */
   collapseAfter?: number;
+  /** Documents are never collapsed and can navigate to notes and issues. */
+  variant?: "text" | "document";
+  /** ARIA level of the first Markdown heading in a document. */
+  headingLevel?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const words = plainText(doc);
-  const long = words.length > collapseAfter || words.split("\n").length > 14;
+  const long = variant !== "document" && (words.length > collapseAfter || words.split("\n").length > 14);
   const collapsed = long && !expanded;
-  const ctx = { images, connectionId };
+  const ctx = { images, connectionId, internalLinks: variant === "document", headingLevel: variant === "document" ? headingLevel ?? 2 : undefined };
   const box = useRef<HTMLDivElement>(null);
   // Collapsed, what is cut off can't be focused (Tab would land on something unseen): out of
   // the tab order until "Show all"; back in once shown.

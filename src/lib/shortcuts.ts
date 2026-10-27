@@ -39,6 +39,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["g", "d"], label: t("ui.nav.dashboard") },
         { keys: ["g", "b"], label: t("ui.nav.board") },
         { keys: ["g", "i"], label: t("ui.nav.issues") },
+        { keys: ["g", "n"], label: t("ui.nav.notes") },
         { keys: ["g", "t"], label: t("ui.nav.timesheet") },
         { keys: ["g", "r"], label: t("ui.nav.reports") },
       ],

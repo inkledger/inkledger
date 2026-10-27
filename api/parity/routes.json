@@ -40,6 +40,22 @@
     "guard": "GuestOnly"
   },
   {
+    "path": "/notes",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/notes/:noteId",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/notes/new",
+    "guard": "RequireAuth"
+  },
+  {
+    "path": "/notes/trash",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/pinboard",
     "guard": "RequireAuth"
   },
