@@ -57,6 +57,7 @@ import {
 import { useManageable } from "@/hooks/useManageable";
 import { AttachmentsSection } from "@/components/issue/AttachmentsSection";
 import { RemoteLinks } from "@/components/issue/RemoteLinks";
+import { IssueMails } from "@/components/mail/IssueMails";
 import { coverClass } from "@/lib/cover";
 import { mergeIssueWorklogs } from "@/lib/issueWorklogs";
 import { cn } from "@/lib/utils";
@@ -687,6 +688,11 @@ export default function IssueDetail({
                 />
               </PanelSection>
               {i.connectionId && <PanelSection title={t("pages.notes.linkedNotes")} className="border-b"><LinkedNotesSection issueKey={i.key} connectionId={i.connectionId} /></PanelSection>}
+              {i.connectionId && (
+                <PanelSection title={t("ui.mail.title")} className="border-b">
+                  <IssueMails issueKey={i.key} connectionId={i.connectionId} />
+                </PanelSection>
+              )}
               <PanelSection title={t("pages.issueDetail.comments")}>
                 <CommentsSection issueKey={i.key} connectionId={i.connectionId} />
               </PanelSection>

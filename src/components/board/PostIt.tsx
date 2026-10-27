@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import { Copy, FilePlus2, Flag, Lock, MoreHorizontal, MoveRight, X } from "lucide-react";
+import { Copy, FilePlus2, Flag, Lock, Mail, MoreHorizontal, MoveRight, X } from "lucide-react";
+import { ExternalLink } from "@/components/app/ExternalLink";
+import type { MailView } from "@/components/mail/MailCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToday } from "@/hooks/useToday";
 import { dayLabel } from "@/lib/todoDay";
@@ -48,6 +50,8 @@ export type PostItData = {
   noteCreatedAt?: Date | null;
   /** A TODO hung on the board, as it is now: its text is the TODO's, ticked here is ticked there. */
   todo?: { id: number; text: string; dueOn: string | null; done: boolean; priority: number; steps: string; issueKey: string | null; connectionId: number | null } | null;
+  /** A pinned mail hung on the board: its subject opens it in Outlook; `note` is written beside it. */
+  mail?: MailView | null;
 };
 
 /** Stored colour names → washi tape tones (--tape-1…5): the colour is on the tape. */
@@ -110,6 +114,7 @@ export function PostIt({
   const isNote = !!n.issueNoteId;
   // A TODO hung here: the same, with the TODO's text.
   const todo = n.todo ?? null;
+  const mail = n.mail ?? null;
   const today = useToday();
   const body = todo ? todo.text : isNote ? (n.noteBody ?? "") : n.note;
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -144,7 +149,7 @@ export function PostIt({
     <div
       role="group"
       tabIndex={0}
-      aria-label={`${todo ? t("views.board.postit.todoLabel") : isNote && n.issueKey ? t("views.board.postit.noteOn", { key: n.issueKey }) : t("views.board.postit.label", { name: n.issueKey ?? t("views.board.postit.free") })}${body ? `: ${body}` : ""}`}
+      aria-label={`${mail ? t("ui.mail.about", { subject: mail.subject }) : todo ? t("views.board.postit.todoLabel") : isNote && n.issueKey ? t("views.board.postit.noteOn", { key: n.issueKey }) : t("views.board.postit.label", { name: n.issueKey ?? t("views.board.postit.free") })}${body ? `: ${body}` : ""}`}
       data-postit
       {...surface("note")}
       data-dragging={drag ? "" : undefined}
@@ -222,7 +227,12 @@ export function PostIt({
       {isNote ? <span className="note-pin" aria-hidden /> : <span {...surface("glass")} className="note-tape" data-tone={TONE[color]} aria-hidden />}
       <div className="note-paper grain flex h-full flex-col overflow-hidden rounded-sm">
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 pb-2 pt-4">
-          {todo ? (
+          {mail ? (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Mail className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+              <span className="truncate text-overline uppercase opacity-70">{mail.fromName ?? mail.fromAddress ?? t("ui.mail.title")}</span>
+            </div>
+          ) : todo ? (
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="text-overline uppercase opacity-70">{t("views.board.postit.todo")}</span>
               {todo.priority === 1 && <Flag className="h-3 w-3 shrink-0 text-primary-strong" aria-label={t("views.todos.priority")} />}
@@ -279,6 +289,14 @@ export function PostIt({
               placeholder={t("views.board.postit.notePlaceholder")}
               className="min-h-0 flex-1 resize-none rounded-sm bg-card/50 p-1 text-body-sm leading-snug text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+          ) : mail ? (
+            <>
+              <p className="line-clamp-3 break-words font-display text-body font-semibold leading-snug">
+                {mail.webLink ? <ExternalLink url={mail.webLink}>{mail.subject || t("ui.mail.noSubject")}</ExternalLink> : mail.subject || t("ui.mail.noSubject")}
+              </p>
+              {mail.receivedAt && <p className="text-2xs opacity-70">{formatDate(new Date(mail.receivedAt), "short")}</p>}
+              {n.note && <p className="line-clamp-2 whitespace-pre-line break-words text-body-sm leading-snug opacity-80">– {n.note}</p>}
+            </>
           ) : todo ? (
             <div className="flex min-h-0 items-start gap-2">
               <Checkbox
@@ -347,7 +365,7 @@ export function PostIt({
             <span className="ml-1.5 truncate text-2xs font-normal opacity-70">{n.status}</span>
           )}
           <span className="ml-auto flex items-center">
-            {!readOnly && !n.issueKey && !todo && (
+            {!readOnly && !n.issueKey && !todo && !mail && (
               <button
                 type="button"
                 aria-label={t("views.board.postit.createIssueLabel")}

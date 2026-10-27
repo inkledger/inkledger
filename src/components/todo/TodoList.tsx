@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { CalendarCheck, Flag, Hourglass, Link2, ListChecks, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Square, Trash2, X } from "lucide-react";
+import { CalendarCheck, Flag, Hourglass, Link2, ListChecks, Mail, MailPlus, MessageSquare, MoreHorizontal, NotebookPen, Pin, Play, Repeat, Square, Trash2, X } from "lucide-react";
+import { ExternalLink } from "@/components/app/ExternalLink";
+import { PinMailDialog } from "@/components/mail/PinMailDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -94,6 +96,7 @@ export function TodoList({ className, scope }: { className?: string; scope?: Sco
                 commentId: gone.commentId,
                 commentExcerpt: gone.commentExcerpt,
                 issueNoteId: gone.issueNoteId,
+                mailId: gone.mailId,
                 priority: gone.priority,
                 estimateSeconds: gone.estimateSeconds,
                 steps: gone.steps,
@@ -339,6 +342,7 @@ type Patch = {
   estimateSeconds?: number | null;
   repeat?: TodoRepeat | null;
   steps?: TodoStep[];
+  mailId?: number | null;
 };
 
 function TodoRow({
@@ -367,6 +371,7 @@ function TodoRow({
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "link">("view");
   const [stepsOpen, setStepsOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
   const row = useRef<HTMLLIElement>(null);
   const linking = useRef(false);
   const [draft, setDraft] = useState(x.text);
@@ -471,6 +476,18 @@ function TodoRow({
                 <span className="truncate">{t("views.todos.fromNote")}</span>
               </Link>
             )}
+            {x.mail && (
+              <span title={t("ui.mail.about", { subject: x.mail.subject })} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground">
+                <Mail className="h-3 w-3 shrink-0" aria-hidden />
+                {x.mail.webLink ? (
+                  <ExternalLink url={x.mail.webLink} className="truncate">
+                    {x.mail.subject || t("ui.mail.noSubject")}
+                  </ExternalLink>
+                ) : (
+                  <span className="truncate">{x.mail.subject || t("ui.mail.noSubject")}</span>
+                )}
+              </span>
+            )}
             {x.estimateSeconds !== null ? (
               <EstimateChip seconds={x.estimateSeconds} spent={x.spentSeconds} onChange={estimateSeconds => void onUpdate({ estimateSeconds })} />
             ) : (
@@ -561,6 +578,17 @@ function TodoRow({
               <Pin className="h-4 w-4 -rotate-12" aria-hidden />
               {t("views.todos.pinTodo")}
             </DropdownMenuItem>
+            {x.mail ? (
+              <DropdownMenuItem onSelect={() => void onUpdate({ mailId: null })}>
+                <X className="h-4 w-4" aria-hidden />
+                {t("ui.mail.forget")}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={() => setMailOpen(true)}>
+                <MailPlus className="h-4 w-4" aria-hidden />
+                {t("ui.mail.aboutAction")}
+              </DropdownMenuItem>
+            )}
             {steps.length === 0 && (
               <DropdownMenuItem onSelect={() => setStepsOpen(true)}>
                 <ListChecks className="h-4 w-4" aria-hidden />
@@ -588,6 +616,7 @@ function TodoRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </li>
+      <PinMailDialog open={mailOpen} onOpenChange={setMailOpen} onPick={async mail => void (await onUpdate({ mailId: mail.id }))} />
     </>
   );
 }
