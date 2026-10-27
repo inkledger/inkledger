@@ -795,6 +795,77 @@ export const markdownNoteVersions = pgTable(
 );
 
 export type MarkdownNote = typeof markdownNotes.$inferSelect;
+
+/**
+ * A mail pinned somewhere (contracts/mail.ts): its headers and the link back to it in
+ * Outlook, never its body. One row per message and user, wherever it is pinned.
+ */
+export const mails = pgTable(
+  "mails",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull().default(""),
+    fromName: text("from_name"),
+    fromAddress: text("from_address"),
+    receivedAt: ms("received_at"),
+    /** Opens the message in Outlook (null: pinned from a file, no link known) */
+    webLink: text("web_link"),
+    /** The Message-ID header: the same mail whatever client it came from */
+    internetMessageId: text("internet_message_id"),
+    /** Exchange's id of the message (REST form): may change when the mail moves folder */
+    exchangeId: text("exchange_id"),
+    /** link | eml | addin | graph */
+    source: text("source").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_mails_user_recent").on(t.userId, t.updatedAt),
+    uniqueIndex("uq_mails_user_message").on(t.userId, t.internetMessageId).where(sql`${t.internetMessageId} IS NOT NULL`),
+    uniqueIndex("uq_mails_user_exchange").on(t.userId, t.exchangeId).where(sql`${t.exchangeId} IS NOT NULL`),
+    check("mails_source", sql`${t.source} IN ('link', 'eml', 'addin', 'graph')`),
+  ],
+);
+
+export type Mail = typeof mails.$inferSelect;
+
+/** Where a mail is pinned: an issue or a Markdown note (TODOs and post-its point at the mail themselves). */
+export const mailLinks = pgTable(
+  "mail_links",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mailId: integer("mail_id")
+      .notNull()
+      .references(() => mails.id, { onDelete: "cascade" }),
+    /** Set with issue_key */
+    connectionId: optionalConnectionRef(),
+    itemId: itemRef(),
+    issueKey: text("issue_key"),
+    noteId: uuid("note_id"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    foreignKey({ columns: [t.noteId, t.userId], foreignColumns: [markdownNotes.id, markdownNotes.userId], name: "mail_links_note_user_fk" }).onDelete("cascade"),
+    uniqueIndex("uq_mail_links_issue").on(t.mailId, t.connectionId, t.issueKey).where(sql`${t.issueKey} IS NOT NULL`),
+    uniqueIndex("uq_mail_links_note").on(t.mailId, t.noteId).where(sql`${t.noteId} IS NOT NULL`),
+    index("idx_mail_links_user_issue").on(t.userId, t.connectionId, t.issueKey),
+    index("idx_mail_links_note").on(t.noteId),
+    check("mail_links_issue_has_connection", sql`${t.issueKey} IS NULL OR ${t.connectionId} IS NOT NULL`),
+    check("mail_links_one_target", sql`(${t.issueKey} IS NOT NULL) <> (${t.noteId} IS NOT NULL)`),
+  ],
+);
 export type MarkdownNoteVersion = typeof markdownNoteVersions.$inferSelect;
 
 export const pinboards = pgTable(
@@ -851,6 +922,8 @@ export const pinboardNotes = pgTable(
     issueNoteId: integer("issue_note_id").references(() => issueNotes.id, { onDelete: "cascade" }),
     /** A TODO hung on the board (its text is the TODO's; its issue is read through it, issue_key stays null) */
     todoId: integer("todo_id").references((): AnyPgColumn => todos.id, { onDelete: "cascade" }),
+    /** A pinned mail hung on the board (its subject is the mail's) */
+    mailId: integer("mail_id").references(() => mails.id, { onDelete: "cascade" }),
     note: text("note").notNull().default(""),
     /** yellow | pink | blue | green | orange */
     color: text("color").notNull().default("yellow"),
@@ -875,6 +948,8 @@ export const pinboardNotes = pgTable(
     uniqueIndex("uq_pinboard_issue_note").on(t.boardId, t.issueNoteId),
     // A TODO too.
     uniqueIndex("uq_pinboard_todo").on(t.boardId, t.todoId),
+    // A mail too.
+    uniqueIndex("uq_pinboard_mail").on(t.boardId, t.mailId),
   ],
 );
 
@@ -906,6 +981,8 @@ export const todos = pgTable(
     commentId: text("comment_id"),
     commentExcerpt: text("comment_excerpt"),
     issueNoteId: integer("issue_note_id").references(() => issueNotes.id, { onDelete: "set null" }),
+    /** The mail it is about (e.g. "answer this"); gone with the mail */
+    mailId: integer("mail_id").references(() => mails.id, { onDelete: "set null" }),
     /** The day its reminder was put away (shown again the next day it is due or late) */
     reminderSeenOn: text("reminder_seen_on"),
     /** 0 normal, 1 high (contracts/todo.ts) */

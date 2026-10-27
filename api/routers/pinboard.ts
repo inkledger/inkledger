@@ -185,6 +185,7 @@ async function followedNotes(userId: number, deviceId: string | undefined, board
       issueKey: r.key,
       issueNoteId: null,
       todoId: null,
+      mailId: null,
       note: "",
       color: s?.color ?? "yellow",
       ...at,

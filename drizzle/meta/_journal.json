@@ -92,6 +92,13 @@
       "when": 1793098893266,
       "tag": "0012_markdown_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793139389055,
+      "tag": "0013_mail_pins",
+      "breakpoints": true
     }
   ]
 }
