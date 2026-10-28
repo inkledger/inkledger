@@ -75,6 +75,24 @@ function serve() {
     });
     req.pipe(upstream);
   });
+  // WebSockets too (the dev server's live reload): the pane must not lose its server inside Outlook.
+  server.on("upgrade", (req, socket, head) => {
+    const upstream = request({ hostname: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers });
+    upstream.on("upgrade", (res, upstreamSocket, upstreamHead) => {
+      const headers = Object.entries(res.headers).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map(x => `${k}: ${x}`));
+      socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headers.join("\r\n")}\r\n\r\n`);
+      if (upstreamHead.length) socket.write(upstreamHead);
+      if (head.length) upstreamSocket.write(head);
+      upstreamSocket.pipe(socket).pipe(upstreamSocket);
+      socket.on("error", () => upstreamSocket.destroy());
+      upstreamSocket.on("error", () => socket.destroy());
+    });
+    upstream.on("response", res => {
+      socket.end(`HTTP/1.1 ${res.statusCode} ${res.statusMessage}\r\n\r\n`);
+    });
+    upstream.on("error", () => socket.destroy());
+    upstream.end();
+  });
   server.listen(port, host, () => {
     const name = host === "0.0.0.0" ? names()[1] : "localhost";
     console.log(`HTTPS on https://${name}:${port}/ → ${target.origin}`);
