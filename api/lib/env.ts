@@ -121,6 +121,16 @@ export const env = {
    * a secret; GITHUB_CLIENT_ID points a server at its own app instead.
    */
   githubClientId: (process.env.GITHUB_CLIENT_ID ?? "").trim() || GITHUB_CLIENT_ID,
+  /**
+   * The Microsoft Entra app users sign in to their mailbox with (device code,
+   * Mail.Read): registered by whoever runs the server (docs/outlook.md). Unset,
+   * the mailbox search is off; pasting, dropping and the add-in still work.
+   */
+  microsoftClientId: (process.env.MS_CLIENT_ID ?? "").trim() || null,
+  /** The tenant to sign in on: its id or domain, or "organizations" (any work account). */
+  microsoftTenant: (process.env.MS_TENANT ?? "").trim() || "organizations",
+  /** Tests only: an in-memory Microsoft (api/mail/simulator.ts) instead of the real one. */
+  mailSimulator: process.env.MAIL_SIMULATOR === "1",
   /** Session lifetime in days */
   sessionDays: positiveNumber(process.env.SESSION_DAYS, 30),
 };

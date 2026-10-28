@@ -360,6 +360,14 @@
     "type": "mutation"
   },
   {
+    "path": "mails.account",
+    "type": "query"
+  },
+  {
+    "path": "mails.addinKey",
+    "type": "query"
+  },
+  {
     "path": "mails.forIssue",
     "type": "query"
   },
@@ -368,8 +376,20 @@
     "type": "query"
   },
   {
+    "path": "mails.newAddinKey",
+    "type": "mutation"
+  },
+  {
     "path": "mails.pin",
     "type": "mutation"
+  },
+  {
+    "path": "mails.pinTo",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.placesOf",
+    "type": "query"
   },
   {
     "path": "mails.recent",
@@ -380,7 +400,27 @@
     "type": "mutation"
   },
   {
+    "path": "mails.revokeAddinKey",
+    "type": "mutation"
+  },
+  {
     "path": "mails.save",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.search",
+    "type": "query"
+  },
+  {
+    "path": "mails.signInPoll",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.signInStart",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.signOut",
     "type": "mutation"
   },
   {

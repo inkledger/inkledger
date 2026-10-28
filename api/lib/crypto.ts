@@ -61,13 +61,37 @@ function credentialKeys(): Buffer[] {
 
 const aadOf = (connectionId: number) => Buffer.from(`connection:${connectionId}`, "utf8");
 
-/** A connection's secret, sealed for that connection with the current key. */
-export function sealSecret(plain: string, connectionId: number): string {
+function seal(plain: string, aad: Buffer): string {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv("aes-256-gcm", credentialKeys()[0], iv, { authTagLength: TAG_BYTES });
-  cipher.setAAD(aadOf(connectionId));
+  cipher.setAAD(aad);
   const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   return SEALED + [iv, cipher.getAuthTag(), enc].map((b) => b.toString("base64")).join(".");
+}
+
+/** A connection's secret, sealed for that connection with the current key. */
+export function sealSecret(plain: string, connectionId: number): string {
+  return seal(plain, aadOf(connectionId));
+}
+
+/** Another secret (a mail sign-in), sealed for what it belongs to (`scope`, e.g. "mail:<userId>"). */
+export function sealFor(plain: string, scope: string): string {
+  return seal(plain, Buffer.from(scope, "utf8"));
+}
+
+/** A secret sealed with sealFor for the same scope, in clear (any known key). */
+export function openFor(payload: string, scope: string): string {
+  if (!payload.startsWith(SEALED)) throw new Error("Malformed encrypted payload");
+  const parts = payload.slice(SEALED.length).split(".");
+  if (parts.length !== 3) throw new Error("Malformed encrypted payload");
+  for (const key of credentialKeys()) {
+    try {
+      return openWith(key, parts, Buffer.from(scope, "utf8"));
+    } catch {
+      // the next key, if any
+    }
+  }
+  throw new Error("Credentials can't be opened with the configured keys");
 }
 
 function openWith(key: Buffer, parts: string[], aad: Buffer | null): string {

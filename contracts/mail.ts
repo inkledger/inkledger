@@ -59,8 +59,12 @@ export function parseOutlookUrl(raw: string): OutlookLink | null {
   const itemId = restItemId(id);
   // The legacy /owa host serves the new links on outlook.office.com.
   const base = host === "outlook.office365.com" ? "outlook.office.com" : host;
-  return { itemId, webLink: `https://${base}/mail/deeplink/read/${encodeURIComponent(itemId)}` };
+  return { itemId, webLink: outlookDeeplink(itemId, base) };
 }
+
+/** The link that opens a message (its REST id) in Outlook on the web: a work account's unless told. */
+export const outlookDeeplink = (restId: string, host = "outlook.office.com"): string =>
+  `https://${host}/mail/deeplink/read/${encodeURIComponent(restItemId(restId))}`;
 
 /** What is kept of a mail. */
 export type MailHeaders = {

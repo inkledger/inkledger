@@ -150,6 +150,12 @@ export const server = {
     notFound: "Mail not found",
     badLink: "Not a link to open: paste the mail's Outlook link (https).",
     empty: "Write the mail's subject first.",
+    notConfigured: "Mailbox search is not set up on this server: set MS_CLIENT_ID (docs/outlook.md).",
+    consent: "Your organization must approve inkledger before it can read your mail: ask your IT admin, or pin mails by dropping them or with the Outlook add-in.",
+    loginRefused: "Microsoft refused the sign-in: {reason}",
+    signedOut: "Your Microsoft sign-in expired: sign in again in Settings → Outlook.",
+    badKey: "This add-in key is not valid any more: make a new one in Settings → Outlook.",
+    noSubjectTodo: "Answer the mail",
   },
   notes: {
     notFound: "Note not found",

@@ -151,6 +151,12 @@ export const server: Shape<typeof en> = {
     notFound: "Mail non trovata",
     badLink: "Non è un link apribile: incolla il link della mail in Outlook (https).",
     empty: "Scrivi prima l'oggetto della mail.",
+    notConfigured: "La ricerca nella casella non è configurata su questo server: imposta MS_CLIENT_ID (docs/outlook.md).",
+    consent: "La tua organizzazione deve approvare inkledger prima che possa leggere la posta: chiedi all'IT, oppure fissa le mail trascinandole o con l'add-in di Outlook.",
+    loginRefused: "Microsoft ha rifiutato l'accesso: {reason}",
+    signedOut: "L'accesso a Microsoft è scaduto: accedi di nuovo in Impostazioni → Outlook.",
+    badKey: "Questa chiave dell'add-in non è più valida: creane una nuova in Impostazioni → Outlook.",
+    noSubjectTodo: "Rispondere alla mail",
   },
   notes: {
     notFound: "Appunto non trovato",
