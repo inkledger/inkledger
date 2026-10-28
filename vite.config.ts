@@ -90,8 +90,8 @@ export default defineConfig({
     // Public source (the repo is open): stack traces and devtools read the real code.
     sourcemap: true,
     rollupOptions: {
-      // The app, and the Outlook add-in's pane (its own small page, docs/outlook.md).
-      input: { main: path.resolve(__dirname, "index.html"), outlook: path.resolve(__dirname, "outlook.html") },
+      // The app (its entry keeps the name index-*.js), and the Outlook add-in's pane (docs/outlook.md).
+      input: { index: path.resolve(__dirname, "index.html"), outlook: path.resolve(__dirname, "outlook.html") },
     },
   },
 });

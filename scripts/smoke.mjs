@@ -78,14 +78,18 @@ try {
     "CSP allows inline scripts by hash only",
   );
 
-  // The entry chunk the page loads first, at most 5% over its size after Wave 3 (880.8 KiB,
-  // 280.9 KiB gzip; docs/dev/measuring.md). Raising the limit is a deliberate, explained edit.
-  const entry = /<script[^>]*type="module"[^>]*src="\/assets\/([^"]+)"/.exec(readFileSync("dist/public/index.html", "utf8"))?.[1];
-  const entryBytes = entry ? readFileSync(join("dist/public/assets", entry)) : Buffer.alloc(0);
+  // The code the page loads first (the entry chunk and the chunks it preloads: with a second
+  // page in the build, outlook.html, their shared code is a chunk of its own), at most 5% over
+  // its size after Wave 3 (880.8 KiB, 280.9 KiB gzip; docs/dev/measuring.md). Raising the
+  // limit is a deliberate, explained edit.
+  const indexHtml = readFileSync("dist/public/index.html", "utf8");
+  const entry = /<script[^>]*type="module"[^>]*src="\/assets\/([^"]+)"/.exec(indexHtml)?.[1];
+  const preloaded = [...indexHtml.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map((m) => m[1]);
+  const entryBytes = entry ? Buffer.concat([entry, ...preloaded].map((f) => readFileSync(join("dist/public/assets", f)))) : Buffer.alloc(0);
   const kib = (n) => (n / 1024).toFixed(1);
   check(
     !!entry && entryBytes.length <= 925 * 1024 && gzipSync(entryBytes, { level: 9 }).length <= 295 * 1024,
-    `entry chunk within budget (${kib(entryBytes.length)} KiB, ${kib(gzipSync(entryBytes, { level: 9 }).length)} KiB gzip; at most 925 / 295)`,
+    `first-load code within budget (${kib(entryBytes.length)} KiB, ${kib(gzipSync(entryBytes, { level: 9 }).length)} KiB gzip; at most 925 / 295)`,
   );
 
   const asset = readdirSync("dist/public/assets").find((f) => f.endsWith(".js"));
