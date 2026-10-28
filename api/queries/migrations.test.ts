@@ -125,6 +125,8 @@ describe("migrations over a draft of 0010", () => {
     const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
+    await query('DROP TABLE "mail_addin_keys"');
+    await query('DROP TABLE "mail_accounts"');
     await query('DROP TABLE "mail_links"');
     await query('ALTER TABLE "pinboard_notes" DROP COLUMN "mail_id"');
     await query('ALTER TABLE "todos" DROP COLUMN "mail_id"');

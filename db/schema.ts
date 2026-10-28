@@ -866,6 +866,42 @@ export const mailLinks = pgTable(
     check("mail_links_one_target", sql`(${t.issueKey} IS NOT NULL) <> (${t.noteId} IS NOT NULL)`),
   ],
 );
+
+/** A user's Microsoft sign-in, to search their mailbox (Graph, Mail.Read): one per user, the tokens sealed. */
+export const mailAccounts = pgTable("mail_accounts", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** The account signed in (user principal name) */
+  account: text("account").notNull(),
+  displayName: text("display_name"),
+  /** The token set, sealed for this user (api/lib/crypto.ts) */
+  secret: text("secret").notNull(),
+  createdAt: ms("created_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: ms("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** The key the Outlook add-in pins with: it opens mails.* only; deleting it revokes it. */
+export const mailAddinKeys = pgTable(
+  "mail_addin_keys",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** sha256 of the key: the key itself is shown once */
+    keyHash: text("key_hash").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    lastUsedAt: ms("last_used_at"),
+  },
+  (t) => [uniqueIndex("uq_mail_addin_keys_hash").on(t.keyHash), index("idx_mail_addin_keys_user").on(t.userId)],
+);
 export type MarkdownNoteVersion = typeof markdownNoteVersions.$inferSelect;
 
 export const pinboards = pgTable(

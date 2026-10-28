@@ -99,6 +99,13 @@
       "when": 1793139389055,
       "tag": "0013_mail_pins",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793228933419,
+      "tag": "0014_mail_accounts",
+      "breakpoints": true
     }
   ]
 }
