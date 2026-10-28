@@ -41,7 +41,8 @@ jobs:
       - run: pnpm test:smoke
 
   e2e:
-    runs-on: ubuntu-latest
+    # ubuntu-latest is Ubuntu 26.04 since 2026-10-19, which Playwright 1.57 cannot install a browser on.
+    runs-on: ubuntu-24.04
     needs: check
     timeout-minutes: 45
     services:
