@@ -176,6 +176,10 @@
     "type": "query"
   },
   {
+    "path": "egress.list",
+    "type": "query"
+  },
+  {
     "path": "info.addHosts",
     "type": "mutation"
   },

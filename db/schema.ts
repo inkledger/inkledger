@@ -885,6 +885,19 @@ export const mailAccounts = pgTable("mail_accounts", {
     .$defaultFn(() => new Date()),
 });
 
+/** Every host the server has called out to (api/lib/egress.ts), for Settings →
+ * Network: what leaves the server, how often, and how it went. Hosts only:
+ * never a path, a query or a body. */
+export const egressHosts = pgTable("egress_hosts", {
+  host: text("host").primaryKey(),
+  calls: integer("calls").notNull().default(0),
+  failures: integer("failures").notNull().default(0),
+  /** The last answer's status, or "error" when no answer came */
+  lastStatus: text("last_status"),
+  firstAt: ms("first_at").notNull(),
+  lastAt: ms("last_at").notNull(),
+});
+
 /** The key the Outlook add-in pins with: it opens mails.* only; deleting it revokes it. */
 export const mailAddinKeys = pgTable(
   "mail_addin_keys",

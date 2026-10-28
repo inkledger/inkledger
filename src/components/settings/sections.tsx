@@ -19,6 +19,7 @@ import {
   Briefcase,
   ListChecks,
   Mail,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -48,6 +49,7 @@ import { ServersSection } from "@/components/settings/sections/Servers";
 import { DevicesSection } from "@/components/settings/sections/Devices";
 import { LinksSection } from "@/components/settings/sections/Links";
 import { OutlookSection } from "@/components/settings/sections/Outlook";
+import { NetworkSection } from "@/components/settings/sections/Network";
 import { BackupSection } from "@/components/settings/sections/Backup";
 import { scheduleLabel } from "@/lib/backupLabels";
 import { trpc } from "@/lib/trpc";
@@ -280,6 +282,19 @@ export const CATEGORIES: SettingsCategory[] = [
     Summary: function ServersSummary() {
       const n = useNativeProfiles().profiles?.list.length;
       return n === undefined ? null : t("settings.categories.server.count", { count: n });
+    },
+  },
+  {
+    id: "network",
+    get label() { return t("settings.categories.network.label"); },
+    get description() { return t("settings.categories.network.description"); },
+    icon: Network,
+    get keywords() { return t("settings.categories.network.keywords"); },
+    permission: "manageServer",
+    Content: NetworkSection,
+    Summary: function NetworkSummary() {
+      const n = trpc.egress.list.useQuery(undefined, { staleTime: 60_000 }).data?.length;
+      return n === undefined ? null : t("settings.categories.network.hosts", { count: n });
     },
   },
   {

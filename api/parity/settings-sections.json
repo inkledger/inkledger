@@ -91,6 +91,12 @@
       "permission": null
     },
     {
+      "id": "network",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "manageServer"
+    },
+    {
       "id": "devices",
       "nativeOnly": true,
       "desktopOnly": true,

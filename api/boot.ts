@@ -22,6 +22,7 @@ import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
 import { outlookFrames, registerOutlookRoutes } from "./mail/addin";
+import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
@@ -150,6 +151,9 @@ app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
 
+// Every call the server makes out is counted by host (Settings → Network).
+installEgressLog();
+
 // Background Jira sync. In dev the module is re-evaluated on reload: keep a
 // single scheduler per process.
 const g = globalThis as { __iklStopSync?: () => Promise<void> };
@@ -207,6 +211,7 @@ if (env.isProduction || env.serveBuild) {
       atMost(g.__iklStopSync?.(), 5_000),
       settleInFlightSyncs(5_000),
     ]);
+    await flushEgress().catch(() => undefined);
     await closeDb();
     process.exit(0);
   };
