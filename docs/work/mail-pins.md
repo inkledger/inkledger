@@ -1,6 +1,6 @@
 # Status: Pinned mails (Outlook / Microsoft 365)
 
-Batch 1 partial (2026-10-27): issues, TODOs and post-its done; Markdown notes pending. Not pushed.
+Done (2026-10-29): mailbox search (Microsoft sign-in), a two-step "Pin a mail" from anywhere, the Outlook add-in (a page of the app's build) on local HTTPS, Markdown notes, Settings → Network. Committed and pushed. User guide: docs/outlook.md.
 
 ## Goal and completion criteria
 - Pin a specific mail to an issue, a Markdown note, a TODO or the pinboard, to get back to the
@@ -27,15 +27,24 @@ Batch 1 partial (2026-10-27): issues, TODOs and post-its done; Markdown notes pe
 - Opening an Outlook link the first time goes through `ExternalLink` ("Allow always" is one click).
 - Forgetting a mail unpins it everywhere; TODOs about it stay, without it.
 
+## Round 2: why
+Batch 1 relied on pasting an Outlook web link, but new Outlook for Mac (the user's client) has no link to copy. A mail could only be pinned from inside an issue or a TODO, with its subject typed by hand. Round 2 cuts pinning to "search, click", from either side.
+
 ## Batches
 - [x] 1a. Parsers `contracts/mail.ts` (+ `api/mail.test.ts`)
 - [x] 1b. Schema `mails`, `mail_links`, `todos.mail_id`, `pinboard_notes.mail_id`
 - [x] 1c. API `mails.*`, `pinboard.pinMail`, TODO `mailId` (+ `api/routers/mails.test.ts`)
 - [x] 1d. UI: issue section (button, .eml/link drop), TODO chip and menu, mail post-it
 - [x] 1e. e2e `e2e/mail-pins.test.mjs`
-- [ ] 1f. Markdown notes: mail list under a note, "Insert link" in the toolbar (after the notes work lands)
-- [ ] 2. Outlook add-in (manifest, task pane, scoped key, HTTPS on the tailnet)
-- [ ] 3. Graph device-code sign-in (optional)
+- [x] 1f. Markdown notes: mails under a note (`NoteMails`), pinning one writes its link at the cursor
+- [x] 2. Outlook add-in: `/api/outlook/{manifest.xml,taskpane.html,taskpane.js,me,issues,pin}`, key in `mail_addin_keys` (hash only, opens only these routes), HTTPS via `scripts/outlook-https.mjs` on the local machine/LAN (not the tailnet, as asked)
+- [x] 3. Microsoft sign-in (device code, `Mail.Read`), `mails.search`, link filled by Message-ID; tokens sealed per user (`mail_accounts`, `sealFor`); simulator `MAIL_SIMULATOR=1`
+- [x] UX: two-step picker (mail, then where: issue / new TODO / pinboard), palette "Pin a mail…", drop or paste a mail anywhere, Settings → Outlook
+- [x] Add-in pane rebuilt as a React page of the build (`outlook.html`, `src/outlook/`): design system, theme colour, Outlook's language; board choice (or a new board), TODO day, copy link, "pinned already", pin reminder; nothing wider than the pane (e2e at 320/480 px)
+- [x] HTTPS proxy as a LaunchAgent (`outlook-https.mjs agent`)
+- [x] Outlook mail links open without the domain prompt (`ExternalLink`)
+- [x] Settings → Network: every host the server calls (`api/lib/egress.ts`)
+- [ ] The user's real-world checks: Entra app + `MS_CLIENT_ID` (mailbox search), add-in re-added after the 1.1 manifest, pane pinned
 
 ## Checks
 | Command | Scope | Result |
@@ -46,7 +55,15 @@ Batch 1 partial (2026-10-27): issues, TODOs and post-its done; Markdown notes pe
 | `tsc -b`, `eslint .`, design check | staged snapshot of each commit | pass |
 | `node --test e2e/mail-pins.test.mjs` | link, .eml drop, pinboard, TODO | pass |
 | Harness screenshots | issue section, dialog, post-it light/dark | ok |
+| `vitest run api/mail` | sign-in, consent, refresh, search, pinTo, keys, add-in routes | pass (22) |
+| `node --test e2e/mail-pins.test.mjs` | link/.eml, mailbox search → issue, .eml anywhere → TODO, note | pass (3) |
+| task pane with a stubbed Office.js | pin section, issues, it-IT | ok (screenshot) |
+| `outlook-https.mjs cert/serve` against dev :3000 | manifest over HTTPS, CSP, no X-Frame-Options | ok |
+| `node --test e2e/outlook-addin.test.mjs` | the pane end to end with a stubbed Office.js, widths 320/480 | pass |
+| staged snapshot of each commit | tsc, eslint, design check, parity, targeted vitest | pass |
+| full `vitest run` | 2340 tests | pass |
+| full e2e | all but `the open hole on the Dashboard…`, `the day is never logged on guesses…` (also failing before this work: time of day, after midnight) and `React work per five minutes` (failing on the base commit too) | see note |
 
 ## Blocks and next action
-- 1f waits for the Markdown notes work in progress.
-- Next: batch 2 (add-in) once the user confirms the HTTPS address on the tailnet.
+- Microsoft side, which only the user can do: register the Entra app (docs/outlook.md), then sign in. The tenant may require admin consent for `Mail.Read`; the add-in and drop paths do not need it.
+- Migrations: mine committed as `0014_mail_accounts` and `0015_egress_hosts`; the other stream's (uncommitted) planned-entries migration moved to `0016_planned_entries` with its SQL unchanged and a newer `when`, so it is never skipped. The dev database's applied rows were re-dated to match (dev only).
