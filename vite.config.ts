@@ -89,5 +89,9 @@ export default defineConfig({
     emptyOutDir: true,
     // Public source (the repo is open): stack traces and devtools read the real code.
     sourcemap: true,
+    rollupOptions: {
+      // The app, and the Outlook add-in's pane (its own small page, docs/outlook.md).
+      input: { main: path.resolve(__dirname, "index.html"), outlook: path.resolve(__dirname, "outlook.html") },
+    },
   },
 });

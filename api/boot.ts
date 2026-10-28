@@ -21,6 +21,7 @@ import { ACTIVATION_DEFAULTS, renewActivations } from "./modules/activation";
 import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
+import { outlookFrames, registerOutlookRoutes } from "./mail/addin";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
@@ -60,6 +61,8 @@ app.use(async (c, next) => {
 // No HSTS: TLS is the proxies' job (LAN, Tailscale), and the header pins the
 // whole host, every port, to https. Once a browser stored it for localhost,
 // the plain-HTTP servers on :47823 / :3000 no longer opened there.
+// Outer: the Outlook task pane may be framed by Outlook, which secureHeaders would refuse.
+app.use(outlookFrames);
 app.use(secureHeaders({ strictTransportSecurity: false }));
 app.use(localeMiddleware);
 // JSON and populated SSR HTML travel compressed; the event stream never is:
@@ -131,6 +134,7 @@ registerDownloadRoutes(app);
 registerModuleRoutes(app);
 registerStoreRoutes(app);
 registerHookRoutes(app);
+registerOutlookRoutes(app);
 registerEventRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({

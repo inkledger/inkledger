@@ -147,6 +147,10 @@ export const server: Shape<typeof en> = {
     notFound: "Nota non trovata",
     empty: "Scrivi qualcosa prima.",
   },
+  outlook: {
+    button: "Fissa in inkledger",
+    buttonTip: "Fissa questa mail a una issue, a una TODO o alla lavagna",
+  },
   mails: {
     notFound: "Mail non trovata",
     badLink: "Non è un link apribile: incolla il link della mail in Outlook (https).",

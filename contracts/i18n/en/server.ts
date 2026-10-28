@@ -146,6 +146,10 @@ export const server = {
     notFound: "Note not found",
     empty: "Write something first.",
   },
+  outlook: {
+    button: "Pin to inkledger",
+    buttonTip: "Pin this mail to an issue, a TODO or the pinboard",
+  },
   mails: {
     notFound: "Mail not found",
     badLink: "Not a link to open: paste the mail's Outlook link (https).",
