@@ -67,6 +67,12 @@
       "permission": null
     },
     {
+      "id": "outlook",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
       "id": "links",
       "nativeOnly": false,
       "desktopOnly": false,

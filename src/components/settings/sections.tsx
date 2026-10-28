@@ -18,6 +18,7 @@ import {
   Layers,
   Briefcase,
   ListChecks,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -46,6 +47,7 @@ import { ScheduleSection } from "@/components/settings/sections/Schedule";
 import { ServersSection } from "@/components/settings/sections/Servers";
 import { DevicesSection } from "@/components/settings/sections/Devices";
 import { LinksSection } from "@/components/settings/sections/Links";
+import { OutlookSection } from "@/components/settings/sections/Outlook";
 import { BackupSection } from "@/components/settings/sections/Backup";
 import { scheduleLabel } from "@/lib/backupLabels";
 import { trpc } from "@/lib/trpc";
@@ -222,6 +224,19 @@ export const CATEGORIES: SettingsCategory[] = [
       const s = useTodoSurfaces();
       const on = [s.menu && t("settings.todos.inMenu"), s.widget && t("settings.todos.widget"), s.corner && t("settings.todos.corner")].filter(Boolean);
       return on.length ? on.join(" · ") : t("settings.todos.off");
+    },
+  },
+  {
+    id: "outlook",
+    get label() { return t("settings.categories.outlook.label"); },
+    get description() { return t("settings.categories.outlook.description"); },
+    icon: Mail,
+    get keywords() { return t("settings.categories.outlook.keywords"); },
+    Content: OutlookSection,
+    Summary: function OutlookSummary() {
+      const a = trpc.mails.account.useQuery(undefined, { staleTime: 60_000 }).data;
+      if (!a) return null;
+      return a.account ? t("settings.categories.outlook.signedIn", { account: a.account.account }) : t("settings.categories.outlook.off");
     },
   },
   {

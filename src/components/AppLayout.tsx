@@ -1,6 +1,7 @@
 import { lazyPart } from "@/components/app/lazyPart";
 // The palette owns ⌘K: in the first load, so a key pressed at once is never lost.
 import { CommandPalette } from "@/components/CommandPalette";
+import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
 import { Suspense, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -601,6 +602,7 @@ export function AppLayout() {
         </div>
         <MobileTabBar />
         <CommandPalette />
+        <PinMailHost />
         <QuickStart />
         <IdleDialog />
         <DayReview />

@@ -29,6 +29,8 @@ export const dayReview = createFlag();
 export const focusMode = createFlag();
 /** The screensaver (key "z", the palette, the sidebar, More on phones). */
 export const screensaver = createFlag();
+/** "Pin a mail" from anywhere (palette, a mail dropped or pasted on the app): it asks where. */
+export const pinMailDialog = createFlag();
 /** "New issue" dialog (key i, palette, Issues page). */
 export const createIssueDialog = createFlag();
 /** Notification center (right-side panel, like macOS). */

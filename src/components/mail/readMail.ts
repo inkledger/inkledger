@@ -1,6 +1,6 @@
-import { parseEmlHeaders, parseOutlookUrl, type MailHeaders } from "@contracts/mail";
+import { parseEmlHeaders, parseOutlookUrl, type MailHeaders, type MailSource } from "@contracts/mail";
 
-/** What a pasted text or a dropped file says about a mail, ready for mails.save. */
+/** What a pasted text, a dropped file or the mailbox says about a mail, ready for mails.save. */
 export type MailDraft = {
   subject: string;
   fromName: string | null;
@@ -9,7 +9,7 @@ export type MailDraft = {
   webLink: string | null;
   internetMessageId: string | null;
   exchangeId: string | null;
-  source: "link" | "eml";
+  source: MailSource;
 };
 
 /** Headers are at the top: a few KB are plenty, and the body is never read. */

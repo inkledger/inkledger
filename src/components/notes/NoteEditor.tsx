@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { t } from "@/i18n";
+import { NoteMails } from "@/components/mail/NoteMails";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 import { ConflictBanner } from "./ConflictBanner";
 import { applyMarkdown } from "./markdownEdit";
@@ -62,6 +63,18 @@ export function NoteEditor({
         command
       );
       applyHistory(next.value, { start: next.start, end: next.end });
+    },
+    [applyHistory, area, controller.body]
+  );
+
+  /** Text written where the cursor is (a mail's link), as one undo step. */
+  const insert = useCallback(
+    (text: string) => {
+      const element = area.current;
+      const end = controller.body.length;
+      const at = element ? { start: element.selectionStart, end: element.selectionEnd } : { start: end, end };
+      const caret = at.start + text.length;
+      applyHistory(controller.body.slice(0, at.start) + text + controller.body.slice(at.end), { start: caret, end: caret });
     },
     [applyHistory, area, controller.body]
   );
@@ -245,13 +258,19 @@ export function NoteEditor({
               {t("pages.notes.emptyDocument")}
             </p>
           )}
+          {controller.currentId && (
+            <div className="mt-6 border-t pt-4">
+              <NoteMails noteId={controller.currentId} />
+            </div>
+          )}
           <div className="mt-4">
             <MarkdownGuide />
           </div>
         </article>
       )}
       {!preview && (
-        <div className="flex justify-end border-t px-4 py-2">
+        <div className="flex items-start justify-between gap-3 border-t px-4 py-2">
+          {controller.currentId ? <NoteMails noteId={controller.currentId} onInsert={insert} /> : <span />}
           <MarkdownGuide />
         </div>
       )}

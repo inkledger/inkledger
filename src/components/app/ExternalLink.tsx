@@ -9,9 +9,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 
+/** A mail's link to Outlook on the web (pinned mails, links copied from the add-in): it opens without asking. */
+const OUTLOOK_MAIL = /^https:\/\/(outlook\.office\.com|outlook\.office365\.com|outlook\.live\.com|outlook\.cloud\.microsoft)\/(mail|owa)\//;
+
 /**
- * A link to another site. Allowed domains (Settings → External links, and the
- * Jira site) open in a new tab / the system browser; any other shows its
+ * A link to another site. Allowed domains (Settings → External links, the
+ * Jira site, a mail's Outlook link) open in a new tab / the system browser; any other shows its
  * domain behind a lock: one click to allow the domain for good, or to
  * open it just this once.
  */
@@ -34,7 +37,7 @@ export function ExternalLink({
     }
   })();
 
-  if (isAllowed(url)) {
+  if (OUTLOOK_MAIL.test(url) || isAllowed(url)) {
     return (
       <a
         href={url}

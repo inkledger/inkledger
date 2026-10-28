@@ -26,6 +26,7 @@ import {
   Pause,
   Square,
   Sparkles,
+  MailPlus,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc";
@@ -46,6 +47,7 @@ import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
 import { createIssueDialog, dayReview, focusMode, screensaver } from "@/lib/flag";
+import { openPinMail } from "@/components/mail/pinMail";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
 import { Kbd } from "@/components/app/Kbd";
@@ -259,6 +261,14 @@ export function CommandPalette() {
           </CommandItem>
           <CommandItem onSelect={() => go(`/notes/new?draft=${newDraftId()}`)}>
             <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.palette.newNote")}
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              openPinMail();
+            }}
+          >
+            <MailPlus className="mr-2 h-4 w-4" /> {t("ui.palette.pinMail")}
           </CommandItem>
           <CommandItem
             onSelect={() => {
