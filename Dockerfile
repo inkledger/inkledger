@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Pinned by digest (reproducible builds; Dependabot proposes updates).
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS build
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS build
 WORKDIR /app
 RUN apk add --no-cache python3 make g++ && corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
@@ -11,7 +11,7 @@ RUN pnpm run build && pnpm prune --prod --ignore-scripts \
     # pglite: URLs only), TypeScript (types), better-sqlite3 (a migration script). ~70 MB less.
     && rm -rf node_modules/.pnpm/@electric-sql+pglite@* node_modules/.pnpm/typescript@* node_modules/.pnpm/better-sqlite3@*
 
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797
 LABEL org.opencontainers.image.source="https://github.com/inkledger/inkledger" \
       org.opencontainers.image.description="inkledger — your time, from every tracker" \
       org.opencontainers.image.licenses="MIT"
