@@ -431,7 +431,6 @@ test("notes work on a phone without horizontal overflow", () =>
         .getByRole("article", { name: "Preview" })
         .getByText("Body", { exact: true })
         .waitFor();
-      await description.waitFor();
       assert.equal(
         await description.evaluate(
           element => element.getBoundingClientRect().y
