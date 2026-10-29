@@ -123,6 +123,7 @@ describe("migrations over a draft of 0010", () => {
     await up();
     // As a dev database left by the draft: the column there, the lease table and the final 0010 not.
     const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
+    await query('DROP TABLE "ideas"');
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
     await query('DROP TABLE "egress_hosts"');

@@ -189,6 +189,21 @@ export const server: Shape<typeof en> = {
     convertLinked: "Questo appunto è collegato a una issue: scollegalo prima di farne una cartella.",
     nameRequired: "Dagli un nome.",
   },
+  ideas: {
+    notFound: "Quell'idea non c'è più.",
+    tooMany: "Al massimo 50 idee alla volta: dividi l'elenco.",
+    empty: "Scrivi almeno un'idea.",
+    noContainer: "Quel progetto non è tra i tuoi.",
+    move: {
+      notReady: {
+        title: "Dalle prima un titolo di almeno 3 caratteri.",
+        acceptance: "Aggiungi prima almeno un \"fatta quando\".",
+        questions: "Rispondi prima alle domande che vanno risolte.",
+      },
+      promoteThroughIssue: "Un'idea diventa una issue quando la crei: usa Crea issue.",
+      terminal: "Riaprila prima: torna in Da raffinare.",
+    },
+  },
   estimates: {
     unknownStatus: "Questo stato non è tra quelli della connessione.",
   },

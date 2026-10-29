@@ -1,0 +1,8 @@
+1) In the mail add-in, choose a bucket of its own instead of the server's
+2) Keep a record of module purchases that anyone can check
+3. Deleted mails lose what their pins showed: find a way to keep it
+- Notes in folders, like a file manager
+* Find out why the build is red
+4) A waiting room for raw ideas until they are clear enough to be issues
+
+[ ] Estimate how long an issue will take from my own history

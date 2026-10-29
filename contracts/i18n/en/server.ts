@@ -188,6 +188,21 @@ export const server = {
     convertLinked: "This note is linked to an issue: unlink it before making it a folder.",
     nameRequired: "Give it a name.",
   },
+  ideas: {
+    notFound: "That idea is gone.",
+    tooMany: "Up to 50 ideas at a time: split the list.",
+    empty: "Write at least one idea.",
+    noContainer: "That project isn't one of yours.",
+    move: {
+      notReady: {
+        title: "Give it a title of at least 3 characters first.",
+        acceptance: "Add at least one \"done when\" first.",
+        questions: "Answer the questions that must be answered first.",
+      },
+      promoteThroughIssue: "An idea becomes an issue when you create it: use Create issue.",
+      terminal: "Reopen it first: it goes back to Refining.",
+    },
+  },
   estimates: {
     unknownStatus: "This status isn't one of the connection's.",
   },

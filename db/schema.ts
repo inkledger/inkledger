@@ -1525,3 +1525,61 @@ export const estimateRevisions = pgTable("estimate_revisions", {
     .references(() => users.id, { onDelete: "cascade" }),
   revision: bigint("revision", { mode: "bigint" }).notNull().default(sql`0`),
 });
+
+// ---------- Triage: ideas waiting to become issues (docs/work/ideas/triage.md) ----------
+
+export const ideas = pgTable(
+  "ideas",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    /** Markdown */
+    body: text("body").notNull().default(""),
+    /** contracts/ideas.ts IDEA_STATES */
+    state: text("state").notNull().default("raw"),
+    /** me | agent | ask (null: not chosen) */
+    route: text("route"),
+    containerId: integer("container_id").references(() => containers.id, { onDelete: "set null" }),
+    /** Order within its state (smaller first) */
+    position: integer("position").notNull().default(0),
+    /** JSON [{ id, text }] (≤ 20) */
+    acceptance: text("acceptance").notNull().default("[]"),
+    /** JSON [{ id, text, answer, blocking }] (≤ 20) */
+    questions: text("questions").notNull().default("[]"),
+    /** JSON string[] (≤ 20) */
+    labels: text("labels").notNull().default("[]"),
+    estimateSeconds: integer("estimate_seconds"),
+    /** The issue it came from (a vague one sent to triage) */
+    sourceConnectionId: integer("source_connection_id").references(() => connections.id),
+    sourceItemId: integer("source_item_id").references(() => issues.id, { onDelete: "set null" }),
+    sourceIssueKey: text("source_issue_key"),
+    /** The mail it came from */
+    mailId: integer("mail_id").references(() => mails.id, { onDelete: "set null" }),
+    /** The issue it became */
+    promotedConnectionId: integer("promoted_connection_id").references(() => connections.id),
+    promotedItemId: integer("promoted_item_id").references(() => issues.id, { onDelete: "set null" }),
+    promotedIssueKey: text("promoted_issue_key"),
+    promotedAt: ms("promoted_at"),
+    discardedReason: text("discarded_reason"),
+    deletedAt: ms("deleted_at"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_ideas_user_state").on(t.userId, t.state, t.position),
+    uniqueIndex("uq_ideas_open_source")
+      .on(t.userId, t.sourceConnectionId, t.sourceIssueKey)
+      .where(sql`${t.sourceIssueKey} IS NOT NULL AND ${t.state} NOT IN ('promoted','discarded') AND ${t.deletedAt} IS NULL`),
+    check("ideas_state", sql`${t.state} IN ('raw','refining','ready','promoted','discarded')`),
+    check("ideas_route", sql`${t.route} IS NULL OR ${t.route} IN ('me','agent','ask')`),
+    check("ideas_source_has_connection", sql`${t.sourceIssueKey} IS NULL OR ${t.sourceConnectionId} IS NOT NULL`),
+    check("ideas_promoted_has_connection", sql`${t.promotedIssueKey} IS NULL OR ${t.promotedConnectionId} IS NOT NULL`),
+  ],
+);

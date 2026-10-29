@@ -204,6 +204,42 @@
     "type": "query"
   },
   {
+    "path": "ideas.capture",
+    "type": "mutation"
+  },
+  {
+    "path": "ideas.counts",
+    "type": "query"
+  },
+  {
+    "path": "ideas.get",
+    "type": "query"
+  },
+  {
+    "path": "ideas.list",
+    "type": "query"
+  },
+  {
+    "path": "ideas.move",
+    "type": "mutation"
+  },
+  {
+    "path": "ideas.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "ideas.reorder",
+    "type": "mutation"
+  },
+  {
+    "path": "ideas.restore",
+    "type": "mutation"
+  },
+  {
+    "path": "ideas.update",
+    "type": "mutation"
+  },
+  {
     "path": "info.addHosts",
     "type": "mutation"
   },

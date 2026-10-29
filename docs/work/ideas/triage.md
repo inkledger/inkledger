@@ -1,6 +1,6 @@
 # Spec: a waiting room that turns ideas into issues (#6)
 
-Status: planned 2026-10-29, not started. Open questions are asked when their batch is reached (README, R-0.12).
+Status: batch 1 done (2026-10-30); batch 2 next. Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Problem
@@ -323,7 +323,14 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
 - Ollama answering after the Sheet is closed → the result is dropped (AbortController).
 
 ## Batches
-1. Migration, `contracts/ideas.ts`, router (list, counts, get, capture, update, move, reorder, remove, restore). R-2.1–2.3, 2.7, 2.9. AC-2.1–2.9, 2.12.
+1. [x] Migration, `contracts/ideas.ts`, router (list, counts, get, capture, update, move, reorder, remove, restore). R-2.1–2.3, 2.7, 2.9. AC-2.1–2.9, 2.12.
+   - **Done (2026-10-30).** Decisions, to review:
+     - **AC-2.1's fixture** (`contracts/__fixtures__/notepad.txt`) is an English, neutral list of seven points in the same shapes as the notepad ("1)", "3.", "-", "*", "[ ]", a blank line): the repo is public, English only, with no personal notes.
+     - **Texts of `server.ideas.*`** (the spec had none): written in en and it, to review.
+     - **Capture** puts the new ideas at the top of Raw in the order written (the others move down); `move` makes room at `index` in the target state.
+     - **AC-2.4, 2.5** test the contract (`handoffPrompt`, `askMailUrl`); their procedures come with batch 3. The prompt's sections are always there, empty when the idea has nothing for them; a mail link keeps `@` readable (`mailto:anna@example.com`).
+     - **Stored lists** are read back through their input schemas; anything else reads as an empty list.
+     - `sourceItemId`/`promotedItemId` and their trigger are left to batches 3 and 4, where they are filled.
 2. `/ideas` page (columns and list, capture, Sheet, drag, keyboard), nav, ⌘K. R-2.11. AC-2.15, 2.16, 2.20, 2.21.
 3. Promote, handoff, askMail. R-2.5, 2.6. AC-2.11, 2.17.
 4. `fromIssue`, `forIssue`, issue chip. R-2.4, 2.10. AC-2.10, 2.18.
