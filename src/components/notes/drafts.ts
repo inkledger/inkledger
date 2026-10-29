@@ -3,7 +3,7 @@ import {
   NOTE_TITLE_MAX,
   type NoteIssue,
 } from "@contracts/notes";
-import { readStored, readStoredJson, writeStored } from "@/lib/storage";
+import { readStoredJson, writeStored } from "@/lib/storage";
 
 export type NoteDraft = {
   version: 1;
@@ -146,8 +146,4 @@ export function draftPath(draft: NoteDraft): string {
     params.set("connectionId", String(draft.issue.connectionId));
   }
   return `/notes/new?${params}`;
-}
-
-export function draftSummary(draft: NoteDraft): string {
-  return readStored(draftKey(draft)) === null ? "" : draft.title;
 }

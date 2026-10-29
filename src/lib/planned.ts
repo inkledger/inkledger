@@ -24,12 +24,3 @@ export function plannedSlicesForDay(entries: PlannedEntry[], day: Date): Planned
     return seconds > 0 ? [{ entry, startsAt, endsAt, seconds }] : [];
   });
 }
-
-export function plannedSecondsBetween(entries: PlannedEntry[], from: Date, to: Date): number {
-  const start = from.getTime();
-  const end = to.getTime();
-  return entries.reduce((total, entry) => {
-    const overlap = Math.min(end, entry.endsAt.getTime()) - Math.max(start, entry.startsAt.getTime());
-    return total + Math.max(0, Math.round(overlap / 1000));
-  }, 0);
-}

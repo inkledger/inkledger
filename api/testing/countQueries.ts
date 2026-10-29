@@ -39,14 +39,3 @@ export function countQueries(): QueryCounter {
     },
   };
 }
-
-/** The queries `run` costs: counted from its start to its end, nothing before or after. */
-export async function queriesOf(run: () => Promise<unknown>): Promise<number> {
-  const counter = countQueries();
-  try {
-    await run();
-    return counter.n;
-  } finally {
-    counter.stop();
-  }
-}
