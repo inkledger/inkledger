@@ -36,6 +36,7 @@ export const views: Shape<typeof en> = {
       playHole: "Avvia un timer: dalle {from} o da adesso",
       holeLabel:
         "Registra il tempo mancante dalle {from} alle {to}, {duration}",
+      plannedList: "Pianificato in questo giorno",
       dayOff: "Giornata non lavorativa.",
       empty: "Nessuna registrazione in questa giornata.",
       missing: "Mancano",

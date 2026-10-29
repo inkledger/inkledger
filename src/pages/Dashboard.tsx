@@ -1,7 +1,7 @@
 import { failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
 import {
   CalendarDays,
@@ -21,6 +21,7 @@ import {
   parseDayKey,
   startOfDay,
   startOfWeek,
+  findGaps,
   type TimeSpan,
 } from "@contracts/time";
 import { todoTimeByDay } from "@contracts/todo";
@@ -31,8 +32,10 @@ import {
 } from "@contracts/dashboard";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
-import { missingSpans, openGap } from "@contracts/workSchedule";
+import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap } from "@contracts/workSchedule";
+import type { PlannedEntry } from "@contracts/planned";
 import { GapCutter } from "@/components/dashboard/GapCutter";
+import { PlannedDialog } from "@/components/PlannedDialog";
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns";
 import { useTimers } from "@/hooks/useTimers";
 import { dayReview } from "@/lib/flag";
@@ -168,6 +171,8 @@ export default function Dashboard() {
   const { layout, isVisible, toggle } = useDashboardLayout();
   const today = useToday();
   const [logOpen, setLogOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [editingPlanned, setEditingPlanned] = useState<PlannedEntry | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
 
   const title =
@@ -195,6 +200,14 @@ export default function Dashboard() {
     from: recentFrom.toISOString(),
     to: recentTo.toISOString(),
   });
+  const plannedFrom = new Date(Math.min(range.from.getTime(), recentFrom.getTime(), startOfWeek(today).getTime()));
+  const plannedTo = new Date(Math.max(range.to.getTime(), recentTo.getTime(), addDays(startOfWeek(today), 7).getTime()));
+  const planned = trpc.planned.list.useQuery(
+    { from: plannedFrom.toISOString(), to: plannedTo.toISOString() },
+    { placeholderData: keepPreviousData }
+  );
+  // Kept the same array between renders: the targets below depend on it.
+  const plannedEntries = useMemo(() => planned.data ?? [], [planned.data]);
   // TODO time in the period: beside the logged time, never added to it.
   const todoSessions = trpc.todos.sessions.useQuery(
     { from: range.from.toISOString(), to: range.to.toISOString() },
@@ -243,16 +256,20 @@ export default function Dashboard() {
     return { byIssue, byDay, worked, total, logged, ...rankProjects(byProject) };
   }, [logs.data]);
 
-  // Targets come from the work schedule in force on each day.
-  const { forDay, targetFor, targetBetween } = useWorkSchedule();
+  // Vacation removes only its intersection with the schedule; work and travel never change the target.
+  const { forDay, versions } = useWorkSchedule();
+  const targetFor = useCallback(
+    (date: Date) => effectiveTargetSeconds(date, forDay(date), plannedEntries),
+    [forDay, plannedEntries]
+  );
   const todayTarget = targetFor(today);
   const recap = useMemo(
     () => weekRecap(recent.data ?? [], today, targetFor),
     [recent.data, today, targetFor]
   );
 
-  const weeklyTarget = targetBetween(startOfWeek(today), 7);
-  const target = targetBetween(range.from, range.days.length);
+  const weeklyTarget = effectiveTargetSecondsBetween(startOfWeek(today), 7, versions, plannedEntries);
+  const target = effectiveTargetSecondsBetween(range.from, range.days.length, versions, plannedEntries);
 
   const issueTotals: IssueTotal[] = [...derived.byIssue.values()]
     .sort((a, b) => b.seconds - a.seconds)
@@ -307,7 +324,10 @@ export default function Dashboard() {
   const holesUntil = new Date();
   const missing =
     dayView && weekStatus.data === null && range.from.getTime() <= today.getTime()
-      ? missingSpans(range.from, daySchedule, [...timelineEntries, ...pausedSpans], holesUntil)
+      ? effectiveWorkSpans(range.from, daySchedule, plannedEntries).flatMap(work => {
+          const end = new Date(Math.min(work.start.getTime() + work.seconds * 1000, holesUntil.getTime()));
+          return end <= work.start ? [] : findGaps([...timelineEntries, ...pausedSpans], work.start, end, 1);
+        })
       : [];
   // The hole reaching now: a timer can start from its start (Play on it). None while one runs.
   const openHole = running ? null : openGap(missing, holesUntil);
@@ -334,6 +354,15 @@ export default function Dashboard() {
   );
   // "Log time" logs on the day on screen, not always on today.
   const logDay = dayView && !range.isCurrent ? range.from : undefined;
+  const futureDay = dayView && dayKey(range.from) > dayKey(today);
+  const openAdd = () => {
+    if (futureDay) setPlanOpen(true);
+    else setLogOpen(true);
+  };
+  const editPlanned = (entry: PlannedEntry) => {
+    setEditingPlanned(entry);
+    setPlanOpen(true);
+  };
 
   const stacks: DayStack[] = range.days.map(day => ({
     day,
@@ -521,9 +550,9 @@ export default function Dashboard() {
               onToday={reset}
               isCurrent={range.isCurrent}
             />
-            <Button onClick={() => setLogOpen(true)}>
+            <Button onClick={openAdd}>
               <Plus className="h-4 w-4" />
-              {t("pages.dashboard.logTime")}
+              {futureDay ? t("ui.planned.plan") : t("pages.dashboard.logTime")}
             </Button>
             <Popover>
               <PopoverTrigger asChild>
@@ -596,6 +625,8 @@ export default function Dashboard() {
                   floor={<ModuleSlot id="dashboard-perch" />}
                   todoSpans={todoSpans}
                   liveControls={running ? LIVE_CONTROLS : undefined}
+                  plannedEntries={plannedEntries}
+                  onEditPlanned={editPlanned}
                 />
               ) : (
                 <PeriodBars
@@ -798,6 +829,16 @@ export default function Dashboard() {
         )}
       />
 
+      <PlannedDialog
+        day={range.from}
+        entry={editingPlanned}
+        open={planOpen}
+        onOpenChange={open => {
+          setPlanOpen(open);
+          if (!open) setEditingPlanned(null);
+        }}
+        onLogActual={() => setLogOpen(true)}
+      />
       <Dialog open={logOpen} onOpenChange={setLogOpen}>
         <DialogContent>
           <DialogHeader>

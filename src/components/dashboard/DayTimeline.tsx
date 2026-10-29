@@ -20,6 +20,9 @@ import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 import { Play } from "lucide-react";
 import { quickStart } from "@/lib/quickStart";
+import type { PlannedEntry } from "@contracts/planned";
+import { plannedKindLabel, plannedSlicesForDay } from "@/lib/planned";
+import { PlannedEntryRow } from "@/components/PlannedEntryRow";
 
 export type TimelineEntry = {
   id: string;
@@ -59,6 +62,8 @@ export function DayTimeline({
   floor,
   todoSpans = [],
   liveControls,
+  plannedEntries = [],
+  onEditPlanned,
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -79,18 +84,23 @@ export function DayTimeline({
   todoSpans?: { start: Date; end: Date; linked: boolean; label: string }[];
   /** Pause and stop, on the running block's end (where "now" is). */
   liveControls?: ReactNode;
+  /** Future intentions: drawn beside logged entries, never counted with them. */
+  plannedEntries?: PlannedEntry[];
+  onEditPlanned?: (entry: PlannedEntry) => void;
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
     (a, b) => a.start.getTime() - b.start.getTime()
   );
-  // Clock hours, not elapsed ones: DST days keep 9:00 at 9. TODO time widens the axis too.
+  const planned = plannedSlicesForDay(plannedEntries, day);
+  // Clock hours, not elapsed ones: DST days keep 9:00 at 9. TODO and planned time widen the axis too.
   const hours = [
     ...sorted.flatMap(e => {
       const s = wallHours(e.start.getTime(), dayStart);
       return [s, s + e.seconds / 3600];
     }),
     ...todoSpans.flatMap(s => [wallHours(Math.max(dayStart, s.start.getTime()), dayStart), wallHours(s.end.getTime(), dayStart)]),
+    ...planned.flatMap(p => [wallHours(p.startsAt.getTime(), dayStart), wallHours(p.endsAt.getTime(), dayStart)]),
   ];
   const work = schedule ? workBounds(day, schedule) : null;
   // The axis spans the working day (8–18 without one), widened to the entries.
@@ -210,6 +220,35 @@ export function DayTimeline({
             )}
           </button>
         ))}
+        {planned.map(p => {
+          const left = Math.max(0, pos(p.startsAt.getTime()));
+          const width = Math.max(0.8, Math.min(100, pos(p.endsAt.getTime())) - left);
+          const label = `${plannedKindLabel(p.entry.kind)} · ${t("ui.planned.status")} · ${formatDurationLong(p.seconds)}${p.entry.issueKey ? ` · ${p.entry.issueKey}` : ""}`;
+          return (
+            <button
+              key={p.entry.id}
+              type="button"
+              {...surface("glass")}
+              disabled={!onEditPlanned}
+              onClick={() => onEditPlanned?.(p.entry)}
+              title={label}
+              aria-label={label}
+              className={cn(
+                "absolute bottom-6 top-3 z-[5] flex min-w-target items-start justify-center overflow-hidden rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+                p.entry.kind === "vacation"
+                  ? "border border-primary-strong/20 bg-primary-soft/80 text-primary-strong"
+                  : "border-2 border-dashed border-foreground/35 bg-card/75 text-foreground/75 hover:border-primary-strong/60 hover:bg-primary-soft/50"
+              )}
+              style={{ left: `${left}%`, width: `${width}%` }}
+            >
+              {width > 10 && (
+                <span className="truncate px-1.5 pt-1.5 text-caption font-medium">
+                  {p.entry.kind === "vacation" ? plannedKindLabel(p.entry.kind) : p.entry.issueKey ?? plannedKindLabel(p.entry.kind)}
+                </span>
+              )}
+            </button>
+          );
+        })}
         {openHole && (() => {
           const h = spanOf(openHole);
           return (
@@ -336,7 +375,7 @@ export function DayTimeline({
             {floor}
           </div>
         )}
-        {entries.length === 0 && holes.length === 0 && (
+        {entries.length === 0 && holes.length === 0 && planned.length === 0 && (
           <p className="absolute inset-0 flex items-center justify-center text-body-sm text-muted-foreground">
             {schedule && !work
               ? t("views.dashboard.timeline.dayOff")
@@ -405,6 +444,15 @@ export function DayTimeline({
           ))}
         </ul>
       )}
+      {planned.length > 0 && onEditPlanned && (
+        <ul className="mt-3 grid gap-2" aria-label={t("views.dashboard.timeline.plannedList")}>
+          {planned.map(p => (
+            <li key={p.entry.id}>
+              <PlannedEntryRow entry={p.entry} seconds={p.seconds} onEdit={onEditPlanned} />
+            </li>
+          ))}
+        </ul>
+      )}
       <figcaption className="sr-only">
         {entries.length === 0
           ? t("views.dashboard.timeline.noEntries")
@@ -414,6 +462,7 @@ export function DayTimeline({
                   `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: timeOfDay(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : ""}`
               )
               .join("; ")}
+        {planned.map(p => `; ${plannedKindLabel(p.entry.kind)} · ${t("ui.planned.status")} · ${formatDurationLong(p.seconds)}`).join("")}
         {todoSpans.map(s => `; ${t(s.linked ? "views.dashboard.timeline.todoLinked" : "views.dashboard.timeline.todoGap", { text: s.label, duration: formatDurationLong((s.end.getTime() - s.start.getTime()) / 1000) })}`).join("")}
       </figcaption>
     </figure>

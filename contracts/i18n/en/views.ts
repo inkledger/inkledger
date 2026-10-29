@@ -34,6 +34,7 @@ export const views = {
       holeTitle: "To log: {from}–{to} · {duration}",
       playHole: "Start a timer: from {from} or from now",
       holeLabel: "Log missing time from {from} to {to}, {duration}",
+      plannedList: "Planned on this day",
       dayOff: "Non-working day.",
       empty: "No entries on this day.",
       missing: "Missing",
