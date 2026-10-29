@@ -1,17 +1,7 @@
 // Buckets: a device narrows its lists to one tracker, and goes back to everything.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, withApp } from "./harness.mjs";
 
 const secondJira = async db => {
   const now = Date.now();

@@ -2,17 +2,7 @@
 // repository); Jira asks for a type, GitHub doesn't; never raw errors.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, trpcProcs, withApp } from "./harness.mjs";
 
 const TARGETS = [
   { connectionId: 1, name: "Jira", label: "Work Jira", types: true, containers: [{ key: "DEMO", name: "Demo", mine: true }, { key: "NEW", name: "New project", mine: false }] },
@@ -24,7 +14,7 @@ const TYPES = [{ id: "10002", name: "Bug" }, { id: "10001", name: "Task" }];
 async function fakeCreate(page, sent) {
   await page.route(/\/api\/trpc\/[^?]*issues\.create/, async route => {
     const url = new URL(route.request().url());
-    const names = decodeURIComponent(url.pathname.split("/api/trpc/")[1]).split(",");
+    const names = trpcProcs(url);
     const input = route.request().method() === "POST" ? JSON.parse(route.request().postData() ?? "{}") : {};
     const mine = n => n.startsWith("issues.create");
     let real = [];

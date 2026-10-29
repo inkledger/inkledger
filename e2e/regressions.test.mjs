@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP, fakeProcedures, mockNative, start, startTimer } from "./harness.mjs";
+import { APP, fakeProcedures, holdRoute, mockNative, start, startTimer, withApp } from "./harness.mjs";
 
 const note = (db, text, x, y) => {
   const now = Date.now();
@@ -16,16 +16,6 @@ const note = (db, text, x, y) => {
 };
 
 /** Runs `body` against a fresh app, always stopping it. */
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
-
 async function openPinboard(page, base) {
   await page.addInitScript(() => localStorage.setItem("ikl-pinboard-panel", "open"));
   await page.goto(base + "/board");
@@ -71,12 +61,7 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
 test("the issue page's pin waits to know the boards: a click before never pins on the default one", () =>
   withApp({}, async ({ page, base, db }) => {
     await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Sprint', 1, ?)", Date.now());
-    let release = () => {};
-    const held = new Promise(resolve => (release = resolve));
-    await page.route(/\/api\/trpc\/[^?]*pinboard\.where/, async route => {
-      await held;
-      await route.continue();
-    });
+    const { release } = await holdRoute(page, /\/api\/trpc\/[^?]*pinboard\.where/);
     await page.goto(base + "/issues/DEMO-105");
     const pin = page.getByRole("button", { name: "Pin to the pinboard" });
     await pin.waitFor();

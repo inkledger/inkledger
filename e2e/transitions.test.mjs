@@ -1,17 +1,7 @@
 // A transition that asks for fields: its form opens, missing ones are marked, then it goes.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, trpcProcs, withApp } from "./harness.mjs";
 
 const TRANSITIONS = [
   { id: "21", name: "Avvia", toStatus: "In corso", toCategory: "In Progress", requirements: [], executable: true, remoteUrl: "https://jira.example.it/browse/DEMO-101" },
@@ -30,7 +20,7 @@ const TRANSITIONS = [
 async function fakeJiraTransitions(page, sent) {
   await page.route(/\/api\/trpc\/[^?]*issues\.transition/, async route => {
     const url = new URL(route.request().url());
-    const names = decodeURIComponent(url.pathname.split("/api/trpc/")[1]).split(",");
+    const names = trpcProcs(url);
     const input = route.request().method() === "POST" ? JSON.parse(route.request().postData() ?? "{}") : {};
     const mine = n => n === "issues.transition" || n === "issues.transitions";
     // The rest of the batch goes to the server as it is.

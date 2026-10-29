@@ -3,17 +3,7 @@
 // "on more than one tracker").
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, mockNative, start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { awayFromMidnight, mockNative, start, withApp } from "./harness.mjs";
 
 let github = 0;
 /** DEMO-101 on GitHub too (which keeps no time: its entries stay in inkledger), with one entry at `started`. */

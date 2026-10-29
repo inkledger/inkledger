@@ -2,12 +2,12 @@
 // list shown as if current, never an empty dialog as if there were nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { start, trpcProcs } from "./harness.mjs";
 
 /** Fails the named procedures inside their batches while `on()` says so; the rest is the real server. */
 async function failing(page, names, on) {
   await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
-    const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1] ?? "").split(",");
+    const procs = trpcProcs(route.request().url());
     if (!on() || !procs.some(p => names.includes(p))) return route.continue();
     const res = await route.fetch().catch(() => null);
     if (!res) return;

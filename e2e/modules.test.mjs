@@ -6,7 +6,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start } from "./harness.mjs";
+import { start, trpcProcs } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -569,7 +569,7 @@ test("modules no longer allowed (permission taken away) stop at once, every one 
     await page.getByTestId("kit-sidebar-footer").waitFor();
     // From now on the server says this user may not use modules.
     await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("modules.list"), async route => {
-      const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1]).split(",");
+      const procs = trpcProcs(route.request().url());
       const json = await (await route.fetch()).json();
       const out = procs.map((p, i) => (p === "modules.list" ? { result: { data: { json: { ...json[i].result.data.json, canUse: false } } } } : json[i]));
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(out) });

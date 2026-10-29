@@ -4,7 +4,7 @@
 // sheet opened).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, start } from "./harness.mjs";
+import { awayFromMidnight, holdRoute, start } from "./harness.mjs";
 
 // Its own timeout: near midnight it first waits up to 8 minutes (see below).
 test("while the day is being logged, the summary shows what is being logged", { timeout: 600_000 }, async () => {
@@ -44,12 +44,7 @@ test("while the day is being logged, the summary shows what is being logged", { 
     // The live length, not the one the sheet opened with: otherwise this proves nothing.
     assert.equal(logged, `${first + extra} min`);
     // The save held on its way to the server.
-    let release = () => {};
-    const held = new Promise(r => (release = r));
-    await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("worklogs.create"), async route => {
-      await held;
-      return route.continue();
-    });
+    const { release } = await holdRoute(page, u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("worklogs.create"));
     await confirm.getByRole("button", { name: "Log", exact: true }).click();
     await page.waitForTimeout(400);
     const summary = await sheet.locator("footer, [class*=border-t]").last().innerText().catch(() => sheet.innerText());

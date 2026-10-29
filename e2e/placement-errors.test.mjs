@@ -2,7 +2,7 @@
 // be read, the dialog says so and offers Retry instead of "computing" forever.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { start, trpcProcs } from "./harness.mjs";
 
 test("Log time: the day's worklogs failing to load is said, with Retry; Log waits", async () => {
   const app = await start({});
@@ -10,7 +10,7 @@ test("Log time: the day's worklogs failing to load is said, with Retry; Log wait
     const { page, base } = app;
     let failing = false;
     await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
-      const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1] ?? "").split(",");
+      const procs = trpcProcs(route.request().url());
       if (!failing || !procs.includes("worklogs.list")) return route.continue();
       const json = await (await route.fetch()).json();
       const out = procs.map((p, i) => (p === "worklogs.list" ? { error: { json: { message: "down", code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500, path: p } } } } : json[i]));

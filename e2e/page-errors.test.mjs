@@ -6,7 +6,7 @@
 // this lives in the bundle.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { holdRoute, start } from "./harness.mjs";
 
 const sidebarLink = (page, href) => page.locator(`nav a[href="${href}"]`).first();
 
@@ -100,12 +100,7 @@ test("a page's code on its way: the page on screen stays until it is there, no s
     const before = await dashboard.innerText();
     // The Reports page's code takes a while to come.
     const chunk = u => /\/assets\/Reports-[\w-]+\.js$/.test(new URL(u).pathname);
-    let release = () => {};
-    const held = new Promise(r => (release = r));
-    await context.route(chunk, async route => {
-      await held;
-      return route.continue();
-    });
+    const { release } = await holdRoute(context, chunk);
     await sidebarLink(page, "/reports").click();
     await page.waitForTimeout(600);
     assert.equal(await page.locator("main [role=status]").filter({ hasText: "Loading" }).count(), 0, "no spinner in place of the page");

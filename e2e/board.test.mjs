@@ -3,17 +3,7 @@
 // dragging, a drop the tracker refuses goes back with its reason.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, trpcProcs, withApp } from "./harness.mjs";
 
 let github = 0;
 const seed = async db => {
@@ -39,7 +29,7 @@ const seed = async db => {
 async function fakeTrackers(page, sent) {
   await page.route(/\/api\/trpc\/[^?]*issues\.transition/, async route => {
     const url = new URL(route.request().url());
-    const names = decodeURIComponent(url.pathname.split("/api/trpc/")[1]).split(",");
+    const names = trpcProcs(url);
     const batched = url.searchParams.has("batch");
     const body = route.request().method() === "POST" ? JSON.parse(route.request().postData() ?? "{}") : JSON.parse(url.searchParams.get("input") ?? "{}");
     const mine = n => n === "issues.transition" || n === "issues.transitions";

@@ -1,17 +1,7 @@
 // Time logged in parallel: two lanes on the day's timeline, and the clock time beside the logged one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, withApp } from "./harness.mjs";
 
 test("two overlapping worklogs sit in two lanes; the day says logged vs clock time", () =>
   withApp(

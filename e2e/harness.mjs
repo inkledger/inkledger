@@ -1,6 +1,7 @@
 // E2E harness: the production bundle (dist/) on a temporary DB with a seeded
 // user, session and issues. Jira is read-only and never synced: these tests
 // never reach a real Jira. Run with `pnpm test:e2e` (builds first).
+import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -261,6 +262,33 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     rmSync(dir, { recursive: true, force: true });
     throw e;
   }
+}
+
+/** Runs `body` against a fresh app (see `start`), then asserts no page errors and stops it. */
+export async function withApp(opts, body) {
+  const app = await start(opts);
+  try {
+    await body(app);
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+}
+
+/** Holds every request `matcher` matches on `target` (a page or context) until `release()`, then lets it through. */
+export async function holdRoute(target, matcher) {
+  let release = () => {};
+  const held = new Promise(r => (release = r));
+  await target.route(matcher, async route => {
+    await held;
+    await route.continue();
+  });
+  return { release };
+}
+
+/** The tRPC procedure names a (possibly batched) request url carries. */
+export function trpcProcs(url) {
+  return decodeURIComponent(new URL(url).pathname.split("/api/trpc/")[1] ?? "").split(",");
 }
 
 /**

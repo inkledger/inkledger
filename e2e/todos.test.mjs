@@ -2,17 +2,7 @@
 // and where it lives (Settings → TODO).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeProcedures, start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { fakeProcedures, start, withApp } from "./harness.mjs";
 
 const pad = n => String(n).padStart(2, "0");
 const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

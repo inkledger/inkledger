@@ -2,7 +2,7 @@
 // the picker says so, and choosing it changes nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { start, trpcProcs } from "./harness.mjs";
 
 test("Reports open on \"This month\", the preset's own range", async () => {
   const app = await start();
@@ -42,7 +42,7 @@ test("Export by days waits for the days and stays off when they couldn't be read
     let down = true;
     await page.route(u => new URL(u).pathname.includes("reports.daily"), async route => {
       if (!down) return route.continue();
-      const procs = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1]).split(",");
+      const procs = trpcProcs(route.request().url());
       const json = await (await route.fetch()).json();
       const out = procs.map((p, i) => (p === "reports.daily" ? { error: { json: { message: "down", code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500, path: p } } } } : json[i]));
       return route.fulfill({ status: 207, contentType: "application/json", body: JSON.stringify(out) });

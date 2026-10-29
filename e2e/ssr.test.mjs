@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { start } from "./harness.mjs";
+import { holdRoute, start } from "./harness.mjs";
 
 test("dashboard arrives with data and hydrates without browser or server errors", async () => {
   const app = await start();
@@ -43,12 +43,7 @@ test("a local layout opts out before the first paint, without hydration errors o
     app.page.on("console", message => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
-    let release = () => {};
-    const held = new Promise(resolve => (release = resolve));
-    await app.page.route(/\/assets\/index-.*\.js$/, async route => {
-      await held;
-      await route.continue();
-    });
+    const { release } = await holdRoute(app.page, /\/assets\/index-.*\.js$/);
     const navigation = app.page.goto(`${app.base}/`);
     await app.page.locator("#inkledger-ssr-state").waitFor({ state: "attached" });
     assert.equal(await app.page.locator("#root").evaluate(root => root.childNodes.length), 0);
@@ -162,12 +157,7 @@ test("a logout during SSR does not restore the old session or private HTML", asy
   try {
     await app.page.goto(`${app.base}/`);
     const pending = await app.context.newPage();
-    let release = () => {};
-    const held = new Promise(resolve => (release = resolve));
-    await pending.route(`${app.base}/`, async route => {
-      await held;
-      await route.continue();
-    });
+    const { release } = await holdRoute(pending, `${app.base}/`);
     const navigation = pending.goto(`${app.base}/`).catch(() => undefined);
     const logout = await app.page.evaluate(() => fetch("/api/trpc/auth.logout?batch=1", {
       method: "POST",

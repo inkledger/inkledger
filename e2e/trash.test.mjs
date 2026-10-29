@@ -1,17 +1,7 @@
 // The worklog trash: what was deleted comes back with one click.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
-
-async function withApp(opts, body) {
-  const app = await start(opts);
-  try {
-    await body(app);
-    assert.deepEqual(app.errors, [], "no page errors");
-  } finally {
-    await app.stop();
-  }
-}
+import { start, trpcProcs, withApp } from "./harness.mjs";
 
 /**
  * Restoring logs on Jira, which the test server never writes to
@@ -20,7 +10,7 @@ async function withApp(opts, body) {
 async function fakeRestore(page, restored) {
   await page.route(/\/api\/trpc\/[^?]*worklogs\.restore/, async route => {
     restored.push(JSON.parse(route.request().postData() ?? "{}"));
-    const names = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1]).split(",");
+    const names = trpcProcs(route.request().url());
     const out = names.map(() => ({ result: { data: { json: { id: 999, issueKey: "DEMO-101", timeSpentSeconds: 1800 } } } }));
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(out) });
   });
