@@ -1489,7 +1489,11 @@ test("issue page and settings, wide: the page holds still, each column scrolls o
     await page.evaluate(() => (document.querySelector('[data-scroll-key="settings-category"]').scrollTop = 300));
     await page.getByRole("navigation", { name: "Settings categories" }).getByRole("link", { name: /Timers/ }).click();
     await page.waitForURL(u => u.pathname === "/settings/timers");
-    assert.equal(await page.evaluate(() => document.querySelector('[data-scroll-key="settings-category"]').scrollTop), 0);
+    // The new category's content replaces the old one, then its column is back at the top.
+    const top = await page
+      .waitForFunction(() => document.querySelector('[data-scroll-key="settings-category"]')?.scrollTop === 0, null, { timeout: 5000 })
+      .then(() => 0, () => page.evaluate(() => document.querySelector('[data-scroll-key="settings-category"]').scrollTop));
+    assert.equal(top, 0);
   }));
 
 test("timer started on the wrong issue: moved to another with its count, from the sidebar", () =>
@@ -1742,8 +1746,12 @@ test("platform and language: the back button's hint is in the app's language, to
     await page.goto(base + "/");
     // The toasts' region is there before any toast (its list only with one).
     await page.locator("section[aria-live]").first().waitFor({ state: "attached" });
+    // Italian's texts arrive after the first paint (fetched on demand): the label follows them.
+    const italian = await page
+      .waitForFunction(() => /^Notifiche/.test(document.querySelector("section[aria-live]")?.getAttribute("aria-label") ?? ""), null, { timeout: 10_000 })
+      .then(() => true, () => false);
     const label = await page.evaluate(() => document.querySelector("section[aria-live]")?.getAttribute("aria-label") ?? "");
-    assert.match(label, /^Notifiche/, `toaster labelled in Italian: ${label}`);
+    assert.ok(italian, `toaster labelled in Italian: ${label}`);
   }));
 
 test("settings search finds what the trackers call things (webhook, repository, token), in both languages", () =>
