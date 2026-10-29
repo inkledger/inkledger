@@ -51,8 +51,15 @@ import { t } from "@/i18n";
 import { buildNoteTree, descendantsOf, folderTarget, freeName, type NoteNode } from "./treeModel";
 import { newNotePath } from "./paths";
 import { MoveDialog } from "./NoteActions";
+import { useMoveNote } from "./useMoveNote";
 
 const untitled = (title: string) => title || t("pages.notes.untitled");
+
+/** Where a dragged row would land on another: just above it, inside it, or just below it. */
+type Zone = "before" | "into" | "after";
+const DRAG_TYPE = "application/x-ikl-note";
+/** How long a dragged row rests on a closed branch before it opens. */
+const OPEN_ON_HOVER_MS = 600;
 
 /** What a row's menu offers, the same from "…" and from a right-click. */
 type MenuEntry = { key: string; label: string; icon: ReactNode; run: () => void; destructive?: boolean } | "separator";
@@ -101,6 +108,18 @@ export function NoteTree({
   const closed = useRef<string | null>(null);
   // The row a closed rename field gives the focus back to, once it is drawn again (never later than the next key).
   const refocus = useRef<string | null>(null);
+  const dragging = useRef<string | null>(null);
+  const opening = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const [drop, setDrop] = useState<{ id: string; zone: Zone } | null>(null);
+  const mover = useMoveNote(items);
+  // A branch about to open by itself does not outlive the tree.
+  useEffect(
+    () => () => {
+      const pending = opening.current;
+      if (pending) clearTimeout(pending.timer);
+    },
+    []
+  );
   useEffect(() => {
     if (renaming !== null || !refocus.current) return;
     treeRef.current?.querySelector<HTMLElement>(`[role="treeitem"][data-id="${refocus.current}"]`)?.focus();
@@ -163,6 +182,32 @@ export function NoteTree({
   };
   /** The rows on screen, top to bottom (closed branches' rows are not drawn). */
   const visible = () => [...(treeRef.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])].map(el => el.dataset.id ?? "");
+
+  /**
+   * Where the dragged row would go when dropped on `target` in `zone`, or
+   * null where it may not: on itself or inside itself, a folder inside a note.
+   */
+  const placement = (dragId: string, target: NoteNode, zone: Zone): { parentId: string | null; index: number } | null => {
+    const moving = byId.get(dragId);
+    if (!moving || descendantsOf(items, dragId).has(target.id)) return null;
+    if (zone === "into") {
+      if (target.kind === "note" && moving.kind === "folder") return null;
+      return { parentId: target.id, index: items.filter(item => item.parentId === target.id && item.id !== dragId).length };
+    }
+    const parent = target.parentId ? byId.get(target.parentId) : undefined;
+    if (moving.kind === "folder" && parent?.kind === "note") return null;
+    const siblings = items.filter(item => item.parentId === target.parentId && item.id !== dragId);
+    return { parentId: target.parentId, index: siblings.findIndex(item => item.id === target.id) + (zone === "after" ? 1 : 0) };
+  };
+  const stopOpening = () => {
+    if (opening.current) clearTimeout(opening.current.timer);
+    opening.current = null;
+  };
+  const endDrag = () => {
+    dragging.current = null;
+    stopOpening();
+    setDrop(null);
+  };
 
   const entries = (node: NoteNode): MenuEntry[] => {
     const isFolder = node.kind === "folder";
@@ -287,17 +332,66 @@ export function NoteTree({
                 if (event.target === event.currentTarget) setFocusId(node.id);
               }}
               onKeyDown={event => onKey(event, node)}
+              draggable={renaming !== node.id}
+              onDragStart={event => {
+                event.stopPropagation();
+                dragging.current = node.id;
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData(DRAG_TYPE, node.id);
+              }}
+              onDragOver={event => {
+                const dragId = dragging.current;
+                if (!dragId) return;
+                const box = event.currentTarget.getBoundingClientRect();
+                const y = (event.clientY - box.top) / box.height;
+                const zone: Zone = y < 0.25 ? "before" : y > 0.75 ? "after" : "into";
+                if (!placement(dragId, node, zone)) {
+                  if (drop?.id === node.id) setDrop(null);
+                  return;
+                }
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                if (drop?.id !== node.id || drop.zone !== zone) setDrop({ id: node.id, zone });
+                // Resting inside a closed branch opens it, to drop deeper.
+                if (zone === "into" && hasChildren && !isOpen && opening.current?.id !== node.id) {
+                  stopOpening();
+                  opening.current = { id: node.id, timer: setTimeout(() => expand(node.id), OPEN_ON_HOVER_MS) };
+                } else if (zone !== "into" && opening.current?.id === node.id) stopOpening();
+              }}
+              onDragLeave={event => {
+                if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+                if (drop?.id === node.id) setDrop(null);
+                if (opening.current?.id === node.id) stopOpening();
+              }}
+              onDrop={event => {
+                const dragId = dragging.current;
+                const zone = drop?.id === node.id ? drop.zone : null;
+                endDrag();
+                const place = dragId && zone ? placement(dragId, node, zone) : null;
+                if (!dragId || !zone || !place) return;
+                event.preventDefault();
+                mover.move(dragId, place.parentId, place.index, () => {
+                  if (zone === "into") expand(node.id);
+                });
+              }}
+              onDragEnd={endDrag}
               onClick={event => {
                 // A menu item's click (drawn in a portal) reaches here through React: only the row's own opens.
                 if (renaming === node.id || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
                 open(node.id);
               }}
               {...surface("nav", { current: active, edge: false })}
+              data-drop={drop?.id === node.id ? drop.zone : undefined}
               className={cn(
-                "group flex min-h-9 min-w-0 cursor-pointer items-center rounded-md text-body-sm outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch",
-                active && "bg-primary-soft text-primary-strong"
+                "group relative flex min-h-9 min-w-0 cursor-pointer items-center rounded-md text-body-sm outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch",
+                active && "bg-primary-soft text-primary-strong",
+                drop?.id === node.id && drop.zone === "into" && "ring-2 ring-primary"
               )}
             >
+              {drop?.id === node.id && drop.zone !== "into" && (
+                // Where it lands: a line above or below the row.
+                <span aria-hidden className={cn("pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-primary", drop.zone === "before" ? "-top-px" : "-bottom-px")} />
+              )}
               <span
                 aria-hidden
                 className="flex size-7 shrink-0 items-center justify-center text-muted-foreground"

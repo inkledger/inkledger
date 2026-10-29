@@ -39,6 +39,8 @@ export const pages = {
     moveFolderText: "Choose where it goes: the top level or another folder. What it holds moves with it.",
     deleteFolderTitle: "Move folder to Trash?",
     deleteFolderText: "This also moves the {count} notes and folders inside. You can restore the whole branch for 30 days.",
+    searchPlace: "Search a folder or note…",
+    noPlace: "Nothing matches",
     createFirst: "Create your first note",
     search: "Search notes",
     filter: "Filter notes",

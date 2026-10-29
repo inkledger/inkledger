@@ -527,6 +527,12 @@ test("folders like a file manager: make, rename, fill, open, move, keyboard, del
     await page.keyboard.type("p");
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Plan 2027");
 
+    // Search finds a folder by name; it opens its view.
+    await page.getByRole("searchbox", { name: "Search notes" }).fill("meet");
+    await page.getByRole("list", { name: "Note search results" }).getByRole("link", { name: "Meetings, Folder" }).click();
+    await page.getByRole("region", { name: "Contents of Meetings" }).waitFor();
+    await page.getByRole("searchbox", { name: "Search notes" }).fill("");
+
     // Move to…: a folder goes only to the top level or into folders.
     await page.getByRole("button", { name: "Actions for Meetings" }).click();
     await page.getByRole("menuitem", { name: "Move to…" }).click();
@@ -578,5 +584,63 @@ test("a note that only groups others becomes a folder; one with text is never of
       assert.equal((await db.q("SELECT kind FROM markdown_notes WHERE title = 'Area'"))[0].kind, "folder");
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(overflow <= 1, `horizontal overflow: ${overflow}`);
+    }
+  ));
+
+test("moving: drag into a folder or beside a row, never a folder into a note, Move to… by search, each with Undo", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        const add = (id, parent, kind, title, position) =>
+          db.q(
+            "INSERT INTO markdown_notes (id, user_id, parent_id, kind, title, body, position, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)",
+            id, parent, kind, title, kind === "note" ? "text" : "", position, now, now
+          );
+        await add("00000000-0000-4000-8000-0000000000b1", null, "folder", "Alpha", 0);
+        await add("00000000-0000-4000-8000-0000000000b2", null, "folder", "Beta", 1);
+        await add("00000000-0000-4000-8000-0000000000b3", null, "note", "Loose", 2);
+        await add("00000000-0000-4000-8000-0000000000b4", "00000000-0000-4000-8000-0000000000b1", "note", "Inner", 0);
+      },
+    },
+    async ({ page, base, db }) => {
+      const parentOf = async title => (await db.q("SELECT parent_id FROM markdown_notes WHERE title = ?", title))[0].parent_id;
+      const rootOrder = async () => (await db.q("SELECT title FROM markdown_notes WHERE parent_id IS NULL AND deleted_at IS NULL ORDER BY position")).map(r => r.title);
+      await page.goto(base + "/notes");
+      const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+      const item = name => tree.getByRole("treeitem", { name, exact: true });
+      const middle = async locator => {
+        const box = await locator.boundingBox();
+        return { x: box.width / 2, y: box.height / 2 };
+      };
+
+      // Into a folder: dropped on its middle; Undo puts it back.
+      await item("Loose").dragTo(item("Beta, Folder"), { targetPosition: await middle(item("Beta, Folder")) });
+      await waitFor(async () => (await parentOf("Loose")) === "00000000-0000-4000-8000-0000000000b2", "dropped into Beta");
+      await page.getByRole("button", { name: "Undo" }).click();
+      await waitFor(async () => (await parentOf("Loose")) === null, "undone");
+
+      // Beside a row: on its top edge, before it.
+      const alpha = item("Alpha, Folder");
+      await item("Beta, Folder").dragTo(alpha, { targetPosition: { x: 40, y: 2 } });
+      await waitFor(async () => (await rootOrder()).join() === "Beta,Alpha,Loose", "Beta before Alpha");
+
+      // A folder never goes inside a note: nothing happens.
+      await item("Alpha, Folder").dragTo(item("Loose"), { targetPosition: await middle(item("Loose")) });
+      await page.waitForTimeout(300);
+      assert.equal(await parentOf("Alpha"), null);
+
+      // Move to…, by search, with its path.
+      await item("Loose").click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Move to…" }).click();
+      const dialog = page.getByRole("dialog", { name: "Move note" });
+      await dialog.getByRole("combobox").fill("alp");
+      await dialog.getByRole("option", { name: "Alpha", exact: true }).click();
+      assert.equal(await dialog.getByRole("option", { name: "Beta", exact: true }).count(), 0, "search narrows the places");
+      await dialog.getByRole("button", { name: "Move note" }).click();
+      await waitFor(async () => (await parentOf("Loose")) === "00000000-0000-4000-8000-0000000000b1", "moved into Alpha");
+      // The newest toast's Undo (an earlier move's may still show below it).
+      await page.getByRole("button", { name: "Undo" }).first().click();
+      await waitFor(async () => (await parentOf("Loose")) === null, "undone again");
     }
   ));

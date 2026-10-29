@@ -39,6 +39,8 @@ export const pages: Shape<typeof en> = {
     moveFolderText: "Scegli dove va: il livello principale o un'altra cartella. Il contenuto si sposta con lei.",
     deleteFolderTitle: "Spostare la cartella nel Cestino?",
     deleteFolderText: "Verranno spostati anche i {count} appunti e cartelle al suo interno. Potrai ripristinare l'intero ramo per 30 giorni.",
+    searchPlace: "Cerca una cartella o un appunto…",
+    noPlace: "Nessun risultato",
     createFirst: "Crea il primo appunto",
     search: "Cerca negli appunti",
     filter: "Filtra appunti",

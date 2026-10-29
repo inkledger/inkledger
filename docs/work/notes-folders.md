@@ -1,6 +1,6 @@
 # Status: Markdown notes in folders, with a navigable tree
 
-Planned (2026-10-29), not started.
+Done 2026-10-29: steps 1–4 below, checks in "Checks" passed (vitest notes*, `e2e/notes.test.mjs`, a11y, layout-overflow).
 
 ## Goal and completion criteria
 - Notes can be organized in **folders**, nested to any depth, and the **tree can be navigated**:
@@ -53,11 +53,11 @@ Planned (2026-10-29), not started.
   - The expanded state is remembered per device; the tree follows the open note (expand to it, scroll into view).
   - Folder and note icons.
   - A "New folder" action at the root and in each folder's menu.
-- [ ] **3. Moving.**
+- [x] **3. Moving.** Done 2026-10-29: drag in the tree (top quarter before, bottom quarter after, middle inside; refused where the server would refuse, with no drop mark), a closed branch opens after 600 ms of rest; "Move to…" searches the places by their path; every move says so with Undo (`useMoveNote`).
   - Drag and drop in the tree: before, after, or into a folder, with a drop indicator and auto-expand on hover.
   - On touch, and as the keyboard alternative: a "Move to…" dialog with a searchable folder picker.
   - Undo in the toast.
-- [ ] **4. Where am I.** Breadcrumb and folder view done 2026-10-29 (the page header's breadcrumb takes the folders as steps, `Breadcrumb` `trail`); search results' path still to show.
+- [x] **4. Where am I.** Done 2026-10-29: the page header's breadcrumb takes the folders as steps (`Breadcrumb` `trail`); the folder view lists what a folder holds; search results show each one's path and a folder's icon, and a folder found opens its view.
   - A breadcrumb (folder › folder › note) on the note page, each step opening that folder.
   - A folder view that lists its contents with "New note here" and "New folder here".
   - Search results show each note's path.

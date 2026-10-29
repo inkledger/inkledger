@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowDown, ArrowUp, FolderInput, Link2, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, FileText, Folder, FolderInput, FolderTree, Link2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { NoteIssue, NoteTreeItem } from "@contracts/notes";
 import { trpc } from "@/lib/trpc";
@@ -23,17 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { IssuePicker } from "@/components/app/IssuePicker";
 import { t } from "@/i18n";
 import { toastError } from "@/lib/errorText";
-import { descendantsOf, siblingIndices } from "./treeModel";
+import { ancestorIds, descendantsOf, siblingIndices } from "./treeModel";
+import { useMoveNote } from "./useMoveNote";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import type { NoteDocumentController } from "./useNoteDocument";
 import { NoteHistorySheet } from "./NoteHistorySheet";
 
@@ -172,23 +167,21 @@ export function MoveDialog({
   const note = tree.find(item => item.id === id);
   const isFolder = note?.kind === "folder";
   const [parentId, setParentId] = useState<string>(note?.parentId ?? "root");
+  // Each place as its path ("Work / Meetings"): two folders with one name stay apart, and search finds either word.
+  const byId = new Map(tree.map(item => [item.id, item]));
+  const pathOf = (item: NoteTreeItem) =>
+    [...ancestorIds(tree, item.id).reverse().map(step => byId.get(step)), item]
+      .map(step => step?.title || t("pages.notes.untitled"))
+      .join(" / ");
   const siblings = siblingIndices(
     tree,
     id,
     parentId === "root" ? null : parentId
   );
   const [index, setIndex] = useState(note?.position ?? siblings.length);
-  const utils = trpc.useUtils();
   const excluded = descendantsOf(tree, id);
-  const move = trpc.notes.move.useMutation({
-    onSuccess: item => {
-      onMetadata?.(item);
-      toast.success(t("pages.notes.moved"));
-      void utils.notes.tree.invalidate();
-      onOpenChange(false);
-    },
-    onError: (error: unknown) => toastError(error),
-  });
+  const places = tree.filter(item => !excluded.has(item.id) && (!isFolder || item.kind === "folder"));
+  const move = useMoveNote(tree, onMetadata);
   const max = siblings.length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -197,30 +190,32 @@ export function MoveDialog({
           <DialogTitle>{t(isFolder ? "pages.notes.moveFolderTitle" : "pages.notes.moveTitle")}</DialogTitle>
           <DialogDescription>{t(isFolder ? "pages.notes.moveFolderText" : "pages.notes.moveText")}</DialogDescription>
         </DialogHeader>
-        <label className="grid gap-2 text-body-sm">
-          {t("pages.notes.parent")}
-          <Select
-            value={parentId}
-            onValueChange={value => {
-              setParentId(value);
-              setIndex(0);
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="root">{t("pages.notes.root")}</SelectItem>
-              {tree
-                .filter(item => !excluded.has(item.id) && (!isFolder || item.kind === "folder"))
-                .map(item => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.title || t("pages.notes.untitled")}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </label>
+        <div className="grid gap-2 text-body-sm">
+          <span id="note-move-parent">{t("pages.notes.parent")}</span>
+          <Command aria-labelledby="note-move-parent" className="rounded-md border">
+            <CommandInput placeholder={t("pages.notes.searchPlace")} />
+            <CommandList className="max-h-56">
+              <CommandEmpty>{t("pages.notes.noPlace")}</CommandEmpty>
+              {[{ key: "root", label: t("pages.notes.root"), kind: "folder" as const }, ...places.map(item => ({ key: item.id, label: pathOf(item), kind: item.kind }))].map(place => {
+                const Icon = place.key === "root" ? FolderTree : place.kind === "folder" ? Folder : FileText;
+                return (
+                  <CommandItem
+                    key={place.key}
+                    value={`${place.label} ${place.key}`}
+                    onSelect={() => {
+                      setParentId(place.key);
+                      setIndex(0);
+                    }}
+                  >
+                    <Icon aria-hidden />
+                    <span className="min-w-0 flex-1 truncate">{place.label}</span>
+                    {parentId === place.key && <Check aria-hidden className="text-primary" />}
+                  </CommandItem>
+                );
+              })}
+            </CommandList>
+          </Command>
+        </div>
         <div className="flex items-center gap-2">
           <span className="flex-1 text-body-sm">
             {t("pages.notes.position", {
@@ -254,11 +249,7 @@ export function MoveDialog({
           <Button
             disabled={move.isPending}
             onClick={() =>
-              move.mutate({
-                id,
-                parentId: parentId === "root" ? null : parentId,
-                index: Math.min(index, max),
-              })
+              move.move(id, parentId === "root" ? null : parentId, Math.min(index, max), () => onOpenChange(false))
             }
           >
             {t(isFolder ? "pages.notes.moveFolderTitle" : "pages.notes.moveConfirm")}
