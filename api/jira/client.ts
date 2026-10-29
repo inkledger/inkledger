@@ -802,6 +802,15 @@ export async function fetchComments(creds: JiraCredentials, issueKey: string): P
   return res.comments ?? [];
 }
 
+// ---------- Statuses ----------
+
+export type JiraStatus = { id: string; name: string; statusCategory?: { key?: string } };
+
+/** Every status of the site, with its numeric id and category (read-only). */
+export async function fetchStatuses(creds: JiraCredentials): Promise<JiraStatus[]> {
+  return jiraFetch<JiraStatus[]>(creds, `${apiBase(creds)}/status`);
+}
+
 // ---------- History ----------
 
 export type JiraHistory = {

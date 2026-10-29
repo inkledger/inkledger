@@ -26,10 +26,10 @@ const STATUSES = [
   { id: "31", name: "Done", category: "done" as const },
 ];
 
-export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim", o: { statusNames?: Record<string, string> } = {}) {
+export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim", o: { statusNames?: Record<string, string>; moreStatuses?: { id: string; name: string; category: "new" | "indeterminate" | "done" }[] } = {}) {
   /** Status names as the site shows them (a localized site renames them; ids stay) */
-  const named = (s: (typeof STATUSES)[number]) => ({ ...s, name: o.statusNames?.[s.id] ?? s.name });
-  const statuses = STATUSES.map(named);
+  const named = (s: { id: string; name: string; category: "new" | "indeterminate" | "done" }) => ({ ...s, name: o.statusNames?.[s.id] ?? s.name });
+  let statuses = [...STATUSES, ...(o.moreStatuses ?? [])].map(named);
   const issues = new Map<string, Issue>();
   const worklogs = new Map<string, Worklog>();
   const deleted: { id: string; at: number }[] = [];
@@ -110,6 +110,7 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
       const i = issues.get(decodeURIComponent(m[1]));
       return i ? json({ ...view(i), changelog: { histories: i.histories } }) : json({ errorMessages: ["Issue does not exist"] }, 404);
     }
+    if (path === "/status" && method === "GET") return json(statuses.map((s) => ({ id: s.id, name: s.name, statusCategory: { key: s.category } })));
     if ((m = /^\/issue\/([^/]+)\/changelog$/.exec(path))) {
       const i = issues.get(decodeURIComponent(m[1]));
       return i ? json({ values: i.histories, isLast: true }) : json({ errorMessages: ["Issue does not exist"] }, 404);
@@ -184,7 +185,16 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     return true;
   }
   /** Changes made by someone else, on the site */
-  const outside = { transition: (key: string, statusId: string) => void transition(issues.get(key)!, statusId) };
+  const outside = {
+    transition: (key: string, statusId: string) => void transition(issues.get(key)!, statusId),
+    /** An admin renames a status: same id, the new name everywhere (the changelog keeps the old names) */
+    renameStatus(statusId: string, name: string) {
+      statuses = statuses.map((s) => (s.id === statusId ? { ...s, name } : s));
+      for (const i of issues.values()) if (i.status.id === statusId) i.status = { ...i.status, name };
+    },
+    /** An admin deletes a status no issue is in any more */
+    deleteStatus: (statusId: string) => void (statuses = statuses.filter((s) => s.id !== statusId)),
+  };
 
   /** The issue moves to another project: same id, new key (the old key answers 404). */
   const move = (key: string, newKey: string) => {

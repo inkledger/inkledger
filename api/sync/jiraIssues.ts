@@ -70,6 +70,7 @@ function conflictSet<R extends object>(row: R) {
 /** Rewrite a synced row only when Jira changed it (or it predates jira_updated_at). */
 const ROW_CHANGED = sql`${issues.remoteUpdated} IS DISTINCT FROM excluded.jira_updated
   OR ${issues.status} IS DISTINCT FROM excluded.status
+  OR ${issues.statusId} IS DISTINCT FROM excluded.status_id
   OR ${issues.assigneeId} IS DISTINCT FROM excluded.assignee_id
   OR ${issues.url} IS DISTINCT FROM excluded.url
   OR ${issues.projectAvatarUrl} IS DISTINCT FROM excluded.project_avatar_url
@@ -113,6 +114,7 @@ export function toRow(userId: number, siteUrl: string, connectionId: number, i: 
     key: i.key,
     summary: i.fields.summary,
     status: i.fields.status?.name ?? "Unknown",
+    statusId: i.fields.status?.id ?? null,
     statusCategory: canonicalCategory(i.fields.status?.statusCategory),
     category: categoryOfGroup(canonicalCategory(i.fields.status?.statusCategory)),
     projectKey: i.fields.project?.key ?? "",

@@ -33,6 +33,7 @@ export function fieldsOf(i: RemoteIssue) {
     key: i.key,
     summary: i.title,
     status: i.status.name,
+    statusId: i.status.id,
     statusCategory: GROUP[i.status.category],
     category: i.status.category,
     priorityRank: i.priority?.rank ?? null,

@@ -9,6 +9,7 @@ import { JiraApiError } from "./jira/client";
 import { UnreadableCredentialsError } from "./middleware";
 import { isShuttingDown } from "./lib/shutdown";
 import { inMaintenance } from "./lib/maintenance";
+import { readDueHistories } from "./estimates/history";
 
 /**
  * Jira refused the stored credentials (revoked token) or they can't be decrypted: retrying
@@ -81,6 +82,15 @@ export async function syncActiveUsers(): Promise<{ ok: number; failed: number }>
   return { ok, failed };
 }
 
+/** The history pass never fails the sync's: a failure waits for the next pass. */
+async function readHistories(): Promise<void> {
+  try {
+    await readDueHistories();
+  } catch (e) {
+    console.warn(`[estimates] history pass: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 /** First pass soon after boot, so a restart doesn't leave data stale for a whole interval. */
 export const FIRST_SYNC_DELAY_MS = 30_000;
 
@@ -97,10 +107,13 @@ export function startSyncScheduler(minutes: number): () => Promise<void> {
   let handle: ReturnType<typeof setTimeout>;
   const schedule = (ms: number) => {
     handle = setTimeout(() => {
-      current = syncActiveUsers().finally(() => {
-        current = null;
-        if (!stopped) schedule(minutes * 60_000);
-      });
+      // Then the status histories the pass made due (estimates): read only, a bounded number per pass.
+      current = syncActiveUsers()
+        .then(() => (isShuttingDown() ? undefined : readHistories()))
+        .finally(() => {
+          current = null;
+          if (!stopped) schedule(minutes * 60_000);
+        });
     }, ms);
     handle.unref();
   };

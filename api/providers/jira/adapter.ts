@@ -25,6 +25,7 @@ import {
   fetchDeletedWorklogIds,
   fetchIssueByKey,
   fetchChangelog,
+  fetchStatuses,
   fetchIssueHistory,
   fetchRecentlyAssignedIssues,
   fetchTransitions,
@@ -50,7 +51,8 @@ import type { JiraTransitionField } from "../../jira/client";
 export const jiraCapabilities: TrackerCapabilities = {
   workflow: { sources: [{ kind: "itemState", transitions: "workflow" }] },
   transitions: { read: true, write: true },
-  statuses: false,
+  // Every status of the site (estimates read their ids and categories)
+  statuses: true,
   searchText: true,
   query: "jql",
   // Cloud comments are ADF documents, Server ones wiki markup.
@@ -481,6 +483,10 @@ export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
   async watch(x, ref, on) {
     // Watching what is watched (or not) is a success: Jira answers the same.
     await setWatching(await credsOf(x), ref.key, x.conn.remoteAccountId, on);
+  },
+
+  async statuses(x) {
+    return (await fetchStatuses(await credsOf(x))).map((s) => statusOf(s));
   },
 
   async statusHistory(x, ref) {

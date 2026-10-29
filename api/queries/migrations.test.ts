@@ -136,6 +136,9 @@ describe("migrations over a draft of 0010", () => {
     await query('DROP TABLE "markdown_notes"');
     await query('DROP TABLE "planned_entries"');
     await query('DROP FUNCTION "inkledger_planned_entries_issue_key" CASCADE');
+    for (const f of ["inkledger_issue_estimates", "inkledger_worklog_estimates", "inkledger_todo_estimates", "inkledger_user_estimates", "inkledger_raise_estimate_revision"]) await query(`DROP FUNCTION "${f}" CASCADE`);
+    for (const t of ["estimate_revisions", "issue_history_reads", "issue_status_changes", "status_snapshots", "work_statuses"]) await query(`DROP TABLE "${t}"`);
+    await query('ALTER TABLE "issues" DROP COLUMN "status_id"');
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [w10]);
     await query("insert into drizzle.__drizzle_migrations (hash, created_at) values ('draft', $1)", [w10 - 1]);
     await expect(up()).resolves.toBeUndefined();

@@ -237,6 +237,8 @@ export const issues = pgTable(
     key: text("key").notNull(),
     summary: text("summary").notNull(),
     status: text("status").notNull(),
+    /** RemoteIssue.status.id, filled by the sync: the identity estimates read history by (the name can be renamed) */
+    statusId: text("status_id"),
     /** The native status group's name ("To Do", "In corso"…), as the service shows it */
     statusCategory: text("status_category").notNull().default(""),
     /** The canonical category (StatusCategory): triage, backlog, todo, doing, done, cancelled */
@@ -1434,3 +1436,92 @@ export const sinkMappings = pgTable(
   },
   (t) => [uniqueIndex("uq_sink_mappings").on(t.sinkConnectionId, sql`coalesce(${t.containerId}, 0)`)],
 );
+
+// ---------- Estimates: status history (docs/work/ideas/estimates.md) ----------
+
+/** An issue's status history read (R-3.4, R-3.12). */
+export const issueHistoryReads = pgTable(
+  "issue_history_reads",
+  {
+    itemId: integer("item_id")
+      .primaryKey()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** available | pending | unsupported | stale | retry | invalid */
+    state: text("state").notNull(),
+    /** Raised by every write of this row: a read writes only over the generation it saw */
+    generation: integer("generation").notNull().default(0),
+    readAt: ms("read_at"),
+    /** The issue's remoteUpdatedAt and status_id when it was read: later ones make it stale */
+    sourceUpdatedAt: epochMs("source_updated_at"),
+    statusIdAtRead: text("status_id_at_read"),
+    changes: integer("changes").notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: ms("next_attempt_at"),
+    /** Why it is invalid or failed (a code, never tracker content) */
+    reason: text("reason"),
+  },
+  (t) => [
+    index("idx_issue_history_reads_due").on(t.userId, t.state, t.nextAttemptAt),
+    check("issue_history_reads_state", sql`${t.state} IN ('available','pending','unsupported','stale','retry','invalid')`),
+  ],
+);
+
+/** A status the user set apart from the provider's default (R-3.14), by remote status id. */
+export const workStatuses = pgTable(
+  "work_statuses",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: integer("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    statusId: text("status_id").notNull(),
+    counts: integer("counts").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.connectionId, t.statusId] })],
+);
+
+/** An issue's status changes as its tracker returned them (R-3.11): ids, in (at, ordinal) order. Replaced whole by each read. */
+export const issueStatusChanges = pgTable(
+  "issue_status_changes",
+  {
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    /** The change's index in the order the tracker returned the history: ties on `at` keep it */
+    ordinal: integer("ordinal").notNull(),
+    at: ms("at").notNull(),
+    /** Remote status ids; null `from` only on the first change (which then makes the history invalid) */
+    fromStatusId: text("from_status_id"),
+    toStatusId: text("to_status_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.ordinal] }), index("idx_issue_status_changes_order").on(t.itemId, t.at, t.ordinal)],
+);
+
+/** A status as last seen on its tracker (R-3.13): a status deleted since stays readable. */
+export const statusSnapshots = pgTable(
+  "status_snapshots",
+  {
+    connectionId: integer("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    statusId: text("status_id").notNull(),
+    name: text("name").notNull(),
+    /** contracts/providers.ts STATUS_CATEGORIES */
+    category: text("category").notNull(),
+    seenAt: ms("seen_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.connectionId, t.statusId] })],
+);
+
+/** What any estimate of the user depends on; raised by every write that changes one (R-3.15). */
+export const estimateRevisions = pgTable("estimate_revisions", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  revision: bigint("revision", { mode: "bigint" }).notNull().default(sql`0`),
+});
