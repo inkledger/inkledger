@@ -14,6 +14,7 @@ import {
   foreignKey,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import type { PlannedKind } from "../contracts/planned";
 import { sql } from "drizzle-orm";
 
 /**
@@ -359,6 +360,44 @@ export const worklogs = pgTable(
  * containers) the lists can be narrowed to, chosen per device. Personal
  * totals never follow it (D9).
  */
+export const plannedEntries = pgTable(
+  "planned_entries",
+  {
+    id: uuid("id").notNull().defaultRandom().primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "work" | "travel" | "vacation" */
+    kind: text("kind").$type<PlannedKind>().notNull(),
+    startsAt: ms("starts_at").notNull(),
+    /** Exclusive: duration is always endsAt - startsAt. */
+    endsAt: ms("ends_at").notNull(),
+    note: text("note"),
+    connectionId: optionalConnectionRef(),
+    itemId: itemRef(),
+    issueKey: text("issue_key"),
+    convertedWorklogId: integer("converted_worklog_id").references(() => worklogs.id, { onDelete: "set null" }),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_planned_entries_user_interval").on(t.userId, t.startsAt, t.endsAt),
+    index("idx_planned_entries_issue").on(t.userId, t.connectionId, t.issueKey),
+    uniqueIndex("uq_planned_entries_converted_worklog").on(t.convertedWorklogId),
+    check("planned_entries_kind", sql`${t.kind} IN ('work', 'travel', 'vacation')`),
+    check("planned_entries_interval", sql`${t.endsAt} > ${t.startsAt}`),
+    check("planned_entries_issue_has_connection", sql`${t.issueKey} IS NULL OR ${t.connectionId} IS NOT NULL`),
+    check("planned_entries_work_has_issue", sql`${t.kind} <> 'work' OR (${t.connectionId} IS NOT NULL AND ${t.issueKey} IS NOT NULL)`),
+    check("planned_entries_vacation_user_level", sql`${t.kind} <> 'vacation' OR (${t.connectionId} IS NULL AND ${t.itemId} IS NULL AND ${t.issueKey} IS NULL)`),
+  ],
+);
+
+export type PlannedEntry = typeof plannedEntries.$inferSelect;
+
 export const buckets = pgTable(
   "buckets",
   {
