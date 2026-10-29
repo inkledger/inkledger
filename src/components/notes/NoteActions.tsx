@@ -152,7 +152,11 @@ export function NoteActions({
   );
 }
 
-function MoveDialog({
+/**
+ * Where a note or folder goes: a new parent (a folder goes only to the top
+ * level or into a folder) and its place there.
+ */
+export function MoveDialog({
   id,
   tree,
   open,
@@ -163,9 +167,10 @@ function MoveDialog({
   tree: NoteTreeItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onMetadata: (item: NoteTreeItem) => void;
+  onMetadata?: (item: NoteTreeItem) => void;
 }) {
   const note = tree.find(item => item.id === id);
+  const isFolder = note?.kind === "folder";
   const [parentId, setParentId] = useState<string>(note?.parentId ?? "root");
   const siblings = siblingIndices(
     tree,
@@ -177,7 +182,7 @@ function MoveDialog({
   const excluded = descendantsOf(tree, id);
   const move = trpc.notes.move.useMutation({
     onSuccess: item => {
-      onMetadata(item);
+      onMetadata?.(item);
       toast.success(t("pages.notes.moved"));
       void utils.notes.tree.invalidate();
       onOpenChange(false);
@@ -189,8 +194,8 @@ function MoveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("pages.notes.moveTitle")}</DialogTitle>
-          <DialogDescription>{t("pages.notes.moveText")}</DialogDescription>
+          <DialogTitle>{t(isFolder ? "pages.notes.moveFolderTitle" : "pages.notes.moveTitle")}</DialogTitle>
+          <DialogDescription>{t(isFolder ? "pages.notes.moveFolderText" : "pages.notes.moveText")}</DialogDescription>
         </DialogHeader>
         <label className="grid gap-2 text-body-sm">
           {t("pages.notes.parent")}
@@ -207,7 +212,7 @@ function MoveDialog({
             <SelectContent>
               <SelectItem value="root">{t("pages.notes.root")}</SelectItem>
               {tree
-                .filter(item => !excluded.has(item.id))
+                .filter(item => !excluded.has(item.id) && (!isFolder || item.kind === "folder"))
                 .map(item => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.title || t("pages.notes.untitled")}
@@ -256,7 +261,7 @@ function MoveDialog({
               })
             }
           >
-            {t("pages.notes.moveConfirm")}
+            {t(isFolder ? "pages.notes.moveFolderTitle" : "pages.notes.moveConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

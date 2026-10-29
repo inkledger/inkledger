@@ -44,7 +44,9 @@ import { NoteEditor } from "@/components/notes/NoteEditor";
 import { NoteActions } from "@/components/notes/NoteActions";
 import { SaveStatus } from "@/components/notes/SaveStatus";
 import { NoteTrash } from "@/components/notes/NoteTrash";
-import { ancestorIds } from "@/components/notes/treeModel";
+import { ancestorIds, folderTarget } from "@/components/notes/treeModel";
+import { FolderView } from "@/components/notes/FolderView";
+import { newNotePath } from "@/components/notes/paths";
 import {
   listDrafts,
   newDraftId,
@@ -65,16 +67,6 @@ const fields: Fields<{
     codec: oneOf(["tree", "search"] as const),
   },
 };
-
-function newNotePath(parentId?: string, issue?: NoteIssue | null): string {
-  const params = new URLSearchParams({ draft: newDraftId() });
-  if (parentId) params.set("parentId", parentId);
-  if (issue) {
-    params.set("issueKey", issue.issueKey);
-    params.set("connectionId", String(issue.connectionId));
-  }
-  return `/notes/new?${params}`;
-}
 
 export default function NotesPage() {
   const { noteId } = useParams();
@@ -129,6 +121,8 @@ export default function NotesPage() {
   const selected = noteId
     ? tree.data?.find(item => item.id === noteId)
     : undefined;
+  // An open folder shows what it holds, until closed by hand while open.
+  const [closedOpen, setClosedOpen] = useState<string | null>(null);
   const initialParent =
     isNew && parentParam && /^[0-9a-f-]{36}$/i.test(parentParam)
       ? parentParam
@@ -158,9 +152,11 @@ export default function NotesPage() {
     },
   };
 
+  // What leads to the open note or folder is shown, and an open folder shows what it holds.
   const shownExpanded = new Set([
     ...expanded,
     ...(noteId && tree.data ? ancestorIds(tree.data, noteId) : []),
+    ...(selected?.kind === "folder" && closedOpen !== selected.id ? [selected.id] : []),
   ]);
 
   useEffect(() => {
@@ -199,36 +195,63 @@ export default function NotesPage() {
     return <Navigate to={`${location.pathname}?${next}`} replace />;
   }
 
+  const expand = (id: string) => {
+    setExpanded(previous => {
+      if (previous.has(id)) return previous;
+      const next = new Set(previous).add(id);
+      writeStored(expansionKey, JSON.stringify([...next]));
+      return next;
+    });
+  };
   const toggle = (id: string) => {
+    const closing = shownExpanded.has(id);
+    setClosedOpen(closing && id === selected?.id ? id : null);
     setExpanded(previous => {
       const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
+      if (closing) next.delete(id);
       else next.add(id);
       writeStored(expansionKey, JSON.stringify([...next]));
       return next;
     });
   };
   const hasDocument = isNew || !!noteId;
+  const openFolder = selected?.kind === "folder" ? selected : undefined;
+  // The folders and notes on the way to the open one, as breadcrumb steps.
+  const trail =
+    noteId && tree.data
+      ? ancestorIds(tree.data, noteId)
+          .reverse()
+          .flatMap(id => {
+            const step = tree.data?.find(item => item.id === id);
+            return step ? [{ label: step.title || t("pages.notes.untitled"), to: `/notes/${step.id}${location.search}` }] : [];
+          })
+      : [];
+  // "New" goes into the folder on screen, or the one holding the open note.
+  const newHere = newNotePath(folderTarget(tree.data ?? [], noteId));
   const treeError = tree.error;
 
   return (
     <NoteController key={identity} options={controllerOptions}>
       {controller => {
-        const title = hasDocument
-          ? controller.title || t("pages.notes.untitled")
-          : t("pages.notes.title");
+        // A folder's name is the tree's (it has no document of its own to load).
+        const title = openFolder
+          ? openFolder.title || t("pages.notes.untitled")
+          : hasDocument
+            ? controller.title || t("pages.notes.untitled")
+            : t("pages.notes.title");
         return (
           <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
             <PageHeader
               title={title}
               documentTitle={hasDocument ? title : t("pages.notes.title")}
               breadcrumbCurrent={hasDocument ? title : undefined}
+              breadcrumbTrail={trail}
               description={t("pages.notes.description")}
               titleClassName="truncate"
               className="min-h-[10rem] sm:min-h-[8rem] xl:min-h-[5rem]"
               actions={
                 <>
-                  {hasDocument && (
+                  {hasDocument && !openFolder && (
                     <SaveStatus
                       status={controller.status}
                       savedAt={controller.note?.updatedAt}
@@ -236,7 +259,7 @@ export default function NotesPage() {
                     />
                   )}
                   <Button asChild size="sm">
-                    <Link to={newNotePath()}>
+                    <Link to={newHere}>
                       <Plus />
                       {t("pages.notes.new")}
                     </Link>
@@ -360,26 +383,37 @@ export default function NotesPage() {
                     message={errorText(treeError)}
                     onRetry={() => tree.refetch()}
                   />
-                ) : !tree.data?.length ? (
-                  <EmptyState
-                    art="inbox"
-                    title={t("pages.notes.empty")}
-                    message={t("pages.notes.emptyText")}
-                    action={
-                      <Button asChild size="sm">
-                        <Link to={newNotePath()}>
-                          {t("pages.notes.createFirst")}
-                        </Link>
-                      </Button>
-                    }
-                  />
                 ) : (
                   <NoteTree
                     items={tree.data}
                     selectedId={noteId}
                     expanded={shownExpanded}
                     toggle={toggle}
+                    expand={expand}
                     search={location.search}
+                    beforeDelete={async ids => {
+                      // The open note goes too: its last typing is saved first, never lost to a conflict.
+                      if (!noteId || !ids.has(noteId) || openFolder) return true;
+                      const saved = await controller.flush();
+                      return controller.isCurrent(saved) && !controller.getConflict();
+                    }}
+                    onDeleted={ids => {
+                      if (noteId && ids.has(noteId)) void navigate(`/notes${location.search}`);
+                    }}
+                    empty={
+                      <EmptyState
+                        art="inbox"
+                        title={t("pages.notes.empty")}
+                        message={t("pages.notes.emptyText")}
+                        action={
+                          <Button asChild size="sm">
+                            <Link to={newNotePath()}>
+                              {t("pages.notes.createFirst")}
+                            </Link>
+                          </Button>
+                        }
+                      />
+                    }
                   />
                 )}
                 {queryText.length === 1 && (
@@ -415,6 +449,8 @@ export default function NotesPage() {
                     }
                     className="my-auto py-24"
                   />
+                ) : openFolder ? (
+                  <FolderView folder={openFolder} items={tree.data ?? []} search={location.search} />
                 ) : controller.isLoading ? (
                   <PageSpinner />
                 ) : controller.loadError && !controller.note ? (
@@ -433,18 +469,6 @@ export default function NotesPage() {
                         <ChevronLeft className="h-4 w-4" />
                         {t("pages.notes.title")}
                       </Link>
-                      {selected && (
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="sm"
-                          className="ml-auto"
-                        >
-                          <Link to={newNotePath(selected.id)}>
-                            {t("pages.notes.newChild")}
-                          </Link>
-                        </Button>
-                      )}
                     </div>
                     <NoteActions
                       controller={controller}

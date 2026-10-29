@@ -72,6 +72,7 @@ export const notesRouter = createRouter({
         id: markdownNotes.id,
         parentId: markdownNotes.parentId,
         kind: markdownNotes.kind,
+        hasText: sql<boolean>`btrim(${markdownNotes.body}) <> ''`,
         position: markdownNotes.position,
         title: markdownNotes.title,
         contentRevision: markdownNotes.contentRevision,

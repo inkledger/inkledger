@@ -38,6 +38,7 @@ export function noteTreeItem(row: MarkdownNote): NoteTreeItem {
     id: row.id,
     parentId: row.parentId,
     kind: noteKind(row.kind),
+    hasText: row.body.trim() !== "",
     position: row.position,
     title: row.title,
     contentRevision: row.contentRevision,

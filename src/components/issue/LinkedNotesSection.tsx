@@ -162,6 +162,7 @@ function LinkExisting({
         id: result.id,
         parentId: null,
         kind: result.kind,
+        hasText: true,
         position: 0,
         title: result.title,
         contentRevision: 1,

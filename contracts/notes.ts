@@ -30,6 +30,8 @@ export type NoteTreeItem = {
   id: string;
   parentId: string | null;
   kind: NoteKind;
+  /** Whether it has text: only a note without text may become a folder. */
+  hasText: boolean;
   position: number;
   title: string;
   contentRevision: number;

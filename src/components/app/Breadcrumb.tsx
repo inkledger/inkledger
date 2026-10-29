@@ -5,12 +5,15 @@ import { navEntryFor } from "@/lib/nav";
 import { useBack } from "@/hooks/useNavHistory";
 import { t } from "@/i18n";
 
+/** A step between the page and the current item (a folder on the way to a note). */
+export type BreadcrumbStep = { label: string; to: string };
+
 /**
- * "Gruppo › Pagina [› current]" trail. On a detail page opened from
+ * "Gruppo › Pagina [› steps…] [› current]" trail. On a detail page opened from
  * elsewhere it says where you came from instead ("Board › DEMO-1"), and
  * that step goes back there.
  */
-export function Breadcrumb({ current }: { current?: string }) {
+export function Breadcrumb({ current, trail = [] }: { current?: string; trail?: BreadcrumbStep[] }) {
   const { pathname } = useLocation();
   const back = useBack();
   const entry = navEntryFor(pathname);
@@ -18,7 +21,7 @@ export function Breadcrumb({ current }: { current?: string }) {
   const via = current && back;
   return (
     <nav aria-label={t("ui.breadcrumb.label")} className="mb-1">
-      <ol className="flex items-center gap-1 text-caption font-medium text-muted-foreground">
+      <ol className="flex min-w-0 flex-wrap items-center gap-1 text-caption font-medium text-muted-foreground">
         {!via && (
           <>
             <li>{entry.group}</li>
@@ -40,6 +43,14 @@ export function Breadcrumb({ current }: { current?: string }) {
             <span aria-current="page">{entry.label}</span>
           )}
         </li>
+        {trail.map(step => (
+          <li key={step.to} className="flex min-w-0 items-center gap-1">
+            <ChevronRight aria-hidden className="h-3 w-3 shrink-0" />
+            <Link to={step.to} className="max-w-[12rem] truncate hover:text-foreground hover:underline underline-offset-4">
+              {step.label}
+            </Link>
+          </li>
+        ))}
         {current && (
           <>
             <li aria-hidden>

@@ -4,17 +4,21 @@ import {
   ancestorIds,
   buildNoteTree,
   descendantsOf,
+  folderTarget,
+  freeName,
   siblingIndices,
 } from "./treeModel";
 
 const item = (
   id: string,
   parentId: string | null,
-  position = 0
+  position = 0,
+  kind: NoteTreeItem["kind"] = "note"
 ): NoteTreeItem => ({
   id,
   parentId,
-  kind: "note",
+  kind,
+  hasText: false,
   position,
   title: id,
   contentRevision: 1,
@@ -53,5 +57,29 @@ describe("note tree model", () => {
   it("does not loop forever on malformed cyclic data", () => {
     const cyclic = [item("a", "c"), item("b", "a"), item("c", "b")];
     expect(ancestorIds(cyclic, "a")).toEqual(["c", "b"]);
+  });
+
+  it("creates in the selected folder, or in the folder holding the selected note", () => {
+    const tree = [
+      item("work", null, 0, "folder"),
+      item("plan", "work"),
+      item("sub", "plan"),
+      item("loose", null, 1),
+    ];
+    expect(folderTarget(tree, "work")).toBe("work");
+    expect(folderTarget(tree, "sub")).toBe("work");
+    expect(folderTarget(tree, "loose")).toBeNull();
+    expect(folderTarget(tree, undefined)).toBeNull();
+  });
+
+  it("names a new folder with a name not taken beside it", () => {
+    const tree = [
+      { ...item("a", null, 0, "folder"), title: "New folder" },
+      { ...item("b", null, 1, "folder"), title: "new folder 2" },
+      { ...item("c", "a", 0, "folder"), title: "Other" },
+    ];
+    const numbered = (n: number) => `New folder ${n}`;
+    expect(freeName(tree, null, "New folder", numbered)).toBe("New folder 3");
+    expect(freeName(tree, "a", "New folder", numbered)).toBe("New folder");
   });
 });

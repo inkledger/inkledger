@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { surface } from "@/components/app/surface";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { cn } from "@/lib/utils";
-import { BackButton, Breadcrumb } from "@/components/app/Breadcrumb";
+import { BackButton, Breadcrumb, type BreadcrumbStep } from "@/components/app/Breadcrumb";
 
 /**
  * Page title row shared by every page (same as the dashboard header):
@@ -16,6 +16,7 @@ export function PageHeader({
   titleAddon,
   titleClassName,
   breadcrumbCurrent,
+  breadcrumbTrail,
   actions,
   sticky = false,
   back = false,
@@ -29,6 +30,8 @@ export function PageHeader({
   titleClassName?: string;
   /** Extra breadcrumb level (e.g. the issue key on a detail page) */
   breadcrumbCurrent?: string;
+  /** Steps between the section and the current item (the folders a note is in) */
+  breadcrumbTrail?: BreadcrumbStep[];
   actions?: React.ReactNode;
   /** Stays at the top of the panel while it scrolls (desktop): for pages whose controls drive the content. */
   sticky?: boolean;
@@ -70,9 +73,9 @@ export function PageHeader({
       <div className="min-w-0">
         {/* A detail page: one "← Board" (where it was opened from) instead of the trail. */}
         {back ? (
-          <BackButton fallback={<Breadcrumb current={breadcrumbCurrent} />} />
+          <BackButton fallback={<Breadcrumb current={breadcrumbCurrent} trail={breadcrumbTrail} />} />
         ) : (
-          <Breadcrumb current={breadcrumbCurrent} />
+          <Breadcrumb current={breadcrumbCurrent} trail={breadcrumbTrail} />
         )}
         <div className="flex min-w-0 items-center gap-2">
           <h1

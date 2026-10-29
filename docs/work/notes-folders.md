@@ -47,7 +47,7 @@ Planned (2026-10-29), not started.
   - `notes.tree` returns `kind` and the count of children.
   - `move` refuses cycles (already) and a folder going under a note.
   - Tests: `api/routers/notes*.test.ts`; parity.
-- [ ] **2. Tree navigation (ARIA tree).**
+- [x] **2. Tree navigation (ARIA tree).** Done 2026-10-29: rows are `role="treeitem"` (a click or Enter opens; the issue key is a label, so no control sits outside a tree item); arrows, Home/End, type-ahead, F2, Delete/Backspace, Shift+F10 or the menu key; "…" and right-click share one menu; inline rename closes once (Enter, Esc or leaving); the open folder shows its contents until closed by hand.
   - `NoteTree` as `role="tree"` / `treeitem`, with `aria-expanded` and `aria-level`.
   - Keys: ↑↓ move, → opens or goes to the first child, ← closes or goes to the parent, Home/End, Enter opens, type-ahead.
   - The expanded state is remembered per device; the tree follows the open note (expand to it, scroll into view).
@@ -57,7 +57,7 @@ Planned (2026-10-29), not started.
   - Drag and drop in the tree: before, after, or into a folder, with a drop indicator and auto-expand on hover.
   - On touch, and as the keyboard alternative: a "Move to…" dialog with a searchable folder picker.
   - Undo in the toast.
-- [ ] **4. Where am I.**
+- [ ] **4. Where am I.** Breadcrumb and folder view done 2026-10-29 (the page header's breadcrumb takes the folders as steps, `Breadcrumb` `trail`); search results' path still to show.
   - A breadcrumb (folder › folder › note) on the note page, each step opening that folder.
   - A folder view that lists its contents with "New note here" and "New folder here".
   - Search results show each note's path.

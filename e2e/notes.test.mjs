@@ -270,7 +270,9 @@ test("hierarchy, issue links, history, move and trash restore stay consistent", 
       "issue link"
     );
 
-    await page.getByRole("link", { name: "New child note" }).click();
+    // A sub-note from the note's own menu in the tree.
+    await page.getByRole("button", { name: "Actions for Project notebook" }).click();
+    await page.getByRole("menuitem", { name: "New note here" }).click();
     await page.waitForURL(/\/notes\/new\?/);
     await page.waitForFunction(
       () => document.querySelector("#note-title")?.value === ""
@@ -424,7 +426,7 @@ test("notes work on a phone without horizontal overflow", () =>
         element => element.getBoundingClientRect().y
       );
       await page
-        .getByRole("link", { name: "Mobile note", exact: true })
+        .getByRole("treeitem", { name: "Mobile note", exact: true })
         .click();
       // Measured once the note is there (mid-render the page is still settling).
       await page
@@ -450,6 +452,131 @@ test("notes work on a phone without horizontal overflow", () =>
           document.documentElement.scrollWidth -
           document.documentElement.clientWidth
       );
+      assert.ok(overflow <= 1, `horizontal overflow: ${overflow}`);
+    }
+  ));
+
+test("folders like a file manager: make, rename, fill, open, move, keyboard, delete", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const row = async title => (await db.q("SELECT id, kind, parent_id, deleted_at FROM markdown_notes WHERE title = ?", title))[0];
+    await page.goto(base + "/notes");
+    const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+
+    // The header's New folder makes one at once, its name open for typing.
+    await page.getByRole("button", { name: "New folder", exact: true }).click();
+    const name = page.getByRole("textbox", { name: "Name of New folder" });
+    await name.waitFor();
+    await name.fill("Work");
+    await name.press("Enter");
+    await tree.getByRole("treeitem", { name: "Work, Folder" }).waitFor();
+    const work = await waitFor(() => row("Work"), "folder saved");
+    assert.equal(work.kind, "folder");
+
+    // A right-click on it: a note inside.
+    await tree.getByRole("treeitem", { name: "Work, Folder" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "New note here" }).click();
+    await page.waitForURL(/\/notes\/new\?/);
+    await page.getByLabel("Note title").fill("Plan");
+    await page.getByLabel("Markdown source").fill("Steps");
+    await page.waitForURL(/\/notes\/[0-9a-f-]{36}\?/);
+    assert.equal((await waitFor(() => row("Plan"), "note saved")).parent_id, work.id);
+
+    // The open note's breadcrumb goes through its folder, a step that opens it.
+    await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Work" }).waitFor();
+
+    // A click opens the folder's view: where it is and what it holds.
+    await tree.getByRole("treeitem", { name: "Work, Folder" }).click();
+    const contents = page.getByRole("region", { name: "Contents of Work" });
+    await contents.getByRole("link", { name: /Plan/ }).waitFor();
+    await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Work").waitFor();
+    // A folder made from the view is named there too.
+    await contents.getByRole("button", { name: "New folder here" }).click();
+    const inner = contents.getByRole("textbox", { name: "Name of New folder" });
+    await inner.fill("Meetings");
+    await inner.press("Enter");
+    await contents.getByRole("link", { name: /Meetings/ }).waitFor();
+    assert.equal((await waitFor(() => row("Meetings"), "inner folder")).parent_id, work.id);
+    // Folders first, then notes.
+    assert.deepEqual(
+      (await contents.getByRole("list").getByRole("link").allInnerTexts()).map(text => text.split("\n")[0]),
+      ["Meetings", "Plan"]
+    );
+
+    // F2 renames inline; Esc leaves it as it was.
+    await tree.getByRole("treeitem", { name: "Plan" }).focus();
+    await page.keyboard.press("F2");
+    const plan = page.getByRole("textbox", { name: "Name of Plan" });
+    await plan.fill("Plan 2027");
+    await plan.press("Enter");
+    await waitFor(() => row("Plan 2027"), "renamed");
+    await tree.getByRole("treeitem", { name: "Plan 2027" }).focus();
+    await page.keyboard.press("F2");
+    await page.getByRole("textbox", { name: "Name of Plan 2027" }).press("Escape");
+    await tree.getByRole("treeitem", { name: "Plan 2027" }).waitFor();
+
+    // Arrows: up to the parent with Left, Home to the first row, type-ahead.
+    await tree.getByRole("treeitem", { name: "Plan 2027" }).focus();
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Work, Folder");
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(await tree.getByRole("treeitem", { name: "Work, Folder" }).getAttribute("aria-expanded"), "false");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Meetings, Folder");
+    await page.keyboard.press("Home");
+    await page.keyboard.type("p");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Plan 2027");
+
+    // Move to…: a folder goes only to the top level or into folders.
+    await page.getByRole("button", { name: "Actions for Meetings" }).click();
+    await page.getByRole("menuitem", { name: "Move to…" }).click();
+    const move = page.getByRole("dialog", { name: "Move folder" });
+    await move.getByRole("combobox").click();
+    assert.equal(await page.getByRole("option", { name: "Plan 2027" }).count(), 0, "a note is never offered to a folder");
+    await page.getByRole("option", { name: "Top level" }).click();
+    await move.getByRole("button", { name: "Move folder" }).click();
+    await waitFor(async () => (await row("Meetings")).parent_id === null, "moved to the top level");
+
+    // Delete on a row asks, saying what goes with it; the branch goes to the trash.
+    await tree.getByRole("treeitem", { name: "Work, Folder" }).focus();
+    await page.keyboard.press("Delete");
+    const ask = page.getByRole("alertdialog", { name: "Move folder to Trash?" });
+    await ask.getByText(/also moves the 1 notes and folders inside/).waitFor();
+    await ask.getByRole("button", { name: "Move to Trash" }).click();
+    await waitFor(async () => (await row("Plan 2027")).deleted_at !== null, "branch in the trash");
+    assert.equal(await tree.getByRole("treeitem", { name: "Work, Folder" }).count(), 0);
+  }));
+
+test("a note that only groups others becomes a folder; one with text is never offered it", () =>
+  withApp(
+    {
+      viewport: { width: 320, height: 760 },
+      seed: async db => {
+        const now = Date.now();
+        const add = async (id, parent, title, body) =>
+          db.q(
+            "INSERT INTO markdown_notes (id, user_id, parent_id, title, body, body_text, search_title, search_text, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?)",
+            id, parent, title, body, body, title.toLowerCase(), body.toLowerCase(), now, now
+          );
+        await add("00000000-0000-4000-8000-000000000001", null, "Area", "");
+        await add("00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000001", "Inside", "x");
+        await add("00000000-0000-4000-8000-000000000003", null, "Written", "words");
+        await add("00000000-0000-4000-8000-000000000004", "00000000-0000-4000-8000-000000000003", "Under", "y");
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/notes");
+      const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+      await tree.getByRole("treeitem", { name: "Written" }).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Move to…" }).waitFor();
+      assert.equal(await page.getByRole("menuitem", { name: "Convert to folder" }).count(), 0);
+      await page.keyboard.press("Escape");
+      await tree.getByRole("treeitem", { name: "Area" }).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Convert to folder" }).click();
+      await page.getByText("Now a folder").waitFor();
+      await tree.getByRole("treeitem", { name: "Area, Folder" }).waitFor();
+      assert.equal((await db.q("SELECT kind FROM markdown_notes WHERE title = 'Area'"))[0].kind, "folder");
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(overflow <= 1, `horizontal overflow: ${overflow}`);
     }
   ));

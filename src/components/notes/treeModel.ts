@@ -52,3 +52,40 @@ export function siblingIndices(
     .filter(item => item.parentId === parentId && item.id !== id)
     .map((_, index) => index);
 }
+
+/**
+ * Where "new" goes from a selection: the selected folder itself, else the
+ * folder holding the selected note (its nearest folder up), else the top level.
+ */
+export function folderTarget(
+  items: NoteTreeItem[],
+  id: string | undefined
+): string | null {
+  if (!id) return null;
+  const byId = new Map(items.map(item => [item.id, item]));
+  const self = byId.get(id);
+  if (self?.kind === "folder") return self.id;
+  for (const ancestor of ancestorIds(items, id)) {
+    if (byId.get(ancestor)?.kind === "folder") return ancestor;
+  }
+  return null;
+}
+
+/** A folder name not taken beside it: the base, else "base 2", "base 3"… */
+export function freeName(
+  items: NoteTreeItem[],
+  parentId: string | null,
+  base: string,
+  numbered: (n: number) => string
+): string {
+  const taken = new Set(
+    items
+      .filter(item => item.parentId === parentId)
+      .map(item => item.title.trim().toLowerCase())
+  );
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; ; n++) {
+    const name = numbered(n);
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+}
