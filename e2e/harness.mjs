@@ -152,7 +152,8 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     const listening = viteDev ? `Local:   http://127.0.0.1:${port}/` : `Server running on http://localhost:${port}/`;
     for (let i = 0; ; i++) {
       if (server.exitCode !== null || server.signalCode !== null) throw new Error(`the server stopped before it was up:\n${log}`);
-      if (log.includes(listening)) {
+      // Without colour codes: Vite colours its "Local:" line when it thinks the output is a terminal (CI).
+      if (log.replace(/\x1b\[[0-9;]*m/g, "").includes(listening)) {
         try {
           if ((await fetch(`${base}/api/health`)).ok) break;
         } catch {
