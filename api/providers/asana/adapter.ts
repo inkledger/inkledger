@@ -30,6 +30,7 @@ import {
   type RemoteIssue,
   type RemotePerson,
   type RemoteStatus,
+  type RemoteStatusStep,
   type RemoteWorklog,
   type TrackerProvider,
   type Transition,
@@ -71,7 +72,7 @@ export const asanaCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
-  statusHistory: false,
+  statusHistory: true,
   // No documented change filter on time entries (verify: asana-time-feed): no feed, reconciled by period
   time: {
     mode: "entries",
@@ -191,6 +192,43 @@ function columnOf(s: Shape, memberships: Membership[]): RemoteStatus | null {
 
 /** Completed is completed; open takes its section's status when the options say what it is, else plain Open. */
 const statusOf = (s: Shape, t: Pick<AsanaTask, "completed" | "memberships">): RemoteStatus => (t.completed ? COMPLETED : (columnOf(s, t.memberships ?? []) ?? OPEN));
+
+/**
+ * The task's status through its stories, as statusOf computes it: created open,
+ * in the section its first move left (none when that was empty). A story that
+ * disagrees with the replay (completed twice, moved from another section) or a
+ * task in several projects (a move doesn't say whose section) can't be read.
+ */
+export function replayStatus(s: Shape, task: Pick<AsanaTask, "memberships">, stories: readonly AsanaStory[]): RemoteStatusStep[] {
+  const projects = (task.memberships ?? []).filter((m) => m.project);
+  if (projects.length > 1) throw new ProviderError("incompatible", "Asana: a task in several projects (a move doesn't say whose section)");
+  const project = projects[0]?.project;
+  const moves = stories.filter((st) => st.resource_subtype === "section_changed");
+  let section: AsanaRef | null = moves.length ? (moves[0].old_section ?? null) : (projects[0]?.section ?? null);
+  let completed = false;
+  const derive = () => statusOf(s, { completed, memberships: project && section ? [{ project, section }] : [] });
+  const brief = (r: RemoteStatus) => ({ id: r.id, name: r.name });
+  let current = derive();
+  const steps: RemoteStatusStep[] = [];
+  const relevant = stories.filter((st) => st.resource_subtype === "section_changed" || st.resource_subtype === "marked_complete" || st.resource_subtype === "marked_incomplete");
+  relevant.forEach((st, n) => {
+    const at = instantFrom(st.created_at) ?? instant(0);
+    if (st.resource_subtype === "marked_complete" || st.resource_subtype === "marked_incomplete") {
+      const on = st.resource_subtype === "marked_complete";
+      if (completed === on) throw new ProviderError("incompatible", `Asana: ${st.resource_subtype} on a task already so`);
+      completed = on;
+    } else {
+      if ((st.old_section?.gid ?? null) !== (section?.gid ?? null)) throw new ProviderError("incompatible", "Asana: a move from a section the task wasn't in");
+      section = st.new_section ?? null;
+    }
+    // Stories of one instant make one step.
+    if (instantFrom(relevant[n + 1]?.created_at ?? "") === at) return;
+    const next = derive();
+    if (next.id !== current.id) steps.push({ at, from: brief(current), to: brief(next) });
+    current = next;
+  });
+  return steps;
+}
 
 // ---------- Shaping ----------
 
@@ -720,6 +758,12 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
     if (!gid) throw new ProviderError("notFound", `Asana: no task ${ref.key}`);
     // Following twice, or unfollowing twice, is what was asked.
     await asanaOk<unknown>(await credsOf(x), `${taskPath(gid)}/${on ? "addFollowers" : "removeFollowers"}`, { method: "POST", data: { followers: ["me"] } });
+  },
+
+  async statusHistory(x, ref) {
+    const c = await credsOf(x);
+    const t = await mustLocate(c, ref);
+    return replayStatus(shapeOf(x), t, await asanaPages<AsanaStory>(c, `${taskPath(t.gid)}/stories`, { opt_fields: STORY_FIELDS }));
   },
 
   async history(x, ref) {

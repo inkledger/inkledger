@@ -25,6 +25,7 @@ import {
   type RemoteIssue,
   type RemotePerson,
   type RemoteStatus,
+  type RemoteStatusStep,
   type RemoteWorklog,
   type Transition,
   type TrackerProvider,
@@ -72,7 +73,7 @@ export const gitlabCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
-  statusHistory: false,
+  statusHistory: true,
   // Open/closed and scoped labels; Premium work item statuses (verify: gitlab-statuses) only once shown
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "labelSet", transitions: "direct" }] },
   // timelogs: no update (delete and log again), no future dates; feed by re-reading a window.
@@ -197,6 +198,49 @@ function statusOf(s: Shape, i: Pick<GitLabIssue, "state" | "labels">): RemoteSta
     if (hits.length === 1) return labelStatus(s, wf.scope, hits[0].value, wf.categories[hits[0].value]);
   }
   return OPENED;
+}
+
+/**
+ * The issue's status through its label and state events, as statusOf computes it.
+ * An issue starts opened (GitLab creates none closed) with labels the events may
+ * not show: the replay starts with none and must end with the issue's labels of
+ * the workflow's scope, else what it went through isn't known.
+ */
+export function replayStatus(s: Shape, labels: readonly GitLabLabelEvent[], states: readonly GitLabStateEvent[], now: Pick<GitLabIssue, "labels">): RemoteStatusStep[] {
+  const inScope = (name: string) => {
+    const p = scoped(name);
+    return Boolean(s.workflow) && p !== null && sameScope(p.scope, s.workflow?.scope ?? "");
+  };
+  type Event = { at: Instant; label: GitLabLabelEvent } | { at: Instant; state: string };
+  const events: Event[] = [
+    ...labels.map((label) => ({ at: instantFrom(label.created_at) ?? instant(0), label })),
+    ...states.map((e) => ({ at: instantFrom(e.created_at) ?? instant(0), state: e.state })),
+  ].sort((a, b) => a.at - b.at);
+  const held = new Set<string>();
+  let state: GitLabIssue["state"] = "opened";
+  const brief = (r: RemoteStatus) => ({ id: r.id, name: r.name });
+  let current = statusOf(s, { state, labels: [] });
+  const steps: RemoteStatusStep[] = [];
+  // Events of one instant (a scoped label swapped: one added, one removed) make one step.
+  events.forEach((e, n) => {
+    if ("label" in e) {
+      const { label, action } = e.label;
+      // A label deleted since: whether it was the workflow's can't be told.
+      if (!label) throw new ProviderError("incompatible", "GitLab: a label event whose label was deleted");
+      if (action === "add") held.add(label.name);
+      else if (!held.delete(label.name) && inScope(label.name)) throw new ProviderError("incompatible", "GitLab: a workflow label removed before it was added");
+    } else if (e.state === "closed") state = "closed";
+    else if (e.state === "reopened") state = "opened";
+    else throw new ProviderError("incompatible", `GitLab: an issue state "${e.state}"`);
+    if (events[n + 1]?.at === e.at) return;
+    const next = statusOf(s, { state, labels: [...held] });
+    if (next.id !== current.id) steps.push({ at: e.at, from: brief(current), to: brief(next) });
+    current = next;
+  });
+  const scopedNow = now.labels.filter(inScope).sort().join("\n");
+  const scopedReplayed = [...held].filter(inScope).sort().join("\n");
+  if (scopedNow !== scopedReplayed) throw new ProviderError("incompatible", "GitLab: the issue had workflow labels its events don't show");
+  return steps;
 }
 
 // ---------- Shaping ----------
@@ -637,6 +681,14 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
     const i = await mustLocate(c, ref);
     // Subscribing when subscribed (or the reverse) answers 304: what was asked is so.
     await gl(c, `${issueUrl(i)}/${on ? "subscribe" : "unsubscribe"}`, { method: "POST", accept: [304] });
+  },
+
+  async statusHistory(x, ref) {
+    const c = await credsOf(x);
+    const i = await mustLocate(c, ref);
+    const base = issueUrl(i);
+    const [labels, states] = await Promise.all([glPages<GitLabLabelEvent>(c, `${base}/resource_label_events`), glPages<GitLabStateEvent>(c, `${base}/resource_state_events`)]);
+    return replayStatus(shapeOf(x), labels, states, i);
   },
 
   async history(x, ref) {

@@ -3,7 +3,7 @@ import { instant, timeZone } from "@contracts/values";
 import { markdown } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { gitlabSimulator } from "./simulator";
 import { gitlabProvider, gitlabWebhook, withoutQuickActions, type GitLabOptions } from "./adapter";
 import { entriesOfNotes, forgetTimeMode, parseDuration, parseSpendNote, spendDuration } from "./legacyTime";
@@ -623,5 +623,35 @@ describe("gitlab, a write that may not leave", () => {
     expect(err?.message).toBe("This server is read-only (PROVIDERS_READ_ONLY): nothing is sent to GitLab");
     vi.unstubAllEnvs();
     vi.resetModules();
+  });
+});
+
+statusHistoryConformance("gitlab (simulated, scoped label workflow)", async () => {
+  const { sim, b } = simulated({ options: WORKFLOW });
+  const i = sim.issues[0];
+  return { b, ref: ref(i, "acme/web#1"), moveTwice: () => (sim.outside.label(i, "workflow::doing"), sim.outside.close(i)) };
+});
+
+describe("gitlab, status history", () => {
+  it("a composite status is replayed as the app computes it", async () => {
+    const { sim, b } = simulated({ options: WORKFLOW });
+    const i = sim.issues[0];
+    sim.outside.label(i, "workflow::doing");
+    sim.outside.close(i);
+    sim.outside.reopen(i);
+    const steps = await b.statusHistory!(meta(), ref(i, "acme/web#1"));
+    expect(steps.map((s) => [s.from?.id, s.to.id])).toEqual([
+      ["opened", "doing"],
+      ["doing", "closed"],
+      ["closed", "doing"],
+    ]);
+  });
+
+  it("workflow labels its events don't show make the history unreadable", async () => {
+    const { sim, b } = simulated({ options: WORKFLOW });
+    // Labelled at creation, with no event of it.
+    const i = sim.add("acme/web", "Born in review", { labels: ["workflow::review"] });
+    sim.outside.close(i);
+    await expect(b.statusHistory!(meta(), ref(i, `acme/web#${i.iid}`))).rejects.toMatchObject({ kind: "incompatible" });
   });
 });

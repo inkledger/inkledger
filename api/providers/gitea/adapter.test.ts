@@ -4,7 +4,7 @@ import { instant, markdown, timeZone } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { ProviderError } from "../core/errors";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { giteaSimulator, type GiteaSimOptions } from "./simulator";
 import { giteaProvider } from "./adapter";
 import { giteaWebhook } from "./webhook";
@@ -408,4 +408,11 @@ describe("gitea webhooks", () => {
     expect(giteaWebhook.sentAt(payload)).toBe(Date.UTC(2026, 9, 20, 10, 0, 0));
     expect(giteaWebhook.sentAt("not json")).toBeNull();
   });
+});
+
+// Gitea lists no statuses: open and closed are its two.
+statusHistoryConformance("gitea (simulated)", async () => {
+  const { sim, b } = simulated();
+  const i = sim.issues[0];
+  return { b, ref: ref("acme/web#1"), moveTwice: () => (sim.outside.close(i), sim.outside.reopen(i)), alsoStatuses: ["open", "closed"] };
 });

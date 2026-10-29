@@ -151,6 +151,13 @@ export function todoistSimulator(
     record(t, "added", me, {}, at);
     return t;
   };
+  /** A move as the activity log tells it: between sections, or between projects too. */
+  const moved = (t: SimTask, from: { project: string; section: string | null }, by: SimUser = me) =>
+    record(t, "moved", by, {
+      section_id: t.section_id,
+      last_section_id: from.section,
+      ...(from.project !== t.project_id ? { source_project_id: from.project, destination_project_id: t.project_id } : {}),
+    });
   const task = (k: string) => {
     const t = tasks.find((x) => x.id === k || x.content === k);
     if (!t) throw new Error(`no task ${k}`);
@@ -244,16 +251,20 @@ export function todoistSimulator(
     move(k: string, projectName: string, sectionName?: string) {
       const t = task(k);
       const p = project(projectName);
+      const from = { project: t.project_id, section: t.section_id };
       for (const x of [t, ...descendants(t)]) {
         x.project_id = p.id;
         x.section_id = x === t && sectionName ? sectionIn(p, sectionName).id : null;
         bump(x, now());
       }
+      moved(t, from);
     },
     setSection(k: string, sectionName: string | null) {
       const t = task(k);
+      const from = { project: t.project_id, section: t.section_id };
       t.section_id = sectionName ? sectionIn(project(t.project_id), sectionName).id : null;
       bump(t, now());
+      moved(t, from);
     },
     comment(k: string, content: string, by: SimUser = me) {
       const t = task(k);
@@ -432,6 +443,7 @@ export function todoistSimulator(
         return noContent();
       }
       if (act === "move" && method === "POST") {
+        const from = { project: t.project_id, section: t.section_id };
         if (typeof body.section_id === "string") {
           const s = sections.find((x) => x.id === body.section_id);
           if (!s || s.is_deleted) return notFound();
@@ -449,6 +461,7 @@ export function todoistSimulator(
           t.section_id = null;
         } else return invalid();
         bump(t, now());
+        moved(t, from);
         return noContent();
       }
       return invalid("Method not allowed");

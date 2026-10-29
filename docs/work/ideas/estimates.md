@@ -1,6 +1,6 @@
 # Spec: how long an issue will take, and when it will be done (#7)
 
-Status: revision 3 approved (2026-10-29), with patch 3.1 (points 1–11) and its five corrections applied. Batch 1 done (pure L1, `contracts/estimate.ts`); Q8 answered (2026-10-29): batch 2a (status history in the adapters) comes before batch 2. Open questions are asked when their batch is reached (README, R-0.12).
+Status: revision 3 approved (2026-10-29), with patch 3.1 (points 1–11) and its five corrections applied. Batch 1 done (pure L1, `contracts/estimate.ts`); Q8 answered (2026-10-29). Batches 2a1 and 2 done; 2a2 done but for Basecamp cards (Q10) and OpenProject (Q11). Open questions are asked when their batch is reached (README, R-0.12).
 
 ## Direction (approved 2026-10-29)
 - **L1, per issue:** deterministic, in TypeScript. It uses similar closed issues of mine and their work time, weighted by how recent they are.
@@ -547,6 +547,14 @@ trend:     .query()
      - Monday: an empty cell is the blank status (id `blank`, as `getIssue` gives it), which `statuses()` doesn't list. Batch 2 must place it (snapshot or a fixed default).
      - Plane: a value with no `old/new_identifier` is placed by its name when exactly one state of the project has it; the docs (developers.plane.so, issue activity) give the identifiers as the values' UUIDs.
      - YouTrack: activities now request `field(id,name,customField(fieldType(id)))`; State is the field whose `fieldType.id` starts with `state[` (developer portal, custom fields: `state[1]` is a single State field). A state's name is its id, as in its `statuses()`.
+   - **2a2 done in part (2026-10-29).** Facts from the vendors' docs and source (research report, sources in the batch's commit message), and decisions, to review:
+     - **GitLab:** `resource_state_events` holds `closed` and `reopened` and never the creation (docs: "does not track the initial state"); an issue starts `opened`. The replay starts with no labels and must end with the issue's labels of the workflow scope, else `incompatible` (labels at creation leave no event). Events of one instant (a scoped label swapped) make one step. A label deleted since → `incompatible`.
+     - **Gitea:** close and reopen are timeline types `close`/`reopen` (source); its status is open/closed only, so the replay is complete. Project column moves carry no column ids (out of its status today).
+     - **Asana:** stories request `old_section.gid`/`new_section.gid` (OpenAPI `SectionCompact`). A task starts open, in its first move's old section (`null` = none). A task in several projects → `incompatible` (a move doesn't say whose section). A story that disagrees with the replay → `incompatible`. The subtype names (`section_changed`, `marked_complete`, `marked_incomplete`) are only in a 2019 Asana forum post, already used by the adapter.
+     - **Todoist:** `/api/v1/activities` `moved` events carry `section_id` and `last_section_id` (docs); the simulator now records them. A task starts open in its first move's `last_section_id`. No `added` event (the free plan keeps 7 days) → the start is unknown, the first step comes from `null` (AC-3.62); with no step at all → `incompatible`. A recurring task (its completions leave it open), a move between projects, a section deleted since → `incompatible`.
+     - **Basecamp:** to-dos replay `completed`/`uncompleted` (bc3-api `events.md`). A card's column moves are not documented as events → a card's history is `incompatible` (**Q10**).
+     - **OpenProject:** activities have only rendered, localized text (OpenProject's `activity_model.yml`) → no `statusHistory`; the job makes its histories `invalid` (`noStatusHistory`), never `unsupported`, so they stay out as decided for Q8 (**Q11**).
+     - A history that exists but can't be read as statuses is `invalid`; `unsupported` (every worklog counts) is only for a tracker with no history at all.
    - **Facts to check against each real API before its code:** GitLab `resource_state_events` values, Plane `old/new_identifier`, Basecamp's column-move event, YouTrack activity `field.id` and `$type`, Todoist section moves in its activity, OpenProject structured status in activities. Each one is asked if the docs don't settle it.
 2. **History and data:**
    - migration: `issues.status_id`, `issue_history_reads`, `issue_status_changes`, `status_snapshots`, `work_statuses`, `estimate_revisions`;
@@ -554,6 +562,18 @@ trend:     .query()
    - the read-only history job, with atomic re-reading and retry;
    - revision raises.
    - AC-3.24–3.28, 3.49, 3.55.
+   - **Done (2026-10-29).** Decisions the code forced, to review (none of them changes product behaviour):
+     - **Triggers, not calls in the code:** the revision raises and the stale marking are Postgres triggers of migration `0018_work_history` (`issues`, `worklogs`, `todos`, `todo_sessions`, `work_statuses`), so they happen in the same transaction as every write whatever path made it (two issue syncs, timeWrites, routers). The repo already does this (`drizzle/0013_mail_pins.sql`). One SQL function, `inkledger_raise_estimate_revision`, is the only raise; `api/queries/estimateRevision.ts` calls it too.
+     - **Two columns added to the raising list:** an issue's `summary` (it moves T0's similarity) and `gone_at` (R-3.1 drops gone issues). More raising only invalidates the cache more often.
+     - **Which issues get a read:** the closed ones (`category = 'done'`, not gone) with at least one worklog of the user: the candidates of R-3.2, nothing more is read from the trackers. A tracker whose adapter has no `statusHistory` gets `unsupported` without a call (after Q8 "no history" means no status history).
+     - **"Oldest first"** is read as the longest waiting: never read first, then by last read, then by issue id.
+     - **When the job runs:** right after each background sync pass (`api/syncScheduler.ts`), at most 50 reads; a failure of the job never fails the sync.
+     - **What the job checks:** the coherence of R-3.11 that doesn't depend on which statuses count (chain, times, current status, unknown statuses, too many changes). `openOnClosed` depends on the user's work statuses and is left to the estimate (batch 3), which runs `workStretches` with the real choice.
+     - **An answer the adapter can't read as statuses** (`ProviderError` `incompatible`) makes the history `invalid` (reason `incompatible`); every other failure is `retry`.
+     - **No creation date** (`remoteCreatedAt` null): the "before creation" check can't apply, and the read goes on.
+     - **Statuses known:** from `statuses()` and, for a status it doesn't list (monday's blank, a status deleted before its first read), from the synced issues that are in it (`issues.status_id`, `category`). Snapshots are taken from both.
+     - **Jira lists its statuses** (`GET /rest/api/2/status`, read only): `statuses: true` on the Jira adapter. Nothing in the app called `statuses()` before, so no screen changes.
+     - AC-3.55 runs on PGlite, which has one connection: the two raises interleave rather than overlap. The atomicity itself is the single `INSERT … ON CONFLICT` statement.
 3. **Estimates API:** `forIssue` (eligibility, exclusions, sample limit, cache keyed on the revision), `forTodo`, `workStatuses`, `setWorkStatus`, `historyStates`. AC-3.16–3.23, 3.29, 3.50, 3.51.
 4. **L1 UI:** issue page, TODO chip, Settings → Estimates. AC-3.41–3.43, and 3.45 in part.
 5. **Accuracy:** `accuracy`, plus its Reports section. AC-3.44 (the accuracy part).
@@ -580,4 +600,6 @@ trend:     .query()
   - **Contract (2026-10-29):** a separate optional adapter method, `statusHistory`, returning only status changes (not a flag on `RemoteChange`).
   - **Composite statuses (2026-10-29):** the adapter replays its history in order and emits a change whenever the status it would compute (the same rule as its `statusOf`) changes, `from` being the previous derived status. The status at creation comes from what the tracker guarantees; when it can't be known, the first `from` is `null` and the history is invalid (`noInitialStatus`).
   - Still to verify against each real API when batch 2a reaches it: GitLab's `resource_state_events` values, Plane's `old/new_identifier`, Basecamp's action name for a column move, YouTrack's activity `field.id` format.
+- **Q10, blocks Basecamp cards in 2a2:** a Basecamp card's move between columns is not in the documented events (bc3-api: only `completed`, `uncompleted`, `created`, `assignment_changed`; the move endpoint is write-only). Options: (a) read one real card's events on your Basecamp (read-only GET) to see what a move records; (b) keep cards `invalid`, to-dos replayed; (c) Basecamp cards `unsupported` (all worklogs). Today: (b).
+- **Q11, blocks OpenProject in 2a2:** OpenProject's activities give status changes only as text in the user's language (`details[].raw`/`html`, no ids). Options: (a) read one real work package's activities on your OpenProject (read-only GET) to see whether the `html` marks field and values in a fixed way that doesn't depend on the language; (b) parse the English sentence and require the API user's language to be English; (c) keep OpenProject `invalid`. Today: (c).
 - **Q9:** a status since deleted on the tracker. **Answer 2026-10-29 (patch 3.1 point 4):** read through its stored snapshot; `unknownStatus` only when nothing resolves it.

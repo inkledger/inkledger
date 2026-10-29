@@ -31,6 +31,7 @@ import {
   type RemoteIssue,
   type RemotePerson,
   type RemoteStatus,
+  type RemoteStatusStep,
   type RemoteWorklog,
   type TrackerProvider,
   type Transition,
@@ -75,7 +76,7 @@ export const basecampCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
-  statusHistory: false,
+  statusHistory: true,
   time: {
     mode: "entries",
     entries: {
@@ -251,6 +252,26 @@ function statusOf(s: Shape, r: Pick<BcRecording, "type" | "completed" | "parent"
     if (c) return columnStatus(s, String(r.bucket.id), col, c);
   }
   return r.completed ? COMPLETED : OPEN;
+}
+
+/**
+ * A to-do's status through its events: created open, then completed and
+ * uncompleted. A card's column moves are not in its events as far as Basecamp
+ * documents them: a card's history can't be read as statuses.
+ */
+export function replayStatus(r: Pick<BcRecording, "type">, events: readonly BcEvent[]): RemoteStatusStep[] {
+  if (r.type === CARD) throw new ProviderError("incompatible", "Basecamp: a card's column moves are not in its events");
+  const brief = (on: boolean) => (on ? { id: COMPLETED.id, name: COMPLETED.name } : { id: OPEN.id, name: OPEN.name });
+  let completed = false;
+  const steps: RemoteStatusStep[] = [];
+  for (const e of [...events].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    if (e.action !== "completed" && e.action !== "uncompleted") continue;
+    const on = e.action === "completed";
+    if (completed === on) throw new ProviderError("incompatible", `Basecamp: ${e.action} on a to-do already so`);
+    steps.push({ at: instantFrom(e.created_at) ?? instant(0), from: brief(completed), to: brief(on) });
+    completed = on;
+  }
+  return steps;
 }
 
 // ---------- Shaping ----------
@@ -776,6 +797,14 @@ export const basecampProvider: TrackerProvider<"basecamp", BasecampOptions> = {
     if (!place) throw new ProviderError("notFound", `Basecamp: no to-do or card ${ref.key}`);
     // Subscribing twice, or unsubscribing twice, is what was asked.
     await bc<unknown>(await credsOf(x), `/buckets/${place.bucket}/recordings/${place.id}/subscription.json`, { method: on ? "POST" : "DELETE" });
+  },
+
+  async statusHistory(x, ref) {
+    const c = await credsOf(x);
+    const place = placeOf(ref);
+    const r = await locate(c, place);
+    if (!place || !r) throw new ProviderError("notFound", `Basecamp: no to-do or card ${ref.key}`);
+    return replayStatus(r, await bcPages<BcEvent>(c, `/buckets/${place.bucket}/recordings/${place.id}/events.json`));
   },
 
   async history(x, ref) {

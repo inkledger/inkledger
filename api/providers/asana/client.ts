@@ -41,7 +41,7 @@ export const TASK_FIELDS = [
   "tags.name",
   "workspace.name",
 ].join(",");
-export const STORY_FIELDS = "type,resource_subtype,created_at,created_by.name,created_by.photo.image_128x128,html_text,text,old_name,new_name,old_section.name,new_section.name,old_dates,new_dates,assignee.name";
+export const STORY_FIELDS = "type,resource_subtype,created_at,created_by.name,created_by.photo.image_128x128,html_text,text,old_name,new_name,old_section.gid,old_section.name,new_section.gid,new_section.name,old_dates,new_dates,assignee.name";
 export const ENTRY_FIELDS = "duration_minutes,entered_on,description,created_at,created_by.name,task,attributable_to.name,billable_status,approval_status";
 
 /** A compact reference: Asana's answer for anything not asked in full. */

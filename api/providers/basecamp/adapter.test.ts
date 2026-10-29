@@ -3,7 +3,7 @@ import { instant, localDate, markdown, timeZone } from "@contracts/values";
 import { toRichDoc } from "../core/richtext";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { basecampSimulator, type SimRecording } from "./simulator";
 import { basecampAccounts, basecampProvider, basecampWebhook, toBasecampHtml } from "./adapter";
 
@@ -609,5 +609,20 @@ describe("basecamp, the account of a token", () => {
     expect(basecampAccounts.size).toBe(1);
     const keys = [...(basecampAccounts as unknown as { entries: Map<string, unknown> }).entries.keys()];
     expect(keys.every((k) => /^[0-9a-f]{64}$/.test(k) && !k.includes(sim.token))).toBe(true);
+  });
+});
+
+// A to-do: open and completed (Basecamp lists them as the boolean source's statuses).
+statusHistoryConformance("basecamp (simulated, a to-do)", async () => {
+  const { sim, b } = simulated();
+  const todo = sim.recs.find((r) => r.title === "Export to CSV")!;
+  return { b, ref: ref(todo), moveTwice: () => (sim.outside.complete(todo), sim.outside.reopen(todo)), alsoStatuses: ["open", "completed"] };
+});
+
+describe("basecamp, status history", () => {
+  it("a card's history can't be read as statuses", async () => {
+    const { sim, b } = simulated();
+    const card = sim.recs.find((r) => r.title === "Fix the header")!;
+    await expect(b.statusHistory!(meta(), ref(card))).rejects.toMatchObject({ kind: "incompatible" });
   });
 });

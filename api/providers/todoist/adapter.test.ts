@@ -3,7 +3,7 @@ import { markdown, timeZone } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { encodeCheckpoint } from "../core/checkpoint";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import type { Checkpoint } from "../types";
 import { PAGE_LIMIT } from "./client";
 import { BUDGET, todoistSimulator } from "./simulator";
@@ -583,5 +583,45 @@ describe("todoist webhooks", () => {
     expect(todoistProvider.webhook!.deliveryId(req)).toBe("dl-9");
     expect(todoistProvider.webhook!.deliveryId({ headers: {}, body: d.rawBody })).toBeNull();
     expect(todoistProvider.webhook!.sentAt!(req)).toBeGreaterThan(0);
+  });
+});
+
+statusHistoryConformance("todoist (simulated)", async () => {
+  const { sim, b } = simulated();
+  return { b, ref: refOf(LOGIN), moveTwice: () => (sim.outside.setSection(LOGIN, "Done"), sim.outside.complete(LOGIN)), alsoStatuses: ["open", "completed"] };
+});
+
+describe("todoist, status history", () => {
+  it("a composite status is replayed as the app computes it", async () => {
+    const { sim, b } = simulated();
+    sim.outside.setSection(LOGIN, "Backlog");
+    sim.outside.complete(LOGIN);
+    sim.outside.reopen(LOGIN);
+    sim.outside.setSection(LOGIN, null);
+    const steps = await b.statusHistory!(meta(), refOf(LOGIN));
+    expect(steps.map((s) => [s.from?.name, s.to.name])).toEqual([
+      ["Doing", "Backlog"],
+      ["Backlog", "Completed"],
+      ["Completed", "Backlog"],
+      ["Backlog", "Open"],
+    ]);
+  });
+
+  it("an unknown starting status is left unknown", async () => {
+    const { sim, b } = simulated();
+    // The free plan keeps a week of activity: the task's creation fell out of it.
+    sim.activities.splice(sim.activities.findIndex((a) => a.object_id === LOGIN && a.event_type === "added"), 1);
+    sim.outside.setSection(LOGIN, "Done");
+    const steps = await b.statusHistory!(meta(), refOf(LOGIN));
+    expect(steps[0]).toMatchObject({ from: null, to: { name: "Done" } });
+    // With nothing after the cut, there is no step to say it: the history can't be read.
+    await expect(b.statusHistory!(meta(), refOf(EXPORT))).resolves.toEqual([]);
+    sim.activities.splice(sim.activities.findIndex((a) => a.object_id === EXPORT && a.event_type === "added"), 1);
+    await expect(b.statusHistory!(meta(), refOf(EXPORT))).rejects.toMatchObject({ kind: "incompatible" });
+  });
+
+  it("a recurring task's history can't be read", async () => {
+    const { b } = simulated();
+    await expect(b.statusHistory!(meta(), refOf(WATER))).rejects.toMatchObject({ kind: "incompatible" });
   });
 });

@@ -59,7 +59,7 @@ export type TodoistActivity = {
   id: string;
   object_type: string;
   object_id: string;
-  /** added, updated, completed, uncompleted, deleted */
+  /** added, updated, completed, uncompleted, deleted, moved (between sections or projects)… */
   event_type: string;
   event_date: string;
   parent_project_id?: string | null;
@@ -73,6 +73,12 @@ export type TodoistActivity = {
     last_due_date?: string | null;
     responsible_uid?: string | null;
     last_responsible_uid?: string | null;
+    /** On "moved" between sections: the section it went to and the one it left (null: none) */
+    section_id?: string | null;
+    last_section_id?: string | null;
+    /** On "moved" between projects */
+    source_project_id?: string | null;
+    destination_project_id?: string | null;
   } | null;
 };
 export type SyncAnswer = { sync_token: string; full_sync: boolean; items?: TodoistTask[] };

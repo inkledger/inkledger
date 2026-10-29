@@ -27,6 +27,7 @@ import {
   type RemoteIssue,
   type RemotePerson,
   type RemoteStatus,
+  type RemoteStatusStep,
   type ReportedIssueGone,
   type TrackerProvider,
   type Transition,
@@ -63,7 +64,7 @@ export const todoistCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
-  statusHistory: false,
+  statusHistory: true,
   // Completed or not; and the section an open task sits in, which it moves between.
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "column", transitions: "move" }] },
   time: { mode: "local", remoteTotals: false },
@@ -304,6 +305,53 @@ async function issuesOf(x: X, w: World, tasks: TodoistTask[], wholeList: boolean
 // ---------- Reading one task ----------
 
 /** A task by id, null when it isn't there for this token. */
+/**
+ * The task's status through its activity, as the issue shows it: completed, else
+ * its section, else open. It starts open, in the section its first move left
+ * (else the one it is in). An activity log cut short (no "added": a week on the
+ * free plan) leaves the start unknown: the first step comes from null. A
+ * recurring task logs completions that leave it open, a move between projects
+ * may change sections unseen, and a section deleted since has no name: none can
+ * be read.
+ */
+export function replayStatus(s: Shape, task: Pick<TodoistTask, "section_id" | "due">, sections: readonly TodoistSection[], activity: readonly TodoistActivity[]): RemoteStatusStep[] {
+  if (task.due?.is_recurring) throw new ProviderError("incompatible", "Todoist: a recurring task's completions leave it open");
+  const rows = [...activity].sort((a, b) => a.event_date.localeCompare(b.event_date));
+  const moves = rows.filter((a) => a.event_type === "moved");
+  if (moves.some((a) => a.extra_data?.destination_project_id)) throw new ProviderError("incompatible", "Todoist: a move between projects");
+  const known = rows.some((a) => a.event_type === "added");
+  let section: string | null = moves.length ? (moves[0].extra_data?.last_section_id ?? null) : task.section_id;
+  let completed = false;
+  const brief = (r: RemoteStatus) => ({ id: r.id, name: r.name });
+  const derive = () => {
+    if (completed) return COMPLETED;
+    if (section === null) return OPEN;
+    const sec = sections.find((x) => x.id === section);
+    if (!sec) throw new ProviderError("incompatible", "Todoist: a section deleted since");
+    return sectionStatus(s, sec);
+  };
+  let current: RemoteStatus | null = known ? derive() : null;
+  const steps: RemoteStatusStep[] = [];
+  const relevant = rows.filter((a) => a.event_type === "moved" || a.event_type === "completed" || a.event_type === "uncompleted");
+  relevant.forEach((a, n) => {
+    if (a.event_type === "moved") {
+      if ((a.extra_data?.last_section_id ?? null) !== section) throw new ProviderError("incompatible", "Todoist: a move from a section the task wasn't in");
+      section = a.extra_data?.section_id ?? null;
+    } else {
+      const on = a.event_type === "completed";
+      if (completed === on && current !== null) throw new ProviderError("incompatible", `Todoist: ${a.event_type} on a task already so`);
+      completed = on;
+    }
+    // Events of one instant make one step.
+    if (relevant[n + 1]?.event_date === a.event_date) return;
+    const next = derive();
+    if (next.id !== current?.id) steps.push({ at: instantFrom(a.event_date) ?? instant(0), from: current ? brief(current) : null, to: brief(next) });
+    current = next;
+  });
+  if (!known && steps.length === 0) throw new ProviderError("incompatible", "Todoist: the activity log doesn't reach the task's creation");
+  return steps;
+}
+
 async function taskBy(c: TodoistCreds, key: string): Promise<TodoistTask | null> {
   let id = key;
   if (isLegacyId(key)) {
@@ -524,6 +572,17 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
       const w = worldOf(x, c);
       return { comment: toRemoteComment(cm, cm.posted_uid ? await personOf(w, cm.posted_uid, ref.container?.remoteId ?? null) : { remoteId: "", name: "", avatarUrl: null }), warnings: [] };
     },
+  },
+
+  async statusHistory(x, ref) {
+    const c = await credsOf(x);
+    const t = await taskBy(c, idOf(ref));
+    if (!t) throw new ProviderError("notFound", `Todoist: no task ${ref.key}`);
+    const [sections, activity] = await Promise.all([
+      tdAll<TodoistSection>(c, "/sections", { project_id: t.project_id }),
+      tdAll<TodoistActivity>(c, "/activities", { object_type: "item", object_id: t.id, limit: 100 }),
+    ]);
+    return replayStatus(shapeOf(x), t, sections.rows, activity.rows);
   },
 
   async history(x, ref) {

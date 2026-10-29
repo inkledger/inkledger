@@ -3,7 +3,7 @@ import { instant, localDate, markdown, timeZone } from "@contracts/values";
 import { toRichDoc } from "../core/richtext";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { asanaSimulator, type SimTask } from "./simulator";
 import { asanaProvider, asanaWebhook, toAsanaHtml } from "./adapter";
 
@@ -532,5 +532,37 @@ describe("asana, errors and limits", () => {
     const { b, sim } = simulated();
     expect(await b.verify(meta())).toMatchObject({ remoteId: sim.me.gid, name: "Mario Rossi", email: "mario@acme.example" });
     expect((await b.probe(meta())).rateLimit).toBeUndefined();
+  });
+});
+
+statusHistoryConformance("asana (simulated, sections as statuses)", async () => {
+  const { b, sim, web } = simulated(COLUMNS);
+  const t = sim.tasks[0];
+  return { b, ref: ref(t), moveTwice: () => (sim.outside.moveToSection(t, web, "Doing"), sim.outside.moveToSection(t, web, "Review")) };
+});
+
+describe("asana, status history", () => {
+  it("a composite status is replayed as the app computes it", async () => {
+    const { b, sim, web } = simulated(COLUMNS);
+    const t = sim.tasks[0];
+    sim.outside.moveToSection(t, web, "Doing");
+    sim.outside.complete(t);
+    sim.outside.reopen(t);
+    sim.outside.moveToSection(t, web, "Review");
+    const steps = await b.statusHistory!(meta(), ref(t));
+    expect(steps.map((s) => [s.from?.name, s.to.name])).toEqual([
+      ["To do", "Doing"],
+      ["Doing", "Completed"],
+      ["Completed", "Doing"],
+      ["Doing", "Review"],
+    ]);
+  });
+
+  it("a task in several projects has no readable status history", async () => {
+    const { b, sim } = simulated(COLUMNS);
+    const other = sim.project("Ops", { sections: ["Doing"] });
+    const t = sim.tasks[0];
+    sim.outside.moveToSection(t, other, "Doing");
+    await expect(b.statusHistory!(meta(), ref(t))).rejects.toMatchObject({ kind: "incompatible" });
   });
 });

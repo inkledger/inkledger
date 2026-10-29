@@ -1,13 +1,26 @@
 # Loop: building the idea specs
 
+## For the user (2026-10-29, night)
+Done tonight, all local commits, nothing pushed: B3.2a1 `a8a3e63`, B3.2 `bfc4341`, B3.2a2 (this commit). Details and the decisions taken without you (each marked "to review") are in `estimates.md` under batches 2a and 2.
+
+**Questions only you can answer** (each written under its Q in `estimates.md`):
+1. **Q10, Basecamp cards:** a card's move between columns isn't in Basecamp's documented events. (a) let me read one real card's events on your Basecamp, read-only; (b) cards stay `invalid`, to-dos work (today); (c) cards `unsupported` (all worklogs count).
+2. **Q11, OpenProject:** its activities give status changes only as text in the user's language. (a) let me read one real work package's activities, read-only, to see if the HTML marks field and values in a language-independent way; (b) parse English and require the API user's language to be English; (c) keep it `invalid` (today).
+3. **Q1 (unchanged), blocks B3.6:** read and accept the Modified MIT licence of the Timestral weights.
+4. **Push:** 5 local commits on `main` (from `ca35c47`). Push when you have reviewed them.
+
+**Found, not caused by this work:** `e2e/multi-process.test.mjs` "two server processes: overlapping worklogs…" fails today at round 3 (`409,409`: 24 October, the day before the end of daylight saving). It fails the same way on `8a17a98`, which was green on CI. Date-dependent, like `shadow-room`; not investigated further.
+
+**Next in the queue:** B3.3 (estimates API). It needs no answer from you; the loop goes on with it.
+
 Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git and the code win over this file.
 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | B3.1 | estimates | AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57 | done | (this commit) | `vitest run contracts/estimate.test.ts` → 21/21; mutation check (current status, sourceOrdinal removed) → 2 fail as expected; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 195 files, 2374 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Spec revision 3 + patch 3.1 + 5 corrections. AC-3.57 passed before its grouping too (strict `<` already); no coverage tool in the repo |
 | B3.2a1 | estimates | 2a1: AC-3.58, 3.59, 3.60 (single-field rows) | done | (this commit) | `vitest run api/providers/core/validate.test.ts` → fail then pass; jira test → fail (no simulator move) then pass; mutation (statusSteps empty) → 8/8 rows fail; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 196 files, 2384 passed; `pnpm parity:update` → trpc-contract (capability type); `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 2a in the doc; Monday blank status to place in batch 2 |
-| B3.2a2 | estimates | 2a2: AC-3.60 (composite rows), 3.61, 3.62 | todo | | | Asana, Basecamp, GitLab, Gitea, Todoist, OpenProject; real-API facts first |
-| B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | todo | | | after B3.2a |
+| B3.2a2 | estimates | 2a2: AC-3.60 (composite rows), 3.61, 3.62 | done, part blocked | (this commit) | adapter tests: gitea 38, gitlab 70, asana 62, todoist 50, basecamp 68 passed; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 198 files, 2406 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | GitLab, Gitea, Asana, Todoist, Basecamp to-dos done. Basecamp cards: Q10. OpenProject: Q11. Facts and decisions under batch 2a in the doc |
+| B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | done | bfc4341 | `vitest run api/estimates api/queries/estimateRevision.test.ts` → 8 + 1 passed; mutations (read guard, stale trigger, issue-known statuses) → each its test fails; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 198 files, 2391 passed; `pnpm parity:update` → `issues.get`/`list` gain `statusId`; `pnpm build` → ok; `pnpm test:smoke` → 21 ok; full `PROVIDERS_READ_ONLY=1 pnpm test:e2e` → 242/243, the one failure pre-existing (below) | Triggers in migration 0018; decisions under batch 2 in the doc. Docs and this row land with the next commit |
 | B3.3 | estimates | AC-3.16–3.23, 3.29, 3.50, 3.51 | todo | | | |
 | B3.4 | estimates | AC-3.41–3.43, 3.45 | todo | | | |
 | B3.5 | estimates | AC-3.44 (accuracy) | todo | | | |

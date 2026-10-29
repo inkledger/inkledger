@@ -14,6 +14,7 @@ import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } 
 import { ProviderError } from "../core/errors";
 import type { CallContext, ChangeValue, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, RemoteWorklog, TrackerProvider } from "../types";
 import { allPages, apiRootOf, gt, gtOk, webBaseOf, type GiteaComment, type GiteaCreds, type GiteaIssue, type GiteaTimelineEntry, type GiteaTrackedTime, type GiteaUser } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 const MD = ["paragraph", "emphasis", "strong", "code", "codeBlock", "link", "list", "heading", "quote", "table", "image"] as const;
 
@@ -31,7 +32,7 @@ export const giteaCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
-  statusHistory: false,
+  statusHistory: true,
   // Open/closed is what the REST API gives. Scoped labels need a connection's mapping for their categories, and project boards have no REST endpoint: both wait for their spikes.
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "labelSet", transitions: "direct" }, { kind: "column", transitions: "move" }] },
   time: {
@@ -390,6 +391,13 @@ export const giteaProvider: TrackerProvider<"gitea", GiteaOptions> = {
     // Subscribing when subscribed (200) or newly (201), and the same for leaving: all successes.
     await gt<unknown>(creds, `${issuePath(ref.key)}/subscriptions/${encodeURIComponent(me.login)}`, { method: on ? "PUT" : "DELETE" });
   },
+
+  async statusHistory(x, ref) {
+
+    return statusSteps(await giteaProvider.history!(x, ref), (c) => c.field.id === "state", (v) => STATUSES.find((s) => s.name === v.text)?.id);
+
+  },
+
 
   async history(x, ref) {
     const entries = await allPages<GiteaTimelineEntry>(await credsOf(x), `${issuePath(ref.key)}/timeline?limit=${PER_PAGE}`);
