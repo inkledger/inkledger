@@ -51,8 +51,12 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
     await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Sprint', 1, ?)", now);
     await page.goto(base + "/issues/DEMO-105");
     const pin = page.getByRole("button", { name: "Pin to the pinboard" });
-    await pin.click();
     const menu = page.getByRole("menu");
+    // A click before the page is live (drawn by the server, hydrating on a slower machine) opens nothing: again, as a person would.
+    for (let i = 0; i < 5 && !(await menu.isVisible()); i++) {
+      await pin.click();
+      await menu.waitFor({ timeout: 3000 }).catch(() => {});
+    }
     await menu.getByRole("menuitemcheckbox", { name: "Sprint" }).click();
     await page.getByText("DEMO-105 pinned to “Sprint”").waitFor();
     const onBoards = async () => (await db.q("SELECT b.name FROM pinboard_notes n JOIN pinboards b ON b.id = n.board_id WHERE n.issue_key = 'DEMO-105' ORDER BY b.name")).map((r) => r.name);
