@@ -82,6 +82,15 @@ export function PinButton({ issueKey, connectionId }: { issueKey: string; connec
   const pinned = boards.some(b => b.noteId !== null);
   const label = pinned ? t("ui.pin.pinnedOn", { count: boards.filter(b => b.noteId !== null).length }) : t("pages.issueDetail.pin");
   const icon = <Pin className={cn("h-4 w-4 -rotate-12", pinned && "fill-current")} />;
+  // Until it is known where the issue is (and on how many boards it could go), a click would pin
+  // straight to the default board instead of offering the choice: the button waits.
+  if (!where.data) {
+    return (
+      <Button variant="ghost" size="icon" aria-label={t("pages.issueDetail.pin")} title={t("pages.issueDetail.pin")} disabled>
+        {icon}
+      </Button>
+    );
+  }
   if (boards.length <= 1) {
     const only = boards[0];
     return (
