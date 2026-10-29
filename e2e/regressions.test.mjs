@@ -51,12 +51,8 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
     await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Sprint', 1, ?)", now);
     await page.goto(base + "/issues/DEMO-105");
     const pin = page.getByRole("button", { name: "Pin to the pinboard" });
+    await pin.click();
     const menu = page.getByRole("menu");
-    // A click before the page is live (drawn by the server, hydrating on a slower machine) opens nothing: again, as a person would.
-    for (let i = 0; i < 5 && !(await menu.isVisible()); i++) {
-      await pin.click();
-      await menu.waitFor({ timeout: 3000 }).catch(() => {});
-    }
     await menu.getByRole("menuitemcheckbox", { name: "Sprint" }).click();
     await page.getByText("DEMO-105 pinned to “Sprint”").waitFor();
     const onBoards = async () => (await db.q("SELECT b.name FROM pinboard_notes n JOIN pinboards b ON b.id = n.board_id WHERE n.issue_key = 'DEMO-105' ORDER BY b.name")).map((r) => r.name);
@@ -200,12 +196,8 @@ test("a private note from the issue page hangs on the pinboard, tied by a red st
     const notes = page.locator("[data-private-notes]");
     // The note by its text (not "the first": a list still settling may show another one first).
     const item = notes.locator("[data-private-note]").filter({ hasText: "Ask Luca about the budget" }).first();
-    // Typed and added once the page is live (drawn by the server, hydrating on a slower machine): again if it was not.
-    for (let i = 0; i < 5 && !(await item.isVisible()); i++) {
-      await notes.getByLabel("New private note").fill("Ask Luca about the budget");
-      await notes.getByRole("button", { name: "Add note" }).click();
-      await item.waitFor({ timeout: 8000 }).catch(() => {});
-    }
+    await notes.getByLabel("New private note").fill("Ask Luca about the budget");
+    await notes.getByRole("button", { name: "Add note" }).click();
     await item.waitFor();
     const [saved] = await db.q("SELECT issue_key, body FROM issue_notes");
     assert.deepEqual(saved, { issue_key: "DEMO-105", body: "Ask Luca about the budget" });
@@ -232,9 +224,10 @@ test("a private note from the issue page hangs on the pinboard, tied by a red st
     const [{ id }] = await db.q("SELECT id FROM issue_notes");
     await page.goto(base + "/issues/DEMO-105");
     await page.locator(`[data-private-note="${id}"]`).getByRole("button", { name: "Delete the note" }).click();
-    await page.waitForTimeout(400);
-    const left = await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_note_id IS NOT NULL");
-    assert.equal(left[0].n, 0);
+    // Gone once the delete has reached the server (a fixed wait was too short on a slower machine).
+    const left = async () => (await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE issue_note_id IS NOT NULL"))[0].n;
+    for (let i = 0; i < 50 && (await left()) !== 0; i++) await page.waitForTimeout(200);
+    assert.equal(await left(), 0);
   }));
 
 test("the pinboard has no scrollbars and pans by dragging its background", () =>
