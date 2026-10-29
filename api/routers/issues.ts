@@ -8,7 +8,7 @@ import { boundTracker, syncConnectionEntries, syncConnectionIssues, withStream }
 import { toRichDoc } from "../providers/core/richtext";
 import { replayContract } from "../sync/timeWrites";
 import { fieldsOf, upsertRemote } from "../sync/issues";
-import { compileIssueQuery, mentions } from "../queries/issueQuery";
+import { compileIssueQuery, mentions, UNREAD_SQL } from "../queries/issueQuery";
 import { parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
 import { onLiveConnection } from "../queries/liveConnections";
@@ -904,8 +904,15 @@ export const issuesRouter = createRouter({
 
   /** Open issues of mine with news since my last visit, counted here: the sidebar's counter (every page) needs one number. */
   unreadCount: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await compactIssues(ctx.user.id, eq(issues.hidden, 0));
-    return rows.filter((i) => i.unread && i.isMine && !isClosed(i.category)).length;
+    const me = await myRemoteIds(ctx.user.id);
+    if (me.length === 0) return 0;
+    const [row] = await getDb()
+      .select({ n: sql<number>`count(*)::int` })
+      .from(issues)
+      .where(
+        and(eq(issues.userId, ctx.user.id), onLiveConnection, eq(issues.hidden, 0), inArray(issues.assigneeId, me), notInArray(issues.category, CLOSED), UNREAD_SQL),
+      );
+    return row?.n ?? 0;
   }),
 
   list: protectedProcedure

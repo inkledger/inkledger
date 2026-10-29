@@ -55,7 +55,18 @@ describe("buckets, per device", () => {
     const desk = await onDevice("device-desk-unread");
     const { isClosed } = await import("@contracts/categories");
     const count = (rows: Awaited<ReturnType<Caller["issues"]["all"]>>) => rows.filter((i) => i.hidden !== 1 && i.unread && i.isMine && !isClosed(i.category)).length;
-    expect(await desk.issues.unreadCount()).toBe(count(await desk.issues.all()));
+    // News on all three: only ONE-1 counts (TWO-1 is done, OPS-1 someone else's).
+    await q("UPDATE issues SET others_activity_at = ?", Date.now());
+    await q("UPDATE issues SET category = 'done' WHERE key = 'TWO-1'");
+    await q("UPDATE issues SET assignee_id = 'other' WHERE key = 'OPS-1'");
+    try {
+      expect(await desk.issues.unreadCount()).toBe(1);
+      expect(await desk.issues.unreadCount()).toBe(count(await desk.issues.all()));
+      await q("UPDATE issues SET seen_at = ? WHERE key = 'ONE-1'", Date.now() + 1);
+      expect(await desk.issues.unreadCount()).toBe(0);
+    } finally {
+      await q("UPDATE issues SET others_activity_at = NULL, seen_at = NULL, category = 'todo', assignee_id = 'me'");
+    }
   });
 
   it("a bucket on one device narrows that device's lists only", async () => {

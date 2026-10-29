@@ -504,16 +504,24 @@ export const todosRouter = createRouter({
    */
   suggestions: protectedProcedure.input(z.object({ today: day })).query(async ({ ctx, input }) => {
     const db = getDb();
-    const me = await myRemoteIds(ctx.user.id);
     const since = addDays(parseDayKey(input.today) ?? new Date(), -SUGGEST_DAYS);
-    const taken = new Set(
-      (await db.select({ source: todos.source }).from(todos).where(and(eq(todos.userId, ctx.user.id), isNotNull(todos.source)))).map((r) => r.source),
-    );
-    const busy = new Set(
-      (await db.select({ c: todos.connectionId, k: todos.issueKey }).from(todos).where(and(eq(todos.userId, ctx.user.id), open, isNotNull(todos.issueKey)))).map(
-        (r) => `${r.c}:${r.k}`,
-      ),
-    );
+    const visible = and(eq(issues.userId, ctx.user.id), eq(issues.hidden, 0), isNull(issues.goneAt));
+    // Independent reads, side by side.
+    const [me, takenRows, busyRows, notes] = await Promise.all([
+      myRemoteIds(ctx.user.id),
+      db.select({ source: todos.source }).from(todos).where(and(eq(todos.userId, ctx.user.id), isNotNull(todos.source))),
+      db.select({ c: todos.connectionId, k: todos.issueKey }).from(todos).where(and(eq(todos.userId, ctx.user.id), open, isNotNull(todos.issueKey))),
+      // The tracker's own news (an inbox, or what the sync saw: assigned to me).
+      db
+        .select({ n: notifications, summary: issues.summary, status: issues.status, category: issues.category })
+        .from(notifications)
+        .innerJoin(issues, and(eq(issues.userId, notifications.userId), eq(issues.connectionId, notifications.connectionId), eq(issues.key, notifications.issueKey)))
+        .where(and(eq(notifications.userId, ctx.user.id), isNull(notifications.dismissedAt), gte(notifications.createdAt, since), inArray(notifications.kind, [...NOTICE_KINDS]), visible))
+        .orderBy(desc(notifications.createdAt))
+        .limit(100),
+    ]);
+    const taken = new Set(takenRows.map((r) => r.source));
+    const busy = new Set(busyRows.map((r) => `${r.c}:${r.k}`));
     type Suggestion = { source: string; kind: SuggestionKind; issueKey: string; connectionId: number; summary: string; status: string; at: Date };
     const out = new Map<string, Suggestion>();
     const offer = (s: Suggestion) => {
@@ -523,15 +531,6 @@ export const todosRouter = createRouter({
       const known = out.get(issue);
       if (!known || known.at < s.at) out.set(issue, s);
     };
-    const visible = and(eq(issues.userId, ctx.user.id), eq(issues.hidden, 0), isNull(issues.goneAt));
-    // The tracker's own news (an inbox, or what the sync saw: assigned to me).
-    const notes = await db
-      .select({ n: notifications, summary: issues.summary, status: issues.status, category: issues.category })
-      .from(notifications)
-      .innerJoin(issues, and(eq(issues.userId, notifications.userId), eq(issues.connectionId, notifications.connectionId), eq(issues.key, notifications.issueKey)))
-      .where(and(eq(notifications.userId, ctx.user.id), isNull(notifications.dismissedAt), gte(notifications.createdAt, since), inArray(notifications.kind, [...NOTICE_KINDS]), visible))
-      .orderBy(desc(notifications.createdAt))
-      .limit(100);
     for (const { n, summary, status, category } of notes) {
       if (isClosed(category)) continue;
       const kind: SuggestionKind =
@@ -540,33 +539,35 @@ export const todosRouter = createRouter({
     }
     // Mine or watched, with news by someone else since I last looked.
     if (me.length > 0) {
-      const news = await db
-        .select()
-        .from(issues)
-        .where(
-          and(
-            visible,
-            or(inArray(issues.assigneeId, me), eq(issues.watching, 1)),
-            isNotNull(issues.othersActivityAt),
-            gte(issues.othersActivityAt, since.getTime()),
-            or(isNull(issues.seenAt), sql`${issues.othersActivityAt} > ${issues.seenAt}`),
-          ),
-        )
-        .orderBy(desc(issues.othersActivityAt))
-        .limit(50);
+      const [news, doing] = await Promise.all([
+        db
+          .select()
+          .from(issues)
+          .where(
+            and(
+              visible,
+              or(inArray(issues.assigneeId, me), eq(issues.watching, 1)),
+              isNotNull(issues.othersActivityAt),
+              gte(issues.othersActivityAt, since.getTime()),
+              or(isNull(issues.seenAt), sql`${issues.othersActivityAt} > ${issues.seenAt}`),
+            ),
+          )
+          .orderBy(desc(issues.othersActivityAt))
+          .limit(50),
+        // In progress and mine, with no TODO yet: today's work.
+        db
+          .select()
+          .from(issues)
+          .where(and(visible, inArray(issues.assigneeId, me), eq(issues.category, "doing")))
+          .orderBy(sql`${issues.activityAt} DESC NULLS LAST`)
+          .limit(20),
+      ]);
       for (const i of news) {
         if (isClosed(i.category) || i.othersActivityAt === null) continue;
         const kind: SuggestionKind =
           i.statusChangedAt === i.othersActivityAt ? "status" : i.lastCommentAt === i.othersActivityAt ? "comment" : me.includes(i.assigneeId) ? "news" : "watched";
         offer({ source: `u:${i.connectionId}:${i.key}:${i.othersActivityAt}`, kind, issueKey: i.key, connectionId: i.connectionId, summary: i.summary, status: i.status, at: new Date(i.othersActivityAt) });
       }
-      // In progress and mine, with no TODO yet: today's work.
-      const doing = await db
-        .select()
-        .from(issues)
-        .where(and(visible, inArray(issues.assigneeId, me), eq(issues.category, "doing")))
-        .orderBy(sql`${issues.activityAt} DESC NULLS LAST`)
-        .limit(20);
       for (const i of doing)
         offer({ source: `d:${i.connectionId}:${i.key}:${input.today}`, kind: "doing", issueKey: i.key, connectionId: i.connectionId, summary: i.summary, status: i.status, at: new Date(i.activityAt ?? 0) });
     }
