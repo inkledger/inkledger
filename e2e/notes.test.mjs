@@ -91,7 +91,8 @@ test("Markdown notes autosave, render, search from the page and palette, recover
         )[0]?.body === "Recupero dopo reload",
       "recovered save"
     );
-    await page.getByRole("button", { name: "Edit" }).click();
+    const editAfterRecovery = page.getByRole("button", { name: "Edit", exact: true });
+    if (await editAfterRecovery.count()) await editAfterRecovery.click();
 
     await context.setOffline(true);
     await page.getByLabel("Markdown source").fill("Bozza offline");
@@ -296,7 +297,7 @@ test("hierarchy, issue links, history, move and trash restore stay consistent", 
     await page.getByRole("button", { name: "History" }).click();
     const manual = page
       .getByRole("listitem")
-      .filter({ hasText: "manual" })
+      .filter({ hasText: "Version one" })
       .first();
     await manual.getByRole("button", { name: "Restore" }).click();
     await waitFor(

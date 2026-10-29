@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { start } from "./harness.mjs";
 
 const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
-const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash"];
+const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 
 test("key routes have no serious or critical accessibility violation", async () => {
   const app = await start({});
