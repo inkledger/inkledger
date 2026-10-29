@@ -4,6 +4,7 @@
 // `unsupported` (the caller says so, never drops it silently); inside an OR
 // or a NOT one unsayable term makes the whole group unsayable.
 import { dateBounds, formatQuery, type QueryExpr, type QueryTerm } from "@contracts/query";
+import { dayKey } from "@contracts/time";
 
 export type Translated = { query: string; unsupported: string[] };
 
@@ -49,12 +50,9 @@ export function translateWith(expr: QueryExpr | null, d: Dialect): Translated {
   return { query: expr ? (walk(expr) ?? "") : "", unsupported: [...new Set(unsupported)] };
 }
 
-/** A local day as YYYY-MM-DD. */
-export const dayOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
 /** A date term's bounds, as days (from inclusive, to exclusive), or null when the value isn't a date. */
 export function dayBounds(t: Extract<QueryTerm, { kind: "field" }>, now: Date): { from?: string; to?: string } | null {
   const b = dateBounds(t.op, t.value, now);
   if (!b) return null;
-  return { ...(b.from ? { from: dayOf(b.from) } : {}), ...(b.to ? { to: dayOf(b.to) } : {}) };
+  return { ...(b.from ? { from: dayKey(b.from) } : {}), ...(b.to ? { to: dayKey(b.to) } : {}) };
 }

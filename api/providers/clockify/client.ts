@@ -2,7 +2,7 @@
 // safe fetch, the personal API key in X-Api-Key (Profile settings → API),
 // errors in the layer's words, pages by page / page-size.
 import { ProviderError, kindOfStatus, type ProviderErrorKind } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type ClockifyCreds = {
   /** https://api.clockify.me/api/v1 */
@@ -10,7 +10,6 @@ export type ClockifyCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 export type ClockifyUser = {
   id: string;
@@ -84,7 +83,7 @@ export async function cf<T>(c: ClockifyCreds, path: string, init: Call = {}): Pr
   const { missingIsNull, ...rest } = init;
   const res = await safeFetch({
     site: c.apiBase,
-    url: path.startsWith("http") ? path : `${trimmed(c.apiBase)}${path}`,
+    url: path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       ...rest,
       headers: {

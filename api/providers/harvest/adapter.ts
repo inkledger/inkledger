@@ -10,13 +10,14 @@
 // api/providers/harvest/SPIKES.md.
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ExternalRef, IssueHandle, Limited, RemotePerson, RemoteWorklog, SinkTarget, TimeSinkProvider, WorklogInput } from "../types";
 import { hv, hvOk, hvPage, hvPages, type HarvestCompany, type HarvestCreds, type HarvestExternalReference, type HarvestProjectAssignment, type HarvestTimeEntry, type HarvestUser } from "./client";
 
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare: entries changed in the last 7 days, a pass overlapping its checkpoint by an hour. */
 const LOOKBACK_MS = 7 * DAY_MS;
 const OVERLAP_MS = 3_600_000;
@@ -61,7 +62,7 @@ type FeedPage = { page: number; since: string; at: number };
 
 async function credsOf(x: X): Promise<HarvestCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token, accountId: x.conn.options.accountId };
 }
 

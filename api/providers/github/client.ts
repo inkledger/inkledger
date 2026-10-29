@@ -3,7 +3,7 @@
 // layer's words, pages by the Link header.
 import { createHash } from "node:crypto";
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 import { nextLink } from "../core/paging";
 
 export type GitHubCreds = {
@@ -71,7 +71,7 @@ const READ_MAX = 500;
 
 /** One call; 404/410 as null when `missingIsNull`. */
 export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<{ data: T; next: string | null } | null> {
-  const url = path.startsWith("http") ? path : `${c.apiBase.replace(/\/+$/, "")}${path}`;
+  const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   const reads = (init.method ?? "GET").toUpperCase() === "GET";
   const key = reads ? `${createHash("sha256").update(c.token).digest("hex").slice(0, 16)} ${url}` : "";
   const known = reads ? READ.get(key) : undefined;

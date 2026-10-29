@@ -5,7 +5,7 @@
 // Notion answers every error as JSON ({ object: "error", status, code,
 // message }); a lost or unshared page is a 404 (object_not_found), never a 403.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 
 /** The version of the API the adapter is written against; a newer one changes databases into data sources. */
 export const NOTION_VERSION = "2022-06-28";
@@ -16,7 +16,6 @@ export type NotionCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 export type NotionRichText = {
   type: "text" | "mention" | "equation";
@@ -142,7 +141,7 @@ type Call = {
 export async function nt<T>(c: NotionCreds, path: string, call: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(call.query ?? {})) if (v !== undefined) qs.set(k, String(v));
-  const url = `${trimmed(c.apiBase)}${path}${qs.size ? `?${qs.toString()}` : ""}`;
+  const url = `${trimTrailingSlash(c.apiBase)}${path}${qs.size ? `?${qs.toString()}` : ""}`;
   const res = await safeFetch({
     site: c.apiBase,
     url,

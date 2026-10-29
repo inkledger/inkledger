@@ -14,3 +14,11 @@ export function assertRevision(concurrency: "revision" | "none", expectedVersion
 export function assertSeconds(seconds: number, allowZero = false): void {
   if (!Number.isInteger(seconds) || seconds < (allowZero ? 0 : 1)) throw new ProviderError("invalid", `Not ${allowZero ? "zero or more" : "positive"} whole seconds: ${seconds}`);
 }
+
+/** Whole seconds as an ISO 8601 duration with no zero parts ("PT0S" for nothing). */
+export function isoDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${s || (!h && !m) ? `${s}S` : ""}`;
+}

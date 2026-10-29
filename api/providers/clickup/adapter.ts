@@ -8,7 +8,9 @@
 import { createHmac } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, jsonPayload, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { sameSecret } from "../core/webhooks";
@@ -125,7 +127,6 @@ type EntryPage = { ws: string[]; i: number; at: number };
 
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
 const OVERLAP_MS = 60_000;
-const DAY_MS = 86_400_000;
 /** The window feed's lookback (the capabilities' lookbackMs): entries started before it are not read. */
 const LOOKBACK_MS = 30 * DAY_MS;
 /** The team task list gives 100 a page. */
@@ -140,7 +141,7 @@ const SEARCH_PAGES = 5;
 
 async function credsOf(x: X): Promise<ClickUpCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

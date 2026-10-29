@@ -3,7 +3,7 @@
 // token as a Bearer, errors in the layer's words, pages by `next_page.offset`.
 // Asana is a hosted service only, so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type AsanaCreds = {
   /** The API root: https://app.asana.com/api/1.0 */
@@ -11,10 +11,9 @@ export type AsanaCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The web site for an API root (links): the same host without /api/1.0. */
-export const webBaseOf = (apiBase: string) => trimmed(apiBase).replace(/\/api\/1\.0$/, "");
+export const webBaseOf = (apiBase: string) => trimTrailingSlash(apiBase).replace(/\/api\/1\.0$/, "");
 
 /** Asana answers a bare record unless asked for its fields: these are what the adapter reads. */
 export const USER_FIELDS = "name,email,photo.image_128x128,workspaces.name";
@@ -152,7 +151,7 @@ export async function asana<T>(c: AsanaCreds, path: string, init: Call = {}): Pr
   const body = init.data === undefined ? undefined : JSON.stringify({ data: init.data });
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${trimmed(c.apiBase)}${path}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       method: init.method ?? "GET",
       headers: { Accept: "application/json", Authorization: `Bearer ${c.token}`, ...(body ? { "Content-Type": "application/json" } : {}) },

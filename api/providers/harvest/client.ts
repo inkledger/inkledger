@@ -4,7 +4,7 @@
 // refuses calls without one), errors in the layer's words, pages by
 // page/next_page. The budget is 100 requests per 15 seconds, then 429.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type HarvestCreds = {
   /** https://api.harvestapp.com/v2 */
@@ -108,7 +108,7 @@ export async function hv<T>(c: HarvestCreds, path: string, init: Call = {}): Pro
   const { missingIsNull, ...rest } = init;
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${c.apiBase.replace(/\/+$/, "")}${path}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       ...rest,
       headers: {

@@ -3,7 +3,7 @@
 // X-Api-Key, errors in the layer's words, lists paged by `page` and `limit`.
 // Dates are plain days (YYYY-MM-DD, the user's own), times whole seconds.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type EverhourCreds = {
   /** The API root: https://api.everhour.com */
@@ -11,7 +11,6 @@ export type EverhourCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** Everhour versions its API by header; 1.2 is the one the documentation describes. */
 const API_VERSION = "1.2";
@@ -76,7 +75,7 @@ export async function eh<T>(c: EverhourCreds, path: string, init: Call = {}): Pr
   const { missingIsNull, intent, ...rest } = init;
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${trimmed(c.apiBase)}${path}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       ...rest,
       headers: {

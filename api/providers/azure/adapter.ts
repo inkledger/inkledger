@@ -12,6 +12,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits, WEBHOOK_EVENTS } from "@contracts/providers";
 import { instant, instantFrom, localDateOf, type JsonValue } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ConversionWarning, Instant, IssueRef, Limited, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, ReportedIssueGone, TrackerProvider, Transition } from "../types";
@@ -97,7 +98,7 @@ const CACHE_MS = 5 * 60_000;
 
 async function credsOf(x: X): Promise<AzureCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

@@ -116,3 +116,6 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     target = next.toString();
   }
 }
+
+/** A site address without the slashes that end it. */
+export const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, "");

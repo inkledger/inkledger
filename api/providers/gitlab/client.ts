@@ -3,7 +3,7 @@
 // servers, redirects re-checked), the personal token in PRIVATE-TOKEN, errors
 // in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 import { nextLink } from "../core/paging";
 
 export type GitLabCreds = {
@@ -12,16 +12,15 @@ export type GitLabCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The web site for an API root (links, avatars): the same host without /api/v4. */
-export const webBaseOf = (apiBase: string) => trimmed(apiBase).replace(/\/api\/v4$/, "");
+export const webBaseOf = (apiBase: string) => trimTrailingSlash(apiBase).replace(/\/api\/v4$/, "");
 
 /** The API root for the address a person types (the server's web address) or the API's own: /api/v4 once. */
 export const apiRootOf = (address: string) => `${webBaseOf(address)}/api/v4`;
 
 /** GraphQL lives next to v4, not under it. */
-const graphqlUrl = (apiBase: string) => `${trimmed(apiBase).replace(/\/v4$/, "")}/graphql`;
+const graphqlUrl = (apiBase: string) => `${trimTrailingSlash(apiBase).replace(/\/v4$/, "")}/graphql`;
 
 export type GitLabUser = { id: number; username: string; name?: string | null; avatar_url?: string | null; email?: string | null };
 
@@ -103,7 +102,7 @@ const networkOf = (base: string) => {
 /** One call. */
 export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Promise<{ data: T; next: string | null; headers: Headers } | null> {
   const { missingIsNull, accept, intent, ...rest } = init;
-  const url = path.startsWith("http") ? path : `${trimmed(c.apiBase)}${path}`;
+  const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   const res = await safeFetch({
     site: c.apiBase,
     network: networkOf(c.apiBase),

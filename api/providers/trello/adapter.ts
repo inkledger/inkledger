@@ -10,6 +10,7 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDateOf, type Instant, type JsonValue, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { sameSecret } from "../core/webhooks";
@@ -109,7 +110,7 @@ const MEMBER_FIELDS = "fullName,username,avatarUrl";
 
 async function credsOf(x: X): Promise<TrelloCreds> {
   const cred = await x.conn.credential();
-  const secret = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const secret = secretOf(cred);
   const parts = splitSecret(secret);
   if (!parts) throw new ProviderError("auth", "Trello needs the API key and the token as <key>:<token>");
   return { apiBase: x.conn.baseUrl, ...parts };

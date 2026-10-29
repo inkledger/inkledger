@@ -5,7 +5,7 @@
 // Basecamp is a hosted service only, so every call goes to the public internet.
 // An account's API lives under https://3.basecampapi.com/<account id>.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 /** Where the accounts of a token are listed (a different host from the API). */
 export const LAUNCHPAD = "https://launchpad.37signals.com";
@@ -17,7 +17,6 @@ export type BcCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The web site of an API host (links): 3.basecampapi.com -> 3.basecamp.com. */
 export const webHostOf = (apiBase: string) => new URL(apiBase).host.replace(/basecampapi\.com$/, "basecamp.com");
@@ -130,7 +129,7 @@ function nextOf(res: Response, apiBase: string): string | null {
 /** One call. `path` is under the account (/projects.json) or a full address already on the server (a next page). */
 export async function bc<T>(c: BcCreds, path: string, init: Call = {}): Promise<Answer<T> | null> {
   const site = init.site ?? c.apiBase;
-  const url = /^https?:\/\//.test(path) ? path : `${trimmed(site)}${path}`;
+  const url = /^https?:\/\//.test(path) ? path : `${trimTrailingSlash(site)}${path}`;
   // A full address (a next page, kept in a page token) is only ever followed on the server itself, with the token.
   if (new URL(url).origin !== new URL(site).origin) throw new ProviderError("incompatible", "Basecamp: an address on another server");
   const body = init.json === undefined ? undefined : JSON.stringify(init.json);

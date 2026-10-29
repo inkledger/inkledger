@@ -7,6 +7,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type Instant, type JsonValue } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { ActiveWorkflowSource, CallContext, ChangeValue, IssueHandle, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
@@ -70,7 +71,7 @@ const PER_PAGE = 50;
 
 async function credsOf(x: X): Promise<LinearCreds> {
   const cred = await x.conn.credential();
-  return { apiBase: x.conn.baseUrl, token: cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password, oauth: cred.kind === "oauth" };
+  return { apiBase: x.conn.baseUrl, token: secretOf(cred), oauth: cred.kind === "oauth" };
 }
 
 /** ENG-123: the team key (letters and digits, up to 7, starting with a letter), a dash, the number. */

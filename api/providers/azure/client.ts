@@ -4,7 +4,7 @@
 // Paging has no single rule here: callers use what each endpoint documents
 // ($top/$skip, continuation tokens in a header or in the body).
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, type Intent, discardBody } from "../core/http";
+import { safeFetch, type Intent, discardBody, trimTrailingSlash } from "../core/http";
 
 export type AzureCreds = {
   /** The collection's root: https://dev.azure.com/{organization}, or a Server's https://host/tfs/{collection} */
@@ -142,7 +142,7 @@ const networkOf = (base: string) => {
 /** One call. */
 export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Promise<{ data: T; headers: Headers } | null> {
   const { missingIsNull, params, version, intent, ...rest } = init;
-  const url = new URL(`${c.apiBase.replace(/\/+$/, "")}${path}`);
+  const url = new URL(`${trimTrailingSlash(c.apiBase)}${path}`);
   for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined) url.searchParams.set(k, String(v));
   url.searchParams.set("api-version", version ?? API_VERSION);
   const res = await safeFetch({

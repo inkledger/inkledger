@@ -2,7 +2,7 @@
 // through the shared safe fetch (read-only servers, redirects re-checked),
 // errors in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 import { nextLink } from "../core/paging";
 
 export type GiteaCreds = {
@@ -111,7 +111,7 @@ const networkOf = (base: string) => {
 
 /** One call; 404/410 as null when `missingIsNull`. */
 export async function gt<T>(c: GiteaCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<GiteaResult<T> | null> {
-  const url = path.startsWith("http") ? path : `${c.apiBase.replace(/\/+$/, "")}${path}`;
+  const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   const { missingIsNull, ...rest } = init;
   const res = await safeFetch({
     site: c.apiBase,

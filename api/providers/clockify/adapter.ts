@@ -9,6 +9,7 @@
 import { z } from "zod";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { ProviderError } from "../core/errors";
 import type { ApprovalState, CallContext, ExternalRef, Limited, RemoteWorklog, SinkTarget, TimeSinkProvider, WorklogInput } from "../types";
 import {
@@ -62,7 +63,7 @@ type X = CallContext<"clockify", ClockifyOptions>;
 
 async function credsOf(x: X): Promise<ClockifyCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

@@ -26,6 +26,7 @@
 // - an authentication that fails is a 401 with a `WWW-Authenticate` challenge,
 //   and a server open to the public may answer as the anonymous account.
 import { createHmac } from "node:crypto";
+import { isoDuration } from "../core/time";
 
 export type SimUser = { id: number; name: string; login: string; email?: string; avatar?: string };
 type SimStatus = { id: number; name: string; isClosed: boolean; position: number; color: string };
@@ -77,12 +78,6 @@ const ACTIVITIES = [
 ];
 
 const iso = (ms: number) => new Date(ms).toISOString();
-const duration = (seconds: number) => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${s || (!h && !m) ? `${s}S` : ""}`;
-};
 const parseDuration = (text: unknown): number | null => {
   const m = typeof text === "string" ? /^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(text) : null;
   return m && text !== "PT" ? Math.round(Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0)) : null;
@@ -182,9 +177,9 @@ export function openprojectSimulator(site = "https://op.example.com", me: SimUse
       scheduleManually: false,
       startDate: w.startDate,
       dueDate: w.dueDate,
-      estimatedTime: w.estimatedSeconds === null ? null : duration(w.estimatedSeconds),
+      estimatedTime: w.estimatedSeconds === null ? null : isoDuration(w.estimatedSeconds),
       // Only where the user may see time entries (the module is on in the project).
-      ...(w.project.timeTracking ? { spentTime: duration(spentOn(w)) } : {}),
+      ...(w.project.timeTracking ? { spentTime: isoDuration(spentOn(w)) } : {}),
       percentageDone: 0,
       createdAt: iso(w.createdAt),
       updatedAt: iso(w.updatedAt),
@@ -239,7 +234,7 @@ export function openprojectSimulator(site = "https://op.example.com", me: SimUse
       id: e.id,
       comment: { format: "plain", raw: e.comment, html: `<p>${escapeHtml(e.comment)}</p>` },
       spentOn: e.spentOn,
-      hours: duration(e.seconds),
+      hours: isoDuration(e.seconds),
       ongoing: false,
       createdAt: iso(e.createdAt),
       updatedAt: iso(e.updatedAt),

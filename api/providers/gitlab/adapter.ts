@@ -9,7 +9,9 @@
 import { timingSafeEqual, createHash } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, type Instant } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import {
@@ -140,13 +142,12 @@ type TimelogPageAt = { after: string | null; from: string; to: string; username:
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
 const OVERLAP_MS = 60_000;
 const PER_PAGE = 50;
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare. */
 const WINDOW_DAYS = 30;
 
 async function credsOf(x: X): Promise<GitLabCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: apiRootOf(x.conn.baseUrl), token };
 }
 

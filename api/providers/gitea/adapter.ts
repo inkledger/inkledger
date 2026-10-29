@@ -7,7 +7,9 @@
 import { giteaWebhook } from "./webhook";
 import { z } from "zod";
 import type { TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ChangeValue, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, RemoteWorklog, TrackerProvider } from "../types";
@@ -87,13 +89,12 @@ type PageAt = { page: number; at: number };
 const OVERLAP_MS = 60_000;
 /** Gitea's usual ceiling per page (MAX_RESPONSE_ITEMS): a bigger ask is cut to it, so pages follow the Link header, never counts. */
 const PER_PAGE = 50;
-const DAY_MS = 86_400_000;
 /** The feed window, as declared, plus a day for the user's zone against the server's. */
 const WINDOW_MS = (30 + 1) * DAY_MS;
 
 async function credsOf(x: X): Promise<GiteaCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: apiRootOf(x.conn.baseUrl), token };
 }
 

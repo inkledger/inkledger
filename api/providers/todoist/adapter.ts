@@ -11,6 +11,7 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonValue, type LocalDate, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { sameSecret } from "../core/webhooks";
@@ -110,7 +111,7 @@ const WEB = "https://app.todoist.com";
 
 async function credsOf(x: X): Promise<TodoistCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

@@ -6,7 +6,8 @@ import { ProviderError } from "../core/errors";
 import { readPass } from "../core/paging";
 import { trackerConformance } from "../conformance/suite";
 import type { IssueRef } from "../types";
-import { categoryOf, durationOf, openprojectProvider, secondsOf, verifyOpenProjectWebhook, openProjectEvent } from "./adapter";
+import { isoDuration } from "../core/time";
+import { categoryOf, openprojectProvider, secondsOf, verifyOpenProjectWebhook, openProjectEvent } from "./adapter";
 import { apiRootOf, networkOf, webBaseOf } from "./client";
 import { openprojectSimulator } from "./simulator";
 import { openProjectDeliveryId, openProjectSentAt, signWebhook } from "./webhook";
@@ -392,7 +393,7 @@ describe("openproject: time entries", () => {
     expect(secondsOf("PT0.5H")).toBe(1800);
     expect(secondsOf("PT")).toBeNull();
     expect(secondsOf("90 minutes")).toBeNull();
-    expect([durationOf(5400), durationOf(3600), durationOf(45), durationOf(3725)]).toEqual(["PT1H30M", "PT1H", "PT45S", "PT1H2M5S"]);
+    expect([isoDuration(5400), isoDuration(3600), isoDuration(45), isoDuration(3725)]).toEqual(["PT1H30M", "PT1H", "PT45S", "PT1H2M5S"]);
     expect((await b.worklogs!.get!(meta(), ref, String(made.remoteId)))?.remoteId).toBe(made.remoteId);
     expect(await b.worklogs!.get!(meta(), ref, "999")).toBeNull();
   });

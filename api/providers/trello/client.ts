@@ -5,7 +5,7 @@
 // in the layer's words. Trello answers errors in plain text more often than in
 // JSON, and uses 401 both for a bad token and for a card the token can't see.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 
 export type TrelloCreds = {
   /** https://api.trello.com (the version goes in the path) */
@@ -14,7 +14,6 @@ export type TrelloCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The connection's secret holds both halves: "<api key>:<token>". */
 export function splitSecret(secret: string): { key: string; token: string } | null {
@@ -135,7 +134,7 @@ const authorization = (c: TrelloCreds) => `OAuth oauth_consumer_key="${c.key}", 
 export async function tr<T>(c: TrelloCreds, path: string, call: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(call.query ?? {})) if (v !== undefined) qs.set(k, String(v));
-  const url = `${trimmed(c.apiBase)}/1${path}${qs.size ? `?${qs.toString()}` : ""}`;
+  const url = `${trimTrailingSlash(c.apiBase)}/1${path}${qs.size ? `?${qs.toString()}` : ""}`;
   const res = await safeFetch({
     site: c.apiBase,
     url,

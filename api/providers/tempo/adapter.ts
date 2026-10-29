@@ -10,7 +10,9 @@
 // yet on a real account: SPIKES.md.
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, CatalogItem, ExternalRef, Limited, Page, RemoteWorklog, ReportedEntryGone, TimeSinkProvider, WorklogInput } from "../types";
@@ -55,13 +57,12 @@ export type TempoOptions = { jiraConnectionId: number | null; accountId: string 
 type X = CallContext<"tempo", TempoOptions>;
 
 const V = 1;
-const DAY_MS = 86_400_000;
 const LOOKBACK_MS = 7 * DAY_MS;
 const OVERLAP_MS = 3_600_000;
 
 async function credsOf(x: X): Promise<TempoCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

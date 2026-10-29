@@ -10,6 +10,8 @@
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type Instant, type LocalDate } from "@contracts/values";
+import { secretOf } from "../core/context";
+import { isoDuration } from "../core/time";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type {
@@ -132,7 +134,7 @@ const PER_PAGE = 100;
 
 async function credsOf(x: X): Promise<OpenProjectCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 
@@ -176,13 +178,6 @@ export function secondsOf(iso: unknown): number | null {
   if (!m) return null;
   const [d, h, min, s] = [m[1], m[2], m[3], m[4]].map((v) => (v === undefined ? 0 : Number(v)));
   return Math.round(d * 86_400 + h * 3600 + min * 60 + s);
-}
-/** Whole seconds as an ISO 8601 duration. */
-export function durationOf(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${s || (!h && !m) ? `${s}S` : ""}`;
 }
 
 /** Relative avatar paths are made absolute on the site. */
@@ -319,7 +314,7 @@ function entryBody(w: WorklogInput, extra: { workPackage?: string; lockVersion?:
   if (w.time.kind !== "date") throw new ProviderError("invalid", `OpenProject keeps time entries by date, not a ${w.time.kind}`);
   return {
     spentOn: w.time.date,
-    hours: durationOf(w.time.seconds),
+    hours: isoDuration(w.time.seconds),
     comment: { raw: w.comment },
     ...(extra.lockVersion !== undefined ? { lockVersion: extra.lockVersion } : {}),
     _links: {

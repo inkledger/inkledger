@@ -9,7 +9,9 @@
 import { createHmac } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { sameSecret } from "../core/webhooks";
@@ -121,7 +123,6 @@ type IssuePage = { stage: Stage; token: string | null; at: number };
 /** Overlap read again at each pass: updates land after the clock that stamps them, and Wrike stamps whole seconds. */
 const OVERLAP_MS = 60_000;
 const PER_PAGE = 100;
-const DAY_MS = 86_400_000;
 /** A first read takes the tasks completed or cancelled in this window, with everything still active or deferred. */
 const FINISHED_WINDOW_DAYS = 30;
 const FIRST_STAGES: Stage[] = ["open", "recent"];
@@ -129,7 +130,7 @@ const LATER_STAGES: Stage[] = ["changed", "deleted"];
 
 async function credsOf(x: X): Promise<WrikeCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

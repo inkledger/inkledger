@@ -9,6 +9,7 @@
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits, TrackerType } from "@contracts/providers";
 import { instant, localDate, localDateOf } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { ProviderError } from "../core/errors";
 import { assertSeconds } from "../core/time";
 import type { CallContext, ExternalRef, RemoteWorklog, TimeSinkProvider } from "../types";
@@ -39,7 +40,7 @@ type X = CallContext<"everhour", EverhourOptions>;
 
 async function credsOf(x: X): Promise<EverhourCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

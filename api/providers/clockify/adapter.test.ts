@@ -3,7 +3,8 @@ import { instant, localDate, timeZone } from "@contracts/values";
 import { bindSink } from "../core/bind";
 import { sinkConformance } from "../conformance/suite";
 import type { ExternalRef, SinkTarget, WorklogInput } from "../types";
-import { clockifySimulator, isoDuration } from "./simulator";
+import { isoDuration } from "../core/time";
+import { clockifySimulator } from "./simulator";
 import { clockifySink, dayStart, MAX_DESCRIPTION, noteOf } from "./adapter";
 
 vi.mock("node:dns/promises", () => ({

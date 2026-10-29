@@ -6,10 +6,12 @@
 // Completed. Time is Asana's time tracking entries: a date, whole minutes, a
 // category (attributable_to) and a billable status.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
+import { secretOf } from "../core/context";
 import { wholeMinutes } from "../core/time";
 import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -142,13 +144,12 @@ type IssuePage = { ws: string[]; i: number; offset: string | null; at: number };
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
 const OVERLAP_MS = 60_000;
 const PER_PAGE = 50;
-const DAY_MS = 86_400_000;
 /** A first read takes the tasks completed in this window, with everything still open. */
 const COMPLETED_WINDOW_DAYS = 30;
 
 async function credsOf(x: X): Promise<AsanaCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

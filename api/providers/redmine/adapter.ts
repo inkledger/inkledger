@@ -7,7 +7,9 @@
 // yet on a real server: SPIKES.md.
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, type LocalDate } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { IncompatibleResultError } from "../core/results";
@@ -127,13 +129,12 @@ const OVERLAP_MS = 60_000;
 /** limit tops out at 100 whatever is asked. */
 const PER_PAGE = 100;
 const TAIL = 4;
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare: 30 days and 2 of overlap. */
 const WINDOW_DAYS = 32;
 
 async function credsOf(x: X): Promise<RedmineCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

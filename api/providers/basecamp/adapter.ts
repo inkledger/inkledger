@@ -7,11 +7,13 @@
 // connection's options, never from a name). Time is Basecamp's timesheet
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
+import { secretOf } from "../core/context";
 import { wholeMinutes } from "../core/time";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { LruCache } from "../../lib/lruCache";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -146,7 +148,6 @@ type EntriesAt = { next: string | null; from: string; to: string; at: number };
 const OVERLAP_MS = 60_000;
 /** Basecamp pages hold 15 records. */
 const PER_PAGE = 15;
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare: 30 days and 2 of overlap. */
 const WINDOW_DAYS = 32;
 /** What is read of the recordings, in this order: the live ones, then the trashed ones (which are gone). */
@@ -185,7 +186,7 @@ async function accountOf(base: string, token: string, chosen: string | null): Pr
 
 async function credsOf(x: X): Promise<BcCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   const base = x.conn.baseUrl.replace(/\/+$/, "");
   return { apiBase: `${base}/${await accountOf(base, token, x.conn.options.account)}`, token };
 }

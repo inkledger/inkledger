@@ -14,6 +14,9 @@ const UNIT_SECONDS: Record<string, number> = {
   m: 60,
 };
 
+/** One day in milliseconds (a fixed 24 h: for windows and ages, not calendar days). */
+export const DAY_MS = 86_400_000;
+
 /** Longest single worklog accepted (one calendar day). */
 export const MAX_WORKLOG_SECONDS = 24 * 3600;
 

@@ -3,7 +3,7 @@
 // token as a Bearer, errors in the layer's words, lists by @odata.nextLink.
 // Graph is a hosted service only, so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type PlannerCreds = {
   /** The API root: https://graph.microsoft.com/v1.0 */
@@ -11,7 +11,6 @@ export type PlannerCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** Where Planner's pages open (links): not on Graph's host. */
 export const WEB_BASE = "https://planner.cloud.microsoft";
@@ -89,7 +88,7 @@ export type Answer<T> = { data: T; next: string | null };
 
 /** One call; `path` is relative to the API root, or an absolute @odata.nextLink of the same origin. */
 export async function graph<T>(c: PlannerCreds, path: string, init: Call = {}): Promise<Answer<T> | null> {
-  const base = trimmed(c.apiBase);
+  const base = trimTrailingSlash(c.apiBase);
   let url = `${base}${path}`;
   if (/^https?:\/\//i.test(path)) {
     // A next link on another origin would carry the token there.

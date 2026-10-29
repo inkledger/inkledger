@@ -3,6 +3,7 @@
 // service's own open/closed with its reason (completed, not planned): the
 // project status of Projects v2 waits for its spike. GitHub keeps no time:
 // the time stays in inkledger's own register.
+import { secretOf } from "../core/context";
 import { verifySha256Header } from "../core/webhooks";
 import { toGitHubQuery } from "./translate";
 import { z } from "zod";
@@ -98,7 +99,7 @@ const REASONS: Record<string, "mention" | "comment" | "review" | "change" | "ass
 
 async function credsOf(x: X): Promise<GitHubCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 

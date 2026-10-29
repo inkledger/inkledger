@@ -10,6 +10,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonValue, type LocalDate, type TimeZone } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { mappingId, mappingVersion } from "../types";
@@ -97,7 +98,7 @@ const SEARCH_BOARDS = 5;
 
 async function credsOf(x: X): Promise<MondayCreds> {
   const cred = await x.conn.credential();
-  return { apiBase: x.conn.baseUrl, token: cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password, oauth: cred.kind === "oauth" };
+  return { apiBase: x.conn.baseUrl, token: secretOf(cred), oauth: cred.kind === "oauth" };
 }
 
 // ---------- Keys and links ----------

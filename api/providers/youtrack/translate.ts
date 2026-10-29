@@ -3,10 +3,10 @@
 // UTC), and at day precision; a free-text search with braces or quotes left in
 // it is a syntax error (400) or a different query.
 import type { QueryExpr, QueryTerm } from "@contracts/query";
+import { DAY_MS } from "@contracts/time";
 import { dayBounds, translateWith, type Dialect, type Translated } from "../core/translate";
 import { ProviderError } from "../core/errors";
 
-const DAY_MS = 86_400_000;
 /** The widest offset of a time zone from UTC, plus a day: a query date this far back covers the user's midnight wherever they live. */
 export const QUERY_DATE_MARGIN_MS = 36 * 3_600_000;
 

@@ -13,6 +13,7 @@
 // - approved, submitted and period-locked entries answer 400 on any change; approval requests are listed for managers only;
 // - nothing honours an idempotency key: a retried create makes a second entry.
 import type { ClockifyApproval, ClockifyEntry, ClockifyProject, ClockifyTask, ClockifyUser } from "./client";
+import { isoDuration } from "../core/time";
 
 type SimEntry = {
   id: string;
@@ -34,14 +35,6 @@ const MAX_PAGE_SIZE = 1000;
 const MAX_DESCRIPTION = 3000;
 const hex = (n: number) => n.toString(16).padStart(24, "0");
 const SECOND = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
-
-/** ISO 8601 duration as Clockify prints it: no zero parts, "PT0S" for nothing. */
-export function isoDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${s || (!h && !m) ? `${s}S` : ""}`;
-}
 
 export function clockifySimulator(o: { apiBase?: string; forceProjects?: boolean; forceTasks?: boolean; perSecond?: number; manager?: boolean } = {}) {
   const apiBase = o.apiBase ?? "https://api.clockify.me/api/v1";

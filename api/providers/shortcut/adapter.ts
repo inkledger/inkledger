@@ -7,6 +7,7 @@
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type JsonValue } from "@contracts/values";
+import { secretOf } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { hmacHex, sameSecret } from "../core/webhooks";
@@ -84,7 +85,7 @@ const PER_HOUR = 200 * 60;
 
 async function credsOf(x: X): Promise<ShortcutCreds> {
   const cred = await x.conn.credential();
-  return { apiBase: x.conn.baseUrl, token: cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password };
+  return { apiBase: x.conn.baseUrl, token: secretOf(cred) };
 }
 
 /** sc-123: the prefix and the story's public id. */

@@ -9,7 +9,7 @@
 // are form-encoded; ids are long strings, and the number in a task's link is
 // another id (the "API v2" one) that /ids converts.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type WrikeCreds = {
   /** The API root of the account's data center: https://www.wrike.com/api/v4 */
@@ -17,10 +17,9 @@ export type WrikeCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The web site for an API root (links): the same host without /api/v4. */
-export const webBaseOf = (apiBase: string) => trimmed(apiBase).replace(/\/api\/v4$/, "");
+export const webBaseOf = (apiBase: string) => trimTrailingSlash(apiBase).replace(/\/api\/v4$/, "");
 
 /** A task comes with a small set of fields; the rest is asked for by name. */
 export const TASK_FIELDS = ["parentIds", "superTaskIds", "responsibleIds", "authorIds", "effortAllocation"] as const;
@@ -136,7 +135,7 @@ export async function wrike<T>(c: WrikeCreds, path: string, init: Call = {}): Pr
   const body = init.form ? encoded(init.form) : undefined;
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${trimmed(c.apiBase)}${path}${q ? `?${q}` : ""}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}${q ? `?${q}` : ""}`,
     init: {
       method: init.method ?? "GET",
       headers: { Accept: "application/json", Authorization: `bearer ${c.token}`, ...(body !== undefined ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },

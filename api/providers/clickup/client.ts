@@ -4,7 +4,7 @@
 // the layer's words, rate-limit headers read. ClickUp is a hosted service only,
 // so every call goes to the public internet.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type ClickUpCreds = {
   /** The API root: https://api.clickup.com/api/v2 */
@@ -12,15 +12,14 @@ export type ClickUpCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** The web site for an API root (links): api.clickup.com is app.clickup.com. */
 export function webBaseOf(apiBase: string): string {
   try {
-    const u = new URL(trimmed(apiBase));
+    const u = new URL(trimTrailingSlash(apiBase));
     return `${u.protocol}//${u.host.replace(/^api\./, "app.")}`;
   } catch {
-    return trimmed(apiBase);
+    return trimTrailingSlash(apiBase);
   }
 }
 
@@ -145,7 +144,7 @@ export async function clickup<T>(c: ClickUpCreds, path: string, init: Call = {})
   const body = init.data === undefined ? undefined : JSON.stringify(init.data);
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${trimmed(c.apiBase)}${path}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       method: init.method ?? "GET",
       headers: { Accept: "application/json", Authorization: c.token, ...(body ? { "Content-Type": "application/json" } : {}) },

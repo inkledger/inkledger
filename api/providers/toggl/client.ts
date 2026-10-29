@@ -4,7 +4,7 @@
 // counts against a per-hour quota (30 on the free plan): the adapter makes as
 // few as it can, and a refusal over the quota waits for the quota to reset.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 
 export type TogglCreds = {
   /** The API root: https://api.track.toggl.com/api/v9 */
@@ -12,7 +12,6 @@ export type TogglCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 
 /** `<token>:api_token` in Basic auth, as Toggl documents for personal tokens. */
 export const basicAuth = (token: string) => `Basic ${Buffer.from(`${token}:api_token`).toString("base64")}`;
@@ -108,7 +107,7 @@ export async function toggl<T>(c: TogglCreds, path: string, init: Call = {}): Pr
   const body = init.data === undefined ? undefined : JSON.stringify(init.data);
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${trimmed(c.apiBase)}${path}`,
+    url: `${trimTrailingSlash(c.apiBase)}${path}`,
     init: {
       method: init.method ?? "GET",
       headers: { Accept: "application/json", Authorization: basicAuth(c.token), ...(body ? { "Content-Type": "application/json" } : {}) },

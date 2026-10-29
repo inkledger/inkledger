@@ -6,9 +6,11 @@
 // started, completed, cancelled), never by its name. Time is Plane's
 // worklogs: whole minutes on a day, created and read, not changed.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
+import { secretOf } from "../core/context";
 import { wholeMinutes } from "../core/time";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -131,7 +133,6 @@ type Walk = { p: string | null; c: string | null; at: number };
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
 const OVERLAP_MS = 60_000;
 const PER_PAGE = 50;
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare, and its overlap. */
 const WINDOW_DAYS = 30;
 const OVERLAP_DAYS = 2;
@@ -161,7 +162,7 @@ type Ctx = {
 
 async function ctxOf(x: X): Promise<Ctx> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   const { root, workspace } = addressOf(x.conn.baseUrl, x.conn.options.workspace);
   return { c: { root, workspace, token }, web: webBaseOf(root), zone: x.conn.timeZone, me: x.conn.remoteAccountId, projects: null, states: new Map(), members: null };
 }

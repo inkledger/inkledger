@@ -6,7 +6,7 @@
 // page, writes often answer 204 with no body, and the rate limit arrives as a
 // 429 whose body says how long to wait.
 import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 
 export type TodoistCreds = {
   /** https://api.todoist.com (the /api/v1 path is added here) */
@@ -77,7 +77,6 @@ export type TodoistActivity = {
 };
 export type SyncAnswer = { sync_token: string; full_sync: boolean; items?: TodoistTask[] };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "");
 const DEFAULT_WAIT_MS = 60_000;
 
 /** A Todoist answer refused, as a ProviderError (a rate limit with when to retry). */
@@ -125,7 +124,7 @@ type Call = {
 export async function td<T>(c: TodoistCreds, path: string, call: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(call.query ?? {})) if (v !== undefined) qs.set(k, String(v));
-  const url = `${trimmed(c.apiBase)}/api/v1${path}${qs.size ? `?${qs.toString()}` : ""}`;
+  const url = `${trimTrailingSlash(c.apiBase)}/api/v1${path}${qs.size ? `?${qs.toString()}` : ""}`;
   const res = await safeFetch({
     site: c.apiBase,
     url,

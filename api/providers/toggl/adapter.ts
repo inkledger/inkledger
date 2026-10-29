@@ -6,6 +6,7 @@
 // simulator; its traps are in simulator.ts, its open questions in SPIKES.md.
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
+import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -50,7 +51,6 @@ type X = CallContext<"toggl", TogglOptions>;
 const V = 1;
 type Since = { at: number };
 
-const DAY_MS = 86_400_000;
 /** The feed window the capabilities declare. */
 const LOOKBACK_MS = 7 * DAY_MS;
 /** Overlap read again at each pass: an entry may land after the clock that stamps it. */

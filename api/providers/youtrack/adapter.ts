@@ -5,6 +5,7 @@
 // the bundle's `isResolved` and the state's name. Time is work items, kept by
 // date in whole minutes. Built from the API's documentation on a simulator,
 // not yet on a real account: docs/dev/spikes.md, section YouTrack.
+import { secretOf } from "../core/context";
 import { wholeMinutes } from "../core/time";
 import { toYouTrackQuery } from "./translate";
 import { verifyYouTrackWebhook } from "./webhook";
@@ -139,7 +140,7 @@ const TAIL = 4;
 
 async function credsOf(x: X): Promise<YouTrackCreds> {
   const cred = await x.conn.credential();
-  const token = cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password;
+  const token = secretOf(cred);
   return { apiBase: x.conn.baseUrl, token };
 }
 
