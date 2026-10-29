@@ -182,6 +182,12 @@ export const server: Shape<typeof en> = {
     tooDeep: "Gli appunti possono avere al massimo {count} livelli di profondità.",
     cycle: "Un appunto non può essere spostato dentro sé stesso o un suo discendente.",
     parentDeleted: "Ripristina prima il genitore oppure riporta questo batch alla radice.",
+    folderInNote: "Una cartella non può stare dentro un appunto: mettila al primo livello o in un'altra cartella.",
+    folderText: "Una cartella non ha testo: scrivi in un appunto al suo interno.",
+    folderIssue: "Una cartella non si collega a una issue: collega un appunto al suo interno.",
+    convertHasText: "Solo un appunto senza testo può diventare una cartella (il testo andrebbe perso).",
+    convertLinked: "Questo appunto è collegato a una issue: scollegalo prima di farne una cartella.",
+    nameRequired: "Dagli un nome.",
   },
   todos: {
     notFound: "TODO non trovato",

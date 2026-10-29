@@ -1,0 +1,2 @@
+ALTER TABLE "markdown_notes" ADD COLUMN "kind" text DEFAULT 'note' NOT NULL;--> statement-breakpoint
+ALTER TABLE "markdown_notes" ADD CONSTRAINT "markdown_notes_kind" CHECK ("markdown_notes"."kind" IN ('note', 'folder'));

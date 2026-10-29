@@ -11,6 +11,12 @@ export const NOTE_TRASH_DAYS = 30;
 export const NOTE_VERSION_DAYS = 30;
 export const NOTE_VERSION_MAX = 50;
 
+/** A note holds Markdown; a folder only groups (notes and folders), and never sits in a note. */
+export const NOTE_KINDS = ["note", "folder"] as const;
+export type NoteKind = (typeof NOTE_KINDS)[number];
+/** A stored kind as the type (the column is checked to these two). */
+export const noteKind = (value: string): NoteKind => (value === "folder" ? "folder" : "note");
+
 export const NOTE_FILTERS = ["all", "free", "linked"] as const;
 export type NoteFilter = (typeof NOTE_FILTERS)[number];
 export type NoteVersionOrigin =
@@ -23,6 +29,7 @@ export type NoteIssue = { connectionId: number; issueKey: string };
 export type NoteTreeItem = {
   id: string;
   parentId: string | null;
+  kind: NoteKind;
   position: number;
   title: string;
   contentRevision: number;
@@ -49,6 +56,7 @@ export type NoteUpdated = {
 
 export type NoteSearchResult = {
   id: string;
+  kind: NoteKind;
   title: string;
   snippet: string;
   path: { id: string; title: string }[];

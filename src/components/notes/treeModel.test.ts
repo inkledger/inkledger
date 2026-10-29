@@ -14,6 +14,7 @@ const item = (
 ): NoteTreeItem => ({
   id,
   parentId,
+  kind: "note",
   position,
   title: id,
   contentRevision: 1,

@@ -27,14 +27,25 @@ Planned (2026-10-29), not started.
   - Migration `NNNN_note_folders.sql`, generated after the current last migration (`0016_planned_entries`). **Check the `when` order**: a migration older than the last applied one is skipped (`api/queries/migrationGuard.ts`).
 - **Pages may still hold pages.** Folders add grouping; they do not take nesting away from notes.
 - **Ordering.** Folders first, then notes, each by `position`, and dragging keeps that rule.
+- **A folder lives at the root or in a folder, never in a note** (decided 2026-10-29). Folders hold notes and folders; notes hold only notes. A folder dropped on a note is refused, with the reason.
+- **A click on a folder opens its folder view** (decided 2026-10-29), as in Finder or Explorer; only its chevron expands and collapses it in the tree.
+- **Like a file manager** (2026-10-29):
+  - "New folder" and "New note" in the tree's header, creating in the selected folder (or at the root).
+  - On each row, a "…" menu, also on right-click: New folder here, New note here, Rename, Move to…, Delete.
+  - Rename inline: F2 or the menu; Enter or leaving the field saves, Esc cancels; an empty title is refused.
+  - A new folder is made at once as "New folder" ("New folder 2"…), with its name open for typing.
+  - Delete or Backspace on a row asks first (the confirmation that warns about descendants).
+- **Search finds folders by name** (decided 2026-10-29), shown with a folder icon and their path; a click opens the folder view.
+- **Notes that already hold notes stay notes** (decided 2026-10-29). Their menu offers "Convert to folder" only while their text is empty (nothing would be lost), they link no issue, and they do not sit in a note.
+- **Buttons** (decided 2026-10-29): the header's "New note" stays, and now creates in the selected folder. "New child note" goes: the row menu's "New note here" replaces it.
 - **Trash.** Deleting a folder sends its subtree to the trash as one batch (`deleteBatch`, as today); restoring brings back the whole batch.
 
 ## Steps
-- [ ] **1. Data and API.**
+- [x] **1. Data and API.** Done 2026-10-29: `kind` (migration `0017_note_folders`), `createFolder`, `rename` (over the revision shown), `convertToFolder`; folders kept first among siblings by `normalizeSiblings`; folders refuse text and issues; search returns `kind`. The child count is not sent: the page counts from the flat tree it already has.
   - `kind` column and migration.
   - `notes.createFolder({ title, parentId })` and `notes.rename`.
   - `notes.tree` returns `kind` and the count of children.
-  - `move` refuses cycles (already) and moving into a note when a folder is asked for. Not decided yet: whether a folder can live under a note.
+  - `move` refuses cycles (already) and a folder going under a note.
   - Tests: `api/routers/notes*.test.ts`; parity.
 - [ ] **2. Tree navigation (ARIA tree).**
   - `NoteTree` as `role="tree"` / `treeitem`, with `aria-expanded` and `aria-level`.

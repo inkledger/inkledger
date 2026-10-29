@@ -181,6 +181,12 @@ export const server = {
     tooDeep: "Notes can be nested at most {count} levels deep.",
     cycle: "A note can't be moved inside itself or one of its descendants.",
     parentDeleted: "Restore the parent first, or restore this batch at the root.",
+    folderInNote: "A folder can't go inside a note: put it at the top level or in another folder.",
+    folderText: "A folder has no text: write in a note inside it.",
+    folderIssue: "A folder can't be linked to an issue: link a note inside it.",
+    convertHasText: "Only a note without text can become a folder (its text would be lost).",
+    convertLinked: "This note is linked to an issue: unlink it before making it a folder.",
+    nameRequired: "Give it a name.",
   },
   todos: {
     notFound: "TODO not found",

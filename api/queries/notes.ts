@@ -7,8 +7,12 @@ import {
   NOTE_TRASH_DAYS,
   NOTE_VERSION_DAYS,
   NOTE_VERSION_MAX,
+  type NoteConflict,
   type NoteDocument,
+  noteKind,
+  type NoteKind,
   type NoteTreeItem,
+  type NoteUpdated,
   type NoteVersionOrigin,
 } from "@contracts/notes";
 import {
@@ -26,10 +30,14 @@ type Store = Db | NoteTx;
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: t("server.notes.notFound") });
 
+const folderInNote = () =>
+  new TRPCError({ code: "CONFLICT", message: t("server.notes.folderInNote") });
+
 export function noteTreeItem(row: MarkdownNote): NoteTreeItem {
   return {
     id: row.id,
     parentId: row.parentId,
+    kind: noteKind(row.kind),
     position: row.position,
     title: row.title,
     contentRevision: row.contentRevision,
@@ -159,7 +167,7 @@ async function normalizeSiblings(
   orderedIds?: string[]
 ): Promise<void> {
   const rows = await tx
-    .select({ id: markdownNotes.id })
+    .select({ id: markdownNotes.id, kind: markdownNotes.kind })
     .from(markdownNotes)
     .where(
       and(
@@ -172,9 +180,12 @@ async function normalizeSiblings(
     )
     .orderBy(asc(markdownNotes.position), asc(markdownNotes.id));
   const current = rows.map(row => row.id);
-  const wanted = orderedIds
+  const asked = orderedIds
     ? [...orderedIds, ...current.filter(id => !orderedIds.includes(id))]
     : current;
+  // Folders first, then notes, each in the order asked: a move never mixes them.
+  const folders = new Set(rows.filter(row => row.kind === "folder").map(row => row.id));
+  const wanted = [...asked.filter(id => folders.has(id)), ...asked.filter(id => !folders.has(id))];
   for (const [position, id] of wanted.entries()) {
     await tx
       .update(markdownNotes)
@@ -261,12 +272,15 @@ export async function createNote(
     body: string;
     parentId: string | null;
     issue: { connectionId: number; issueKey: string } | null;
+    kind?: NoteKind;
   }
 ): Promise<MarkdownNote> {
   const derived = noteDerived(input.title, input.body);
+  const kind = input.kind ?? "note";
   return getDb().transaction(async tx => {
     await lockNoteTree(tx, userId);
     const parent = await activeParent(tx, userId, input.parentId);
+    if (kind === "folder" && parent?.kind === "note") throw folderInNote();
     await checkPlacement(tx, userId, parent, []);
     const siblings = await tx
       .select({ id: markdownNotes.id })
@@ -285,6 +299,7 @@ export async function createNote(
       .values({
         userId,
         parentId: input.parentId,
+        kind,
         position: siblings.length,
         title: input.title,
         body: input.body,
@@ -296,6 +311,11 @@ export async function createNote(
         itemId: null,
       })
       .returning();
+    // A folder goes after the folders already there, before the notes.
+    if (kind === "folder") {
+      await normalizeSiblings(tx, userId, input.parentId);
+      return ownNote(tx, userId, row.id, true);
+    }
     return row;
   });
 }
@@ -310,6 +330,7 @@ export async function moveNote(
     await lockNoteTree(tx, userId);
     const row = await ownNote(tx, userId, id, true);
     const parent = await activeParent(tx, userId, parentId);
+    if (row.kind === "folder" && parent?.kind === "note") throw folderInNote();
     const subtree = await noteSubtree(tx, userId, id);
     if (parentId && subtree.some(node => node.id === parentId)) {
       throw new TRPCError({
@@ -341,6 +362,76 @@ export async function moveNote(
     await normalizeSiblings(tx, userId, parentId, newSiblings);
     const next = await ownNote(tx, userId, id, true);
     return noteTreeItem(next);
+  });
+}
+
+/** A new title, over the revision it was shown with; the text stays as it is. */
+export async function renameNote(
+  userId: number,
+  id: string,
+  title: string,
+  expectedRevision: number
+): Promise<NoteUpdated | NoteConflict> {
+  return getDb().transaction(async (tx): Promise<NoteUpdated | NoteConflict> => {
+    const current = await ownNote(tx, userId, id);
+    if (current.deletedAt)
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.deleted") });
+    if (current.contentRevision !== expectedRevision)
+      return { status: "conflict", current: noteDocument(current) };
+    const derived = noteDerived(title, current.body);
+    const [next] = await tx
+      .update(markdownNotes)
+      .set({
+        title,
+        searchTitle: derived.searchTitle,
+        searchText: derived.searchText,
+        contentRevision: sql`${markdownNotes.contentRevision} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(markdownNotes.id, id),
+          eq(markdownNotes.userId, userId),
+          isNull(markdownNotes.deletedAt),
+          eq(markdownNotes.contentRevision, expectedRevision)
+        )
+      )
+      .returning();
+    if (!next) return { status: "conflict", current: noteDocument(await ownNote(tx, userId, id)) };
+    return { status: "updated", note: noteDocument(next) };
+  });
+}
+
+/**
+ * A note that only groups others becomes a folder: only while it has no text
+ * (nothing is lost), links no issue, and does not sit in a note.
+ */
+export async function convertNoteToFolder(userId: number, id: string): Promise<NoteTreeItem> {
+  return getDb().transaction(async tx => {
+    await lockNoteTree(tx, userId);
+    const row = await ownNote(tx, userId, id, true);
+    if (row.kind === "folder") return noteTreeItem(row);
+    if (row.body.trim())
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.convertHasText") });
+    if (row.issueKey)
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.convertLinked") });
+    const parent = await activeParent(tx, userId, row.parentId);
+    if (parent?.kind === "note") throw folderInNote();
+    const derived = noteDerived(row.title, "");
+    await tx
+      .update(markdownNotes)
+      .set({
+        kind: "folder",
+        body: "",
+        bodyText: derived.bodyText,
+        searchTitle: derived.searchTitle,
+        searchText: derived.searchText,
+        contentRevision: sql`${markdownNotes.contentRevision} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(markdownNotes.id, id), eq(markdownNotes.userId, userId)));
+    await normalizeSiblings(tx, userId, row.parentId);
+    return noteTreeItem(await ownNote(tx, userId, id, true));
   });
 }
 

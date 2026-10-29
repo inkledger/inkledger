@@ -155,11 +155,13 @@ function LinkExisting({
     },
     onError: (error: unknown) => toastError(error),
   });
+  // Folders only group: they are never linked to an issue.
   const candidates: NoteTreeItem[] = useMemo(() => {
     if (query.trim().length >= 2)
-      return (search.data?.results ?? []).map(result => ({
+      return (search.data?.results ?? []).filter(result => result.kind === "note").map(result => ({
         id: result.id,
         parentId: null,
+        kind: result.kind,
         position: 0,
         title: result.title,
         contentRevision: 1,
@@ -168,7 +170,7 @@ function LinkExisting({
         createdAt: result.updatedAt,
         updatedAt: result.updatedAt,
       }));
-    return (tree.data ?? []).filter(note => !note.issueKey).slice(0, 100);
+    return (tree.data ?? []).filter(note => note.kind === "note" && !note.issueKey).slice(0, 100);
   }, [query, search.data, tree.data]);
   const choose = (note: NoteTreeItem) => {
     if (

@@ -7,6 +7,7 @@ import {
   NOTE_SEARCH_MAX,
   NOTE_SEARCH_MIN,
   NOTE_TITLE_MAX,
+  noteKind,
   type NoteChange,
   type NoteConflict,
   type NoteUpdated,
@@ -18,12 +19,14 @@ import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { noteDerived, searchNotes } from "../queries/noteSearch";
 import {
+  convertNoteToFolder,
   createNote,
   deleteNote,
   moveNote,
   noteDocument,
   noteTreeItem,
   ownNote,
+  renameNote,
   restoreNoteBatch,
   snapshotNote,
 } from "../queries/notes";
@@ -32,6 +35,12 @@ import { t } from "@contracts/i18n";
 
 const id = z.uuid();
 const title = z.string().max(NOTE_TITLE_MAX);
+/** A name that says something: a folder's, or a title set from the tree. */
+const name = z
+  .string()
+  .trim()
+  .min(1, { error: () => t("server.notes.nameRequired") })
+  .max(NOTE_TITLE_MAX);
 const body = z.string().max(NOTE_BODY_MAX);
 const issue = z.object({
   connectionId: z.number().int().positive(),
@@ -62,6 +71,7 @@ export const notesRouter = createRouter({
       .select({
         id: markdownNotes.id,
         parentId: markdownNotes.parentId,
+        kind: markdownNotes.kind,
         position: markdownNotes.position,
         title: markdownNotes.title,
         contentRevision: markdownNotes.contentRevision,
@@ -82,7 +92,7 @@ export const notesRouter = createRouter({
         asc(markdownNotes.position),
         asc(markdownNotes.id)
       );
-    return rows;
+    return rows.map(row => ({ ...row, kind: noteKind(row.kind) }));
   }),
 
   get: protectedProcedure
@@ -156,6 +166,39 @@ export const notesRouter = createRouter({
       return noteDocument(row);
     }),
 
+  /** A folder, at the root or in a folder (never in a note): it only groups. */
+  createFolder: protectedProcedure
+    .input(z.object({ title: name, parentId: id.nullable().default(null) }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await createNote(ctx.user.id, {
+        title: input.title,
+        body: "",
+        parentId: input.parentId,
+        issue: null,
+        kind: "folder",
+      });
+      changed(ctx.user.id, row.id, "create");
+      return noteTreeItem(row);
+    }),
+
+  /** A new title from the tree (a note's or a folder's), over the revision it was shown with. */
+  rename: protectedProcedure
+    .input(z.object({ id, title: name, expectedRevision: revision }))
+    .mutation(async ({ ctx, input }): Promise<NoteUpdated | NoteConflict> => {
+      const result = await renameNote(ctx.user.id, input.id, input.title, input.expectedRevision);
+      if (result.status === "updated") changed(ctx.user.id, input.id, "content");
+      return result;
+    }),
+
+  /** A note with no text that groups others becomes a folder. */
+  convertToFolder: protectedProcedure
+    .input(z.object({ id }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await convertNoteToFolder(ctx.user.id, input.id);
+      changed(ctx.user.id, input.id, "content");
+      return row;
+    }),
+
   updateContent: protectedProcedure
     .input(
       z.object({
@@ -174,6 +217,11 @@ export const notesRouter = createRouter({
             throw new TRPCError({
               code: "PRECONDITION_FAILED",
               message: t("server.notes.deleted"),
+            });
+          if (current.kind === "folder" && input.body !== "")
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: t("server.notes.folderText"),
             });
           if (current.contentRevision !== input.expectedRevision)
             return { status: "conflict", current: noteDocument(current) };
@@ -236,6 +284,14 @@ export const notesRouter = createRouter({
   setIssue: protectedProcedure
     .input(z.object({ id, issue: issue.nullable() }))
     .mutation(async ({ ctx, input }) => {
+      if (input.issue) {
+        const note = await ownNote(getDb(), ctx.user.id, input.id);
+        if (note.kind === "folder")
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: t("server.notes.folderIssue"),
+          });
+      }
       const linked = await checkedIssue(ctx.user.id, input.issue);
       const [row] = await getDb()
         .update(markdownNotes)

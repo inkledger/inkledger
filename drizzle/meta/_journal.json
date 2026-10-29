@@ -120,6 +120,13 @@
       "when": 1793228955885,
       "tag": "0016_planned_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793283781291,
+      "tag": "0017_note_folders",
+      "breakpoints": true
     }
   ]
 }

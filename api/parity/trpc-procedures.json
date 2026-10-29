@@ -532,7 +532,15 @@
     "type": "mutation"
   },
   {
+    "path": "notes.convertToFolder",
+    "type": "mutation"
+  },
+  {
     "path": "notes.create",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.createFolder",
     "type": "mutation"
   },
   {
@@ -553,6 +561,10 @@
   },
   {
     "path": "notes.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.rename",
     "type": "mutation"
   },
   {

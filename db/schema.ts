@@ -776,6 +776,8 @@ export const markdownNotes = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     parentId: uuid("parent_id"),
+    /** note | folder (contracts/notes.ts): a folder only groups, with a title and no text, issue or versions */
+    kind: text("kind").notNull().default("note"),
     position: integer("position").notNull().default(0),
     title: text("title").notNull().default(""),
     body: text("body").notNull().default(""),
@@ -806,6 +808,7 @@ export const markdownNotes = pgTable(
       .using("gin", sql`(setweight(to_tsvector('simple', ${t.searchTitle}), 'A') || setweight(to_tsvector('simple', ${t.searchText}), 'B'))`)
       .where(sql`${t.deletedAt} IS NULL`),
     check("markdown_notes_issue_has_connection", sql`${t.issueKey} IS NULL OR ${t.connectionId} IS NOT NULL`),
+    check("markdown_notes_kind", sql`${t.kind} IN ('note', 'folder')`),
   ],
 );
 

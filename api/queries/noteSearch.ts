@@ -5,6 +5,7 @@ import { z } from "zod";
 import { plainText, type RichDoc } from "@contracts/richtext";
 import {
   NOTE_SEARCH_SNAPSHOT_MAX,
+  noteKind,
   type NoteFilter,
   type NoteSearchResult,
 } from "@contracts/notes";
@@ -173,6 +174,7 @@ export async function searchNotes(
     .select({
       id: markdownNotes.id,
       parentId: markdownNotes.parentId,
+      kind: markdownNotes.kind,
       title: markdownNotes.title,
       bodyText: markdownNotes.bodyText,
       connectionId: markdownNotes.connectionId,
@@ -216,6 +218,7 @@ export async function searchNotes(
     }
     return {
       id: row.id,
+      kind: noteKind(row.kind),
       title: row.title,
       snippet: noteSnippet(row.bodyText, input.query),
       path,
