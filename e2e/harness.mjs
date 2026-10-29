@@ -210,6 +210,17 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     });
     if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
     const page = await context.newPage();
+    // A page drawn by the server is live only once React has taken it over (its SSR state node goes then):
+    // acting before that clicks on markup with no handlers yet, which a slower machine (CI) shows at random.
+    const live = () => page.waitForFunction(() => !document.getElementById("inkledger-ssr-state"), null, { timeout: 30_000 }).catch(() => {});
+    for (const name of ["goto", "reload"]) {
+      const original = page[name].bind(page);
+      page[name] = async (...args) => {
+        const response = await original(...args);
+        await live();
+        return response;
+      };
+    }
     const errors = [];
     page.on("pageerror", e => errors.push(String(e)));
     return {
