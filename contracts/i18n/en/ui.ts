@@ -659,6 +659,8 @@ export const ui = {
     pinnedIssue: "Pinned to {key}",
     todoTitle: "TODO",
     pinnedTodo: "TODO added",
+    bucketTitle: "Bucket",
+    bucketAll: "All buckets",
     boardTitle: "Pinboard",
     pinnedBoard: "On the board {board}",
     todoAdd: "Add TODO",

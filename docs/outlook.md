@@ -45,6 +45,8 @@ Its pane is a page of the app (`/outlook.html`), drawn with the same design syst
 
 The pane also says where the mail is pinned already, with a check on those issues.
 
+**The pane's bucket.** When you have buckets, the pane shows a Bucket choice at the top. The pane is a device of its own, like each browser and app: its bucket is independent of the one the app shows elsewhere. The chosen bucket narrows the issues and boards offered below, and a board made from the pane goes into it. Outlook keeps the pane's device id in the add-in's roaming settings, so the same bucket shows in every Outlook for that mailbox.
+
 **Pin the pane** with the pin at its top. Unpinned, Outlook closes it when you select another mail. Pinned, it stays open and follows the mail you select; until it has done so once, the pane shows a reminder.
 
 Outlook loads add-ins only over HTTPS with a trusted certificate. `scripts/outlook-https.mjs` provides that on this machine, so the tailnet is not needed:

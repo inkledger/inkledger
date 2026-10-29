@@ -157,7 +157,10 @@ async function keyUser(c: Context): Promise<User | null> {
 async function asKeyOwner(c: Context, run: (caller: ReturnType<typeof appRouter.createCaller>, user: User) => Promise<unknown>): Promise<Response> {
   const user = await keyUser(c);
   if (!user) return c.json({ error: t("server.mails.badKey") }, 401);
-  const caller = appRouter.createCaller({ req: c.req.raw, resHeaders: new Headers(), user, sessionId: null });
+  // The pane is a device of its own (its id kept by Outlook for the mailbox): it has its own bucket.
+  const device = c.req.header("x-device-id")?.trim();
+  const deviceId = device && /^[\w-]{8,64}$/.test(device) ? device : undefined;
+  const caller = appRouter.createCaller({ req: c.req.raw, resHeaders: new Headers(), user, sessionId: null, deviceId });
   try {
     return c.json({ ok: true, data: await run(caller, user) });
   } catch (e) {
@@ -193,6 +196,17 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.get(`${BASE}/places`, c =>
     asKeyOwner(c, caller => caller.mails.placesOf({ internetMessageId: c.req.query("messageId") || null, exchangeId: c.req.query("exchangeId") || null })),
   );
+  /** The buckets, and the one this pane has on (null: everything). */
+  app.get(`${BASE}/buckets`, c =>
+    asKeyOwner(c, async caller => {
+      const r = await caller.buckets.list();
+      return { buckets: r.buckets.map(b => ({ id: b.id, name: b.name })), active: r.active };
+    }),
+  );
+  app.post(`${BASE}/bucket`, async c => {
+    const body: unknown = await c.req.json().catch(() => null);
+    return asKeyOwner(c, caller => caller.buckets.setActive(body as Parameters<typeof caller.buckets.setActive>[0]));
+  });
   app.get(`${BASE}/boards`, c =>
     asKeyOwner(c, async caller => (await caller.pinboard.boards()).filter(b => !b.follow).map(b => ({ id: b.id, name: b.name }))),
   );

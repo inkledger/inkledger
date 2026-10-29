@@ -79,4 +79,47 @@ describe("the Outlook add-in's routes", () => {
     expect(await q("SELECT text FROM todos")).toEqual([{ text: "Budget 2027" }]);
     expect((await post("junk")).status).toBe(400);
   });
+
+  it("the pane has a bucket of its own: it narrows the issues and boards, and a board made there goes in it", async () => {
+    const [{ user_id: me }] = await q<{ user_id: number }>("SELECT user_id FROM mail_addin_keys");
+    const [jira] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ?", me);
+    const [other] = await q<{ id: number }>(
+      "INSERT INTO connections (user_id, type, base_url, remote_account_id, encrypted_secret, created_at) VALUES (?, 'jira', 'https://other.atlassian.net', 'me', 'x', 1) RETURNING id",
+      me,
+    );
+    await q(
+      "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, project_key, project_name, url, synced_at, assignee_id) VALUES (?, ?, 'o1', 'OTH-1', 'Login page', 'To Do', 'todo', 'OTH', 'Other', 'u', 1, 'me')",
+      me,
+      other.id,
+    );
+    const [bucket] = await q<{ id: number }>("INSERT INTO buckets (user_id, name, created_at) VALUES (?, 'Acme', 1) RETURNING id", me);
+    await q("INSERT INTO bucket_sources (bucket_id, connection_id) VALUES (?, ?)", bucket.id, jira.id);
+    const [stranger] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('s', 's', 1) RETURNING id");
+    const [foreign] = await q<{ id: number }>("INSERT INTO buckets (user_id, name, created_at) VALUES (?, 'Theirs', 1) RETURNING id", stranger.id);
+
+    const pane = (init: RequestInit = {}) => as(key, { ...init, headers: { "x-device-id": "outlook-pane0001", origin: ORIGIN, "content-type": "application/json", ...(init.headers ?? {}) } });
+    const keys = async (init: RequestInit) =>
+      ((await (await app.request("http://localhost/api/outlook/issues?q=login", init)).json()) as { data: Array<{ key: string }> }).data.map(i => i.key).sort();
+
+    const listed = (await (await app.request("http://localhost/api/outlook/buckets", pane())).json()) as { data: { buckets: { id: number; name: string }[]; active: number | null } };
+    expect(listed.data).toEqual({ buckets: [{ id: bucket.id, name: "Acme" }], active: null });
+    expect(await keys(pane())).toEqual(["APP-1", "OTH-1"]);
+
+    const chose = await app.request("http://localhost/api/outlook/bucket", pane({ method: "POST", body: JSON.stringify({ id: bucket.id }) }));
+    expect(((await chose.json()) as { data: { active: number } }).data.active).toBe(bucket.id);
+    expect(await keys(pane())).toEqual(["APP-1"]);
+    // Another device (or the pane before it had an id) keeps its own: everything.
+    expect(await keys(as(key))).toEqual(["APP-1", "OTH-1"]);
+
+    const mail = { subject: "Kick-off", webLink: "https://outlook.office.com/mail/deeplink/read/AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0BBBBB", exchangeId: "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0BBBBB", source: "addin" };
+    const pinned = await app.request("http://localhost/api/outlook/pin", pane({ method: "POST", body: JSON.stringify({ mail, to: { board: { newBoard: "Acme mails" } } }) }));
+    expect(pinned.status).toBe(200);
+    expect(await q("SELECT bucket_id FROM pinboards WHERE name = 'Acme mails'")).toEqual([{ bucket_id: bucket.id }]);
+
+    const theirs = await app.request("http://localhost/api/outlook/bucket", pane({ method: "POST", body: JSON.stringify({ id: foreign.id }) }));
+    expect(theirs.status).toBe(404);
+    const all = await app.request("http://localhost/api/outlook/bucket", pane({ method: "POST", body: JSON.stringify({ id: null }) }));
+    expect(((await all.json()) as { data: { active: number | null } }).data.active).toBeNull();
+    expect(await keys(pane())).toEqual(["APP-1", "OTH-1"]);
+  });
 });

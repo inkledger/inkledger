@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Check, ClipboardList, Link2, Mail, Pin, PinIcon, Search } from "lucide-react";
+import { Check, ClipboardList, Layers, Link2, Mail, Pin, PinIcon, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ type Status = { text: string; tone: "ok" | "bad" | "muted" } | null;
 type Places = { issues: string[]; todos: string[]; boards: string[] };
 type IssueHit = { key: string; summary: string; connectionId: number };
 type Board = { id: number; name: string };
+type Buckets = { buckets: { id: number; name: string }[]; active: number | null };
 type Due = "none" | "today" | "tomorrow" | "pick";
 
 const KEY_SHAPE = /^ikl_ol_[\w-]{20,}$/;
@@ -154,6 +155,8 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
   const [busy, setBusy] = useState(false);
   const clip = useRef<HTMLTextAreaElement>(null);
   const [followed, setFollowed] = useState(hasFollowed);
+  // Bumped when the pane's bucket changes: the issues and boards it offers are asked again.
+  const [scope, setScope] = useState(0);
 
   // The user's theme colour; and a pinned pane follows the mail selected.
   useEffect(() => {
@@ -245,9 +248,10 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
 
       {mail && (
         <>
-          <IssuePicker pinned={places?.issues ?? []} busy={busy} onPick={i => void pin({ issueKey: i.key, connectionId: i.connectionId }, () => t("ui.outlook.pinnedIssue", { key: i.key }))} onFailed={onFailed} />
+          <BucketPicker onChanged={() => setScope(n => n + 1)} onFailed={onFailed} />
+          <IssuePicker scope={scope} pinned={places?.issues ?? []} busy={busy} onPick={i => void pin({ issueKey: i.key, connectionId: i.connectionId }, () => t("ui.outlook.pinnedIssue", { key: i.key }))} onFailed={onFailed} />
           <TodoPicker busy={busy} onPin={dueOn => void pin({ todo: { dueOn } }, () => t("ui.outlook.pinnedTodo"))} />
-          <BoardPicker busy={busy} onPin={(to, refresh) => void pin({ board: to }, r => (refresh(), t("ui.outlook.pinnedBoard", { board: r.boardName ?? "" })))} onFailed={onFailed} />
+          <BoardPicker scope={scope} busy={busy} onPin={(to, refresh) => void pin({ board: to }, r => (refresh(), t("ui.outlook.pinnedBoard", { board: r.boardName ?? "" })))} onFailed={onFailed} />
         </>
       )}
 
@@ -264,7 +268,52 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
   );
 }
 
-function IssuePicker({ pinned, busy, onPick, onFailed }: { pinned: string[]; busy: boolean; onPick: (i: IssueHit) => void; onFailed: (e: unknown) => void }) {
+/**
+ * The pane's own bucket (each device has its own: this one is independent of
+ * the server's other devices). It narrows the issues and boards below, and a
+ * board made here goes in it. Absent while the user has no buckets.
+ */
+function BucketPicker({ onChanged, onFailed }: { onChanged: () => void; onFailed: (e: unknown) => void }) {
+  const [state, setState] = useState<Buckets | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    call<Buckets>("GET", "buckets").then(setState, onFailed);
+  }, [onFailed]);
+  if (!state || state.buckets.length === 0) return null;
+  const choose = async (value: string) => {
+    const id = value === "all" ? null : Number(value);
+    setBusy(true);
+    try {
+      const r = await call<{ active: number | null }>("POST", "bucket", { id });
+      setState(s => (s ? { ...s, active: r.active } : s));
+      onChanged();
+    } catch (e) {
+      onFailed(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel title={t("ui.outlook.bucketTitle")}>
+      <Select value={state.active === null ? "all" : String(state.active)} onValueChange={v => void choose(v)} disabled={busy}>
+        <SelectTrigger size="sm" className="w-full min-w-0" aria-label={t("ui.outlook.bucketTitle")}>
+          <Layers aria-hidden />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("ui.outlook.bucketAll")}</SelectItem>
+          {state.buckets.map(b => (
+            <SelectItem key={b.id} value={String(b.id)}>
+              {b.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Panel>
+  );
+}
+
+function IssuePicker({ scope, pinned, busy, onPick, onFailed }: { scope: number; pinned: string[]; busy: boolean; onPick: (i: IssueHit) => void; onFailed: (e: unknown) => void }) {
   const [typed, setTyped] = useState("");
   const query = useDebouncedValue(typed.trim(), 250);
   const [hits, setHits] = useState<IssueHit[] | null>(null);
@@ -274,7 +323,7 @@ function IssuePicker({ pinned, busy, onPick, onFailed }: { pinned: string[]; bus
     return () => {
       current = false;
     };
-  }, [query, onFailed]);
+  }, [query, scope, onFailed]);
   return (
     <Panel title={t("ui.outlook.issueTitle")}>
       <div className="relative">
@@ -340,7 +389,7 @@ function TodoPicker({ busy, onPin }: { busy: boolean; onPin: (dueOn: string | nu
   );
 }
 
-function BoardPicker({ busy, onPin, onFailed }: { busy: boolean; onPin: (to: { boardId?: number; newBoard?: string }, refresh: () => void) => void; onFailed: (e: unknown) => void }) {
+function BoardPicker({ scope, busy, onPin, onFailed }: { scope: number; busy: boolean; onPin: (to: { boardId?: number; newBoard?: string }, refresh: () => void) => void; onFailed: (e: unknown) => void }) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [board, setBoard] = useState("");
   const [name, setName] = useState("");
@@ -350,11 +399,12 @@ function BoardPicker({ busy, onPin, onFailed }: { busy: boolean; onPin: (to: { b
       call<Board[]>("GET", "boards").then(list => {
         setBoards(list);
         const made = named ? list.find(b => b.name === named) : undefined;
-        setBoard(b => (made ? String(made.id) : b && b !== "new" ? b : list[0] ? String(list[0].id) : "new"));
+        // The board chosen stays while it is still offered (another bucket may not show it).
+        setBoard(b => (made ? String(made.id) : b && b !== "new" && list.some(x => String(x.id) === b) ? b : list[0] ? String(list[0].id) : "new"));
       }, onFailed),
     [onFailed],
   );
-  useEffect(() => void load(), [load]);
+  useEffect(() => void load(), [load, scope]);
   const isNew = board === "new";
   return (
     <Panel title={t("ui.outlook.boardTitle")}>

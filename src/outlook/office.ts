@@ -30,6 +30,7 @@ export const office = (): OfficeApi | null => (globalThis as { Office?: OfficeAp
 
 const KEY = "inkledgerKey";
 const FOLLOWED = "inkledgerFollowed";
+const DEVICE = "inkledgerDevice";
 
 /** Whether the pane has followed a mail change once (so it is pinned): the pin tip is not needed any more. */
 export const hasFollowed = (): boolean => office()?.context.roamingSettings.get(FOLLOWED) === "1";
@@ -53,6 +54,21 @@ export const storeKey = (key: string): Promise<void> =>
     s.set(KEY, key);
     s.saveAsync(() => resolve());
   });
+
+/**
+ * The pane's own device id (its bucket is its own, as each device's is), kept
+ * by Outlook for the mailbox: the same in every Outlook it roams to. Made once.
+ */
+export function paneDevice(): string {
+  const s = office()?.context.roamingSettings;
+  if (!s) return "";
+  const kept = s.get(DEVICE);
+  if (typeof kept === "string" && kept) return kept;
+  const made = `outlook-${crypto.randomUUID().replace(/-/g, "")}`;
+  s.set(DEVICE, made);
+  s.saveAsync(() => undefined);
+  return made;
+}
 
 /** The open mail, as mails.pinTo takes it; null when none (or several) are selected. */
 export type OpenMail = {

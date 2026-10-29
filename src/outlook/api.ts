@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import { storedKey } from "./office";
+import { paneDevice, storedKey } from "./office";
 
 /** An answer refused by inkledger (401: the key is not valid any more), or no answer at all (0). */
 export class PaneError extends Error {
@@ -17,7 +17,11 @@ export async function call<T>(method: "GET" | "POST", path: string, body?: unkno
     res = await fetch(`/api/outlook/${path}`, {
       method,
       cache: "no-store",
-      headers: { Authorization: `Bearer ${storedKey()}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      headers: {
+        Authorization: `Bearer ${storedKey()}`,
+        ...(paneDevice() ? { "x-device-id": paneDevice() } : {}),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

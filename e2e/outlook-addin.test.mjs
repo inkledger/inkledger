@@ -152,3 +152,47 @@ test("the task pane: key once, pin to an issue and a TODO, where it is pinned, t
     await app.stop();
   }
 });
+
+test("the pane's own bucket: chosen there, it narrows the issues and stays after a reload, whatever the app's devices show", async () => {
+  const app = await start({ viewport: { width: 320, height: 800 } });
+  try {
+    const { page, base, db } = app;
+    await page.route("https://appsforoffice.microsoft.com/**", r => r.fulfill({ body: OFFICE, contentType: "text/javascript" }));
+    await db.q("INSERT INTO mail_addin_keys (user_id, key_hash, created_at) VALUES (1, ?, 1)", createHash("sha256").update(KEY).digest("hex"));
+    const [{ id: bucket }] = await db.q("INSERT INTO buckets (user_id, name, position, query, created_at) VALUES (1, 'Shop', 0, 'project:SHOP', 1) RETURNING id");
+    await db.q("INSERT INTO bucket_sources (bucket_id, connection_id) VALUES (?, 1)", bucket);
+    await page.goto(base + "/outlook.html");
+    await page.getByLabel("Add-in key").fill(KEY);
+    await page.getByRole("button", { name: "Connect" }).click();
+    await page.getByText("Budget 2027", { exact: true }).waitFor();
+
+    const search = page.getByRole("searchbox", { name: "Search an issue (key or words)" });
+    await search.fill("test");
+    await page.getByRole("button", { name: /DEMO-/ }).first().waitFor();
+
+    const choice = page.getByRole("combobox", { name: "Bucket" });
+    await choice.filter({ hasText: "All buckets" }).waitFor();
+    await choice.click();
+    await page.getByRole("option", { name: "Shop" }).click();
+    await page.getByRole("button", { name: /SHOP-7/ }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /DEMO-/ }).count(), 0, "only the bucket's issues");
+    await fitsWidth(page);
+
+    // Kept for the pane (its device id roams with the mailbox), not for the app's other devices.
+    await page.reload();
+    await page.getByRole("combobox", { name: "Bucket" }).filter({ hasText: "Shop" }).waitFor();
+    const devices = await db.q("SELECT device_id, bucket_id FROM device_prefs");
+    assert.equal(devices.length, 1);
+    assert.match(devices[0].device_id, /^outlook-[0-9a-f]{32}$/);
+    assert.equal(devices[0].bucket_id, bucket);
+
+    // Back to everything.
+    await page.getByRole("combobox", { name: "Bucket" }).click();
+    await page.getByRole("option", { name: "All buckets" }).click();
+    await page.getByRole("searchbox", { name: "Search an issue (key or words)" }).fill("test");
+    await page.getByRole("button", { name: /DEMO-/ }).first().waitFor();
+    assert.deepEqual(app.errors, [], "no page errors");
+  } finally {
+    await app.stop();
+  }
+});

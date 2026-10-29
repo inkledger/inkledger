@@ -660,6 +660,8 @@ export const ui: Shape<typeof en> = {
     pinnedIssue: "Fissata a {key}",
     todoTitle: "TODO",
     pinnedTodo: "TODO aggiunta",
+    bucketTitle: "Bucket",
+    bucketAll: "Tutti i bucket",
     boardTitle: "Lavagna",
     pinnedBoard: "Sulla lavagna {board}",
     todoAdd: "Aggiungi TODO",
