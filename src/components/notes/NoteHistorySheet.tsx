@@ -16,6 +16,7 @@ import { dateFormat, t } from "@/i18n";
 import { errorText, toastError } from "@/lib/errorText";
 import type { NoteDocumentController } from "./useNoteDocument";
 import { DeleteVersionButton } from "./DeleteVersionButton";
+import { ActionRow } from "@/components/app/ActionRow";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,56 +147,58 @@ export function NoteHistorySheet({
             <ol className="divide-y">
               {versions.data.map(version => (
                 <li key={version.id} className="grid gap-2 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">
-                        {version.title || t("pages.notes.untitled")}
-                      </p>
-                      <p className="text-caption text-muted-foreground">
-                        <time
-                          dateTime={new Date(version.createdAt).toISOString()}
-                          title={date.format(new Date(version.createdAt))}
+                  <ActionRow
+                    className="items-start max-sm:grid-cols-1"
+                    actions={
+                      <>
+                        {id && (
+                          <DeleteVersionButton
+                            noteId={id}
+                            versionId={version.id}
+                          />
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={restore.isPending}
+                          onClick={async () => {
+                            if (!id) return;
+                            const saved = await controller.flush();
+                            if (
+                              saved &&
+                              controller.isCurrent(saved) &&
+                              !controller.getConflict()
+                            )
+                              restore.mutate({
+                                id,
+                                versionId: version.id,
+                                expectedRevision: saved.contentRevision,
+                              });
+                          }}
                         >
-                          {date.format(new Date(version.createdAt))}
-                        </time>{" "}
-                        · {t(origins[version.origin] ?? "pages.notes.auto")} ·{" "}
-                        {t("pages.notes.revision", {
-                          revision: version.contentRevision,
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {id && (
-                        <DeleteVersionButton
-                          noteId={id}
-                          versionId={version.id}
-                        />
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={restore.isPending}
-                        onClick={async () => {
-                          if (!id) return;
-                          const saved = await controller.flush();
-                          if (
-                            saved &&
-                            controller.isCurrent(saved) &&
-                            !controller.getConflict()
-                          )
-                            restore.mutate({
-                              id,
-                              versionId: version.id,
-                              expectedRevision: saved.contentRevision,
-                            });
-                        }}
+                          {t("pages.notes.restoreVersion")}
+                        </Button>
+                      </>
+                    }
+                  >
+                    <p className="font-medium">
+                      {version.title || t("pages.notes.untitled")}
+                    </p>
+                    <p className="text-caption text-muted-foreground">
+                      <time
+                        dateTime={new Date(version.createdAt).toISOString()}
+                        title={date.format(new Date(version.createdAt))}
                       >
-                        {t("pages.notes.restoreVersion")}
-                      </Button>
-                    </div>
-                  </div>
+                        {date.format(new Date(version.createdAt))}
+                      </time>{" "}
+                      · {t(origins[version.origin] ?? "pages.notes.auto")} ·{" "}
+                      {t("pages.notes.revision", {
+                        revision: version.contentRevision,
+                      })}
+                    </p>
+                  </ActionRow>
                   {version.preview && (
-                    <p className="line-clamp-3 text-body-sm text-muted-foreground">
+                    <p className="line-clamp-3 [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
                       {version.preview}
                     </p>
                   )}

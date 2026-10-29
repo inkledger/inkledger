@@ -52,7 +52,7 @@ function TaskCard({
       {...surface("card")}
       className="block rounded-xl border bg-card p-2.5 transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm"
     >
-      <p className="line-clamp-2 text-body-sm font-semibold leading-snug">
+      <p className="line-clamp-2 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
         {issue.summary}
       </p>
       <p className="mt-0.5 text-caption text-muted-foreground">{issue.key}</p>

@@ -531,7 +531,7 @@ export default function IssueDetail({
               {i.projectName ? ` · ${i.projectName}` : ""}
               {i.issueType ? ` · ${i.issueType}` : ""}
             </p>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            <dl className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-x-6 gap-y-4 sm:grid-cols-3">
               <Detail label={t("pages.issueDetail.project")}>
                 {i.projectKey}
                 {i.projectName ? ` — ${i.projectName}` : ""}
@@ -637,7 +637,7 @@ export default function IssueDetail({
                   >
                     {dateTime().format(new Date(i.remoteUpdatedAt))}
                     {history.data?.reason && (
-                      <span className="line-clamp-2 text-caption text-muted-foreground no-underline">
+                      <span className="line-clamp-2 [overflow-wrap:anywhere] text-caption text-muted-foreground no-underline">
                         {history.data.reason}
                       </span>
                     )}
@@ -836,7 +836,7 @@ export default function IssueDetail({
                                     : "—"}
                               </div>
                               {e.comment && (
-                                <p className="mt-1 whitespace-pre-wrap text-body-sm text-muted-foreground">
+                                <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
                                   {e.comment}
                                 </p>
                               )}
@@ -875,7 +875,7 @@ export default function IssueDetail({
                               {dateTime().format(started)}
                             </div>
                             {w.comment && (
-                              <p className="mt-1 whitespace-pre-wrap text-body-sm">
+                              <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-body-sm">
                                 {w.comment}
                               </p>
                             )}

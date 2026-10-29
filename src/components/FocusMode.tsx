@@ -141,7 +141,7 @@ function FocusOverlay({ onPip }: { onPip?: () => void }) {
                 <p className="font-medium text-primary-strong">
                   {timer.issueKey}
                 </p>
-                <p className="mt-1 line-clamp-2 text-body text-muted-foreground">
+                <p className="mt-1 line-clamp-2 [overflow-wrap:anywhere] text-body text-muted-foreground">
                   {summary ?? "—"}
                 </p>
               </div>

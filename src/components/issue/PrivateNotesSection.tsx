@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { relativeTime } from "@/lib/initials";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
-import { canShowPinboard, pinboardBoard, showPinboard } from "@/hooks/usePinboardPanel";
+import {
+  canShowPinboard,
+  pinboardBoard,
+  showPinboard,
+} from "@/hooks/usePinboardPanel";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,16 +25,28 @@ import { t, dateFormat } from "@/i18n";
  * Jira. Any of them can hang on the pinboard, tied to the issue's post-it by
  * a red string.
  */
-export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: string; connectionId?: number | null }) {
+export function PrivateNotesSection({
+  issueKey,
+  connectionId,
+}: {
+  issueKey: string;
+  connectionId?: number | null;
+}) {
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
   const conn = connectionId ?? undefined;
   const notes = trpc.issueNotes.list.useQuery({ issueKey, connectionId: conn });
   // TODOs already made from each note (open ones).
-  const todos = trpc.todos.forIssue.useQuery({ issueKey, connectionId: conn }, { retry: false });
-  const todosOf = (id: number) => (todos.data ?? []).filter(x => x.issueNoteId === id).length;
+  const todos = trpc.todos.forIssue.useQuery(
+    { issueKey, connectionId: conn },
+    { retry: false }
+  );
+  const todosOf = (id: number) =>
+    (todos.data ?? []).filter(x => x.issueNoteId === id).length;
   const [text, setText] = useState("");
-  const [editing, setEditing] = useState<{ id: number; body: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; body: string } | null>(
+    null
+  );
   const [now] = useState(() => Date.now());
   const modifier = PALETTE_SHORTCUT.startsWith("⌘") ? "⌘" : "Ctrl";
   const refresh = () =>
@@ -51,7 +67,8 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
     onError: fail,
   });
   const submit = () => {
-    if (text.trim() && !add.isPending) add.mutate({ issueKey, connectionId: conn, body: text });
+    if (text.trim() && !add.isPending)
+      add.mutate({ issueKey, connectionId: conn, body: text });
   };
   const save = async () => {
     if (!editing?.body.trim()) return;
@@ -72,7 +89,12 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
           label: t("views.issue.privateNotes.undo"),
           onClick: () =>
             void utils.client.issueNotes.restore
-              .mutate({ issueKey: gone.issueKey, connectionId: gone.connectionId, body: gone.body, createdAt: new Date(gone.createdAt).getTime() })
+              .mutate({
+                issueKey: gone.issueKey,
+                connectionId: gone.connectionId,
+                body: gone.body,
+                createdAt: new Date(gone.createdAt).getTime(),
+              })
               .then(refresh, fail),
         },
       });
@@ -82,12 +104,18 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
   };
   const hang = async (id: number) => {
     try {
-      const r = await utils.client.pinboard.pinNote.mutate({ noteId: id, boardId: pinboardBoard.get() ?? undefined });
+      const r = await utils.client.pinboard.pinNote.mutate({
+        noteId: id,
+        boardId: pinboardBoard.get() ?? undefined,
+      });
       await refresh();
       toast.success(
         r.existed
           ? t("views.issue.privateNotes.hungAgain", { board: r.boardName })
-          : t("views.issue.privateNotes.hung", { board: r.boardName, key: issueKey }),
+          : t("views.issue.privateNotes.hung", {
+              board: r.boardName,
+              key: issueKey,
+            }),
         canShowPinboard()
           ? {
               action: {
@@ -139,7 +167,12 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
           <span className="text-caption text-muted-foreground">
             {t("views.issue.privateNotes.hint", { modifier })}
           </span>
-          <Button type="submit" size="sm" variant="outline" disabled={!text.trim() || add.isPending}>
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            disabled={!text.trim() || add.isPending}
+          >
             <Plus className="h-4 w-4" />
             {t("views.issue.privateNotes.add")}
           </Button>
@@ -149,31 +182,53 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
       {notes.isPending ? (
         <Skeleton className="h-16" />
       ) : notes.error ? (
-        <ErrorState message={errorText(notes.error)} onRetry={() => notes.refetch()} />
+        <ErrorState
+          message={errorText(notes.error)}
+          onRetry={() => notes.refetch()}
+        />
       ) : notes.data.length === 0 ? (
-        <EmptyState art="chat" title={t("views.issue.privateNotes.empty")} className="py-4" />
+        <EmptyState
+          art="chat"
+          title={t("views.issue.privateNotes.empty")}
+          className="py-4"
+        />
       ) : (
         <ol className="grid gap-3">
           {notes.data.map(n => {
             const created = new Date(n.createdAt);
-            const edited = new Date(n.updatedAt).getTime() - created.getTime() > 60_000;
+            const edited =
+              new Date(n.updatedAt).getTime() - created.getTime() > 60_000;
             const isEditing = editing?.id === n.id;
             return (
               // Its anchor: a TODO made from it links back here (#note-…).
-              <li key={n.id} id={`note-${n.id}`} {...surface("card")} className="note-paper grain scroll-mt-24 rounded-lg px-3.5 py-2.5 data-[flash]:ring-2 data-[flash]:ring-primary-strong/40" data-private-note={n.id}>
+              <li
+                key={n.id}
+                id={`note-${n.id}`}
+                {...surface("card")}
+                className="note-paper grain scroll-mt-24 rounded-lg px-3.5 py-2.5 data-[flash]:ring-2 data-[flash]:ring-primary-strong/40"
+                data-private-note={n.id}
+              >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <time
                     dateTime={created.toISOString()}
-                    title={dateFormat({ dateStyle: "long", timeStyle: "short" }).format(created)}
+                    title={dateFormat({
+                      dateStyle: "long",
+                      timeStyle: "short",
+                    }).format(created)}
                     className="text-caption text-muted-foreground"
                   >
                     {relativeTime(created, now)}
                     {edited && t("views.issue.privateNotes.edited")}
                   </time>
                   {n.pinnedOn.map(b => (
-                    <span key={b.boardId} className="inline-flex items-center gap-1 text-caption text-muted-foreground">
+                    <span
+                      key={b.boardId}
+                      className="inline-flex items-center gap-1 text-caption text-muted-foreground"
+                    >
                       <Pin className="h-3 w-3" aria-hidden />
-                      {t("views.issue.privateNotes.hungOn", { board: b.boardName })}
+                      {t("views.issue.privateNotes.hungOn", {
+                        board: b.boardName,
+                      })}
                     </span>
                   ))}
                   {!isEditing && (
@@ -182,16 +237,42 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
                         label={t("views.todos.fromNoteLabel")}
                         count={todosOf(n.id)}
                         initial={firstLine(n.body)}
-                        link={{ issueKey, connectionId: conn, issueNoteId: n.id }}
+                        link={{
+                          issueKey,
+                          connectionId: conn,
+                          issueNoteId: n.id,
+                        }}
                       />
-                      <Button size="sm" variant="ghost" aria-label={t("views.issue.privateNotes.hangLabel")} title={t("views.issue.privateNotes.hang")} onClick={() => void hang(n.id)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t("views.issue.privateNotes.hangLabel")}
+                        title={t("views.issue.privateNotes.hang")}
+                        onClick={() => void hang(n.id)}
+                      >
                         <Pin className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">{t("views.issue.privateNotes.hang")}</span>
+                        <span className="hidden sm:inline">
+                          {t("views.issue.privateNotes.hang")}
+                        </span>
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("views.issue.privateNotes.editLabel")} title={t("views.issue.privateNotes.edit")} onClick={() => setEditing({ id: n.id, body: n.body })}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        aria-label={t("views.issue.privateNotes.editLabel")}
+                        title={t("views.issue.privateNotes.edit")}
+                        onClick={() => setEditing({ id: n.id, body: n.body })}
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("views.issue.privateNotes.deleteLabel")} title={t("views.issue.privateNotes.delete")} onClick={() => void remove(n.id)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        aria-label={t("views.issue.privateNotes.deleteLabel")}
+                        title={t("views.issue.privateNotes.delete")}
+                        onClick={() => void remove(n.id)}
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </span>
@@ -205,7 +286,9 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
                       maxLength={5000}
                       aria-label={t("views.issue.privateNotes.editLabel")}
                       value={editing.body}
-                      onChange={e => setEditing({ id: n.id, body: e.target.value })}
+                      onChange={e =>
+                        setEditing({ id: n.id, body: e.target.value })
+                      }
                       onKeyDown={e => {
                         if (e.key === "Escape") setEditing(null);
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -215,16 +298,26 @@ export function PrivateNotesSection({ issueKey, connectionId }: { issueKey: stri
                       }}
                     />
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditing(null)}
+                      >
                         {t("views.issue.privateNotes.cancel")}
                       </Button>
-                      <Button size="sm" disabled={!editing.body.trim()} onClick={() => void save()}>
+                      <Button
+                        size="sm"
+                        disabled={!editing.body.trim()}
+                        onClick={() => void save()}
+                      >
                         {t("views.issue.privateNotes.save")}
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-1 whitespace-pre-line break-words text-body">{n.body}</p>
+                  <p className="mt-1 whitespace-pre-line [overflow-wrap:anywhere] text-body">
+                    {n.body}
+                  </p>
                 )}
               </li>
             );

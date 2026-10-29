@@ -143,7 +143,7 @@ export function NotificationItem({
       >
         <span className="flex min-w-0 items-center gap-2">
           <ProjectAvatar project={projectOf(n.issueKey)} size="xs" connectionId={n.connectionId} />
-          <span className="shrink-0 whitespace-nowrap font-semibold">
+          <span className="font-semibold [overflow-wrap:anywhere]">
             {n.issueKey}
           </span>
           <span className="truncate text-caption text-muted-foreground">

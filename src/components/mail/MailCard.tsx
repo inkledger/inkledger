@@ -38,7 +38,7 @@ export function MailCard({ mail, actions, className }: { mail: MailView; actions
             {subject}
           </ExternalLink>
         ) : (
-          <span className="font-medium" title={t("ui.mail.noLink")}>
+          <span className="font-medium [overflow-wrap:anywhere]" title={t("ui.mail.noLink")}>
             {subject}
           </span>
         )}

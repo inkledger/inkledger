@@ -128,7 +128,7 @@ function HistoryBody({ issueKey, connectionId }: { issueKey: string; connectionI
                     <p className="mt-0.5 text-body-sm">{t("views.issue.history.created")}</p>
                   )}
                   {e.kind === "comment" && (
-                    <p className="mt-0.5 line-clamp-3 text-body-sm text-muted-foreground">
+                    <p className="mt-0.5 line-clamp-3 [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
                       “{e.excerpt}”
                     </p>
                   )}

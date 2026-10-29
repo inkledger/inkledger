@@ -14,6 +14,7 @@ import { usePendingSeconds } from "@/hooks/useTimers";
 import { t, dateFormat } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { workedSeconds } from "@/lib/worked";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export type TimesheetLog = {
   id: number;
@@ -107,7 +108,7 @@ export function WeekView({
   onAdd,
 }: Props) {
   return (
-    <ol className="stagger grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+    <ol className="stagger grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-7">
       {days.map(day => {
         const entries = byDay.get(day.key) ?? [];
         // The hours worked that day: parallel work once.
@@ -238,24 +239,12 @@ export function WeekView({
                       </p>
                     )}
                     {w.comment && (
-                      <p className="mt-0.5 line-clamp-2 text-caption">{w.comment}</p>
+                      <p className="mt-0.5 line-clamp-2 [overflow-wrap:anywhere] text-caption">{w.comment}</p>
                     )}
                     {(isPending(w) || !locked || w.sink?.locked || w.sink?.state === "conflict") && (
-                      <div className="mt-1 flex items-center justify-between gap-1">
-                        <span className="flex flex-wrap gap-1">
-                          {isPending(w) && <Chip tone="warning">{t("views.timesheet.week.queued")}</Chip>}
-                          {w.sink?.locked && (
-                            <Chip tone="neutral">
-                              <Lock className="h-3 w-3" aria-hidden /> {t("views.timesheet.week.lockedThere")}
-                            </Chip>
-                          )}
-                          {w.sink?.state === "conflict" && (
-                            <Link to={issuePath({ key: w.issueKey, connectionId: w.connectionId, remoteId: info?.remoteId })}>
-                              <Chip tone="warning">{t("views.timesheet.week.conflict")}</Chip>
-                            </Link>
-                          )}
-                        </span>
-                        {!locked && !w.sink?.locked && (
+                      <ActionRow
+                        className="mt-1"
+                        actions={!locked && !w.sink?.locked ? (
                           <span className="flex">
                             <Button
                               variant="ghost"
@@ -275,8 +264,22 @@ export function WeekView({
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </span>
-                        )}
-                      </div>
+                        ) : null}
+                      >
+                        <span className="flex flex-wrap gap-1">
+                          {isPending(w) && <Chip tone="warning">{t("views.timesheet.week.queued")}</Chip>}
+                          {w.sink?.locked && (
+                            <Chip tone="neutral">
+                              <Lock className="h-3 w-3" aria-hidden /> {t("views.timesheet.week.lockedThere")}
+                            </Chip>
+                          )}
+                          {w.sink?.state === "conflict" && (
+                            <Link to={issuePath({ key: w.issueKey, connectionId: w.connectionId, remoteId: info?.remoteId })}>
+                              <Chip tone="warning">{t("views.timesheet.week.conflict")}</Chip>
+                            </Link>
+                          )}
+                        </span>
+                      </ActionRow>
                     )}
                   </li>
                 );

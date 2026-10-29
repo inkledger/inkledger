@@ -432,8 +432,8 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
         />
       )}
 
-      <SheetFooter className="flex-row items-center gap-3 border-t p-5">
-        <p className="mr-auto text-body-sm text-muted-foreground">
+      <SheetFooter className="flex-row flex-wrap items-center gap-3 border-t p-5">
+        <p className="mr-auto min-w-0 text-body-sm text-muted-foreground [overflow-wrap:anywhere]">
           {selected.length > 0
             ? t("ui.dayReview.summary", {
                 duration: formatDurationLong(selectedTotal),
@@ -483,11 +483,11 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                 </p>
                 <ul className="mt-2 grid gap-1">
                   {selected.map(d => (
-                    <li key={issueId(d)} className="flex justify-between gap-3">
-                      <span className="font-medium text-foreground">
+                    <li key={issueId(d)} className="flex min-w-0 justify-between gap-3 [overflow-wrap:anywhere]">
+                      <span className="min-w-0 font-medium text-foreground">
                         {d.issueKey}
                       </span>
-                      <span className="tabular">
+                      <span className="shrink-0 tabular">
                         {formatDurationLong(d.seconds)}
                       </span>
                     </li>

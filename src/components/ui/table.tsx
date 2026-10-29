@@ -15,6 +15,7 @@ function Table({
   return (
     <div
       data-slot="table-container"
+      data-overflow-ok
       className={cn("cast-room-x cast-room-y overflow-x-auto [--room-shift-x:0.25rem]", containerClassName)}
     >
       <table

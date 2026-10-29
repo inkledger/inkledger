@@ -113,6 +113,7 @@ export function MarkdownToolbar({
         size="sm"
         className="ml-auto"
         disabled={disabled || saving || !dirty}
+        onMouseDown={event => event.preventDefault()}
         onClick={onSave}
         title={t("pages.notes.saveTip")}
       >
@@ -124,6 +125,7 @@ export function MarkdownToolbar({
         variant="secondary"
         size="sm"
         aria-pressed={preview}
+        onMouseDown={event => event.preventDefault()}
         onClick={togglePreview}
       >
         {preview ? <Pencil /> : <Eye />}

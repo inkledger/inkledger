@@ -3,6 +3,7 @@ import { useContext, useId, useState, type ReactNode } from "react";
 import { matches, SettingsSearch } from "@/lib/settingsSearch";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ActionRow } from "@/components/app/ActionRow";
 
 
 const OPEN_KEY = "ikl-settings-open";
@@ -71,33 +72,34 @@ export function SettingsGroup({
         hit && "bg-primary-soft/40"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {collapsible ? (
-            <button
-              type="button"
-              aria-expanded={shown}
-              aria-controls={bodyId}
-              onClick={toggle}
-              className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-left font-semibold outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronRight
-                aria-hidden
-                className={cn("h-4 w-4 text-muted-foreground transition-transform", shown && "rotate-90")}
-              />
-              {title}
-            </button>
-          ) : (
-            <h3 className="font-semibold">{title}</h3>
-          )}
-          {description && (
-            <p className={cn("mt-0.5 text-body-sm text-muted-foreground", collapsible && "pl-5")}>
-              {description}
-            </p>
-          )}
-        </div>
-        {actions && shown && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
-      </div>
+      <ActionRow
+        className="items-start max-sm:grid-cols-1"
+        actionsClassName="flex-wrap justify-end max-sm:justify-start"
+        actions={actions && shown ? actions : null}
+      >
+        {collapsible ? (
+          <button
+            type="button"
+            aria-expanded={shown}
+            aria-controls={bodyId}
+            onClick={toggle}
+            className="-ml-1 flex items-center gap-1 rounded-sm px-1 text-left font-semibold outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn("h-4 w-4 text-muted-foreground transition-transform", shown && "rotate-90")}
+            />
+            {title}
+          </button>
+        ) : (
+          <h3 className="font-semibold">{title}</h3>
+        )}
+        {description && (
+          <p className={cn("mt-0.5 text-body-sm text-muted-foreground", collapsible && "pl-5")}>
+            {description}
+          </p>
+        )}
+      </ActionRow>
       {shown && (
         <div id={bodyId} className={cn("mt-4", collapsible && "pl-5")}>
           {children}

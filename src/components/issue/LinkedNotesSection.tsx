@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { newDraftId } from "@/components/notes/drafts";
 import { errorText, toastError } from "@/lib/errorText";
 import { t } from "@/i18n";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export function LinkedNotesSection({
   issueKey,
@@ -88,24 +89,29 @@ export function LinkedNotesSection({
       ) : (
         <ul className="divide-y">
           {notes.data.map(note => (
-            <li key={note.id} className="flex items-center gap-2 py-2">
-              <Link
-                to={`/notes/${note.id}`}
-                className="min-w-0 flex-1 truncate rounded-sm py-1 font-medium outline-none hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring"
+            <li key={note.id} className="py-2">
+              <ActionRow
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("pages.notes.unlinkNote", {
+                      title: note.title || t("pages.notes.untitled"),
+                    })}
+                    disabled={unlink.isPending}
+                    onClick={() => unlink.mutate({ id: note.id, issue: null })}
+                  >
+                    <Unlink />
+                  </Button>
+                }
               >
-                {note.title || t("pages.notes.untitled")}
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("pages.notes.unlinkNote", {
-                  title: note.title || t("pages.notes.untitled"),
-                })}
-                disabled={unlink.isPending}
-                onClick={() => unlink.mutate({ id: note.id, issue: null })}
-              >
-                <Unlink />
-              </Button>
+                <Link
+                  to={`/notes/${note.id}`}
+                  className="block truncate rounded-sm py-1 font-medium outline-none hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {note.title || t("pages.notes.untitled")}
+                </Link>
+              </ActionRow>
             </li>
           ))}
         </ul>

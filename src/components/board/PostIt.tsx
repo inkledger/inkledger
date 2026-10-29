@@ -1,6 +1,15 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import { Copy, FilePlus2, Flag, Lock, Mail, MoreHorizontal, MoveRight, X } from "lucide-react";
+import {
+  Copy,
+  FilePlus2,
+  Flag,
+  Lock,
+  Mail,
+  MoreHorizontal,
+  MoveRight,
+  X,
+} from "lucide-react";
 import { ExternalLink } from "@/components/app/ExternalLink";
 import type { MailView } from "@/components/mail/MailCard";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,7 +58,16 @@ export type PostItData = {
   noteBody?: string | null;
   noteCreatedAt?: Date | null;
   /** A TODO hung on the board, as it is now: its text is the TODO's, ticked here is ticked there. */
-  todo?: { id: number; text: string; dueOn: string | null; done: boolean; priority: number; steps: string; issueKey: string | null; connectionId: number | null } | null;
+  todo?: {
+    id: number;
+    text: string;
+    dueOn: string | null;
+    done: boolean;
+    priority: number;
+    steps: string;
+    issueKey: string | null;
+    connectionId: number | null;
+  } | null;
   /** A pinned mail hung on the board: its subject opens it in Outlook; `note` is written beside it. */
   mail?: MailView | null;
 };
@@ -122,12 +140,27 @@ export function PostIt({
   // old place between the release and the optimistic update.
   // `from` is where the cache had it at the drop: any change there (the drop
   // itself, or the truth back after a failed save) ends the hold.
-  const [settled, setSettled] = useState<{ x: number; y: number; from: { x: number; y: number } } | null>(null);
-  if (settled && (settled.from.x !== n.x || settled.from.y !== n.y || (settled.x === n.x && settled.y === n.y)))
+  const [settled, setSettled] = useState<{
+    x: number;
+    y: number;
+    from: { x: number; y: number };
+  } | null>(null);
+  if (
+    settled &&
+    (settled.from.x !== n.x ||
+      settled.from.y !== n.y ||
+      (settled.x === n.x && settled.y === n.y))
+  )
     setSettled(null);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(body);
-  const start = useRef<{ px: number; py: number; x: number; y: number; moved: boolean } | null>(null);
+  const start = useRef<{
+    px: number;
+    py: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
   const pos = drag ?? settled ?? { x: n.x, y: n.y };
   const tilt = Math.round(n.rotation * 0.35 * 10) / 10;
   const color = (NOTE_COLORS as readonly string[]).includes(n.color)
@@ -138,11 +171,13 @@ export function PostIt({
   const isControl = (target: EventTarget) =>
     target instanceof Element && !!target.closest("button, a, textarea, input");
   // Its menu lives in a portal, yet React bubbles its events here: never a drag or a nudge from it.
-  const fromElsewhere = (e: React.SyntheticEvent) => !(e.target instanceof Node && e.currentTarget.contains(e.target));
+  const fromElsewhere = (e: React.SyntheticEvent) =>
+    !(e.target instanceof Node && e.currentTarget.contains(e.target));
 
   const saveNote = () => {
     setEditing(false);
-    if (text !== body && (!(isNote || todo) || text.trim())) onNote(text.trim());
+    if (text !== body && (!(isNote || todo) || text.trim()))
+      onNote(text.trim());
   };
 
   return (
@@ -164,9 +199,21 @@ export function PostIt({
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${tilt}deg)`,
       }}
       onPointerDown={e => {
-        if (fromElsewhere(e) || editing || e.button !== 0 || isControl(e.target)) return;
+        if (
+          fromElsewhere(e) ||
+          editing ||
+          e.button !== 0 ||
+          isControl(e.target)
+        )
+          return;
         e.currentTarget.setPointerCapture(e.pointerId);
-        start.current = { px: e.clientX, py: e.clientY, x: n.x, y: n.y, moved: false };
+        start.current = {
+          px: e.clientX,
+          py: e.clientY,
+          x: n.x,
+          y: n.y,
+          moved: false,
+        };
       }}
       onPointerMove={e => {
         const s = start.current;
@@ -224,21 +271,42 @@ export function PostIt({
         }
       }}
     >
-      {isNote ? <span className="note-pin" aria-hidden /> : <span {...surface("glass")} className="note-tape" data-tone={TONE[color]} aria-hidden />}
+      {isNote ? (
+        <span className="note-pin" aria-hidden />
+      ) : (
+        <span
+          {...surface("glass")}
+          className="note-tape"
+          data-tone={TONE[color]}
+          aria-hidden
+        />
+      )}
       <div className="note-paper grain flex h-full flex-col overflow-hidden rounded-sm">
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 pb-2 pt-4">
           {mail ? (
             <div className="flex min-w-0 items-center gap-1.5">
               <Mail className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
-              <span className="truncate text-overline uppercase opacity-70">{mail.fromName ?? mail.fromAddress ?? t("ui.mail.title")}</span>
+              <span className="truncate text-overline uppercase opacity-70">
+                {mail.fromName ?? mail.fromAddress ?? t("ui.mail.title")}
+              </span>
             </div>
           ) : todo ? (
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="text-overline uppercase opacity-70">{t("views.board.postit.todo")}</span>
-              {todo.priority === 1 && <Flag className="h-3 w-3 shrink-0 text-primary-strong" aria-label={t("views.todos.priority")} />}
+              <span className="text-overline uppercase opacity-70">
+                {t("views.board.postit.todo")}
+              </span>
+              {todo.priority === 1 && (
+                <Flag
+                  className="h-3 w-3 shrink-0 text-primary-strong"
+                  aria-label={t("views.todos.priority")}
+                />
+              )}
               {todo.issueKey && (
                 <Link
-                  to={issuePath({ key: todo.issueKey, connectionId: todo.connectionId })}
+                  to={issuePath({
+                    key: todo.issueKey,
+                    connectionId: todo.connectionId,
+                  })}
                   className="ml-auto truncate text-overline uppercase underline-offset-2 hover:underline"
                 >
                   {todo.issueKey}
@@ -248,25 +316,40 @@ export function PostIt({
           ) : isNote && n.issueKey ? (
             <div className="flex min-w-0 items-center gap-1.5 pt-1">
               <Link
-                to={issuePath({ key: n.issueKey, connectionId: n.connectionId })}
+                to={issuePath({
+                  key: n.issueKey,
+                  connectionId: n.connectionId,
+                })}
                 className="truncate text-overline uppercase underline-offset-2 hover:underline"
               >
                 {n.issueKey}
               </Link>
-              <Lock className="h-3 w-3 shrink-0 opacity-60" aria-label={t("views.board.postit.privateNote")} />
+              <Lock
+                className="h-3 w-3 shrink-0 opacity-60"
+                aria-label={t("views.board.postit.privateNote")}
+              />
             </div>
           ) : n.issueKey ? (
             <div className="flex min-w-0 items-center gap-1.5">
-              <ProjectAvatar project={projectOf(n.issueKey)} size="xs" icon={false} />
+              <ProjectAvatar
+                project={projectOf(n.issueKey)}
+                size="xs"
+                icon={false}
+              />
               <Link
-                to={issuePath({ key: n.issueKey, connectionId: n.connectionId })}
+                to={issuePath({
+                  key: n.issueKey,
+                  connectionId: n.connectionId,
+                })}
                 className="truncate text-overline uppercase underline-offset-2 hover:underline"
               >
                 {n.issueKey}
               </Link>
             </div>
           ) : (
-            <span className="text-overline uppercase opacity-70">{t("views.board.postit.reminder")}</span>
+            <span className="text-overline uppercase opacity-70">
+              {t("views.board.postit.reminder")}
+            </span>
           )}
           {editing ? (
             <textarea
@@ -291,11 +374,25 @@ export function PostIt({
             />
           ) : mail ? (
             <>
-              <p className="line-clamp-3 break-words font-display text-body font-semibold leading-snug">
-                {mail.webLink ? <ExternalLink url={mail.webLink}>{mail.subject || t("ui.mail.noSubject")}</ExternalLink> : mail.subject || t("ui.mail.noSubject")}
+              <p className="line-clamp-3 [overflow-wrap:anywhere] font-display text-body font-semibold leading-snug">
+                {mail.webLink ? (
+                  <ExternalLink url={mail.webLink}>
+                    {mail.subject || t("ui.mail.noSubject")}
+                  </ExternalLink>
+                ) : (
+                  mail.subject || t("ui.mail.noSubject")
+                )}
               </p>
-              {mail.receivedAt && <p className="text-2xs opacity-70">{formatDate(new Date(mail.receivedAt), "short")}</p>}
-              {n.note && <p className="line-clamp-2 whitespace-pre-line break-words text-body-sm leading-snug opacity-80">– {n.note}</p>}
+              {mail.receivedAt && (
+                <p className="text-2xs opacity-70">
+                  {formatDate(new Date(mail.receivedAt), "short")}
+                </p>
+              )}
+              {n.note && (
+                <p className="line-clamp-2 whitespace-pre-line [overflow-wrap:anywhere] text-body-sm leading-snug opacity-80">
+                  – {n.note}
+                </p>
+              )}
             </>
           ) : todo ? (
             <div className="flex min-h-0 items-start gap-2">
@@ -303,28 +400,50 @@ export function PostIt({
                 className="mt-0.5"
                 checked={todo.done}
                 disabled={readOnly || !onTodoTick}
-                aria-label={t(todo.done ? "views.todos.untick" : "views.todos.tick", { text: todo.text })}
+                aria-label={t(
+                  todo.done ? "views.todos.untick" : "views.todos.tick",
+                  { text: todo.text }
+                )}
                 onCheckedChange={v => onTodoTick?.(v === true)}
               />
               <div className="grid min-w-0 gap-1">
-                <p className={cn("line-clamp-4 whitespace-pre-line break-words font-display text-body font-semibold leading-snug", todo.done && "line-through opacity-60")}>{todo.text}</p>
+                <p
+                  className={cn(
+                    "line-clamp-4 whitespace-pre-line [overflow-wrap:anywhere] font-display text-body font-semibold leading-snug",
+                    todo.done && "line-through opacity-60"
+                  )}
+                >
+                  {todo.text}
+                </p>
                 <p className="flex flex-wrap gap-x-2 text-2xs opacity-70">
-                  {todo.dueOn && <span className={cn(!todo.done && todo.dueOn < dayKey(today) && "text-danger")}>{dayLabel(todo.dueOn, today)}</span>}
+                  {todo.dueOn && (
+                    <span
+                      className={cn(
+                        !todo.done &&
+                          todo.dueOn < dayKey(today) &&
+                          "text-danger"
+                      )}
+                    >
+                      {dayLabel(todo.dueOn, today)}
+                    </span>
+                  )}
                   {steps(todo.steps)}
                 </p>
               </div>
             </div>
           ) : isNote ? (
-            <p className="line-clamp-6 whitespace-pre-line break-words text-body-sm leading-snug">{body}</p>
+            <p className="line-clamp-6 whitespace-pre-line [overflow-wrap:anywhere] text-body-sm leading-snug">
+              {body}
+            </p>
           ) : n.issueKey ? (
             <>
               {n.summary && (
-                <p className="line-clamp-3 font-display text-body font-semibold leading-snug">
+                <p className="line-clamp-3 [overflow-wrap:anywhere] font-display text-body font-semibold leading-snug">
                   {n.summary}
                 </p>
               )}
               {n.note && (
-                <p className="line-clamp-2 whitespace-pre-line break-words text-body-sm leading-snug opacity-80">
+                <p className="line-clamp-2 whitespace-pre-line [overflow-wrap:anywhere] text-body-sm leading-snug opacity-80">
                   – {n.note}
                 </p>
               )}
@@ -332,7 +451,7 @@ export function PostIt({
           ) : (
             <p
               className={cn(
-                "line-clamp-5 whitespace-pre-line break-words font-display text-body font-semibold leading-snug",
+                "line-clamp-5 whitespace-pre-line [overflow-wrap:anywhere] font-display text-body font-semibold leading-snug",
                 !n.note && "font-normal opacity-55"
               )}
             >
@@ -344,25 +463,31 @@ export function PostIt({
         {/* The paper clips: its foot keeps room for the tape dots' shadows (the Shadow mod's reach). */}
         <div className="flex shrink-0 items-center gap-1 border-t border-foreground/5 pb-[max(0.375rem,var(--surface-reach-b,0px))] pl-[max(0.625rem,var(--surface-reach-l,0px))] pr-[max(0.625rem,var(--surface-reach-r,0px))] pt-1.5">
           {isNote && n.noteCreatedAt && (
-            <span className="truncate text-2xs opacity-70">{formatDate(new Date(n.noteCreatedAt), "short")}</span>
+            <span className="truncate text-2xs opacity-70">
+              {formatDate(new Date(n.noteCreatedAt), "short")}
+            </span>
           )}
-          {!isNote && TAPE_ORDER.map((c, i) => (
-            <button
-              key={c}
-              type="button"
-              aria-label={t("views.board.postit.tape", { n: i + 1 })}
-              aria-pressed={c === color}
-              {...surface("chip")}
-              onClick={() => onColor(c)}
-              className={cn(
-                "h-3 w-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                c === color && "ring-1 ring-foreground/50 ring-offset-1 ring-offset-transparent"
-              )}
-              style={{ background: tape(c) }}
-            />
-          ))}
+          {!isNote &&
+            TAPE_ORDER.map((c, i) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={t("views.board.postit.tape", { n: i + 1 })}
+                aria-pressed={c === color}
+                {...surface("chip")}
+                onClick={() => onColor(c)}
+                className={cn(
+                  "h-3 w-3 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  c === color &&
+                    "ring-1 ring-foreground/50 ring-offset-1 ring-offset-transparent"
+                )}
+                style={{ background: tape(c) }}
+              />
+            ))}
           {!isNote && n.status && (
-            <span className="ml-1.5 truncate text-2xs font-normal opacity-70">{n.status}</span>
+            <span className="ml-1.5 truncate text-2xs font-normal opacity-70">
+              {n.status}
+            </span>
           )}
           <span className="ml-auto flex items-center">
             {!readOnly && !n.issueKey && !todo && !mail && (
@@ -382,19 +507,33 @@ export function PostIt({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    aria-label={t("views.board.postit.actions", { name: n.issueKey ?? t("views.board.postit.free") })}
+                    aria-label={t("views.board.postit.actions", {
+                      name: n.issueKey ?? t("views.board.postit.free"),
+                    })}
                     title={t("views.board.postit.actionsTitle")}
                     className="rounded p-0.5 opacity-60 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100"
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" onCloseAutoFocus={e => e.preventDefault()}>
+                <DropdownMenuContent
+                  align="end"
+                  onCloseAutoFocus={e => e.preventDefault()}
+                >
                   {!readOnly && (
-                    <BoardsSub label={t("views.board.postit.moveTo")} icon={<MoveRight className="h-4 w-4" aria-hidden />} boards={boards} onPick={id => onCopy?.(id, true)} />
+                    <BoardsSub
+                      label={t("views.board.postit.moveTo")}
+                      icon={<MoveRight className="h-4 w-4" aria-hidden />}
+                      boards={boards}
+                      onPick={id => onCopy?.(id, true)}
+                    />
                   )}
                   <BoardsSub
-                    label={t(readOnly ? "views.board.postit.copyFollowed" : "views.board.postit.copyTo")}
+                    label={t(
+                      readOnly
+                        ? "views.board.postit.copyFollowed"
+                        : "views.board.postit.copyTo"
+                    )}
                     icon={<Copy className="h-4 w-4" aria-hidden />}
                     boards={boards}
                     onPick={id => onCopy?.(id, false)}
@@ -402,7 +541,14 @@ export function PostIt({
                   {!readOnly && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={onRemove} aria-label={t(isNote ? "views.board.postit.unhangLabel" : "views.board.postit.unpinLabel")}>
+                      <DropdownMenuItem
+                        onSelect={onRemove}
+                        aria-label={t(
+                          isNote
+                            ? "views.board.postit.unhangLabel"
+                            : "views.board.postit.unpinLabel"
+                        )}
+                      >
                         <X className="h-4 w-4" aria-hidden />
                         {t("views.board.postit.unpin")}
                       </DropdownMenuItem>
@@ -421,17 +567,36 @@ export function PostIt({
 /** A TODO's steps as "2/5", none when it has none. */
 function steps(raw: string) {
   const all = parseSteps(raw);
-  return all.length > 0 ? <span className="tabular">{t("views.board.postit.steps", { done: all.filter(s => s.done).length, total: all.length })}</span> : null;
+  return all.length > 0 ? (
+    <span className="tabular">
+      {t("views.board.postit.steps", {
+        done: all.filter(s => s.done).length,
+        total: all.length,
+      })}
+    </span>
+  ) : null;
 }
 
 /** The other boards, as a submenu (disabled, with a hint, when there are none). */
-function BoardsSub({ label, icon, boards, onPick }: { label: string; icon: React.ReactNode; boards: { id: number; name: string }[]; onPick: (id: number) => void }) {
+function BoardsSub({
+  label,
+  icon,
+  boards,
+  onPick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  boards: { id: number; name: string }[];
+  onPick: (id: number) => void;
+}) {
   if (boards.length === 0) {
     return (
       <DropdownMenuItem disabled>
         {icon}
         {label}
-        <span className="ml-auto pl-2 text-caption text-muted-foreground">{t("views.board.postit.noOtherBoard")}</span>
+        <span className="ml-auto pl-2 text-caption text-muted-foreground">
+          {t("views.board.postit.noOtherBoard")}
+        </span>
       </DropdownMenuItem>
     );
   }

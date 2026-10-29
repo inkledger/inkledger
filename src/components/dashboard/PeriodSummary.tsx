@@ -15,6 +15,7 @@ import { goalTone } from "@/lib/goalTone";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { surface, surfaceFace } from "@/components/app/surface";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export type IssueTotal = {
   issueKey: string;
@@ -96,7 +97,7 @@ export function PeriodSummary({
           </div>
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-body-sm">
             {legend.map(l => (
-              <li key={l.project} className="flex items-center gap-1.5">
+              <li key={l.project} className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
                 <span
                   aria-hidden
                   // "Other" is see-through: glass, no shadow.
@@ -128,30 +129,37 @@ export function PeriodSummary({
               <li key={issueId(i)}>
                 <Link
                   to={issuePath({ key: i.issueKey, connectionId: i.connectionId, remoteId: i.remoteId })}
-                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/60"
+                  className="-mx-2 block rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/60"
                 >
-                  <span className="relative">
-                    <ProjectAvatar project={project} className="h-10 w-10" />
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-card",
-                        colorOf(project).fill
-                      )}
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
+                  <ActionRow
+                    leading={
+                      <span className="relative">
+                        <ProjectAvatar project={project} className="h-10 w-10" />
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-card",
+                            colorOf(project).fill
+                          )}
+                        />
+                      </span>
+                    }
+                    actions={
+                      <>
+                        <span className="shrink-0 text-body-sm text-muted-foreground tabular">
+                          {formatDurationLong(i.seconds)}
+                        </span>
+                        <Chip className="hidden shrink-0 sm:inline-flex">
+                          {project}
+                        </Chip>
+                      </>
+                    }
+                  >
                     <span className="block font-medium">{i.issueKey}</span>
                     <span className="block truncate text-body-sm text-muted-foreground">
                       {i.summary ?? "—"}
                     </span>
-                  </span>
-                  <span className="shrink-0 text-body-sm text-muted-foreground tabular">
-                    {formatDurationLong(i.seconds)}
-                  </span>
-                  <Chip className="hidden shrink-0 sm:inline-flex">
-                    {project}
-                  </Chip>
+                  </ActionRow>
                 </Link>
               </li>
             );

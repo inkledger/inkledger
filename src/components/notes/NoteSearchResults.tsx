@@ -36,7 +36,7 @@ export function NoteSearchResults({
               </span>
             )}
             {result.snippet && (
-              <span className="mt-1 line-clamp-2 block text-body-sm text-muted-foreground">
+              <span className="mt-1 line-clamp-2 block [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
                 {result.snippet}
               </span>
             )}

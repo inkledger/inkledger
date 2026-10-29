@@ -5,7 +5,13 @@ import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { trpc } from "@/lib/trpc";
 import { reachable, type BoardColumn } from "@/lib/boardTargets";
 import { Link } from "react-router";
-import { CalendarDays, Clock3, ListChecks, MoveRight, Star } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  ListChecks,
+  MoveRight,
+  Star,
+} from "lucide-react";
 import { PinMenuItems } from "@/components/issue/PinMenu";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
@@ -68,10 +74,24 @@ export function BoardCard({
   const due = issue.dueDate ? parseDayKey(issue.dueDate.slice(0, 10)) : null;
   // The menu (keyboard, and a long press on touch) lists only where its tracker can take it.
   const [menu, setMenu] = useState(false);
-  const ways = trpc.issues.transitions.useQuery({ key: issue.key, connectionId: issue.connectionId }, { enabled: menu, staleTime: 60_000 });
+  const ways = trpc.issues.transitions.useQuery(
+    { key: issue.key, connectionId: issue.connectionId },
+    { enabled: menu, staleTime: 60_000 }
+  );
   const card = { connectionId: issue.connectionId, status: issue.status };
   const places = ways.data
-    ? columns.filter(c => reachable(card, ways.data.map(w => ({ toStatus: w.toStatus, toCategory: w.toCategory, executable: w.executable })), c).length > 0)
+    ? columns.filter(
+        c =>
+          reachable(
+            card,
+            ways.data.map(w => ({
+              toStatus: w.toStatus,
+              toCategory: w.toCategory,
+              executable: w.executable,
+            })),
+            c
+          ).length > 0
+      )
     : null;
   const press = useRef<number | null>(null);
   const endPress = () => {
@@ -93,7 +113,10 @@ export function BoardCard({
       onDragStart={e => {
         e.dataTransfer.setData("text/plain", issue.key);
         e.dataTransfer.setData("application/x-from-status", issue.status);
-        e.dataTransfer.setData("application/x-connection", String(issue.connectionId));
+        e.dataTransfer.setData(
+          "application/x-connection",
+          String(issue.connectionId)
+        );
         // move = change status (columns), copy = pin it (lavagna)
         e.dataTransfer.effectAllowed = "copyMove";
         onDragStart();
@@ -102,7 +125,7 @@ export function BoardCard({
       className="cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
     >
       <div className="flex items-start gap-1.5">
-        <p className="line-clamp-2 min-w-0 flex-1 break-words text-body-sm font-semibold leading-snug">
+        <p className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
           {issue.summary}
         </p>
         <DropdownMenu open={menu} onOpenChange={setMenu}>
@@ -118,17 +141,36 @@ export function BoardCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <PinMenuItems issueKey={issue.key} connectionId={issue.connectionId} label={t("views.board.card.pin")} />
-            <DropdownMenuItem onSelect={() => makeTodo.ask({ issueKey: issue.key, connectionId: issue.connectionId ?? undefined })}>
+            <PinMenuItems
+              issueKey={issue.key}
+              connectionId={issue.connectionId}
+              label={t("views.board.card.pin")}
+            />
+            <DropdownMenuItem
+              onSelect={() =>
+                makeTodo.ask({
+                  issueKey: issue.key,
+                  connectionId: issue.connectionId ?? undefined,
+                })
+              }
+            >
               <ListChecks className="h-4 w-4" aria-hidden />
               {t("views.todos.menuAdd")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t("views.board.card.moveTo")}</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              {t("views.board.card.moveTo")}
+            </DropdownMenuLabel>
             {places === null ? (
-              <DropdownMenuItem disabled>{ways.error ? errorText(ways.error) : t("views.board.card.loadingMoves")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                {ways.error
+                  ? errorText(ways.error)
+                  : t("views.board.card.loadingMoves")}
+              </DropdownMenuItem>
             ) : places.length === 0 ? (
-              <DropdownMenuItem disabled>{t("views.board.card.noMoves")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                {t("views.board.card.noMoves")}
+              </DropdownMenuItem>
             ) : (
               places.map(c => (
                 <DropdownMenuItem key={c.id} onSelect={() => onMove(c.id)}>
@@ -158,10 +200,14 @@ export function BoardCard({
           {issue.relevantAt && (
             <span
               className="flex items-center gap-1"
-              title={t("views.board.card.lastActivityAt", { date: full().format(issue.relevantAt) })}
+              title={t("views.board.card.lastActivityAt", {
+                date: full().format(issue.relevantAt),
+              })}
             >
               <Clock3 className="h-3.5 w-3.5" aria-hidden />
-              <span className="sr-only">{t("views.board.card.lastActivity")}</span>
+              <span className="sr-only">
+                {t("views.board.card.lastActivity")}
+              </span>
               {relevanceText(issue.relevantAt)}
             </span>
           )}
@@ -176,7 +222,11 @@ export function BoardCard({
       )}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
-          <ProjectAvatar project={projectOf(issue.key)} size="xs" connectionId={issue.connectionId} />
+          <ProjectAvatar
+            project={projectOf(issue.key)}
+            size="xs"
+            connectionId={issue.connectionId}
+          />
           <ConnectionBadge connectionId={issue.connectionId} />
         </span>
         {issue.priority && (

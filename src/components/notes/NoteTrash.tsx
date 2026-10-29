@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, PageSpinner } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { dateFormat, t } from "@/i18n";
 import { errorText, toastError } from "@/lib/errorText";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export function NoteTrash() {
   const trash = trpc.notes.trash.useQuery();
@@ -57,11 +58,29 @@ export function NoteTrash() {
           {trash.data.map(batch => {
             const needsRoot = !batch.parentActive && !!batch.parentId;
             return (
-              <li
-                key={batch.batch}
-                className="flex flex-wrap items-center gap-3 px-5 py-4 md:px-6"
-              >
-                <div className="min-w-0 flex-1">
+              <li key={batch.batch} className="px-5 py-4 md:px-6">
+                <ActionRow
+                  actions={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={restore.isPending}
+                      onClick={() =>
+                        restore.mutate({
+                          batch: batch.batch,
+                          toRoot: needsRoot,
+                        })
+                      }
+                    >
+                      <RotateCcw />
+                      {t(
+                        needsRoot
+                          ? "pages.notes.restoreRoot"
+                          : "pages.notes.restore"
+                      )}
+                    </Button>
+                  }
+                >
                   <p className="truncate font-medium">
                     {batch.title || t("pages.notes.untitled")}
                   </p>
@@ -74,22 +93,7 @@ export function NoteTrash() {
                       {date.format(new Date(batch.deletedAt))}
                     </time>
                   </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={restore.isPending}
-                  onClick={() =>
-                    restore.mutate({ batch: batch.batch, toRoot: needsRoot })
-                  }
-                >
-                  <RotateCcw />
-                  {t(
-                    needsRoot
-                      ? "pages.notes.restoreRoot"
-                      : "pages.notes.restore"
-                  )}
-                </Button>
+                </ActionRow>
               </li>
             );
           })}

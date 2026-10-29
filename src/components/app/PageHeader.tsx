@@ -62,16 +62,24 @@ export function PageHeader({
         "flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
         sticky && "lg:sticky lg:top-0 lg:z-20 lg:bg-card",
         // Over the Dashboard's backdrop scene: nearly opaque, no backdrop blur (it would be redone on every frame of the scene).
-        sticky && "group-has-[[data-module-slot=dashboard-backdrop]]/panel:bg-card/[0.97]",
+        sticky &&
+          "group-has-[[data-module-slot=dashboard-backdrop]]/panel:bg-card/[0.97]",
         className
       )}
     >
       <div className="min-w-0">
         {/* A detail page: one "← Board" (where it was opened from) instead of the trail. */}
-        {back ? <BackButton fallback={<Breadcrumb current={breadcrumbCurrent} />} /> : <Breadcrumb current={breadcrumbCurrent} />}
+        {back ? (
+          <BackButton fallback={<Breadcrumb current={breadcrumbCurrent} />} />
+        ) : (
+          <Breadcrumb current={breadcrumbCurrent} />
+        )}
         <div className="flex min-w-0 items-center gap-2">
           <h1
-            className={cn("line-clamp-2 min-w-0 break-words font-display text-heading sm:text-title", titleClassName)}
+            className={cn(
+              "line-clamp-2 min-w-0 [overflow-wrap:anywhere] font-display text-heading sm:text-title",
+              titleClassName
+            )}
             aria-live="polite"
           >
             {title}
@@ -79,7 +87,7 @@ export function PageHeader({
           {titleAddon}
         </div>
         {description && (
-          <p className="mt-0.5 line-clamp-2 text-body-sm text-muted-foreground">
+          <p className="mt-0.5 line-clamp-2 [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
             {description}
           </p>
         )}

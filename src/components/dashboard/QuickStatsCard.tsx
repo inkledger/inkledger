@@ -105,7 +105,7 @@ export function QuickStatsCard({
               <Lightbulb className="h-4 w-4 text-warning" aria-hidden />
               {t("views.dashboard.quickStats.note")}
             </p>
-            <p className="mt-1 line-clamp-2 text-body-sm text-muted-foreground">
+            <p className="mt-1 line-clamp-2 [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
               {note}
             </p>
           </div>

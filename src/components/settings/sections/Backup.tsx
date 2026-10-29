@@ -148,7 +148,7 @@ export function BackupSection() {
           label={t("settings.backup.folder")}
           hint={writable ? t("settings.backup.folderHint") : t("settings.backup.folderDown")}
         >
-          <span className="flex items-center gap-1.5 text-body-sm text-muted-foreground">
+          <span className="flex min-w-0 items-center gap-1.5 text-body-sm text-muted-foreground [overflow-wrap:anywhere]">
             <FolderOpen className="h-4 w-4" aria-hidden />
             <code>{dir}</code>
           </span>

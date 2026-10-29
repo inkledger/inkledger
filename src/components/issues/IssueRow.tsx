@@ -51,6 +51,7 @@ import { issueHistory } from "@/lib/issueHistory";
 import { PinMenuItems } from "@/components/issue/PinMenu";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export type IssueItem =
   inferRouterOutputs<AppRouter>["issues"]["list"]["issues"][number];
@@ -220,9 +221,9 @@ function KeyLink({ issue }: { issue: IssueItem }) {
     <Link
       to={issuePath(issue)}
       viewTransition
-      className="flex items-center gap-3 underline-offset-4 hover:underline"
+      className="flex min-w-0 items-center gap-3 underline-offset-4 hover:underline"
     >
-      <span className="relative">
+      <span className="relative shrink-0">
         <ProjectAvatar
           project={projectOf(issue.key)}
           connectionId={issue.connectionId}
@@ -240,7 +241,7 @@ function KeyLink({ issue }: { issue: IssueItem }) {
         )}
       </span>
       <span
-        className={cn("font-semibold", issue.unread && "text-primary-strong")}
+        className={cn("min-w-0 [overflow-wrap:anywhere] font-semibold", issue.unread && "text-primary-strong")}
       >
         {issue.key}
       </span>
@@ -452,8 +453,8 @@ export const IssueCard = memo(function IssueCard({
   const activity = activityText(issue);
   return (
     <li data-issue-id={issueId(issue)} className="grid gap-2 py-3">
-      <div className="flex items-center gap-1">
-        {issue.hidden === 1 ? (
+      <ActionRow
+        leading={issue.hidden === 1 ? (
           <EyeOff
             className="mx-2 h-4 w-4 text-muted-foreground"
             aria-label={t("views.issues.row.hiddenLabel")}
@@ -461,12 +462,13 @@ export const IssueCard = memo(function IssueCard({
         ) : (
           <FavoriteStar issueKey={issue.key} connectionId={issue.connectionId} favorite={issue.favorite === 1} />
         )}
-        <KeyLink issue={issue} />
-        {!issue.isMine && <Chip tone="warning">{t("views.issues.row.unassigned")}</Chip>}
-        <div className="ml-auto flex items-center">
-          <Actions issue={issue} onLog={onLog} pin={pin} />
-        </div>
-      </div>
+        actions={<Actions issue={issue} onLog={onLog} pin={pin} />}
+      >
+        <span className="flex min-w-0 items-center gap-1">
+          <KeyLink issue={issue} />
+          {!issue.isMine && <Chip tone="warning">{t("views.issues.row.unassigned")}</Chip>}
+        </span>
+      </ActionRow>
       <p className="[overflow-wrap:anywhere] text-body-sm">{issue.summary}</p>
       {activity && (
         <p className="-mt-1 text-caption text-muted-foreground">

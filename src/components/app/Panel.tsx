@@ -49,7 +49,12 @@ export function PanelRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("grid border-b last:border-b-0", className)}>
+    <div
+      className={cn(
+        "grid min-w-0 grid-cols-[minmax(0,1fr)] border-b last:border-b-0",
+        className
+      )}
+    >
       {children}
     </div>
   );

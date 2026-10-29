@@ -34,29 +34,77 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
         {items.map(x => {
           const late = !!x.dueOn && x.dueOn < todayKey;
           return (
-            <li key={x.id} {...surface("card")} aria-label={x.text} className="grid gap-1.5 rounded-xl border bg-card px-3 py-2.5 shadow-xs">
+            <li
+              key={x.id}
+              {...surface("card")}
+              aria-label={x.text}
+              className="grid gap-1.5 rounded-xl border bg-card px-3 py-2.5 shadow-xs"
+            >
               <div className="flex items-start gap-2">
-                <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                <p className="min-w-0 flex-1 break-words text-body-sm">{x.text}</p>
+                <ListChecks
+                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <p className="min-w-0 flex-1 [overflow-wrap:anywhere] text-body-sm">
+                  {x.text}
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-1 text-caption">
                 {x.dueOn && (
-                  <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5", late ? "bg-danger-soft text-danger" : "bg-muted text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5",
+                      late
+                        ? "bg-danger-soft text-danger"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
                     <CalendarDays className="h-3 w-3" aria-hidden />
                     {dayLabel(x.dueOn, today)}
                   </span>
                 )}
                 {x.issueKey && (
-                  <Link to={issuePath({ key: x.issueKey, connectionId: x.connectionId })} onClick={onOpen} className="truncate rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground hover:text-foreground">
+                  <Link
+                    to={issuePath({
+                      key: x.issueKey,
+                      connectionId: x.connectionId,
+                    })}
+                    onClick={onOpen}
+                    className="truncate rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+                  >
                     {x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}
                   </Link>
                 )}
               </div>
               <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant="ghost" onClick={() => act(utils.client.todos.update.mutate({ id: x.id, done: true, today: dayKey(today) }))}>
-                  <Check className="h-3.5 w-3.5" /> {t("views.todos.remindDone")}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    act(
+                      utils.client.todos.update.mutate({
+                        id: x.id,
+                        done: true,
+                        today: dayKey(today),
+                      })
+                    )
+                  }
+                >
+                  <Check className="h-3.5 w-3.5" />{" "}
+                  {t("views.todos.remindDone")}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => act(utils.client.todos.update.mutate({ id: x.id, dueOn: dayKey(addDays(today, 1)) }))}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    act(
+                      utils.client.todos.update.mutate({
+                        id: x.id,
+                        dueOn: dayKey(addDays(today, 1)),
+                      })
+                    )
+                  }
+                >
                   {t("views.todos.remindTomorrow")}
                 </Button>
                 {canShowTodos() && (
@@ -75,11 +123,21 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
                   size="sm"
                   variant="ghost"
                   className="ml-auto"
-                  aria-label={t("views.todos.remindHideLabel", { text: x.text })}
+                  aria-label={t("views.todos.remindHideLabel", {
+                    text: x.text,
+                  })}
                   title={t("views.todos.remindHide")}
-                  onClick={() => act(utils.client.todos.dismissReminder.mutate({ id: x.id, today: todayKey }))}
+                  onClick={() =>
+                    act(
+                      utils.client.todos.dismissReminder.mutate({
+                        id: x.id,
+                        today: todayKey,
+                      })
+                    )
+                  }
                 >
-                  <EyeOff className="h-3.5 w-3.5" /> {t("views.todos.remindHide")}
+                  <EyeOff className="h-3.5 w-3.5" />{" "}
+                  {t("views.todos.remindHide")}
                 </Button>
               </div>
             </li>

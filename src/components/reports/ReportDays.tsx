@@ -8,6 +8,7 @@ import { surface } from "@/components/app/surface";
 import { ReportRows } from "@/components/reports/ReportRows";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export type ReportDay = {
   day: string;
@@ -19,9 +20,16 @@ export type ReportDay = {
 function IssueLine({ row }: { row: ReportRow }) {
   const { head, tail } = splitLabel(row.label);
   return (
-    <li className="flex items-center gap-3 py-2">
-      <ProjectAvatar project={projectOf(row.key)} />
-      <div className="min-w-0 flex-1">
+    <li className="py-2">
+      <ActionRow
+        leading={<ProjectAvatar project={projectOf(row.key)} />}
+        actions={
+          <span className="shrink-0 text-body-sm tabular">
+            <span className="font-medium">{formatDuration(row.seconds)}</span>
+            <span className="text-muted-foreground"> · {row.entries}</span>
+          </span>
+        }
+      >
         <Link
           to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })}
           className="font-semibold underline-offset-4 hover:underline"
@@ -33,11 +41,7 @@ function IssueLine({ row }: { row: ReportRow }) {
             {tail}
           </span>
         )}
-      </div>
-      <span className="shrink-0 text-body-sm tabular">
-        <span className="font-medium">{formatDuration(row.seconds)}</span>
-        <span className="text-muted-foreground"> · {row.entries}</span>
-      </span>
+      </ActionRow>
     </li>
   );
 }
@@ -100,7 +104,7 @@ export function ReportDays({
   targetFor: (d: Date) => number;
 }) {
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <div className="grid gap-3">
         <h3 className="text-body-sm font-medium text-muted-foreground">
           {t("views.reports.days.perDay")}

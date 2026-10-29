@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { dateFormat, t } from "@/i18n";
 import { deleteDraft, draftPath, type NoteDraft } from "./drafts";
+import { ActionRow } from "@/components/app/ActionRow";
 
 export function LocalDrafts({
   drafts,
@@ -33,35 +34,40 @@ export function LocalDrafts({
           {drafts.map(draft => (
             <li
               key={`${draft.noteId ?? "new"}:${draft.draftId}:${draft.tabId}`}
-              className="group flex min-w-0 items-center gap-1"
+              className="group"
             >
-              <Link
-                to={draftPath(draft)}
-                className="min-w-0 flex-1 rounded-md px-2 py-1.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <ActionRow
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("pages.notes.deleteLocalDraft", {
+                      title: draft.title || t("pages.notes.untitled"),
+                    })}
+                    onClick={() => {
+                      deleteDraft(draft);
+                      remove();
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                }
               >
-                <span className="block truncate text-body-sm">
-                  {draft.title || t("pages.notes.untitled")}
-                </span>
-                <time
-                  className="block text-caption text-muted-foreground"
-                  dateTime={new Date(draft.updatedAt).toISOString()}
+                <Link
+                  to={draftPath(draft)}
+                  className="block rounded-md px-2 py-1.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {date.format(new Date(draft.updatedAt))}
-                </time>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("pages.notes.deleteLocalDraft", {
-                  title: draft.title || t("pages.notes.untitled"),
-                })}
-                onClick={() => {
-                  deleteDraft(draft);
-                  remove();
-                }}
-              >
-                <Trash2 />
-              </Button>
+                  <span className="block truncate text-body-sm">
+                    {draft.title || t("pages.notes.untitled")}
+                  </span>
+                  <time
+                    className="block text-caption text-muted-foreground"
+                    dateTime={new Date(draft.updatedAt).toISOString()}
+                  >
+                    {date.format(new Date(draft.updatedAt))}
+                  </time>
+                </Link>
+              </ActionRow>
             </li>
           ))}
         </ul>

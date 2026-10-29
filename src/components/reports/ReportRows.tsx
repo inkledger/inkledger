@@ -71,7 +71,7 @@ function RowLabel({ groupBy, row }: { groupBy: GroupBy; row: ReportRow }) {
         {groupBy === "issue" ? (
           <Link
             to={issuePath({ key: row.key, connectionId: row.connectionId, remoteId: row.remoteId })}
-            className="font-semibold underline-offset-4 hover:underline"
+            className="font-semibold [overflow-wrap:anywhere] underline-offset-4 hover:underline"
           >
             {head}
           </Link>

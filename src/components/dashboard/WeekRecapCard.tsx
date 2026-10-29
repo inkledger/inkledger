@@ -79,7 +79,7 @@ export function WeekRecapCard({
               aria-hidden
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
             />
-            <span className="line-clamp-2">{f}</span>
+            <span className="line-clamp-2 [overflow-wrap:anywhere]">{f}</span>
           </li>
         ))}
       </ul>
