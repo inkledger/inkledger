@@ -70,7 +70,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright-core install --with-deps chromium-headless-shell
-      - run: pnpm test:e2e
+      # One file at a time: two browsers and servers at once overload the runner (timeouts that vary from run to run).
+      - run: pnpm build && node --test --test-concurrency=1 --test-timeout=300000 'e2e/*.test.mjs'
 
   native:
     # The desktop shell: format, lints and tests (macOS: no system WebKit packages to install).
