@@ -108,6 +108,58 @@ export function expectedSecondsBetween(from: Date, days: number, versions: Sched
   return total;
 }
 
+/** Working spans left after planned vacation; work and travel never change the target. */
+export function effectiveWorkSpans(
+  day: Date,
+  schedule: WorkSchedule,
+  planned: import("./planned").PlannedInterval[] = [],
+): TimeSpan[] {
+  const vacations = planned.filter((p) => p.kind === "vacation" && p.endsAt > p.startsAt);
+  return workSpans(day, schedule).flatMap((work) => {
+    const workStart = work.start.getTime();
+    const workEnd = workStart + work.seconds * 1000;
+    const covered = vacations
+      .map((v) => ({
+        start: Math.max(workStart, v.startsAt.getTime()),
+        end: Math.min(workEnd, v.endsAt.getTime()),
+      }))
+      .filter((v) => v.end > v.start)
+      .sort((a, b) => a.start - b.start);
+    const out: TimeSpan[] = [];
+    let cursor = workStart;
+    for (const absence of covered) {
+      if (absence.start > cursor) out.push(span(new Date(cursor), new Date(absence.start)));
+      cursor = Math.max(cursor, absence.end);
+    }
+    if (cursor < workEnd) out.push(span(new Date(cursor), new Date(workEnd)));
+    return out;
+  });
+}
+
+/** Seconds expected after planned vacation, never negative. */
+export function effectiveTargetSeconds(
+  day: Date,
+  schedule: WorkSchedule,
+  planned: import("./planned").PlannedInterval[] = [],
+): number {
+  return Math.max(0, effectiveWorkSpans(day, schedule, planned).reduce((total, s) => total + s.seconds, 0));
+}
+
+/** Effective target over local days, each judged with its own schedule version. */
+export function effectiveTargetSecondsBetween(
+  from: Date,
+  days: number,
+  versions: ScheduleVersion[],
+  planned: import("./planned").PlannedInterval[] = [],
+): number {
+  let total = 0;
+  for (let i = 0; i < days; i++) {
+    const day = addDays(from, i);
+    total += effectiveTargetSeconds(day, scheduleFor(day, versions), planned);
+  }
+  return total;
+}
+
 /**
  * Working time not covered by `logged` (worklogs and live timers), up to
  * `now` on today: every hole of at least a minute (Jira's minimum).

@@ -700,6 +700,26 @@
     "type": "query"
   },
   {
+    "path": "planned.convert",
+    "type": "mutation"
+  },
+  {
+    "path": "planned.create",
+    "type": "mutation"
+  },
+  {
+    "path": "planned.list",
+    "type": "query"
+  },
+  {
+    "path": "planned.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "planned.update",
+    "type": "mutation"
+  },
+  {
     "path": "queries.clearRecent",
     "type": "mutation"
   },

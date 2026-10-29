@@ -180,6 +180,11 @@ export interface FrozenIn {
   "pinboard.update": { boardId?: number | undefined; color?: "blue" | "green" | "orange" | "pink" | "yellow" | undefined; id: number; note?: string | undefined; toFront?: false | true | undefined; x?: number | undefined; y?: number | undefined };
   "pinboard.where": { connectionId?: number | undefined; issueKey: string };
   "ping": void;
+  "planned.convert": { id: string };
+  "planned.create": { connectionId?: null | number | undefined; endsAt: string; issueKey?: null | string | undefined; kind: "travel" | "vacation" | "work"; note?: null | string | undefined; startsAt: string };
+  "planned.list": undefined | void | { from?: string | undefined; to?: string | undefined };
+  "planned.remove": { id: string };
+  "planned.update": { connectionId?: null | number | undefined; endsAt?: string | undefined; id: string; issueKey?: null | string | undefined; kind?: "travel" | "vacation" | "work" | undefined; note?: null | string | undefined; startsAt?: string | undefined };
   "queries.clearRecent": void;
   "queries.delete": { id: number };
   "queries.list": void;
@@ -428,6 +433,11 @@ export interface FrozenOut {
   "pinboard.update": { ok: boolean };
   "pinboard.where": { boards: { id: number; name: string; noteId: null | number }[]; connectionId: number; hiddenByBucket: boolean };
   "ping": { ok: boolean; ts: number };
+  "planned.convert": { planned: { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number }; worklog: { authorAccountId: string; comment: string; connectionId: number; id: number; issueKey: string; itemId: null | number; remoteCreated: null | string; remoteId: string; remoteUpdated: null | string; started: Date; syncedAt: Date; timeSpentSeconds: number; userId: number; uuid: string } };
+  "planned.create": { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number };
+  "planned.list": { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number }[];
+  "planned.remove": { ok: boolean };
+  "planned.update": { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number };
   "queries.clearRecent": { ok: boolean };
   "queries.delete": { ok: boolean };
   "queries.list": { recent: string[]; saved: { id: number; name: string; query: string }[] };

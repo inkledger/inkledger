@@ -134,6 +134,17 @@ export const server: Shape<typeof en> = {
     invalidDate: "Data settimana non valida",
     closed: "Settimana chiusa: riaprila per modificare le registrazioni.",
   },
+  planned: {
+    notFound: "Pianificazione non trovata.",
+    invalidInterval: "La fine deve venire dopo l'inizio.",
+    workIssueRequired: "Il lavoro pianificato richiede una issue.",
+    connectionNeedsIssue: "Una connessione issue richiede la chiave della issue.",
+    vacationNoIssue: "Le ferie sono personali e non possono essere collegate a una issue.",
+    issueNotFound: "Issue non trovata su questa connessione.",
+    notConvertible: "Solo lavoro o trasferte pianificati possono diventare un consuntivo.",
+    travelIssueRequired: "Collega la trasferta a una issue prima di convertirla.",
+    noFuture: "Questo tracker non accetta consuntivi che iniziano nel futuro.",
+  },
   workSchedule: {
     invalidDate: "Data non valida",
     weekClosed: "La settimana del {week} è chiusa: scegli una data successiva o riaprila.",

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { withWriteLease } from "../queries/writeLease";
 import { weekLocks } from "@db/schema";
-import { parseDayKey, weekStartKey } from "@contracts/time";
+import { addDays, parseDayKey, startOfWeek, weekStartKey } from "@contracts/time";
 import { t } from "@contracts/i18n";
 
 const weekInput = z.object({
@@ -38,6 +38,20 @@ export async function assertWeekOpen(userId: number, date: Date): Promise<void> 
       message: t("server.weeks.closed"),
     });
   }
+}
+
+/** Every week touched by [startsAt, endsAt), including both sides of a midnight or month boundary. */
+export async function assertWeeksOpen(userId: number, startsAt: Date, endsAt: Date): Promise<void> {
+  const last = new Date(endsAt.getTime() - 1);
+  const weeks: string[] = [];
+  for (let week = startOfWeek(startsAt); week <= last; week = addDays(week, 7)) weeks.push(weekStartKey(week));
+  if (weeks.length === 0) return;
+  const rows = await getDb()
+    .select({ id: weekLocks.id })
+    .from(weekLocks)
+    .where(and(eq(weekLocks.userId, userId), inArray(weekLocks.weekStart, weeks)))
+    .limit(1);
+  if (rows.length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.weeks.closed") });
 }
 
 export const weeksRouter = createRouter({

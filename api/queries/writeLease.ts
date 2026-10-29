@@ -3,6 +3,7 @@
 // read, then written, never interleaved with another process's write. The
 // in-process lock goes first (no polling between requests of one process).
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { TRPCError } from "@trpc/server";
 import { and, eq, lt } from "drizzle-orm";
 import { writeLeases } from "@db/schema";
@@ -16,6 +17,7 @@ export const WRITE_LEASE_MS = 2 * 60_000;
 const WAIT_MS = 45_000;
 
 const local = keyedLock<number>();
+const active = new AsyncLocalStorage<ReadonlySet<number>>();
 
 async function acquire(userId: number, holder: string): Promise<void> {
   const db = getDb();
@@ -35,11 +37,14 @@ async function acquire(userId: number, holder: string): Promise<void> {
 
 /** Runs `fn` holding the user's write lease: no other write of theirs, in any process, meanwhile. */
 export function withWriteLease<T>(userId: number, fn: () => Promise<T>): Promise<T> {
+  if (active.getStore()?.has(userId)) return fn();
   return local(userId, async () => {
     const holder = randomUUID();
     await acquire(userId, holder);
     try {
-      return await fn();
+      const users = new Set(active.getStore() ?? []);
+      users.add(userId);
+      return await active.run(users, fn);
     } finally {
       await getDb()
         .delete(writeLeases)

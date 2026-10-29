@@ -133,6 +133,17 @@ export const server = {
     invalidDate: "Invalid week date",
     closed: "Week closed: reopen it to edit the worklogs.",
   },
+  planned: {
+    notFound: "Planned entry not found.",
+    invalidInterval: "The end must be after the start.",
+    workIssueRequired: "Planned work needs an issue.",
+    connectionNeedsIssue: "An issue connection needs an issue key.",
+    vacationNoIssue: "Vacation is user-level and can't be linked to an issue.",
+    issueNotFound: "Issue not found on this connection.",
+    notConvertible: "Only planned work or travel can become a worklog.",
+    travelIssueRequired: "Link this travel plan to an issue before converting it.",
+    noFuture: "This tracker doesn't accept worklogs starting in the future.",
+  },
   workSchedule: {
     invalidDate: "Invalid date",
     weekClosed: "The week of {week} is closed: pick a later date or reopen it.",
