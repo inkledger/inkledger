@@ -141,7 +141,7 @@ export type JiraSearchedIssue = {
   key: string;
   fields: {
     summary: string;
-    status?: { name?: string; statusCategory?: { key?: string; name?: string } };
+    status?: { id?: string; name?: string; statusCategory?: { key?: string; name?: string } };
     project?: { id?: string; key?: string; name?: string; avatarUrls?: Record<string, string> };
     issuetype?: { name?: string };
     priority?: { name?: string };
@@ -501,7 +501,7 @@ export type JiraTransitionField = {
 export type JiraTransition = {
   id: string;
   name: string;
-  to?: { name?: string; statusCategory?: { key?: string; name?: string } };
+  to?: { id?: string; name?: string; statusCategory?: { key?: string; name?: string } };
   /** Present with expand=transitions.fields. On Server hasScreen is absent: only `required` counts. */
   fields?: Record<string, JiraTransitionField>;
 };
@@ -807,7 +807,8 @@ export async function fetchComments(creds: JiraCredentials, issueKey: string): P
 export type JiraHistory = {
   created: string;
   author?: { displayName?: string; name?: string; accountId?: string };
-  items?: { field?: string; fromString?: string | null; toString?: string | null }[];
+  /** `fieldtype` "jira" marks a system field; `from`/`to` hold the values' ids (a status's numeric id) */
+  items?: { field?: string; fieldtype?: string; from?: string | null; fromString?: string | null; to?: string | null; toString?: string | null }[];
 };
 
 /**
@@ -823,6 +824,15 @@ export async function fetchIssueHistory(
   histories: JiraHistory[];
   comments: JiraComment[];
 }> {
+  const { created, reporter, histories } = await fetchChangelog(creds, issueKey);
+  return { created, reporter, histories, comments: await fetchComments(creds, issueKey) };
+}
+
+/** An issue's changelog with its creation (read-only). Server returns it with the issue; Cloud pages it. */
+export async function fetchChangelog(
+  creds: JiraCredentials,
+  issueKey: string,
+): Promise<{ created: string | null; reporter: string | null; histories: JiraHistory[] }> {
   const key = encodeURIComponent(issueKey);
   const issue = await jiraFetch<{
     fields?: { created?: string; reporter?: { displayName?: string } | null };
@@ -845,13 +855,7 @@ export async function fetchIssueHistory(
       startAt += values.length;
     }
   }
-  const comments = await fetchComments(creds, issueKey);
-  return {
-    created: issue.fields?.created ?? null,
-    reporter: issue.fields?.reporter?.displayName ?? null,
-    histories,
-    comments,
-  };
+  return { created: issue.fields?.created ?? null, reporter: issue.fields?.reporter?.displayName ?? null, histories };
 }
 
 export async function addComment(creds: JiraCredentials, issueKey: string, text: string): Promise<JiraComment> {

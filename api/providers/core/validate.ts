@@ -98,6 +98,7 @@ function trackerProblems(p: TrackerShape): Problems {
   op(out, "manage.createTypes", mg.createTypes, c.manage.types);
   op(out, "watch", p.watch, c.watch);
   op(out, "history", p.history, c.history);
+  op(out, "statusHistory", p.statusHistory, c.statusHistory);
   op(out, "translate", p.translate, c.query !== null);
   // Webhook checks: pure functions, present exactly when deliveries are declared.
   const wh = p.webhook as Record<string, unknown> | undefined;
@@ -221,6 +222,7 @@ export function trackerProbeExceeds(d: TrackerCapabilities, probe: TrackerProbe)
   flag(out, "inbox", d.inbox, e.inbox);
   flag(out, "otherFields", d.otherFields, e.otherFields);
   flag(out, "history", d.history, e.history);
+  flag(out, "statusHistory", d.statusHistory, e.statusHistory);
   if (d.time.mode !== e.time.mode) out.push("time.mode");
   else if (d.time.mode === "entries" && e.time.mode === "entries") entriesNarrow(out, "time.entries", d.time.entries, e.time.entries);
   else if (d.time.mode === "counter" && e.time.mode === "counter") {

@@ -47,6 +47,7 @@ import {
   type RmUser,
 } from "./client";
 import { redmineDeliveryId, redmineSentAt, verifyRedmineWebhook } from "./webhook";
+import { statusSteps } from "../core/statusSteps";
 
 export { redmineDeliveryId, redmineSentAt, verifyRedmineWebhook };
 
@@ -66,6 +67,7 @@ export const redmineCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: true,
   // The issue's status, and (Redmine 5.0+) the statuses its workflow allows next.
   workflow: { sources: [{ kind: "itemState", transitions: "allowedList" }] },
   time: {
@@ -696,6 +698,13 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
     if (on) await rd(c, `/issues/${id}/watchers.json`, { method: "POST", body: JSON.stringify({ user_id: me }) });
     else await rd(c, `/issues/${id}/watchers/${me}.json`, { method: "DELETE" });
   },
+
+  async statusHistory(x, ref) {
+
+    return statusSteps(await redmineProvider.history!(x, ref), (c) => c.field.id === "status_id");
+
+  },
+
 
   async history(x, ref) {
     const c = await credsOf(x);

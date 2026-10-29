@@ -26,6 +26,7 @@ import {
   type ShortcutWorkflow,
   type ShortcutState,
 } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 const MD = ["paragraph", "emphasis", "strong", "code", "codeBlock", "link", "list", "heading", "quote", "table", "image"] as const;
 
@@ -44,6 +45,7 @@ export const shortcutCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: true,
   time: { mode: "local", remoteTotals: false },
   sync: {
     issueCheckpoints: true,
@@ -420,6 +422,13 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
     const next = on ? [...followers, me] : followers.filter((f) => f !== me);
     await scOk<ShortcutStory>(c, `/stories/${id}`, { method: "PUT", body: JSON.stringify({ follower_ids: next }) });
   },
+
+  async statusHistory(x, ref) {
+
+    return statusSteps(await shortcutProvider.history!(x, ref), (c) => c.field.id === "workflow_state_id");
+
+  },
+
 
   async history(x, ref) {
     const c = await credsOf(x);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { markdown, timeZone, type LocalDate } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { planeSimulator, type SimIssue } from "./simulator";
 import { planeProvider, planeWebhook } from "./adapter";
 
@@ -591,4 +591,10 @@ describe("plane, errors and limits", () => {
     expect(() => planeProvider.parseOptions({ workspace: "not a slug" })).toThrow(/slug/);
     expect(() => planeProvider.parseOptions({ workspace: "a", extra: 1 })).toThrow();
   });
+});
+
+statusHistoryConformance("plane (simulated)", async () => {
+  const { b, sim } = simulated();
+  const i = sim.issues[1];
+  return { b, ref: ref(sim, i), moveTwice: () => (sim.outside.setState(i, "In Progress"), sim.outside.setState(i, "Done")) };
 });

@@ -44,6 +44,7 @@ import {
   type TrelloList,
   type TrelloMember,
 } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 // The catalogue's entry for trello, here where the adapter keeps to it (the
 // registry holds the two together).
@@ -60,6 +61,7 @@ export const trelloCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: true,
   // The list a card sits in; it moves to another list of its board.
   workflow: { sources: [{ kind: "column", transitions: "move" }] },
   time: { mode: "local", remoteTotals: false },
@@ -468,6 +470,13 @@ export const trelloProvider: TrackerProvider<"trello", TrelloOptions> = {
   async watch(x, ref, on) {
     await trOk<unknown>(await credsOf(x), `/cards/${encodeURIComponent(idOf(ref))}/subscribed`, { method: "PUT", body: { value: on } });
   },
+
+  async statusHistory(x, ref) {
+
+    return statusSteps(await trelloProvider.history!(x, ref), (c) => c.field.id === "idList");
+
+  },
+
 
   async history(x, ref) {
     const actions = await trActions(await credsOf(x), `/cards/${encodeURIComponent(idOf(ref))}/actions`, { filter: HISTORY_ACTIONS });

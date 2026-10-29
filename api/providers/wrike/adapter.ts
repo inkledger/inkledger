@@ -68,6 +68,7 @@ export const wrikeCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: false,
+  statusHistory: false,
   time: {
     mode: "entries",
     entries: {

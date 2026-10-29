@@ -4,7 +4,7 @@ import { bindTracker } from "../core/bind";
 import { decodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import type { Checkpoint, IssueRef } from "../types";
 import { azureProvider, azureWebhook } from "./adapter";
 import { azureSimulator } from "./simulator";
@@ -543,4 +543,9 @@ describe("azure: service hooks", () => {
     expect(azureWebhook.deliveryId({})).toBeNull();
     expect(azureWebhook.sentAt({ createdDate: "not a date" })).toBeNull();
   });
+});
+
+statusHistoryConformance("azure (simulated)", async () => {
+  const { b, sim } = simulated();
+  return { b, ref: ref(1, "Web#1"), moveTwice: () => (sim.outside.change(1, { "System.State": "Active" }), sim.outside.change(1, { "System.State": "Closed" })) };
 });

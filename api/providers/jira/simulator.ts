@@ -5,7 +5,9 @@ type Issue = {
   id: string;
   key: string;
   summary: string;
-  status: { name: string; category: "new" | "indeterminate" | "done" };
+  status: { id: string; name: string; category: "new" | "indeterminate" | "done" };
+  /** Its changelog, oldest first: status changes only */
+  histories: { created: string; items: { field: string; fieldtype: string; from: string; fromString: string; to: string; toString: string }[] }[];
   assignee: string | null;
   /** Its priority's name (Medium unless a test raises it) */
   priority: string;
@@ -24,7 +26,10 @@ const STATUSES = [
   { id: "31", name: "Done", category: "done" as const },
 ];
 
-export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim") {
+export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim", o: { statusNames?: Record<string, string> } = {}) {
+  /** Status names as the site shows them (a localized site renames them; ids stay) */
+  const named = (s: (typeof STATUSES)[number]) => ({ ...s, name: o.statusNames?.[s.id] ?? s.name });
+  const statuses = STATUSES.map(named);
   const issues = new Map<string, Issue>();
   const worklogs = new Map<string, Worklog>();
   const deleted: { id: string; at: number }[] = [];
@@ -33,7 +38,8 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
   const tick = () => (clock += 1000);
 
   const add = (key: string, summary: string, status = STATUSES[0], assignee: string | null = me) => {
-    const issue: Issue = { id: String(++seq), key, summary, status: { name: status.name, category: status.category }, assignee, priority: "Medium", updated: new Date(tick()).toISOString(), watchers: new Set(), comments: [] };
+    const s = named(status);
+    const issue: Issue = { id: String(++seq), key, summary, status: { id: s.id, name: s.name, category: s.category }, histories: [], assignee, priority: "Medium", updated: new Date(tick()).toISOString(), watchers: new Set(), comments: [] };
     issues.set(key, issue);
     return issue;
   };
@@ -44,7 +50,7 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     key: i.key,
     fields: {
       summary: i.summary,
-      status: { name: i.status.name, statusCategory: { key: i.status.category } },
+      status: { id: i.status.id, name: i.status.name, statusCategory: { key: i.status.category } },
       project: { key: i.key.split("-")[0], name: `Project ${i.key.split("-")[0]}` },
       issuetype: { name: "Task" },
       priority: { name: i.priority },
@@ -102,17 +108,17 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     }
     if ((m = /^\/issue\/([^/]+)$/.exec(path))) {
       const i = issues.get(decodeURIComponent(m[1]));
-      return i ? json({ ...view(i), changelog: { histories: [] } }) : json({ errorMessages: ["Issue does not exist"] }, 404);
+      return i ? json({ ...view(i), changelog: { histories: i.histories } }) : json({ errorMessages: ["Issue does not exist"] }, 404);
     }
-    if ((m = /^\/issue\/([^/]+)\/changelog$/.exec(path))) return json({ values: [], isLast: true });
+    if ((m = /^\/issue\/([^/]+)\/changelog$/.exec(path))) {
+      const i = issues.get(decodeURIComponent(m[1]));
+      return i ? json({ values: i.histories, isLast: true }) : json({ errorMessages: ["Issue does not exist"] }, 404);
+    }
     if ((m = /^\/issue\/([^/]+)\/transitions$/.exec(path))) {
       const i = issues.get(decodeURIComponent(m[1]));
       if (!i) return json({ errorMessages: ["Issue does not exist"] }, 404);
-      if (method === "GET") return json({ transitions: STATUSES.filter((s) => s.name !== i.status.name).map((s) => ({ id: s.id, name: s.name, to: { name: s.name, statusCategory: { key: s.category } } })) });
-      const to = STATUSES.find((s) => s.id === (body.transition as { id?: string } | undefined)?.id);
-      if (!to) return json({ errorMessages: ["Invalid transition"] }, 400);
-      i.status = { name: to.name, category: to.category };
-      i.updated = new Date(tick()).toISOString();
+      if (method === "GET") return json({ transitions: statuses.filter((s) => s.id !== i.status.id).map((s) => ({ id: s.id, name: s.name, to: { id: s.id, name: s.name, statusCategory: { key: s.category } } })) });
+      if (!transition(i, (body.transition as { id?: string } | undefined)?.id)) return json({ errorMessages: ["Invalid transition"] }, 400);
       return json(undefined, 204);
     }
     if ((m = /^\/issue\/([^/]+)\/worklog$/.exec(path))) {
@@ -167,6 +173,19 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     return json({ errorMessages: [`simulator: ${method} ${path} not handled`] }, 501);
   }
 
+  /** The issue goes to a status (by id), its changelog recording it. */
+  function transition(i: Issue, statusId: string | undefined) {
+    const to = statuses.find((s) => s.id === statusId);
+    if (!to) return false;
+    const at = new Date(tick()).toISOString();
+    i.histories.push({ created: at, items: [{ field: "status", fieldtype: "jira", from: i.status.id, fromString: i.status.name, to: to.id, toString: to.name }] });
+    i.status = { id: to.id, name: to.name, category: to.category };
+    i.updated = at;
+    return true;
+  }
+  /** Changes made by someone else, on the site */
+  const outside = { transition: (key: string, statusId: string) => void transition(issues.get(key)!, statusId) };
+
   /** The issue moves to another project: same id, new key (the old key answers 404). */
   const move = (key: string, newKey: string) => {
     const i = issues.get(key)!;
@@ -176,5 +195,5 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     issues.set(newKey, i);
   };
 
-  return { site, me, add, move, issues, worklogs, fetch: handle, byId, failNext, slow };
+  return { site, me, add, move, outside, issues, worklogs, fetch: handle, byId, failNext, slow };
 }

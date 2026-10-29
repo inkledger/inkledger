@@ -73,6 +73,7 @@ export const openprojectCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: false,
   workflow: { sources: [{ kind: "itemState", transitions: "allowedList" }] },
   time: {
     mode: "entries",

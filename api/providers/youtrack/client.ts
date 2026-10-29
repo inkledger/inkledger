@@ -80,7 +80,8 @@ export type YtActivity = {
   timestamp: number;
   author?: YtUser | null;
   category?: { id: string };
-  field?: { id?: string; name?: string } | null;
+  /** customField.fieldType.id is the field's kind, "state[1]" for the State (its name is localized) */
+  field?: { id?: string; name?: string; customField?: { fieldType?: { id?: string } | null } | null } | null;
   added?: unknown;
   removed?: unknown;
 };
@@ -95,7 +96,7 @@ export const FIELDS = {
   description: "id,description",
   comment: `id,text,created,updated,deleted,author(${PERSON})`,
   workItem: `id,date,duration(minutes),text,created,updated,author(${PERSON}),type(id,name),issue(id,idReadable)`,
-  activity: "id,timestamp,category(id),field(id,name),author(id,login,fullName),added(id,name,login,fullName,presentation,text),removed(id,name,login,fullName,presentation,text)",
+  activity: "id,timestamp,category(id),field(id,name,customField(fieldType(id))),author(id,login,fullName),added(id,name,login,fullName,presentation,text),removed(id,name,login,fullName,presentation,text)",
 };
 
 /** A refused answer as a ProviderError: YouTrack explains in error_description; a spent quota is a wait. */

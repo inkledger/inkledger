@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { markdown, timeZone } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { redmineSimulator, STATUS } from "./simulator";
 import { categoryOf, redmineDeliveryId, redmineProvider, redmineSentAt, verifyRedmineWebhook } from "./adapter";
 
@@ -583,4 +583,10 @@ describe("redmine, errors and limits", () => {
     expect((await bindTracker(redmineProvider, conn).verify(meta())).name).toBe("Mario Rossi");
     expect(b.parseRef("https://example.org/redmine/issues/4")).toEqual({ key: "#4" });
   });
+});
+
+statusHistoryConformance("redmine (simulated)", async () => {
+  const { b, sim } = simulated();
+  const i = sim.issues[0];
+  return { b, ref: { remoteId: String(i.id), key: `#${i.id}` }, moveTwice: () => (sim.outside.status(i, STATUS.inProgress), sim.outside.status(i, STATUS.resolved)) };
 });

@@ -29,6 +29,7 @@ import {
   type MondayUpdate,
   type MondayUser,
 } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 export const mondayCapabilities: TrackerCapabilities = {
   // A board's status column: any label can be set from any other.
@@ -45,6 +46,7 @@ export const mondayCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: false,
   history: true,
+  statusHistory: true,
   // The time tracking column can be read, not written.
   time: { mode: "local", remoteTotals: true },
   sync: {
@@ -718,6 +720,15 @@ mutation ChangeStatus($board: ID!, $item: ID!, $column: String!, $value: JSON!) 
       );
       return { comment: d.create_update ? toRemoteComment(d.create_update) : null, warnings };
     },
+  },
+
+  async statusHistory(x, ref) {
+    const col = statusColumn((await mustItem(await credsOf(x), ref)).board?.columns ?? []);
+    if (!col) return [];
+    // An empty cell is the blank status, as the item shows it.
+    const blank = (v: ChangeValue[]): ChangeValue[] => (v.length ? v : [{ text: "No status", id: "blank" }]);
+    const changes = (await mondayProvider.history!(x, ref)).filter((h) => h.field.id === col.id).map((h) => ({ ...h, from: blank(h.from), to: blank(h.to) }));
+    return statusSteps(changes, () => true);
   },
 
   async history(x, ref) {

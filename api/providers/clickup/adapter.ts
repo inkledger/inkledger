@@ -65,6 +65,7 @@ export const clickupCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: false,
+  statusHistory: false,
   time: {
     mode: "entries",
     entries: {

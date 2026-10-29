@@ -31,6 +31,7 @@ export const giteaCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: false,
   // Open/closed is what the REST API gives. Scoped labels need a connection's mapping for their categories, and project boards have no REST endpoint: both wait for their spikes.
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "labelSet", transitions: "direct" }, { kind: "column", transitions: "move" }] },
   time: {

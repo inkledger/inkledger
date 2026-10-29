@@ -63,6 +63,7 @@ export const plannerCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: false,
+  statusHistory: false,
   time: { mode: "local", remoteTotals: false },
   sync: { issueCheckpoints: true, gone: { deleted: true, lostAccess: false, movedOut: false, transfer: "none" }, webhooks: null },
 };

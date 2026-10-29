@@ -57,6 +57,7 @@ export function fakeTrackerCapabilities(o: { entryUpdate?: boolean; comments?: b
     inbox: false,
     otherFields: false,
     history: false,
+    statusHistory: false,
     time: {
       mode: "entries",
       entries: {

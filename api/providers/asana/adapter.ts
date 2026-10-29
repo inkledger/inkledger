@@ -71,6 +71,7 @@ export const asanaCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: false,
   // No documented change filter on time entries (verify: asana-time-feed): no feed, reconciled by period
   time: {
     mode: "entries",

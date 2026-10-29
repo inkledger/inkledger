@@ -12,6 +12,7 @@ import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } 
 import { ProviderError } from "../core/errors";
 import type { ActiveWorkflowSource, CallContext, ChangeValue, IssueHandle, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
 import { ISSUE_FIELDS, allNodes, gql, gqlRaw, type Connection, type LinearComment, type LinearCreds, type LinearIssue, type LinearState, type LinearTeam, type LinearUser } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 const MD = ["paragraph", "emphasis", "strong", "code", "codeBlock", "link", "list", "heading", "quote", "table", "image"] as const;
 
@@ -30,6 +31,7 @@ export const linearCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: true,
   time: { mode: "local", remoteTotals: false },
   sync: {
     issueCheckpoints: true,
@@ -348,6 +350,13 @@ mutation IssueUpdate($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: 
     const d = await gql<Record<string, { success: boolean }>>(await credsOf(x), name, `mutation ${name}($id: String!) { ${op}(id: $id) { success } }`, { id: ref.remoteId || ref.key }, { write: true });
     succeeded(d[op], on ? "subscribing" : "unsubscribing");
   },
+
+  async statusHistory(x, ref) {
+
+    return statusSteps(await linearProvider.history!(x, ref), (c) => c.field.id === "state");
+
+  },
+
 
   async history(x, ref) {
     const creds = await credsOf(x);

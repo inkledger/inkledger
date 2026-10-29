@@ -3,7 +3,7 @@ import { instant, markdown, timeZone } from "@contracts/values";
 import type { Credential } from "../types";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { API_VERSION } from "./client";
 import { CURSOR_LIFE_MS, SINGLE_QUERY_LIMIT, column, mondaySimulator, type SimItem } from "./simulator";
 import { mondayProvider, mondayWebhook, toMondayHtml, trackedSeconds } from "./adapter";
@@ -514,4 +514,10 @@ describe("monday webhooks", () => {
     expect(mondayWebhook.challengeOf(sim.webhook(payload, { secret }).rawBody)).toBeNull();
     expect(mondayWebhook.challengeOf("nope")).toBeNull();
   });
+});
+
+// From the blank status (an empty cell) on.
+statusHistoryConformance("monday (simulated)", async () => {
+  const { b, sim, csv } = simulated();
+  return { b, ref: refOf(csv), moveTwice: () => (sim.outside.setStatus(csv.id, "Working on it"), sim.outside.setStatus(csv.id, "Done")), alsoStatuses: ["blank"] };
 });

@@ -4,7 +4,7 @@ import type { Credential } from "../types";
 import { bindTracker } from "../core/bind";
 import { encodePageToken } from "../core/checkpoint";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { searchPathOf } from "./client";
 import { shortcutSimulator } from "./simulator";
 import { shortcutProvider } from "./adapter";
@@ -535,4 +535,9 @@ describe("shortcut webhooks", () => {
     expect(hook.verify({ headers: { "Payload-Signature": d.headers["payload-signature"] }, body: d.rawBody }, secret)).toBe(true);
     expect(hook.verify({ headers: { "payload-signature": d.headers["payload-signature"].toUpperCase() }, body: d.rawBody }, secret)).toBe(true);
   });
+});
+
+statusHistoryConformance("shortcut (simulated)", async () => {
+  const { b, sim, login } = simulated();
+  return { b, ref: refOf(login), moveTwice: () => (sim.outside.setState(login.id, "In Progress"), sim.outside.setState(login.id, "Done")) };
 });

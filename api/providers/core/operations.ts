@@ -7,7 +7,7 @@ import type { TimeSinkProvider, TrackerProvider } from "../types";
 /** Tracker operations every adapter has. */
 export const TRACKER_REQUIRED = ["parseOptions", "normalizeKey", "parseRef", "verify", "probe", "listChanged", "getIssue", "findIssue"] as const;
 /** Tracker operations present as their capabilities say. */
-export const TRACKER_OPTIONAL = ["searchText", "query", "statuses", "description", "containers", "watch", "history", "inbox", "markRead", "otherFields"] as const;
+export const TRACKER_OPTIONAL = ["searchText", "query", "statuses", "description", "containers", "watch", "history", "statusHistory", "inbox", "markRead", "otherFields"] as const;
 /** Tracker operations with no call context (pure, no I/O), present as their capabilities say. */
 export const TRACKER_PURE_OPTIONAL = ["translate"] as const;
 /** Tracker members that are data, not calls, present as their capabilities say. */

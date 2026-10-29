@@ -21,6 +21,7 @@ import type {
   Checkpoint,
   CatalogItem,
   IssueHandle,
+  IssueRef,
   PageQuery,
   RemoteBody,
   RemoteChange,
@@ -52,6 +53,7 @@ import {
   type YtWorkItem,
 } from "./client";
 import { assignedQuery, checkQuery, textQuery } from "./translate";
+import { statusSteps } from "../core/statusSteps";
 
 export { verifyYouTrackWebhook } from "./webhook";
 
@@ -70,6 +72,7 @@ export const youtrackCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: true,
   workflow: { sources: [{ kind: "itemState", transitions: "allowedList" }] },
   time: {
     mode: "entries",
@@ -345,6 +348,14 @@ function changeValues(v: unknown): ChangeValue[] {
     .filter((c) => c.text !== "");
 }
 
+/** An issue's activities, every page. */
+async function activitiesOf(x: X, ref: IssueRef): Promise<YtActivity[]> {
+  // `categories` is required: without it the activities endpoint refuses.
+  const list = await allPages<YtActivity>(await credsOf(x), `/issues/${issueId(ref)}/activities?categories=${enc(CATEGORIES)}&fields=${enc(FIELDS.activity)}`, { missingIsNull: true });
+  if (list === null) throw new ProviderError("notFound", `YouTrack: no issue ${ref.key}`);
+  return list;
+}
+
 const toRemoteChange = (web: string, a: YtActivity): RemoteChange => ({
   at: at(a.timestamp) ?? instant(0),
   actor: a.author ? person(web, a.author) : null,
@@ -584,10 +595,13 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
     await ytOk(await credsOf(x), `/issues/${issueId(ref)}?fields=id`, { method: "POST", body: JSON.stringify({ watchers: { hasStar: on } }) });
   },
 
+  async statusHistory(x, ref) {
+    // The State is told by its field's kind, its name being localized; a state's name is its id.
+    const state = (await activitiesOf(x, ref)).filter((a) => a.field?.customField?.fieldType?.id?.startsWith("state[") === true);
+    return statusSteps(state.map((a) => toRemoteChange(webOf(x), a)), () => true, (v) => v.text);
+  },
+
   async history(x, ref) {
-    // `categories` is required: without it the activities endpoint refuses.
-    const list = await allPages<YtActivity>(await credsOf(x), `/issues/${issueId(ref)}/activities?categories=${enc(CATEGORIES)}&fields=${enc(FIELDS.activity)}`, { missingIsNull: true });
-    if (list === null) throw new ProviderError("notFound", `YouTrack: no issue ${ref.key}`);
-    return list.map((a) => toRemoteChange(webOf(x), a));
+    return (await activitiesOf(x, ref)).map((a) => toRemoteChange(webOf(x), a));
   },
 };

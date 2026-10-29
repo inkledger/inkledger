@@ -35,6 +35,7 @@ import {
   type AzureWorkItem,
 } from "./client";
 import { assignedChanged, titleSearch, toWiql } from "./translate";
+import { statusSteps } from "../core/statusSteps";
 
 export const azureCapabilities: TrackerCapabilities = {
   transitions: { read: true, write: true },
@@ -49,6 +50,7 @@ export const azureCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: false,
   history: true,
+  statusHistory: true,
   // The state, moved along the transitions the work item type allows.
   workflow: { sources: [{ kind: "itemState", transitions: "allowedList" }] },
   // Completed Work: a counter inkledger adds to, under the work item's revision.
@@ -620,6 +622,14 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
       return { comment: toRemoteComment(c), warnings: warningsFor(body) };
     },
   },
+
+  async statusHistory(x, ref) {
+    // A state is never emptied: a change from no state is the creating revision, whose state the next change starts from.
+    // The state's name is its id (statuses() and the item's status).
+    return statusSteps(await azureProvider.history!(x, ref), (c) => c.field.id === "System.State" && c.from.length > 0, (v) => v.text);
+
+  },
+
 
   async history(x, ref) {
     const creds = await credsOf(x);

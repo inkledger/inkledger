@@ -34,6 +34,7 @@ export const githubCapabilities: TrackerCapabilities = {
   // Milestone, author, lock: what an issue has besides the mapped fields.
   otherFields: true,
   history: false,
+  statusHistory: false,
   time: { mode: "local", remoteTotals: false },
   sync: {
     issueCheckpoints: true,

@@ -159,7 +159,7 @@ describe("two connections with the same issue key", () => {
 
   it("a priority raised to critical on one connection is news there only", async () => {
     // Reopened earlier in the run: news of an open issue only.
-    two.issues.get("APP-1")!.status = { name: "To Do", category: "new" };
+    two.issues.get("APP-1")!.status = { id: "11", name: "To Do", category: "new" };
     await caller.issues.sync();
     two.issues.get("APP-1")!.priority = "Highest";
     two.issues.get("APP-1")!.updated = new Date(Date.UTC(2026, 9, 20)).toISOString();

@@ -3,7 +3,7 @@ import { instant, timeZone } from "@contracts/values";
 import type { Credential } from "../types";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { COMPLEXITY_LIMIT, linearSimulator } from "./simulator";
 import { WEBHOOK_MAX_AGE_MS, linearProvider, linearWebhook } from "./adapter";
 
@@ -42,6 +42,18 @@ function simulated(credential: () => Promise<Credential> = async () => ({ kind: 
 trackerConformance("linear (simulated)", async () => {
   const { conn } = simulated();
   return { provider: linearProvider, conn, key: "ENG-1", writable: true, url: "https://linear.app/acme/issue/ENG-1/login-fails-on-safari" };
+});
+
+statusHistoryConformance("linear (simulated)", async () => {
+  const { b, sim } = simulated();
+  return {
+    b,
+    ref: { remoteId: sim.find("ENG-1")!.id, key: "ENG-1" },
+    moveTwice: () => {
+      sim.outside.setState("ENG-1", "In Progress");
+      sim.outside.setState("ENG-1", "Done");
+    },
+  };
 });
 
 describe("linear, as the layer sees it", () => {

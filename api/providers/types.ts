@@ -505,6 +505,14 @@ export type RemoteChange = {
   to: ChangeValue[];
 };
 
+/**
+ * One change of an issue's status, in the ids of the tracker's statuses (and
+ * of the issue's status). A composite status (completed, else a section…) is
+ * replayed as the adapter computes it. `from` is null when the status before is
+ * not known; a step never goes from a status to itself.
+ */
+export type RemoteStatusStep = { at: Instant; from: { id: string; name: string } | null; to: { id: string; name: string } };
+
 // ---------- Probes ----------
 
 export type { RateLimitFigure };
@@ -769,6 +777,8 @@ export interface TrackerProvider<
 
   /** Present when capabilities.history (every page read by the adapter). */
   history?(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteChange[]>;
+  /** Present when capabilities.statusHistory: the issue's status changes, in the tracker's order (every page read by the adapter). */
+  statusHistory?(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteStatusStep[]>;
 
   /**
    * Present when capabilities.inbox: what the service told the user since
@@ -943,6 +953,7 @@ export type TrackerShape = {
   };
   watch?: Op;
   history?: Op;
+  statusHistory?: Op;
   inbox?: Op;
   markRead?: Op;
   otherFields?: Op;

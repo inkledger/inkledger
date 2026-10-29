@@ -24,6 +24,7 @@ import {
   fetchComments,
   fetchDeletedWorklogIds,
   fetchIssueByKey,
+  fetchChangelog,
   fetchIssueHistory,
   fetchRecentlyAssignedIssues,
   fetchTransitions,
@@ -64,6 +65,7 @@ export const jiraCapabilities: TrackerCapabilities = {
   // Custom fields by their names on the site.
   otherFields: true,
   history: true,
+  statusHistory: true,
   time: {
     mode: "entries",
     entries: {
@@ -136,10 +138,10 @@ export function jiraCategory(key: string | undefined): StatusCategory {
   return key === "done" ? "done" : key === "indeterminate" ? "doing" : "todo";
 }
 
-function statusOf(s: { name?: string; statusCategory?: { key?: string } } | undefined, resolution?: string | null): RemoteStatus {
+function statusOf(s: { id?: string; name?: string; statusCategory?: { key?: string } } | undefined, resolution?: string | null): RemoteStatus {
   const name = s?.name ?? "Unknown";
-  // Statuses come by name in issue searches: the name is the id within one site.
-  return { id: name, name, category: jiraCategory(s?.statusCategory?.key), categoryOrigin: { by: "native" }, source: { kind: "itemState" }, nativeReason: resolution ?? null };
+  // The numeric id, as the changelog has it (the name is localized and can be renamed).
+  return { id: s?.id ?? name, name, category: jiraCategory(s?.statusCategory?.key), categoryOrigin: { by: "native" }, source: { kind: "itemState" }, nativeReason: resolution ?? null };
 }
 
 const browse = (site: string, key: string) => `${site.replace(/\/+$/, "")}/browse/${key}`;
@@ -479,6 +481,18 @@ export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
   async watch(x, ref, on) {
     // Watching what is watched (or not) is a success: Jira answers the same.
     await setWatching(await credsOf(x), ref.key, x.conn.remoteAccountId, on);
+  },
+
+  async statusHistory(x, ref) {
+    const { histories } = await fetchChangelog(await credsOf(x), ref.key);
+    // A status change is the system field "status" (never translated); its values are the statuses' ids.
+    return histories.flatMap((entry) =>
+      (entry.items ?? []).flatMap((item) =>
+        item.field === "status" && item.fieldtype === "jira" && item.to && item.from !== item.to
+          ? [{ at: instantFrom(entry.created) ?? instant(0), from: item.from ? { id: item.from, name: item.fromString ?? item.from } : null, to: { id: item.to, name: item.toString ?? item.to } }]
+          : [],
+      ),
+    );
   },
 
   async history(x, ref) {

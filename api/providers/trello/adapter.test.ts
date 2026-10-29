@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { markdown, timeZone } from "@contracts/values";
 import { bindTracker } from "../core/bind";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import type { Checkpoint } from "../types";
 import { KEY_BUDGET, TOKEN_BUDGET, trelloSimulator } from "./simulator";
 import { trelloProvider, trelloWebhook, type TrelloOptions } from "./adapter";
@@ -542,4 +542,9 @@ describe("trello webhooks", () => {
     expect(trelloProvider.webhook!.deliveryId(req)).toMatch(/^[0-9a-f]{24}$/);
     expect(trelloProvider.webhook!.sentAt!(req)).toBeGreaterThan(0);
   });
+});
+
+statusHistoryConformance("trello (simulated)", async () => {
+  const { b, sim } = simulated();
+  return { b, ref: refOf(sim, "Lg4nS4f1"), moveTwice: () => (sim.outside.setList("Lg4nS4f1", "Doing"), sim.outside.setList("Lg4nS4f1", "Done")) };
 });

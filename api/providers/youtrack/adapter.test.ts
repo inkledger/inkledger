@@ -4,7 +4,7 @@ import { bindTracker } from "../core/bind";
 import { encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { readPass } from "../core/paging";
-import { trackerConformance } from "../conformance/suite";
+import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import type { IssueRef } from "../types";
 import { youtrackProvider, verifyYouTrackWebhook } from "./adapter";
 import { youtrackSimulator } from "./simulator";
@@ -431,4 +431,10 @@ describe("youtrack: webhooks", () => {
     expect(verifyYouTrackWebhook({ [WEBHOOK_SECRET_HEADER]: "" }, body, secret)).toEqual({ ok: false, reason: "noSecret" });
     expect(verifyYouTrackWebhook({ [WEBHOOK_SECRET_HEADER]: secret }, body, "")).toEqual({ ok: false, reason: "noSecret" });
   });
+});
+
+statusHistoryConformance("youtrack (simulated)", async () => {
+  const { sim, bound: b } = simulated();
+  const issue = await first(b, "APP-1");
+  return { b, ref: refOf(issue), moveTwice: () => void (sim.outside.setState("APP-1", "In Progress"), sim.outside.setState("APP-1", "Fixed")) };
 });

@@ -75,6 +75,7 @@ export const basecampCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: false,
   time: {
     mode: "entries",
     entries: {

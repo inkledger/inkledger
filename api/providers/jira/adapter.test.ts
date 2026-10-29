@@ -16,7 +16,11 @@ function simulated() {
   sim.add("APP-2", "Export to CSV");
   sim.add("OPS-3", "Someone else's", undefined, "acc-other");
   vi.stubGlobal("fetch", sim.fetch);
-  const conn = {
+  return { sim, conn: simulatedConn(sim) };
+}
+
+function simulatedConn(sim: ReturnType<typeof jiraSimulator>) {
+  return {
     id: 1,
     userId: 1,
     type: "jira" as const,
@@ -26,7 +30,6 @@ function simulated() {
     timeZone: timeZone("Europe/Rome"),
     credential: async () => ({ kind: "token" as const, token: "token" }),
   };
-  return { sim, conn };
 }
 
 // The real adapter and Jira client, against a Jira Cloud in memory.
@@ -95,5 +98,25 @@ describe("jira: errors arrive in the layer's words", () => {
     sim.move("APP-2", "NEW-7");
     const again = await b.getIssue(meta(), { remoteId: found.issue.remoteId, key: "APP-2" });
     expect(again?.key).toBe("NEW-7");
+  });
+});
+
+describe("jira, status history", () => {
+  it("Jira statuses are known by their numeric id", async () => {
+    const sim = jiraSimulator(undefined, undefined, { statusNames: { "11": "Da fare", "21": "In corso", "31": "Completato" } });
+    sim.add("APP-1", "Login fails on Safari");
+    vi.stubGlobal("fetch", sim.fetch);
+    const b = bindTracker(jiraProvider, simulatedConn(sim));
+    const found = await b.findIssue(meta(), { key: "APP-1" });
+    if (found.kind !== "found") throw new Error("no issue");
+    const ref = { remoteId: found.issue.remoteId, key: "APP-1" };
+    sim.outside.transition("APP-1", "21");
+    sim.outside.transition("APP-1", "31");
+    const issue = await b.getIssue(meta(), ref);
+    expect(issue?.status).toMatchObject({ id: "31", name: "Completato" });
+    expect(await b.statusHistory!(meta(), ref)).toEqual([
+      { at: expect.any(Number), from: { id: "11", name: "Da fare" }, to: { id: "21", name: "In corso" } },
+      { at: expect.any(Number), from: { id: "21", name: "In corso" }, to: { id: "31", name: "Completato" } },
+    ]);
   });
 });

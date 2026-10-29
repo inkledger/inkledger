@@ -539,6 +539,14 @@ trend:     .query()
      | AC-3.60 | each of the 14 other adapters, simulator issue moved twice · `statusHistory` · every id is one of its `statuses()` (or of the issue's status), each `from` is the previous `to`, the last `to` is the issue's status | `api/providers/statusHistory.test.ts` "every tracker's status history uses the ids of its statuses" (table-driven, one row per tracker) |
      | AC-3.61 | GitLab: opened, label `workflow::doing` added, closed, reopened · steps opened→doing→closed→doing | same, "a composite status is replayed as the app computes it" (rows for Asana, Basecamp, GitLab, Todoist) |
      | AC-3.62 | a composite tracker whose status at creation can't be known · the first step's `from` is `null` | same, "an unknown starting status is left unknown" |
+   - **2a1 done (2026-10-29).** Decisions the code forced, to review:
+     - AC-3.60 runs from each adapter's own test (`statusHistoryConformance` in `api/providers/conformance/suite.ts`, the way the rest of the provider contract runs), not from one `api/providers/statusHistory.test.ts`: it reuses each adapter's simulator setup instead of copying 14 of them. The test name is the AC's.
+     - A status value an adapter can't place (no id, no single name match) throws `ProviderError("incompatible")` (`api/providers/core/statusSteps.ts`): batch 2 reads that as a history that can't be proven.
+     - Jira: a status change is `field` "status" with `fieldtype` "jira", checked on the user's Italian Jira Server (three real changelogs, read-only). The changelog is read without the comments (`fetchChangelog`, split out of `fetchIssueHistory`).
+     - Azure: a `System.State` change from no value is the creating revision; it is left out, and the next change's `from` gives the status at creation.
+     - Monday: an empty cell is the blank status (id `blank`, as `getIssue` gives it), which `statuses()` doesn't list. Batch 2 must place it (snapshot or a fixed default).
+     - Plane: a value with no `old/new_identifier` is placed by its name when exactly one state of the project has it; the docs (developers.plane.so, issue activity) give the identifiers as the values' UUIDs.
+     - YouTrack: activities now request `field(id,name,customField(fieldType(id)))`; State is the field whose `fieldType.id` starts with `state[` (developer portal, custom fields: `state[1]` is a single State field). A state's name is its id, as in its `statuses()`.
    - **Facts to check against each real API before its code:** GitLab `resource_state_events` values, Plane `old/new_identifier`, Basecamp's column-move event, YouTrack activity `field.id` and `$type`, Todoist section moves in its activity, OpenProject structured status in activities. Each one is asked if the docs don't settle it.
 2. **History and data:**
    - migration: `issues.status_id`, `issue_history_reads`, `issue_status_changes`, `status_snapshots`, `work_statuses`, `estimate_revisions`;

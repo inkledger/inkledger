@@ -296,6 +296,8 @@ export const trackerCapabilitiesSchema = z.strictObject({
   otherFields: z.boolean(),
   /** History from the service (otherwise inkledger keeps what it saw change: not the provider's doing) */
   history: z.boolean(),
+  /** The issue's status changes from that history, in the ids of its statuses (estimates read work time from them) */
+  statusHistory: z.boolean(),
   /**
    * Where logged time lives: entries of the service's own; only in inkledger
    * (local), the service maybe showing totals of its own; or a counter inkledger

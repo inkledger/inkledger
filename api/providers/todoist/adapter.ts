@@ -63,6 +63,7 @@ export const todoistCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: false,
   // Completed or not; and the section an open task sits in, which it moves between.
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "column", transitions: "move" }] },
   time: { mode: "local", remoteTotals: false },

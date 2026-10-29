@@ -51,6 +51,7 @@ import {
   type PlaneUser,
   type PlaneWorklog,
 } from "./client";
+import { statusSteps } from "../core/statusSteps";
 
 // The catalogue's entry for plane, here where the adapter keeps to it (the
 // registry holds the two together).
@@ -67,6 +68,7 @@ export const planeCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: true,
+  statusHistory: true,
   // The project's states, set directly.
   workflow: { sources: [{ kind: "itemState", transitions: "direct" }] },
   // Worklog update/delete and the plan they need (verify: plane-worklogs): none until then
@@ -653,6 +655,17 @@ export const planeProvider: TrackerProvider<"plane", PlaneOptions> = {
       const made = await planeOk<PlaneComment>(k.c, ws(k, `${issuePath(t.project, t.id)}comments/`), { method: "POST", body: JSON.stringify({ comment_html: paragraphs(body) }) });
       return { comment: await toRemoteComment(k, made), warnings: warningsFor(body) };
     },
+  },
+
+  async statusHistory(x, ref) {
+    const k = await ctxOf(x);
+    const states = await statesOf(k, (await targetOf(k, ref)).project);
+    // A value with no identifier is placed by its name, when exactly one state of the project has it.
+    const byName = (name: string) => {
+      const found = states.filter((s) => s.name === name);
+      return found.length === 1 ? found[0].id : undefined;
+    };
+    return statusSteps(await planeProvider.history!(x, ref), (c) => c.field.id === "state", (v) => v.id ?? byName(v.text));
   },
 
   async history(x, ref) {

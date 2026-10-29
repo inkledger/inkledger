@@ -72,6 +72,7 @@ export const gitlabCapabilities: TrackerCapabilities = {
   otherFields: false,
   watch: true,
   history: true,
+  statusHistory: false,
   // Open/closed and scoped labels; Premium work item statuses (verify: gitlab-statuses) only once shown
   workflow: { sources: [{ kind: "boolean", transitions: "direct", reasons: false }, { kind: "labelSet", transitions: "direct" }] },
   // timelogs: no update (delete and log again), no future dates; feed by re-reading a window.

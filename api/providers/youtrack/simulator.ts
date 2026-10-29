@@ -35,7 +35,7 @@ type SimProject = {
 };
 type SimComment = { id: string; text: string; created: number; updated: number; deleted: boolean; author: string };
 export type SimWorkItem = { id: string; issueId: string; date: number; minutes: number; text: string; author: string; created: number; updated: number; type: { id: string; name: string } | null };
-type SimActivity = { id: string; timestamp: number; category: string; field: { id: string; name: string }; author: string; added: unknown[]; removed: unknown[] };
+type SimActivity = { id: string; timestamp: number; category: string; field: { id: string; name: string; customField?: { fieldType: { id: string } } }; author: string; added: unknown[]; removed: unknown[] };
 export type SimIssue = {
   id: string;
   project: SimProject;
@@ -316,7 +316,7 @@ export function youtrackSimulator(site = "https://acme.youtrack.cloud", me: SimU
       id: id("6"),
       timestamp: at,
       category: "CustomFieldCategory",
-      field: { id: `pcf-${i.project.num}`, name: i.project.stateFieldName },
+      field: { id: `pcf-${i.project.num}`, name: i.project.stateFieldName, customField: { fieldType: { id: "state[1]" } } },
       author: by,
       added: [{ $type: "StateBundleElement", name }],
       removed: [{ $type: "StateBundleElement", name: i.state }],

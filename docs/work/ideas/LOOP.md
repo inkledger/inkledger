@@ -5,7 +5,7 @@ Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | B3.1 | estimates | AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57 | done | (this commit) | `vitest run contracts/estimate.test.ts` → 21/21; mutation check (current status, sourceOrdinal removed) → 2 fail as expected; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 195 files, 2374 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Spec revision 3 + patch 3.1 + 5 corrections. AC-3.57 passed before its grouping too (strict `<` already); no coverage tool in the repo |
-| B3.2a1 | estimates | 2a1: AC-3.58, 3.59, 3.60 (single-field rows) | todo | | | contract `statusHistory`, Jira numeric ids, Azure/Linear/Monday/Plane/Redmine/Shortcut/Trello/YouTrack; check Plane identifiers and YouTrack `$type`/`field.id` first |
+| B3.2a1 | estimates | 2a1: AC-3.58, 3.59, 3.60 (single-field rows) | done | (this commit) | `vitest run api/providers/core/validate.test.ts` → fail then pass; jira test → fail (no simulator move) then pass; mutation (statusSteps empty) → 8/8 rows fail; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 196 files, 2384 passed; `pnpm parity:update` → trpc-contract (capability type); `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 2a in the doc; Monday blank status to place in batch 2 |
 | B3.2a2 | estimates | 2a2: AC-3.60 (composite rows), 3.61, 3.62 | todo | | | Asana, Basecamp, GitLab, Gitea, Todoist, OpenProject; real-API facts first |
 | B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | todo | | | after B3.2a |
 | B3.3 | estimates | AC-3.16–3.23, 3.29, 3.50, 3.51 | todo | | | |

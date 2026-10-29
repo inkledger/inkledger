@@ -65,6 +65,7 @@ export const notionCapabilities: TrackerCapabilities = {
   inbox: false,
   otherFields: false,
   history: false,
+  statusHistory: false,
   workflow: { sources: [{ kind: "projectField", transitions: "direct" }] },
   time: { mode: "local", remoteTotals: false },
   sync: {

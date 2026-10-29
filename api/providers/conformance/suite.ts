@@ -243,3 +243,40 @@ export function sinkConformance<T extends TimeSinkType, O>(name: string, setup: 
     });
   });
 }
+
+export type StatusHistorySetup = {
+  b: BoundTracker;
+  /** An issue of the user's on the service */
+  ref: IssueRef;
+  /** Someone moves the issue to another status, then to a third */
+  moveTwice: () => Promise<void> | void;
+  /** Statuses an issue can have that statuses() doesn't list (monday's blank) */
+  alsoStatuses?: string[];
+};
+
+/** A tracker's status history speaks the ids of its statuses and ends where the issue is (estimates read work time from it). */
+export function statusHistoryConformance(name: string, setup: () => Promise<StatusHistorySetup>) {
+  describe(`status history: ${name}`, () => {
+    it("every tracker's status history uses the ids of its statuses", async () => {
+      const { b, ref, moveTwice, alsoStatuses = [] } = await setup();
+      await moveTwice();
+      const known = new Set<string>(alsoStatuses);
+      if (b.capabilities.statuses) {
+        const { activeSources } = await b.probe(meta());
+        for (const source of activeSources) for (const s of await b.statuses!(meta(), source)) known.add(s.id);
+      }
+      const issue = await b.getIssue(meta(), ref);
+      if (!issue) throw new Error("the issue is gone");
+      known.add(issue.status.id);
+      const steps = await b.statusHistory!(meta(), ref);
+      expect(steps.length).toBeGreaterThanOrEqual(2);
+      steps.forEach((s, i) => {
+        expect(known.has(s.to.id), `step ${i}: ${s.to.id} is not a status`).toBe(true);
+        if (s.from) expect(known.has(s.from.id), `step ${i}: ${s.from.id} is not a status`).toBe(true);
+        expect(s.from?.id).not.toBe(s.to.id);
+        if (i > 0) expect(s.from?.id, `step ${i} does not follow the one before`).toBe(steps[i - 1].to.id);
+      });
+      expect(steps.at(-1)?.to.id).toBe(issue.status.id);
+    });
+  });
+}
