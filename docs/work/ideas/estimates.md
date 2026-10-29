@@ -519,7 +519,27 @@ trend:     .query()
 
 ## Batches
 1. [x] **Pure L1** (`contracts/estimate.ts`): quantiles, winsorization, recency, tiers, the minimum of 5, calibration, the conversion of tracker changes, stretches `[from, until)` in `(at, ordinal)` order with the coherence checks, default work statuses, backtest. AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57.
-2a. **Status history in the adapters (Q8):** the contract says which history changes are status changes; Asana, Basecamp, GitLab, Gitea, Todoist and OpenProject record status changes with ids matching their statuses; YouTrack requests `$type`; Jira moves to numeric status ids with a data migration. Its ACs are written with the user before it starts.
+2a. **Status history in the adapters (Q8).** Approved 2026-10-29, split in two: **2a1** contract, Jira and the single-field trackers (AC-3.58, 3.59, the single-field rows of 3.60); **2a2** the composite trackers (their rows of 3.60, AC-3.61, 3.62).
+   - **Contract** (`api/providers/types.ts`, `api/providers/core/operations.ts` `TRACKER_OPTIONAL`, `validate.ts`): capability `statusHistory` and
+     ```ts
+     /** One change of the issue's status, in the tracker's order; ids are those of statuses() and of the issue's status. */
+     export type RemoteStatusStep = { at: Instant; from: { id: string; name: string } | null; to: { id: string; name: string } };
+     statusHistory?(x: CallContext<T, O>, ref: IssueRef): Promise<RemoteStatusStep[]>;
+     ```
+     A step whose `from` equals its `to` is never emitted. The batch-1 conversion takes `sourceOrdinal` from the index in this list.
+   - **Jira:** the status id is the numeric id everywhere in the adapter (search, `getIssue`, `statusHistory`: changelog items with `field` "status" and `fieldtype` "jira", ids from `from`/`to`).
+   - **Single-field trackers:** Azure (`System.State`, id = name as in its statuses()), Linear, Monday (the status column only), Plane, Redmine, Shortcut, Trello, YouTrack (State found by the field's `$type`, now requested).
+   - **Composite trackers, replaying their derived status:** Asana (completed, else section by gid, requesting `old_section.gid`/`new_section.gid`), Basecamp (column, else completed; column moves read), GitLab (closed, else scoped label, else opened; a state event's `from` is the previous derived status; "reopened" leads back to the label or "opened"), Gitea (open/closed), Todoist (completed, else section, else open; section moves read if the API has them), OpenProject (status from structured activity data, not from the rendered text).
+   - **ACs:**
+
+     | AC | Given / When / Then | Test |
+     |---|---|---|
+     | AC-3.58 | an adapter declares `statusHistory` without the method, or the reverse · validate · a problem is reported | `api/providers/core/validate.test.ts` "status history is declared with its method" |
+     | AC-3.59 | Jira simulator issue moved twice · `getIssue` and `statusHistory` · the same numeric ids, names localized | `api/providers/jira/adapter.test.ts` "Jira statuses are known by their numeric id" |
+     | AC-3.60 | each of the 14 other adapters, simulator issue moved twice · `statusHistory` · every id is one of its `statuses()` (or of the issue's status), each `from` is the previous `to`, the last `to` is the issue's status | `api/providers/statusHistory.test.ts` "every tracker's status history uses the ids of its statuses" (table-driven, one row per tracker) |
+     | AC-3.61 | GitLab: opened, label `workflow::doing` added, closed, reopened · steps opened→doing→closed→doing | same, "a composite status is replayed as the app computes it" (rows for Asana, Basecamp, GitLab, Todoist) |
+     | AC-3.62 | a composite tracker whose status at creation can't be known · the first step's `from` is `null` | same, "an unknown starting status is left unknown" |
+   - **Facts to check against each real API before its code:** GitLab `resource_state_events` values, Plane `old/new_identifier`, Basecamp's column-move event, YouTrack activity `field.id` and `$type`, Todoist section moves in its activity, OpenProject structured status in activities. Each one is asked if the docs don't settle it.
 2. **History and data:**
    - migration: `issues.status_id`, `issue_history_reads`, `issue_status_changes`, `status_snapshots`, `work_statuses`, `estimate_revisions`;
    - the sync fills `status_id` and marks reads `stale`;
@@ -548,5 +568,8 @@ trend:     .query()
   - **Trackers whose history can't be matched today** (Asana: section names without gid; Basecamp: card column moves dropped; GitLab: state events with no `from` and "reopened" for "opened", labels by name; Gitea and Todoist: open/closed only; OpenProject: English text only): **fix their adapters first**, in batch 2a, before batch 2.
   - **YouTrack:** request the field's `$type` in the activities and give State a stable field id.
   - **Jira:** the server sends no `fieldId`; a status change is `field` "status" with `fieldtype` "jira" (not translated on an Italian server, while other system fields use display names such as "Fix Version"); `from`/`to` hold the numeric status id and `fromString`/`toString` the localized name. **Switch Jira to numeric status ids everywhere** (issues, history, sync), with a migration of the stored ids.
+  - **Jira ids, found while scoping (2026-10-29):** no Jira status id is stored today (the sync keeps only the name, `api/sync/issues.ts:35`; bucket columns map names), so the switch is inside the adapter; `issues.status_id` is new in batch 2, so no stored id has to be migrated.
+  - **Contract (2026-10-29):** a separate optional adapter method, `statusHistory`, returning only status changes (not a flag on `RemoteChange`).
+  - **Composite statuses (2026-10-29):** the adapter replays its history in order and emits a change whenever the status it would compute (the same rule as its `statusOf`) changes, `from` being the previous derived status. The status at creation comes from what the tracker guarantees; when it can't be known, the first `from` is `null` and the history is invalid (`noInitialStatus`).
   - Still to verify against each real API when batch 2a reaches it: GitLab's `resource_state_events` values, Plane's `old/new_identifier`, Basecamp's action name for a column move, YouTrack's activity `field.id` format.
 - **Q9:** a status since deleted on the tracker. **Answer 2026-10-29 (patch 3.1 point 4):** read through its stored snapshot; `unknownStatus` only when nothing resolves it.
