@@ -62,6 +62,8 @@ import { coverClass } from "@/lib/cover";
 import { mergeIssueWorklogs } from "@/lib/issueWorklogs";
 import { cn } from "@/lib/utils";
 import { EmptyState, ErrorState } from "@/components/app/States";
+import { EstimateLines } from "@/components/issue/IssueEstimate";
+import { likelyStat, useIssueEstimate } from "@/components/issue/estimateQuery";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -201,6 +203,8 @@ export default function IssueDetail({
     { issueKey: key, connectionId: issue.data?.connectionId },
     { enabled: !!issue.data && !timeHere, retry: false }
   );
+  // How long it likely takes, from my closed issues: only for an issue in the catalog.
+  const estimateQuery = useIssueEstimate(key, issue.data?.connectionId ?? connectionId, loaded);
 
   const [logOpen, setLogOpen] = useState(false);
   const [editing, setEditing] = useState<EditableWorklog | null>(null);
@@ -720,6 +724,7 @@ export default function IssueDetail({
                     },
               ]}
               extra={[
+                ...[likelyStat(estimateQuery.data)].filter(s => s !== null),
                 ...(hasEstimate
                   ? [
                       {
@@ -756,6 +761,7 @@ export default function IssueDetail({
                 className="mt-4"
               />
             )}
+            <EstimateLines query={estimateQuery} trackerEstimate={i.timeEstimateSeconds ?? null} />
           </PanelSection>
           <div className="order-4 min-w-0">
               <PanelSection

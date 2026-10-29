@@ -324,4 +324,25 @@ describe("estimates", () => {
     expect(e).toMatchObject({ none: false, tier: 2, allWorklogs: 1, excluded: { pending: 0, stale: 0, retry: 0, invalid: 0 } });
     expect(await u.caller.estimates.historyStates()).toEqual({ available: 1998, pending: 100, unsupported: 2, stale: 0, retry: 0, invalid: 0 });
   });
+
+  it("the statuses already seen stand in when the tracker can't be reached", async () => {
+    const u = await makeUser("e12");
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+    try {
+      const listed = await u.caller.estimates.workStatuses({ connectionId: u.connId });
+      expect(listed.map((s) => s.statusId).sort()).toEqual(["11", "21", "31", "41"]);
+      await u.caller.estimates.setWorkStatus({ connectionId: u.connId, statusId: "41", counts: false });
+    } finally {
+      vi.stubGlobal("fetch", sim.fetch);
+    }
+  });
+
+  it("accuracy predicts each issue from the ones worked before it", async () => {
+    const u = await makeUser("e13");
+    for (let n = 0; n < 6; n++) await u.issue({ key: `R-${n}`, day: n });
+    // The first five have too little before them; the sixth is predicted from five alike 1 h issues: exact.
+    expect(await mod.accuracyFor(u.userId, NOW, new mod.EstimateCache())).toEqual({ n: 1, skipped: 5, mdape: 0, coverage: 100 });
+  });
 });

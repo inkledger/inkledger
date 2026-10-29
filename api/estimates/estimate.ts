@@ -6,6 +6,7 @@
 import { TRPCError } from "@trpc/server";
 import { t } from "@contracts/i18n";
 import {
+  backtest,
   countsAsWork,
   estimate,
   recencyWeight,
@@ -15,6 +16,8 @@ import {
   workSeconds,
   workStretches,
   MIN_SAMPLES,
+  SIMILAR_TITLE,
+  type Backtest,
   type Estimate,
   type Sample,
   type StatusChange,
@@ -25,6 +28,8 @@ import { estimateRevision } from "../queries/estimateRevision";
 /** Candidates of one estimate: my closed issues with my time, the newest first (R-3.2) */
 export const UNIVERSE = 2000;
 const TTL_MS = 10 * 60_000;
+/** The backtest's window (R-3.16) */
+const BACKTEST_WINDOW_MS = 90 * 24 * 3_600_000;
 /** Less than this is not work worth a sample (R-3.1) */
 const MIN_WORK_SECONDS = 300;
 
@@ -63,6 +68,7 @@ type Row = {
   target: { id: number; summary: string; type: string | null; components: string; container_id: number | null; time_estimate_seconds: number | null; category: string }[] | null;
   samples:
     | {
+        id: number;
         connection_id: number;
         type: string | null;
         components: string;
@@ -79,17 +85,12 @@ type Row = {
     | null;
   statuses: { connection_id: number; id: string; category: string }[] | null;
   choices: { connection_id: number; id: string; counts: number }[] | null;
+  /** Accuracy only: [case id, earlier id, similarity] of titles alike in one project */
+  pairs?: [number, number, number][] | null;
 };
 
-const SAMPLES_SQL = `
-WITH target AS (
-  SELECT i."id", i."summary", nullif(i."issue_type", '') AS "type", i."components", i."container_id", i."time_estimate_seconds", i."category"
-  FROM "issues" i
-  WHERE i."user_id" = $1 AND i."key" = $2 AND ($3::integer IS NULL OR i."connection_id" = $3) AND i."gone_at" IS NULL
-  LIMIT 2
-), one AS (
-  SELECT "summary" FROM target LIMIT 1
-), cand AS (
+/** My closed issues with my time, the newest UNIVERSE by my latest worklog on each (R-3.2). */
+const CANDIDATES = `cand AS (
   SELECT i."id", i."connection_id", nullif(i."issue_type", '') AS "type", i."components", i."container_id", i."time_estimate_seconds",
          i."summary", i."jira_created_at" AS "created_at", coalesce(r."state", 'pending') AS "state", r."read_at", r."status_id_at_read",
          max(w."started") AS "last_worklog"
@@ -100,17 +101,18 @@ WITH target AS (
   GROUP BY i."id", r."item_id"
   ORDER BY "last_worklog" DESC, i."id" DESC
   LIMIT ${UNIVERSE}
-)
-SELECT
-  (SELECT json_agg(row_to_json(target)) FROM target) AS "target",
-  (SELECT json_agg(json_build_object(
-     'connection_id', c."connection_id", 'type', c."type", 'components', c."components", 'container_id', c."container_id",
+)`;
+
+/** Each candidate with its worklogs and, when its history is proven, its status changes; `similarity` as given. */
+const samplesOfCand = (similarity: string) => `(SELECT json_agg(json_build_object(
+     'id', c."id", 'connection_id', c."connection_id", 'type', c."type", 'components', c."components", 'container_id', c."container_id",
      'time_estimate_seconds', c."time_estimate_seconds", 'created_at', c."created_at", 'state', c."state", 'read_at', c."read_at",
-     'status_id_at_read', c."status_id_at_read",
-     'similarity', CASE WHEN length(btrim(c."summary")) >= 3 AND length(btrim(o."summary")) >= 3 THEN similarity(c."summary", o."summary") END,
+     'status_id_at_read', c."status_id_at_read", 'similarity', ${similarity},
      'worklogs', (SELECT json_agg(json_build_object('started', w."started", 'seconds', w."time_spent_seconds")) FROM "worklogs" w WHERE w."item_id" = c."id" AND w."user_id" = $1),
-     'changes', CASE WHEN c."state" = 'available' THEN (SELECT json_agg(json_build_object('at', x."at", 'ordinal', x."ordinal", 'from', x."from_status_id", 'to', x."to_status_id") ORDER BY x."ordinal") FROM "issue_status_changes" x WHERE x."item_id" = c."id") END))
-   FROM cand c LEFT JOIN one o ON true) AS "samples",
+     'changes', CASE WHEN c."state" = 'available' THEN (SELECT json_agg(json_build_object('at', x."at", 'ordinal', x."ordinal", 'from', x."from_status_id", 'to', x."to_status_id") ORDER BY x."ordinal") FROM "issue_status_changes" x WHERE x."item_id" = c."id") END))`;
+
+/** What each status of the candidates' connections is (snapshots, else synced issues), and the user's choices. */
+const STATUSES_AND_CHOICES = `
   (SELECT json_agg(json_build_object('connection_id', k."connection_id", 'id', k."id", 'category', k."category")) FROM (
      SELECT s."connection_id", s."status_id" AS "id", s."category" FROM "status_snapshots" s WHERE s."connection_id" IN (SELECT DISTINCT "connection_id" FROM cand)
      UNION
@@ -118,6 +120,33 @@ SELECT
      WHERE i."user_id" = $1 AND i."status_id" IS NOT NULL AND i."connection_id" IN (SELECT DISTINCT "connection_id" FROM cand)
        AND NOT EXISTS (SELECT 1 FROM "status_snapshots" s WHERE s."connection_id" = i."connection_id" AND s."status_id" = i."status_id")) k) AS "statuses",
   (SELECT json_agg(json_build_object('connection_id', ws."connection_id", 'id', ws."status_id", 'counts', ws."counts")) FROM "work_statuses" ws WHERE ws."user_id" = $1) AS "choices"`;
+
+const SAMPLES_SQL = `
+WITH target AS (
+  SELECT i."id", i."summary", nullif(i."issue_type", '') AS "type", i."components", i."container_id", i."time_estimate_seconds", i."category"
+  FROM "issues" i
+  WHERE i."user_id" = $1 AND i."key" = $2 AND ($3::integer IS NULL OR i."connection_id" = $3) AND i."gone_at" IS NULL
+  LIMIT 2
+), one AS (
+  SELECT "summary" FROM target LIMIT 1
+), ${CANDIDATES}
+SELECT
+  (SELECT json_agg(row_to_json(target)) FROM target) AS "target",
+  ${samplesOfCand(`(SELECT CASE WHEN length(btrim(c."summary")) >= 3 AND length(btrim(o."summary")) >= 3 THEN similarity(c."summary", o."summary") END FROM one o)`)} FROM cand c) AS "samples",
+  ${STATUSES_AND_CHOICES}`;
+
+/** The backtest's: every candidate, and the pairs titled alike in one project (T0) for the cases of the window. */
+const ACCURACY_SQL = `
+WITH ${CANDIDATES}, pairs AS (
+  SELECT a."id" AS "a", b."id" AS "b", similarity(a."summary", b."summary") AS "s"
+  FROM cand a JOIN cand b ON b."container_id" = a."container_id" AND b."id" <> a."id"
+  WHERE a."last_worklog" >= $2 AND length(btrim(a."summary")) >= 3 AND length(btrim(b."summary")) >= 3 AND similarity(a."summary", b."summary") >= ${SIMILAR_TITLE}
+)
+SELECT
+  NULL AS "target",
+  ${samplesOfCand("NULL")} FROM cand c) AS "samples",
+  ${STATUSES_AND_CHOICES},
+  (SELECT json_agg(json_build_array(p."a", p."b", p."s")) FROM pairs p) AS "pairs"`;
 
 const jsonList = (text: string): string[] => {
   try {
@@ -147,10 +176,10 @@ export function classifier(statuses: Row["statuses"], choices: Row["choices"]): 
 }
 
 /** The samples of R-3.1 and the candidates left out by their history's state (R-3.2, R-3.4). */
-function samplesOf(row: Row): { samples: Sample[]; excluded: Excluded } {
+function samplesOf(row: Row): { samples: (Sample & { id: number })[]; excluded: Excluded } {
   const classify = classifier(row.statuses, row.choices);
   const excluded: Excluded = { pending: 0, stale: 0, retry: 0, invalid: 0 };
-  const samples: Sample[] = [];
+  const samples: (Sample & { id: number })[] = [];
   for (const c of row.samples ?? []) {
     const worklogs = c.worklogs ?? [];
     let counted: { started: number; seconds: number }[];
@@ -178,6 +207,7 @@ function samplesOf(row: Row): { samples: Sample[]; excluded: Excluded } {
     const seconds = counted.reduce((sum, w) => sum + w.seconds, 0);
     if (seconds < MIN_WORK_SECONDS) continue;
     samples.push({
+      id: c.id,
       workSeconds: seconds,
       type: c.type,
       components: jsonList(c.components),
@@ -262,3 +292,25 @@ export async function estimateForTodo(userId: number, todoId: number, now: numbe
   cache.set(userId, revision, key, now, answer);
   return answer;
 }
+
+/**
+ * How the estimates would have done over the last 90 days (R-3.16): each case
+ * predicted only from the samples worked before it, its title compared with
+ * theirs (not with today's issue).
+ */
+export async function accuracyFor(userId: number, now: number, cache: EstimateCache = defaultCache): Promise<Backtest> {
+  const revision = await estimateRevision(userId);
+  const cached = cache.get<Backtest>(userId, revision, "accuracy", now);
+  if (cached) return cached;
+  const [row] = await q<Row>(ACCURACY_SQL, userId, now - BACKTEST_WINDOW_MS);
+  const { samples } = samplesOf(row);
+  const alike = new Map((row.pairs ?? []).map(([a, b, s]) => [`${a}:${b}`, s]));
+  const answer = backtest(
+    samples.map((s) => ({ ...s, target: { type: s.type, components: s.components, containerId: s.containerId, trackerEstimate: s.trackerEstimate } })),
+    now,
+    (c, earlier) => alike.get(`${c.id}:${earlier.id}`) ?? null,
+  );
+  cache.set(userId, revision, "accuracy", now, answer);
+  return answer;
+}
+

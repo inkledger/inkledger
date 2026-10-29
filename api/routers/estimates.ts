@@ -9,8 +9,8 @@ import { countsAsWork } from "@contracts/estimate";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb, q } from "../queries/connection";
 import { issueKeyInput } from "../lib/inputs";
-import { estimateForIssue, estimateForTodo } from "../estimates/estimate";
-import { statusesOf, type Known } from "../estimates/history";
+import { accuracyFor, estimateForIssue, estimateForTodo } from "../estimates/estimate";
+import { statusesOf, storedStatuses, type Known } from "../estimates/history";
 import { boundTracker } from "../sync/engine";
 import { providerCall } from "../providers/trpc";
 import { callMeta } from "../issues/search";
@@ -32,7 +32,14 @@ async function ownConnection(userId: number, connectionId: number) {
 async function listWorkStatuses(userId: number, connectionId: number) {
   const conn = await ownConnection(userId, connectionId);
   const b = boundTracker(conn);
-  const known: Known = b ? await providerCall(() => statusesOf(conn, b, callMeta())) : { statuses: new Map() };
+  // What the tracker lists now, then what this server has seen (a status deleted since still has its choice); the tracker unreachable: what was seen.
+  const known: Known = { statuses: new Map() };
+  try {
+    if (b) for (const [id, s] of (await providerCall(() => statusesOf(conn, b, callMeta()))).statuses) known.statuses.set(id, s);
+  } catch {
+    // unreachable: the statuses already known stand in
+  }
+  for (const [id, s] of (await storedStatuses(conn.id)).statuses) if (!known.statuses.has(id)) known.statuses.set(id, s);
   const chosen = new Map(
     (await getDb().select().from(workStatuses).where(and(eq(workStatuses.userId, userId), eq(workStatuses.connectionId, connectionId)))).map((w) => [w.statusId, w.counts === 1]),
   );
@@ -51,6 +58,9 @@ export const estimatesRouter = createRouter({
 
   /** A TODO's: its issue's, or my habit with TODO estimates. */
   forTodo: protectedProcedure.input(z.object({ id })).query(({ ctx, input }) => estimateForTodo(ctx.user.id, input.id, Date.now())),
+
+  /** How the estimates would have done on my issues of the last 90 days (Reports). */
+  accuracy: protectedProcedure.query(({ ctx }) => accuracyFor(ctx.user.id, Date.now())),
 
   /** How many of my closed issues with my time are in each history state (Settings). */
   historyStates: protectedProcedure.query(async ({ ctx }) => {

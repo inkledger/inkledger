@@ -9,9 +9,9 @@ Done tonight, all local commits, nothing pushed: B3.2a1 `a8a3e63`, B3.2 `bfc4341
 3. **Q1 (unchanged), blocks B3.6:** read and accept the Modified MIT licence of the Timestral weights.
 4. **Push:** 5 local commits on `main` (from `ca35c47`). Push when you have reviewed them.
 
-**Found, not caused by this work:** `e2e/multi-process.test.mjs` "two server processes: overlapping worklogs…" fails today at round 3 (`409,409`: 24 October, the day before the end of daylight saving). It fails the same way on `8a17a98`, which was green on CI. Date-dependent, like `shadow-room`; not investigated further.
+**Found, not caused by this work** (both passed in a later full run: they depend on the date or the hour): `e2e/multi-process.test.mjs` "two server processes: overlapping worklogs…" fails today at round 3 (`409,409`: 24 October, the day before the end of daylight saving). It fails the same way on `8a17a98`, which was green on CI. Date-dependent, like `shadow-room`; not investigated further.
 
-**Also done:** B3.3 (estimates API), see its row.
+**Also done:** B3.3 (estimates API), B3.4 (issue page, TODO suggestion, Settings → Estimates) and B3.5 (accuracy in Reports), see their rows.
 
 Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git and the code win over this file.
 
@@ -22,8 +22,8 @@ Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git 
 | B3.2a2 | estimates | 2a2: AC-3.60 (composite rows), 3.61, 3.62 | done, part blocked | (this commit) | adapter tests: gitea 38, gitlab 70, asana 62, todoist 50, basecamp 68 passed; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 198 files, 2406 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | GitLab, Gitea, Asana, Todoist, Basecamp to-dos done. Basecamp cards: Q10. OpenProject: Q11. Facts and decisions under batch 2a in the doc |
 | B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | done | bfc4341 | `vitest run api/estimates api/queries/estimateRevision.test.ts` → 8 + 1 passed; mutations (read guard, stale trigger, issue-known statuses) → each its test fails; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 198 files, 2391 passed; `pnpm parity:update` → `issues.get`/`list` gain `statusId`; `pnpm build` → ok; `pnpm test:smoke` → 21 ok; full `PROVIDERS_READ_ONLY=1 pnpm test:e2e` → 242/243, the one failure pre-existing (below) | Triggers in migration 0018; decisions under batch 2 in the doc. Docs and this row land with the next commit |
 | B3.3 | estimates | AC-3.16–3.23, 3.29, 3.50, 3.51 | done | (this commit) | `vitest run api/routers/estimates.test.ts` → 11 passed; mutations (no 2000 limit, cache ignoring the revision, choice ignored) → their tests fail; `pnpm parity:update` → the `estimates.*` procedures and one server key; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 199 files, 2417 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 3 in the doc |
-| B3.4 | estimates | AC-3.41–3.43, 3.45 | todo | | | |
-| B3.5 | estimates | AC-3.44 (accuracy) | todo | | | |
+| B3.4 | estimates | AC-3.41–3.43, 3.45 (issue page and Settings) | done | (this commit, with B3.5) | `PROVIDERS_READ_ONLY=1 node --test e2e/estimates.test.mjs` → 4/4; `e2e/renders.test.mjs` → pass, limits unchanged; screenshots light/dark at 320 and 1400 (issue, Settings, TODO); `pnpm parity:update` → i18n keys, the settings section; `pnpm lint` → ok (design check ok); `pnpm check` → ok; `pnpm test` → 199 files, 2418 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 4 in the doc. Full `PROVIDERS_READ_ONLY=1` e2e on its build → 247/247 (multi-process and shadow-room passed this time: both depend on the date or the hour). The Reports part of AC-3.45 comes with B3.5/B3.7 |
+| B3.5 | estimates | AC-3.44 (accuracy part) | done | (this commit, with B3.4: they share the router, its tests and the e2e file) | contract test for the backtest's titles → fail then pass; `vitest run api/routers/estimates.test.ts` → 13 passed; `e2e/estimates.test.mjs` → 5/5; `e2e/layout-overflow.test.mjs` → 5/5; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 199 files, 2420 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 5 in the doc; forecast and trend parts of AC-3.44 come with B3.7 |
 | B2.1 | triage | R-2.1–2.3, 2.7, 2.9; AC-2.1–2.9, 2.12 | todo | | | |
 | B2.2 | triage | R-2.11; AC-2.15, 2.16, 2.20, 2.21 | todo | | | |
 | B2.3 | triage | R-2.5, 2.6; AC-2.11, 2.17, 2.22 | todo | | | |

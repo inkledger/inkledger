@@ -163,6 +163,20 @@ describe("L1 estimates (docs/work/ideas/estimates.md, batch 1)", () => {
     expect(r.mdape).toBe((0 + 90) / 2);
   });
 
+  it("the backtest compares each case's title with the earlier ones", () => {
+    // Five earlier 1 h issues titled alike the case, six 10 h ones that aren't: titled alike, the five decide (T0).
+    type Case = Sample & { target: typeof target; id: string };
+    const alikeOnes: Case[] = Array.from({ length: 5 }, (_, i) => ({ ...sample({ workSeconds: HOUR, lastCountedWorklogAt: NOW - (200 - i) * DAY }), target, id: `a${i}` }));
+    const others: Case[] = Array.from({ length: 6 }, (_, i) => ({ ...sample({ workSeconds: 10 * HOUR, lastCountedWorklogAt: NOW - (190 - i) * DAY }), target, id: `o${i}` }));
+    const c: Case = { ...sample({ workSeconds: HOUR, lastCountedWorklogAt: NOW - DAY }), target, id: "c" };
+    const cases = [...alikeOnes, ...others, c];
+    const alike = (a: Case, b: Case) => (a.id === "c" && b.id.startsWith("a") ? 0.6 : null);
+    // Only the case is in the last 90 days, and the earlier ones alike say 1 h: exact.
+    expect(backtest(cases, NOW, alike)).toMatchObject({ n: 1, mdape: 0 });
+    // Without titles the eleven decide, and 10 h is far off.
+    expect(backtest(cases, NOW).mdape).toBeGreaterThan(0);
+  });
+
   it("stretches include their start and exclude their end", () => {
     const at = (h: number, m = 0, s = 0, ms = 0) => Date.UTC(2026, 9, 20, h, m, s, ms);
     const check = workStretches({

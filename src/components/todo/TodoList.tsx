@@ -40,6 +40,7 @@ import {
   PriorityChip,
   RepeatChip,
   SpentChip,
+  LikelyChip,
   StepsChip,
   StepsEditor,
 } from "@/components/todo/TodoChips";
@@ -891,7 +892,13 @@ function TodoRow({
                 onChange={estimateSeconds => void onUpdate({ estimateSeconds })}
               />
             ) : (
-              x.spentSeconds >= 60 && <SpentChip seconds={x.spentSeconds} />
+              <>
+                {x.spentSeconds >= 60 && <SpentChip seconds={x.spentSeconds} />}
+                {/* An open TODO of an issue: the issue's likely time, to take in one click. */}
+                {x.doneAt === null && x.issueKey && x.connectionId !== null && (
+                  <LikelyChip issueKey={x.issueKey} connectionId={x.connectionId} onPick={estimateSeconds => void onUpdate({ estimateSeconds })} />
+                )}
+              </>
             )}
             {repeat && (
               <RepeatChip

@@ -69,6 +69,11 @@ export const settings: Shape<typeof en> = {
       description: "Dove vive la lista TODO: nel menu, come widget mobile, nell'angolo in basso a destra.",
       keywords: "todo da fare attività lista promemoria pianifica widget angolo scorciatoia d",
     },
+    estimates: {
+      label: "Stime",
+      description: "Quanto ci mettono di solito le tue issue: quali stati contano come lavoro e di quali è letto lo storico.",
+      keywords: "stima stime previsione probabile stato stati lavoro storico durata",
+    },
     links: {
       label: "Link esterni",
       description: "I siti i cui link si aprono senza chiedere.",
@@ -705,6 +710,20 @@ export const settings: Shape<typeof en> = {
     widget: "Widget mobile",
     widgetHint: "Sopra qualsiasi pagina, spostato e ridimensionato a piacere; P lo apre e lo chiude.",
     off: "Disattivata",
+  },
+  estimates: {
+    title: "Stime",
+    counts: "Conta come lavoro",
+    default: "predefinito",
+    reset: "Torna al predefinito",
+    noStatuses: "Questa connessione non elenca ancora stati.",
+    historyTitle: "Le tue issue chiuse con del tempo",
+    state: {
+      available: "Storico letto: {count}",
+      waiting: "In attesa dello storico: {count}",
+      unsupported: "Il tracker non ha lo storico: {count}",
+      invalid: "Storico non utilizzabile: {count}",
+    },
   },
   todos: {
     placesTitle: "Dove vive",

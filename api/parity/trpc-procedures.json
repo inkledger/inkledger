@@ -180,6 +180,10 @@
     "type": "query"
   },
   {
+    "path": "estimates.accuracy",
+    "type": "query"
+  },
+  {
     "path": "estimates.forIssue",
     "type": "query"
   },

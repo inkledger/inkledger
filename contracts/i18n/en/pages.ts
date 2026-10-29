@@ -341,6 +341,11 @@ export const pages = {
     signOut: "Sign out",
   },
   reports: {
+    accuracy: {
+      title: "Estimate accuracy",
+      body: "{coverage}% within the range · typical error {mdape}% · {n} issues",
+      skipped: "{count} without enough earlier history",
+    },
     groupDay: "Day",
     groupIssue: "Issue",
     groupProject: "Project",

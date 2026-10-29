@@ -68,6 +68,11 @@ export const settings = {
       description: "Where the TODO list lives: in the menu, as a floating widget, in the bottom-right corner.",
       keywords: "todo to do task list checklist reminder plan widget corner shortcut d",
     },
+    estimates: {
+      label: "Estimates",
+      description: "How long your issues likely take: which statuses count as work, and whose history is read.",
+      keywords: "estimate estimates forecast likely status statuses work history duration",
+    },
     links: {
       label: "External links",
       description: "Sites whose links open without asking.",
@@ -704,6 +709,20 @@ export const settings = {
     widget: "Floating widget",
     widgetHint: "Over any page, moved and sized as you like; P opens and closes it.",
     off: "Off",
+  },
+  estimates: {
+    title: "Estimates",
+    counts: "Counts as work",
+    default: "default",
+    reset: "Back to default",
+    noStatuses: "This connection lists no statuses yet.",
+    historyTitle: "Your closed issues with time",
+    state: {
+      available: "History read: {count}",
+      waiting: "Waiting for their history: {count}",
+      unsupported: "No history on their tracker: {count}",
+      invalid: "History that can't be used: {count}",
+    },
   },
   todos: {
     placesTitle: "Where it lives",

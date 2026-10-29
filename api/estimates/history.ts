@@ -124,6 +124,19 @@ export async function statusesOf(conn: Connection, b: BoundTracker, meta: { sign
   return { statuses };
 }
 
+/** The statuses this server already knows of a connection: their snapshots, and the synced issues' (no call). */
+export async function storedStatuses(connectionId: number): Promise<Known> {
+  const statuses = new Map<string, { name: string; category: StatusCategory }>();
+  for (const s of await getDb().select().from(statusSnapshots).where(eq(statusSnapshots.connectionId, connectionId)))
+    if (isCategory(s.category)) statuses.set(s.statusId, { name: s.name, category: s.category });
+  const seen = await getDb()
+    .selectDistinct({ id: issues.statusId, name: issues.status, category: issues.category })
+    .from(issues)
+    .where(and(eq(issues.connectionId, connectionId), isNotNull(issues.statusId)));
+  for (const s of seen) if (s.id !== null && !statuses.has(s.id) && isCategory(s.category)) statuses.set(s.id, { name: s.name, category: s.category });
+  return { statuses };
+}
+
 /** Writes what a read found, only over the generation and issue version it started from. */
 async function settle(
   due: Due,

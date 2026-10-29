@@ -713,4 +713,22 @@ export const ui = {
     title: "Timer running for {duration}",
     body: "{key} has been tracking for over {minutes} minutes. Stop it or log the time?",
   },
+  estimate: {
+    likely: "Likely",
+    basis: "median {p50} · {n} similar issues · {basis}",
+    tier: {
+      t0: "similar titles in this project",
+      t1: "same project, type and component",
+      t2: "same project and type",
+      t3: "same type",
+      t4: "same project",
+      t5: "all your issues",
+    },
+    confidence: { low: "rough", medium: "fair", high: "solid" },
+    calibrated: "Tracker {estimate} · you usually take ×{ratio} → {calibrated}",
+    none: "Not enough history yet ({n} of 5)",
+    allWorklogs: "{count} counted with all their worklogs (no history on their tracker)",
+    waiting: "{count} waiting for their history",
+    useLikely: "Set the likely estimate, {duration}",
+  },
 } satisfies Tree;

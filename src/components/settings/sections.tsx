@@ -20,6 +20,7 @@ import {
   ListChecks,
   Mail,
   Network,
+  Hourglass,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -40,6 +41,7 @@ import { AccountSection } from "@/components/settings/sections/Account";
 import { AppearanceSection } from "@/components/settings/sections/Appearance";
 import { PinboardSection } from "@/components/settings/sections/Pinboard";
 import { TodosSection } from "@/components/settings/sections/Todos";
+import { EstimatesSection } from "@/components/settings/sections/Estimates";
 import { useTodoSurfaces } from "@/hooks/useTodoPanel";
 import { usePinboardSurfaces } from "@/hooks/usePinboardPanel";
 import { NotificationsSection } from "@/components/settings/sections/Notifications";
@@ -226,6 +228,18 @@ export const CATEGORIES: SettingsCategory[] = [
       const s = useTodoSurfaces();
       const on = [s.menu && t("settings.todos.inMenu"), s.widget && t("settings.todos.widget"), s.corner && t("settings.todos.corner")].filter(Boolean);
       return on.length ? on.join(" · ") : t("settings.todos.off");
+    },
+  },
+  {
+    id: "estimates",
+    get label() { return t("settings.categories.estimates.label"); },
+    get description() { return t("settings.categories.estimates.description"); },
+    icon: Hourglass,
+    get keywords() { return t("settings.categories.estimates.keywords"); },
+    Content: EstimatesSection,
+    Summary: function EstimatesSummary() {
+      const s = trpc.estimates.historyStates.useQuery(undefined, { staleTime: 60_000 }).data;
+      return s ? t("settings.estimates.state.available", { count: s.available }) : null;
     },
   },
   {

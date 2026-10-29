@@ -8,7 +8,8 @@ const HOUR = 3600;
 
 /** Fewer eligible samples than this: no number at all (R-3.3). */
 export const MIN_SAMPLES = 5;
-const SIMILAR_TITLE = 0.35;
+/** Titles at least this alike (pg_trgm) make tier 0 */
+export const SIMILAR_TITLE = 0.35;
 const HALF_LIFE_DAYS = 180;
 /** A title shorter than a trigram can't be compared (R-3.6). */
 const MIN_SUMMARY = 3;
@@ -165,12 +166,12 @@ const BACKTEST_DAYS = 90;
  * predicted from the samples worked before it only. A case with too little
  * earlier history is skipped, never a prediction.
  */
-export function backtest(cases: readonly (Sample & { target: Target })[], now: number): Backtest {
+export function backtest<C extends Sample & { target: Target }>(cases: readonly C[], now: number, alike?: (c: C, earlier: C) => number | null): Backtest {
   // Cases worked at the same instant form one group: all predicted from the earlier pool, then added to it.
-  const groups = new Map<number, (Sample & { target: Target })[]>();
+  const groups = new Map<number, C[]>();
   for (const c of cases) groups.set(c.lastCountedWorklogAt, [...(groups.get(c.lastCountedWorklogAt) ?? []), c]);
   const since = now - BACKTEST_DAYS * DAY_MS;
-  const pool: Sample[] = [];
+  const pool: C[] = [];
   const errors: number[] = [];
   let covered = 0;
   let skipped = 0;
@@ -178,7 +179,8 @@ export function backtest(cases: readonly (Sample & { target: Target })[], now: n
     const group = groups.get(at) ?? [];
     for (const c of group) {
       if (c.lastCountedWorklogAt < since || c.workSeconds <= 0) continue;
-      const e = estimate(pool, c.target, c.lastCountedWorklogAt);
+      // Title likeness is to the case's own title, when the caller knows it (else as the samples carry it).
+      const e = estimate(alike ? pool.map(s => ({ ...s, similarity: alike(c, s) })) : pool, c.target, c.lastCountedWorklogAt);
       if (e.none) {
         skipped++;
         continue;

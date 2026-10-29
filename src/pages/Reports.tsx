@@ -10,6 +10,7 @@ import { addDays, dayKey, formatDuration, formatDurationLong, parseDayKey, hours
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
+import { EstimateAccuracy } from "@/components/reports/EstimateAccuracy";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
@@ -308,6 +309,9 @@ export default function Reports() {
             message={t("pages.reports.emptyMessage")}
           />
         </PanelSection>
+        <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
+          <EstimateAccuracy />
+        </PanelSection>
       </>
     );
   }
@@ -384,6 +388,10 @@ export default function Reports() {
         ) : (
           <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} />
         )}
+      </PanelSection>
+      {/* The last 90 days, whatever the period above: how the estimates would have done. */}
+      <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
+        <EstimateAccuracy />
       </PanelSection>
     </>
   );

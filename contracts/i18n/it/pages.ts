@@ -349,6 +349,11 @@ export const pages: Shape<typeof en> = {
     signOut: "Esci",
   },
   reports: {
+    accuracy: {
+      title: "Precisione delle stime",
+      body: "{coverage}% nell'intervallo · errore tipico {mdape}% · {n} issue",
+      skipped: "{count} senza abbastanza storico precedente",
+    },
     groupDay: "Giorno",
     groupIssue: "Issue",
     groupProject: "Progetto",

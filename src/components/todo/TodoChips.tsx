@@ -23,6 +23,7 @@ import { IssuePicker, type IssueRef } from "@/components/app/IssuePicker";
 import { visibleIssues } from "@/lib/issues";
 import { dayLabel, nextMonday } from "@/lib/todoDay";
 import { trpc } from "@/lib/trpc";
+import { shownEstimate, useIssueEstimate } from "@/components/issue/estimateQuery";
 import { cn } from "@/lib/utils";
 import { addDays, dayKey, formatDuration } from "@contracts/time";
 import {
@@ -260,6 +261,18 @@ export function EstimateChip({
 }
 
 /** Time spent on it so far, when it has no estimate: beside the real time, never counted. */
+/** A TODO of an issue with no estimate yet: the issue's likely time, faded; one click makes it the estimate. */
+export function LikelyChip({ issueKey, connectionId, onPick }: { issueKey: string; connectionId: number; onPick: (seconds: number) => void }) {
+  const e = shownEstimate(useIssueEstimate(issueKey, connectionId, true).data);
+  if (!e) return null;
+  return (
+    <button type="button" aria-label={t("ui.estimate.useLikely", { duration: formatDuration(e.p50) })} className={cn(chip, quiet, "opacity-70")} onClick={() => onPick(e.p50)}>
+      <Hourglass className="h-3 w-3" aria-hidden />
+      <span className="tabular">~{formatDuration(e.p50)}</span>
+    </button>
+  );
+}
+
 export function SpentChip({ seconds }: { seconds: number }) {
   return (
     <span

@@ -714,4 +714,22 @@ export const ui: Shape<typeof en> = {
     title: "Timer attivo da {duration}",
     body: "{key} è in tracking da oltre {minutes} minuti. Vuoi fermarlo o consuntivare?",
   },
+  estimate: {
+    likely: "Probabile",
+    basis: "mediana {p50} · {n} issue simili · {basis}",
+    tier: {
+      t0: "titoli simili in questo progetto",
+      t1: "stesso progetto, tipo e componente",
+      t2: "stesso progetto e tipo",
+      t3: "stesso tipo",
+      t4: "stesso progetto",
+      t5: "tutte le tue issue",
+    },
+    confidence: { low: "indicativa", medium: "discreta", high: "solida" },
+    calibrated: "Tracker {estimate} · di solito ci metti ×{ratio} → {calibrated}",
+    none: "Storico ancora insufficiente ({n} su 5)",
+    allWorklogs: "{count} contate con tutti i worklog (il tracker non ha lo storico)",
+    waiting: "{count} in attesa del loro storico",
+    useLikely: "Imposta la stima probabile, {duration}",
+  },
 };

@@ -585,8 +585,20 @@ trend:     .query()
      - **The TODO habit** weighs each TODO by the end of its last session; a TODO linked to an issue answers that issue's estimate (closed included: `{hidden: "closed"}`).
      - **AC-3.21** uses two caches in one process on one database, the way two server processes would share it.
      - `accuracy` belongs to batch 5, as the batch list says.
-4. **L1 UI:** issue page, TODO chip, Settings → Estimates. AC-3.41–3.43, and 3.45 in part.
-5. **Accuracy:** `accuracy`, plus its Reports section. AC-3.44 (the accuracy part).
+4. [x] **L1 UI:** issue page, TODO chip, Settings → Estimates. AC-3.41–3.43, and 3.45 in part.
+   - **Done (2026-10-30).** Decisions the code forced, to review:
+     - **Issue page:** "Likely" is an item of the time card (`QuickStatsCard`, whose items are a label and a value); the basis, the confidence `Chip`, the calibration, "all their worklogs" and "waiting" lines sit right under the card, in the same section (`src/components/issue/IssueEstimate.tsx`). "Waiting" counts pending, stale and retry; invalid ones are not waiting.
+     - **Tier keys** are `ui.estimate.tier.t0`–`t5`: the i18n key type takes no numeric keys. Their texts, `likely`, `basis`, `confidence.*` and `calibrated` are revision 2's, from the approved plan.
+     - **TODO:** the suggestion is a small faded button beside the chips ("~3 h 30 min", named "Set the likely estimate, …"), not inside the estimate menu, so one click sets it; only on an open TODO of an issue with no estimate. A TODO without an issue shows nothing: the habit (×r) has no estimate to apply to, and the spec places it nowhere.
+     - **Settings → Estimates:** its own category (label, description, keywords written here); the history counts first, then one group per tracker connection with its statuses in category order, each with a switch, "default" or "Back to default". When the tracker can't be reached, the statuses already known (snapshots, synced issues) are listed, and a status deleted on the tracker stays listed while known (its choice still applies to old histories).
+     - **New texts, to review:** `ui.estimate.useLikely`, `settings.categories.estimates.*`, `settings.estimates.noStatuses`, `historyTitle`, `state.*`.
+     - The render budget (`e2e/renders.test.mjs`) is unchanged and holds: 38/39, 363/375, 361/369, 362/370 commits.
+5. [x] **Accuracy:** `accuracy`, plus its Reports section. AC-3.44 (the accuracy part).
+   - **Done (2026-10-30).** Decisions the code forced, to review:
+     - **Titles in the backtest:** a sample's similarity is to today's issue, so the backtest would have judged each past case by the wrong title. `backtest` takes an optional likeness between a case and an earlier sample; the accuracy query sends only the pairs titled alike (≥ 0.35) in one project, for the cases of the window. Without it, batch 1's behaviour is unchanged (contract test "the backtest compares each case's title with the earlier ones").
+     - **Where:** a "Estimate accuracy" section at the bottom of Reports, also when the chosen period has no time: it is the last 90 days, whatever the period.
+     - The e2e test of AC-3.44 checks the accuracy part now; the forecast and trend parts are added with batch 7.
+     - `pages.reports.trend` already exists as a string ("Trend", the period's chart): the spec's `pages.reports.trend.title` and `trend.better/worse/flat` will need other names in batch 7 (`pages.reports.forecastTrend.*`, to decide then).
 6. **Sidecar:** model lock file, checked, atomic and locked download, `/health` and `/ready`, `FORECAST_FAKE`. It comes after B5 batch 4 and **Q1**. AC-3.39, 3.40, 3.54 (sidecar part).
 7. **L2 API and UI:** `contracts/forecast.ts`, the `forecast` router (capacity, finish, trend), the simulator, and the Reports forecast and trend sections. AC-3.30–3.38, 3.44, 3.45, 3.53, 3.54 (builder part).
 
