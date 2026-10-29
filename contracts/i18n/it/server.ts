@@ -189,6 +189,9 @@ export const server: Shape<typeof en> = {
     convertLinked: "Questo appunto è collegato a una issue: scollegalo prima di farne una cartella.",
     nameRequired: "Dagli un nome.",
   },
+  estimates: {
+    unknownStatus: "Questo stato non è tra quelli della connessione.",
+  },
   todos: {
     notFound: "TODO non trovato",
     empty: "Scrivi cosa c'è da fare",

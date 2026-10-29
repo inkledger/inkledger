@@ -180,6 +180,26 @@
     "type": "query"
   },
   {
+    "path": "estimates.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "estimates.forTodo",
+    "type": "query"
+  },
+  {
+    "path": "estimates.historyStates",
+    "type": "query"
+  },
+  {
+    "path": "estimates.setWorkStatus",
+    "type": "mutation"
+  },
+  {
+    "path": "estimates.workStatuses",
+    "type": "query"
+  },
+  {
     "path": "info.addHosts",
     "type": "mutation"
   },

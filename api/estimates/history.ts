@@ -100,10 +100,11 @@ async function dueReads(now: number): Promise<Due[]> {
     .limit(HISTORY_PASS);
 }
 
-/** A connection's statuses from the tracker (when it lists them), read once per pass. */
-type Known = { statuses: Map<string, { name: string; category: StatusCategory }> };
+/** A connection's statuses by id (the job reads them once per pass). */
+export type Known = { statuses: Map<string, { name: string; category: StatusCategory }> };
 
-async function statusesOf(conn: Connection, b: BoundTracker, meta: { signal: AbortSignal; correlationId: string }): Promise<Known> {
+/** A connection's statuses: what the tracker lists, and those it doesn't that synced issues are in. */
+export async function statusesOf(conn: Connection, b: BoundTracker, meta: { signal: AbortSignal; correlationId: string }): Promise<Known> {
   const statuses = new Map<string, { name: string; category: StatusCategory }>();
   if (b.capabilities.statuses && b.statuses) {
     let sources: TrackerProbe["activeSources"] | null = null;

@@ -574,7 +574,17 @@ trend:     .query()
      - **Statuses known:** from `statuses()` and, for a status it doesn't list (monday's blank, a status deleted before its first read), from the synced issues that are in it (`issues.status_id`, `category`). Snapshots are taken from both.
      - **Jira lists its statuses** (`GET /rest/api/2/status`, read only): `statuses: true` on the Jira adapter. Nothing in the app called `statuses()` before, so no screen changes.
      - AC-3.55 runs on PGlite, which has one connection: the two raises interleave rather than overlap. The atomicity itself is the single `INSERT … ON CONFLICT` statement.
-3. **Estimates API:** `forIssue` (eligibility, exclusions, sample limit, cache keyed on the revision), `forTodo`, `workStatuses`, `setWorkStatus`, `historyStates`. AC-3.16–3.23, 3.29, 3.50, 3.51.
+3. [x] **Estimates API:** `forIssue` (eligibility, exclusions, sample limit, cache keyed on the revision), `forTodo`, `workStatuses`, `setWorkStatus`, `historyStates`. AC-3.16–3.23, 3.29, 3.50, 3.51.
+   - **Done (2026-10-30).** Decisions the code forced, to review:
+     - **One query:** `api/estimates/estimate.ts` reads the revision, then one SQL statement returns the target, the newest 2000 candidates (with their worklogs, their status changes when `available`, and title similarity), the statuses known for their connections (snapshots, else synced issues) and the user's choices. AC-3.22 counts the queries of the estimate itself, not of the tRPC middleware.
+     - **Text of E-3.7** (the spec had none): en "This status isn't one of the connection's." / it "Questo stato non è tra quelli della connessione.".
+     - **A key on two connections** without `connectionId`: CONFLICT `server.connections.ambiguousKey`, as `issues.get` does.
+     - **A connection not mine** answers `server.issues.notFound`, as E-3.1 says (its text is "Issue not found").
+     - **`workStatuses`** lists what `statuses()` gives and, for a tracker that lists none, the statuses its synced issues are in (the job's same rule).
+     - **An `available` history that doesn't hold with today's choices** (a stretch left open on a closed issue, `openOnClosed`) counts as `invalid` in `excluded`: the job checks only what doesn't depend on the choices.
+     - **The TODO habit** weighs each TODO by the end of its last session; a TODO linked to an issue answers that issue's estimate (closed included: `{hidden: "closed"}`).
+     - **AC-3.21** uses two caches in one process on one database, the way two server processes would share it.
+     - `accuracy` belongs to batch 5, as the batch list says.
 4. **L1 UI:** issue page, TODO chip, Settings → Estimates. AC-3.41–3.43, and 3.45 in part.
 5. **Accuracy:** `accuracy`, plus its Reports section. AC-3.44 (the accuracy part).
 6. **Sidecar:** model lock file, checked, atomic and locked download, `/health` and `/ready`, `FORECAST_FAKE`. It comes after B5 batch 4 and **Q1**. AC-3.39, 3.40, 3.54 (sidecar part).

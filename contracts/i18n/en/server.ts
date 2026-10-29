@@ -188,6 +188,9 @@ export const server = {
     convertLinked: "This note is linked to an issue: unlink it before making it a folder.",
     nameRequired: "Give it a name.",
   },
+  estimates: {
+    unknownStatus: "This status isn't one of the connection's.",
+  },
   todos: {
     notFound: "TODO not found",
     empty: "Write what there is to do",
