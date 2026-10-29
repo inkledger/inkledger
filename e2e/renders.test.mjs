@@ -76,7 +76,8 @@ const WINDOW = 300_000;
  * 366 / 6139, 367 / 9992, 366 / 9396. Pause and stop beside the timer, in the sidebar and on the
  * Dashboard's header and running block (drawn again on each poll of the timers, whose data they
  * read): 40 / 2888, 368 / 6361, 365 / 10483, 366 / 9596. "Move to another issue" beside them (the
- * same redraws, one button more): 40 / 2907, 368 / 6541, 365 / 10674, 366 / 9716.
+ * same redraws, one button more): 40 / 2907, 368 / 6541, 365 / 10674, 366 / 9716. The notes page
+ * in the menu (one link more in the sidebar, as the pinboard's): 40 / 2949, 369 / 6586, 364 / 10934, 368 / 9772.
  * Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
@@ -85,7 +86,7 @@ const WINDOW = 300_000;
 const MEASURED = {
   "dashboard, no timer": { commits: 42, renders: 3150 },
   "issue page, timer running": { commits: 383, renders: 6680 },
-  "dashboard, timer running": { commits: 374, renders: 10890 },
+  "dashboard, timer running": { commits: 374, renders: 11150 },
   "timesheet, timer running": { commits: 374, renders: 9910 },
 };
 
