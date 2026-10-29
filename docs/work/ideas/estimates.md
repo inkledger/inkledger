@@ -1,6 +1,6 @@
 # Spec: how long an issue will take, and when it will be done (#7)
 
-Status: revision 3 approved (2026-10-29), with patch 3.1 (points 1–11) and its five corrections applied. Batch 1 done (pure L1, `contracts/estimate.ts`); batch 2 waits for Q8. Open questions are asked when their batch is reached (README, R-0.12).
+Status: revision 3 approved (2026-10-29), with patch 3.1 (points 1–11) and its five corrections applied. Batch 1 done (pure L1, `contracts/estimate.ts`); Q8 answered (2026-10-29): batch 2a (status history in the adapters) comes before batch 2. Open questions are asked when their batch is reached (README, R-0.12).
 
 ## Direction (approved 2026-10-29)
 - **L1, per issue:** deterministic, in TypeScript. It uses similar closed issues of mine and their work time, weighted by how recent they are.
@@ -519,6 +519,7 @@ trend:     .query()
 
 ## Batches
 1. [x] **Pure L1** (`contracts/estimate.ts`): quantiles, winsorization, recency, tiers, the minimum of 5, calibration, the conversion of tracker changes, stretches `[from, until)` in `(at, ordinal)` order with the coherence checks, default work statuses, backtest. AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57.
+2a. **Status history in the adapters (Q8):** the contract says which history changes are status changes; Asana, Basecamp, GitLab, Gitea, Todoist and OpenProject record status changes with ids matching their statuses; YouTrack requests `$type`; Jira moves to numeric status ids with a data migration. Its ACs are written with the user before it starts.
 2. **History and data:**
    - migration: `issues.status_id`, `issue_history_reads`, `issue_status_changes`, `status_snapshots`, `work_statuses`, `estimate_revisions`;
    - the sync fills `status_id` and marks reads `stale`;
@@ -542,5 +543,10 @@ trend:     .query()
 - **Q6:** which statuses count.
   - **Answer 2026-10-29:** a default per provider, changeable per connection. A tester's reopening counts again.
 - **Q7, 2026-10-29:** the 18 corrections of revision 3. **Approved 2026-10-29**, with patch 3.1 (points 1–11) applied.
-- **Q8, blocks batch 2:** how each provider marks a status change in its `history` (`RemoteChange.field`): Jira's id is `status`; the other 14 are to be checked in their adapters, not guessed.
+- **Q8, blocks batch 2:** how each provider marks a status change in its `history` (`RemoteChange.field`): Jira's id is `status`; the other 14 are to be checked in their adapters, not guessed. **Answers 2026-10-29**, after reading the 15 adapters and three real changelogs on the user's Jira Server (read-only GET):
+  - **Where the rule lives:** in each adapter. The provider contract (`api/providers/types.ts`, checked by `api/providers/core/validate.ts`) gets a way for a tracker to say which history changes are status changes, with values in the same id space as its statuses.
+  - **Trackers whose history can't be matched today** (Asana: section names without gid; Basecamp: card column moves dropped; GitLab: state events with no `from` and "reopened" for "opened", labels by name; Gitea and Todoist: open/closed only; OpenProject: English text only): **fix their adapters first**, in batch 2a, before batch 2.
+  - **YouTrack:** request the field's `$type` in the activities and give State a stable field id.
+  - **Jira:** the server sends no `fieldId`; a status change is `field` "status" with `fieldtype` "jira" (not translated on an Italian server, while other system fields use display names such as "Fix Version"); `from`/`to` hold the numeric status id and `fromString`/`toString` the localized name. **Switch Jira to numeric status ids everywhere** (issues, history, sync), with a migration of the stored ids.
+  - Still to verify against each real API when batch 2a reaches it: GitLab's `resource_state_events` values, Plane's `old/new_identifier`, Basecamp's action name for a column move, YouTrack's activity `field.id` format.
 - **Q9:** a status since deleted on the tracker. **Answer 2026-10-29 (patch 3.1 point 4):** read through its stored snapshot; `unknownStatus` only when nothing resolves it.

@@ -5,7 +5,8 @@ Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | B3.1 | estimates | AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57 | done | (this commit) | `vitest run contracts/estimate.test.ts` → 21/21; mutation check (current status, sourceOrdinal removed) → 2 fail as expected; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 195 files, 2374 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Spec revision 3 + patch 3.1 + 5 corrections. AC-3.57 passed before its grouping too (strict `<` already); no coverage tool in the repo |
-| B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | todo | | | Q8 to verify first (status field per provider) |
+| B3.2a | estimates | batch 2a (Q8 answers) | todo | | | ACs to write with the user first; Jira numeric ids + migration; real-API facts to verify (GitLab states, Plane identifiers, Basecamp move action, YouTrack field.id) |
+| B3.2 | estimates | AC-3.24–3.28, 3.49, 3.55 | todo | | | after B3.2a |
 | B3.3 | estimates | AC-3.16–3.23, 3.29, 3.50, 3.51 | todo | | | |
 | B3.4 | estimates | AC-3.41–3.43, 3.45 | todo | | | |
 | B3.5 | estimates | AC-3.44 (accuracy) | todo | | | |
