@@ -341,7 +341,9 @@ test("no syntax needed: day, issue, priority, estimate and repeat from chips; st
     await row.getByRole("button", { name: "Actions for “Prepare the demo”" }).click();
     await page.getByRole("menuitem", { name: "Tie to another issue…" }).click();
     await page.getByPlaceholder("Search an issue by key or title…").fill("DEMO-103");
-    await page.getByRole("option", { name: /DEMO-103/ }).click();
+    // Chosen with Enter once it is the selected option: the list redraws while results arrive, a click can land on a node just replaced.
+    await page.getByRole("option", { name: /DEMO-103/, selected: true }).waitFor();
+    await page.keyboard.press("Enter");
     await row.getByRole("link", { name: /DEMO-103/ }).waitFor();
     assert.equal((await db.q("SELECT issue_key FROM todos"))[0].issue_key, "DEMO-103");
   }));

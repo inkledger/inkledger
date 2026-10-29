@@ -196,8 +196,9 @@ test("a private note from the issue page hangs on the pinboard, tied by a red st
     const notes = page.locator("[data-private-notes]");
     await notes.getByLabel("New private note").fill("Ask Luca about the budget");
     await notes.getByRole("button", { name: "Add note" }).click();
-    const item = notes.locator("[data-private-note]").first();
-    await item.getByText("Ask Luca about the budget").waitFor();
+    // The note by its text (not "the first": a list still settling may show another one first).
+    const item = notes.locator("[data-private-note]").filter({ hasText: "Ask Luca about the budget" }).first();
+    await item.waitFor();
     const [saved] = await db.q("SELECT issue_key, body FROM issue_notes");
     assert.deepEqual(saved, { issue_key: "DEMO-105", body: "Ask Luca about the budget" });
     await item.getByRole("button", { name: /Hang the note/ }).click();

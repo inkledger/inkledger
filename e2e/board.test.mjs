@@ -496,6 +496,8 @@ test("the priority filter: several levels at once, Italian names without a rank 
       await page.getByRole("menuitemcheckbox", { name: /^High\b/ }).click();
       await page.keyboard.press("Escape");
       await page.waitForURL(/prio=0%2C1|prio=0,1/);
+      // The cards follow the filter a moment after the URL (a slower machine shows the step).
+      for (let i = 0; i < 50 && JSON.stringify(await shown()) !== JSON.stringify(["DEMO-101", "DEMO-102"]); i++) await page.waitForTimeout(100);
       assert.deepEqual(await shown(), ["DEMO-101", "DEMO-102"]);
       await page.reload();
       await cards.filter({ hasText: "DEMO-101" }).first().waitFor();

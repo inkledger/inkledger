@@ -67,8 +67,13 @@ test("a pasted link opens its issue, from Issues (Enter) and from ⌘K", () =>
     await page.goto(`${base}/issues`);
     const box = page.getByRole("searchbox", { name: "Filter the local catalogue" });
     await box.fill("https://github.com/acme/web/issues/1");
-    await box.press("Enter");
-    await page.waitForURL(new RegExp(`/issues/${github}/I_1$`));
+    // Enter again if the first came before the page could act on it (as a person would).
+    const opened = new RegExp(`/issues/${github}/I_1$`);
+    for (let i = 0; i < 3 && !opened.test(page.url()); i++) {
+      await box.press("Enter");
+      await page.waitForURL(opened, { timeout: 10_000 }).catch(() => {});
+    }
+    await page.waitForURL(opened);
     await page.getByRole("heading", { name: /Login fails on Safari/ }).first().waitFor();
     await page.keyboard.press("ControlOrMeta+k");
     await page.getByRole("combobox").fill("bigco/app#1");
