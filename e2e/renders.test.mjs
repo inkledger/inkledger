@@ -78,16 +78,19 @@ const WINDOW = 300_000;
  * read): 40 / 2888, 368 / 6361, 365 / 10483, 366 / 9596. "Move to another issue" beside them (the
  * same redraws, one button more): 40 / 2907, 368 / 6541, 365 / 10674, 366 / 9716. The notes page
  * in the menu (one link more in the sidebar, as the pinboard's): 40 / 2949, 369 / 6586, 364 / 10934, 368 / 9772.
+ * The page's clock paused between steps (it had kept flowing with real time, so a slower machine
+ * counted more seconds in a window; CI went over by 1–3%): 38 / 2803, 367 / 6203, 361 / 10713,
+ * 362 / 9396, the same with answers 200 ms slower.
  * Each limit is the most
  * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
  * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
  * commit, never a side effect.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 42, renders: 3150 },
-  "issue page, timer running": { commits: 383, renders: 6680 },
-  "dashboard, timer running": { commits: 374, renders: 11150 },
-  "timesheet, timer running": { commits: 374, renders: 9910 },
+  "dashboard, no timer": { commits: 39, renders: 2860 },
+  "issue page, timer running": { commits: 375, renders: 6328 },
+  "dashboard, timer running": { commits: 369, renders: 10928 },
+  "timesheet, timer running": { commits: 370, renders: 9584 },
 };
 
 test("React work per five minutes, page by page", async () => {
@@ -97,6 +100,10 @@ test("React work per five minutes, page by page", async () => {
     await page.context().addInitScript(renderHook);
     await page.context().addInitScript(streamProbe);
     await page.clock.install();
+    // Paused: the page's time moves only as the stepper moves it. Left running, it also flows
+    // with real time between steps, so a slower machine (CI) saw more seconds, and more ticks,
+    // in the same window (measured: steps 9 to 21 took 13.1 s of page time on a slow server).
+    await page.clock.pauseAt(Date.now() + 1000);
     const clock = clockStepper(page);
     const open = async path => {
       await page.goto(base + path);

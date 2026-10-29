@@ -172,6 +172,13 @@ and without, on the production bundle as it ships.
   effect of timing: a refetch started by something else (an event, an invalidation) restarts a
   poll's interval, and a response may land a step later. Real-time windows were tried first and
   rejected: a 10 s window holds a poll or not by chance.
+- **The clock is paused** (`page.clock.pauseAt` after `install`): the page's time moves only as
+  the stepper moves it. Installed and not paused, Playwright's clock also flows with real time
+  between steps, so a slower machine counted more seconds, and more ticks, in the same window:
+  CI went over by 1–3% on code that measured the same locally. Found by giving every answer
+  50–200 ms of delay: commits rose from 364 to 383 on the Dashboard with a timer; paused, they
+  stay at 361–363. What still moves with the server's speed is small: the timers carry
+  `elapsedSeconds` and `serverNow` from the server's real clock.
 - **Spread:** two runs agree within 2%; the limits allow for it.
 - **Limits:** each scenario's limit is the most measured plus 2%. A change that lowers the work
   lowers the limit; raising one is a deliberate edit, with the new measure and its reason in the
