@@ -426,6 +426,11 @@ test("notes work on a phone without horizontal overflow", () =>
       await page
         .getByRole("link", { name: "Mobile note", exact: true })
         .click();
+      // Measured once the note is there (mid-render the page is still settling).
+      await page
+        .getByRole("article", { name: "Preview" })
+        .getByText("Body", { exact: true })
+        .waitFor();
       await description.waitFor();
       assert.equal(
         await description.evaluate(
@@ -433,10 +438,6 @@ test("notes work on a phone without horizontal overflow", () =>
         ),
         descriptionY
       );
-      await page
-        .getByRole("article", { name: "Preview" })
-        .getByText("Body", { exact: true })
-        .waitFor();
       await page.getByRole("button", { name: "Edit" }).click();
       await page.getByLabel("Markdown source").waitFor();
       assert.equal(

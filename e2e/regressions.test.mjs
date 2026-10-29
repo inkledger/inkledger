@@ -68,6 +68,26 @@ test("the issue page pins on a chosen board, shows where it is, and unpins with 
     assert.deepEqual(await onBoards(), ["Sprint"]);
   }));
 
+test("the issue page's pin waits to know the boards: a click before never pins on the default one", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await db.q("INSERT INTO pinboards (user_id, name, position, created_at) VALUES (1, 'Sprint', 1, ?)", Date.now());
+    let release = () => {};
+    const held = new Promise(resolve => (release = resolve));
+    await page.route(/\/api\/trpc\/[^?]*pinboard\.where/, async route => {
+      await held;
+      await route.continue();
+    });
+    await page.goto(base + "/issues/DEMO-105");
+    const pin = page.getByRole("button", { name: "Pin to the pinboard" });
+    await pin.waitFor();
+    assert.equal(await pin.isDisabled(), true, "not clickable while the boards are unknown");
+    await pin.click({ force: true }).catch(() => {});
+    assert.deepEqual(await db.q("SELECT count(*)::int AS n FROM pinboard_notes"), [{ n: 0 }]);
+    release();
+    await pin.click();
+    await page.getByRole("menu").getByRole("menuitemcheckbox", { name: "Sprint" }).waitFor();
+  }));
+
 /** Minutes since local midnight, now. */
 const minutesToday = () => {
   const d = new Date();
