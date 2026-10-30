@@ -141,6 +141,11 @@ proveHolder: protectedProcedure.input(z.object({ id: z.string().min(1).max(64), 
 4. Wallet: binding, `/claim/wallet`, Prove. AC-4.6, 4.7, 4.10 (after Q2, Q3).
 5. Terms + docs. R-4.11.
 
+### Batch 1 decisions (2026-10-30, to review)
+- **No `opentimestamps` package** (user's choice: it is LGPL-3.0, unmaintained since 2022, pulls `bitcore-lib` and the deprecated `request`, and doesn't run in a Worker). Our own reader/writer of `.ots`, no dependencies: `contracts/ots.ts` in the app, the same code in the Worker's `store/src/ots.ts` (keep them in step). It follows python-opentimestamps' format and serialization order; hashes through WebCrypto, plus a pure RIPEMD-160 (older proofs start with it; WebCrypto has none). Checked on the official `hello-world.txt.ots`: read and written back byte for byte, its operations reach the real merkle root of Bitcoin block 358391 (read once from blockstream.info, kept as a fixture).
+- The Worker stamps a licence when issued (the paid order's Ledger, the inbox's approval), after the answer (`ctx.waitUntil`), idempotent on the licence's SHA-256. Calendars come from `OTS_CALENDARS` (wrangler.toml: a.pool, b.pool, finney as the stand-in): **unset, nothing is stamped**, so no test ever reaches them. (The first full run of the modules tests, before this gate, may have sent the hashes of a few test licences to the public calendars: hashes only.) Every calendar down: the licence is issued unstamped, the backfill catches it.
+- KV: `ots:<id>` = `{ digest, ots, status, block?, backfilled? }` and a marker `otsp:<id>` while pending; the hourly cron (`17 * * * *`) lists `otsp:` (100 a run), asks only our calendars for each pending attestation's upgrade, merges it at its place in the tree, and marks the proof complete with the lowest Bitcoin block. `time` isn't stored: the app reads it from the explorer when it verifies. `GET /ots/<id>` is public; `POST /admin/ots-backfill` (`ADMIN_SECRET`) stamps the orders' and the inbox's licences not stamped yet, `backfilled: true`, a page at a time (cursor). The KV type gained `list` and `delete` (the tests' fakes too).
+
 ## Open questions
 - **Q1, blocks 3:** BTCPay hosting and the Lightning node. **Answer 2026-10-30: postponed:** batch 3 waits until the user has a BTCPay; the rest goes on.
 - **Q2, blocks 4:** BTC only (default) or EVM too. **Answer 2026-10-30: BTC only.**
