@@ -55,7 +55,6 @@ export function TimerControls({
   issueKey: string;
   connectionId?: number | null;
 }) {
-  const provider = useProviderName();
   const { timer, fetchedAt, running, paused, pending, heldElsewhere, ...act } =
     useTimerActions(issueKey, connectionId);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -154,18 +153,17 @@ export function TimerControls({
           >
             <MoveRight className="h-4 w-4" />
           </Button>
-          {paused && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("ui.timer.discardFor", { key: issueKey })}
-              title={t("ui.timer.discardTip")}
-              disabled={pending}
-              onClick={() => setConfirmingDiscard(true)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Running or paused: a timer started by mistake goes without stopping it first. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("ui.timer.discardFor", { key: issueKey })}
+            title={t("ui.timer.discardTip")}
+            disabled={pending}
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </>
       )}
       <AlertDialog open={confirmingTakeOver} onOpenChange={setConfirmingTakeOver}>
@@ -180,23 +178,50 @@ export function TimerControls({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("ui.timer.discardTitle", { key: issueKey })}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("ui.timer.discardBody", { provider })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction destructive onClick={act.discard}>
-              {t("ui.timer.discard")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Mounted only while asked: these controls redraw with the timer, the closed dialog would too. */}
+      {confirmingDiscard && (
+        <DiscardTimerDialog
+          issueKey={issueKey}
+          connectionId={connectionId}
+          open
+          onOpenChange={setConfirmingDiscard}
+          onConfirm={() => act.discard()}
+        />
+      )}
     </div>
+  );
+}
+
+/** "Discard the timer on KEY?": what is lost, said before it goes. */
+export function DiscardTimerDialog({
+  issueKey,
+  connectionId,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  issueKey: string;
+  connectionId?: number | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const provider = useProviderName(connectionId ?? undefined);
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("ui.timer.discardTitle", { key: issueKey })}</AlertDialogTitle>
+          <AlertDialogDescription>{t("ui.timer.discardBody", { provider })}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogAction destructive onClick={onConfirm}>
+            {t("ui.timer.discard")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -299,7 +324,8 @@ export function ActiveTimerQuickControls({ compact = false }: { compact?: boolea
 
 function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; connectionId: number; compact: boolean }) {
   // Only what it draws: reading `fetchedAt` would re-render it on every poll.
-  const { running, pending, heldElsewhere, pause, start, stop, move } = useTimerActions(issueKey, connectionId);
+  const { running, pending, heldElsewhere, pause, start, stop, move, discard } = useTimerActions(issueKey, connectionId);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   if (heldElsewhere) return null;
   const size = compact ? "h-7 w-7" : "h-8 w-8";
   return (
@@ -339,6 +365,26 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         >
           <MoveRight className="h-4 w-4" />
         </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={size}
+        aria-label={t("ui.timer.discardFor", { key: issueKey })}
+        title={t("ui.timer.discardTip")}
+        disabled={pending}
+        onClick={() => setConfirmingDiscard(true)}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+      {confirmingDiscard && (
+        <DiscardTimerDialog
+          issueKey={issueKey}
+          connectionId={connectionId}
+          open
+          onOpenChange={setConfirmingDiscard}
+          onConfirm={() => discard()}
+        />
       )}
     </div>
   );

@@ -83,7 +83,8 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
     takeOver: () => start.mutate({ ...on, force: true }),
     pause: () => pause.mutate(guarded()),
     stop: () => stop.mutate(guarded()),
-    discard: () => discard.mutate(guarded()),
+    /** `then`: after it is gone (a dialog waiting on it closes only then: on a conflict it stays). */
+    discard: (then?: { onSuccess?: () => void; onError?: () => void }) => discard.mutate(guarded(), then),
     /** To another issue with its count: the issue is picked in the usual picker. */
     move: () =>
       quickStart.pick(

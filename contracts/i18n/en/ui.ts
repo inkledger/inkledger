@@ -151,6 +151,7 @@ export const ui = {
     titleNew: "Log time · {key}",
     description: "Saved to {provider}; if {provider} does not respond it waits in the queue and syncs later.",
     timeSpent: "Time spent",
+    discardTimer: "Discard timer",
     timePlaceholder: "e.g. 2h 30m, 1d, 45m",
     presets: "Quick durations",
     tooLong: "A single entry cannot exceed 24 hours.",

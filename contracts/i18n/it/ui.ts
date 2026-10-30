@@ -152,6 +152,7 @@ export const ui: Shape<typeof en> = {
     titleNew: "Registra tempo · {key}",
     description: "Viene salvata su {provider}; se {provider} non risponde resta in coda e si sincronizza dopo.",
     timeSpent: "Tempo impiegato",
+    discardTimer: "Annulla timer",
     timePlaceholder: "es. 2h 30m, 1d, 45m",
     presets: "Durate rapide",
     tooLong: "Una singola registrazione non può superare le 24 ore.",

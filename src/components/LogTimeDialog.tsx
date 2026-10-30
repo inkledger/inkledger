@@ -30,6 +30,8 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useKeepsTimeHere, useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issueId } from "@/lib/issues";
+import { useTimerActions } from "@/hooks/useTimerActions";
+import { DiscardTimerDialog } from "@/components/TimerControls";
 import { occupiedId } from "@contracts/placement";
 
 export type EditableWorklog = {
@@ -253,6 +255,17 @@ function LogTimeForm({
   const create = trpc.worklogs.create.useMutation({ onSuccess, onError });
   const update = trpc.worklogs.update.useMutation({ onSuccess, onError });
   const pending = create.isPending || update.isPending;
+  const timerActions = useTimerActions(issueKey, connectionId);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const discardTimer = () => {
+    settled.current = true;
+    timerActions.discard({
+      onSuccess: onClose,
+      onError: () => {
+        settled.current = false;
+      },
+    });
+  };
   const canSubmit =
     !pending &&
     !waiting &&
@@ -403,6 +416,18 @@ function LogTimeForm({
         </div>
       </div>
       <DialogFooter>
+        {/* A timer started by mistake: gone from here, without logging its time. */}
+        {fromTimer && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-danger sm:mr-auto"
+            disabled={pending || timerActions.pending}
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            {t("ui.logTime.discardTimer")}
+          </Button>
+        )}
         <Button type="button" variant="outline" onClick={onClose}>
           {cancelLabel ?? t("common.cancel")}
         </Button>
@@ -416,6 +441,15 @@ function LogTimeForm({
                 : t("ui.logTime.log")}
         </Button>
       </DialogFooter>
+      {fromTimer && (
+        <DiscardTimerDialog
+          issueKey={issueKey}
+          connectionId={connectionId}
+          open={confirmingDiscard}
+          onOpenChange={setConfirmingDiscard}
+          onConfirm={discardTimer}
+        />
+      )}
     </form>
   );
 }
