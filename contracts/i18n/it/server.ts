@@ -172,6 +172,10 @@ export const server: Shape<typeof en> = {
     signedOut: "L'accesso a Microsoft è scaduto: accedi di nuovo in Impostazioni → Outlook.",
     badKey: "Questa chiave dell'add-in non è più valida: creane una nuova in Impostazioni → Outlook.",
     noSubjectTodo: "Rispondere alla mail",
+    copy: {
+      consent: "Per tenere copie delle tue mail serve prima il tuo consenso.",
+      off: "Le copie delle mail sono disattivate su questo server.",
+    },
   },
   notes: {
     notFound: "Appunto non trovato",

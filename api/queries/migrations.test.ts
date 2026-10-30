@@ -123,6 +123,12 @@ describe("migrations over a draft of 0010", () => {
     await up();
     // As a dev database left by the draft: the column there, the lease table and the final 0010 not.
     const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
+    await query('DROP TABLE "mail_copy_reads"');
+    await query('DROP TABLE "mail_copies"');
+    for (const c of ["gone_at", "checked_at", "copy_error"]) await query(`ALTER TABLE "mails" DROP COLUMN "${c}"`);
+    await query('ALTER TABLE "settings" DROP CONSTRAINT "settings_mail_copies"');
+    await query('ALTER TABLE "settings" DROP COLUMN "mail_copies"');
+    await query('ALTER TABLE "settings" DROP COLUMN "mail_copies_consent_at"');
     await query('ALTER TABLE "settings" DROP CONSTRAINT "settings_share_link_minutes"');
     await query('ALTER TABLE "settings" DROP COLUMN "share_link_minutes"');
     await query('ALTER TABLE "settings" DROP COLUMN "share_link_generation"');

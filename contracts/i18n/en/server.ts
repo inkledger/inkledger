@@ -171,6 +171,10 @@ export const server = {
     signedOut: "Your Microsoft sign-in expired: sign in again in Settings → Outlook.",
     badKey: "This add-in key is not valid any more: make a new one in Settings → Outlook.",
     noSubjectTodo: "Answer the mail",
+    copy: {
+      consent: "Keeping copies of your mails needs your consent first.",
+      off: "Copies of mails are turned off on this server.",
+    },
   },
   notes: {
     notFound: "Note not found",

@@ -148,6 +148,13 @@
       "when": 1793352203115,
       "tag": "0020_share_links",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793361716466,
+      "tag": "0021_mail_copies",
+      "breakpoints": true
     }
   ]
 }

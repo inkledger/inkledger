@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { env } from "../lib/env";
 import { BACKDROP_VISIBILITY } from "@contracts/modules";
 import { eq, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -99,17 +101,27 @@ export const settingsRouter = createRouter({
         todosWidget: z.boolean().optional(),
         todosHotCorner: z.boolean().optional(),
         shareLinkMinutes: z.number().int().min(5).max(1440).optional(),
+        mailCopies: z.enum(["off", "body", "full"]).optional(),
+        /** Given in the consent dialog, the first time copies are turned on (docs/work/ideas/mail-copies.md R-1.2) */
+        mailCopiesConsent: z.literal(true).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      await getSettings(ctx.user.id); // ensure row exists
-      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, pinboardOnBoard, pinboardInMenu, pinboardWidget, todosInMenu, todosWidget, todosHotCorner, ...rest } = input;
+      const current = await getSettings(ctx.user.id); // ensure row exists
+      const { dashboardLayout, collapsedColumns, allowedLinkDomains, dashboardNight, pinboardOnBoard, pinboardInMenu, pinboardWidget, todosInMenu, todosWidget, todosHotCorner, mailCopiesConsent, ...rest } = input;
+      // Copies of mails: never against the server's switch, never without consent once given (R-1.1, R-1.2).
+      if (input.mailCopies !== undefined && input.mailCopies !== "off") {
+        if (!env.mailCopies) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.off") });
+        if (!current.mailCopiesConsentAt && !mailCopiesConsent) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.consent") });
+      }
+      const consentAt = mailCopiesConsent && !current.mailCopiesConsentAt ? { mailCopiesConsentAt: new Date() } : {};
       const flag = (v: boolean | undefined) => (v === undefined ? undefined : v ? 1 : 0);
       await db
         .update(settings)
         .set({
           ...rest,
+          ...consentAt,
           ...(dashboardNight === undefined ? {} : { dashboardNight: dashboardNight ? 1 : 0 }),
           ...(pinboardOnBoard === undefined ? {} : { pinboardOnBoard: pinboardOnBoard ? 1 : 0 }),
           ...(pinboardInMenu === undefined ? {} : { pinboardInMenu: pinboardInMenu ? 1 : 0 }),

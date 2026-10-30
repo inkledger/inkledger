@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { encrypt, decrypt, newSessionId, openSecret, sealSecret } from "./crypto";
+import { encrypt, decrypt, newSessionId, openBytesFor, openSecret, sealBytesFor, sealSecret } from "./crypto";
+import { env } from "./env";
 
 describe("crypto", () => {
   it("encrypts and decrypts round-trip", () => {
@@ -42,5 +43,37 @@ describe("crypto", () => {
     expect(() => openSecret(sealed, 8)).toThrow(/can't be opened/);
     // The older format (session-derived key, no binding) opens, and asks to be sealed again.
     expect(openSecret(encrypt("old"), 7)).toEqual({ plain: "old", fresh: false });
+  });
+
+  it("a sealed copy opens only for its own mail", () => {
+    const plain = Buffer.from("From: a@b.c\r\nSubject: Hi\r\n\r\nbody \u00e8", "utf8");
+    const sealed = sealBytesFor(plain, "mailcopy:7:41");
+    expect(sealed[0]).toBe(1);
+    expect(sealed.includes(plain)).toBe(false);
+    expect(openBytesFor(sealed, "mailcopy:7:41").equals(plain)).toBe(true);
+    // The same bytes moved to another mail, or another user: they don't open.
+    expect(() => openBytesFor(sealed, "mailcopy:7:42")).toThrow();
+    expect(() => openBytesFor(sealed, "mailcopy:8:41")).toThrow();
+    // Tampered or cut short: no.
+    const flipped = Buffer.from(sealed);
+    flipped[flipped.length - 1] ^= 1;
+    expect(() => openBytesFor(flipped, "mailcopy:7:41")).toThrow();
+    expect(() => openBytesFor(sealed.subarray(0, 20), "mailcopy:7:41")).toThrow();
+  });
+
+  it("bytes sealed with the old key still open", () => {
+    const saved = { key: env.credentialsKey, old: env.credentialsKeyOld };
+    try {
+      env.credentialsKey = "c".repeat(64);
+      const sealed = sealBytesFor(Buffer.from("copy"), "mailcopy:1:1");
+      env.credentialsKeyOld = env.credentialsKey;
+      env.credentialsKey = "d".repeat(64);
+      expect(openBytesFor(sealed, "mailcopy:1:1").toString()).toBe("copy");
+      env.credentialsKeyOld = null;
+      expect(() => openBytesFor(sealed, "mailcopy:1:1")).toThrow();
+    } finally {
+      env.credentialsKey = saved.key;
+      env.credentialsKeyOld = saved.old;
+    }
   });
 });

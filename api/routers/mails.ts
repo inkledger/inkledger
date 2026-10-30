@@ -4,7 +4,7 @@ import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { mailAddinKeys, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail } from "@db/schema";
+import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail } from "@db/schema";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
@@ -168,6 +168,21 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
 }
 
 export const mailsRouter = createRouter({
+  /** How many copies of my mails are kept, and their size in clear (docs/work/ideas/mail-copies.md R-1.12). */
+  copyUsage: protectedProcedure.query(async ({ ctx }) => {
+    const [row] = await getDb()
+      .select({ count: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${mailCopies.plainBytes}), 0)::int` })
+      .from(mailCopies)
+      .where(eq(mailCopies.userId, ctx.user.id));
+    return { count: row?.count ?? 0, bytes: row?.bytes ?? 0 };
+  }),
+
+  /** Every copy of my mails gone at once; the pins stay (R-1.12). */
+  deleteAllCopies: protectedProcedure.mutation(async ({ ctx }) => {
+    const gone = await getDb().delete(mailCopies).where(eq(mailCopies.userId, ctx.user.id)).returning({ id: mailCopies.mailId });
+    return { count: gone.length };
+  }),
+
   save: protectedProcedure.input(headers).mutation(({ ctx, input }) => saveMail(ctx.user.id, input)),
 
   /**

@@ -290,7 +290,7 @@ copyUsage: protectedProcedure.query()                                           
 - `CREDENTIALS_KEY` lost: `copyInfo` responds, and the viewer shows an `ErrorState` "the copy can't be opened with this server's key".
 
 ## Batches
-1. `crypto` bytes, migration, setting with consent, `copyUsage`, `deleteAllCopies` (R-1.1, 1.2, 1.5, 1.12; AC-1.2, 1.5, 1.6, 1.20).
+1. [x] (2026-10-30) `crypto` bytes, migration, setting with consent, `copyUsage`, `deleteAllCopies` (R-1.1, 1.2, 1.5, 1.12; AC-1.2, 1.5, 1.6, 1.20).
 2. Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
 3. View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
 4. Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).

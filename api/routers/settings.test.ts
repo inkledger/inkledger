@@ -67,3 +67,33 @@ describe("settings: allowed link domains", () => {
     expect(await me.settings.update({ idleMinutes: 20 })).toMatchObject({ pinboardOnBoard: 0, pinboardInMenu: 1, pinboardWidget: 1 });
   });
 });
+
+describe("settings: mail copies", () => {
+  it("mail copies need consent", async () => {
+    const me = await callerFor("https://consent.atlassian.net");
+    expect((await me.settings.get()).mailCopies).toBe("off");
+    await expect(me.settings.update({ mailCopies: "body" })).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "Keeping copies of your mails needs your consent first.",
+    });
+    expect((await me.settings.get()).mailCopies).toBe("off");
+    const on = await me.settings.update({ mailCopies: "body", mailCopiesConsent: true });
+    expect(on.mailCopies).toBe("body");
+    expect(on.mailCopiesConsentAt).toBeInstanceOf(Date);
+    // Given once: moving between modes, or off and back, doesn't ask again.
+    expect((await me.settings.update({ mailCopies: "full" })).mailCopies).toBe("full");
+    await me.settings.update({ mailCopies: "off" });
+    expect((await me.settings.update({ mailCopies: "body" })).mailCopies).toBe("body");
+    // The server's kill switch wins over any consent.
+    const { env } = await import("../lib/env");
+    env.mailCopies = false;
+    try {
+      await expect(me.settings.update({ mailCopies: "full" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: "Copies of mails are turned off on this server." });
+      // Off is always allowed.
+      expect((await me.settings.update({ mailCopies: "off" })).mailCopies).toBe("off");
+    } finally {
+      env.mailCopies = true;
+    }
+  });
+});
+

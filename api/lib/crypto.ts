@@ -60,6 +60,40 @@ function credentialKeys(): Buffer[] {
   return [current, ...older.filter((k) => !k.equals(current))];
 }
 
+// ---------- Bytes sealed for one thing (copies of mails) ----------
+// 0x01 | iv(12) | tag(16) | data, AES-256-GCM with the credential keys and
+// `scope` as the AAD: bytes moved to another row don't open.
+
+const BYTES_V1 = 1;
+
+/** Bytes sealed for `scope` with the current key. */
+export function sealBytesFor(plain: Buffer, scope: string): Buffer {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", credentialKeys()[0], iv, { authTagLength: TAG_BYTES });
+  cipher.setAAD(Buffer.from(scope, "utf8"));
+  const data = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([Buffer.from([BYTES_V1]), iv, cipher.getAuthTag(), data]);
+}
+
+/** The bytes sealed with sealBytesFor for the same scope (any known key); throws otherwise. */
+export function openBytesFor(sealed: Buffer, scope: string): Buffer {
+  if (sealed.length < 1 + IV_BYTES + TAG_BYTES || sealed[0] !== BYTES_V1) throw new Error("Malformed sealed bytes");
+  const iv = sealed.subarray(1, 1 + IV_BYTES);
+  const tag = sealed.subarray(1 + IV_BYTES, 1 + IV_BYTES + TAG_BYTES);
+  const data = sealed.subarray(1 + IV_BYTES + TAG_BYTES);
+  for (const key of credentialKeys()) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, iv, { authTagLength: TAG_BYTES });
+      decipher.setAAD(Buffer.from(scope, "utf8"));
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(data), decipher.final()]);
+    } catch {
+      /* the next key */
+    }
+  }
+  throw new Error("Sealed bytes don't open with any known key");
+}
+
 /**
  * Keys for signing (not sealing) something of `purpose`, derived from the
  * credential keys: the current one first, then those that may still verify.

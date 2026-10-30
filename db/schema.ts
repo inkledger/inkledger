@@ -636,7 +636,14 @@ export const settings = pgTable("settings", {
   shareLinkMinutes: integer("share_link_minutes").notNull().default(60),
   /** Raised by "Revoke all links": links signed with an older one stop working */
   shareLinkGeneration: integer("share_link_generation").notNull().default(0),
-}, (t) => [check("settings_share_link_minutes", sql`${t.shareLinkMinutes} BETWEEN 5 AND 1440`)]);
+  /** Copies of the mails I pin (docs/work/ideas/mail-copies.md): off | body | full */
+  mailCopies: text("mail_copies").notNull().default("off"),
+  /** When I agreed to keep copies (asked once, in a dialog) */
+  mailCopiesConsentAt: ms("mail_copies_consent_at"),
+}, (t) => [
+  check("settings_share_link_minutes", sql`${t.shareLinkMinutes} BETWEEN 5 AND 1440`),
+  check("settings_mail_copies", sql`${t.mailCopies} IN ('off', 'body', 'full')`),
+]);
 
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
@@ -867,6 +874,12 @@ export const mails = pgTable(
     exchangeId: text("exchange_id"),
     /** link | eml | addin | graph */
     source: text("source").notNull(),
+    /** Not found in the mailbox any more (Graph check); null while it is */
+    goneAt: ms("gone_at"),
+    /** Last looked for in the mailbox */
+    checkedAt: ms("checked_at"),
+    /** Why its copy couldn't be made (the pin stands) */
+    copyError: text("copy_error"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -880,6 +893,55 @@ export const mails = pgTable(
     uniqueIndex("uq_mails_user_exchange").on(t.userId, t.exchangeId).where(sql`${t.exchangeId} IS NOT NULL`),
     check("mails_source", sql`${t.source} IN ('link', 'eml', 'addin', 'graph')`),
   ],
+);
+
+/** An encrypted copy of a pinned mail (docs/work/ideas/mail-copies.md R-1.3–R-1.5): one per mail, gone with it. */
+export const mailCopies = pgTable(
+  "mail_copies",
+  {
+    mailId: integer("mail_id")
+      .primaryKey()
+      .references(() => mails.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** body: headers, text, html, attachment list (JSON) | full: the raw EML */
+    mode: text("mode").notNull(),
+    /** sealBytesFor(plain, `mailcopy:${userId}:${mailId}`) */
+    sealed: bytea("sealed").notNull(),
+    plainSha256: text("plain_sha256").notNull(),
+    plainBytes: integer("plain_bytes").notNull(),
+    /** addin | graph | eml */
+    source: text("source").notNull(),
+    capturedAt: ms("captured_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index("idx_mail_copies_user").on(t.userId, t.capturedAt),
+    check("mail_copies_mode", sql`${t.mode} IN ('body', 'full')`),
+    check("mail_copies_source", sql`${t.source} IN ('addin', 'graph', 'eml')`),
+  ],
+);
+
+/** Every read of a copy (R-1.9), kept a year. */
+export const mailCopyReads = pgTable(
+  "mail_copy_reads",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mailId: integer("mail_id")
+      .notNull()
+      .references(() => mails.id, { onDelete: "cascade" }),
+    /** view | eml | attachment */
+    via: text("via").notNull(),
+    at: ms("at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("idx_mail_copy_reads_at").on(t.at), check("mail_copy_reads_via", sql`${t.via} IN ('view', 'eml', 'attachment')`)],
 );
 
 export type Mail = typeof mails.$inferSelect;

@@ -484,6 +484,14 @@
     "type": "query"
   },
   {
+    "path": "mails.copyUsage",
+    "type": "query"
+  },
+  {
+    "path": "mails.deleteAllCopies",
+    "type": "mutation"
+  },
+  {
     "path": "mails.forIssue",
     "type": "query"
   },
