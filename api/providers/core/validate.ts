@@ -96,6 +96,7 @@ function trackerProblems(p: TrackerShape): Problems {
   op(out, "manage.create", mg.create, c.manage.create);
   op(out, "manage.edit", mg.edit, c.manage.edit);
   op(out, "manage.createTypes", mg.createTypes, c.manage.types);
+  op(out, "manage.createFields", mg.createFields, c.manage.types);
   op(out, "watch", p.watch, c.watch);
   op(out, "history", p.history, c.history);
   op(out, "statusHistory", p.statusHistory, c.statusHistory);

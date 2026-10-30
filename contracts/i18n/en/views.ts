@@ -510,6 +510,7 @@ export const views = {
       summaryPlaceholder: "What needs to be done?",
       descriptionLabel: "Description",
       descriptionPlaceholder: "Context, request, references (optional)",
+      unfillable: "{fields}: this type asks for something inkledger can't fill. Create it on {provider}.",
       assignToMe: "Assign to me",
       cancel: "Cancel",
       creating: "Creating…",

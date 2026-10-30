@@ -94,7 +94,8 @@ export interface FrozenIn {
   "issues.cleanup": void;
   "issues.comments": { connectionId?: number | undefined; key: string };
   "issues.copyForAgent": { connectionId?: number | undefined; key: string; minutes?: number | undefined };
-  "issues.createIn": { assignToMe?: false | true | undefined; body?: string | undefined; connectionId: number; container: string; labels?: string[] | undefined; title: string; type?: string | undefined };
+  "issues.createFields": { connectionId: number; container: string; type: string };
+  "issues.createIn": { assignToMe?: false | true | undefined; body?: string | undefined; connectionId: number; container: string; fields?: undefined | { [key: string]: number | string | string[] | { date: string } | { user: string } }; labels?: string[] | undefined; title: string; type?: string | undefined };
   "issues.createTargets": void;
   "issues.createTypes": { connectionId: number; container: string };
   "issues.description": { connectionId?: number | undefined; key: string };
@@ -385,6 +386,7 @@ export interface FrozenOut {
   "issues.cleanup": { deleted: number; kept: number };
   "issues.comments": { author: string; body: string; created: string; doc: { blocks: Rec1; v: 1 }; edited: boolean; id: string; isMine: boolean }[];
   "issues.copyForAgent": { expiresAt: Date; markdown: string };
+  "issues.createFields": ({ fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { multiline: boolean; type: "text" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { nativeType: string; type: "unknown" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "choice" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "multiChoice" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "date" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "number" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "user" })[];
   "issues.createIn": { connectionId: number; key: string; remoteId: string };
   "issues.createTargets": { connectionId: number; containers: { key: string; mine: boolean; name: string }[]; label: string; name: string; types: boolean }[];
   "issues.createTypes": { id: string; name: string }[];
@@ -412,7 +414,7 @@ export interface FrozenOut {
   "issues.syncStatus": { intervalMin: number; lastError: null | string; lastSyncAt: Date | null };
   "issues.toggleFavorite": { favorite: boolean; key: string };
   "issues.transition": { moved: string; to: string };
-  "issues.transitions": { executable: boolean; id: string; name: string; remoteUrl: null | string; requirements: ({ id: string; name: string; required: boolean } & { multiline: boolean; type: "text" } | { id: string; name: string; required: boolean } & { nativeType: string; type: "unknown" } | { id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "choice" } | { id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "multiChoice" } | { id: string; name: string; required: boolean } & { type: "date" } | { id: string; name: string; required: boolean } & { type: "number" } | { id: string; name: string; required: boolean } & { type: "user" })[]; toCategory: "backlog" | "cancelled" | "doing" | "done" | "todo" | "triage"; toStatus: string }[];
+  "issues.transitions": { executable: boolean; id: string; name: string; remoteUrl: null | string; requirements: ({ fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { multiline: boolean; type: "text" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { nativeType: string; type: "unknown" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "choice" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { options: { id: string; name: string }[]; type: "multiChoice" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "date" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "number" } | { fillWith?: "title" | undefined; id: string; name: string; required: boolean } & { type: "user" })[]; toCategory: "backlog" | "cancelled" | "doing" | "done" | "todo" | "triage"; toStatus: string }[];
   "issues.unreadCount": number;
   "issues.watch": { key: string; watching: boolean };
   "mails.account": { account: null | { account: string; displayName: null | string }; available: boolean };

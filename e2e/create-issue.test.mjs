@@ -8,7 +8,9 @@ const TARGETS = [
   { connectionId: 1, name: "Jira", label: "Work Jira", types: true, containers: [{ key: "DEMO", name: "Demo", mine: true }, { key: "NEW", name: "New project", mine: false }] },
   { connectionId: 7, name: "GitHub", label: "Side projects", types: false, containers: [{ key: "acme/web", name: "acme/web", mine: true }] },
 ];
-const TYPES = [{ id: "10002", name: "Bug" }, { id: "10001", name: "Task" }];
+const TYPES = [{ id: "10002", name: "Bug" }, { id: "10001", name: "Task" }, { id: "10000", name: "Epic" }];
+/** What each type asks for beyond the title: an Epic its Epic Name (Jira Server with Jira Software). */
+const EPIC_NAME = { id: "customfield_10102", name: "Epic Name", required: true, type: "text", multiline: false, fillWith: "title" };
 
 /** The creating procedures, as the server answers them; the rest of each batch goes to the server. */
 async function fakeCreate(page, sent) {
@@ -23,6 +25,10 @@ async function fakeCreate(page, sent) {
       if (!mine(n)) return real[i];
       if (n === "issues.createTargets") return { result: { data: { json: TARGETS } } };
       if (n === "issues.createTypes") return { result: { data: { json: TYPES } } };
+      if (n === "issues.createFields") {
+        const asked = (url.searchParams.has("batch") ? input[i]?.json : input.json) ?? JSON.parse(url.searchParams.get("input") ?? "{}")[i]?.json ?? {};
+        return { result: { data: { json: asked.type === "10000" ? [EPIC_NAME] : [] } } };
+      }
       const args = (url.searchParams.has("batch") ? input[i]?.json : input.json) ?? {};
       sent.push(args);
       if (args.title === "bad") return { error: { json: { message: "Something in the request isn't valid: check the fields and try again.", code: -32600, data: { code: "BAD_REQUEST", httpStatus: 400, fields: { title: "Not valid" } } } } };
@@ -67,3 +73,29 @@ test("New issue goes to a Jira project with its type, or to a GitHub repository 
     assert.equal(await page.getByText('"code"').count(), 0);
     assert.deepEqual(sent.at(-1), { connectionId: 7, container: "acme/web", title: "bad", body: "", assignToMe: true });
   }));
+
+test("an Epic asks for its Epic Name, filled from the title", () =>
+  withApp({}, async ({ page, base }) => {
+    const sent = [];
+    await fakeCreate(page, sent);
+    await page.goto(base + "/issues");
+    await page.getByRole("button", { name: "New issue" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "New issue" });
+    await dialog.getByRole("combobox", { name: "Project" }).click();
+    await page.getByRole("option", { name: /DEMO/ }).click();
+    await dialog.getByRole("combobox", { name: "Type" }).click();
+    await page.getByRole("option", { name: "Epic" }).click();
+    await dialog.getByLabel("Title").fill("ChatBot recruiting");
+    // Its Epic Name appears, following the title until it's changed.
+    const epicName = dialog.getByLabel("Epic Name");
+    await epicName.waitFor();
+    assert.equal(await epicName.inputValue(), "ChatBot recruiting");
+    // Emptied: required, so the issue can't be created yet.
+    await epicName.fill("");
+    assert.equal(await dialog.getByRole("button", { name: "Create issue" }).isDisabled(), true);
+    await epicName.fill("ChatBot");
+    await dialog.getByRole("button", { name: "Create issue" }).click();
+    await dialog.waitFor({ state: "detached" });
+    assert.deepEqual(sent.at(-1), { connectionId: 1, container: "DEMO", title: "ChatBot recruiting", body: "", assignToMe: true, type: "10000", fields: { customfield_10102: "ChatBot" } });
+  }));
+

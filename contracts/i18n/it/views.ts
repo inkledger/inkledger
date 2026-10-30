@@ -518,6 +518,7 @@ export const views: Shape<typeof en> = {
       summaryPlaceholder: "Cosa va fatto?",
       descriptionLabel: "Descrizione",
       descriptionPlaceholder: "Contesto, richiesta, riferimenti (facoltativa)",
+      unfillable: "{fields}: questo tipo chiede qualcosa che inkledger non sa compilare. Creala su {provider}.",
       assignToMe: "Assegnala a me",
       cancel: "Annulla",
       creating: "Creazione…",

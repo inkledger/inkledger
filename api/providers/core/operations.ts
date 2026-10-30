@@ -18,7 +18,7 @@ export const TRACKER_GROUPS = {
   worklogs: ["list", "get", "changed", "create", "update", "delete", "setDayTotal", "activities"],
   timeCounter: ["read", "increment", "decrement"],
   comments: ["list", "add"],
-  manage: ["assignable", "assign", "labelOptions", "setLabels", "create", "edit", "createTypes"],
+  manage: ["assignable", "assign", "labelOptions", "setLabels", "create", "edit", "createTypes", "createFields"],
 } as const;
 
 export const SINK_REQUIRED = ["parseOptions", "verify", "probe"] as const;

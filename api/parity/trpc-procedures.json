@@ -356,6 +356,10 @@
     "type": "mutation"
   },
   {
+    "path": "issues.createFields",
+    "type": "query"
+  },
+  {
     "path": "issues.createIn",
     "type": "mutation"
   },

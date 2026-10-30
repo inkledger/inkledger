@@ -685,6 +685,25 @@ export async function fetchCreateIssueTypes(
 }
 
 /** Create an issue; the assignee is `me` (Server: username, Cloud: accountId) or nobody. */
+/** A field of the create screen for one issue type (createmeta), with whether Jira fills it itself. */
+export type JiraCreateField = JiraTransitionField & { fieldId: string; hasDefaultValue?: boolean };
+
+/** The fields an issue of `typeId` has on its create screen in `projectKey` (Jira Server 8.4+ and Cloud). */
+export async function fetchCreateFields(creds: JiraCredentials, projectKey: string, typeId: string): Promise<JiraCreateField[]> {
+  const out: JiraCreateField[] = [];
+  for (let startAt = 0; startAt < 1000; ) {
+    const page = await jiraFetch<{ values?: JiraCreateField[]; isLast?: boolean }>(
+      creds,
+      `${apiBase(creds)}/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes/${encodeURIComponent(typeId)}?startAt=${startAt}&maxResults=50`,
+    );
+    const values = page.values ?? [];
+    out.push(...values.filter((f) => typeof f.fieldId === "string"));
+    if (page.isLast !== false || values.length === 0) break;
+    startAt += values.length;
+  }
+  return out;
+}
+
 export async function createIssue(
   creds: JiraCredentials,
   input: {
@@ -693,9 +712,12 @@ export async function createIssue(
     summary: string;
     description: string;
     assignee: string | null;
+    /** The type's other fields, already in Jira's form */
+    extra?: Record<string, unknown>;
   },
 ): Promise<{ id: string; key: string }> {
   const fields: Record<string, unknown> = {
+    ...input.extra,
     project: { key: input.projectKey },
     issuetype: { id: input.issueTypeId },
     summary: input.summary,

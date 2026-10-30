@@ -132,6 +132,8 @@ export type IssueDraft = {
   labels?: string[];
   assignees?: RemotePerson[];
   type?: string;
+  /** Values for the fields its type asks for (manage.createFields), checked against them by the core */
+  fields?: Record<string, FieldValue>;
 };
 
 /** An issue type a new issue can have in a container (Jira: Task, Bug…). */
@@ -305,7 +307,13 @@ export type Page<T, G> =
 // ---------- Workflow ----------
 
 /** A field a transition asks for. Types are added as real adapters need them; unknown is the safe fallback. */
-export type FieldReq = { id: string; name: string; required: boolean } & (
+export type FieldReq = {
+  id: string;
+  name: string;
+  required: boolean;
+  /** The form may start it from the new issue's title (Jira's Epic Name) */
+  fillWith?: "title";
+} & (
   | { type: "text"; multiline: boolean }
   | { type: "number" }
   | { type: "date" }
@@ -770,6 +778,12 @@ export interface TrackerProvider<
       x: CallContext<T, O>,
       container: ContainerHint
     ): Promise<IssueTypeOption[]>;
+    /** manage.types: the fields a new issue of `type` must have, besides title, body and assignee (Jira's Epic Name) */
+    createFields?(
+      x: CallContext<T, O>,
+      container: ContainerHint,
+      type: string
+    ): Promise<FieldReq[]>;
   };
 
   /** Present when capabilities.watch. */
@@ -950,6 +964,7 @@ export type TrackerShape = {
     create?: Op;
     edit?: Op;
     createTypes?: Op;
+    createFields?: Op;
   };
   watch?: Op;
   history?: Op;

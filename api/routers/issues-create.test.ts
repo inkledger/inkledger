@@ -26,6 +26,24 @@ vi.stubGlobal(
         ? json({ name: "mrossi", key: "JIRAUSER1", displayName: "Mario" })
         : json({ accountId: "acc-1", displayName: "Mario", avatarUrls: {} });
     }
+    // An Epic's create screen (Jira Server with Jira Software): Epic Name required, Jira's own fields too.
+    if (url.pathname.endsWith("/issue/createmeta/NEW/issuetypes/10000")) {
+      return json({
+        isLast: true,
+        values: [
+          { fieldId: "summary", name: "Summary", required: true, schema: { type: "string", system: "summary" } },
+          { fieldId: "issuetype", name: "Issue Type", required: true, schema: { type: "issuetype", system: "issuetype" } },
+          { fieldId: "project", name: "Project", required: true, schema: { type: "project", system: "project" } },
+          { fieldId: "reporter", name: "Reporter", required: true, hasDefaultValue: true, schema: { type: "user", system: "reporter" } },
+          { fieldId: "customfield_10102", name: "Epic Name", required: true, schema: { type: "string", custom: "com.pyxis.greenhopper.jira:gh-epic-label" } },
+          { fieldId: "priority", name: "Priority", required: true, hasDefaultValue: true, schema: { type: "priority", system: "priority" } },
+          { fieldId: "components", name: "Components", required: false, schema: { type: "array", items: "component" }, allowedValues: [{ id: "1", name: "API" }] },
+        ],
+      });
+    }
+    if (url.pathname.endsWith("/issue/createmeta/NEW/issuetypes/10001")) {
+      return json({ isLast: true, values: [{ fieldId: "summary", name: "Summary", required: true, schema: { type: "string", system: "summary" } }] });
+    }
     if (url.pathname.endsWith("/issue/createmeta/NEW/issuetypes")) {
       return json({
         isLast: true,
@@ -122,4 +140,23 @@ describe("creating issues", () => {
     expect(posted.at(-1)!.body.fields.issuetype).toEqual({ id: "10001" });
     await expect(caller.issues.createIn({ connectionId, container: "NEW", title: "   " })).rejects.toThrow();
   });
+
+  it("an Epic asks for its Epic Name, and Jira gets it", async () => {
+    const caller = await callerFor(SERVER, "server");
+    const connectionId = await jiraOf(caller);
+    // Only what Jira requires and doesn't fill itself; the title starts it.
+    expect(await caller.issues.createFields({ connectionId, container: "NEW", type: "10000" })).toEqual([
+      { id: "customfield_10102", name: "Epic Name", required: true, type: "text", multiline: false, fillWith: "title" },
+    ]);
+    expect(await caller.issues.createFields({ connectionId, container: "NEW", type: "10001" })).toEqual([]);
+    // Without it: refused here, Jira never asked (it would answer "Epic Name è obbligatorio").
+    const before = posted.length;
+    await expect(caller.issues.createIn({ connectionId, container: "NEW", type: "10000", title: "ChatBot recruiting" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.issues.createIn({ connectionId, container: "NEW", type: "10000", title: "ChatBot recruiting", fields: { customfield_10102: "x", nope: "y" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(posted.length).toBe(before);
+    // With it: sent as Jira wants it, beside the title.
+    await caller.issues.createIn({ connectionId, container: "NEW", type: "10000", title: "ChatBot recruiting", fields: { customfield_10102: "ChatBot" } });
+    expect(posted.at(-1)!.body.fields).toMatchObject({ summary: "ChatBot recruiting", issuetype: { id: "10000" }, customfield_10102: "ChatBot" });
+  });
 });
+

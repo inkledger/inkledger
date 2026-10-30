@@ -1,6 +1,7 @@
 import { readStored, writeStored } from "@/lib/storage";
 import { failureText, errorText } from "@/lib/errorText";
 import { useId, useState } from "react";
+import { FieldInput, type Field, type Value } from "@/components/issue/FieldInput";
 import { useNavigate } from "react-router";
 import { trpc } from "@/lib/trpc";
 import { takeCreateIssuePrefill } from "@/lib/createIssue";
@@ -80,6 +81,26 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
       ? typeId
       : ((types.data?.find(t => /^(task|attività)$/i.test(t.name)) ?? types.data?.[0])?.id ?? "");
 
+  // What the chosen type asks for beyond the title (Jira's Epic Name, a required custom field).
+  const asked = trpc.issues.createFields.useQuery(target && chosenType ? { ...target, type: chosenType } : { connectionId: 0, container: "", type: "" }, {
+    enabled: !!target && !!where?.types && !!chosenType,
+    retry: false,
+    staleTime: 10 * 60_000,
+  });
+  const fields = asked.data ?? [];
+  // Values per type: another type starts empty. A field filled from the title follows it until edited.
+  const [typed, setTyped] = useState<{ type: string; values: Record<string, Value> }>({ type: "", values: {} });
+  const own = typed.type === chosenType ? typed.values : {};
+  // Emptied by hand stays empty (and missing); untouched, it follows the title where the field says so.
+  const valueOf = (f: Field): Value | undefined => {
+    if (f.id in own) return own[f.id] === "" ? undefined : own[f.id];
+    return f.fillWith === "title" && summary.trim() ? summary.trim() : undefined;
+  };
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  // A required field inkledger can't fill: the issue has to be made on the tracker.
+  const unfillable = fields.filter(f => f.required && f.type === "unknown");
+  const missing = fields.some(f => f.required && f.type !== "unknown" && valueOf(f) === undefined);
+
   const create = trpc.issues.createIn.useMutation({
     onSuccess: async ({ key, connectionId, remoteId }) => {
       toast.success(t("views.issues.create.createdIn", { key }));
@@ -88,10 +109,17 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
       onClose();
       void navigate(issuePath({ key, connectionId, remoteId: remoteId }));
     },
-    onError: e => toast.error(t("views.issues.create.failed", { message: failureText(e) })),
+    onError: e => {
+      // The type's fields at fault, said by each field; anything else in the toast.
+      const at = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields ?? {};
+      const ours = Object.fromEntries(Object.entries(at).filter(([id]) => fields.some(f => f.id === id)));
+      setErrors(ours);
+      if (Object.keys(ours).length === 0 || Object.keys(ours).length < Object.keys(at).length) toast.error(t("views.issues.create.failed", { message: failureText(e) }));
+    },
   });
 
-  const canSubmit = !!target && (!where?.types || !!chosenType) && summary.trim().length > 0 && !create.isPending;
+  const canSubmit =
+    !!target && (!where?.types || !!chosenType) && summary.trim().length > 0 && !create.isPending && !asked.isFetching && unfillable.length === 0 && !missing;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || !target) return;
@@ -104,6 +132,16 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
       body: description,
       assignToMe,
       ...(where?.types ? { type: chosenType } : {}),
+      ...(fields.length > 0
+        ? {
+            fields: Object.fromEntries(
+              fields.flatMap(f => {
+                const v = valueOf(f);
+                return v === undefined ? [] : [[f.id, v] as const];
+              }),
+            ),
+          }
+        : {}),
     });
   };
   // With one tracker its name heads nothing: the groups are "mine" and "others".
@@ -220,6 +258,29 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
             placeholder={t("views.issues.create.descriptionPlaceholder")}
           />
         </div>
+        {fields.map(f => (
+          <FieldInput
+            key={f.id}
+            field={f}
+            value={valueOf(f)}
+            error={errors[f.id]}
+            provider={where?.name ?? provider}
+            onChange={v => {
+              setTyped({ type: chosenType, values: { ...own, [f.id]: v ?? "" } });
+              setErrors(e => Object.fromEntries(Object.entries(e).filter(([id]) => id !== f.id)));
+            }}
+          />
+        ))}
+        {unfillable.length > 0 && (
+          <p role="alert" className="text-caption text-danger">
+            {t("views.issues.create.unfillable", { fields: unfillable.map(f => f.name).join(", "), provider: where?.name ?? provider })}
+          </p>
+        )}
+        {asked.error && (
+          <p role="alert" className="text-caption text-danger">
+            {errorText(asked.error)}
+          </p>
+        )}
         <label className="flex items-center gap-2 text-body-sm">
           <Switch checked={assignToMe} onCheckedChange={setAssignToMe} />
           {t("views.issues.create.assignToMe")}

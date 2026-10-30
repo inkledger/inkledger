@@ -41,8 +41,7 @@ import {
   updateWorklog,
   type JiraComment,
   type JiraSearchedIssue,
-  type JiraWorklog,
-} from "../../jira/client";
+  type JiraWorklog, fetchCreateFields, type JiraCreateField } from "../../jira/client";
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ConversionWarning, FieldReq, FieldValue, RemoteBody, RemoteComment, RemoteIssue, RemoteStatus, RemoteWorklog, TrackerProvider, WorklogInput } from "../types";
@@ -269,6 +268,18 @@ function jiraValue(req: FieldReq | undefined, v: FieldValue, deployment: "cloud"
   return v;
 }
 
+/** What the create dialog already asks for, or Jira fills on its own: never asked twice. */
+const CREATE_HANDLED = new Set(["project", "issuetype", "summary", "description", "reporter", "assignee", "attachment", "issuelinks"]);
+/** Jira Software's Epic Name: the form starts it from the title. */
+const EPIC_NAME = "com.pyxis.greenhopper.jira:gh-epic-label";
+
+/** The fields a new issue must have, beyond the dialog's own: required ones Jira doesn't default. */
+function createRequirements(fields: JiraCreateField[]): FieldReq[] {
+  return fields
+    .filter((f) => f.required && !f.hasDefaultValue && !CREATE_HANDLED.has(f.fieldId))
+    .map((f) => ({ ...requirementOf(f.fieldId, f), ...(f.schema?.custom === EPIC_NAME ? { fillWith: "title" as const } : {}) }));
+}
+
 export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
   role: "tracker",
   type: "jira",
@@ -382,18 +393,28 @@ export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
     async createTypes(x, container) {
       return (await fetchCreateIssueTypes(await credsOf(x), container.key)).filter((t) => !t.subtask).map((t) => ({ id: t.id, name: t.name }));
     },
+    async createFields(x, container, type) {
+      return createRequirements(await fetchCreateFields(await credsOf(x), container.key, type));
+    },
     async create(x, container, draft) {
       const creds = await credsOf(x);
       // Jira asks for a type: the one chosen, else a task, else the first it offers.
       const offered = draft.type ? [] : (await fetchCreateIssueTypes(creds, container.key)).filter((t) => !t.subtask);
       const type = draft.type ?? (offered.find((t) => /^(task|attività)$/i.test(t.name)) ?? offered[0])?.id;
       if (!type) throw new ProviderError("invalid", `No issue type can be created in ${container.key}`);
+      // The type's own fields (Epic Name…), in each field's form: the create screen says which.
+      let extra: Record<string, unknown> = {};
+      if (draft.fields && Object.keys(draft.fields).length > 0) {
+        const reqs = new Map(createRequirements(await fetchCreateFields(creds, container.key, type)).map((r) => [r.id, r]));
+        extra = Object.fromEntries(Object.entries(draft.fields).map(([id, v]) => [id, jiraValue(reqs.get(id), v, x.conn.options.deployment)]));
+      }
       const created = await createIssue(creds, {
         projectKey: container.key,
         issueTypeId: type,
         summary: draft.title,
         description: draft.body ?? "",
         assignee: draft.assignees?.[0]?.remoteId ?? null,
+        extra,
       });
       const i = await fetchIssueByKey(creds, created.key);
       if (!i) throw new ProviderError("unavailable", `${created.key} was created but can't be read yet`);

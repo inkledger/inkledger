@@ -18,7 +18,7 @@ import { isClosed } from "@contracts/categories";
 /** Finished one way or the other. */
 const CLOSED = ["done", "cancelled"];
 import { providerCall } from "../providers/trpc";
-import { assertTransitionFields, executable } from "../providers/core/fields";
+import { assertFields, assertTransitionFields, executable } from "../providers/core/fields";
 import { localDate, markdown } from "@contracts/values";
 import { randomUUID } from "node:crypto";
 import type { FieldValue, RemoteBody, RemoteIssue } from "../providers/types";
@@ -131,6 +131,10 @@ async function containersOf(conn: Connection, b: NonNullable<ReturnType<typeof b
 }
 
 /** A transition field's value, as the form sends it (checked against the field by the core). */
+/** Field values as the providers take them: dates as local dates. */
+const fieldValues = (raw: Record<string, z.infer<typeof fieldValueInput>> | undefined): Record<string, FieldValue> =>
+  Object.fromEntries(Object.entries(raw ?? {}).map(([id, v]) => [id, typeof v === "object" && !Array.isArray(v) && "date" in v ? { date: localDate(v.date) } : v]));
+
 const fieldValueInput = z.union([
   z.string().max(10_000),
   z.number(),
@@ -787,6 +791,16 @@ export const issuesRouter = createRouter({
       return providerCall(() => b.manage!.createTypes!(callMeta(), { remoteId: input.container, key: input.container }));
     }),
 
+  /** The fields a new issue of a type must have beyond title, body and assignee (Jira's Epic Name), where its tracker says. */
+  createFields: protectedProcedure
+    .input(z.object({ connectionId: z.number().int().positive(), container: z.string().min(1).max(200), type: z.string().min(1).max(100) }))
+    .query(async ({ ctx, input }) => {
+      const conn = await ownConnection(ctx.user.id, input.connectionId);
+      const b = boundTracker(conn);
+      if (!b?.manage?.createFields) return [];
+      return providerCall(() => b.manage!.createFields!(callMeta(), { remoteId: input.container, key: input.container }, input.type));
+    }),
+
   /** A new issue in a container of a connection (a Jira project, a GitHub repository), then into the catalogue. */
   createIn: protectedProcedure
     .input(
@@ -799,6 +813,8 @@ export const issuesRouter = createRouter({
         assignToMe: z.boolean().optional(),
         /** One of createTypes, where the tracker asks for a type */
         type: z.string().min(1).max(100).optional(),
+        /** Values for createFields of that type */
+        fields: z.record(z.string().max(200), fieldValueInput).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -807,12 +823,18 @@ export const issuesRouter = createRouter({
       if (!b?.manage?.create) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(conn.type) }) });
       // Me as the tracker knows me (with the handle it assigns by).
       const me = input.assignToMe ? await providerCall(() => b.verify(callMeta())) : null;
+      // The type's own fields, checked as a transition's are: required, of their kind, nothing else.
+      const container = { remoteId: input.container, key: input.container };
+      const fields = fieldValues(input.fields);
+      const asked = input.type && b.manage.createFields ? await providerCall(() => b.manage!.createFields!(callMeta(), container, input.type!)) : [];
+      await providerCall(async () => assertFields(input.title, asked, fields));
       const created = await providerCall(() =>
         b.manage!.create!(callMeta(), { remoteId: input.container, key: input.container }, {
           title: input.title,
           ...(input.body ? { body: markdown(input.body) } : {}),
           ...(input.labels ? { labels: input.labels } : {}),
           ...(input.type ? { type: input.type } : {}),
+          ...(Object.keys(fields).length > 0 ? { fields } : {}),
           assignees: me ? [me] : [],
         }),
       );
@@ -869,9 +891,7 @@ export const issuesRouter = createRouter({
         });
       }
       // Dates as the contract's calendar days (a bad one is the form's fault).
-      const fields: Record<string, FieldValue> = Object.fromEntries(
-        Object.entries(input.fields ?? {}).map(([id, v]) => [id, typeof v === "object" && !Array.isArray(v) && "date" in v ? { date: localDate(v.date) } : v]),
-      );
+      const fields = fieldValues(input.fields);
       const after = await providerCall(async () => {
         assertTransitionFields(target, fields);
         return b.transitions!.apply!(callMeta(), ref, target.id, fields);
