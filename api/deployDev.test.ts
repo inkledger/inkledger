@@ -38,6 +38,15 @@ describe("deploy/dev.yml", () => {
     expect(Number(ollama.mem_limit)).toBe(8 * 1024 ** 3);
     expect(Number(ollama.cpus)).toBe(4);
     expect(ollama.environment?.OLLAMA_KEEP_ALIVE).toBe("5m");
+    // The forecast sidecar only on request (profile ml), built here, local, bounded (1 GB, 1 CPU), its model in a volume.
+    expect(c.services.forecast).toBeUndefined();
+    const ml = composeConfig(["--profile", "ml"]) as { services: Record<string, { build?: { context?: string }; ports?: { host_ip?: string; published?: string }[]; mem_limit?: string | number; cpus?: number; volumes?: { target?: string; source?: string }[] }> };
+    const forecast = ml.services.forecast;
+    expect(forecast.build?.context).toMatch(/ml\/forecast$/);
+    expect(forecast.ports).toEqual([expect.objectContaining({ host_ip: "127.0.0.1", published: "8601" })]);
+    expect(Number(forecast.mem_limit)).toBe(1024 ** 3);
+    expect(Number(forecast.cpus)).toBe(1);
+    expect(forecast.volumes).toEqual([expect.objectContaining({ source: "ml-models", target: "/models" })]);
     // Nothing of the other stacks.
     expect(JSON.stringify(c)).not.toMatch(/jtt|inkledger-db\b|54329|54330/);
   });

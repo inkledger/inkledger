@@ -9,6 +9,14 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_NO_CACHE=1 UV_PROJECT_ENVIRONMENT
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev
 
+# The sidecar's tests (CI: `docker build --target test`): no real model, no network.
+FROM build AS test
+RUN uv sync --frozen
+COPY models.lock.json ./
+COPY src ./src
+COPY tests ./tests
+RUN uv run --no-sync pytest -q
+
 FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv

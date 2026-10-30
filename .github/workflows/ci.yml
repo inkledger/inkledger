@@ -126,6 +126,32 @@ jobs:
       - name: Logs
         if: failure()
         run: docker logs app
+      # The forecast sidecar: its tests, then the image as it runs, with the stand-in model (no download).
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ml/forecast
+          target: test
+          push: false
+          cache-from: type=gha,scope=forecast
+          cache-to: type=gha,scope=forecast,mode=max
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ml/forecast
+          push: false
+          load: true
+          tags: inkledger-forecast:ci
+          cache-from: type=gha,scope=forecast
+      - name: Run the forecast sidecar
+        run: |
+          docker run -d --name forecast -p 8601:8601 -e FORECAST_FAKE=1 inkledger-forecast:ci
+          for _ in {1..60}; do curl -fs http://127.0.0.1:8601/health && break; sleep 1; done
+          curl -fs http://127.0.0.1:8601/health | grep -q '"up":true'
+          for _ in {1..30}; do curl -fs http://127.0.0.1:8601/ready && break; sleep 1; done
+          curl -fs -X POST http://127.0.0.1:8601/forecast -H 'content-type: application/json' \
+            -d '{"series":[1,2,3,4,5,6,7],"freq":"D","horizon":3,"quantiles":[0.1,0.5,0.9]}' | grep -q '"0.5"'
+      - name: Sidecar logs
+        if: failure()
+        run: docker logs forecast
 
   image:
     if: startsWith(github.ref, 'refs/tags/v')

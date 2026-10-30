@@ -1,6 +1,6 @@
 # Spec: services in containers, a clean machine
 
-Status: B5.1, B5.3 done 2026-10-30. Open questions are asked when their batch is reached (README, R-0.12).
+Status: B5.1, B5.3, B5.4 done 2026-10-30 (B5.4's CI run after the push). Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Verified facts
@@ -34,6 +34,7 @@ Status: B5.1, B5.3 done 2026-10-30. Open questions are asked when their batch is
 ## Decisions
 - **D-5.1 (B5.1, from the answers of 2026-10-30)** 54331 is the e2e tests' Postgres, not a dev database: dev logs on `jtt` (Q1). `deploy/dev.yml` (project `inkledger-dev`) has `test-db` (container `inkledger-test-db`, postgres:17-alpine pinned by the digest already on this machine, 127.0.0.1:54331, data in tmpfs: empty at every start). Scripts `pnpm test:db` (up, waits healthy) and `pnpm dev:down` (down, no `-v`: nothing to lose anyway). The harness takes `E2E_DATABASE_URL` from the environment or `.env`, else `DATABASE_URL` as before. The YAML is checked as Docker reads it (`docker compose config --format json`, `api/deployDev.test.ts`), skipped only where docker is missing (user's choice: no YAML dependency).
 - **D-5.2 (B5.3)** The `ai` profile pins `ollama/ollama:0.34.4` (the version of the native Ollama on this Mac, published 2026-09-24) by digest; container `inkledger-ollama`, 127.0.0.1:11434, volume `ollama-models`, 8 GB / 4 CPU (Q3). Scripts `pnpm dev:services` (profile ai up) and `pnpm dev:down` (all down, no `-v`). Variables read by `serviceEnv` in `api/lib/env.ts` (pure, tested): unset URLs mean the feature isn't offered; an unusable URL counts as unset; `MAIL_COPIES` on unless "off" (each user still opts in); `.env.example` states Timestral's revenue cap. The Ollama how-to (native vs container, no Metal in Docker) is in `docs/dev/services.md`, linked from CONTRIBUTING.md.
+- **D-5.3 (B5.4)** Profile `ml`: service `forecast` built from `ml/forecast` (`inkledger-forecast:dev`), 127.0.0.1:8601, volume `ml-models` at `/models`, 1 GB / 1 CPU (Q3). `pnpm dev:services` starts both profiles, `pnpm dev:down` stops both. CI's `docker` job builds the sidecar's `test` stage (its pytest, no model) and then the image, runs it with `FORECAST_FAKE=1` and checks `/health`, `/ready` and one `/forecast`; no new third-party action (the same pinned build-push action, its own cache scope).
 
 ## AC → test
 

@@ -3,7 +3,8 @@
 #   pnpm test:db          the e2e tests' Postgres (empty at every start)
 #   pnpm dev:services     Ollama in a container (profile ai): CPU only on a Mac (no Metal in Docker);
 #                         a native `ollama serve` is faster, the app only sees OLLAMA_URL either way
-# The `ml` profile (the forecast sidecar) comes with its batch.
+#   pnpm dev:services     also the forecast sidecar (profile ml, built from ml/forecast): its model is
+#                         downloaded on first start into the ml-models volume, never in the image
 name: inkledger-dev
 
 services:
@@ -48,5 +49,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # The forecast sidecar (docs/work/ideas/estimates.md R-3.21): FORECAST_URL=http://127.0.0.1:8601.
+  forecast:
+    profiles: [ml]
+    build: ../ml/forecast
+    image: inkledger-forecast:dev
+    container_name: inkledger-forecast
+    restart: unless-stopped
+    environment:
+      FORECAST_MODEL: Timestral-28M
+    ports:
+      - "127.0.0.1:8601:8601"
+    volumes:
+      - ml-models:/models
+    mem_limit: 1g
+    cpus: 1
+
 volumes:
   ollama-models:
+  ml-models:

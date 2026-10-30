@@ -20,6 +20,21 @@ Measured on 2026-10-30 (native, this kind of Mac, 5 ideas with the JSON schema):
 in 8–12 s, every answer valid and coherent; `qwen3:4b` in 6–14 s, one answer in five degenerate
 at the app's temperature (0.2). Hence the default.
 
+## Forecast sidecar (when will I finish)
+
+`ml/forecast/`: Mistral's Timestral behind a small HTTP API, in Python (uv). `pnpm dev:services`
+builds and starts it (profile `ml`, 127.0.0.1:8601, 1 GB / 1 CPU); then `FORECAST_URL=http://127.0.0.1:8601`.
+
+- The weights are pinned in `ml/forecast/models.lock.json` (commit and sha256 of every file) and
+  downloaded on first start into the `ml-models` volume, never into the image. `/health` answers at
+  once, `/ready` once the model is checked and loaded (about 15 s the first time).
+- **Licence:** the weights are Modified MIT: not licensed when your company's or your employer's
+  consolidated monthly revenue exceeds $20M. The inference code is Apache 2.0.
+- Tests: `cd ml/forecast && uv run pytest` (no model, no network), or `docker build --target test ml/forecast`.
+- `FORECAST_FAKE=1` answers without a model (CI); on the Node side `FORECAST_SIMULATOR=1` needs no sidecar at all.
+
+Measured on 2026-10-30 (this Mac, the container): 306 MB at rest, 76 ms for 365 days → 28.
+
 ## Postgres for the e2e tests
 
 `pnpm test:db` (127.0.0.1:54331, in memory) and `E2E_DATABASE_URL` in `.env`: see CONTRIBUTING.md.
