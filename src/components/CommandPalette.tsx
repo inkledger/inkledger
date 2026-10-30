@@ -10,6 +10,7 @@ import {
   ListTodo,
   Moon,
   NotebookPen,
+  Lightbulb,
   Play,
   Sunset,
   Maximize2,
@@ -46,7 +47,7 @@ import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
-import { createIssueDialog, dayReview, focusMode, screensaver } from "@/lib/flag";
+import { createIssueDialog, dayReview, focusMode, ideaCapture, screensaver } from "@/lib/flag";
 import { openPinMail } from "@/components/mail/pinMail";
 import { togglePinboard, usePinboardTarget } from "@/hooks/usePinboardPanel";
 import { toggleTodos, useTodoTarget } from "@/hooks/useTodoPanel";
@@ -217,6 +218,9 @@ export function CommandPalette() {
           <CommandItem onSelect={() => go("/timesheet")}>
             <CalendarDays className="mr-2 h-4 w-4" /> {t("ui.nav.timesheet")}
           </CommandItem>
+          <CommandItem onSelect={() => go("/ideas")}>
+            <Lightbulb className="mr-2 h-4 w-4" /> {t("ui.nav.ideas")}
+          </CommandItem>
           <CommandItem onSelect={() => go("/board")}>
             <KanbanSquare className="mr-2 h-4 w-4" /> {t("ui.nav.board")}
           </CommandItem>
@@ -261,6 +265,14 @@ export function CommandPalette() {
           </CommandItem>
           <CommandItem onSelect={() => go(`/notes/new?draft=${newDraftId()}`)}>
             <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.palette.newNote")}
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              ideaCapture.set(true);
+            }}
+          >
+            <Lightbulb className="mr-2 h-4 w-4" /> {t("ui.palette.newIdea")}
           </CommandItem>
           <CommandItem
             onSelect={() => {

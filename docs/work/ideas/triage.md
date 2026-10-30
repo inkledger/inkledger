@@ -1,6 +1,6 @@
 # Spec: a waiting room that turns ideas into issues (#6)
 
-Status: batch 1 done (2026-10-30); batch 2 next. Open questions are asked when their batch is reached (README, R-0.12).
+Status: batches 1–2 done (2026-10-30); batch 3 next. Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Problem
@@ -331,7 +331,14 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
      - **AC-2.4, 2.5** test the contract (`handoffPrompt`, `askMailUrl`); their procedures come with batch 3. The prompt's sections are always there, empty when the idea has nothing for them; a mail link keeps `@` readable (`mailto:anna@example.com`).
      - **Stored lists** are read back through their input schemas; anything else reads as an empty list.
      - `sourceItemId`/`promotedItemId` and their trigger are left to batches 3 and 4, where they are filled.
-2. `/ideas` page (columns and list, capture, Sheet, drag, keyboard), nav, ⌘K. R-2.11. AC-2.15, 2.16, 2.20, 2.21.
+2. [x] `/ideas` page (columns and list, capture, Sheet, drag, keyboard), nav, ⌘K. R-2.11. AC-2.15, 2.16, 2.20, 2.21.
+   - **Done (2026-10-30).** Decisions, to review:
+     - **New texts** (the spec gave the main ones only): `pages.ideas.description`, `captureLabel`, `add`, `added`, `view`, `viewColumns`, `viewList`, `project`, `allProjects`, `noProject`, `openQuestions`, `moveTo`, `moved`, `more`, `showColumn`, `hideColumn`, `delete`, `deleted`, `discard`, `open`, `ideaTitle`, `problem`, `addCriterion`, `addQuestion`, `answer`, `route.label`, `route.none`, `remove`, `saved`, `undo`; `ui.nav.ideas` and `ui.palette.newIdea` as in the spec.
+     - **`ideas.projects`**, a procedure the spec doesn't list: the projects of the user's connections in use, for the page's filter and the sheet's project (the existing `connections.containers` takes one connection at a time).
+     - **The sheet's body** is a plain Textarea, without the RichText preview: the notes' editor doesn't come apart from its page, and a preview needs a Markdown-to-rich-text step the front end doesn't have. Each field saves when left; the route is a SegmentedControl with "Not chosen" first.
+     - **Promoted and Discarded** start collapsed; the open/closed choice is the shared collapsed-columns setting, under "ideas:" (for those two it stores which are open).
+     - **Keyboard:** a focused card moves with Alt+←/→ to the column before or after; its "…" menu has "Move to" for any column; each move is announced (`role=status`).
+     - **The render budget held** only after the menu's sections were drawn by a memoized `NavRow` (`src/components/AppLayout.tsx`): with one more section, the dashboard went to 2898 component renders over its 2860. Now 1853, and the other pages about 1000 fewer each. The limits in `e2e/renders.test.mjs` are unchanged (lowering them to the new figures is for you to decide).
 3. Promote, handoff, askMail. R-2.5, 2.6. AC-2.11, 2.17.
 4. `fromIssue`, `forIssue`, issue chip. R-2.4, 2.10. AC-2.10, 2.18.
 5. LLM (after B5 batch 3). R-2.8. AC-2.13, 2.14, 2.19.

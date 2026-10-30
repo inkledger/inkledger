@@ -12,6 +12,10 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/ideas",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/info",
     "guard": "RequireAuth"
   },

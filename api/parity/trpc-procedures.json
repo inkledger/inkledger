@@ -224,6 +224,10 @@
     "type": "mutation"
   },
   {
+    "path": "ideas.projects",
+    "type": "query"
+  },
+  {
     "path": "ideas.remove",
     "type": "mutation"
   },

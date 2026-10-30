@@ -45,3 +45,5 @@ export const todoFloat = createFlag();
 export const todoFloatFocus = createFlag();
 /** The Board's pinboard sheet on small screens. */
 export const pinboardSheet = createFlag();
+/** "New idea" (the palette): a small capture of ideas from anywhere. */
+export const ideaCapture = createFlag();

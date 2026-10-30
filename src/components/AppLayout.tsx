@@ -3,7 +3,8 @@ import { lazyPart } from "@/components/app/lazyPart";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
-import { Suspense, useRef } from "react";
+import { memo, Suspense, useRef } from "react";
+import type { LucideIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import {
@@ -99,6 +100,7 @@ const Screensaver = lazyPart(() => import("@/components/screensaver/Screensaver"
 const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog));
 const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog));
 const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
+const IdeaCaptureDialog = lazyPart(() => import("@/components/ideas/IdeaCaptureDialog").then(m => m.IdeaCaptureDialog));
 const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog));
 
 /** Opens the focus view; shown only while a timer exists. */
@@ -162,6 +164,70 @@ function RailTip({
   );
 }
 
+// One row for both widths: the icon keeps its place while the width
+// animates, the label only shows open. Nothing moves on toggling.
+const ROW =
+  "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const ICON = "h-[18px] w-[18px] shrink-0";
+const labelClass = (collapsed: boolean) => cn("min-w-0 truncate", collapsed && "sr-only");
+
+/** A count beside a row: a number open, a dot on the icon closed. */
+function CountChip({ count, collapsed, title, sr }: { count: number; collapsed: boolean; title?: string; sr?: string }) {
+  return (
+    <span
+      title={title}
+      {...surface("chip")}
+      className={cn(
+        "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
+        collapsed ? "absolute left-[34px] top-1 h-2 w-2 bg-primary-strong" : "ml-auto px-1.5 py-px"
+      )}
+    >
+      <span className={cn(collapsed && "sr-only")}>
+        {count}
+        {sr && <span className="sr-only">{sr}</span>}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * A section of the menu: drawn again only when its own count or the width
+ * changes (the sidebar itself redraws with every sync tick and count).
+ */
+const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, count, countTitle, countSr }: {
+  to: string;
+  name: string;
+  Icon: LucideIcon;
+  collapsed: boolean;
+  padForPin: boolean;
+  count: number | null;
+  countTitle?: string;
+  countSr?: string;
+}) {
+  return (
+    <RailTip collapsed={collapsed} label={name}>
+      {/* Static classes (aria-current) so Tooltip's asChild merge keeps them. */}
+      <NavLink
+        to={to}
+        end={to === "/"}
+        aria-label={collapsed ? name : undefined}
+        // Stands out only while current; keeps its own ::before bar.
+        {...surface("nav", { current: true, edge: false })}
+        className={cn(
+          ROW,
+          "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
+          "before:absolute before:-left-2 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100",
+          padForPin && "pr-9"
+        )}
+      >
+        <Icon className={ICON} aria-hidden />
+        <span className={labelClass(collapsed)}>{name}</span>
+        {count !== null && <CountChip count={count} collapsed={collapsed} title={countTitle} sr={countSr} />}
+      </NavLink>
+    </RailTip>
+  );
+});
+
 function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const { pathname } = useLocation();
@@ -183,28 +249,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   // The Board's pin button opens the Board's own panel there; "p" the widget first.
   const pinTarget = usePinboardTarget(pathname, true);
 
-  // One row for both widths: the icon keeps its place while the width
-  // animates, the label only shows open. Nothing moves on toggling.
-  const row =
-    "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const label = cn("min-w-0 truncate", collapsed && "sr-only");
-  const icon = "h-[18px] w-[18px] shrink-0";
-  // A count beside a row: a number open, a dot on the icon closed.
-  const countChip = (count: number, title?: string, sr?: string) => (
-    <span
-      title={title}
-      {...surface("chip")}
-      className={cn(
-        "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
-        collapsed ? "absolute left-[34px] top-1 h-2 w-2 bg-primary-strong" : "ml-auto px-1.5 py-px"
-      )}
-    >
-      <span className={cn(collapsed && "sr-only")}>
-        {count}
-        {sr && <span className="sr-only">{sr}</span>}
-      </span>
-    </span>
-  );
+  const row = ROW;
+  const label = labelClass(collapsed);
+  const icon = ICON;
 
   return (
     <div
@@ -246,7 +293,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           >
             <Bell className={icon} aria-hidden />
             <span className={label}>{t("ui.layout.notifications")}</span>
-            {inbox > 0 && <span aria-hidden>{countChip(inbox)}</span>}
+            {inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
           </button>
         </RailTip>
       </div>
@@ -260,26 +307,17 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           const links = items.map(({ to, label: name, icon: Icon }) => {
             const chip = chipOf(to);
             const link = (
-              <RailTip key={to} collapsed={collapsed} label={name}>
-                {/* Static classes (aria-current) so Tooltip's asChild merge keeps them. */}
-                <NavLink
-                  to={to}
-                  end={to === "/"}
-                  aria-label={collapsed ? name : undefined}
-                  // Stands out only while current; keeps its own ::before bar.
-                  {...surface("nav", { current: true, edge: false })}
-                  className={cn(
-                    row,
-                    "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
-                    "before:absolute before:-left-2 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100",
-                    to === "/board" && !collapsed && "pr-9"
-                  )}
-                >
-                  <Icon className={icon} aria-hidden />
-                  <span className={label}>{name}</span>
-                  {chip && countChip(chip.count, chip.title, chip.sr)}
-                </NavLink>
-              </RailTip>
+              <NavRow
+                key={to}
+                to={to}
+                name={name}
+                Icon={Icon}
+                collapsed={collapsed}
+                padForPin={to === "/board" && !collapsed}
+                count={chip?.count ?? null}
+                countTitle={chip?.title}
+                countSr={chip?.sr}
+              />
             );
             if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page") return link;
             // The pinboard, one tap away from any page: a sibling of the
@@ -618,6 +656,7 @@ export function AppLayout() {
         <HotCorner />
         <StartChoiceDialog />
         <CreateIssueDialog />
+        <IdeaCaptureDialog />
         <IssueHistoryDialog />
         <ModuleSettingsSheet />
       </div>

@@ -6,7 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { connections, containers, ideas } from "@db/schema";
 import { t } from "@contracts/i18n";
-import { canMove, CAPTURE_MAX, IDEA_STATES, splitIdeas, type Criterion, type IdeaState, type Question } from "@contracts/ideas";
+import { canMove, CAPTURE_MAX, IDEA_ROUTES, IDEA_STATES, splitIdeas, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 
@@ -38,12 +38,14 @@ function parsed<T>(schema: z.ZodType<T[]>, text: string): T[] {
 }
 
 const isState = (s: string): s is IdeaState => (IDEA_STATES as readonly string[]).includes(s);
+const isRoute = (r: string | null): r is IdeaRoute => r !== null && (IDEA_ROUTES as readonly string[]).includes(r);
 
 /** An idea as the page shows it: its lists parsed, its project named. */
 function rowOf(i: IdeaRecord, container: { id: number; key: string; name: string } | null) {
   return {
     ...i,
     state: isState(i.state) ? i.state : "raw",
+    route: isRoute(i.route) ? i.route : null,
     acceptance: parsed<Criterion>(acceptance, i.acceptance),
     questions: parsed<Question>(questions, i.questions),
     labels: parsed<string>(labels, i.labels),
@@ -118,6 +120,17 @@ export const ideasRouter = createRouter({
   }),
 
   get: protectedProcedure.input(z.object({ id })).query(({ ctx, input }) => ownIdea(ctx.user.id, input.id)),
+
+  /** The projects an idea can be filed under: those of the user's connections in use (R-2.9). */
+  projects: protectedProcedure.query(({ ctx }) =>
+    getDb()
+      .select({ id: containers.id, key: containers.key, name: containers.name })
+      .from(containers)
+      .innerJoin(connections, eq(connections.id, containers.connectionId))
+      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+      .orderBy(asc(containers.key))
+      .limit(500),
+  ),
 
   /** One idea per line, at the top of Raw, in the order written (R-2.2). */
   capture: protectedProcedure.input(z.object({ text: z.string().max(20_000), containerId: id.optional() })).mutation(async ({ ctx, input }) => {
