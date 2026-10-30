@@ -96,6 +96,26 @@ describe("data migrations", () => {
     }
   });
 
+  it("notes from before take the local day they were written; folders and dated notes are left alone", async () => {
+    process.env.DATABASE_URL = ":memory:";
+    const conn = await import("./connection");
+    const db = await conn.resetDbForTests();
+    const [u] = await conn.q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('n', 'N', 1) RETURNING id");
+    // Late evening, local time: UTC would say the next day in zones behind it, the previous one ahead.
+    const late = new Date(2026, 9, 28, 23, 30).getTime();
+    const add = (id: string, kind: string, notedOn: string | null) =>
+      conn.q("INSERT INTO markdown_notes (id, user_id, kind, title, noted_on, created_at, updated_at) VALUES (?, ?, ?, 't', ?, ?, ?)", id, u.id, kind, notedOn, late, late);
+    await add("00000000-0000-4000-8000-000000000001", "note", null);
+    await add("00000000-0000-4000-8000-000000000002", "folder", null);
+    await add("00000000-0000-4000-8000-000000000003", "note", "2026-01-02");
+    const { DATA_MIGRATIONS } = await import("./dataMigrations");
+    const step = DATA_MIGRATIONS.find((s) => s.id === "note-noted-on")!;
+    await step.run(db);
+    await step.run(db);
+    const rows = await conn.q<{ id: string; noted_on: string | null }>("SELECT id, noted_on FROM markdown_notes ORDER BY id");
+    expect(rows.map((r) => r.noted_on)).toEqual(["2026-10-28", null, "2026-01-02"]);
+  });
+
   it("a failing step stops the run and runs again next time", async () => {
     process.env.DATABASE_URL = ":memory:";
     const conn = await import("./connection");

@@ -23,6 +23,7 @@ import {
 import { getDb, type Db } from "./connection";
 import { noteDerived } from "./noteSearch";
 import { t } from "@contracts/i18n";
+import { dayKey } from "@contracts/time";
 
 export type NoteTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Store = Db | NoteTx;
@@ -44,6 +45,8 @@ export function noteTreeItem(row: MarkdownNote): NoteTreeItem {
     contentRevision: row.contentRevision,
     connectionId: row.connectionId,
     issueKey: row.issueKey,
+    notedOn: row.notedOn,
+    hasAi: row.aiBody !== null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -54,6 +57,15 @@ export function noteDocument(row: MarkdownNote): NoteDocument {
     ...noteTreeItem(row),
     body: row.body,
     doc: noteDerived(row.title, row.body).doc,
+    ai:
+      row.aiBody === null
+        ? null
+        : {
+            body: row.aiBody,
+            doc: noteDerived(row.title, row.aiBody).doc,
+            createdAt: row.aiCreatedAt,
+            stale: row.aiSourceRevision !== row.contentRevision,
+          },
   };
 }
 
@@ -274,6 +286,8 @@ export async function createNote(
     parentId: string | null;
     issue: { connectionId: number; issueKey: string } | null;
     kind?: NoteKind;
+    /** The note's day as the browser counts it; today on the server's clock otherwise */
+    notedOn?: string;
   }
 ): Promise<MarkdownNote> {
   const derived = noteDerived(input.title, input.body);
@@ -310,6 +324,7 @@ export async function createNote(
         connectionId: input.issue?.connectionId ?? null,
         issueKey: input.issue?.issueKey ?? null,
         itemId: null,
+        notedOn: kind === "note" ? (input.notedOn ?? dayKey(new Date())) : null,
       })
       .returning();
     // A folder goes after the folders already there, before the notes.

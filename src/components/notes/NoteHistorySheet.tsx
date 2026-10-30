@@ -35,12 +35,14 @@ const origins: Record<
   | "pages.notes.conflictOrigin"
   | "pages.notes.deleteOrigin"
   | "pages.notes.restoreOrigin"
+  | "pages.notes.aiOrigin"
 > = {
   auto: "pages.notes.auto",
   manual: "pages.notes.manual",
   conflict: "pages.notes.conflictOrigin",
   delete: "pages.notes.deleteOrigin",
   restore: "pages.notes.restoreOrigin",
+  ai: "pages.notes.aiOrigin",
 };
 
 export function NoteHistorySheet({

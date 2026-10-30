@@ -52,6 +52,10 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/notes/diary",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/notes/new",
     "guard": "RequireAuth"
   },

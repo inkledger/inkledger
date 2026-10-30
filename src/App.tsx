@@ -163,6 +163,7 @@ export default function App() {
               <Route path="/notes" element={<NotesPage />} />
               <Route path="/notes/new" element={<NotesPage />} />
               <Route path="/notes/trash" element={<NotesPage />} />
+              <Route path="/notes/diary" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NotesPage />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings/:section?" element={<Settings />} />

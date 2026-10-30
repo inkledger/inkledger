@@ -190,6 +190,13 @@ export const server: Shape<typeof en> = {
     },
   },
   notes: {
+    searchTooShort: "Scrivi almeno due lettere, o una data come data:ieri.",
+    tidyTooLong: "Questa nota è troppo lunga per il modello locale (fino a {count} caratteri): sistemane una più corta, o usa Copia per modello.",
+    tidyEmpty: "Non c'è ancora testo da sistemare.",
+    noAi: "Questa nota non ha una versione IA.",
+    summaryEmpty: "In questi giorni non è stato scritto né registrato niente.",
+    summaryTitle: "Resoconto {period}",
+    timelineTitle: "Cronostoria {period}",
     notFound: "Appunto non trovato",
     deleted: "Questo appunto è nel cestino: ripristinalo prima di modificarlo.",
     empty: "Scrivi prima un titolo o del Markdown.",

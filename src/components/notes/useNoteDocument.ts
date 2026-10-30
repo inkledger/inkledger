@@ -19,6 +19,7 @@ import {
   type NoteDraft,
 } from "./drafts";
 import { onServerNote, setNoteDirty } from "./noteSync";
+import { dayKey } from "@contracts/time";
 
 export type SaveState =
   "draft" | "saving" | "saved" | "offline" | "error" | "conflict";
@@ -30,6 +31,8 @@ type Options = {
   recoverAnyDraft?: boolean;
   parentId: string | null;
   issue: NoteIssue | null;
+  /** A new note's day (from the diary); today in this browser otherwise */
+  notedOn?: string;
   onCreated: (note: NoteDocument) => void;
 };
 
@@ -276,6 +279,7 @@ export function useNoteDocument(options: Options) {
                 ...captured,
                 parentId: optionsRef.current.parentId,
                 issue: optionsRef.current.issue,
+                notedOn: optionsRef.current.notedOn ?? dayKey(new Date()),
               });
               if (runGeneration !== generation.current) break;
               currentIdRef.current = note.id;
@@ -471,6 +475,7 @@ export function useNoteDocument(options: Options) {
       ...latest.current,
       parentId: optionsRef.current.parentId,
       issue: optionsRef.current.issue,
+      notedOn: optionsRef.current.notedOn ?? dayKey(new Date()),
     });
     await utils.notes.tree.invalidate();
     return note;

@@ -24,6 +24,8 @@ const item = (
   contentRevision: 1,
   connectionId: null,
   issueKey: null,
+  notedOn: null,
+  hasAi: false,
   createdAt: new Date(0),
   updatedAt: new Date(0),
 });

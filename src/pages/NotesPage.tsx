@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router";
-import { ChevronLeft, FilePlus2, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, FilePlus2, Plus, Search, Trash2 } from "lucide-react";
 import {
   NOTE_FILTERS,
   NOTE_SEARCH_MAX,
@@ -43,6 +43,7 @@ import { LocalDrafts } from "@/components/notes/LocalDrafts";
 import { NoteEditor } from "@/components/notes/NoteEditor";
 import { NoteActions } from "@/components/notes/NoteActions";
 import { SaveStatus } from "@/components/notes/SaveStatus";
+import { NoteDiary } from "@/components/notes/NoteDiary";
 import { NoteTrash } from "@/components/notes/NoteTrash";
 import { ancestorIds, folderTarget } from "@/components/notes/treeModel";
 import { FolderView } from "@/components/notes/FolderView";
@@ -53,6 +54,8 @@ import {
   type NoteDraft,
 } from "@/components/notes/drafts";
 import { NoteController } from "@/components/notes/useNoteDocument";
+import { NOTE_DATE_CHIPS, parseNoteQuery } from "@contracts/noteQuery";
+import { ToggleChip } from "@/components/app/ToggleChip";
 
 const fields: Fields<{
   q: string;
@@ -76,6 +79,7 @@ export default function NotesPage() {
   const userId = user?.id ?? 0;
   const isNew = location.pathname === "/notes/new";
   const isTrash = location.pathname === "/notes/trash";
+  const isDiary = location.pathname === "/notes/diary";
   const params = useMemo(
     () => new URLSearchParams(location.search),
     [location.search]
@@ -96,10 +100,12 @@ export default function NotesPage() {
       : null;
   const [{ q, filter }, setUrl] = useUrlFields(fields);
   const tree = trpc.notes.tree.useQuery(undefined, { enabled: !isTrash });
-  const queryText = q.trim().slice(0, NOTE_SEARCH_MAX);
-  const searching = queryText.length >= NOTE_SEARCH_MIN;
+  // `data:ieri`, `creata:7d`… read here, where the user's days are; the rest is words.
+  const parsed = useMemo(() => parseNoteQuery(q.slice(0, NOTE_SEARCH_MAX), new Date()), [q]);
+  const queryText = parsed.text;
+  const searching = queryText.length >= NOTE_SEARCH_MIN || parsed.dates.length > 0;
   const search = trpc.notes.search.useInfiniteQuery(
-    { query: queryText, filter, limit: 30 },
+    { query: queryText, dates: parsed.dates, filter, limit: 30 },
     {
       enabled: searching && !isTrash,
       retry: false,
@@ -124,6 +130,8 @@ export default function NotesPage() {
   // The note or folder opened is revealed once (its branch opened); after that
   // each folder opens and closes only by hand, never because another one did.
   const [revealedFor, setRevealedFor] = useState<string | null>(null);
+  const notedOnParam = params.get("notedOn");
+  const initialNotedOn = isNew && notedOnParam && /^\d{4}-\d{2}-\d{2}$/.test(notedOnParam) ? notedOnParam : undefined;
   const initialParent =
     isNew && parentParam && /^[0-9a-f-]{36}$/i.test(parentParam)
       ? parentParam
@@ -142,11 +150,13 @@ export default function NotesPage() {
     recoverAnyDraft: !draftParam,
     parentId,
     issue: noteIssue,
+    notedOn: initialNotedOn,
     onCreated: (note: NoteDocument) => {
       const next = new URLSearchParams(location.search);
       next.set("draft", draftId);
       next.set("view", "edit");
       next.delete("parentId");
+      next.delete("notedOn");
       next.delete("issueKey");
       next.delete("connectionId");
       void navigate(`/notes/${note.id}?${next}`, { replace: true });
@@ -192,6 +202,7 @@ export default function NotesPage() {
   }, []);
 
   if (isTrash) return <NoteTrash />;
+  if (isDiary) return <NoteDiary />;
   if ((isNew || draftParam) && draftParam !== draftId) {
     const next = new URLSearchParams(location.search);
     next.set("draft", draftId);
@@ -266,6 +277,12 @@ export default function NotesPage() {
                       {t("pages.notes.new")}
                     </Link>
                   </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/notes/diary">
+                      <BookOpen />
+                      {t("pages.notes.diary.title")}
+                    </Link>
+                  </Button>
                   <Button
                     asChild
                     variant="ghost"
@@ -310,6 +327,33 @@ export default function NotesPage() {
                       className="pl-8"
                     />
                   </div>
+                  {/* One day or period at a time: a chip puts its date in the query (written there, it can be edited). */}
+                  <div role="group" aria-label={t("pages.notes.byDate")} className="flex flex-wrap gap-1">
+                    {NOTE_DATE_CHIPS.map(chip => {
+                      const token = `date:${chip}`;
+                      const on = q.split(/\s+/).includes(token);
+                      return (
+                        <ToggleChip
+                          key={chip}
+                          size="sm"
+                          pressed={on}
+                          onClick={() => {
+                            const rest = q
+                              .split(/\s+/)
+                              .filter(w => w && !NOTE_DATE_CHIPS.some(c => w === `date:${c}`))
+                              .join(" ");
+                            const next = on ? rest : `${rest} ${token}`.trim();
+                            setUrl({ q: next, mode: next ? "search" : "tree" });
+                          }}
+                        >
+                          {t(`pages.notes.dateChip.${chip}`)}
+                        </ToggleChip>
+                      );
+                    })}
+                  </div>
+                  {parsed.bad.length > 0 && (
+                    <p className="text-caption text-warning">{t("pages.notes.notADate", { terms: parsed.bad.join(", ") })}</p>
+                  )}
                   <Select
                     value={filter}
                     onValueChange={value => {
@@ -418,7 +462,7 @@ export default function NotesPage() {
                     }
                   />
                 )}
-                {queryText.length === 1 && (
+                {queryText.length === 1 && parsed.dates.length === 0 && (
                   <p className="px-4 pb-3 text-caption text-muted-foreground">
                     {t("pages.notes.searchMinimum")}
                   </p>

@@ -68,10 +68,23 @@ export class OllamaError extends Error {
  * One answer shaped by `schema` (sent as Ollama's `format`), validated before
  * it is returned; an invalid one is an error, never retried (D-2.4).
  */
-export async function chat<T>(schema: z.ZodType<T>, messages: OllamaMessage[], o: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
+export async function chat<T>(
+  schema: z.ZodType<T>,
+  messages: OllamaMessage[],
+  o: {
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    /** Context window to ask for (tokens): the server default is small and cuts long inputs silently. */
+    numCtx?: number;
+    /** Most tokens to write back (a whole note, not a summary of it). */
+    numPredict?: number;
+    /** What the simulator answers for this call (OLLAMA_SIMULATOR): the idea suggestion otherwise. */
+    simulated?: unknown;
+  } = {}
+): Promise<T> {
   let content: string;
   if (env.ollamaSimulator) {
-    content = env.ollamaSimulator === "garbage" ? "{ not json" : JSON.stringify(SIMULATED);
+    content = env.ollamaSimulator === "garbage" ? "{ not json" : JSON.stringify(o.simulated ?? SIMULATED);
   } else {
     if (!env.ollamaUrl) throw new OllamaError("unreachable", "OLLAMA_URL is not set");
     const timeout = AbortSignal.timeout(o.timeoutMs ?? 90_000);
@@ -87,7 +100,7 @@ export async function chat<T>(schema: z.ZodType<T>, messages: OllamaMessage[], o
           stream: false,
           think: false,
           keep_alive: "5m",
-          options: { temperature: 0.2 },
+          options: { temperature: 0.2, ...(o.numCtx ? { num_ctx: o.numCtx } : {}), ...(o.numPredict ? { num_predict: o.numPredict } : {}) },
         }),
         redirect: "error",
         signal: o.signal ? AbortSignal.any([timeout, o.signal]) : timeout,

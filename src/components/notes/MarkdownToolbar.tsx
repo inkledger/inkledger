@@ -14,6 +14,7 @@ import {
   SquareCode,
   Strikethrough,
   Save,
+  Sparkles,
   Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ export function MarkdownToolbar({
   saving,
   dirty,
   disabled,
+  onTidy,
+  tidying = false,
 }: {
   apply: (command: MarkdownCommand) => void;
   undo: () => void;
@@ -62,6 +65,9 @@ export function MarkdownToolbar({
   saving: boolean;
   dirty: boolean;
   disabled?: boolean;
+  /** "Tidy up with AI": a copy of the note beside it (nothing changes until it is kept). */
+  onTidy?: () => void;
+  tidying?: boolean;
 }) {
   return (
     <div
@@ -108,6 +114,20 @@ export function MarkdownToolbar({
       >
         <Redo2 />
       </Button>
+      {onTidy && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled || tidying}
+          onMouseDown={event => event.preventDefault()}
+          onClick={onTidy}
+          title={t("pages.notes.ai.tidyTip")}
+        >
+          <Sparkles />
+          {tidying ? t("pages.notes.ai.tidying") : t("pages.notes.ai.tidy")}
+        </Button>
+      )}
       <Button
         type="button"
         size="sm"

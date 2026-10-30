@@ -4,6 +4,7 @@ import type { NoteSearchResult } from "@contracts/notes";
 import { Chip } from "@/components/app/Chip";
 import { issuePath } from "@/lib/issues";
 import { t } from "@/i18n";
+import { noteDay } from "./noteDay";
 
 export function NoteSearchResults({
   results,
@@ -40,6 +41,11 @@ export function NoteSearchResults({
               <span className="truncate">
                 {result.title || t("pages.notes.untitled")}
               </span>
+              {result.notedOn && (
+                <span className="ml-auto shrink-0 text-caption font-normal text-muted-foreground tabular">
+                  {noteDay(result.notedOn)}
+                </span>
+              )}
             </span>
             {result.path.length > 0 && (
               <span className="block truncate text-caption text-muted-foreground">

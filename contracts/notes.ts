@@ -20,7 +20,7 @@ export const noteKind = (value: string): NoteKind => (value === "folder" ? "fold
 export const NOTE_FILTERS = ["all", "free", "linked"] as const;
 export type NoteFilter = (typeof NOTE_FILTERS)[number];
 export type NoteVersionOrigin =
-  "auto" | "manual" | "conflict" | "delete" | "restore";
+  "auto" | "manual" | "conflict" | "delete" | "restore" | "ai";
 export type NoteChange =
   "create" | "content" | "move" | "issue" | "delete" | "restore" | "version";
 
@@ -37,6 +37,10 @@ export type NoteTreeItem = {
   contentRevision: number;
   connectionId: number | null;
   issueKey: string | null;
+  /** The note's own day, local "YYYY-MM-DD" (null for a folder) */
+  notedOn: string | null;
+  /** An AI copy waits beside the text (Original | AI) */
+  hasAi: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -44,6 +48,8 @@ export type NoteTreeItem = {
 export type NoteDocument = NoteTreeItem & {
   body: string;
   doc: RichDoc;
+  /** The AI's copy of the text, until kept or discarded */
+  ai: { body: string; doc: RichDoc; createdAt: Date | null; stale: boolean } | null;
 };
 
 export type NoteConflict = {
@@ -64,5 +70,6 @@ export type NoteSearchResult = {
   path: { id: string; title: string }[];
   connectionId: number | null;
   issueKey: string | null;
+  notedOn: string | null;
   updatedAt: Date;
 };

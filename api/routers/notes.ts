@@ -10,9 +10,17 @@ import {
   noteKind,
   type NoteChange,
   type NoteConflict,
+  type NoteDocument,
   type NoteUpdated,
 } from "@contracts/notes";
-import { markdownNoteVersions, markdownNotes } from "@db/schema";
+import { DIARY_MAX_DAYS, diaryInstructions, diaryMarkdown } from "@contracts/diary";
+import { TIDY_MAX } from "@contracts/noteTidy";
+import { currentLocale } from "@contracts/i18n/core";
+import { markdownNoteVersions, markdownNotes, type MarkdownNote } from "@db/schema";
+import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
+import { diaryPrompt } from "../ai/prompts/diary";
+import { noteTidyPrompt } from "../ai/prompts/noteTidy";
+import { diaryFor, diaryText } from "../notes/diary";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueKeyInput } from "../lib/inputs";
@@ -47,6 +55,11 @@ const issue = z.object({
   issueKey: issueKeyInput,
 });
 const revision = z.number().int().positive();
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const noteDateFilter = z.discriminatedUnion("field", [
+  z.object({ field: z.literal("noted"), from: day.optional(), to: day.optional() }),
+  z.object({ field: z.enum(["created", "updated"]), from: z.iso.datetime({ offset: true }).optional(), to: z.iso.datetime({ offset: true }).optional() }),
+]);
 
 function changed(userId: number, id: string, change: NoteChange): void {
   publish(userId, { type: "notes", id, change });
@@ -65,6 +78,44 @@ async function checkedIssue(
   return { connectionId: connection.id, issueKey: value.issueKey };
 }
 
+const diaryInput = z
+  .object({
+    fromDay: day,
+    toDay: day,
+    /** The same period as instants, from the browser (its days): worklogs, plans and mails */
+    from: z.iso.datetime({ offset: true }),
+    to: z.iso.datetime({ offset: true }),
+    mode: z.enum(["summary", "timeline"]),
+    folderId: id.nullable().optional(),
+  })
+  .refine(v => v.fromDay <= v.toDay && (Date.parse(v.toDay) - Date.parse(v.fromDay)) / 86_400_000 < DIARY_MAX_DAYS, { message: t("server.notes.summaryEmpty") });
+
+/** What the model writes back: one Markdown document. */
+const modelMarkdown = z.object({ markdown: z.string().trim().min(1).max(NOTE_BODY_MAX) });
+
+/** A model's answer, its failures said in words (slow, unusable, unreachable). */
+async function askModel<T>(ask: () => Promise<T>): Promise<T> {
+  try {
+    return await ask();
+  } catch (e) {
+    if (!(e instanceof OllamaError)) throw e;
+    if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
+    if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
+    throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
+  }
+}
+
+/** The AI copy beside the text, made from its revision now (the text itself untouched). */
+async function setAiCopy(userId: number, row: MarkdownNote, markdown: string): Promise<NoteDocument> {
+  const [next] = await getDb()
+    .update(markdownNotes)
+    .set({ aiBody: markdown, aiSourceRevision: row.contentRevision, aiCreatedAt: new Date() })
+    .where(and(eq(markdownNotes.id, row.id), eq(markdownNotes.userId, userId)))
+    .returning();
+  changed(userId, row.id, "version");
+  return noteDocument(next);
+}
+
 export const notesRouter = createRouter({
   tree: protectedProcedure.query(async ({ ctx }) => {
     const rows = await getDb()
@@ -78,6 +129,8 @@ export const notesRouter = createRouter({
         contentRevision: markdownNotes.contentRevision,
         connectionId: markdownNotes.connectionId,
         issueKey: markdownNotes.issueKey,
+        notedOn: markdownNotes.notedOn,
+        hasAi: sql<boolean>`${markdownNotes.aiBody} IS NOT NULL`,
         createdAt: markdownNotes.createdAt,
         updatedAt: markdownNotes.updatedAt,
       })
@@ -132,13 +185,18 @@ export const notesRouter = createRouter({
 
   search: protectedProcedure
     .input(
-      z.object({
-        query: z.string().trim().min(NOTE_SEARCH_MIN).max(NOTE_SEARCH_MAX),
+      z
+        .object({
+        query: z.string().trim().max(NOTE_SEARCH_MAX),
+        // Bounds the browser read from `data:ieri`, `creata:7d`… (contracts/noteQuery.ts).
+        dates: z.array(noteDateFilter).max(6).default([]),
         filter: z.enum(NOTE_FILTERS).default("all"),
         issue: issue.optional(),
         cursor: z.string().max(16_000).optional(),
         limit: z.number().int().min(1).max(50).default(30),
       })
+        // Words to search, or only dates (the notes of those days).
+        .refine(v => v.query.length >= NOTE_SEARCH_MIN || v.dates.length > 0, { message: t("server.notes.searchTooShort") })
     )
     .query(async ({ ctx, input }) => {
       if (input.issue) await checkedIssue(ctx.user.id, input.issue);
@@ -153,6 +211,7 @@ export const notesRouter = createRouter({
           body,
           parentId: id.nullable().default(null),
           issue: issue.nullable().default(null),
+          notedOn: day.optional(),
         })
         .refine(
           value =>
@@ -190,6 +249,126 @@ export const notesRouter = createRouter({
       if (result.status === "updated") changed(ctx.user.id, input.id, "content");
       return result;
     }),
+
+  /**
+   * The note's own day (a meeting's notes written the day after). Not its
+   * content: no revision, so the open editor's next save never conflicts.
+   */
+  setDate: protectedProcedure
+    .input(z.object({ id, notedOn: day }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await ownNote(getDb(), ctx.user.id, input.id, true);
+      if (row.kind !== "note") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.folderText") });
+      await getDb()
+        .update(markdownNotes)
+        .set({ notedOn: input.notedOn })
+        .where(and(eq(markdownNotes.id, input.id), eq(markdownNotes.userId, ctx.user.id)));
+      changed(ctx.user.id, input.id, "move");
+      return { notedOn: input.notedOn };
+    }),
+
+  /** Whether the AI actions run here (a local model), or only "Copy for model". */
+  llm: protectedProcedure.query(async () => ({ available: (await ollamaRefusal()) === null })),
+
+  /** The diary of a period as one prompt for any model (Claude…): instructions, then the days. */
+  diaryPrompt: protectedProcedure.input(diaryInput).mutation(async ({ ctx, input }) => {
+    const days = await diaryFor(ctx.user.id, input);
+    const markdown = diaryMarkdown(days, { noteChars: 20_000 });
+    if (!markdown) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.summaryEmpty") });
+    return { prompt: `${diaryInstructions(input.mode, currentLocale(), input.fromDay, input.toDay)}\n\n---\n\n${markdown}\n` };
+  }),
+
+  /** "Summary" / "Timeline": the local model writes the period up; the page saves it as a note. */
+  summarize: protectedProcedure.input(diaryInput).mutation(async ({ ctx, input, signal }) => {
+    const days = await diaryFor(ctx.user.id, input);
+    const { markdown, cut } = diaryText(days);
+    if (!markdown) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.summaryEmpty") });
+    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
+    const answer = await askModel(() =>
+      chat(modelMarkdown, diaryPrompt(markdown, input.mode, currentLocale(), input.fromDay, input.toDay), {
+        signal,
+        numCtx: 12_288,
+        numPredict: 3_000,
+        timeoutMs: 240_000,
+        simulated: { markdown: `## ${input.fromDay}\n\n- ${days.flatMap(d => d.notes.map(n => n.title)).join("\n- ")}` },
+      })
+    );
+    const period = input.fromDay === input.toDay ? input.fromDay : `${input.fromDay} – ${input.toDay}`;
+    return {
+      title: t(input.mode === "summary" ? "server.notes.summaryTitle" : "server.notes.timelineTitle", { period }),
+      markdown: answer.markdown,
+      cut,
+    };
+  }),
+
+  /** "Tidy up with AI": the model's copy goes beside the text (Original | AI), the text itself unchanged. */
+  tidy: protectedProcedure.input(z.object({ id })).mutation(async ({ ctx, input, signal }) => {
+    const row = await ownNote(getDb(), ctx.user.id, input.id, true);
+    if (row.kind !== "note" || !row.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.tidyEmpty") });
+    if (row.body.length > TIDY_MAX) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.tidyTooLong", { count: TIDY_MAX }) });
+    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
+    const answer = await askModel(() =>
+      chat(modelMarkdown, noteTidyPrompt(row.title, row.body, currentLocale()), {
+        signal,
+        numCtx: 16_384,
+        numPredict: Math.ceil(row.body.length / 2.5) + 512,
+        timeoutMs: 240_000,
+        simulated: { markdown: `## ${row.title || "Note"}\n\n${row.body.trim()}` },
+      })
+    );
+    return setAiCopy(ctx.user.id, row, answer.markdown);
+  }),
+
+  /** An AI copy made elsewhere ("Copy for model", then pasted back): the same Original | AI. */
+  setAi: protectedProcedure.input(z.object({ id, markdown: body.min(1) })).mutation(async ({ ctx, input }) => {
+    const row = await ownNote(getDb(), ctx.user.id, input.id, true);
+    if (row.kind !== "note") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.folderText") });
+    return setAiCopy(ctx.user.id, row, input.markdown);
+  }),
+
+  /** The AI copy becomes the text; the original is kept as a version ("Original before AI"), so Undo restores it. */
+  keepAi: protectedProcedure
+    .input(z.object({ id, expectedRevision: revision }))
+    .mutation(async ({ ctx, input }): Promise<(NoteUpdated & { versionId: string | null }) | NoteConflict> => {
+      const result = await getDb().transaction(async (tx): Promise<(NoteUpdated & { versionId: string | null }) | NoteConflict> => {
+        const current = await ownNote(tx, ctx.user.id, input.id, true);
+        if (current.aiBody === null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.noAi") });
+        if (current.contentRevision !== input.expectedRevision) return { status: "conflict", current: noteDocument(current) };
+        const versionId = await snapshotNote(tx, current, "ai");
+        const derived = noteDerived(current.title, current.aiBody);
+        const [next] = await tx
+          .update(markdownNotes)
+          .set({
+            body: current.aiBody,
+            bodyText: derived.bodyText,
+            searchTitle: derived.searchTitle,
+            searchText: derived.searchText,
+            contentRevision: sql`${markdownNotes.contentRevision} + 1`,
+            aiBody: null,
+            aiSourceRevision: null,
+            aiCreatedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(markdownNotes.id, input.id), eq(markdownNotes.userId, ctx.user.id), eq(markdownNotes.contentRevision, input.expectedRevision)))
+          .returning();
+        if (!next) return { status: "conflict", current: noteDocument(await ownNote(tx, ctx.user.id, input.id)) };
+        return { status: "updated", note: noteDocument(next), versionId };
+      });
+      if (result.status === "updated") changed(ctx.user.id, input.id, "content");
+      return result;
+    }),
+
+  /** The AI copy goes; the text stays as it is. */
+  discardAi: protectedProcedure.input(z.object({ id })).mutation(async ({ ctx, input }) => {
+    await ownNote(getDb(), ctx.user.id, input.id, true);
+    const [next] = await getDb()
+      .update(markdownNotes)
+      .set({ aiBody: null, aiSourceRevision: null, aiCreatedAt: null })
+      .where(and(eq(markdownNotes.id, input.id), eq(markdownNotes.userId, ctx.user.id)))
+      .returning();
+    changed(ctx.user.id, input.id, "version");
+    return noteDocument(next);
+  }),
 
   /** A note with no text that groups others becomes a folder. */
   convertToFolder: protectedProcedure

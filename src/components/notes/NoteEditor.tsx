@@ -19,6 +19,9 @@ import { MarkdownToolbar } from "./MarkdownToolbar";
 import { ConflictBanner } from "./ConflictBanner";
 import { applyMarkdown } from "./markdownEdit";
 import { useMarkdownHistory } from "./useMarkdownHistory";
+import { NoteDayField } from "./NoteDayField";
+import { NoteAiSwitch, NoteAiView, TidyByHandDialog } from "./NoteAi";
+import { useNoteAi } from "./useNoteAi";
 import type { NoteDocumentController } from "./useNoteDocument";
 
 export function NoteEditor({
@@ -120,6 +123,7 @@ export function NoteEditor({
   };
 
   const confirmed = controller.note;
+  const aiState = useNoteAi(controller);
   const hasSource = controller.body.trim().length > 0;
   const rendered =
     confirmed && confirmed.doc.blocks.length > 0 ? confirmed.doc : null;
@@ -183,8 +187,14 @@ export function NoteEditor({
         saving={controller.status === "saving"}
         dirty={controller.dirty}
         disabled={!!controller.conflict}
+        onTidy={controller.currentId && confirmed?.kind === "note" ? () => void aiState.run() : undefined}
+        tidying={aiState.tidying}
       />
-      {!preview ? (
+      <NoteAiSwitch state={aiState} />
+      <TidyByHandDialog controller={controller} state={aiState} />
+      {aiState.view === "ai" ? (
+        <NoteAiView controller={controller} state={aiState} />
+      ) : !preview ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 md:p-6">
           <div>
             <label htmlFor="note-title" className="sr-only">
@@ -199,6 +209,9 @@ export function NoteEditor({
               placeholder={t("pages.notes.untitled")}
               className="h-auto border-0 px-0 py-1 font-display text-title shadow-none focus-visible:ring-0 md:text-title"
             />
+            {controller.currentId && confirmed?.kind === "note" && (
+              <NoteDayField key={controller.currentId} noteId={controller.currentId} notedOn={confirmed.notedOn} editable />
+            )}
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-1">
             <label htmlFor="note-body" className="sr-only">
@@ -232,6 +245,9 @@ export function NoteEditor({
           <h2 className="font-display text-title">
             {controller.title || t("pages.notes.untitled")}
           </h2>
+          {controller.currentId && confirmed?.kind === "note" && (
+            <NoteDayField key={controller.currentId} noteId={controller.currentId} notedOn={confirmed.notedOn} editable={false} />
+          )}
           {stalePreview && (
             <p className="mt-2 text-body-sm text-warning">
               {t("pages.notes.stalePreview")}

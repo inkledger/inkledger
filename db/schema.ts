@@ -801,6 +801,13 @@ export const markdownNotes = pgTable(
     connectionId: optionalConnectionRef(),
     itemId: itemRef(),
     issueKey: text("issue_key"),
+    /** The note's own day, local "YYYY-MM-DD" (a meeting's, written the day after); null for folders */
+    notedOn: text("noted_on"),
+    /** "Tidy up with AI": the AI's copy beside the text, until kept (it becomes the body) or discarded */
+    aiBody: text("ai_body"),
+    /** The body's revision the AI copy was made from (another: the text changed since) */
+    aiSourceRevision: integer("ai_source_revision"),
+    aiCreatedAt: ms("ai_created_at"),
     deletedAt: ms("deleted_at"),
     deleteBatch: uuid("delete_batch"),
     deleteRootId: uuid("delete_root_id"),
@@ -817,6 +824,7 @@ export const markdownNotes = pgTable(
     index("idx_markdown_notes_active_tree").on(t.userId, t.parentId, t.position, t.id).where(sql`${t.deletedAt} IS NULL`),
     index("idx_markdown_notes_user_issue").on(t.userId, t.connectionId, t.issueKey),
     index("idx_markdown_notes_trash").on(t.userId, t.deleteBatch, t.deletedAt).where(sql`${t.deletedAt} IS NOT NULL`),
+    index("idx_markdown_notes_noted_on").on(t.userId, t.notedOn).where(sql`${t.deletedAt} IS NULL`),
     index("idx_markdown_notes_search")
       .using("gin", sql`(setweight(to_tsvector('simple', ${t.searchTitle}), 'A') || setweight(to_tsvector('simple', ${t.searchText}), 'B'))`)
       .where(sql`${t.deletedAt} IS NULL`),
@@ -845,7 +853,7 @@ export const markdownNoteVersions = pgTable(
     foreignKey({ columns: [t.noteId, t.userId], foreignColumns: [markdownNotes.id, markdownNotes.userId], name: "markdown_note_versions_note_user_fk" }).onDelete("cascade"),
     index("idx_markdown_note_versions_note_created").on(t.noteId, t.createdAt, t.id),
     index("idx_markdown_note_versions_created").on(t.createdAt),
-    check("markdown_note_versions_origin", sql`${t.origin} IN ('auto', 'manual', 'conflict', 'delete', 'restore')`),
+    check("markdown_note_versions_origin", sql`${t.origin} IN ('auto', 'manual', 'conflict', 'delete', 'restore', 'ai')`),
   ],
 );
 

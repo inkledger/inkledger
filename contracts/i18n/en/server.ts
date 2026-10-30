@@ -203,6 +203,13 @@ export const server = {
     convertHasText: "Only a note without text can become a folder (its text would be lost).",
     convertLinked: "This note is linked to an issue: unlink it before making it a folder.",
     nameRequired: "Give it a name.",
+    searchTooShort: "Type at least two letters, or a date such as data:yesterday.",
+    tidyTooLong: "This note is too long for the local model (up to {count} characters): tidy a shorter one, or use Copy for model.",
+    tidyEmpty: "There is no text to tidy yet.",
+    noAi: "This note has no AI version.",
+    summaryEmpty: "Nothing was written or logged in these days.",
+    summaryTitle: "Report {period}",
+    timelineTitle: "Timeline {period}",
   },
   ideas: {
     notFound: "That idea is gone.",

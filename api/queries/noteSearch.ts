@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { z } from "zod";
 import { plainText, type RichDoc } from "@contracts/richtext";
 import {
@@ -9,6 +19,7 @@ import {
   type NoteFilter,
   type NoteSearchResult,
 } from "@contracts/notes";
+import type { NoteDateFilter } from "@contracts/noteQuery";
 import { markdownNotes } from "@db/schema";
 import { fromMarkdown } from "../providers/core/richtext";
 import { getDb } from "./connection";
@@ -56,6 +67,8 @@ export function noteSnippet(
 
 type SearchOptions = {
   query: string;
+  /** Bounds read from the query in the browser (contracts/noteQuery.ts), all of them apply */
+  dates?: NoteDateFilter[];
   filter: NoteFilter;
   issue?: { connectionId: number; issueKey: string };
   cursor?: string;
@@ -75,6 +88,7 @@ function fingerprint(input: Omit<SearchOptions, "cursor" | "limit">): string {
     q: normalizeNoteSearch(input.query),
     filter: input.filter,
     issue: input.issue ?? null,
+    dates: input.dates ?? [],
   });
   return createHash("sha256").update(value).digest("hex");
 }
@@ -107,15 +121,34 @@ export function decodeNoteCursor(
 
 const vector = sql`setweight(to_tsvector('simple', ${markdownNotes.searchTitle}), 'A') || setweight(to_tsvector('simple', ${markdownNotes.searchText}), 'B')`;
 
+/** One date bound: a note's own day as day keys, created / updated as instants. */
+function dateWhere(d: NoteDateFilter): SQL | undefined {
+  if (d.field === "noted")
+    return and(
+      d.from ? gte(markdownNotes.notedOn, d.from) : undefined,
+      d.to ? lt(markdownNotes.notedOn, d.to) : undefined,
+      sql`${markdownNotes.notedOn} IS NOT NULL`
+    );
+  const column =
+    d.field === "created" ? markdownNotes.createdAt : markdownNotes.updatedAt;
+  return and(
+    d.from ? gte(column, new Date(d.from)) : undefined,
+    d.to ? lt(column, new Date(d.to)) : undefined
+  );
+}
+
 function searchWhere(
   userId: number,
   input: Omit<SearchOptions, "cursor" | "limit">,
-  tsQuery: string
+  tsQuery: string | null
 ): SQL | undefined {
   return and(
     eq(markdownNotes.userId, userId),
     isNull(markdownNotes.deletedAt),
-    sql`${vector} @@ to_tsquery('simple', ${tsQuery})`,
+    tsQuery === null
+      ? undefined
+      : sql`${vector} @@ to_tsquery('simple', ${tsQuery})`,
+    ...(input.dates ?? []).map(dateWhere),
     input.filter === "free"
       ? isNull(markdownNotes.issueKey)
       : input.filter === "linked"
@@ -135,7 +168,12 @@ export async function searchNotes(
   input: SearchOptions
 ): Promise<{ results: NoteSearchResult[]; nextCursor: string | null }> {
   const db = getDb();
-  const base = { query: input.query, filter: input.filter, issue: input.issue };
+  const base = {
+    query: input.query,
+    filter: input.filter,
+    issue: input.issue,
+    dates: input.dates,
+  };
   let ids: string[];
   let offset: number;
   if (input.cursor) {
@@ -148,24 +186,41 @@ export async function searchNotes(
       .from(
         sql`unnest(to_tsvector('simple', ${normalizeNoteSearch(input.query)}))`
       );
-    if (lexemes.length === 0) return { results: [], nextCursor: null };
-    const tsQuery = lexemes
-      .map(
-        row => `'${row.lexeme.replace(/\\/g, "\\\\").replace(/'/g, "''")}':*`
-      )
-      .join(" & ");
-    const rank = sql<number>`ts_rank(${vector}, to_tsquery('simple', ${tsQuery}))`;
-    const first = await db
-      .select({ id: markdownNotes.id })
-      .from(markdownNotes)
-      .where(searchWhere(userId, base, tsQuery))
-      .orderBy(
-        desc(rank),
-        desc(markdownNotes.updatedAt),
-        desc(markdownNotes.id)
-      )
-      .limit(NOTE_SEARCH_SNAPSHOT_MAX);
-    ids = first.map(row => row.id);
+    const dated = (input.dates ?? []).length > 0;
+    if (lexemes.length === 0 && !dated)
+      return { results: [], nextCursor: null };
+    // Only dates: the notes of those days, latest first (the diary's order).
+    if (lexemes.length === 0) {
+      const first = await db
+        .select({ id: markdownNotes.id })
+        .from(markdownNotes)
+        .where(searchWhere(userId, base, null))
+        .orderBy(
+          sql`${markdownNotes.notedOn} DESC NULLS LAST`,
+          desc(markdownNotes.updatedAt),
+          desc(markdownNotes.id)
+        )
+        .limit(NOTE_SEARCH_SNAPSHOT_MAX);
+      ids = first.map(row => row.id);
+    } else {
+      const tsQuery = lexemes
+        .map(
+          row => `'${row.lexeme.replace(/\\/g, "\\\\").replace(/'/g, "''")}':*`
+        )
+        .join(" & ");
+      const rank = sql<number>`ts_rank(${vector}, to_tsquery('simple', ${tsQuery}))`;
+      const first = await db
+        .select({ id: markdownNotes.id })
+        .from(markdownNotes)
+        .where(searchWhere(userId, base, tsQuery))
+        .orderBy(
+          desc(rank),
+          desc(markdownNotes.updatedAt),
+          desc(markdownNotes.id)
+        )
+        .limit(NOTE_SEARCH_SNAPSHOT_MAX);
+      ids = first.map(row => row.id);
+    }
     offset = 0;
   }
   const pageIds = ids.slice(offset, offset + input.limit);
@@ -179,6 +234,7 @@ export async function searchNotes(
       bodyText: markdownNotes.bodyText,
       connectionId: markdownNotes.connectionId,
       issueKey: markdownNotes.issueKey,
+      notedOn: markdownNotes.notedOn,
       updatedAt: markdownNotes.updatedAt,
     })
     .from(markdownNotes)
@@ -224,6 +280,7 @@ export async function searchNotes(
       path,
       connectionId: row.connectionId,
       issueKey: row.issueKey,
+      notedOn: row.notedOn,
       updatedAt: row.updatedAt,
     };
   });

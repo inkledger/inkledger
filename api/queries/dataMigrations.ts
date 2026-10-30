@@ -1,5 +1,6 @@
-import { eq, sql } from "drizzle-orm";
-import { serverSettings } from "@db/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { markdownNotes, serverSettings } from "@db/schema";
+import { dayKey } from "@contracts/time";
 import type { Db } from "./connection";
 
 /**
@@ -36,6 +37,22 @@ export const DATA_MIGRATIONS: DataMigration[] = [
     id: "issue-components-resync",
     run: async (db) => {
       await db.execute(sql`UPDATE sync_state SET last_full_sync_at = NULL`);
+    },
+  },
+  {
+    // Notes have a day of their own now: the ones from before take the day they were
+    // written. Local days, so in JS (the database's clock may be UTC, the app's is the host's).
+    id: "note-noted-on",
+    run: async (db) => {
+      for (;;) {
+        const rows = await db
+          .select({ id: markdownNotes.id, createdAt: markdownNotes.createdAt })
+          .from(markdownNotes)
+          .where(and(isNull(markdownNotes.notedOn), eq(markdownNotes.kind, "note")))
+          .limit(500);
+        if (rows.length === 0) return;
+        for (const row of rows) await db.update(markdownNotes).set({ notedOn: dayKey(row.createdAt) }).where(eq(markdownNotes.id, row.id));
+      }
     },
   },
 ];

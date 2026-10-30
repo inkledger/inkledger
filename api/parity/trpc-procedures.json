@@ -528,6 +528,10 @@
     "type": "mutation"
   },
   {
+    "path": "mails.pinnedBetween",
+    "type": "query"
+  },
+  {
     "path": "mails.placesOf",
     "type": "query"
   },
@@ -696,11 +700,27 @@
     "type": "mutation"
   },
   {
+    "path": "notes.diaryPrompt",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.discardAi",
+    "type": "mutation"
+  },
+  {
     "path": "notes.forIssue",
     "type": "query"
   },
   {
     "path": "notes.get",
+    "type": "query"
+  },
+  {
+    "path": "notes.keepAi",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.llm",
     "type": "query"
   },
   {
@@ -732,7 +752,23 @@
     "type": "query"
   },
   {
+    "path": "notes.setAi",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.setDate",
+    "type": "mutation"
+  },
+  {
     "path": "notes.setIssue",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.summarize",
+    "type": "mutation"
+  },
+  {
+    "path": "notes.tidy",
     "type": "mutation"
   },
   {

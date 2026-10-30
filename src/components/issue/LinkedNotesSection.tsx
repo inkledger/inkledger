@@ -168,6 +168,8 @@ function LinkExisting({
         contentRevision: 1,
         connectionId: result.connectionId,
         issueKey: result.issueKey,
+        notedOn: result.notedOn,
+        hasAi: false,
         createdAt: result.updatedAt,
         updatedAt: result.updatedAt,
       }));

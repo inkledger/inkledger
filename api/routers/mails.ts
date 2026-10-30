@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
@@ -380,6 +380,19 @@ export const mailsRouter = createRouter({
   ),
 
   /** The mails kept lately (to pin one again elsewhere), by subject or sender. */
+  /** The mails pinned in a period (the diary's days), with where each went: an issue or a note. */
+  pinnedBetween: protectedProcedure
+    .input(z.object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) }))
+    .query(async ({ ctx, input }) =>
+      getDb()
+        .select({ ...columns, pinnedAt: mailLinks.createdAt, issueKey: mailLinks.issueKey, connectionId: mailLinks.connectionId, noteId: mailLinks.noteId })
+        .from(mailLinks)
+        .innerJoin(mails, and(eq(mails.id, mailLinks.mailId), eq(mails.userId, ctx.user.id)))
+        .where(and(eq(mailLinks.userId, ctx.user.id), gte(mailLinks.createdAt, new Date(input.from)), lt(mailLinks.createdAt, new Date(input.to))))
+        .orderBy(mailLinks.createdAt)
+        .limit(500)
+    ),
+
   recent: protectedProcedure.input(z.object({ query: z.string().trim().max(200).optional() })).query(async ({ ctx, input }): Promise<ListedMail[]> => {
     const q = input.query ? `%${input.query.replace(/[\\%_]/g, c => `\\${c}`)}%` : null;
     return getDb()
