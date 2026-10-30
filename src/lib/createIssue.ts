@@ -15,9 +15,15 @@ export function openCreateIssue(prefill?: CreateIssuePrefill) {
   createIssueDialog.set(true);
 }
 
-/** Read once by the dialog when it opens. */
+/**
+ * What the dialog opens with. Reading never clears it: a render React throws
+ * away (the lazy form suspending) reads it again; the dialog clears it on closing.
+ */
 export function takeCreateIssuePrefill(): CreateIssuePrefill | null {
-  const p = pending;
+  return pending;
+}
+
+/** The dialog closed: the next opening starts empty unless filled again. */
+export function clearCreateIssuePrefill() {
   pending = null;
-  return p;
 }

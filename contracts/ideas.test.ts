@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { askMailUrl, canMove, handoffPrompt, IDEA_STATES, splitIdeas, type IdeaState, type IdeaView } from "./ideas";
+import { askMailUrl, canMove, handoffPrompt, IDEA_STATES, issueDescription, splitIdeas, type IdeaState, type IdeaView } from "./ideas";
 
 const NOTEPAD = readFileSync(new URL("./__fixtures__/notepad.txt", import.meta.url), "utf8");
 
@@ -96,5 +96,12 @@ describe("ideas", () => {
     expect(url.length).toBeLessThanOrEqual(2000);
     expect(url.startsWith("mailto:anna@example.com?")).toBe(true);
     expect(decodeURIComponent(url).endsWith("…")).toBe(true);
+  });
+
+  it("an issue made from an idea carries its criteria and its answers", () => {
+    expect(issueDescription(view(), { acceptance: "Done when…", decisions: "Decisions taken" })).toBe(
+      ["Use my closed issues.", "Done when…\n- A range on the issue page", "Decisions taken\n- Which statuses count? → Doing ones"].join("\n\n"),
+    );
+    expect(issueDescription(view({ body: "", acceptance: [], questions: [] }), { acceptance: "A", decisions: "D" })).toBe("");
   });
 });

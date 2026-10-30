@@ -204,6 +204,10 @@
     "type": "query"
   },
   {
+    "path": "ideas.askMail",
+    "type": "query"
+  },
+  {
     "path": "ideas.capture",
     "type": "mutation"
   },
@@ -214,6 +218,14 @@
   {
     "path": "ideas.get",
     "type": "query"
+  },
+  {
+    "path": "ideas.handoff",
+    "type": "query"
+  },
+  {
+    "path": "ideas.linkPromoted",
+    "type": "mutation"
   },
   {
     "path": "ideas.list",

@@ -2,7 +2,7 @@
 // (Ready is earned), the palette's "New idea", and the page and its sheet at 320 px.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withApp } from "./harness.mjs";
+import { trpcProcs, withApp } from "./harness.mjs";
 
 const SEVEN = ["1) Bucket of its own in the add-in", "2) A record of purchases", "3. Keep what deleted mails showed", "- Notes in folders", "* Why the build is red", "4) A waiting room for ideas", "[ ] Estimates from my history"].join("\n");
 const column = (page, name) => page.getByRole("region", { name, exact: true });
@@ -85,6 +85,89 @@ test("ideas from the command palette", () =>
     await page.waitForURL(base + "/ideas");
     await page.getByRole("listitem", { name: "From anywhere" }).waitFor();
   }));
+
+/** "New issue" as the server answers it: Jira's DEMO project; created as DEMO-101 (already in the catalogue). */
+async function fakeCreate(page, sent) {
+  await page.route(/\/api\/trpc\/[^?]*issues\.create/, async route => {
+    const url = new URL(route.request().url());
+    const names = trpcProcs(url);
+    const input = route.request().method() === "POST" ? JSON.parse(route.request().postData() ?? "{}") : {};
+    const mine = n => n.startsWith("issues.create");
+    const real = names.every(mine) ? [] : await (await route.fetch()).json().catch(() => []);
+    const out = names.map((n, i) => {
+      if (!mine(n)) return real[i];
+      if (n === "issues.createTargets") return { result: { data: { json: [{ connectionId: 1, name: "Jira", label: "Work Jira", types: true, containers: [{ key: "DEMO", name: "Demo", mine: true }] }] } } };
+      if (n === "issues.createTypes") return { result: { data: { json: [{ id: "10001", name: "Task" }] } } };
+      sent.push((url.searchParams.has("batch") ? input[i]?.json : input.json) ?? {});
+      return { result: { data: { json: { key: "DEMO-101", connectionId: 1, remoteId: "DEMO-101" } } } };
+    });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(out) });
+  });
+}
+
+test("an idea becomes a Jira issue through the usual dialog", () =>
+  withApp(
+    {
+      viewport: { width: 1400, height: 900 },
+      seed: async db => {
+        const now = Date.now();
+        await db.q("UPDATE issues SET connection_id = 1 WHERE key = 'DEMO-101'");
+        await db.q(
+          "INSERT INTO ideas (user_id, title, body, state, acceptance, questions, position, created_at, updated_at) VALUES (1, 'Export to CSV', 'Users ask for it.', 'ready', ?, ?, 0, ?, ?)",
+          JSON.stringify([{ id: "a", text: "A CSV with every column" }]),
+          JSON.stringify([{ id: "q", text: "Which separator?", answer: "Semicolon", blocking: true }]),
+          now,
+          now,
+        );
+      },
+    },
+    async ({ page, base, db }) => {
+      const sent = [];
+      await fakeCreate(page, sent);
+      await page.goto(base + "/ideas");
+      await page.getByRole("radio", { name: "Columns" }).click();
+      await page.getByRole("button", { name: "Open Export to CSV" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Create issue" }).click();
+      // The usual dialog, filled from the idea (once the sheet has gone).
+      const dialog = page.getByRole("dialog", { name: "New issue" });
+      await dialog.getByLabel("Title").waitFor();
+      assert.equal(await dialog.getByLabel("Title").inputValue(), "Export to CSV");
+      await dialog.getByRole("combobox", { name: "Project" }).click();
+      await page.getByRole("option", { name: /DEMO/ }).click();
+      await dialog.getByRole("button", { name: "Create issue" }).click();
+      await page.waitForURL(/DEMO-101/);
+      assert.equal(sent.at(-1).body, "Users ask for it.\n\nDone when…\n- A CSV with every column\n\nDecisions taken\n- Which separator? → Semicolon");
+      for (let i = 0; i < 50 && (await db.q("SELECT state FROM ideas"))[0].state !== "promoted"; i++) await new Promise(r => setTimeout(r, 100));
+      assert.deepEqual(await db.q("SELECT state, promoted_issue_key, promoted_connection_id FROM ideas"), [{ state: "promoted", promoted_issue_key: "DEMO-101", promoted_connection_id: 1 }]);
+      // The issue page has nothing in triage; the idea sits under "Became an issue" with its key.
+      assert.equal(await page.getByText("In triage").count(), 0);
+      await page.goto(base + "/ideas");
+      await page.getByRole("button", { name: /^Show Became an issue/ }).click();
+      await page.getByRole("region", { name: "Became an issue", exact: true }).getByText("Became DEMO-101").waitFor();
+    },
+  ));
+
+test("an idea I will do becomes an issue and a TODO", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("UPDATE issues SET connection_id = 1 WHERE key = 'DEMO-102'");
+        const [{ id }] = await db.q("SELECT id FROM issues WHERE key = 'DEMO-102'");
+        await db.q(
+          "INSERT INTO ideas (user_id, title, state, route, promoted_connection_id, promoted_item_id, promoted_issue_key, promoted_at, position, created_at, updated_at) VALUES (1, 'Rotate the keys', 'promoted', 'me', 1, ?, 'DEMO-102', ?, 0, ?, ?)",
+          id, now, now, now,
+        );
+      },
+    },
+    async ({ page, base, db }) => {
+      const [{ id }] = await db.q("SELECT id FROM ideas");
+      await page.goto(`${base}/ideas?open=${id}`);
+      await page.getByRole("dialog").getByRole("button", { name: "Make a TODO" }).click();
+      await page.getByText("TODO added for DEMO-102").waitFor();
+      assert.deepEqual(await db.q("SELECT text, issue_key, connection_id FROM todos"), [{ text: "Rotate the keys", issue_key: "DEMO-102", connection_id: 1 }]);
+    },
+  ));
 
 test("ideas at 320 px", () =>
   withApp(

@@ -72,12 +72,21 @@ export function IdeaCard({ idea, onOpen, onMove, onDelete }: { idea: Idea; onOpe
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {(idea.container || idea.route || openQuestions > 0 || idea.source) && (
+      {(idea.container || idea.route || openQuestions > 0 || idea.source || idea.promoted) && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {idea.container && <Chip>{idea.container.key}</Chip>}
           {idea.route && <Chip tone="info">{t(`pages.ideas.route.${idea.route}`)}</Chip>}
           {openQuestions > 0 && <Chip tone="warning">{t("pages.ideas.openQuestions", { count: openQuestions })}</Chip>}
           {idea.source && <Chip>{idea.source.key}</Chip>}
+          {idea.promoted &&
+            (idea.promoted.gone ? (
+              <Chip>
+                <s>{idea.promoted.key}</s>
+                <span className="sr-only">{t("pages.ideas.gone", { key: idea.promoted.key })}</span>
+              </Chip>
+            ) : (
+              <Chip tone="success">{t("pages.ideas.became", { key: idea.promoted.key })}</Chip>
+            ))}
         </div>
       )}
     </li>

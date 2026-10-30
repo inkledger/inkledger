@@ -110,3 +110,15 @@ export function askMailUrl(idea: IdeaView, to: string | null): string {
   }
   return head.slice(0, MAILTO_MAX);
 }
+
+/** The new issue's description (R-2.5): the body, then the criteria as a list, then the questions already answered; headings in the user's language. */
+export function issueDescription(idea: Pick<IdeaView, "body" | "acceptance" | "questions">, headings: { acceptance: string; decisions: string }): string {
+  const answered = idea.questions.filter((q) => q.answer.trim() !== "");
+  return [
+    idea.body.trim(),
+    idea.acceptance.length ? [headings.acceptance, ...idea.acceptance.map((c) => `- ${c.text}`)].join("\n") : "",
+    answered.length ? [headings.decisions, ...answered.map((q) => `- ${q.text} → ${q.answer}`)].join("\n") : "",
+  ]
+    .filter((part) => part !== "")
+    .join("\n\n");
+}

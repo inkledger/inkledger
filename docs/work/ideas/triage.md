@@ -1,6 +1,6 @@
 # Spec: a waiting room that turns ideas into issues (#6)
 
-Status: batches 1–2 done (2026-10-30); batch 3 next. Open questions are asked when their batch is reached (README, R-0.12).
+Status: batches 1–3 done (2026-10-30); batch 4 next. Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Problem
@@ -339,7 +339,14 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
      - **Promoted and Discarded** start collapsed; the open/closed choice is the shared collapsed-columns setting, under "ideas:" (for those two it stores which are open).
      - **Keyboard:** a focused card moves with Alt+←/→ to the column before or after; its "…" menu has "Move to" for any column; each move is announced (`role=status`).
      - **The render budget held** only after the menu's sections were drawn by a memoized `NavRow` (`src/components/AppLayout.tsx`): with one more section, the dashboard went to 2898 component renders over its 2860. Now 1853, and the other pages about 1000 fewer each. The limits in `e2e/renders.test.mjs` are unchanged (lowering them to the new figures is for you to decide).
-3. Promote, handoff, askMail. R-2.5, 2.6. AC-2.11, 2.17.
+3. [x] Promote, handoff, askMail. R-2.5, 2.6. AC-2.11, 2.17 (and AC-2.22).
+   - **Done (2026-10-30).** Decisions, to review:
+     - **No trigger** for `promotedItemId`/`sourceItemId`: an idea keeps the issue's catalogue row and reads its key, title, link and "gone" from it, so a renamed key follows (tested). The stored key is only a fallback.
+     - **`linkPromoted`** works from raw, refining or ready (the table's "only through linkPromoted"); on a promoted or discarded idea it is refused like a move (`terminal`). The issue must be mine, in the catalogue, not gone.
+     - **The issue's description** (`issueDescription`, contract): the body, then "Done when…" with the criteria, then "Decisions taken" with the answered questions, headings in the user's language.
+     - **The sheet** closes and then opens the usual "New issue" dialog; after creating it goes to the new issue, as it always does. "Copy prompt" and "Download .md" are offered on every idea (they are the "Copy as text" of D-2.2 for trackers that can't create); "Write mail" only when there are open questions; "Make a TODO" on a promoted idea routed "I'll do it".
+     - **Found and fixed:** "New issue" lost its prefill when its lazy form suspended (the prefill was cleared by the first read, and React reads again after a suspended render). The prefill now stays until the dialog closes (`src/lib/createIssue.ts`); the post-it's "Make an issue" had the same risk. AC-2.17's e2e failed on it before the fix.
+     - **New texts:** `createIssue`, `copyPrompt`, `downloadPrompt`, `writeMail` as in the spec; `promptCopied`, `makeTodo`, `todoMade`, `decisions`, `became`, `gone` written here.
 4. `fromIssue`, `forIssue`, issue chip. R-2.4, 2.10. AC-2.10, 2.18.
 5. LLM (after B5 batch 3). R-2.8. AC-2.13, 2.14, 2.19.
 

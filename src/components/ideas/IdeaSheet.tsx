@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import type { Criterion, IdeaRoute, Question } from "@contracts/ideas";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,19 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 type RouteChoice = IdeaRoute | "none";
 
 /** An idea, opened: what it is, when it is done, what is still to ask, where it goes (docs/work/ideas/triage.md). Each field saves when left. */
-export function IdeaSheet({ ideaId, onClose, onDiscard, onDelete }: { ideaId: number | null; onClose: () => void; onDiscard: (idea: Idea) => void; onDelete: (idea: Idea) => void }) {
+export function IdeaSheet({
+  ideaId,
+  onClose,
+  onPromote,
+  onDiscard,
+  onDelete,
+}: {
+  ideaId: number | null;
+  onClose: () => void;
+  onPromote: (idea: Idea) => void;
+  onDiscard: (idea: Idea) => void;
+  onDelete: (idea: Idea) => void;
+}) {
   const open = ideaId !== null;
   const idea = trpc.ideas.get.useQuery({ id: ideaId ?? 0 }, { enabled: open });
   return (
@@ -35,14 +48,20 @@ export function IdeaSheet({ ideaId, onClose, onDiscard, onDelete }: { ideaId: nu
           <PageSpinner />
         ) : (
           // Remounted per idea: its fields start from what is saved.
-          <IdeaFields key={idea.data.id} idea={idea.data} onDiscard={() => idea.data && onDiscard(idea.data)} onDelete={() => idea.data && onDelete(idea.data)} />
+          <IdeaFields
+            key={idea.data.id}
+            idea={idea.data}
+            onPromote={() => idea.data && onPromote(idea.data)}
+            onDiscard={() => idea.data && onDiscard(idea.data)}
+            onDelete={() => idea.data && onDelete(idea.data)}
+          />
         )}
       </SheetContent>
     </Sheet>
   );
 }
 
-function IdeaFields({ idea, onDiscard, onDelete }: { idea: Idea; onDiscard: () => void; onDelete: () => void }) {
+function IdeaFields({ idea, onPromote, onDiscard, onDelete }: { idea: Idea; onPromote: () => void; onDiscard: () => void; onDelete: () => void }) {
   const utils = trpc.useUtils();
   const projects = trpc.ideas.projects.useQuery(undefined, { staleTime: 5 * 60_000 });
   const update = trpc.ideas.update.useMutation({
@@ -51,6 +70,40 @@ function IdeaFields({ idea, onDiscard, onDelete }: { idea: Idea; onDiscard: () =
     onSettled: () => void utils.ideas.list.invalidate(),
   });
   const save = (patch: Omit<Parameters<typeof update.mutate>[0], "id">) => update.mutate({ id: idea.id, ...patch });
+  const addTodo = trpc.todos.add.useMutation({
+    onSuccess: () => toast.success(t("pages.ideas.todoMade", { key: idea.promoted?.key ?? "" })),
+    onError: e => toastError(e),
+  });
+  const open = idea.state !== "promoted" && idea.state !== "discarded";
+  const copyPrompt = async () => {
+    try {
+      const h = await utils.ideas.handoff.fetch({ id: idea.id });
+      await navigator.clipboard.writeText(h.markdown);
+      toast.success(t("pages.ideas.promptCopied"));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const downloadPrompt = async () => {
+    try {
+      const h = await utils.ideas.handoff.fetch({ id: idea.id });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([h.markdown], { type: "text/markdown" }));
+      a.download = h.filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  /** The user's own mail program writes it; nothing is sent from here. */
+  const writeMail = async () => {
+    try {
+      window.location.href = (await utils.ideas.askMail.fetch({ id: idea.id, to: null })).url;
+    } catch (e) {
+      toastError(e);
+    }
+  };
   const [title, setTitle] = useState(idea.title);
   const [body, setBody] = useState(idea.body);
   const [criterion, setCriterion] = useState("");
@@ -174,7 +227,30 @@ function IdeaFields({ idea, onDiscard, onDelete }: { idea: Idea; onDiscard: () =
       </div>
 
       <div className="flex flex-wrap gap-2 border-t pt-4">
-        {idea.state !== "discarded" && idea.state !== "promoted" && (
+        {open && (
+          <Button size="sm" onClick={onPromote}>
+            {t("pages.ideas.createIssue")}
+          </Button>
+        )}
+        {idea.promoted && idea.route === "me" && (
+          <Button size="sm" disabled={addTodo.isPending} onClick={() => idea.promoted && addTodo.mutate({ text: idea.title, issueKey: idea.promoted.key, connectionId: idea.promoted.connectionId })}>
+            {t("pages.ideas.makeTodo")}
+          </Button>
+        )}
+        <Button variant="outline" size="sm" onClick={() => void copyPrompt()}>
+          {t("pages.ideas.copyPrompt")}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void downloadPrompt()}>
+          {t("pages.ideas.downloadPrompt")}
+        </Button>
+        {idea.questions.some(q => q.answer.trim() === "") && (
+          <Button variant="outline" size="sm" onClick={() => void writeMail()}>
+            {t("pages.ideas.writeMail")}
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {open && (
           <Button variant="outline" size="sm" onClick={onDiscard}>
             {t("pages.ideas.discard")}
           </Button>

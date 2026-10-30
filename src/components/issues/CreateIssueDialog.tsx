@@ -1,6 +1,7 @@
 import { createIssueDialog } from "@/lib/flag";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { lazyPart } from "@/components/app/lazyPart";
+import { clearCreateIssuePrefill } from "@/lib/createIssue";
 
 const CreateIssueForm = lazyPart(() => import("@/components/issues/CreateIssueForm").then(m => m.CreateIssueForm));
 
@@ -8,11 +9,22 @@ const CreateIssueForm = lazyPart(() => import("@/components/issues/CreateIssueFo
 export function CreateIssueDialog() {
   const open = createIssueDialog.useValue();
   return (
-    <Dialog open={open} onOpenChange={createIssueDialog.set}>
+    <Dialog
+      open={open}
+      onOpenChange={o => {
+        if (!o) clearCreateIssuePrefill();
+        createIssueDialog.set(o);
+      }}
+    >
       <DialogContent className="sm:max-w-lg">
         {/* Mounted only while open: every opening starts clean. */}
         {open && (
-          <CreateIssueForm onClose={() => createIssueDialog.set(false)} />
+          <CreateIssueForm
+            onClose={() => {
+              clearCreateIssuePrefill();
+              createIssueDialog.set(false);
+            }}
+          />
         )}
       </DialogContent>
     </Dialog>

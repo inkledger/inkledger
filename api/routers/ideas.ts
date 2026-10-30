@@ -4,11 +4,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
-import { connections, containers, ideas } from "@db/schema";
+import { alias } from "drizzle-orm/pg-core";
+import { connections, containers, ideas, issues } from "@db/schema";
 import { t } from "@contracts/i18n";
-import { canMove, CAPTURE_MAX, IDEA_ROUTES, IDEA_STATES, splitIdeas, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
+import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueKeyInput } from "../lib/inputs";
 
 /** How long a deleted idea can be brought back */
 const TRASH_DAYS = 30;
@@ -40,8 +42,13 @@ function parsed<T>(schema: z.ZodType<T[]>, text: string): T[] {
 const isState = (s: string): s is IdeaState => (IDEA_STATES as readonly string[]).includes(s);
 const isRoute = (r: string | null): r is IdeaRoute => r !== null && (IDEA_ROUTES as readonly string[]).includes(r);
 
-/** An idea as the page shows it: its lists parsed, its project named. */
-function rowOf(i: IdeaRecord, container: { id: number; key: string; name: string } | null) {
+type Linked = { key: string | null; summary: string | null; url: string | null; goneAt: Date | null } | null;
+
+/**
+ * An idea as the page shows it: its lists parsed, its project named, the issues
+ * it came from and became read from the catalogue (their key follows a rename).
+ */
+function rowOf(i: IdeaRecord, container: { id: number; key: string; name: string } | null, source: Linked, promoted: Linked) {
   return {
     ...i,
     state: isState(i.state) ? i.state : "raw",
@@ -50,8 +57,14 @@ function rowOf(i: IdeaRecord, container: { id: number; key: string; name: string
     questions: parsed<Question>(questions, i.questions),
     labels: parsed<string>(labels, i.labels),
     container,
-    source: i.sourceIssueKey !== null && i.sourceConnectionId !== null ? { key: i.sourceIssueKey, connectionId: i.sourceConnectionId } : null,
-    promoted: i.promotedIssueKey !== null && i.promotedConnectionId !== null ? { key: i.promotedIssueKey, connectionId: i.promotedConnectionId } : null,
+    source:
+      i.sourceIssueKey !== null && i.sourceConnectionId !== null
+        ? { key: source?.key ?? i.sourceIssueKey, connectionId: i.sourceConnectionId, summary: source?.summary ?? null }
+        : null,
+    promoted:
+      i.promotedIssueKey !== null && i.promotedConnectionId !== null
+        ? { key: promoted?.key ?? i.promotedIssueKey, connectionId: i.promotedConnectionId, summary: promoted?.summary ?? null, url: promoted?.url ?? null, gone: !promoted?.key || promoted.goneAt !== null }
+        : null,
   };
 }
 export type IdeaRow = ReturnType<typeof rowOf>;
@@ -60,13 +73,22 @@ const notFound = () => new TRPCError({ code: "NOT_FOUND", message: t("server.ide
 
 /** The user's own ideas with their projects, in board order: by state, then position. */
 async function rowsOf(userId: number, where: ReturnType<typeof and>) {
+  const source = alias(issues, "source_issue");
+  const promoted = alias(issues, "promoted_issue");
   const rows = await getDb()
-    .select({ idea: ideas, container: { id: containers.id, key: containers.key, name: containers.name } })
+    .select({
+      idea: ideas,
+      container: { id: containers.id, key: containers.key, name: containers.name },
+      source: { key: source.key, summary: source.summary, url: source.url, goneAt: source.goneAt },
+      promoted: { key: promoted.key, summary: promoted.summary, url: promoted.url, goneAt: promoted.goneAt },
+    })
     .from(ideas)
     .leftJoin(containers, eq(containers.id, ideas.containerId))
+    .leftJoin(source, eq(source.id, ideas.sourceItemId))
+    .leftJoin(promoted, eq(promoted.id, ideas.promotedItemId))
     .where(and(eq(ideas.userId, userId), where))
     .orderBy(sql`array_position(ARRAY['raw','refining','ready','promoted','discarded'], ${ideas.state})`, asc(ideas.position), asc(ideas.id));
-  return rows.map((r) => rowOf(r.idea, r.container));
+  return rows.map((r) => rowOf(r.idea, r.container, r.source, r.promoted));
 }
 
 /** One of the user's ideas (a deleted one only when asked), else NOT_FOUND. */
@@ -221,6 +243,34 @@ export const ideasRouter = createRouter({
     });
     return { ok: true as const };
   }),
+
+  /** The issue it became, once created through the usual dialog (R-2.5): it must be one of mine, in the catalogue. */
+  linkPromoted: protectedProcedure.input(z.object({ id, issueKey: issueKeyInput, connectionId: id })).mutation(async ({ ctx, input }) => {
+    const idea = await ownIdea(ctx.user.id, input.id);
+    if (idea.state === "promoted" || idea.state === "discarded") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.ideas.move.terminal") });
+    const [issue] = await getDb()
+      .select({ id: issues.id, key: issues.key })
+      .from(issues)
+      .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, input.connectionId), eq(issues.key, input.issueKey), isNull(issues.goneAt)))
+      .limit(1);
+    if (!issue) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
+    await getDb()
+      .update(ideas)
+      .set({ state: "promoted", promotedConnectionId: input.connectionId, promotedItemId: issue.id, promotedIssueKey: issue.key, promotedAt: new Date(), position: 0, updatedAt: new Date() })
+      .where(eq(ideas.id, input.id));
+    return ownIdea(ctx.user.id, input.id);
+  }),
+
+  /** The idea as a prompt for a coding agent (R-2.6): made here, never sent. */
+  handoff: protectedProcedure.input(z.object({ id })).query(async ({ ctx, input }) => {
+    const idea = await ownIdea(ctx.user.id, input.id);
+    return handoffPrompt(idea, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null);
+  }),
+
+  /** A mail link asking its open questions (R-2.6): the user's mail program sends it, if they want. */
+  askMail: protectedProcedure.input(z.object({ id, to: z.string().trim().email().max(320).nullable() })).query(async ({ ctx, input }) => ({
+    url: askMailUrl(await ownIdea(ctx.user.id, input.id), input.to),
+  })),
 
   /** To the trash, where Undo finds it for 30 days. */
   remove: protectedProcedure.input(z.object({ id })).mutation(async ({ ctx, input }) => {

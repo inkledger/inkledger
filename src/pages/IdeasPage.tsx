@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { Minus } from "lucide-react";
 import { toast } from "sonner";
-import { canMove, IDEA_STATES, type IdeaState } from "@contracts/ideas";
+import { canMove, IDEA_STATES, issueDescription, type IdeaState } from "@contracts/ideas";
+import { openCreateIssue } from "@/lib/createIssue";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelSection } from "@/components/app/Panel";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -61,6 +62,25 @@ export default function IdeasPage() {
   const move = trpc.ideas.move.useMutation({ onError: e => toastError(e), onSettled: refresh });
   const remove = trpc.ideas.remove.useMutation({ onError: e => toastError(e), onSettled: refresh });
   const restore = trpc.ideas.restore.useMutation({ onError: e => toastError(e), onSettled: refresh });
+  const link = trpc.ideas.linkPromoted.useMutation({
+    onError: e => toastError(e),
+    onSettled: () => {
+      refresh();
+      void utils.ideas.get.invalidate();
+    },
+  });
+  /** Through the usual "New issue" dialog (R-2.5), filled from the idea; once created, the idea becomes it. */
+  const promote = (idea: Idea) => {
+    setOpen(null);
+    // Once the sheet has let go of the focus: the dialog opens on its own, filled in.
+    requestAnimationFrame(() =>
+      openCreateIssue({
+        summary: idea.title,
+        description: issueDescription(idea, { acceptance: t("pages.ideas.acceptance"), decisions: t("pages.ideas.decisions") }),
+        onCreated: (issueKey, connectionId) => link.mutate({ id: idea.id, issueKey, connectionId }),
+      }),
+    );
+  };
 
   const ideas = list.data ?? [];
   const inState = (s: IdeaState) => ideas.filter(i => i.state === s);
@@ -209,6 +229,7 @@ export default function IdeasPage() {
       <IdeaSheet
         ideaId={openId}
         onClose={() => setOpen(null)}
+        onPromote={promote}
         onDiscard={idea => moveTo(idea, "discarded")}
         onDelete={deleteIdea}
       />

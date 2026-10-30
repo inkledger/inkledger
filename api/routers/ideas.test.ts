@@ -101,4 +101,30 @@ describe("ideas", () => {
     expect(await purgeIdeas(Date.now() + 31 * DAY)).toBeGreaterThanOrEqual(1);
     await expect(u.caller.ideas.restore({ id: idea.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+
+  it("an idea becomes the issue it was promoted to", async () => {
+    const a = await makeUser("i6a");
+    const b = await makeUser("i6b");
+    const issue = async (u: { userId: number }, key: string) => {
+      const [{ connection_id }] = await q<{ connection_id: number }>("SELECT connection_id FROM containers WHERE id = (SELECT max(c.id) FROM containers c JOIN connections k ON k.id = c.connection_id WHERE k.user_id = ?)", u.userId);
+      await q(
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 'The new issue', 'To Do', 'APP', 'App', ?, 1)",
+        u.userId, connection_id, `r-${key}`, key, `https://jira.example/browse/${key}`,
+      );
+      return connection_id;
+    };
+    const theirs = await issue(b, "APP-9");
+    const mine = await issue(a, "APP-1");
+    const [idea] = await a.caller.ideas.capture({ text: "Ship it" });
+    await expect(a.caller.ideas.linkPromoted({ id: idea.id, issueKey: "APP-9", connectionId: theirs })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect((await a.caller.ideas.get({ id: idea.id })).state).toBe("raw");
+    const promoted = await a.caller.ideas.linkPromoted({ id: idea.id, issueKey: "APP-1", connectionId: mine });
+    expect(promoted).toMatchObject({ state: "promoted", promoted: { key: "APP-1", connectionId: mine, summary: "The new issue", url: "https://jira.example/browse/APP-1", gone: false } });
+    // Its key follows the issue when the tracker renames it.
+    await q("UPDATE issues SET key = 'NEW-1' WHERE key = 'APP-1' AND user_id = ?", a.userId);
+    expect((await a.caller.ideas.get({ id: idea.id })).promoted?.key).toBe("NEW-1");
+    // The agent's prompt names it.
+    expect((await a.caller.ideas.handoff({ id: idea.id })).markdown).toContain("Issue: NEW-1 https://jira.example/browse/APP-1");
+    expect((await a.caller.ideas.askMail({ id: idea.id, to: null })).url.startsWith("mailto:?subject=Ship%20it")).toBe(true);
+  });
 });
