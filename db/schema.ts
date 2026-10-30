@@ -221,6 +221,33 @@ export const containers = pgTable(
   (t) => [uniqueIndex("uq_containers_connection_remote").on(t.connectionId, t.remoteId), index("idx_containers_connection_key").on(t.connectionId, t.key)],
 );
 
+/**
+ * Where a project's code is on the user's computer (an app, its server…): what
+ * "Analyse" hands to a coding agent. Only ever copied into a command, never read here.
+ */
+export const containerPaths = pgTable(
+  "container_paths",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    containerId: integer("container_id")
+      .notNull()
+      .references(() => containers.id, { onDelete: "cascade" }),
+    /** What it is to the user: "app", "server" */
+    label: text("label").notNull().default(""),
+    path: text("path").notNull(),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("uq_container_paths").on(t.userId, t.containerId, t.path),
+    index("idx_container_paths_user").on(t.userId, t.containerId, t.position),
+    check("container_paths_path", sql`length(${t.path}) BETWEEN 1 AND 1000`),
+    check("container_paths_label", sql`length(${t.label}) <= 60`),
+  ],
+);
+
 export const issues = pgTable(
   "issues",
   {
@@ -640,8 +667,11 @@ export const settings = pgTable("settings", {
   mailCopies: text("mail_copies").notNull().default("off"),
   /** When I agreed to keep copies (asked once, in a dialog) */
   mailCopiesConsentAt: ms("mail_copies_consent_at"),
+  /** "Analyse" on an issue: the agent command copied, run in the project's repositories (contracts/analyze.ts) */
+  agentCommand: text("agent_command").notNull().default("claude"),
 }, (t) => [
   check("settings_share_link_minutes", sql`${t.shareLinkMinutes} BETWEEN 5 AND 1440`),
+  check("settings_agent_command", sql`length(${t.agentCommand}) BETWEEN 1 AND 200`),
   check("settings_mail_copies", sql`${t.mailCopies} IN ('off', 'body', 'full')`),
 ]);
 

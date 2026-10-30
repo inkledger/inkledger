@@ -72,8 +72,22 @@ export function useIssueActions() {
     }
   };
 
+  /** "Analyse": a terminal command starting the coding agent in the project's repositories (contracts/analyze.ts). */
+  const copyAnalyze = async (key: string, connectionId: number | undefined) => {
+    const made = api.analyzeCommand.mutate({ key, connectionId });
+    const copied = await copyLater(made.then(r => r.command));
+    try {
+      await made;
+      if (copied) toast.success(t("pages.issueDetail.analyzeCopied"), { description: t("pages.issueDetail.analyzeHint") });
+      else toast.error(t("ui.issueActions.copyFailed"));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+
   return {
     copyForAgent,
+    copyAnalyze,
     copyKey: (key: string) => copy(key, t("ui.issueActions.key")),
     copyBranch: (i: { key: string; summary: string; issueType?: string }) =>
       copy(branchName(i.key, i.summary, { issueType: i.issueType }), t("ui.issueActions.branch")),

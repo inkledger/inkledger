@@ -73,6 +73,12 @@
       "permission": null
     },
     {
+      "id": "repositories",
+      "nativeOnly": false,
+      "desktopOnly": true,
+      "permission": null
+    },
+    {
       "id": "outlook",
       "nativeOnly": false,
       "desktopOnly": false,

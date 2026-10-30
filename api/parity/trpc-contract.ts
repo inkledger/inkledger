@@ -88,6 +88,7 @@ export interface FrozenIn {
   "issues.addComment": { connectionId?: number | undefined; key: string; text: string };
   "issues.all": undefined | void | { scope?: "all" | "bucket" | undefined };
   "issues.allSize": undefined | void | { scope?: "all" | "bucket" | undefined };
+  "issues.analyzeCommand": { connectionId?: number | undefined; key: string; minutes?: number | undefined };
   "issues.assign": { connectionId?: number | undefined; key: string; people: { handle: null | string; name: string; remoteId: string }[] };
   "issues.assignable": { connectionId?: number | undefined; key: string };
   "issues.attachments": { connectionId?: number | undefined; key: string };
@@ -234,6 +235,8 @@ export interface FrozenIn {
   "planned.list": undefined | void | { from?: string | undefined; to?: string | undefined };
   "planned.remove": { id: string };
   "planned.update": { connectionId?: null | number | undefined; endsAt?: string | undefined; id: string; issueKey?: null | string | undefined; kind?: "travel" | "vacation" | "work" | undefined; note?: null | string | undefined; startsAt?: string | undefined };
+  "projectPaths.list": void;
+  "projectPaths.save": { containerId: number; paths: { label: string; path: string }[] };
   "queries.clearRecent": void;
   "queries.delete": { id: number };
   "queries.list": void;
@@ -243,7 +246,7 @@ export interface FrozenIn {
   "reports.generate": { from: string; groupBy?: "client" | "day" | "issue" | "project" | undefined; scope?: "all" | "bucket" | undefined; search?: string | undefined; to: string };
   "settings.get": void;
   "settings.revokeShareLinks": void;
-  "settings.update": { allowedLinkDomains?: string[] | undefined; backdropVisibility?: "normal" | "scenic" | "subtle" | undefined; collapsedColumns?: string[] | undefined; dailyTargetSeconds?: number | undefined; dashboardLayout?: undefined | { id: string; visible: boolean }[]; dashboardNight?: false | true | undefined; idleMinutes?: number | undefined; mailCopies?: "body" | "full" | "off" | undefined; mailCopiesConsent?: true | undefined; notifyEnabled?: number | undefined; overlapPolicy?: "block" | "warn" | undefined; pinboardInMenu?: false | true | undefined; pinboardOnBoard?: false | true | undefined; pinboardWidget?: false | true | undefined; shareLinkMinutes?: number | undefined; themeColor?: string | undefined; timerAlertMinutes?: number | undefined; todosHotCorner?: false | true | undefined; todosInMenu?: false | true | undefined; todosWidget?: false | true | undefined; weeklyTargetSeconds?: number | undefined };
+  "settings.update": { agentCommand?: string | undefined; allowedLinkDomains?: string[] | undefined; backdropVisibility?: "normal" | "scenic" | "subtle" | undefined; collapsedColumns?: string[] | undefined; dailyTargetSeconds?: number | undefined; dashboardLayout?: undefined | { id: string; visible: boolean }[]; dashboardNight?: false | true | undefined; idleMinutes?: number | undefined; mailCopies?: "body" | "full" | "off" | undefined; mailCopiesConsent?: true | undefined; notifyEnabled?: number | undefined; overlapPolicy?: "block" | "warn" | undefined; pinboardInMenu?: false | true | undefined; pinboardOnBoard?: false | true | undefined; pinboardWidget?: false | true | undefined; shareLinkMinutes?: number | undefined; themeColor?: string | undefined; timerAlertMinutes?: number | undefined; todosHotCorner?: false | true | undefined; todosInMenu?: false | true | undefined; todosWidget?: false | true | undefined; weeklyTargetSeconds?: number | undefined };
   "sinks.activities": { id: number };
   "sinks.map": { activityId?: null | string | undefined; containerId: null | number; id: number; target: { name: string; path: { name: string; remoteId: string }[]; remoteId: string } };
   "sinks.mappings": { id: number };
@@ -391,6 +394,7 @@ export interface FrozenOut {
   "issues.addComment": { id: string };
   "issues.all": { category: string; connectionId: number; dueDate: null | string; favorite: number; favoriteRank: number; hidden: number; isMine: boolean; issueType: string; key: string; priority: string; priorityRank: null | number; projectKey: string; relevantAt: null | number; remoteId: string; remoteUpdated: null | string; status: string; statusCategory: string; summary: string; unread: boolean; watching: number }[];
   "issues.allSize": { limit: number; total: number };
+  "issues.analyzeCommand": { command: string; expiresAt: Date };
   "issues.assign": { assignees: string[]; key: string; labels: string[]; title: null | string };
   "issues.assignable": { avatarUrl: null | string; handle: null | string; isMe: boolean; name: string; remoteId: string }[];
   "issues.attachments": { author: null | string; created: null | string; filename: string; hasThumbnail: boolean; id: string; mimeType: string; size: number }[];
@@ -537,6 +541,8 @@ export interface FrozenOut {
   "planned.list": { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number }[];
   "planned.remove": { ok: boolean };
   "planned.update": { connectionId: null | number; convertedWorklogId: null | number; createdAt: Date; endsAt: Date; id: string; issueKey: null | string; itemId: null | number; kind: "travel" | "vacation" | "work"; note: null | string; startsAt: Date; updatedAt: Date; userId: number };
+  "projectPaths.list": { connection: string; id: number; key: string; name: string; paths: { label: string; path: string }[] }[];
+  "projectPaths.save": { label: string; path: string }[];
   "queries.clearRecent": { ok: boolean };
   "queries.delete": { ok: boolean };
   "queries.list": { recent: string[]; saved: { id: number; name: string; query: string }[] };
@@ -544,9 +550,9 @@ export interface FrozenOut {
   "queries.used": { query: string };
   "reports.daily": { days: { day: string; entries: number; issues: { connectionId?: null | number | undefined; container?: string | undefined; entries: number; id?: string | undefined; key: string; label: string; remoteId?: null | string | undefined; seconds: number; tracker?: string | undefined }[]; loggedSeconds: number; seconds: number }[]; issues: { connectionId?: null | number | undefined; container?: string | undefined; entries: number; id?: string | undefined; key: string; label: string; remoteId?: null | string | undefined; seconds: number; tracker?: string | undefined }[]; loggedSeconds: number; query: { unsupported: string[] }; totalEntries: number; totalSeconds: number };
   "reports.generate": { groupBy: "client"; loggedSeconds: number; query: { unsupported: string[] }; rows: { entries: number; key: string; label: string; seconds: number }[]; totalEntries: number; totalSeconds: number } | { groupBy: "day"; loggedSeconds: number; query: { unsupported: string[] }; rows: { entries: number; key: string; label: string; seconds: number }[]; totalEntries: number; totalSeconds: number } | { groupBy: "issue"; loggedSeconds: number; query: { unsupported: string[] }; rows: { connectionId: null | number; container: string; entries: number; id: string; key: string; label: string; remoteId: null | string; seconds: number; tracker: string }[]; totalEntries: number; totalSeconds: number } | { groupBy: "project"; loggedSeconds: number; query: { unsupported: string[] }; rows: { entries: number; key: string; label: string; seconds: number }[]; totalEntries: number; totalSeconds: number };
-  "settings.get": { allowedLinkDomains: string[]; collapsedColumns: string[]; dashboard: { id: string; visible: boolean }[] } & { backdropVisibility: string; boardCollapsed: string; dailyTargetSeconds: number; dashboardLayout: string; dashboardNight: number; idleMinutes: number; mailCopies: string; mailCopiesConsentAt: Date | null; notifyEnabled: number; overlapPolicy: string; pinboardInMenu: number; pinboardOnBoard: number; pinboardWidget: number; shareLinkGeneration: number; shareLinkMinutes: number; themeColor: string; timerAlertMinutes: number; todosHotCorner: number; todosInMenu: number; todosWidget: number; userId: number; weeklyTargetSeconds: number };
+  "settings.get": { agentCommand: string; backdropVisibility: string; boardCollapsed: string; dailyTargetSeconds: number; dashboardLayout: string; dashboardNight: number; idleMinutes: number; mailCopies: string; mailCopiesConsentAt: Date | null; notifyEnabled: number; overlapPolicy: string; pinboardInMenu: number; pinboardOnBoard: number; pinboardWidget: number; shareLinkGeneration: number; shareLinkMinutes: number; themeColor: string; timerAlertMinutes: number; todosHotCorner: number; todosInMenu: number; todosWidget: number; userId: number; weeklyTargetSeconds: number } & { allowedLinkDomains: string[]; collapsedColumns: string[]; dashboard: { id: string; visible: boolean }[] };
   "settings.revokeShareLinks": { ok: true };
-  "settings.update": { allowedLinkDomains: string[]; collapsedColumns: string[]; dashboard: { id: string; visible: boolean }[] } & { backdropVisibility: string; boardCollapsed: string; dailyTargetSeconds: number; dashboardLayout: string; dashboardNight: number; idleMinutes: number; mailCopies: string; mailCopiesConsentAt: Date | null; notifyEnabled: number; overlapPolicy: string; pinboardInMenu: number; pinboardOnBoard: number; pinboardWidget: number; shareLinkGeneration: number; shareLinkMinutes: number; themeColor: string; timerAlertMinutes: number; todosHotCorner: number; todosInMenu: number; todosWidget: number; userId: number; weeklyTargetSeconds: number };
+  "settings.update": { agentCommand: string; backdropVisibility: string; boardCollapsed: string; dailyTargetSeconds: number; dashboardLayout: string; dashboardNight: number; idleMinutes: number; mailCopies: string; mailCopiesConsentAt: Date | null; notifyEnabled: number; overlapPolicy: string; pinboardInMenu: number; pinboardOnBoard: number; pinboardWidget: number; shareLinkGeneration: number; shareLinkMinutes: number; themeColor: string; timerAlertMinutes: number; todosHotCorner: number; todosInMenu: number; todosWidget: number; userId: number; weeklyTargetSeconds: number } & { allowedLinkDomains: string[]; collapsedColumns: string[]; dashboard: { id: string; visible: boolean }[] };
   "sinks.activities": { items: { id: string; name: string }[]; required: "input" | "no" | "serviceDefault" };
   "sinks.map": { ok: boolean };
   "sinks.mappings": { containers: { connectionId: number; id: number; key: string; name: string }[]; failed: number; mappings: { activityId: null | string; containerId: null | number; target: { name: string; remoteId: string } }[] };

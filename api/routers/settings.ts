@@ -12,6 +12,7 @@ import {
   type DashboardLayoutItem,
 } from "@contracts/dashboard";
 import { t } from "@contracts/i18n";
+import { isAgentCommand } from "@contracts/analyze";
 
 const DEFAULTS = {
   dailyTargetSeconds: 8 * 3600,
@@ -101,6 +102,8 @@ export const settingsRouter = createRouter({
         todosWidget: z.boolean().optional(),
         todosHotCorner: z.boolean().optional(),
         shareLinkMinutes: z.number().int().min(5).max(1440).optional(),
+        /** "Analyse": the coding agent to start (a program and its options, nothing chained) */
+        agentCommand: z.string().trim().max(200).refine(isAgentCommand, { message: t("server.projectPaths.badCommand") }).optional(),
         mailCopies: z.enum(["off", "body", "full"]).optional(),
         /** Given in the consent dialog, the first time copies are turned on (docs/work/ideas/mail-copies.md R-1.2) */
         mailCopiesConsent: z.literal(true).optional(),

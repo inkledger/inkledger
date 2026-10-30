@@ -12,6 +12,7 @@ import {
   EyeOff,
   GitBranch,
   GitCommitHorizontal,
+  TerminalSquare,
   Pencil,
   Plus,
   RefreshCw,
@@ -508,6 +509,9 @@ export default function IssueDetail({
                   <DropdownMenuShortcut>M</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 {!i.remote && <CopyForAgent issueKey={i.key} connectionId={i.connectionId ?? undefined} copy={act.copyForAgent} />}
+                {!i.remote && i.containerId && (
+                  <AnalyzeItem containerId={i.containerId} onSelect={() => void act.copyAnalyze(i.key, i.connectionId ?? undefined)} />
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild variant="outline">
@@ -1004,6 +1008,21 @@ export default function IssueDetail({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** "Analyse in the code": only once the project has repositories (Settings → Repositories), and not on a phone (a terminal command). */
+function AnalyzeItem({ containerId, onSelect }: { containerId: number; onSelect: () => void }) {
+  const projects = trpc.projectPaths.list.useQuery(undefined, { staleTime: 60_000 });
+  const repos = projects.data?.find(p => p.id === containerId)?.paths ?? [];
+  if (!repos.length) return null;
+  return (
+    <>
+      <DropdownMenuSeparator className="max-lg:hidden" />
+      <DropdownMenuItem className="max-lg:hidden" onSelect={onSelect}>
+        <TerminalSquare className="h-4 w-4" aria-hidden /> {t("pages.issueDetail.analyze", { count: repos.length })}
+      </DropdownMenuItem>
+    </>
   );
 }
 

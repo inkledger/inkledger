@@ -38,6 +38,9 @@ import { contextFor, issueConnection, ownConnection, jiraContextFor, myRemoteIds
 import { runSync, toRow, upsertIssue } from "../sync/jiraIssues";
 import { syncUser } from "../sync/orchestrator";
 import { callMeta, searchConnection } from "../issues/search";
+import { analyzeCommand, analyzeInstructions } from "@contracts/analyze";
+import { pathsOf } from "./projectPaths";
+import { getSettings } from "./settings";
 
 export { settleInFlightSyncs, syncUser } from "../sync/orchestrator";
 
@@ -667,6 +670,26 @@ export const issuesRouter = createRouter({
     .mutation(({ ctx, input }) =>
       agentCopy(ctx.user, input.key, { connectionId: input.connectionId, minutes: input.minutes, origin: new URL(ctx.req.url).origin }),
     ),
+
+  /**
+   * "Analyse": a command that starts the user's coding agent in the issue's project
+   * repositories, asking for an analysis only (contracts/analyze.ts). Copied, never run.
+   */
+  analyzeCommand: protectedProcedure
+    .input(z.object({ ...onConnection, key: issueKeyInput, minutes: z.number().int().min(5).max(1440).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await issueConnection(ctx.user.id, input.key, input.connectionId);
+      const [row] = await getDb()
+        .select({ containerId: issues.containerId })
+        .from(issues)
+        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.key)))
+        .limit(1);
+      const repos = row?.containerId ? await pathsOf(ctx.user.id, row.containerId) : [];
+      if (!repos.length) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.projectPaths.none") });
+      const copy = await agentCopy(ctx.user, input.key, { connectionId: conn.id, minutes: input.minutes ?? 60, origin: new URL(ctx.req.url).origin, depth: 2 });
+      const { agentCommand } = await getSettings(ctx.user.id);
+      return { command: analyzeCommand(agentCommand, repos, `${analyzeInstructions(repos)}\n\n${copy.markdown}`), expiresAt: copy.expiresAt };
+    }),
 
   /** Links to other services on the issue (read only); only http(s) URLs. */
   remoteLinks: protectedProcedure

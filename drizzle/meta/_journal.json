@@ -183,6 +183,13 @@
       "when": 1793380016001,
       "tag": "0025_idea_files",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793381059580,
+      "tag": "0026_container_paths",
+      "breakpoints": true
     }
   ]
 }

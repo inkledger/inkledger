@@ -332,6 +332,10 @@
     "type": "query"
   },
   {
+    "path": "issues.analyzeCommand",
+    "type": "mutation"
+  },
+  {
     "path": "issues.assign",
     "type": "mutation"
   },
@@ -913,6 +917,14 @@
   },
   {
     "path": "planned.update",
+    "type": "mutation"
+  },
+  {
+    "path": "projectPaths.list",
+    "type": "query"
+  },
+  {
+    "path": "projectPaths.save",
     "type": "mutation"
   },
   {

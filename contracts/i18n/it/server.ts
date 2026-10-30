@@ -212,6 +212,11 @@ export const server: Shape<typeof en> = {
     convertLinked: "Questo appunto è collegato a una issue: scollegalo prima di farne una cartella.",
     nameRequired: "Dagli un nome.",
   },
+  projectPaths: {
+    badPath: "Il percorso di un repository inizia con / o ~/ ed è una sola riga.",
+    badCommand: "Il comando dell'agente è un programma con le sue opzioni (niente ; & | $ ` o < >).",
+    none: "Il progetto di questa issue non ha ancora repository: aggiungili in Impostazioni → Repository.",
+  },
   ideas: {
     notFound: "Quell'idea non c'è più.",
     tooMany: "Al massimo 50 idee alla volta: dividi l'elenco.",

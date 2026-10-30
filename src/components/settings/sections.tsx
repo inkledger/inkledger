@@ -20,6 +20,7 @@ import {
   ListChecks,
   Mail,
   Network,
+  FolderGit2,
   Hourglass,
   type LucideIcon,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import { AppearanceSection } from "@/components/settings/sections/Appearance";
 import { PinboardSection } from "@/components/settings/sections/Pinboard";
 import { TodosSection } from "@/components/settings/sections/Todos";
 import { EstimatesSection } from "@/components/settings/sections/Estimates";
+import { RepositoriesSection } from "@/components/settings/sections/Repositories";
 import { useTodoSurfaces } from "@/hooks/useTodoPanel";
 import { usePinboardSurfaces } from "@/hooks/usePinboardPanel";
 import { NotificationsSection } from "@/components/settings/sections/Notifications";
@@ -240,6 +242,22 @@ export const CATEGORIES: SettingsCategory[] = [
     Summary: function EstimatesSummary() {
       const s = trpc.estimates.historyStates.useQuery(undefined, { staleTime: 60_000 }).data;
       return s ? t("settings.estimates.state.available", { count: s.available }) : null;
+    },
+  },
+  {
+    id: "repositories",
+    get label() { return t("settings.categories.repositories.label"); },
+    get description() { return t("settings.categories.repositories.description"); },
+    icon: FolderGit2,
+    get keywords() { return t("settings.categories.repositories.keywords"); },
+    // A command to run in a terminal: nothing to do with it on a phone.
+    desktopOnly: true,
+    Content: RepositoriesSection,
+    Summary: function RepositoriesSummary() {
+      const list = trpc.projectPaths.list.useQuery(undefined, { staleTime: 60_000 }).data;
+      if (!list) return null;
+      const n = list.filter(p => p.paths.length > 0).length;
+      return t("settings.categories.repositories.summary", { count: n });
     },
   },
   {

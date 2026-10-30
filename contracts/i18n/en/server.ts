@@ -211,6 +211,11 @@ export const server = {
     summaryTitle: "Report {period}",
     timelineTitle: "Timeline {period}",
   },
+  projectPaths: {
+    badPath: "A repository path starts with / or ~/ and is one line.",
+    badCommand: "The agent command is a program and its options (no ; & | $ ` or < >).",
+    none: "This issue's project has no repositories yet: add them in Settings → Repositories.",
+  },
   ideas: {
     notFound: "That idea is gone.",
     tooMany: "Up to 50 ideas at a time: split the list.",

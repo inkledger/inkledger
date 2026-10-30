@@ -119,3 +119,40 @@ test("branch name and commit message: from the menu and with b / m, the key firs
     await page.waitForFunction(() => navigator.clipboard.readText().then(t => t.length > 0));
     assert.equal(await read(), "DEMO-101 Test task number 1");
   }));
+
+test("Analyse: with the project's repositories set, the issue's menu copies a terminal command, the issue its last word", async () => {
+  const jira = await fakeJira();
+  try {
+    await withApp(
+      {
+        seed: async db => {
+          await db.q("UPDATE connections SET base_url = ? WHERE id = 1", jira.url);
+          const [c] = await db.q("INSERT INTO containers (connection_id, remote_id, key, name, created_at) VALUES (1, 'demo', 'DEMOX', 'Demo code', 1) ON CONFLICT DO NOTHING RETURNING id");
+          await db.q("UPDATE issues SET container_id = ? WHERE key = 'DEMO-101'", c.id);
+        },
+      },
+      async ({ page, base, db }) => {
+        await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
+        // Settings → Repositories: the project's folders.
+        await page.goto(`${base}/settings/repositories`);
+        await page.getByRole("button", { name: /^Add a path to DEMOX/ }).click();
+        await page.getByRole("textbox", { name: /^Path 1 of DEMOX/ }).fill("~/code/demo app");
+        await page.getByRole("textbox", { name: /^Name of path 1 of DEMOX/ }).click();
+        for (let i = 0; i < 50 && !(await db.q("SELECT path FROM container_paths")).length; i++) await new Promise(r => setTimeout(r, 100));
+        assert.deepEqual(await db.q("SELECT label, path FROM container_paths"), [{ label: "app", path: "~/code/demo app" }]);
+        // The issue's menu: Analyse.
+        await page.goto(`${base}/issues/DEMO-101`);
+        await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
+        await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+        await page.getByRole("menuitem", { name: "Analyse in the code (1 repositories)" }).click();
+        await page.getByText("Command copied: paste it in a terminal").waitFor();
+        const cmd = await page.evaluate(() => navigator.clipboard.readText());
+        assert.match(cmd, /^cd ~\/'code\/demo app' && claude 'Analyse this issue against the code in these repositories:\n- app: ~\/code\/demo app\n/);
+        assert.match(cmd, /# DEMO-101: Test task number 1/);
+        assert.ok(cmd.endsWith("'"), "the prompt is the last, quoted word");
+      }
+    );
+  } finally {
+    await jira.close();
+  }
+});
