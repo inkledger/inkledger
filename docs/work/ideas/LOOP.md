@@ -1,19 +1,22 @@
 # Loop: building the idea specs
 
-## For the user (2026-10-29, night)
-Done tonight, all local commits, nothing pushed: B3.2a1 `a8a3e63`, B3.2 `bfc4341`, B3.2a2 (this commit). Details and the decisions taken without you (each marked "to review") are in `estimates.md` under batches 2a and 2.
+## For the user: where the loop stopped (2026-10-30, early morning)
 
-**Questions only you can answer** (each written under its Q in `estimates.md`):
-1. **Q10, Basecamp cards:** a card's move between columns isn't in Basecamp's documented events. (a) let me read one real card's events on your Basecamp, read-only; (b) cards stay `invalid`, to-dos work (today); (c) cards `unsupported` (all worklogs count).
-2. **Q11, OpenProject:** its activities give status changes only as text in the user's language. (a) let me read one real work package's activities, read-only, to see if the HTML marks field and values in a language-independent way; (b) parse English and require the API user's language to be English; (c) keep it `invalid` (today).
-3. **Q1 (unchanged), blocks B3.6:** read and accept the Modified MIT licence of the Timestral weights.
-4. **Push:** 5 local commits on `main` (from `ca35c47`). Push when you have reviewed them.
+**Done, local commits only, nothing pushed** (from `ca35c47` on): B3.1 `ca35c47`, Q8 docs `2d1161c` `4d93a15`, B3.2a1 `a8a3e63`, B3.2 `bfc4341`, B3.2a2 `134b108`, B3.3 `285bc97`, B3.4 + B3.5 `cada276`, B2.1 `336f52b`, B2.2 `ff92b87`, B2.3 `0b7d6da`, B2.4 `a9989aa`. Every decision taken without you is in its spec under the batch, marked "to review".
 
-**Found, not caused by this work** (both passed in a later full run: they depend on the date or the hour): `e2e/multi-process.test.mjs` "two server processes: overlapping worklogs…" fails today at round 3 (`409,409`: 24 October, the day before the end of daylight saving). It fails the same way on `8a17a98`, which was green on CI. Date-dependent, like `shadow-room`; not investigated further.
+**Blocked: only you can unblock them.**
+1. **Q10 (estimates), Basecamp cards:** a card's move between columns isn't in Basecamp's documented events. (a) let me read one real card's events on your Basecamp, read-only; (b) cards stay `invalid`, to-dos work (today); (c) cards `unsupported` (all worklogs count).
+2. **Q11 (estimates), OpenProject:** status changes only as text in the user's language. (a) let me read one real work package's activities, read-only, to see if the HTML marks field and values in a language-independent way; (b) parse English and require the API user's language to be English; (c) keep it `invalid` (today).
+3. **Q1 (estimates), blocks B3.6, then B3.7 and infra B5.4:** read and accept the Modified MIT licence of the Timestral weights; 28M as the default.
+4. **Q3 (triage), blocks B2.5:** which local model (`qwen3:4b` or `gemma3:4b`, to be measured on your machines) and where Ollama runs (native on the Mac or on the LAN).
+5. **Q3 (infra), blocks B5.1:** memory and CPU limits for the `ai` and `ml` services (proposal: Ollama 8 GB / 4 CPU, ml 1 GB / 1 CPU). B5.1 also starts a new container on your machine (`postgres:17-alpine` on 127.0.0.1:54331, volume `inkledger-dev-pgdata`, pulled from Docker Hub): may I?
+6. **Infra B5.3:** its `.env` defaults carry other docs' open proposals: `MAIL_COPY_MAX_MB` 30 (mail-copies Q3), `OTS_EXPLORER` blockstream.info (on-chain licences). They are answered with those docs' questions.
+7. **Q1 (infra), blocks B5.2:** may `inkledger_dev` move out of `jtt-db` with a read-only dump?
+8. **Mail copies (B1):** Q1 (reverse "never the body", off by default) and Q2 (the `postal-mime` dependency). **On-chain licences (B4):** Q1 (BTCPay hosting, Lightning), Q2 (BTC only or EVM too), Q3 (a BIP-322 library for Workers).
+9. **Review and push** the commits above.
+10. **Optional:** the menu's memoized `NavRow` (B2.2) dropped every page's component renders by about 1000 (dashboard 1853 against a limit of 2860): the limits in `e2e/renders.test.mjs` could be lowered to lock that in.
 
-**Also done:** B3.3 (estimates API), B3.4 (issue page, TODO suggestion, Settings → Estimates), B3.5 (accuracy in Reports), B2.1 (ideas: table, contract, router), B2.2 (the Ideas page, nav, ⌘K), B2.3 (an idea becomes an issue, a prompt, a mail, a TODO), B2.4 (an issue sent to triage), see their rows. The render limits could now be lowered (dashboard 1853 renders against 2860): your call.
-
-Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git and the code win over this file.
+**Found, not caused by this work:** `e2e/multi-process.test.mjs` failed at round 3 on 2026-10-29 evening and `e2e/shadow-room.test.mjs` fails at some hours; both passed in the later full runs (252/252 on `ff92b87`'s build). They depend on the date or the hour.
 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -28,12 +31,12 @@ Started 2026-10-29. The queue follows `README.md` ("Implementation order"); git 
 | B2.2 | triage | R-2.11; AC-2.15, 2.16, 2.20, 2.21 | done | (this commit) | `PROVIDERS_READ_ONLY=1 node --test e2e/ideas.test.mjs` → 4/4; `e2e/renders.test.mjs` → pass with limits unchanged after the memoized `NavRow` (dashboard 2898 → 1853 renders); `e2e/layout-overflow.test.mjs` → 5/5; screenshots light/dark 320 and 1400 (board, list, sheet); `pnpm lint` → ok (design ok); `pnpm check` → ok; `pnpm test` → 201 files, 2430 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok; full `PROVIDERS_READ_ONLY=1` e2e → 252/252 | Decisions under batch 2 in triage.md |
 | B2.3 | triage | R-2.5, 2.6; AC-2.11, 2.17, 2.22 | done | (this commit) | `vitest run api/routers/ideas.test.ts contracts/ideas.test.ts` → 6 + 6 passed (AC-2.11 first failed: no procedure); `e2e/ideas.test.mjs` + `e2e/create-issue.test.mjs` → 7/7 twice (AC-2.17 failed before the prefill fix); `e2e/board.test.mjs` → 14/14; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 201 files, 2432 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Fixed a lost prefill in New issue; decisions under batch 3 in triage.md |
 | B2.4 | triage | R-2.4, 2.10; AC-2.10, 2.18 | done | (this commit) | `vitest run api/routers/ideas.test.ts` → 7 passed (AC-2.10 first failed: no procedure); `e2e/ideas.test.mjs` → 7/7; `e2e/renders.test.mjs` → pass, limits unchanged; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 201 files, 2433 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 4 in triage.md |
-| B5.1 | infra | R-5.1, 5.2, 5.6; AC-5.1, 5.2, 5.6, 5.7 | todo | | | |
-| B5.3 | infra | R-5.3; AC-5.3 | todo | | | |
-| B2.5 | triage | R-2.8; AC-2.13, 2.14, 2.19 | todo | | | Q3 blocks |
-| B5.4 | infra | R-5.5; AC-5.4 | todo | | | |
-| B3.6 | estimates | AC-3.39, 3.40 | todo | | | Q1 blocks |
-| B3.7 | estimates | AC-3.30–3.38, 3.44, 3.45 | todo | | | |
-| B1.1–B1.6 | mail-copies | see doc | todo | | | Q1, Q2 block |
-| B4.1–B4.5 | onchain-licences | see doc | todo | | | Q1–Q3 block |
-| B5.2 | infra | R-5.4; AC-5.5 | todo | | | Q1 blocks |
+| B5.1 | infra | R-5.1, 5.2, 5.6; AC-5.1, 5.2, 5.6, 5.7 | blocked | | | Infra Q3 (limits of `ai` and `ml`) and your OK to start a new dev container on this machine: see the top |
+| B5.3 | infra | R-5.3; AC-5.3 | blocked | | | Its env defaults are other docs' open proposals (mail-copies Q3, on-chain explorer): see the top |
+| B2.5 | triage | R-2.8; AC-2.13, 2.14, 2.19 | blocked | | | Triage Q3 (model, where Ollama runs); after B5.3 |
+| B5.4 | infra | R-5.5; AC-5.4 | blocked | | | Needs the sidecar of B3.6 (estimates Q1) |
+| B3.6 | estimates | AC-3.39, 3.40 | blocked | | | Estimates Q1 (Timestral licence) |
+| B3.7 | estimates | AC-3.30–3.38, 3.44, 3.45 | blocked | | | After B3.6 |
+| B1.1–B1.6 | mail-copies | see doc | blocked | | | Mail-copies Q1, Q2 |
+| B4.1–B4.5 | onchain-licences | see doc | blocked | | | On-chain Q1–Q3 |
+| B5.2 | infra | R-5.4; AC-5.5 | blocked | | | Infra Q1 (move the dev db out of jtt-db) |
