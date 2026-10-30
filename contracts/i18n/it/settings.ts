@@ -712,10 +712,13 @@ export const settings: Shape<typeof en> = {
     off: "Disattivata",
   },
   estimates: {
-    title: "Stime",
+    title: "Stati che contano come lavoro",
+    description: "Il tempo che una issue passa in questi stati fa la sua stima. Uno stato cambiato mostra come tornare al predefinito.",
+    forTracker: "Stati di {name}",
     counts: "Conta come lavoro",
-    default: "predefinito",
     reset: "Torna al predefinito",
+    resetAll: "Ripristina tutti e {count}",
+    historyKeywords: "storico chiuse letto attesa non supportato",
     noStatuses: "Questa connessione non elenca ancora stati.",
     historyTitle: "Le tue issue chiuse con del tempo",
     state: {

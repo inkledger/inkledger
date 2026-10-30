@@ -711,10 +711,13 @@ export const settings = {
     off: "Off",
   },
   estimates: {
-    title: "Estimates",
+    title: "Statuses that count as work",
+    description: "The time an issue spends in these statuses makes its estimate. A status you changed shows a way back to its default.",
+    forTracker: "Statuses of {name}",
     counts: "Counts as work",
-    default: "default",
     reset: "Back to default",
+    resetAll: "Reset all {count}",
+    historyKeywords: "history closed read waiting unsupported",
     noStatuses: "This connection lists no statuses yet.",
     historyTitle: "Your closed issues with time",
     state: {
