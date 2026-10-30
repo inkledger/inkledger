@@ -210,6 +210,12 @@ export const server = {
   estimates: {
     unknownStatus: "This status isn't one of the connection's.",
   },
+  forecast: {
+    off: "The forecast isn't set up on this server.",
+    notReady: "The forecast model is still getting ready: try again in a minute.",
+    bad: "The forecast came back unusable: try again.",
+    slow: "The forecast took too long: try again.",
+  },
   todos: {
     notFound: "TODO not found",
     empty: "Write what there is to do",

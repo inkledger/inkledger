@@ -11,6 +11,7 @@ import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
 import { EstimateAccuracy } from "@/components/reports/EstimateAccuracy";
+import { ForecastSections } from "@/components/reports/ForecastSections";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
@@ -312,6 +313,7 @@ export default function Reports() {
         <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
           <EstimateAccuracy />
         </PanelSection>
+        <ForecastSections />
       </>
     );
   }
@@ -393,6 +395,8 @@ export default function Reports() {
       <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
         <EstimateAccuracy />
       </PanelSection>
+      {/* Ahead: when the open work is done, and where my times are going (absent without its service). */}
+      <ForecastSections />
     </>
   );
 }

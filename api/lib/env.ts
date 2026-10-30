@@ -82,6 +82,8 @@ export const env = {
   ...serviceEnv(process.env),
   /** A model that answers without Ollama (tests): "1" a fixed valid suggestion, "garbage" an invalid one */
   ollamaSimulator: (process.env.OLLAMA_SIMULATOR ?? "").trim() || null,
+  /** A forecast without the sidecar (tests): seasonal naive, ±30% around it */
+  forecastSimulator: (process.env.FORECAST_SIMULATOR ?? "").trim() === "1",
   isProduction,
   serveBuild: !isProduction && process.env.SERVE_BUILD === "1",
   /** HTTP port for the production server */

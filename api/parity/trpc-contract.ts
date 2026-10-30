@@ -56,6 +56,10 @@ export interface FrozenIn {
   "estimates.historyStates": void;
   "estimates.setWorkStatus": { connectionId: number; counts: false | null | true; statusId: string };
   "estimates.workStatuses": { connectionId: number };
+  "forecast.available": void;
+  "forecast.capacity": { days: number };
+  "forecast.finish": { bucketId: number } | { issues: { connectionId: number; issueKey: string }[] } | { scope: "active" };
+  "forecast.trend": void;
   "ideas.askMail": { id: number; to: null | string };
   "ideas.capture": { containerId?: number | undefined; text: string };
   "ideas.counts": void;
@@ -337,6 +341,10 @@ export interface FrozenOut {
   "estimates.historyStates": { available: number; invalid: number; pending: number; retry: number; stale: number; unsupported: number };
   "estimates.setWorkStatus": { ok: true };
   "estimates.workStatuses": { byDefault: boolean; category: "backlog" | "cancelled" | "doing" | "done" | "todo" | "triage"; counts: boolean; name: string; statusId: string }[];
+  "forecast.available": { available: boolean; model: null; reason: string } | { available: boolean; model: string; reason: null };
+  "forecast.capacity": { days: ({ day: string; p10: number; p50: number; p90: number } & { off: boolean })[] };
+  "forecast.finish": { counted: number; overKeys: string[]; p50: null | string; p50Beyond: boolean; p80: null | string; p80Beyond: boolean; remainingHoursP50: number; remainingHoursP80: number; scope: { id: number; kind: "bucket"; name: string } | { kind: "list" } | { kind: "mine" }; unknown: number; unknownKeys: string[]; workP50Hours: number; workP80Hours: number };
+  "forecast.trend": { ratio: { direction: "better" | "flat" | "worse"; forecast: { p10: number; p50: number; p90: number; week: string }[] } & { weeks: { imputed: boolean; value: number; week: string }[] } | { have: number; insufficient: true; need: 8 }; work: { direction: "better" | "flat" | "worse"; forecast: { p10: number; p50: number; p90: number; week: string }[] } & { weeks: { imputed: boolean; value: number; week: string }[] } | { have: number; insufficient: true; need: 8 } };
   "ideas.askMail": { url: string };
   "ideas.capture": { acceptance: { id: string; text: string }[]; body: string; container: null | { id: number; key: string; name: string }; containerId: null | number; createdAt: Date; deletedAt: Date | null; discardedReason: null | string; estimateSeconds: null | number; id: number; labels: string[]; mailId: null | number; position: number; promoted: null | { connectionId: number; gone: boolean; key: string; summary: null | string; url: null | string }; promotedAt: Date | null; promotedConnectionId: null | number; promotedIssueKey: null | string; promotedItemId: null | number; questions: { answer: string; blocking: boolean; id: string; text: string }[]; route: "agent" | "ask" | "me" | null; source: null | { connectionId: number; key: string; summary: null | string }; sourceConnectionId: null | number; sourceIssueKey: null | string; sourceItemId: null | number; state: "discarded" | "promoted" | "raw" | "ready" | "refining"; title: string; updatedAt: Date; userId: number }[];
   "ideas.counts": { discarded: number; promoted: number; raw: number; ready: number; refining: number };

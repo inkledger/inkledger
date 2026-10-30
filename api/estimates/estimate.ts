@@ -148,6 +148,10 @@ SELECT
   ${STATUSES_AND_CHOICES},
   (SELECT json_agg(json_build_array(p."a", p."b", p."s")) FROM pairs p) AS "pairs"`;
 
+const CLOSED_SQL = `
+WITH ${CANDIDATES}
+SELECT NULL AS "target", ${samplesOfCand("NULL")} FROM cand c) AS "samples", ${STATUSES_AND_CHOICES}`;
+
 const jsonList = (text: string): string[] => {
   try {
     const v: unknown = JSON.parse(text);
@@ -314,3 +318,13 @@ export async function accuracyFor(userId: number, now: number, cache: EstimateCa
   return answer;
 }
 
+/** My closed issues as samples (R-3.1–R-3.4), for the trend (R-3.20); cached with the estimates. */
+export async function closedSamples(userId: number, now: number, cache: EstimateCache = defaultCache): Promise<Sample[]> {
+  const revision = await estimateRevision(userId);
+  const cached = cache.get<Sample[]>(userId, revision, "closed", now);
+  if (cached) return cached;
+  const [row] = await q<Row>(CLOSED_SQL, userId);
+  const { samples } = samplesOf(row);
+  cache.set(userId, revision, "closed", now, samples);
+  return samples;
+}

@@ -64,9 +64,8 @@ test("the statuses that count as work are chosen per connection", () =>
     assert.deepEqual(await db.q("SELECT status_id FROM work_statuses"), []);
   }));
 
-// The accuracy part (batch 5); the forecast and the trend join it with batch 7.
 test("Reports shows accuracy, forecast and trend", () =>
-  withApp({ seed }, async ({ page, base }) => {
+  withApp({ seed, env: { FORECAST_SIMULATOR: "1" } }, async ({ page, base }) => {
     await page.goto(base + "/reports");
     const accuracy = page.getByTestId("estimate-accuracy");
     await accuracy.waitFor();
@@ -74,16 +73,27 @@ test("Reports shows accuracy, forecast and trend", () =>
     await accuracy.getByText("100% within the range · typical error 0% · 1 issues").waitFor();
     await accuracy.getByText("5 without enough earlier history").waitFor();
     assert.equal(await page.getByRole("progressbar", { name: "Estimate accuracy" }).getAttribute("aria-valuenow"), "100");
+    // The forecast: the next four weeks drawn, the open issue assigned to me, the bound explained.
+    const forecast = page.getByTestId("forecast");
+    await forecast.getByRole("img", { name: "Hours you'll likely work, the next four weeks" }).waitFor();
+    await forecast.getByText(/^14 open issues assigned to you: /).waitFor();
+    await forecast.getByText("\"At the latest\" is a cautious planning bound, not a probability.").waitFor();
+    // Each day can be read on its own (hover or focus).
+    await forecast.getByRole("img").locator("rect").first().focus();
+    await forecast.locator("[data-surface=menu]").waitFor();
+    // The trend: six closed issues in a month aren't enough weeks, and it says so.
+    const trend = page.getByTestId("forecast-trend");
+    await trend.getByText(/^Needs 8 weeks with closed issues, \d so far$/).first().waitFor();
   }));
 
 test("estimates at 320 px", () =>
-  withApp({ seed, viewport: { width: 320, height: 800 } }, async ({ page, base }) => {
+  withApp({ seed, viewport: { width: 320, height: 800 }, env: { FORECAST_SIMULATOR: "1" } }, async ({ page, base }) => {
     for (const scheme of ["light", "dark"]) {
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       for (const [route, ready] of [
         ["/issues/EST-1", () => page.getByTestId("issue-estimate").waitFor()],
         ["/settings/estimates", () => page.getByRole("switch", { name: "Counts as work: Waiting for customer" }).waitFor()],
-        ["/reports", () => page.getByTestId("estimate-accuracy").waitFor()],
+        ["/reports", () => page.getByTestId("forecast").getByText(/open issues/).waitFor()],
       ]) {
         await page.goto(base + route);
         await ready();

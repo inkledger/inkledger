@@ -204,6 +204,22 @@
     "type": "query"
   },
   {
+    "path": "forecast.available",
+    "type": "query"
+  },
+  {
+    "path": "forecast.capacity",
+    "type": "query"
+  },
+  {
+    "path": "forecast.finish",
+    "type": "query"
+  },
+  {
+    "path": "forecast.trend",
+    "type": "query"
+  },
+  {
     "path": "ideas.askMail",
     "type": "query"
   },

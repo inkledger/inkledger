@@ -211,6 +211,12 @@ export const server: Shape<typeof en> = {
   estimates: {
     unknownStatus: "Questo stato non è tra quelli della connessione.",
   },
+  forecast: {
+    off: "La previsione non è configurata su questo server.",
+    notReady: "Il modello di previsione si sta ancora preparando: riprova tra un minuto.",
+    bad: "La previsione è tornata inutilizzabile: riprova.",
+    slow: "La previsione ci ha messo troppo: riprova.",
+  },
   todos: {
     notFound: "TODO non trovato",
     empty: "Scrivi cosa c'è da fare",
