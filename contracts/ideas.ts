@@ -1,5 +1,6 @@
 // Ideas in triage (docs/work/ideas/triage.md): their states and moves, capture
 // of a pasted list, and the texts an idea is handed on as (an agent's prompt, a mail).
+import { z } from "zod";
 
 export const IDEA_STATES = ["raw", "refining", "ready", "promoted", "discarded"] as const;
 export type IdeaState = (typeof IDEA_STATES)[number];
@@ -126,4 +127,23 @@ export function issueDescription(idea: Pick<IdeaView, "body" | "acceptance" | "q
   ]
     .filter((part) => part !== "")
     .join("\n\n");
+}
+
+/** What the local model may suggest for an idea (R-2.8): every field optional, each used one by one. */
+export const ideaSuggestionSchema = z.object({
+  title: z.string().max(200).optional(),
+  problem: z.string().max(4000).optional(),
+  acceptance: z.array(z.string().max(500)).max(10).optional(),
+  outOfScope: z.array(z.string().max(500)).max(10).optional(),
+  questions: z.array(z.string().max(500)).max(10).optional(),
+  split: z.array(z.string().max(200)).max(8).optional(),
+  labels: z.array(z.string().max(60)).max(8).optional(),
+  estimateMinutes: z.number().int().min(5).max(43200).optional(),
+});
+export type IdeaSuggestion = z.infer<typeof ideaSuggestionSchema>;
+
+/** The problem text with an "Out of scope" list after it (a suggestion used, triage Q5). */
+export function withOutOfScope(body: string, items: readonly string[]): string {
+  const list = items.map((i) => `- ${i}`).join("\n");
+  return `${body.trimEnd()}${body.trim() ? "\n\n" : ""}Out of scope:\n${list}`;
 }

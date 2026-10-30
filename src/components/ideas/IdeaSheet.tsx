@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
-import type { Criterion, IdeaRoute, Question } from "@contracts/ideas";
+import { withOutOfScope, type Criterion, type IdeaRoute, type Question } from "@contracts/ideas";
+import { useDirtyClose } from "@/components/app/DirtyClose";
+import { IdeaSuggestionPanel, type SuggestionField } from "@/components/ideas/IdeaSuggestion";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +37,12 @@ export function IdeaSheet({
 }) {
   const open = ideaId !== null;
   const idea = trpc.ideas.get.useQuery({ id: ideaId ?? 0 }, { enabled: open });
+  // A suggestion not used yet is asked about before closing.
+  const guard = useDirtyClose(onClose);
   return (
-    <Sheet open={open} onOpenChange={o => !o && onClose()}>
+    <>
+    {guard.confirm}
+    <Sheet open={open} onOpenChange={guard.onOpenChange}>
       <SheetContent className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg">
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="[overflow-wrap:anywhere]">{idea.data?.title ?? t("pages.ideas.title")}</SheetTitle>
@@ -54,15 +60,30 @@ export function IdeaSheet({
             onPromote={() => idea.data && onPromote(idea.data)}
             onDiscard={() => idea.data && onDiscard(idea.data)}
             onDelete={() => idea.data && onDelete(idea.data)}
+            markDirty={guard.markDirty}
           />
         )}
       </SheetContent>
     </Sheet>
+    </>
   );
 }
 
-function IdeaFields({ idea, onPromote, onDiscard, onDelete }: { idea: Idea; onPromote: () => void; onDiscard: () => void; onDelete: () => void }) {
+function IdeaFields({ idea, onPromote, onDiscard, onDelete, markDirty }: { idea: Idea; onPromote: () => void; onDiscard: () => void; onDelete: () => void; markDirty: (dirty: boolean) => void }) {
   const utils = trpc.useUtils();
+  const llm = trpc.ideas.llm.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const suggestion = trpc.ideas.suggest.useQuery({ id: idea.id }, { enabled: false, retry: false, staleTime: Infinity, gcTime: 0 });
+  const removeIdea = trpc.ideas.remove.useMutation({ onSettled: () => void utils.ideas.list.invalidate() });
+  const capture = trpc.ideas.capture.useMutation({
+    onSuccess: made => {
+      void utils.ideas.list.invalidate();
+      void utils.ideas.counts.invalidate();
+      toast.success(t("pages.ideas.splitMade", { count: made.length }), {
+        action: { label: t("pages.ideas.undo"), onClick: () => made.forEach(m => removeIdea.mutate({ id: m.id })) },
+      });
+    },
+    onError: e => toastError(e),
+  });
   const projects = trpc.ideas.projects.useQuery(undefined, { staleTime: 5 * 60_000 });
   const update = trpc.ideas.update.useMutation({
     onSuccess: saved => utils.ideas.get.setData({ id: idea.id }, saved),
@@ -109,6 +130,34 @@ function IdeaFields({ idea, onPromote, onDiscard, onDelete }: { idea: Idea; onPr
   const [criterion, setCriterion] = useState("");
   const [question, setQuestion] = useState("");
   const setAcceptance = (acceptance: Criterion[]) => save({ acceptance });
+  /** Suggested fields into the idea, in one save; "split" makes new ideas instead (triage Q5). */
+  const applySuggested = (fields: SuggestionField[]) => {
+    const s = suggestion.data;
+    if (!s) return;
+    const patch: Omit<Parameters<typeof update.mutate>[0], "id"> = {};
+    let nextBody = body;
+    for (const f of fields) {
+      if (f === "title" && s.title?.trim()) {
+        setTitle(s.title.trim());
+        patch.title = s.title.trim();
+      }
+      if (f === "problem" && s.problem !== undefined) nextBody = s.problem;
+      if (f === "outOfScope" && s.outOfScope?.length) nextBody = withOutOfScope(nextBody, s.outOfScope);
+      if (f === "acceptance" && s.acceptance) patch.acceptance = [...idea.acceptance, ...s.acceptance.map(text => ({ id: newId(), text }))].slice(0, 20);
+      if (f === "questions" && s.questions)
+        patch.questions = [...idea.questions, ...s.questions.map(text => ({ id: newId(), text, answer: "", blocking: false }))].slice(0, 20);
+      if (f === "labels" && s.labels) patch.labels = [...new Set([...idea.labels, ...s.labels])].slice(0, 20);
+      if (f === "estimateMinutes" && s.estimateMinutes) patch.estimateSeconds = s.estimateMinutes * 60;
+      if (f === "split" && s.split?.length) capture.mutate({ text: s.split.join("\n"), ...(idea.container ? { containerId: idea.container.id } : {}) });
+    }
+    if (nextBody !== body) {
+      setBody(nextBody);
+      patch.body = nextBody;
+    }
+    if (Object.keys(patch).length > 0) save(patch);
+  };
+  const askSuggestion = () => void suggestion.refetch().then(r => r.error && toastError(r.error));
+  const onPending = useCallback((pending: boolean) => markDirty(pending), [markDirty]);
   const setQuestions = (questions: Question[]) => save({ questions });
   const route: RouteChoice = idea.route ?? "none";
   return (
@@ -226,7 +275,23 @@ function IdeaFields({ idea, onPromote, onDiscard, onDelete }: { idea: Idea; onPr
         <EstimateChip seconds={idea.estimateSeconds} onChange={estimateSeconds => save({ estimateSeconds })} />
       </div>
 
+      {suggestion.data && (
+        <IdeaSuggestionPanel
+          key={suggestion.dataUpdatedAt}
+          suggestion={suggestion.data}
+          model={llm.data?.model ?? ""}
+          onUse={f => applySuggested([f])}
+          onUseAll={applySuggested}
+          onPending={onPending}
+        />
+      )}
+
       <div className="flex flex-wrap gap-2 border-t pt-4">
+        {llm.data?.available && (
+          <Button variant="outline" size="sm" disabled={suggestion.isFetching} onClick={askSuggestion}>
+            {suggestion.isFetching ? t("pages.ideas.suggesting") : t("pages.ideas.suggest")}
+          </Button>
+        )}
         {open && (
           <Button size="sm" onClick={onPromote}>
             {t("pages.ideas.createIssue")}

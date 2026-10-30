@@ -16,7 +16,7 @@ export function hashSessionId(sessionId: string): string {
 export type Network = "public" | "private";
 
 /** Private and shared ranges (RFC 1918, CGNAT/tailnets, IPv6 ULA): only self-hosted trackers live there. */
-function isPrivateAddress(ip: string): boolean {
+export function isPrivateAddress(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) {
     const [a, b] = ip.split(".").map(Number);

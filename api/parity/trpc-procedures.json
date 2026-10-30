@@ -240,6 +240,10 @@
     "type": "query"
   },
   {
+    "path": "ideas.llm",
+    "type": "query"
+  },
+  {
     "path": "ideas.move",
     "type": "mutation"
   },
@@ -258,6 +262,10 @@
   {
     "path": "ideas.restore",
     "type": "mutation"
+  },
+  {
+    "path": "ideas.suggest",
+    "type": "query"
   },
   {
     "path": "ideas.update",

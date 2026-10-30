@@ -194,6 +194,10 @@ export const server: Shape<typeof en> = {
     tooMany: "Al massimo 50 idee alla volta: dividi l'elenco.",
     empty: "Scrivi almeno un'idea.",
     noContainer: "Quel progetto non è tra i tuoi.",
+    llmOff: "Su questo server non è configurato un modello locale.",
+    llmBad: "La risposta del modello locale non è utilizzabile: riprova.",
+    llmSlow: "Il modello locale ci ha messo troppo: riprova, o usa un modello più piccolo.",
+    llmUnreachable: "Il modello locale non risponde: Ollama è avviato?",
     move: {
       notReady: {
         title: "Dalle prima un titolo di almeno 3 caratteri.",

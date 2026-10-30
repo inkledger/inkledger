@@ -34,6 +34,7 @@ import { registerEventRoutes } from "./events";
 import { closeAllStreams } from "./lib/userEvents";
 import { purgeTimerOps } from "./routers/timers";
 import { purgeIdeas } from "./routers/ideas";
+import { ollamaRefusal } from "./ai/ollama";
 import { startSyncScheduler } from "./syncScheduler";
 import { settleInFlightSyncs } from "./routers/issues";
 import { startBackupScheduler } from "./backup";
@@ -154,6 +155,12 @@ export default app;
 
 // Every call the server makes out is counted by host (Settings → Network).
 installEgressLog();
+
+// A local model on a public address is refused unless allowed (docs/work/ideas/triage.md R-2.8): said once, at start.
+void ollamaRefusal().then((why) => {
+  if (why === "public") console.warn(`[ai] OLLAMA_URL is not on this machine or its network: idea suggestions stay off (OLLAMA_ALLOW_PUBLIC=1 allows it)`);
+  if (why === "unresolved") console.warn(`[ai] OLLAMA_URL's host doesn't resolve: idea suggestions stay off`);
+});
 
 // Background Jira sync. In dev the module is re-evaluated on reload: keep a
 // single scheduler per process.

@@ -193,6 +193,10 @@ export const server = {
     tooMany: "Up to 50 ideas at a time: split the list.",
     empty: "Write at least one idea.",
     noContainer: "That project isn't one of yours.",
+    llmOff: "No local model is set up on this server.",
+    llmBad: "The local model's answer couldn't be used: try again.",
+    llmSlow: "The local model took too long: try again, or use a smaller model.",
+    llmUnreachable: "The local model can't be reached: is Ollama running?",
     move: {
       notReady: {
         title: "Give it a title of at least 3 characters first.",

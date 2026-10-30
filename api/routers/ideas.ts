@@ -7,11 +7,15 @@ import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-
 import { alias } from "drizzle-orm/pg-core";
 import { connections, containers, ideas, issues } from "@db/schema";
 import { t } from "@contracts/i18n";
-import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
+import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, ideaSuggestionSchema, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueKeyInput } from "../lib/inputs";
 import { agentCopy } from "../issues/agentCopy";
+import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
+import { ideaPrompt } from "../ai/prompts/idea";
+import { env } from "../lib/env";
+import { currentLocale } from "@contracts/i18n/core";
 
 /** How long a deleted idea can be brought back */
 const TRASH_DAYS = 30;
@@ -344,6 +348,26 @@ export const ideasRouter = createRouter({
           .catch(() => null)
       : null;
     return handoffPrompt(idea, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null, issueText);
+  }),
+
+  /** Whether "Suggest" is offered (R-2.8): a local model configured, on a local address unless allowed. */
+  llm: protectedProcedure.query(async () => {
+    const available = (await ollamaRefusal()) === null;
+    return { available, model: available ? (env.ollamaSimulator ? "simulator" : env.ollamaModel) : null };
+  }),
+
+  /** What the local model suggests for the idea (R-2.8): nothing is saved here, each field is used by hand. */
+  suggest: protectedProcedure.input(z.object({ id })).query(async ({ ctx, input, signal }) => {
+    const idea = await ownIdea(ctx.user.id, input.id);
+    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
+    try {
+      return await chat(ideaSuggestionSchema, ideaPrompt(idea, currentLocale()), { timeoutMs: 90_000, signal });
+    } catch (e) {
+      if (!(e instanceof OllamaError)) throw e;
+      if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
+      if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
+      throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
+    }
   }),
 
   /** A mail link asking its open questions (R-2.6): the user's mail program sends it, if they want. */

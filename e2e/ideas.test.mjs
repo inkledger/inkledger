@@ -187,6 +187,49 @@ test("a vague issue goes to triage and back", () =>
     assert.equal(await page.getByRole("button", { name: "Send to triage" }).count(), 0);
   }));
 
+test("a suggestion is used field by field", () =>
+  withApp(
+    {
+      viewport: { width: 1400, height: 900 },
+      env: { OLLAMA_SIMULATOR: "1" },
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO ideas (user_id, title, body, state, position, created_at, updated_at) VALUES (1, 'Estimates', 'Rough.', 'raw', 0, ?, ?)", now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/ideas");
+      await page.getByRole("radio", { name: "Columns" }).click();
+      await page.getByRole("button", { name: "Open Estimates" }).click();
+      const sheet = page.getByRole("dialog");
+      await sheet.getByRole("button", { name: "Suggest" }).click();
+      const panel = sheet.getByRole("region", { name: "Suggested by simulator" });
+      await panel.waitFor();
+      // Nothing saved by suggesting.
+      assert.equal((await db.q("SELECT acceptance FROM ideas"))[0].acceptance, "[]");
+      // One field: the criteria join the list, the rest stays as it was.
+      await panel.getByRole("button", { name: "Use the suggested Done when…" }).click();
+      const criteria = sheet.getByRole("region", { name: "Done when…" });
+      await criteria.getByText("The issue page shows a range").waitFor();
+      await criteria.getByText("The range says how many issues it is based on").waitFor();
+      await panel.getByText("Used").first().waitFor();
+      assert.equal(await sheet.getByRole("textbox", { name: "Title" }).inputValue(), "Estimates");
+      await page.waitForTimeout(300);
+      const saved = JSON.parse((await db.q("SELECT acceptance FROM ideas WHERE title = 'Estimates'"))[0].acceptance);
+      assert.deepEqual(saved.map(c => c.text), ["The issue page shows a range", "The range says how many issues it is based on"]);
+      // Out of scope goes under the problem; the split makes new ideas, with Undo.
+      await panel.getByRole("button", { name: "Use the suggested Out of scope" }).click();
+      await page.waitForTimeout(300);
+      assert.match((await db.q("SELECT body FROM ideas WHERE title = 'Estimates'"))[0].body, /^Rough\.\n\nOut of scope:\n- Team estimates$/);
+      await panel.getByRole("button", { name: "Use the suggested Split into ideas" }).click();
+      await page.getByText("2 new ideas in Raw").waitFor();
+      assert.equal((await db.q("SELECT count(*)::int AS n FROM ideas WHERE title IN ('Range on the issue page', 'Accuracy in Reports') AND deleted_at IS NULL"))[0].n, 2);
+      // Closing with suggestions unused asks first.
+      await page.keyboard.press("Escape");
+      await page.getByRole("alertdialog").waitFor();
+    },
+  ));
+
 test("ideas at 320 px", () =>
   withApp(
     {
