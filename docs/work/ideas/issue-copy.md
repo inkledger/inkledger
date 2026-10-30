@@ -1,7 +1,7 @@
 # Copy an issue for an agent
 
 ## 1. Status
-2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. Batches C1–C4 todo.
+2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1 done; C2–C4 todo.
 
 ## 2. Problem
 The user passes issues to an AI agent by hand: copy, paste into the agent. The issue page can copy the key and the branch, not the issue. Attachments make it worse: their tracker links need the tracker login, and the app's own links (`/api/attachments/:id/content`, `api/attachments.ts:127`) need the app's session cookie, so an agent opening them gets 401. Triage (`docs/work/ideas/triage.md`) needs the same text to hand an idea's issue to an agent.
@@ -25,6 +25,8 @@ Comments; other trackers than Jira and GitHub; uploading anything to the agent; 
 - **D-6.2** The Markdown is built on the server (`issues.copyForAgent`). *Why:* only the server can sign; the description and attachments are fetched there anyway.
 - **D-6.3** Origin from the request. *Why:* there is no public URL setting (`api/lib/env.ts`); the browser's origin is the one the user (and an agent on the same machine or tailnet) reaches.
 - **D-6.4** `toMarkdown` in `contracts/`. *Why:* shared, pure, next to `plainText` (`contracts/richtext.ts:87`).
+
+- **D-6.5 (C1, from the code)** A table without a header row gets an empty header (Markdown needs one); a line break inside a cell becomes a space; a panel is a quote opening with its kind (`> **Warning:**`).
 
 ## 6. Data model (`0020_share_links.sql`)
 ```ts
@@ -106,7 +108,7 @@ A link is a bearer credential for one attachment for ≤ 24 h: the Settings text
 Empty description → header + "(no description)". Attachment named twice → listed once. Attachment deleted on the tracker after copy → 404. Filename with quotes/newlines → sanitized in `Content-Disposition`. Clipboard denied → toast error, nothing lost. Read-only mode (`PROVIDERS_READ_ONLY=1`) → works (reads only).
 
 ## 13. Batches
-- [ ] **C1** `toMarkdown`, `issueMarkdown`. R-6.2. AC-6.1–6.4.
+- [x] **C1** `toMarkdown`, `issueMarkdown`. R-6.2. AC-6.1–6.4.
 - [ ] **C2** migration, `shareLinks`, `/api/shared/:token`, `copyForAgent`, Settings group, issue-page submenu. R-6.1, 6.3–6.7. AC-6.5–6.11.
 - [ ] **C3** triage handoff. R-6.8. AC-6.12.
 - [ ] **C4** GitHub attachments. R-6.9. AC-6.13.

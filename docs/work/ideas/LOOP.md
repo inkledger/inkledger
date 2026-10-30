@@ -30,7 +30,7 @@ Written under each Q in its doc. Unblocked:
 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| C1 | issue-copy | R-6.2; AC-6.1–6.4 | todo | | | First in order (2026-10-30) |
+| C1 | issue-copy | R-6.2; AC-6.1–6.4 | done | (this commit) | `vitest run contracts/richtext.test.ts contracts/issueCopy.test.ts` → 4 fail (no `toMarkdown`, no module) then 4 pass; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 203 files, 2437 passed; `pnpm build` → ok; `pnpm test:smoke` → ok | First in order (2026-10-30). `escapeMd` exported from richtext and reused |
 | C2 | issue-copy | R-6.1, 6.3–6.7; AC-6.5–6.11 | todo | | | |
 | C3 | issue-copy | R-6.8; AC-6.12 | todo | | | |
 | C4 | issue-copy | R-6.9; AC-6.13 | todo | | | |
