@@ -328,6 +328,10 @@
     "type": "query"
   },
   {
+    "path": "issues.copyForAgent",
+    "type": "mutation"
+  },
+  {
     "path": "issues.createIn",
     "type": "mutation"
   },
@@ -846,6 +850,10 @@
   {
     "path": "settings.get",
     "type": "query"
+  },
+  {
+    "path": "settings.revokeShareLinks",
+    "type": "mutation"
   },
   {
     "path": "settings.update",

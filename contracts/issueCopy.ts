@@ -2,6 +2,9 @@
 // a header, the description, every attachment as a link through this app.
 import { escapeMd, toMarkdown, type RichDoc } from "./richtext";
 
+/** The lives a copied link may be given, in minutes (the server allows 5–1440). */
+export const AGENT_LINK_MINUTES = [15, 60, 240, 1440] as const;
+
 export type IssueCopyHeader = { key: string; title: string; url: string; status: string; type: string | null };
 export type IssueCopyAttachment = { name: string; url: string };
 

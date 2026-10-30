@@ -632,7 +632,11 @@ export const settings = pgTable("settings", {
   todosInMenu: integer("todos_in_menu").notNull().default(1),
   todosWidget: integer("todos_widget").notNull().default(1),
   todosHotCorner: integer("todos_hot_corner").notNull().default(1),
-});
+  /** How long an issue copied for an agent keeps its attachment links open by default (minutes, ≤ a day) */
+  shareLinkMinutes: integer("share_link_minutes").notNull().default(60),
+  /** Raised by "Revoke all links": links signed with an older one stop working */
+  shareLinkGeneration: integer("share_link_generation").notNull().default(0),
+}, (t) => [check("settings_share_link_minutes", sql`${t.shareLinkMinutes} BETWEEN 5 AND 1440`)]);
 
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;

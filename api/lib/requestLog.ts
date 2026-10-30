@@ -1,10 +1,10 @@
 // The production request log: method, path, status and time, never what a URL
-// carries beside the route (tRPC inputs in the query, a webhook's token in its path).
+// carries beside the route (tRPC inputs in the query, a webhook's token or a shared link's in its path).
 import type { MiddlewareHandler } from "hono";
 
 /** A URL as the log may show it: its path, without the query, a webhook's token hidden. */
 export function loggedPath(url: string): string {
-  return new URL(url).pathname.replace(/^(\/api\/hooks\/[^/]+)\/[^/]+/, "$1/…");
+  return new URL(url).pathname.replace(/^(\/api\/hooks\/[^/]+)\/[^/]+/, "$1/…").replace(/^\/api\/shared\/[^/]+/, "/api/shared/…");
 }
 
 /** hono/logger's lines, with loggedPath. */

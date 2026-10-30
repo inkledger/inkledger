@@ -3,9 +3,13 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { connections, issues } from "@db/schema";
+import { connections, issues, users } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { restUser } from "./context";
+import { verifyShare } from "./lib/shareLinks";
+import { createRateLimiter } from "./lib/security";
+import { clientIp } from "./lib/session";
+import { getSettings } from "./routers/settings";
 import {
   fetchAttachmentMeta,
   fetchFromSite,
@@ -122,7 +126,54 @@ export function uploadErrorResponse(e: unknown): { status: 401 | 403 | 404 | 502
   return jiraErrorResponse(e);
 }
 
+/** An attachment (or its thumbnail) streamed from its Jira site; null when it has no such content. */
+async function streamAttachment(creds: Parameters<typeof fetchAttachmentMeta>[0], id: string, kind: "content" | "thumbnail"): Promise<Response | null> {
+  const meta = await fetchAttachmentMeta(creds, id);
+  const url = kind === "thumbnail" ? meta.thumbnail : meta.content;
+  if (!url) return null;
+  const res = await fetchFromSite(creds, url);
+  const type = kind === "thumbnail" ? (res.headers.get("content-type") ?? "image/png") : (meta.mimeType ?? "application/octet-stream");
+  const headers = attachmentHeaders(type, meta.filename);
+  // fetch decompresses encoded bodies: the upstream length would be wrong.
+  const length = res.headers.get("content-length");
+  if (length && !res.headers.get("content-encoding")) headers.set("Content-Length", length);
+  return new Response(res.body, { status: 200, headers });
+}
+
+/** Shared links: a few a minute per address is plenty for an agent reading one issue. */
+const sharedLimiter = createRateLimiter(120, 60_000);
+
+/** Any refused shared link: nothing said about why (no oracle). */
+const notShared = () => new Response(null, { status: 404, headers: { "Cache-Control": "private, no-store" } });
+
 export function registerAttachmentRoutes(app: App) {
+  /**
+   * An attachment through a link copied for an agent (docs/work/ideas/issue-copy.md):
+   * the signed token is the only credential; always a download, never cached.
+   */
+  app.get("/api/shared/:token", async (c) => {
+    if (sharedLimiter.hit(clientIp(c.req.raw, c.env?.incoming?.socket?.remoteAddress)) > 0) return new Response(null, { status: 429 });
+    const grant = verifyShare(c.req.param("token"), Date.now());
+    if (!grant) return notShared();
+    try {
+      const [user] = await getDb().select().from(users).where(eq(users.id, grant.u)).limit(1);
+      if (!user || (await getSettings(user.id)).shareLinkGeneration !== grant.g) return notShared();
+      const conn = await ownConnection(user.id, grant.c).catch(() => null);
+      if (!conn || conn.type !== "jira") return notShared();
+      const res = await streamAttachment(contextFor(user, conn).creds, grant.a, "content");
+      if (!res) return notShared();
+      const headers = new Headers(res.headers);
+      headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));
+      headers.set("Content-Security-Policy", SANDBOXED);
+      headers.set("Cache-Control", "private, no-store");
+      headers.set("Referrer-Policy", "no-referrer");
+      headers.set("X-Content-Type-Options", "nosniff");
+      return new Response(res.body, { status: 200, headers });
+    } catch {
+      return notShared();
+    }
+  });
+
   /** Stream an attachment (or its thumbnail) through the server with the user's credentials. */
   app.get("/api/attachments/:id/:kind{content|thumbnail}", async (c) => {
     const id = c.req.param("id");
@@ -135,19 +186,8 @@ export function registerAttachmentRoutes(app: App) {
       // The connection the attachment is on (?c=), else the primary one.
       const conn = Number(c.req.query("c"));
       const creds = Number.isInteger(conn) && conn > 0 ? contextFor(user, await ownConnection(user.id, conn)).creds : await jiraCredentials(user);
-      const meta = await fetchAttachmentMeta(creds, id);
-      const url = kind === "thumbnail" ? meta.thumbnail : meta.content;
-      if (!url) return c.json({ error: t("server.attachments.previewUnavailable") }, 404);
-      const res = await fetchFromSite(creds, url);
-      const type =
-        kind === "thumbnail"
-          ? (res.headers.get("content-type") ?? "image/png")
-          : (meta.mimeType ?? "application/octet-stream");
-      const headers = attachmentHeaders(type, meta.filename);
-      // fetch decompresses encoded bodies: the upstream length would be wrong.
-      const length = res.headers.get("content-length");
-      if (length && !res.headers.get("content-encoding")) headers.set("Content-Length", length);
-      return new Response(res.body, { status: 200, headers });
+      const streamed = await streamAttachment(creds, id, kind);
+      return streamed ?? c.json({ error: t("server.attachments.previewUnavailable") }, 404);
     } catch (e) {
       const { status, message } = jiraErrorResponse(e);
       return c.json({ error: message }, status);

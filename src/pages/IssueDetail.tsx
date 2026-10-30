@@ -2,9 +2,10 @@ import { toastError, errorText } from "@/lib/errorText";
 import { WorklogSinkState } from "@/components/issue/WorklogSinkState";
 import { OtherFields } from "@/components/issue/OtherFields";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useId, useState, useRef } from "react";
 import { Link } from "react-router";
 import {
+  Bot,
   Copy,
   ExternalLink,
   Eye,
@@ -16,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { AGENT_LINK_MINUTES } from "@contracts/issueCopy";
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
 import { inFloat, isDialogOpen, isTyping } from "@/lib/dom";
@@ -26,6 +28,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuShortcut,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
@@ -492,6 +497,7 @@ export default function IssueDetail({
                   {t("pages.issueDetail.copyBranch")}
                   <DropdownMenuShortcut>B</DropdownMenuShortcut>
                 </DropdownMenuItem>
+                {!i.remote && <CopyForAgent issueKey={i.key} connectionId={i.connectionId ?? undefined} copy={act.copyForAgent} />}
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild variant="outline">
@@ -988,5 +994,31 @@ export default function IssueDetail({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** "Copy for an agent": the issue as Markdown, attachment links open for the chosen time (docs/work/ideas/issue-copy.md). */
+function CopyForAgent({ issueKey, connectionId, copy }: { issueKey: string; connectionId: number | undefined; copy: (key: string, connectionId: number | undefined, minutes: number) => Promise<void> }) {
+  const prefs = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 });
+  const fallback = prefs.data?.shareLinkMinutes ?? 60;
+  const labelId = useId();
+  return (
+    // A group, not a submenu: a submenu opens beside the menu and leaves a phone's screen.
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup aria-labelledby={labelId}>
+        <DropdownMenuLabel id={labelId} className="flex items-center gap-2">
+          <Bot className="h-4 w-4" aria-hidden /> {t("pages.issueDetail.copyForAgent")}
+        </DropdownMenuLabel>
+        {AGENT_LINK_MINUTES.map(m => {
+          const label = t("pages.issueDetail.copyFor", { duration: formatDuration(m * 60) });
+          return (
+            <DropdownMenuItem key={m} onSelect={() => void copy(issueKey, connectionId, m)}>
+              {m === fallback ? t("pages.issueDetail.copyDefault", { duration: label }) : label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuGroup>
+    </>
   );
 }

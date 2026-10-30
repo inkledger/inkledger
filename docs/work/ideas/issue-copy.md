@@ -1,7 +1,7 @@
 # Copy an issue for an agent
 
 ## 1. Status
-2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1 done; C2–C4 todo.
+2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1, C2 done; C3, C4 todo.
 
 ## 2. Problem
 The user passes issues to an AI agent by hand: copy, paste into the agent. The issue page can copy the key and the branch, not the issue. Attachments make it worse: their tracker links need the tracker login, and the app's own links (`/api/attachments/:id/content`, `api/attachments.ts:127`) need the app's session cookie, so an agent opening them gets 401. Triage (`docs/work/ideas/triage.md`) needs the same text to hand an idea's issue to an agent.
@@ -27,6 +27,11 @@ Comments; other trackers than Jira and GitHub; uploading anything to the agent; 
 - **D-6.4** `toMarkdown` in `contracts/`. *Why:* shared, pure, next to `plainText` (`contracts/richtext.ts:87`).
 
 - **D-6.5 (C1, from the code)** A table without a header row gets an empty header (Markdown needs one); a line break inside a cell becomes a space; a panel is a quote opening with its kind (`> **Warning:**`).
+- **D-6.6 (C2, to review)** The durations are a group inside the Copy menu, not a submenu: at 320 px a submenu opened beside the menu and left the screen (caught by AC-6.11). The menu's name became "Copy key, branch name or the issue".
+- **D-6.7 (C2)** Strings live under `pages.issueDetail.*` (`copyForAgent`, `copyFor`, `copyDefault`, `copiedUntil`) beside the other copy items, not `ui.issue.*`; Settings under `settings.links.agent.*` as written.
+- **D-6.8 (C2)** A shared link keeps the attachment's real type (PNG stays `image/png`, so an agent can read it) but is always `Content-Disposition: attachment`, sandbox CSP, `nosniff`, `no-store`, `no-referrer`; unknown types are `application/octet-stream` as on the existing route.
+- **D-6.9 (C2)** The clipboard is claimed at the click with a `ClipboardItem` whose text arrives later (`copyLater`, `src/lib/issues.ts`): Safari refuses a write after the network wait. Rate limit: 120 shared downloads a minute per address.
+- **D-6.10 (C2)** The e2e serves its stand-in Jira on this machine's private IPv4: trackers on loopback are refused by design (`api/lib/security.ts`). `copyForAgent` needs the issue synced (its title and status come from the stored row); a remote-only issue doesn't offer it.
 
 ## 6. Data model (`0020_share_links.sql`)
 ```ts
@@ -109,7 +114,7 @@ Empty description → header + "(no description)". Attachment named twice → li
 
 ## 13. Batches
 - [x] **C1** `toMarkdown`, `issueMarkdown`. R-6.2. AC-6.1–6.4.
-- [ ] **C2** migration, `shareLinks`, `/api/shared/:token`, `copyForAgent`, Settings group, issue-page submenu. R-6.1, 6.3–6.7. AC-6.5–6.11.
+- [x] **C2** migration, `shareLinks`, `/api/shared/:token`, `copyForAgent`, Settings group, issue-page submenu. R-6.1, 6.3–6.7. AC-6.5–6.11.
 - [ ] **C3** triage handoff. R-6.8. AC-6.12.
 - [ ] **C4** GitHub attachments. R-6.9. AC-6.13.
 

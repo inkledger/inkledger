@@ -25,6 +25,9 @@ import type { FieldValue, RemoteBody, RemoteIssue } from "../providers/types";
 import { env } from "../lib/env";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { buildTimeline } from "../lib/history";
+import { signShare } from "../lib/shareLinks";
+import { getSettings } from "./settings";
+import { issueMarkdown } from "@contracts/issueCopy";
 import {
   fetchIssueByKey,
   setWatching,
@@ -650,6 +653,40 @@ export const issuesRouter = createRouter({
         author: a.author?.displayName ?? null,
         hasThumbnail: !!a.thumbnail,
       }));
+    }),
+
+  /**
+   * The issue as Markdown for an agent the user pastes it into: header,
+   * description, every attachment as a link through this app that opens
+   * without a session until it expires (docs/work/ideas/issue-copy.md).
+   */
+  copyForAgent: protectedProcedure
+    .input(z.object({ ...onConnection, key: issueKeyInput, minutes: z.number().int().min(5).max(1440).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { b, ref, conn } = await boundFor(ctx.user, input.key, input.connectionId);
+      const [row] = await getDb()
+        .select({ summary: issues.summary, status: issues.status, issueType: issues.issueType, url: issues.url })
+        .from(issues)
+        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.key)))
+        .limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
+      const prefs = await getSettings(ctx.user.id);
+      const now = Date.now();
+      const exp = now + (input.minutes ?? prefs.shareLinkMinutes) * 60_000;
+      const body = b.description ? await providerCall(() => b.description!(callMeta(), ref)) : null;
+      // Attachments are Jira's alone for now (GitHub follows: batch C4).
+      const files = conn.type === "jira" ? await fetchAttachments(contextFor(ctx.user, conn).creds, input.key) : [];
+      const origin = new URL(ctx.req.url).origin;
+      const attachments = files.map((f) => ({
+        name: f.filename,
+        url: `${origin}/api/shared/${signShare({ u: ctx.user.id, c: conn.id, a: f.id, iat: now, exp, g: prefs.shareLinkGeneration })}`,
+      }));
+      const markdown = issueMarkdown(
+        { key: input.key, title: row.summary, url: row.url, status: row.status, type: row.issueType || null },
+        toRichDoc(body),
+        attachments,
+      );
+      return { markdown, expiresAt: new Date(exp) };
     }),
 
   /** Links to other services on the issue (read only); only http(s) URLs. */

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BACKDROP_VISIBILITY } from "@contracts/modules";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { settings, type Settings } from "@db/schema";
@@ -98,6 +98,7 @@ export const settingsRouter = createRouter({
         todosInMenu: z.boolean().optional(),
         todosWidget: z.boolean().optional(),
         todosHotCorner: z.boolean().optional(),
+        shareLinkMinutes: z.number().int().min(5).max(1440).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -129,4 +130,14 @@ export const settingsRouter = createRouter({
         .where(eq(settings.userId, ctx.user.id));
       return withDashboard(await getSettings(ctx.user.id));
     }),
+
+  /** Every attachment link copied for an agent so far stops working (docs/work/ideas/issue-copy.md R-6.5). */
+  revokeShareLinks: protectedProcedure.mutation(async ({ ctx }) => {
+    await getSettings(ctx.user.id);
+    await getDb()
+      .update(settings)
+      .set({ shareLinkGeneration: sql`${settings.shareLinkGeneration} + 1` })
+      .where(eq(settings.userId, ctx.user.id));
+    return { ok: true as const };
+  }),
 });

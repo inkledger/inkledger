@@ -31,7 +31,7 @@ Written under each Q in its doc. Unblocked:
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | C1 | issue-copy | R-6.2; AC-6.1–6.4 | done | (this commit) | `vitest run contracts/richtext.test.ts contracts/issueCopy.test.ts` → 4 fail (no `toMarkdown`, no module) then 4 pass; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 203 files, 2437 passed; `pnpm build` → ok; `pnpm test:smoke` → ok | First in order (2026-10-30). `escapeMd` exported from richtext and reused |
-| C2 | issue-copy | R-6.1, 6.3–6.7; AC-6.5–6.11 | todo | | | |
+| C2 | issue-copy | R-6.1, 6.3–6.7; AC-6.5–6.11 | done | (this commit) | new vitest files → fail (no module, no procedure; IDOR first resolved: both test users were one Jira account, fixed in the test) then pass; `e2e/issue-copy.test.mjs` → 2/2 (320 px first failed: the submenu left the screen, made a group); `e2e/renders.test.mjs` → pass, limits unchanged; screenshots light/dark 320 and 1400 (menu, Settings); `pnpm parity:update`; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 205 files, 2442 passed; `pnpm build` → ok; `pnpm test:smoke` → ok | Decisions D-6.6–6.10 in the doc |
 | C3 | issue-copy | R-6.8; AC-6.12 | todo | | | |
 | C4 | issue-copy | R-6.9; AC-6.13 | todo | | | |
 | B3.1 | estimates | AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57 | done | (this commit) | `vitest run contracts/estimate.test.ts` → 21/21; mutation check (current status, sourceOrdinal removed) → 2 fail as expected; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 195 files, 2374 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Spec revision 3 + patch 3.1 + 5 corrections. AC-3.57 passed before its grouping too (strict `<` already); no coverage tool in the repo |

@@ -9,6 +9,7 @@ describe("loggedPath: what the request log may show of a URL", () => {
 
   it("hides a webhook's token, keeps which hook", () => {
     expect(loggedPath("https://ikl.example/api/hooks/12/abcdefSECRET")).toBe("/api/hooks/12/…");
+    expect(loggedPath("https://ikl.example/api/shared/eyJTOKEN.SIG")).toBe("/api/shared/…");
   });
 
   it("leaves other paths as they are", () => {

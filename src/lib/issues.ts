@@ -79,6 +79,25 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /**
+ * Copy text the server is still making: the clipboard is claimed now, while
+ * the click still counts as the user's (Safari refuses a write after an
+ * await), and filled when the text arrives. False when the browser refuses
+ * or the text never comes.
+ */
+export async function copyLater(text: Promise<string>): Promise<boolean> {
+  try {
+    if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": text.then(v => new Blob([v], { type: "text/plain" })) })]);
+    } else {
+      await navigator.clipboard.writeText(await text);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * One identity for an issue in maps and React keys: a key is unique only
  * per connection (two trackers can both have APP-1).
  */

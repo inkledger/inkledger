@@ -1,7 +1,8 @@
 import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { branchName, copyText } from "@/lib/issues";
+import { branchName, copyLater, copyText } from "@/lib/issues";
+import { dayAndTime } from "@/lib/dates";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 
@@ -58,7 +59,21 @@ export function useIssueActions() {
     else toast.error(t("ui.issueActions.copyFailed"));
   };
 
+  /** The issue as Markdown for an agent, its attachments as links valid for `minutes` (docs/work/ideas/issue-copy.md). */
+  const copyForAgent = async (key: string, connectionId: number | undefined, minutes: number) => {
+    const made = api.copyForAgent.mutate({ key, connectionId, minutes });
+    const copied = await copyLater(made.then(r => r.markdown));
+    try {
+      const { expiresAt } = await made;
+      if (copied) toast.success(t("pages.issueDetail.copiedUntil", { time: dayAndTime(expiresAt) }));
+      else toast.error(t("ui.issueActions.copyFailed"));
+    } catch (e) {
+      toastError(e);
+    }
+  };
+
   return {
+    copyForAgent,
     copyKey: (key: string) => copy(key, t("ui.issueActions.key")),
     copyBranch: (key: string, summary: string) =>
       copy(branchName(key, summary), t("ui.issueActions.branch")),

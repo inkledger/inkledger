@@ -139,6 +139,47 @@ describe("Jira comments and attachments", () => {
     expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith("https://evil.example"))).toBe(false);
   });
 
+  it("a shared link downloads without a session", async () => {
+    const { q } = await import("./queries/connection");
+    const [{ id: connId, user_id: userId }] = await q<{ id: number; user_id: number }>("SELECT id, user_id FROM connections ORDER BY id LIMIT 1");
+    await q(
+      "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, issue_type, project_key, project_name, url, synced_at) VALUES (?, ?, '1', 'PRJ-1', 'Export fails', 'To Do', 'Bug', 'PRJ', 'Project', ?, 1) ON CONFLICT DO NOTHING",
+      userId, connId, `${SITE}/browse/PRJ-1`,
+    );
+    const { markdown, expiresAt } = await caller.issues.copyForAgent({ key: "PRJ-1", minutes: 60 });
+    expect(markdown).toContain("# PRJ-1: Export fails");
+    expect(markdown).toContain(`- Tracker: ${SITE}/browse/PRJ-1`);
+    expect(expiresAt.getTime() - Date.now()).toBeGreaterThan(59 * 60_000);
+    const link = /\[screen\.png\]\((http:\/\/localhost\/api\/shared\/[^)]+)\)/.exec(markdown)?.[1];
+    expect(link).toBeDefined();
+    // No cookie: the token is the only credential.
+    const res = await app.request(new URL(link!).pathname);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/^attachment/);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(new Uint8Array(await res.arrayBuffer())[0]).toBe(137);
+  });
+
+  it("revoked and orphaned links are not found", async () => {
+    const link = (md: string) => new URL(/\((http:\/\/localhost\/api\/shared\/[^)]+)\)/.exec(md)![1]).pathname;
+    const before = link((await caller.issues.copyForAgent({ key: "PRJ-1" })).markdown);
+    expect((await app.request(before)).status).toBe(200);
+    await caller.settings.revokeShareLinks();
+    const revoked = await app.request(before);
+    expect(revoked.status).toBe(404);
+    expect(await revoked.text()).toBe("");
+    // A new copy works again; then its connection is archived.
+    const after = link((await caller.issues.copyForAgent({ key: "PRJ-1" })).markdown);
+    expect((await app.request(after)).status).toBe(200);
+    const { q } = await import("./queries/connection");
+    await q("UPDATE connections SET archived_at = 1");
+    expect((await app.request(after)).status).toBe(404);
+    await q("UPDATE connections SET archived_at = NULL");
+    expect((await app.request("/api/shared/not-a-token")).status).toBe(404);
+  });
+
   it("uploads files as multipart with the XSRF opt-out header", async () => {
     const form = new FormData();
     form.append("file", new File(["hello"], "note.txt", { type: "text/plain" }));

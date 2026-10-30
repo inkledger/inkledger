@@ -10,10 +10,11 @@ export type SettingsData = {
   notifyEnabled: number;
   idleMinutes: number;
   overlapPolicy: "warn" | "block";
+  shareLinkMinutes: number;
 };
 export type SettingsPatch = Partial<SettingsData>;
 
-const SETTINGS_KEYS: (keyof SettingsData)[] = ["timerAlertMinutes", "notifyEnabled", "idleMinutes", "overlapPolicy"];
+const SETTINGS_KEYS: (keyof SettingsData)[] = ["timerAlertMinutes", "notifyEnabled", "idleMinutes", "overlapPolicy", "shareLinkMinutes"];
 
 /**
  * The user's settings and `persist(patch)`: optimistic, so a field never

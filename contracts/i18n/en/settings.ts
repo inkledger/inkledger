@@ -76,7 +76,7 @@ export const settings = {
     links: {
       label: "External links",
       description: "Sites whose links open without asking.",
-      keywords: "links external domains allowed attachments drive confluence whitelist",
+      keywords: "links external domains allowed attachments drive confluence whitelist agent share revoke",
       onlyJira: "Only {provider}",
       domains: { one: "1 domain", other: "{count} domains" },
     },
@@ -827,6 +827,15 @@ export const settings = {
     yourJira: "{provider}, always allowed",
     remove: "Remove {domain}",
     empty: "No domains yet: when you open a blocked link you can choose \"Always allow\".",
+    agent: {
+      title: "Links for agents",
+      body: "Copying an issue for an agent turns its attachments into links anyone holding them can open, until they expire.",
+      keywords: "agent share attachment copy link expire revoke",
+      duration: "Default duration",
+      revoke: "Revoke all links",
+      revokeConfirm: "Every link copied so far stops working now.",
+      revoked: "Links revoked",
+    },
   },
   store: {
     activation: {

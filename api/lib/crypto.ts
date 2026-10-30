@@ -2,6 +2,7 @@ import {
   createCipheriv,
   createDecipheriv,
   createHash,
+  hkdfSync,
   randomBytes,
 } from "node:crypto";
 import { env } from "./env";
@@ -57,6 +58,14 @@ function credentialKeys(): Buffer[] {
   const current = env.credentialsKey ? keyFrom(env.credentialsKey) : key();
   const older = [...(env.credentialsKeyOld ? [keyFrom(env.credentialsKeyOld)] : []), key()];
   return [current, ...older.filter((k) => !k.equals(current))];
+}
+
+/**
+ * Keys for signing (not sealing) something of `purpose`, derived from the
+ * credential keys: the current one first, then those that may still verify.
+ */
+export function derivedKeys(purpose: string): Buffer[] {
+  return credentialKeys().map((k) => Buffer.from(hkdfSync("sha256", k, Buffer.alloc(0), purpose, 32)));
 }
 
 const aadOf = (connectionId: number) => Buffer.from(`connection:${connectionId}`, "utf8");

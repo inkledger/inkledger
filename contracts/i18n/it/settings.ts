@@ -77,7 +77,7 @@ export const settings: Shape<typeof en> = {
     links: {
       label: "Link esterni",
       description: "I siti i cui link si aprono senza chiedere.",
-      keywords: "link esterni domini consentiti allegati drive confluence whitelist",
+      keywords: "link esterni domini consentiti allegati drive confluence whitelist agente condividi revoca",
       onlyJira: "Solo {provider}",
       domains: { one: "1 dominio", other: "{count} domini" },
     },
@@ -828,6 +828,15 @@ export const settings: Shape<typeof en> = {
     yourJira: "{provider}, sempre consentito",
     remove: "Rimuovi {domain}",
     empty: "Nessun dominio ancora: quando apri un link bloccato puoi scegliere «Consenti sempre».",
+    agent: {
+      title: "Link per gli agenti",
+      body: "Copiando una issue per un agente, gli allegati diventano link che chiunque li abbia può aprire, fino alla scadenza.",
+      keywords: "agente condividi allegato copia link scadenza revoca",
+      duration: "Durata predefinita",
+      revoke: "Revoca tutti i link",
+      revokeConfirm: "Tutti i link copiati finora smettono di funzionare subito.",
+      revoked: "Link revocati",
+    },
   },
   store: {
     activation: {
