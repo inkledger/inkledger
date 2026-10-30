@@ -279,7 +279,8 @@ export default function Issues() {
       h: id => onRow(id, i => void (i.hidden === 1 ? act.restore(i.key, i.connectionId) : act.hide(i.key, i.connectionId))),
       t: id => onRow(id, i => start.mutate({ issueKey: i.key, connectionId: i.connectionId })),
       c: id => onRow(id, i => void act.copyKey(i.key)),
-      b: id => onRow(id, i => void act.copyBranch(i.key, i.summary)),
+      b: id => onRow(id, i => void act.copyBranch(i)),
+      m: id => onRow(id, i => void act.copyCommit(i)),
     }
   );
 

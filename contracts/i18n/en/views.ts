@@ -592,6 +592,7 @@ export const views = {
       hide: "Hide",
       copyKey: "Copy key",
       copyBranch: "Copy branch name",
+      copyCommit: "Copy commit message",
       openJira: "Open in {provider}",
       newSinceVisit: "News since your last visit",
       news: "News",

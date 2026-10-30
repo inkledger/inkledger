@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   GitBranch,
+  GitCommitHorizontal,
   Pencil,
   Plus,
   RefreshCw,
@@ -264,8 +265,8 @@ export default function IssueDetail({
     onError: e => toastError(e),
   });
 
-  // Hotkeys: "l" log time, "s" favorite, "h" hide / restore, "c" / "b" copy
-  // key / branch name.
+  // Hotkeys: "l" log time, "s" favorite, "h" hide / restore, "c" / "b" / "m" copy
+  // key / branch name / commit message.
   const act = useIssueActions();
   // Favorite / hide need the issue in the catalog.
   const flags =
@@ -277,16 +278,18 @@ export default function IssueDetail({
         }
       : null;
   const connection = issue.data?.connectionId;
-  const keyRef = useRef({ key, connection, flags, act });
+  // Branch and commit message need only the summary: remote issues too.
+  const named = issue.data ? { key, summary: issue.data.summary, issueType: issue.data.issueType } : null;
+  const keyRef = useRef({ key, connection, flags, act, named });
   useEffect(() => {
-    keyRef.current = { key, connection, flags, act };
+    keyRef.current = { key, connection, flags, act, named };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTyping(e.target) || isDialogOpen() || inFloat(e.target)) return;
       if (hotkeySequence.pending()) return; // "g b" navigates, it doesn't copy
-      const { key: k, connection: c, flags: f, act: a } = keyRef.current;
+      const { key: k, connection: c, flags: f, act: a, named: n } = keyRef.current;
       if (e.key === "l") {
         e.preventDefault();
         setLogOpen(true);
@@ -300,9 +303,12 @@ export default function IssueDetail({
       } else if (e.key === "c") {
         e.preventDefault();
         void a.copyKey(k);
-      } else if (e.key === "b" && f) {
+      } else if (e.key === "b" && n) {
         e.preventDefault();
-        void a.copyBranch(k, f.summary);
+        void a.copyBranch(n);
+      } else if (e.key === "m" && n) {
+        e.preventDefault();
+        void a.copyCommit(n);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -491,11 +497,15 @@ export default function IssueDetail({
                   <DropdownMenuShortcut>C</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => void act.copyBranch(i.key, i.summary)}
+                  onSelect={() => void act.copyBranch(i)}
                 >
                   <GitBranch className="h-4 w-4" />{" "}
                   {t("pages.issueDetail.copyBranch")}
                   <DropdownMenuShortcut>B</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void act.copyCommit(i)}>
+                  <GitCommitHorizontal className="h-4 w-4" /> {t("pages.issueDetail.copyCommit")}
+                  <DropdownMenuShortcut>M</DropdownMenuShortcut>
                 </DropdownMenuItem>
                 {!i.remote && <CopyForAgent issueKey={i.key} connectionId={i.connectionId ?? undefined} copy={act.copyForAgent} />}
               </DropdownMenuContent>

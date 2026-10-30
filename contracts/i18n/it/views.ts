@@ -600,6 +600,7 @@ export const views: Shape<typeof en> = {
       hide: "Nascondi",
       copyKey: "Copia chiave",
       copyBranch: "Copia nome branch",
+      copyCommit: "Copia messaggio di commit",
       openJira: "Apri su {provider}",
       newSinceVisit: "Novità dall'ultima visita",
       news: "Novità",

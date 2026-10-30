@@ -6,7 +6,7 @@ const isControl = (t: EventTarget | null) =>
   t instanceof HTMLElement && t.closest("button, a, [role=button]") !== null;
 
 export type ListKeyActions = Partial<
-  Record<"open" | "s" | "h" | "t" | "c" | "b", (key: string) => void>
+  Record<"open" | "s" | "h" | "t" | "c" | "b" | "m", (key: string) => void>
 >;
 
 /**

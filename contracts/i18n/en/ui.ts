@@ -367,6 +367,7 @@ export const ui = {
     toggleHide: "Hide or restore (detail)",
     copyKey: "Copy the issue key",
     copyBranch: "Copy the branch name",
+    copyCommit: "Copy a commit message with the key",
     postComment: "Post the comment",
   },
   copy: {
@@ -523,6 +524,7 @@ export const ui = {
     copyFailed: "The browser does not allow copying",
     key: "Key",
     branch: "Branch name",
+    commit: "Commit message",
     hidden: "{key} hidden",
     hiddenHint: "It stays synced: find it in the Hidden filter.",
     following: "You now follow {key}",

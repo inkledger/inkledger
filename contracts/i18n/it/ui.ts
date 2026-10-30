@@ -368,6 +368,7 @@ export const ui: Shape<typeof en> = {
     toggleHide: "Nascondi o ripristina (dettaglio)",
     copyKey: "Copia la chiave dell'issue",
     copyBranch: "Copia il nome del branch",
+    copyCommit: "Copia un messaggio di commit con la chiave",
     postComment: "Pubblica il commento",
   },
   copy: {
@@ -524,6 +525,7 @@ export const ui: Shape<typeof en> = {
     copyFailed: "Il browser non permette di copiare",
     key: "Chiave",
     branch: "Nome branch",
+    commit: "Messaggio di commit",
     hidden: "{key} nascosta",
     hiddenHint: "Resta sincronizzata: la ritrovi nel filtro Nascoste.",
     following: "Ora segui {key}",

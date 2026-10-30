@@ -10,6 +10,7 @@ import {
   Clock,
   Copy,
   GitBranch,
+  GitCommitHorizontal,
   Eye,
   EyeOff,
   ExternalLink,
@@ -189,9 +190,12 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
             <Copy className="h-4 w-4" /> {t("views.issues.row.copyKey")}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onSelect={() => act.copyBranch(issue.key, issue.summary)}
+            onSelect={() => act.copyBranch(issue)}
           >
             <GitBranch className="h-4 w-4" /> {t("views.issues.row.copyBranch")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => act.copyCommit(issue)}>
+            <GitCommitHorizontal className="h-4 w-4" /> {t("views.issues.row.copyCommit")}
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href={issue.url} target="_blank" rel="noreferrer">

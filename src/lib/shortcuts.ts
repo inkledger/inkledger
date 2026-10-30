@@ -62,6 +62,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["h"], label: t("ui.shortcuts.toggleHide") },
         { keys: ["c"], label: t("ui.shortcuts.copyKey") },
         { keys: ["b"], label: t("ui.shortcuts.copyBranch") },
+        { keys: ["m"], label: t("ui.shortcuts.copyCommit") },
         {
           keys: [PALETTE_SHORTCUT.startsWith("⌘") ? "⌘" : "Ctrl", t("ui.keys.enter")],
           label: t("ui.shortcuts.postComment"),

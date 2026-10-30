@@ -100,3 +100,22 @@ test("copy for an agent at 320 px", async () => {
     });
   }
 });
+
+test("branch name and commit message: from the menu and with b / m, the key first in the message", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
+    await page.goto(`${base}/issues/DEMO-101`);
+    await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
+    const read = () => page.evaluate(() => navigator.clipboard.readText());
+    await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+    await page.getByRole("menuitem", { name: /^Copy commit message/ }).click();
+    await page.getByText("Commit message copied").waitFor();
+    assert.equal(await read(), "DEMO-101 Test task number 1");
+    await page.keyboard.press("b");
+    await page.waitForFunction(() => navigator.clipboard.readText().then(t => t.includes("/DEMO-101-")));
+    assert.match(await read(), /^(feature|bugfix)\/DEMO-101-test-task-number-1$/);
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await page.keyboard.press("m");
+    await page.waitForFunction(() => navigator.clipboard.readText().then(t => t.length > 0));
+    assert.equal(await read(), "DEMO-101 Test task number 1");
+  }));

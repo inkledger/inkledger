@@ -50,22 +50,52 @@ export function visibleIssues<T extends { hidden: number }>(rows: T[]): T[] {
   return rows.filter(r => r.hidden !== 1);
 }
 
+/** Words a branch name never ends on (Italian and English): "…-per-il" reads as cut. */
+const TRAILING_STOP = new Set(
+  "a ad al alla alle ai agli an and at by con da dal dalla dei del della delle di e ed for from fra gli i il in la le lo nel nella nei o of on or per su sul sulla the tra to un una uno with".split(" ")
+);
+/** Issue types that are fixes (tracker names vary by language). */
+const BUG_TYPE = /^(bug|baco|difetto|defect|errore|error|anomalia)$/i;
+
 /**
- * Git branch for an issue: "feature/DEMO-123-short-title" (ASCII slug of the
- * first words of the summary, accents folded).
+ * Git branch for an issue: "feature/DEMO-123-short-title" ("bugfix/" for a
+ * bug): an ASCII slug of the summary's first words (accents folded), never
+ * ending on a lone letter or a linking word, cut at a word within `maxLength`.
+ * The key stays as the tracker writes it: Jira finds the issue by it.
  */
-export function branchName(key: string, summary: string, words = 6): string {
-  const slug = summary
+export function branchName(
+  key: string,
+  summary: string,
+  { issueType, words = 6, maxLength = 60 }: { issueType?: string; words?: number; maxLength?: number } = {}
+): string {
+  const prefix = `${BUG_TYPE.test(issueType?.trim() ?? "") ? "bugfix" : "feature"}/${key}`;
+  const all = summary
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .split(" ")
     .filter(Boolean)
-    .slice(0, words)
-    .join("-");
-  return slug ? `feature/${key}-${slug}` : `feature/${key}`;
+    .slice(0, words);
+  // Within the length: whole words only.
+  const kept: string[] = [];
+  for (const w of all) {
+    if (prefix.length + 1 + [...kept, w].join("-").length > maxLength) break;
+    kept.push(w);
+  }
+  // A lone letter ("…-v" from "v.2" cut off) or a linking word reads as cut; a number ("…-step-2") doesn't.
+  while (kept.length && (/^[a-z]$/.test(kept[kept.length - 1]) || TRAILING_STOP.has(kept[kept.length - 1]))) kept.pop();
+  return kept.length ? `${prefix}-${kept.join("-")}` : prefix;
+}
+
+/**
+ * A commit message Jira links to the issue: its key first (Jira reads keys in
+ * messages, not in branch names alone), then the summary.
+ */
+export function commitMessage(key: string, summary: string): string {
+  const title = summary.replace(/\s+/g, " ").trim();
+  return title ? `${key} ${title}` : key;
 }
 
 /** Copy to the clipboard; false when the browser refuses. */

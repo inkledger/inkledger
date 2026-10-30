@@ -1,7 +1,7 @@
 import { toastError } from "@/lib/errorText";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { branchName, copyLater, copyText } from "@/lib/issues";
+import { branchName, commitMessage, copyLater, copyText } from "@/lib/issues";
 import { dayAndTime } from "@/lib/dates";
 import { toast } from "sonner";
 import { t } from "@/i18n";
@@ -75,8 +75,11 @@ export function useIssueActions() {
   return {
     copyForAgent,
     copyKey: (key: string) => copy(key, t("ui.issueActions.key")),
-    copyBranch: (key: string, summary: string) =>
-      copy(branchName(key, summary), t("ui.issueActions.branch")),
+    copyBranch: (i: { key: string; summary: string; issueType?: string }) =>
+      copy(branchName(i.key, i.summary, { issueType: i.issueType }), t("ui.issueActions.branch")),
+    /** "KEY Summary": Jira links a commit to the issue by the key in its message. */
+    copyCommit: (i: { key: string; summary: string }) =>
+      copy(commitMessage(i.key, i.summary), t("ui.issueActions.commit")),
     toggleFavorite: (key: string, connectionId?: number) =>
       run(() => api.toggleFavorite.mutate({ key, connectionId })),
     hide: (key: string, connectionId?: number) =>
