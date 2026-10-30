@@ -1,5 +1,19 @@
 # Loop: building the idea specs
 
+## For the user: where the loop stopped (2026-10-30, afternoon)
+
+**Done today, local commits only, nothing pushed:**
+- inkledger: issue copy for agents C1 `68d4384`, C2 `02e6d3b`, C3 `4f324ac`, C4 `0f229b8`; infra B5.1 `0279526`, B5.3 `c8a2788`, B5.4 `a5c8b3c`; triage B2.5 `da600f8`; estimates B3.6 `1e8cd02`, B3.7 `080777c`; mail copies B1.1 `3086f9d`, B1.2 `b5ee190`, B1.3 `571cec8`, B1.4 `5f3f571`, B1.5 `64f69aa`, B1.6 `1635efb`; on-chain B4.2 `7e4b970`, B4.5 `bc8f142`; render limits `1f2a14a`. Fixes: e2e databases all on the test Postgres `b884580`, migration 0021 kept as applied `9cf3848`, Epic Name on "New issue" `0216986`.
+- inkledger-modules: OTS stamping in the store `160e387`, admin stamp `3b1d07e`. seal: `ots-stamp` `0c0fd7b`.
+- Last full e2e (B3.7's build): 257/258, the one failure caused by B5.1 and fixed in `b884580`.
+
+**Waiting for you:**
+1. **Dev :3000 on `jtt`** (your answer this morning): the backup, `docker stop jtt` and the switch need a permission rule for `docker exec jtt-db` / `docker stop jtt`, or you run them (I can write them out).
+2. **Q10 Basecamp:** reading one real card's events needs the dev database, inside `jtt-db`: blocked as a production read. A permission, or tell me which Basecamp project/card to read through the app.
+3. **C4 GitHub:** which issue (`owner/repo#N`, with a pasted image) I may read to confirm the signed links on real data.
+4. **On hold by your choice:** B4.3 (BTCPay), B4.4 (wallet; BIP-322 libraries evaluated), infra Q2 (Ollama and forecast on staging/prod).
+5. **Review and push** the three repos (CI checks the forecast sidecar on push: B5.4's AC-5.4). Every decision taken during the batches is in its spec, marked "to review".
+
 ## Answers 2026-10-30 (interactive round)
 
 Written under each Q in its doc. Unblocked:
