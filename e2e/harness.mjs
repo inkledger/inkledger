@@ -40,7 +40,7 @@ pg.types.setTypeParser(1700, v => Number(v));
  * The Postgres the tests make their databases on: $E2E_DATABASE_URL, else the one
  * in .env (`pnpm test:db`, deploy/dev.yml), else the dev database's server.
  */
-function adminUrl() {
+export function adminUrl() {
   if (process.env.E2E_DATABASE_URL) return process.env.E2E_DATABASE_URL;
   const env = existsSync(join(APP, ".env")) ? readFileSync(join(APP, ".env"), "utf8") : "";
   const own = /^E2E_DATABASE_URL=(.+)$/m.exec(env);

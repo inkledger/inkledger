@@ -17,7 +17,7 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { start, APP } from "../e2e/harness.mjs";
+import { start, APP, adminUrl } from "../e2e/harness.mjs";
 import { freePort } from "./freePort.mjs";
 
 const ROOT = APP;
@@ -164,8 +164,8 @@ async function serverAndPage() {
 
     // Boot of a second process on the same, migrated database (the usual restart).
     const [{ db: dbName }] = await app.db.q("SELECT current_database() AS db");
-    const env = readFileSync(join(ROOT, ".env"), "utf8");
-    const dbUrl = new URL(process.env.E2E_DATABASE_URL ?? /^DATABASE_URL=(.+)$/m.exec(env)[1].trim());
+    // The same Postgres the harness made the app's database on.
+    const dbUrl = new URL(adminUrl());
     dbUrl.pathname = `/${dbName}`;
     const boots = [];
     for (let i = 0; i < 3; i++) {

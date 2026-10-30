@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { APP, start } from "./harness.mjs";
+import { APP, adminUrl, start } from "./harness.mjs";
 import { freePort } from "../scripts/freePort.mjs";
 
 let github = 0;
@@ -28,8 +28,8 @@ const seed = async db => {
 /** A second server process on the app's database, up and answering. */
 async function secondServer(db) {
   const [{ name }] = await db.q("SELECT current_database() AS name");
-  const env = existsSync(join(APP, ".env")) ? readFileSync(join(APP, ".env"), "utf8") : "";
-  const url = new URL(process.env.E2E_DATABASE_URL ?? /^DATABASE_URL=(.+)$/m.exec(env)[1].trim());
+  // The same Postgres the harness made the app's database on.
+  const url = new URL(adminUrl());
   url.pathname = `/${name}`;
   const port = await freePort();
   const child = spawn(process.execPath, ["dist/boot.js"], {

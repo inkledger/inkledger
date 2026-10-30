@@ -10,15 +10,9 @@ import { randomBytes } from "node:crypto";
 import pg from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { APP } from "./harness.mjs";
+import { APP, adminUrl } from "./harness.mjs";
 import { importDatabase } from "../scripts/pg-import.mjs";
 
-
-function adminUrl() {
-  if (process.env.E2E_DATABASE_URL) return process.env.E2E_DATABASE_URL;
-  const env = existsSync(join(APP, ".env")) ? readFileSync(join(APP, ".env"), "utf8") : "";
-  return /^DATABASE_URL=(.+)$/m.exec(env)[1].trim();
-}
 
 async function database(admin, name) {
   await admin.query(`CREATE DATABASE "${name}"`);
