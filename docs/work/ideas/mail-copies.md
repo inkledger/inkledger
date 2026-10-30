@@ -291,11 +291,21 @@ copyUsage: protectedProcedure.query()                                           
 
 ## Batches
 1. [x] (2026-10-30) `crypto` bytes, migration, setting with consent, `copyUsage`, `deleteAllCopies` (R-1.1, 1.2, 1.5, 1.12; AC-1.2, 1.5, 1.6, 1.20).
-2. Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
+2. [x] (2026-10-30) Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
 3. View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
 4. Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
 5. Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
 6. Docs (R-1.14).
+
+### Batch 2 decisions (2026-10-30, to review)
+- `postal-mime` **4.0.7**: the newest release at least two weeks old (4.2.0 came out the day before); its licence is MIT-0 (MIT without the attribution clause), no dependencies.
+- `mail_copies` gains `attachments` (JSON `[{ name, type, size }]`), written at capture: `copyInfo` lists them without decrypting and parsing up to 30 MB (its budget is 20 ms). Migration 0021 was regenerated with it (never left this machine).
+- `copyInfo` answers `{ copy: {...} | null, goneAt, copyError }` instead of the copy or null: a failed capture has no copy but must still show its error and Retry.
+- Capture runs after the pin, awaited, and never throws: Graph finds the message by its Exchange id, else by Message-ID; not signed in → nothing (a file or the add-in may bring it); not in the mailbox, Graph failing, too big, unreadable → `mails.copy_error` with the reason, cleared by the next successful capture. Pinning the same mail again replaces the copy only if its SHA-256 changed.
+- Body mode: `from`/`to`/`cc` as "Name <address>", `date` as the header gives it, `text` (from the HTML without tags when there is no text part, ≤ 200 KB), `html`, attachments by name, type and size. Full mode: the raw bytes, byte for byte.
+- Messages: E-1.3 is two texts: `server.mails.copy.off` (the server's switch) and `userOff` (the user's own setting, with where to turn it on); `notInMailbox`, `graphFailed`, `noGraph` (E-1.6) added. `POST /api/mail/:id/copy` has its own body limit (`MAIL_COPY_MAX_MB` + 64 KB) and stores the refusal reason on the mail too.
+- In the app, a dropped or picked `.eml` is remembered beside its draft; after the pin, when copies are on, the whole file goes to `/api/mail/:id/copy` (the issue page's drop, the "Pin a mail" dialog, its pick flow); a refusal shows a toast, the pin stays.
+- AC-1.4's `/eml` and `/attachment/0` reads, and AC-1.7's view/eml/attachment routes, come with batch 3 (the routes don't exist yet); here the stored bytes are compared directly.
 
 ## Open questions
 - **Q1, blocks all:** confirm reversing "never the body", off by default. **Answer 2026-10-30: yes**, off by default, consent required.

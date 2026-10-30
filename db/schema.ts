@@ -911,6 +911,8 @@ export const mailCopies = pgTable(
     sealed: bytea("sealed").notNull(),
     plainSha256: text("plain_sha256").notNull(),
     plainBytes: integer("plain_bytes").notNull(),
+    /** JSON [{ name, type, size }]: the attachments, listed without opening the copy */
+    attachments: text("attachments").notNull().default("[]"),
     /** addin | graph | eml */
     source: text("source").notNull(),
     capturedAt: ms("captured_at")

@@ -9,6 +9,7 @@ import { t } from "@/i18n";
 import { MailCard, type MailView } from "./MailCard";
 import { PinMailDialog } from "./PinMailDialog";
 import { draftFromDrop, mayCarryMail, type MailDraft } from "./readMail";
+import { sendCopy } from "./mailCopy";
 
 /**
  * The mails pinned to an issue: pinned from the button, or by dropping an .eml
@@ -42,7 +43,9 @@ export function IssueMails({ issueKey, connectionId }: { issueKey: string; conne
     // A file says all it needs; a link still lacks its subject.
     if (draft.subject) {
       try {
-        await pinHere(await save.mutateAsync(draft));
+        const saved = await save.mutateAsync(draft);
+        await pinHere(saved);
+        await sendCopy(saved.id, draft, (await utils.settings.get.fetch()).mailCopies);
       } catch (err) {
         toastError(err);
       }

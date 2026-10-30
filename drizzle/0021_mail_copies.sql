@@ -5,6 +5,7 @@ CREATE TABLE "mail_copies" (
 	"sealed" "bytea" NOT NULL,
 	"plain_sha256" text NOT NULL,
 	"plain_bytes" integer NOT NULL,
+	"attachments" text DEFAULT '[]' NOT NULL,
 	"source" text NOT NULL,
 	"captured_at" bigint NOT NULL,
 	CONSTRAINT "mail_copies_mode" CHECK ("mail_copies"."mode" IN ('body', 'full')),

@@ -635,6 +635,9 @@ export const ui: Shape<typeof en> = {
     boardInUse: "La lavagna in uso",
     newBoard: "Nuova lavagna…",
     newBoardName: "Nome della nuova lavagna",
+    copy: {
+      failed: "Copia non salvata",
+    },
   },
   outlook: {
     loading: "Caricamento…",

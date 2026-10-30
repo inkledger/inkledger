@@ -634,6 +634,9 @@ export const ui = {
     boardInUse: "The board in use",
     newBoard: "New board…",
     newBoardName: "Name of the new board",
+    copy: {
+      failed: "Copy not saved",
+    },
   },
   outlook: {
     loading: "Loading…",

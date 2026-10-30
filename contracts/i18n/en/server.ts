@@ -174,6 +174,12 @@ export const server = {
     copy: {
       consent: "Keeping copies of your mails needs your consent first.",
       off: "Copies of mails are turned off on this server.",
+      userOff: "Copies of your mails are off: turn them on in Settings → Outlook.",
+      tooLarge: "This mail is too big to keep a copy of (limit {mb} MB).",
+      badEml: "This file isn't a mail that can be read.",
+      notInMailbox: "This mail isn't in your mailbox: drop its .eml file to keep a copy.",
+      graphFailed: "Outlook didn't give the mail's content: try again.",
+      noGraph: "Sign in to your mailbox in Settings → Outlook first.",
     },
   },
   notes: {

@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { MailCard, type MailView } from "./MailCard";
 import { draftFromFile, draftFromLink, type MailDraft } from "./readMail";
+import { sendCopy } from "./mailCopy";
 
 type Due = "none" | "today" | "tomorrow" | "pick";
 
@@ -71,6 +72,7 @@ export function PinMailDialog({
 
 function PinMail({ onClose, onPick, initial, query }: { onClose: () => void; onPick?: (mail: MailView) => Promise<void> | void; initial: MailDraft | null; query: string }) {
   const save = trpc.mails.save.useMutation();
+  const utils = trpc.useUtils();
   const [busy, setBusy] = useState(false);
   // A drop that told everything (a file) goes straight to "where".
   const [chosen, setChosen] = useState<Chosen | null>(initial?.subject ? { view: viewOf(initial), kept: false, draft: initial } : null);
@@ -79,7 +81,9 @@ function PinMail({ onClose, onPick, initial, query }: { onClose: () => void; onP
     if (!onPick) return setChosen(c);
     setBusy(true);
     try {
-      await onPick(c.kept ? c.view : await save.mutateAsync(c.draft));
+      const picked = c.kept ? c.view : await save.mutateAsync(c.draft);
+      await onPick(picked);
+      if (!c.kept) await sendCopy(picked.id, c.draft, (await utils.settings.get.fetch()).mailCopies);
       onClose();
     } catch (e) {
       toastError(e);
@@ -321,6 +325,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
   const go = async (to: Parameters<typeof pin.mutateAsync>[0]["to"], done: (r: Awaited<ReturnType<typeof pin.mutateAsync>>) => string) => {
     try {
       const r = await pin.mutateAsync({ mail, to });
+      if (!chosen.kept) await sendCopy(r.mail.id, chosen.draft, (await utils.settings.get.fetch()).mailCopies);
       await Promise.all([utils.mails.invalidate(), utils.todos.invalidate(), utils.pinboard.list.invalidate(), utils.pinboard.boards.invalidate()]);
       toast.success(done(r));
       onClose();

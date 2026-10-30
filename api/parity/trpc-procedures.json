@@ -484,11 +484,19 @@
     "type": "query"
   },
   {
+    "path": "mails.copyInfo",
+    "type": "query"
+  },
+  {
     "path": "mails.copyUsage",
     "type": "query"
   },
   {
     "path": "mails.deleteAllCopies",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.deleteCopy",
     "type": "mutation"
   },
   {
@@ -521,6 +529,10 @@
   },
   {
     "path": "mails.remove",
+    "type": "mutation"
+  },
+  {
+    "path": "mails.retryCopy",
     "type": "mutation"
   },
   {

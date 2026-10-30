@@ -1,8 +1,10 @@
+import { z } from "zod";
 import { instant, type Instant } from "./values";
 
 /**
- * Pinned mails: what is read from an Outlook link or a dropped .eml file. Only
- * headers ever: never the body, never attachments.
+ * Pinned mails: what is read from an Outlook link or a dropped .eml file:
+ * headers. The body only in a copy the user chose to keep, sealed on the
+ * server (docs/work/ideas/mail-copies.md; "never the body" until 2026-10-30).
  */
 
 /** Where a pinned mail came from. */
@@ -154,3 +156,21 @@ export function parseEmlHeaders(text: string): MailHeaders | null {
     internetMessageId: messageId(h.get("message-id")),
   };
 }
+
+/** A copy in "body" mode (R-1.3): what the mail said and showed, the attachments by name only. */
+export const mailCopyBodySchema = z.object({
+  v: z.literal(1),
+  headers: z.object({
+    from: z.string(),
+    to: z.array(z.string()),
+    cc: z.array(z.string()),
+    date: z.string().nullable(),
+    subject: z.string(),
+  }),
+  text: z.string(),
+  html: z.string().nullable(),
+  attachments: z.array(z.object({ name: z.string(), type: z.string(), size: z.number().int().nonnegative() })),
+});
+export type MailCopyBody = z.infer<typeof mailCopyBodySchema>;
+export const MAIL_COPY_MODES = ["off", "body", "full"] as const;
+export type MailCopyMode = (typeof MAIL_COPY_MODES)[number];

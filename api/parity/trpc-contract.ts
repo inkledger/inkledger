@@ -126,8 +126,10 @@ export interface FrozenIn {
   "issues.watch": { connectionId?: number | undefined; key: string; watch: boolean };
   "mails.account": void;
   "mails.addinKey": void;
+  "mails.copyInfo": { id: number };
   "mails.copyUsage": void;
   "mails.deleteAllCopies": void;
+  "mails.deleteCopy": { id: number };
   "mails.forIssue": { connectionId?: number | undefined; issueKey: string };
   "mails.forNote": { noteId: string };
   "mails.newAddinKey": void;
@@ -136,6 +138,7 @@ export interface FrozenIn {
   "mails.placesOf": { exchangeId?: null | string | undefined; internetMessageId?: null | string | undefined };
   "mails.recent": { query?: string | undefined };
   "mails.remove": { id: number };
+  "mails.retryCopy": { id: number };
   "mails.revokeAddinKey": void;
   "mails.save": { exchangeId?: null | string | undefined; fromAddress?: null | string | undefined; fromName?: null | string | undefined; internetMessageId?: null | string | undefined; receivedAt?: null | number | undefined; source: "addin" | "eml" | "graph" | "link"; subject: string; webLink?: null | string | undefined };
   "mails.search": { query?: string | undefined };
@@ -413,8 +416,10 @@ export interface FrozenOut {
   "issues.watch": { key: string; watching: boolean };
   "mails.account": { account: null | { account: string; displayName: null | string }; available: boolean };
   "mails.addinKey": { createdAt: Date; lastUsedAt: Date | null };
+  "mails.copyInfo": { copy: null | { attachments: { index: number; name: string; size: number; type: string }[]; bytes: number; capturedAt: Date; mode: "body" | "full" }; copyError: null | string; goneAt: Date | null };
   "mails.copyUsage": { bytes: number; count: number };
   "mails.deleteAllCopies": { count: number };
+  "mails.deleteCopy": { ok: true };
   "mails.forIssue": { fromAddress: null | string; fromName: null | string; id: number; internetMessageId: null | string; receivedAt: Date | null; source: string; subject: string; webLink: null | string }[];
   "mails.forNote": { fromAddress: null | string; fromName: null | string; id: number; internetMessageId: null | string; receivedAt: Date | null; source: string; subject: string; webLink: null | string }[];
   "mails.newAddinKey": { key: string };
@@ -423,6 +428,7 @@ export interface FrozenOut {
   "mails.placesOf": { boards: string[]; issues: string[]; todos: string[] };
   "mails.recent": { fromAddress: null | string; fromName: null | string; id: number; internetMessageId: null | string; receivedAt: Date | null; source: string; subject: string; webLink: null | string }[];
   "mails.remove": { ok: true };
+  "mails.retryCopy": { copy: null | { attachments: { index: number; name: string; size: number; type: string }[]; bytes: number; capturedAt: Date; mode: "body" | "full" }; copyError: null | string; goneAt: Date | null };
   "mails.revokeAddinKey": { ok: true };
   "mails.save": { fromAddress: null | string; fromName: null | string; id: number; internetMessageId: null | string; receivedAt: Date | null; source: string; subject: string; webLink: null | string };
   "mails.search": null | { exchangeId: null | string; fromAddress: null | string; fromName: null | string; internetMessageId: null | string; receivedAt: null | number; source: "graph"; subject: string; webLink: null | string }[];

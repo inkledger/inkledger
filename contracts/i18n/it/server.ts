@@ -175,6 +175,12 @@ export const server: Shape<typeof en> = {
     copy: {
       consent: "Per tenere copie delle tue mail serve prima il tuo consenso.",
       off: "Le copie delle mail sono disattivate su questo server.",
+      userOff: "Le copie delle tue mail sono spente: attivale in Impostazioni → Outlook.",
+      tooLarge: "Questa mail è troppo grande per tenerne una copia (limite {mb} MB).",
+      badEml: "Questo file non è una mail leggibile.",
+      notInMailbox: "Questa mail non è nella tua casella: trascina il suo file .eml per tenerne una copia.",
+      graphFailed: "Outlook non ha dato il contenuto della mail: riprova.",
+      noGraph: "Prima accedi alla tua casella in Impostazioni → Outlook.",
     },
   },
   notes: {

@@ -4,9 +4,11 @@ import { and, desc, eq, ilike, isNull, or, sql, type SQL } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail } from "@db/schema";
+import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail, type User } from "@db/schema";
+import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
+import { captureFromGraph, copyInfo, ownMailRow } from "../mail/copies";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
 import { todosRouter } from "./todos";
 import { pinboardRouter } from "./pinboard";
@@ -167,6 +169,24 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
   });
 }
 
+
+/** Pins a saved mail where it was asked: a TODO about it, a board, an issue or a note. */
+async function pinMailTo(ctx: TrpcContext & { user: User }, mail: MailRow, to: z.infer<typeof anywhere>) {
+    if ("todo" in to) {
+      const todo = await todosRouter.createCaller(ctx).add({ text: to.todo.text || mail.subject || t("server.mails.noSubjectTodo"), mailId: mail.id, dueOn: to.todo.dueOn ?? null });
+      return { mail, todoId: todo.id };
+    }
+    if ("board" in to) {
+      const boards = pinboardRouter.createCaller(ctx);
+      const boardId = to.board.newBoard ? (await boards.createBoard({ name: to.board.newBoard })).id : to.board.boardId;
+      const r = await boards.pinMail({ mailId: mail.id, boardId });
+      return { mail, boardName: r.boardName };
+    }
+    const where = await targetOf(ctx.user.id, to);
+    await getDb().insert(mailLinks).values({ userId: ctx.user.id, mailId: mail.id, ...where }).onConflictDoNothing();
+    return { mail };
+}
+
 export const mailsRouter = createRouter({
   /** How many copies of my mails are kept, and their size in clear (docs/work/ideas/mail-copies.md R-1.12). */
   copyUsage: protectedProcedure.query(async ({ ctx }) => {
@@ -175,6 +195,24 @@ export const mailsRouter = createRouter({
       .from(mailCopies)
       .where(eq(mailCopies.userId, ctx.user.id));
     return { count: row?.count ?? 0, bytes: row?.bytes ?? 0 };
+  }),
+
+  /** What is known of a mail's copy, never its content (R-1.6, R-1.13). */
+  copyInfo: protectedProcedure.input(z.object({ id: idInput })).query(({ ctx, input }) => copyInfo(ctx.user.id, input.id)),
+
+  /** One mail's copy gone; the pin stays (R-1.12). */
+  deleteCopy: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
+    await ownMailRow(ctx.user.id, input.id);
+    await getDb().delete(mailCopies).where(and(eq(mailCopies.mailId, input.id), eq(mailCopies.userId, ctx.user.id)));
+    return { ok: true as const };
+  }),
+
+  /** Ask the mailbox again for a copy that failed (E-1.6 when not signed in). */
+  retryCopy: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
+    const mail = await ownMailRow(ctx.user.id, input.id);
+    if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
+    await captureFromGraph(ctx.user.id, mail);
+    return copyInfo(ctx.user.id, input.id);
   }),
 
   /** Every copy of my mails gone at once; the pins stay (R-1.12). */
@@ -192,20 +230,10 @@ export const mailsRouter = createRouter({
   pinTo: protectedProcedure.input(z.object({ mail: z.union([z.object({ id: idInput }), headers]), to: anywhere })).mutation(async ({ ctx, input }) => {
     // A mail kept already (the picker's "already pinned"), or one to save first.
     const mail: MailRow = "id" in input.mail ? pick(await ownMail(ctx.user.id, input.mail.id)) : await saveMail(ctx.user.id, input.mail);
-    const to = input.to;
-    if ("todo" in to) {
-      const todo = await todosRouter.createCaller(ctx).add({ text: to.todo.text || mail.subject || t("server.mails.noSubjectTodo"), mailId: mail.id, dueOn: to.todo.dueOn ?? null });
-      return { mail, todoId: todo.id };
-    }
-    if ("board" in to) {
-      const boards = pinboardRouter.createCaller(ctx);
-      const boardId = to.board.newBoard ? (await boards.createBoard({ name: to.board.newBoard })).id : to.board.boardId;
-      const r = await boards.pinMail({ mailId: mail.id, boardId });
-      return { mail, boardName: r.boardName };
-    }
-    const where = await targetOf(ctx.user.id, to);
-    await getDb().insert(mailLinks).values({ userId: ctx.user.id, mailId: mail.id, ...where }).onConflictDoNothing();
-    return { mail };
+    const pinned = await pinMailTo(ctx, mail, input.to);
+    // Its copy, when the user keeps them: a failure stays on the mail, never on the pin (R-1.6).
+    await captureFromGraph(ctx.user.id, await ownMailRow(ctx.user.id, mail.id));
+    return pinned;
   }),
 
   /** The Microsoft sign-in: whether the server can, and who is signed in. */
@@ -274,6 +302,7 @@ export const mailsRouter = createRouter({
     const to = await targetOf(userId, input.to);
     await getDb().insert(mailLinks).values({ userId, mailId: input.mailId, ...to }).onConflictDoNothing();
     await getDb().update(mails).set({ updatedAt: new Date() }).where(eq(mails.id, input.mailId));
+    await captureFromGraph(userId, await ownMailRow(userId, input.mailId));
     return { ok: true as const };
   }),
 

@@ -1,5 +1,5 @@
 {
-  "id": "e9866621-fe08-4960-98c3-a377d844236d",
+  "id": "6481a5f9-a131-4a5d-bd5c-58a451d761b6",
   "prevId": "4a78a3dd-e19c-497a-a7f1-0111d24eaff2",
   "version": "7",
   "dialect": "postgresql",
@@ -2655,6 +2655,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "attachments": {
+          "name": "attachments",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'"
         },
         "source": {
           "name": "source",

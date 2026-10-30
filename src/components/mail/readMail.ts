@@ -33,11 +33,18 @@ export function draftFromLink(text: string): MailDraft | null {
   };
 }
 
-/** A dropped or picked .eml file (null when it is not a mail). */
+/** The file a draft was read from: sent whole only when the user keeps copies (docs/work/ideas/mail-copies.md R-1.6). */
+const files = new WeakMap<MailDraft, File>();
+export const fileOf = (draft: MailDraft | null | undefined): File | undefined => (draft ? files.get(draft) : undefined);
+
+/** A dropped or picked .eml file (null when it is not a mail): only its headers are read here. */
 export async function draftFromFile(file: File): Promise<MailDraft | null> {
   const head = await file.slice(0, HEAD_BYTES).text();
   const h = parseEmlHeaders(head);
-  return h ? fromHeaders(h) : null;
+  if (!h) return null;
+  const draft = fromHeaders(h);
+  files.set(draft, file);
+  return draft;
 }
 
 /** What a drop carries: an .eml file, else an Outlook link dragged from the browser. */

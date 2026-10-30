@@ -32,6 +32,54 @@ const MAILBOX: SimMessage[] = [
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
+/** A 1 KB attachment, the bytes every simulated message carries. */
+export const SIM_ATTACHMENT = Buffer.alloc(1024, 0x2a);
+
+/**
+ * A message as Graph's /$value gives it: a text part, an HTML part with an image
+ * from outside (a tracking pixel would be one) and a 1 KB attachment.
+ */
+export function simulatedEml(m: { subject: string; from: { emailAddress: { name: string; address: string } }; internetMessageId: string; receivedDateTime: string }): Buffer {
+  const lines = [
+    `From: ${m.from.emailAddress.name} <${m.from.emailAddress.address}>`,
+    "To: Mario Rossi <mario.rossi@example.com>",
+    "Cc: Team <team@example.com>",
+    `Subject: ${m.subject}`,
+    `Date: ${new Date(m.receivedDateTime).toUTCString()}`,
+    `Message-ID: ${m.internetMessageId}`,
+    "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="outer"',
+    "",
+    "--outer",
+    'Content-Type: multipart/alternative; boundary="alt"',
+    "",
+    "--alt",
+    "Content-Type: text/plain; charset=utf-8",
+    "",
+    `Hello Mario, about ${m.subject}.`,
+    "--alt",
+    "Content-Type: text/html; charset=utf-8",
+    "",
+    `<p>Hello Mario, about <b>${m.subject}</b>.</p><img src="https://tracker.example.net/pixel.gif" alt="">`,
+    "--alt--",
+    "--outer",
+    'Content-Type: application/octet-stream; name="notes.bin"',
+    'Content-Disposition: attachment; filename="notes.bin"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    SIM_ATTACHMENT.toString("base64"),
+    "--outer--",
+    "",
+  ];
+  return Buffer.from(lines.join("\r\n"), "utf8");
+}
+
+/** Under the tests: Graph refusing to give messages' content (a capture that fails). */
+let contentFails = false;
+export function simulateContentFailure(on: boolean): void {
+  contentFails = on;
+}
+
 export async function simulatedMicrosoft(url: string, init: RequestInit): Promise<Response> {
   const u = new URL(url);
   if (u.hostname === "login.microsoftonline.com") {
@@ -44,6 +92,13 @@ export async function simulatedMicrosoft(url: string, init: RequestInit): Promis
   }
   if (new Headers(init.headers).get("Authorization") !== "Bearer sim-access") return json({ error: { code: "InvalidAuthenticationToken" } }, 401);
   if (u.pathname === "/v1.0/me") return json({ userPrincipalName: "mario.rossi@example.com", displayName: "Mario Rossi" });
+  const content = /^\/v1\.0\/me\/messages\/([^/]+)\/\$value$/.exec(u.pathname);
+  if (content) {
+    const m = MAILBOX.find(x => x.id === decodeURIComponent(content[1]));
+    if (contentFails) return json({ error: { code: "ServiceUnavailable" } }, 503);
+    if (!m) return json({ error: { code: "ErrorItemNotFound" } }, 404);
+    return new Response(new Uint8Array(simulatedEml(m)), { headers: { "Content-Type": "message/rfc822" } });
+  }
   const search = u.searchParams.get("$search")?.replace(/"/g, "").trim().toLowerCase();
   const filter = u.searchParams.get("$filter")?.match(/internetMessageId eq '(.+)'/)?.[1];
   const found = MAILBOX.filter(

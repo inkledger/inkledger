@@ -200,11 +200,11 @@ async function renew(userId: number, tokens: MailTokens): Promise<MailTokens> {
   return next;
 }
 
-async function graphGet<T>(tokens: MailTokens, path: string): Promise<T> {
+async function graphGet<T>(tokens: MailTokens, path: string, read: (res: Response) => Promise<T> = async (res) => (await res.json()) as T): Promise<T> {
   const res = await call(`${GRAPH}${path}`, {
     method: "GET",
     headers: {
-      Accept: "application/json",
+      Accept: path.endsWith("/$value") ? "message/rfc822" : "application/json",
       Authorization: `Bearer ${tokens.accessToken}`,
       // Ids that survive a move to another folder: links kept on a pin stay good.
       Prefer: 'IdType="ImmutableId"',
@@ -215,19 +215,24 @@ async function graphGet<T>(tokens: MailTokens, path: string): Promise<T> {
     const kind = kindOfStatus(res.status);
     throw new ProviderError(kind, `Microsoft Graph answered ${res.status}`, { status: res.status });
   }
-  return (await res.json()) as T;
+  return read(res);
 }
 
 /** A call on the user's behalf: renewed once on a 401 (an access token revoked early). */
-async function asUser<T>(userId: number, path: string): Promise<T | null> {
+async function asUser<T>(userId: number, path: string, read?: (res: Response) => Promise<T>): Promise<T | null> {
   const tokens = await tokensFor(userId);
   if (!tokens) return null;
   try {
-    return await graphGet<T>(tokens, path);
+    return await graphGet<T>(tokens, path, read);
   } catch (e) {
     if (!(e instanceof ProviderError) || e.kind !== "auth") throw e;
-    return graphGet<T>(await renew(userId, tokens), path);
+    return graphGet<T>(await renew(userId, tokens), path, read);
   }
+}
+
+/** A message in full, as Outlook stores it (MIME), for its copy (docs/work/ideas/mail-copies.md R-1.6); null when not signed in. */
+export async function messageContent(userId: number, exchangeId: string): Promise<Buffer | null> {
+  return asUser(userId, `/me/messages/${encodeURIComponent(exchangeId)}/$value`, async (res) => Buffer.from(await res.arrayBuffer()));
 }
 
 export const foundMail = (m: GraphMessage): FoundMail => ({

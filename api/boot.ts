@@ -22,6 +22,7 @@ import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
 import { outlookFrames, registerOutlookRoutes } from "./mail/addin";
+import { copyUploadMaxBytes, registerCopyRoutes } from "./mail/copies";
 import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
@@ -85,8 +86,13 @@ const moduleBody = bodyLimit({
   maxSize: BUNDLE_MAX_BYTES,
   onError: (c) => c.json({ ok: false, reason: "too-large" }, 413),
 });
+// A whole mail dropped for its copy: up to MAIL_COPY_MAX_MB (docs/work/ideas/mail-copies.md R-1.4).
+const mailCopyBody = (c: Parameters<typeof uploadBody>[0], next: Parameters<typeof uploadBody>[1]) =>
+  bodyLimit({ maxSize: copyUploadMaxBytes(), onError: (cc) => cc.json({ error: t("server.mails.copy.tooLarge", { mb: env.mailCopyMaxMb }) }, 413) })(c, next);
 app.use((c, next) =>
-  c.req.method === "POST" && /^\/api\/issues\/[^/]+\/attachments$/.test(c.req.path)
+  c.req.method === "POST" && /^\/api\/mail\/\d+\/copy$/.test(c.req.path)
+    ? mailCopyBody(c, next)
+    : c.req.method === "POST" && /^\/api\/issues\/[^/]+\/attachments$/.test(c.req.path)
     ? uploadBody(c, next)
     : c.req.method === "POST" && c.req.path === `${MODULES_PATH}/upload`
       ? moduleBody(c, next)
@@ -138,6 +144,7 @@ registerModuleRoutes(app);
 registerStoreRoutes(app);
 registerHookRoutes(app);
 registerOutlookRoutes(app);
+registerCopyRoutes(app);
 registerEventRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
