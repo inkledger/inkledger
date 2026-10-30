@@ -35,6 +35,8 @@ echo 'E2E_DATABASE_URL=postgres://inkledger:inkledger-test@127.0.0.1:54331/inkle
 pnpm dev:down                 # stops it (its data was in memory: nothing is kept)
 ```
 
+Idea suggestions need a local model (Ollama, `OLLAMA_URL`); see [docs/dev/services.md](docs/dev/services.md).
+
 ## Conventions
 
 - TypeScript strict, no `any`; English in code, comments and docs.

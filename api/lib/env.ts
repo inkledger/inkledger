@@ -52,7 +52,34 @@ export function storeUrl(raw: string): string | null {
   }
 }
 
+/** An http(s) address without trailing slash, or null for unset, "off" or unusable values. */
+const serviceUrl = (raw: string | undefined): string | null => storeUrl(raw ?? "");
+const yes = (raw: string | undefined) => ["1", "true", "yes"].includes((raw ?? "").trim().toLowerCase());
+
+/**
+ * The optional local services and their limits (docs/work/ideas/infra.md R-5.3):
+ * nothing set reaches nothing outside; the defaults are the agreed ones.
+ */
+export function serviceEnv(e: Record<string, string | undefined>) {
+  return {
+    /** Ollama for idea suggestions; unset, the feature isn't offered */
+    ollamaUrl: serviceUrl(e.OLLAMA_URL),
+    ollamaModel: (e.OLLAMA_MODEL ?? "").trim() || "gemma3:4b",
+    /** Let OLLAMA_URL be a public address (otherwise loopback or private only) */
+    ollamaAllowPublic: yes(e.OLLAMA_ALLOW_PUBLIC),
+    /** The forecast sidecar (Timestral); unset, the forecast isn't offered */
+    forecastUrl: serviceUrl(e.FORECAST_URL),
+    forecastModel: (e.FORECAST_MODEL ?? "").trim() || "Timestral-28M",
+    /** Bitcoin explorer (Esplora API) a licence's timestamp is checked against, on "Verify" only */
+    otsExplorer: serviceUrl(e.OTS_EXPLORER) ?? "https://blockstream.info/api",
+    /** Copies of pinned mails may be kept (each user still opts in); "off" turns them off for everyone */
+    mailCopies: (e.MAIL_COPIES ?? "").trim().toLowerCase() !== "off",
+    mailCopyMaxMb: positiveNumber(e.MAIL_COPY_MAX_MB, 30),
+  };
+}
+
 export const env = {
+  ...serviceEnv(process.env),
   isProduction,
   serveBuild: !isProduction && process.env.SERVE_BUILD === "1",
   /** HTTP port for the production server */

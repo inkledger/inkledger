@@ -1,7 +1,9 @@
 # Services for development on this machine, beside the app (docs/work/ideas/infra.md).
 # Never the jtt stack, never staging: its own project, names and ports.
 #   pnpm test:db          the e2e tests' Postgres (empty at every start)
-# The `ai` and `ml` profiles (Ollama, the forecast sidecar) come with their batches.
+#   pnpm dev:services     Ollama in a container (profile ai): CPU only on a Mac (no Metal in Docker);
+#                         a native `ollama serve` is faster, the app only sees OLLAMA_URL either way
+# The `ml` profile (the forecast sidecar) comes with its batch.
 name: inkledger-dev
 
 services:
@@ -25,3 +27,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Local model for idea suggestions (docs/work/ideas/triage.md R-2.8): OLLAMA_URL=http://127.0.0.1:11434.
+  ollama:
+    profiles: [ai]
+    image: ollama/ollama:0.34.4@sha256:8262851b2846b87c649eddf3e76beb270c52f4d1bc94559f47efde16b0841551
+    container_name: inkledger-ollama
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 5m
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    mem_limit: 8g
+    cpus: 4
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ollama-models:
