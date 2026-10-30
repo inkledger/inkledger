@@ -298,9 +298,9 @@ copyUsage: protectedProcedure.query()                                           
 6. Docs (R-1.14).
 
 ## Open questions
-- **Q1, blocks all:** confirm reversing "never the body", off by default.
-- **Q2, blocks 2:** OK to add the `postal-mime` dependency.
-- **Q3, not blocking:** 30 MB limit, 7-day orphan purge, 365-day audit (defaults as written).
-- **Q4, not blocking:** backfill copies of mails already pinned (default: no).
+- **Q1, blocks all:** confirm reversing "never the body", off by default. **Answer 2026-10-30: yes**, off by default, consent required.
+- **Q2, blocks 2:** OK to add the `postal-mime` dependency. **Answer 2026-10-30: yes.**
+- **Q3, not blocking:** 30 MB limit, 7-day orphan purge, 365-day audit (defaults as written). **Answer 2026-10-30: as written.**
+- **Q4, not blocking:** backfill copies of mails already pinned (default: no). **Answer 2026-10-30: no backfill.**
 
 ---

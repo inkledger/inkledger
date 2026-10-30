@@ -62,8 +62,8 @@ Status: planned 2026-10-29, not started. Open questions are asked when their bat
 4. Profile `ml` + CI. AC-5.4.
 
 ## Open questions
-- **Q1, blocks 2:** is it OK to move `inkledger_dev` out of `jtt-db` with a read-only dump?
+- **Q1, blocks 2:** is it OK to move `inkledger_dev` out of `jtt-db` with a read-only dump? **Answer 2026-10-30:** superseded. The user logs time on the production db from dev :3000: back up `jtt` (`pg_dump -Fc`), stop the `jtt` container (no parallel sync, old image can't start on the newer schema anyway), point dev `.env` at `jtt` with `ALLOW_MIGRATE_PRODUCTION_DB=1`. Rollback: `pg_restore` the dump and start `jtt`. e2e throwaway dbs move to a separate container `inkledger-test-db` (127.0.0.1:54331, `E2E_DATABASE_URL`); `inkledger_dev` is kept as is.
 - **Q2, blocks staging and prod:** when should Ollama and the forecast sidecar go to staging or the new prod?
-- **Q3, not blocking:** memory and CPU limits per service. Defaults: Ollama 8 GB / 4 CPU, ml 1 GB / 1 CPU.
+- **Q3, not blocking:** memory and CPU limits per service. Defaults: Ollama 8 GB / 4 CPU, ml 1 GB / 1 CPU. **Answer 2026-10-30: as proposed** (Ollama 8 GB / 4 CPU, ml 1 GB / 1 CPU).
 
 ---

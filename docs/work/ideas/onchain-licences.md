@@ -142,9 +142,10 @@ proveHolder: protectedProcedure.input(z.object({ id: z.string().min(1).max(64), 
 5. Terms + docs. R-4.11.
 
 ## Open questions
-- **Q1, blocks 3:** BTCPay hosting and the Lightning node.
-- **Q2, blocks 4:** BTC only (default) or EVM too.
-- **Q3, blocks 4:** a BIP-322 library compatible with Workers (bundle size, no Node APIs). If none fits, verify on the app side and have the Worker trust a token.
+- **Q1, blocks 3:** BTCPay hosting and the Lightning node. **Answer 2026-10-30: postponed:** batch 3 waits until the user has a BTCPay; the rest goes on.
+- **Q2, blocks 4:** BTC only (default) or EVM too. **Answer 2026-10-30: BTC only.**
+- **Explorer default, 2026-10-30:** `OTS_EXPLORER` = `https://blockstream.info/api`, confirmed.
+- **Q3, blocks 4:** a BIP-322 library compatible with Workers (bundle size, no Node APIs). If none fits, verify on the app side and have the Worker trust a token. **Answer 2026-10-30:** evaluate the libraries (size, Workers compatibility) and come back with a concrete choice before adding any dependency.
 - **Q4, not blocking:** taxation of BTC sales (VAT number from Jan 2027). The doc only notes it.
 
 ---

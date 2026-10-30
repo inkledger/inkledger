@@ -1,5 +1,15 @@
 # Loop: building the idea specs
 
+## Answers 2026-10-30 (interactive round)
+
+Written under each Q in its doc. Unblocked:
+- Estimates Q10 (a): read one real Basecamp card's events, read-only. Q11: OpenProject not used, stays `invalid`. Q1: Timestral licence accepted (read at the source; $20M monthly revenue cap of company or employer), 28M default → B3.6, B3.7, B5.4.
+- Triage Q3: native and container Ollama both, picked by `OLLAMA_URL`; measure `qwen3:4b` vs `gemma3:4b` natively (pull allowed) → B2.5.
+- Infra Q3: 8 GB / 4 CPU and 1 GB / 1 CPU. Q1 superseded: dev :3000 logs on the prod db `jtt` (backup, stop `jtt`, `ALLOW_MIGRATE_PRODUCTION_DB=1`); e2e on a new `inkledger-test-db` (127.0.0.1:54331). B5.3 defaults confirmed (30 MB, blockstream.info).
+- Mail copies Q1–Q4: yes, off by default; `postal-mime`; 30 MB / 7 d / 365 d; no backfill → B1.
+- On-chain Q2 BTC only; Q3 evaluate BIP-322 libraries first; Q1 BTCPay postponed → B4.1, 4.2, 4.5 now, 4.3 waits, 4.4 after the library choice.
+- Render limits: lower to the max of 3 runs + 5%. Push: after this round's work and a full check run, with a last OK.
+
 ## For the user: where the loop stopped (2026-10-30, early morning)
 
 **Done, local commits only, nothing pushed** (from `ca35c47` on): B3.1 `ca35c47`, Q8 docs `2d1161c` `4d93a15`, B3.2a1 `a8a3e63`, B3.2 `bfc4341`, B3.2a2 `134b108`, B3.3 `285bc97`, B3.4 + B3.5 `cada276`, B2.1 `336f52b`, B2.2 `ff92b87`, B2.3 `0b7d6da`, B2.4 `a9989aa`. Every decision taken without you is in its spec under the batch, marked "to review".

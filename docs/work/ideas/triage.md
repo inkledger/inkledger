@@ -358,7 +358,7 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
 ## Open questions
 - **Q1, not blocking:** keyboard shortcut for "New idea" (default: none).
 - **Q2, not blocking:** a draft in Outlook via Graph, which needs `Mail.ReadWrite` (default: no, `mailto:` only).
-- **Q3, blocks 5:** default model (`qwen3:4b` or `gemma3:4b`, measured on the user's machines), and where Ollama runs (native on the Mac or on the LAN).
+- **Q3, blocks 5:** default model (`qwen3:4b` or `gemma3:4b`, measured on the user's machines), and where Ollama runs (native on the Mac or on the LAN). **Answer 2026-10-30:** both ways, chosen by `OLLAMA_URL` only: native Ollama on the Mac (Metal) or the `ai` profile container (CPU), documented side by side for a clean machine or local Ollama. Model: measure `qwen3:4b` and `gemma3:4b` on this Mac (native `ollama serve`, ~5 GB pulled, allowed) and bring the numbers before choosing the default.
 - **Q4, not blocking:** shared ideas (default: no).
 
 ---
