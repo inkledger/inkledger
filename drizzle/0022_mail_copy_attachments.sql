@@ -1,0 +1,1 @@
+ALTER TABLE "mail_copies" ADD COLUMN "attachments" text DEFAULT '[]' NOT NULL;
