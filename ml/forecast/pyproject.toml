@@ -1,0 +1,37 @@
+[project]
+name = "inkledger-forecast"
+version = "1.0.0"
+description = "Forecast sidecar for inkledger: Timestral behind a small HTTP API"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "numpy",
+    "timestral",
+    "torch",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+]
+
+[tool.uv]
+package = false
+# Only releases at least two weeks old when the lock was made (supply chain).
+exclude-newer = "2026-10-16T00:00:00Z"
+# This Mac and the image (linux, either architecture).
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'", "sys_platform == 'linux'"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+timestral = { git = "https://github.com/mistralai/timestral.git", rev = "a534bdbd244d64f3d9d743f46c7bf6fc330ed4ff" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

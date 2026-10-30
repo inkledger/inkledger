@@ -1,0 +1,14 @@
+{
+  "comment": "Models the sidecar may load, pinned to an immutable commit; every file checked by sha256 (docs/work/ideas/estimates.md R-3.21). Weights: Modified MIT (LICENSE kept beside them).",
+  "models": {
+    "Timestral-28M": {
+      "repo": "mistralai/Timestral-28M",
+      "revision": "49b26409ac87b5935539a5d8ffe7f397b720db47",
+      "files": [
+        { "path": "config.json", "sha256": "0cdf44b8ea981191de53078e0a5ecbbd437046bd939a546d5dbe17868f71281f" },
+        { "path": "model.safetensors", "sha256": "dfc83c6220937ce5fc6687b35a4df94cd25e28a2cfe6fb92a23dad6301b2015d" },
+        { "path": "LICENSE", "sha256": "648194727930df730890e9f9affdbcc5c930d406d6829559b25ca3d5a973fc8c" }
+      ]
+    }
+  }
+}
