@@ -358,7 +358,7 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
 ## Open questions
 - **Q1, not blocking:** keyboard shortcut for "New idea" (default: none).
 - **Q2, not blocking:** a draft in Outlook via Graph, which needs `Mail.ReadWrite` (default: no, `mailto:` only).
-- **Q3, blocks 5:** default model (`qwen3:4b` or `gemma3:4b`, measured on the user's machines), and where Ollama runs (native on the Mac or on the LAN). **Answer 2026-10-30:** both ways, chosen by `OLLAMA_URL` only: native Ollama on the Mac (Metal) or the `ai` profile container (CPU), documented side by side for a clean machine or local Ollama. Model: measure `qwen3:4b` and `gemma3:4b` on this Mac (native `ollama serve`, ~5 GB pulled, allowed) and bring the numbers before choosing the default.
+- **Q3, blocks 5:** default model (`qwen3:4b` or `gemma3:4b`, measured on the user's machines), and where Ollama runs (native on the Mac or on the LAN). **Answer 2026-10-30:** both ways, chosen by `OLLAMA_URL` only: native Ollama on the Mac (Metal) or the `ai` profile container (CPU), documented side by side for a clean machine or local Ollama. Model: measure `qwen3:4b` and `gemma3:4b` on this Mac (native `ollama serve`, ~5 GB pulled, allowed) and bring the numbers before choosing the default. **Measured 2026-10-30** (native Ollama 0.34.4 on this Mac, Metal; 5 ideas, 3 Italian and 2 English; JSON schema as `format`, temperature 0.2): qwen3:4b loads in 4.0 s, answers in 5.9–13.9 s, 5/5 valid JSON but 1/5 degenerate (a word repeated to the limit, in Italian); gemma3:4b loads in 3.1 s, answers in 8.4–11.9 s, 5/5 valid and coherent. **Default chosen by the user: `gemma3:4b`.**
 - **Q4, not blocking:** shared ideas (default: no).
 
 ---

@@ -45,12 +45,14 @@ Written under each Q in its doc. Unblocked:
 | B2.2 | triage | R-2.11; AC-2.15, 2.16, 2.20, 2.21 | done | (this commit) | `PROVIDERS_READ_ONLY=1 node --test e2e/ideas.test.mjs` → 4/4; `e2e/renders.test.mjs` → pass with limits unchanged after the memoized `NavRow` (dashboard 2898 → 1853 renders); `e2e/layout-overflow.test.mjs` → 5/5; screenshots light/dark 320 and 1400 (board, list, sheet); `pnpm lint` → ok (design ok); `pnpm check` → ok; `pnpm test` → 201 files, 2430 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok; full `PROVIDERS_READ_ONLY=1` e2e → 252/252 | Decisions under batch 2 in triage.md |
 | B2.3 | triage | R-2.5, 2.6; AC-2.11, 2.17, 2.22 | done | (this commit) | `vitest run api/routers/ideas.test.ts contracts/ideas.test.ts` → 6 + 6 passed (AC-2.11 first failed: no procedure); `e2e/ideas.test.mjs` + `e2e/create-issue.test.mjs` → 7/7 twice (AC-2.17 failed before the prefill fix); `e2e/board.test.mjs` → 14/14; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 201 files, 2432 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Fixed a lost prefill in New issue; decisions under batch 3 in triage.md |
 | B2.4 | triage | R-2.4, 2.10; AC-2.10, 2.18 | done | (this commit) | `vitest run api/routers/ideas.test.ts` → 7 passed (AC-2.10 first failed: no procedure); `e2e/ideas.test.mjs` → 7/7; `e2e/renders.test.mjs` → pass, limits unchanged; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 201 files, 2433 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 4 in triage.md |
-| B5.1 | infra | R-5.1, 5.2, 5.6; AC-5.1, 5.2, 5.6, 5.7 | blocked | | | Infra Q3 (limits of `ai` and `ml`) and your OK to start a new dev container on this machine: see the top |
-| B5.3 | infra | R-5.3; AC-5.3 | blocked | | | Its env defaults are other docs' open proposals (mail-copies Q3, on-chain explorer): see the top |
-| B2.5 | triage | R-2.8; AC-2.13, 2.14, 2.19 | blocked | | | Triage Q3 (model, where Ollama runs); after B5.3 |
-| B5.4 | infra | R-5.5; AC-5.4 | blocked | | | Needs the sidecar of B3.6 (estimates Q1) |
-| B3.6 | estimates | AC-3.39, 3.40 | blocked | | | Estimates Q1 (Timestral licence) |
-| B3.7 | estimates | AC-3.30–3.38, 3.44, 3.45 | blocked | | | After B3.6 |
-| B1.1–B1.6 | mail-copies | see doc | blocked | | | Mail-copies Q1, Q2 |
-| B4.1–B4.5 | onchain-licences | see doc | blocked | | | On-chain Q1–Q3 |
-| B5.2 | infra | R-5.4; AC-5.5 | blocked | | | Infra Q1 (move the dev db out of jtt-db) |
+| B5.1 | infra | R-5.1 (test db), 5.2, 5.6 (part); AC-5.1, 5.2, 5.7 | done | (this commit) | `vitest run api/deployDev.test.ts` → fail with the file moved away, pass with it; `pnpm test:db` → `inkledger-test-db` healthy on 127.0.0.1:54331 (AC-5.2); `E2E_DATABASE_URL` in `.env`; `e2e/issue-copy.test.mjs` → 2/2 with its databases made on 54331 and dropped (0 left); `git diff -- deploy/staging.yml` empty (AC-5.7); full `PROVIDERS_READ_ONLY=1 pnpm test:e2e` before this batch → 257/257; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 207 files, 2445 passed; `pnpm build` → ok; `pnpm test:smoke` → ok | Reshaped by the answers of 2026-10-30: 54331 is the e2e database, not a dev one (D-5.1 in the doc) |
+| B5.3 | infra | R-5.3; AC-5.3 | todo | | | Defaults answered 2026-10-30 (30 MB, blockstream.info, gemma3:4b) |
+| B2.5 | triage | R-2.8; AC-2.13, 2.14, 2.19 | todo | | | Q3 answered 2026-10-30 (gemma3:4b measured); after B5.3 |
+| B5.4 | infra | R-5.5; AC-5.4 | todo | | | After B3.6 (the sidecar) |
+| B3.6 | estimates | AC-3.39, 3.40 | todo | | | Q1 answered 2026-10-30 (licence accepted, 28M) |
+| B3.7 | estimates | AC-3.30–3.38, 3.44, 3.45 | todo | | | After B3.6 |
+| B1.1–B1.6 | mail-copies | see doc | todo | | | Q1–Q4 answered 2026-10-30 |
+| B4.1, B4.2, B4.5 | onchain-licences | see doc | todo | | | Q2 answered (BTC only) |
+| B4.3 | onchain-licences | AC-4.8 | blocked | | | BTCPay postponed by the user (Q1, 2026-10-30) |
+| B4.4 | onchain-licences | AC-4.6, 4.7, 4.10 | blocked | | | Q3: I evaluate BIP-322 libraries, then the user chooses |
+| B5.2 | infra | R-5.4; AC-5.5 | blocked | | | Superseded (Q1, 2026-10-30): dev on `jtt` with backup and `jtt` stopped; the auto-mode classifier refused even reading `jtt`: needs the user's permission or the user's own commands |

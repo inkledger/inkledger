@@ -22,11 +22,18 @@ pnpm dev                      # http://localhost:3000
 | `pnpm lint && pnpm check` | nothing else |
 | `pnpm test` | nothing else (Postgres via PGlite, no network) |
 | `pnpm build && pnpm test:smoke` | nothing else |
-| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | Postgres (`DATABASE_URL` in `.env`, or `E2E_DATABASE_URL`) and Chromium (`pnpm exec playwright-core install chromium-headless-shell`) |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | Postgres (`E2E_DATABASE_URL` in the environment or `.env`, else `DATABASE_URL`) and Chromium (`pnpm exec playwright-core install chromium-headless-shell`) |
 | `cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked` | in `src-tauri/` |
 
 Test servers must never reach a real tracker: always run them with `PROVIDERS_READ_ONLY=1`. Each
-end-to-end test makes and drops its own database.
+end-to-end test makes and drops its own database. To keep those away from any database you use,
+give them their own Postgres (`deploy/dev.yml`, in memory, empty at every start):
+
+```sh
+pnpm test:db                  # Postgres for e2e on 127.0.0.1:54331 (container inkledger-test-db)
+echo 'E2E_DATABASE_URL=postgres://inkledger:inkledger-test@127.0.0.1:54331/inkledger' >> .env
+pnpm dev:down                 # stops it (its data was in memory: nothing is kept)
+```
 
 ## Conventions
 

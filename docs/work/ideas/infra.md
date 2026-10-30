@@ -1,6 +1,6 @@
 # Spec: services in containers, a clean machine
 
-Status: planned 2026-10-29, not started. Open questions are asked when their batch is reached (README, R-0.12).
+Status: B5.1 done 2026-10-30. Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Verified facts
@@ -30,6 +30,9 @@ Status: planned 2026-10-29, not started. Open questions are asked when their bat
   - Ollama in Docker on a Mac runs on the CPU only (no Metal);
   - the recommended setup is native Ollama, or a machine on the LAN, through `OLLAMA_URL`.
 - **R-5.7** Nothing goes into `deploy/staging.yml` or the `jtt` stack until Q2.
+
+## Decisions
+- **D-5.1 (B5.1, from the answers of 2026-10-30)** 54331 is the e2e tests' Postgres, not a dev database: dev logs on `jtt` (Q1). `deploy/dev.yml` (project `inkledger-dev`) has `test-db` (container `inkledger-test-db`, postgres:17-alpine pinned by the digest already on this machine, 127.0.0.1:54331, data in tmpfs: empty at every start). Scripts `pnpm test:db` (up, waits healthy) and `pnpm dev:down` (down, no `-v`: nothing to lose anyway). The harness takes `E2E_DATABASE_URL` from the environment or `.env`, else `DATABASE_URL` as before. The YAML is checked as Docker reads it (`docker compose config --format json`, `api/deployDev.test.ts`), skipped only where docker is missing (user's choice: no YAML dependency).
 
 ## AC → test
 

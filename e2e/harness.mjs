@@ -36,10 +36,15 @@ function encrypt(plain) {
 pg.types.setTypeParser(20, v => Number(v));
 pg.types.setTypeParser(1700, v => Number(v));
 
-/** The local Postgres (docker compose service "db"): $E2E_DATABASE_URL or the dev .env. */
+/**
+ * The Postgres the tests make their databases on: $E2E_DATABASE_URL, else the one
+ * in .env (`pnpm test:db`, deploy/dev.yml), else the dev database's server.
+ */
 function adminUrl() {
   if (process.env.E2E_DATABASE_URL) return process.env.E2E_DATABASE_URL;
   const env = existsSync(join(APP, ".env")) ? readFileSync(join(APP, ".env"), "utf8") : "";
+  const own = /^E2E_DATABASE_URL=(.+)$/m.exec(env);
+  if (own) return own[1].trim();
   const m = /^DATABASE_URL=(.+)$/m.exec(env);
   if (!m) throw new Error("No Postgres for e2e: start `docker compose up -d db` and set DATABASE_URL in .env");
   return m[1].trim();

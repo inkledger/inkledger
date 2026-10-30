@@ -1,0 +1,27 @@
+# Services for development on this machine, beside the app (docs/work/ideas/infra.md).
+# Never the jtt stack, never staging: its own project, names and ports.
+#   pnpm test:db          the e2e tests' Postgres (empty at every start)
+# The `ai` and `ml` profiles (Ollama, the forecast sidecar) come with their batches.
+name: inkledger-dev
+
+services:
+  # Where the e2e tests make their throwaway databases (E2E_DATABASE_URL), away from
+  # the production container. Data in memory: nothing survives a stop, nothing to clean.
+  test-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    container_name: inkledger-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: inkledger
+      # Local only (127.0.0.1) and empty: a fixed password is no secret worth keeping.
+      POSTGRES_PASSWORD: inkledger-test
+      POSTGRES_DB: inkledger
+    ports:
+      - "127.0.0.1:54331:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inkledger -d inkledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
