@@ -855,6 +855,16 @@ export const settings: Shape<typeof en> = {
     },
   },
   store: {
+    proof: {
+      pending: "In ancoraggio su Bitcoin",
+      done: "Su Bitcoin dal {date} · blocco {block}",
+      existedBy: "Esisteva già il {date} (prova aggiunta dopo)",
+      verify: "Verifica",
+      download: "Scarica .ots",
+      offline: "Prova salvata; per verificarla serve la rete",
+      failed: "La prova non corrisponde a questa licenza",
+      checking: "Verifica su Bitcoin…",
+    },
     activation: {
       menu: "Server",
       title: "{name} sui tuoi server",

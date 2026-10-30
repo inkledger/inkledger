@@ -359,6 +359,9 @@ export const server = {
       badSignature: "The licence signature does not match.",
       futureVersion: "This licence needs a newer inkledger.",
     },
+    proof: {
+      none: "This licence has no proof on Bitcoin yet.",
+    },
   },
   store: {
     activationRate: "Too many changes to this licence today: try again tomorrow.",

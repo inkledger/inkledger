@@ -360,6 +360,9 @@ export const server: Shape<typeof en> = {
       badSignature: "La firma della licenza non torna.",
       futureVersion: "Questa licenza richiede un inkledger più recente.",
     },
+    proof: {
+      none: "Questa licenza non ha ancora una prova su Bitcoin.",
+    },
   },
   store: {
     activationRate: "Troppe modifiche a questa licenza oggi: riprova domani.",

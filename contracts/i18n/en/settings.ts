@@ -854,6 +854,16 @@ export const settings = {
     },
   },
   store: {
+    proof: {
+      pending: "Being anchored on Bitcoin",
+      done: "On Bitcoin since {date} · block {block}",
+      existedBy: "Existed by {date} (proof added later)",
+      verify: "Verify",
+      download: "Download .ots",
+      offline: "Proof saved; checking needs the network",
+      failed: "The proof doesn't match this licence",
+      checking: "Checking on Bitcoin…",
+    },
     activation: {
       menu: "Servers",
       title: "{name} on your servers",

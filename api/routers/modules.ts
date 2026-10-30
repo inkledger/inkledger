@@ -17,6 +17,7 @@ import { t } from "@contracts/i18n";
 import { extraKey } from "../modules/keys";
 import { acceptToken, activate, activationsOf, activationStates, deactivate, offlineCode } from "../modules/activation";
 import { StoreError } from "../store/client";
+import { proofFile, proofOf } from "../modules/proof";
 import { LICENSE_FILE_FORMAT } from "@contracts/store";
 import {
   isActive,
@@ -28,6 +29,13 @@ import {
   validLicenses,
   verifyLicense,
 } from "../modules/registry";
+
+/** A licence held on this server, by its id (NOT_FOUND otherwise). */
+async function heldLicence(id: string): Promise<string> {
+  const held = (await validLicenses()).find((l) => l.id === id);
+  if (!held) throw new TRPCError({ code: "NOT_FOUND", message: t("server.modules.proof.none") });
+  return held.text;
+}
 
 /** Server-wide: for whoever may manage the Store and licences. */
 const store = permProcedure("manageStore");
@@ -143,6 +151,17 @@ const activationMessage = (reason: string) =>
         : t("server.store.badActivation");
 
 export const modulesRouter = createRouter({
+  /** Where a licence stands on Bitcoin, verified here (docs/work/ideas/onchain-licences.md R-4.6). */
+  licenceProof: protectedProcedure.input(z.object({ id: z.string().min(1).max(64) })).query(async ({ input }) => proofOf(input.id, await heldLicence(input.id))),
+
+  /** The licence's proof as an .ots file, to check with any OpenTimestamps tool. */
+  licenceProofFile: protectedProcedure.input(z.object({ id: z.string().min(1).max(64) })).query(async ({ input }) => {
+    await heldLicence(input.id);
+    const file = await proofFile(input.id);
+    if (!file) throw new TRPCError({ code: "NOT_FOUND", message: t("server.modules.proof.none") });
+    return file;
+  }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     const texts = await storedLicenses();
     const licenses = texts.flatMap((text) => {

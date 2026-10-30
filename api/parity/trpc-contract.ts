@@ -161,6 +161,8 @@ export interface FrozenIn {
   "modules.geocode": { language: "en" | "it"; moduleId: string; query: string };
   "modules.historyDaily": { moduleId: string; since?: number | undefined };
   "modules.importProgress": { text: string };
+  "modules.licenceProof": { id: string };
+  "modules.licenceProofFile": { id: string };
   "modules.list": void;
   "modules.offlineCode": { product: string };
   "modules.removeLicense": { id: string } | { product: string };
@@ -453,6 +455,8 @@ export interface FrozenOut {
   "modules.geocode": { country: string; lat: number; lon: number; name: string }[];
   "modules.historyDaily": { date: string; seconds: number }[];
   "modules.importProgress": { module: string };
+  "modules.licenceProof": { block: null | number; existedBy: boolean; status: "complete" | "failed" | "none" | "pending" | "unverified" | "verified"; time: null | number };
+  "modules.licenceProofFile": { base64: string; filename: string };
   "modules.list": { canUse: boolean; extraKey: boolean; licenses: { id: string; issued: number; issuer: "dev" | "inbox" | "publisher" | "store" | null; label: string; product: string }[]; modules: { build: null | string; entryUrl: null | string; id: string; integrity: null | string; name: { en: string; it: string }; product: string; slots: ("app-stage" | "dashboard-action" | "dashboard-backdrop" | "dashboard-overlay" | "dashboard-perch" | "dashboard-widget" | "mobile-dock" | "mobile-more" | "panel-edge" | "screensaver" | "settings" | "sidebar-footer" | "sidebar-rail")[]; status: { reason: string; state: "invalid" } | { state: "active" } | { state: "needs-activation" } | { state: "needs-license" } | { state: "unsupported-host-api" }; version: string }[]; off: string[] };
   "modules.offlineCode": { code: string; page: string };
   "modules.removeLicense": void;

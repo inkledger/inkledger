@@ -126,6 +126,13 @@ describe("add-on modules", () => {
     expect((await app.request(stale, { headers: { cookie } })).status).toBe(404);
   });
 
+  it("a licence with a wallet still installs", async () => {
+    // A field the store may add (the wallet it's tied to: docs/work/ideas/onchain-licences.md R-4.1), still v1.
+    const { addLicense } = await import("./registry");
+    const r = await addLicense(license("inkledger.hello", KEY, { holder: { chain: "btc", address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq" } }));
+    expect(r.ok).toBe(true);
+  });
+
   it("refuses licences that are forged, foreign or from the future", async () => {
     const { addLicense } = await import("./registry");
     expect((await addLicense(license("inkledger.hello", FOREIGN))).ok).toBe(false);

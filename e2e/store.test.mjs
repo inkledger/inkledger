@@ -66,6 +66,12 @@ async function stubWorker(state) {
     if (req.url === `/claim/${"c".repeat(43)}`) return send({ status: "pending" });
     if (req.url?.startsWith("/download/inkledger.hello?token=")) return send(bundle());
     if (req.url === "/bundle/inkledger.hello") return send(bundle());
+    // A licence's timestamp proof, and the explorer it is checked against (docs/work/ideas/onchain-licences.md).
+    if (req.url === "/ots/R-1" && state.proof) return send(state.proof);
+    if (state.block && !state.explorerDown) {
+      if (req.url === `/api/block-height/${state.block.height}`) return send(state.block.hash);
+      if (req.url === `/api/block/${state.block.hash}`) return send({ merkle_root: state.block.merkleRoot, timestamp: state.block.time });
+    }
     if (req.url?.startsWith("/img/")) {
       res.writeHead(200, { "content-type": "image/png" });
       return res.end(PNG);
@@ -82,7 +88,7 @@ async function stubWorker(state) {
 async function withStore(state, body, seed) {
   state.calls = [];
   const worker = await stubWorker(state);
-  const app = await start({ seed, env: { STORE_URL: worker.url, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
+  const app = await start({ seed, env: { STORE_URL: worker.url, OTS_EXPLORER: `${worker.url}/api`, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   try {
     await app.page.goto(app.base + "/settings/store");
     await app.page.locator('[data-store-item="hello"]').waitFor();
@@ -282,3 +288,41 @@ test("the compact layout shows small tiles, survives a reload, and a tile opens 
       await page.getByRole("dialog").getByText("Says hello in the sidebar.").first().waitFor();
     },
   ));
+
+test("a licence shows its Bitcoin proof", async () => {
+  const { serializeProof, toHex } = await import("../contracts/ots.ts");
+  const { createHash } = await import("node:crypto");
+  const text = license();
+  const digest = new Uint8Array(createHash("sha256").update(text, "utf8").digest());
+  // The licence's digest → sha256 → in block 800000: that hash is the block's merkle root.
+  const root = new Uint8Array(createHash("sha256").update(digest).digest());
+  const proofOf = (d, att) => Buffer.from(serializeProof({ digest: d, timestamp: { attestations: [], ops: [{ op: { name: "sha256" }, next: { attestations: [att], ops: [] } }] } })).toString("base64");
+  const complete = proofOf(digest, { kind: "bitcoin", height: 800000 });
+  const block = { height: 800000, hash: "0".repeat(60) + "abcd", merkleRoot: toHex(root.slice().reverse()), time: 1_700_000_000 };
+  const state = { items: [item()], proof: { status: "pending", block: null, ots: proofOf(digest, { kind: "pending", uri: "https://a.pool.opentimestamps.org" }), backfilled: false }, block };
+  await withStore(
+    state,
+    async ({ page }) => {
+      const shows = async text => {
+        await page.reload();
+        await page.getByRole("button", { name: "Details of Hello" }).click();
+        await page.getByRole("dialog").getByTestId("licence-proof").getByText(text).waitFor();
+        await page.keyboard.press("Escape");
+      };
+      await shows("Being anchored on Bitcoin");
+      state.proof = { status: "complete", block: 800000, ots: complete, backfilled: false };
+      await shows(/^On Bitcoin since .+ · block 800000$/);
+      state.proof = { ...state.proof, backfilled: true };
+      await shows(/^Existed by .+ \(proof added later\)$/);
+      state.explorerDown = true;
+      await shows("Proof saved; checking needs the network");
+      state.explorerDown = false;
+      state.proof = { status: "complete", block: 800000, ots: proofOf(new Uint8Array(32).fill(9), { kind: "bitcoin", height: 800000 }), backfilled: false };
+      await shows("The proof doesn't match this licence");
+    },
+    async db => {
+      await db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, 1) ON CONFLICT (key) DO UPDATE SET value = excluded.value", JSON.stringify([text]));
+    },
+  );
+});
+

@@ -9,6 +9,7 @@ import { LICENSE_FILE_EXTENSION } from "@contracts/store";
 import { downloadBlob } from "@/lib/download";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
+import { LicenceProof } from "@/components/settings/sections/store/LicenceProof";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -162,6 +163,7 @@ export function ManageBadge({
                   <span className="block text-foreground">{t("settings.store.manage.licence", { id: l.label, date: mediumDate(l.issued) })}</span>
                   <span className="block">{t(`settings.store.issuer.${l.issuer ?? "unknown"}`)}</span>
                   <span className="block">{t("settings.store.manage.forever")}</span>
+                  <LicenceProof id={l.id} compact />
                 </p>
               </div>
             ))

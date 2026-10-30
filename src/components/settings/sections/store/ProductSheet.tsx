@@ -16,6 +16,7 @@ import {
 import { MODULE_TERMS_URL, type StoreEntry, type StoreIcon } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
+import { LicenceProof } from "@/components/settings/sections/store/LicenceProof";
 import { Chip } from "@/components/app/Chip";
 import { SectionLabel } from "@/components/app/PageHeader";
 import { ExternalLink } from "@/components/app/ExternalLink";
@@ -219,6 +220,7 @@ function LicenceInfo({ product }: { product: string }) {
       <span className="block text-muted-foreground">
         {t(`settings.store.issuer.${licence.issuer ?? "unknown"}`)} · {t("settings.store.manage.forever")}
       </span>
+      <LicenceProof id={licence.id} />
     </>
   );
 }
