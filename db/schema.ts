@@ -1661,3 +1661,26 @@ export const ideas = pgTable(
     check("ideas_promoted_has_connection", sql`${t.promotedIssueKey} IS NULL OR ${t.promotedConnectionId} IS NOT NULL`),
   ],
 );
+
+/** Pictures in an idea's text (`![name](idea-file:<id>)`): sealed bytes, gone with the idea. */
+export const ideaFiles = pgTable(
+  "idea_files",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ideaId: integer("idea_id")
+      .notNull()
+      .references(() => ideas.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Read from the bytes when it came, never the browser's word */
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("idx_idea_files_idea").on(t.ideaId), index("idx_idea_files_user").on(t.userId), check("idea_files_name", sql`length(${t.name}) BETWEEN 1 AND 200`)],
+);

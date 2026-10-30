@@ -16,6 +16,8 @@ import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
 import { ideaPrompt } from "../ai/prompts/idea";
 import { env } from "../lib/env";
 import { currentLocale } from "@contracts/i18n/core";
+import { withSharedIdeaFiles } from "../ideaFiles";
+import { fromMarkdown } from "../providers/core/richtext";
 
 /** How long a deleted idea can be brought back */
 const TRASH_DAYS = 30;
@@ -185,7 +187,11 @@ export const ideasRouter = createRouter({
     return Object.fromEntries(IDEA_STATES.map((s) => [s, rows.find((r) => r.state === s)?.n ?? 0])) as Record<IdeaState, number>;
   }),
 
-  get: protectedProcedure.input(z.object({ id })).query(({ ctx, input }) => ownIdea(ctx.user.id, input.id)),
+  /** One idea, its text also drawn (links, its pictures: contracts/ideaFiles.ts). */
+  get: protectedProcedure.input(z.object({ id })).query(async ({ ctx, input }) => {
+    const idea = await ownIdea(ctx.user.id, input.id);
+    return { ...idea, doc: fromMarkdown(idea.body, "gfm") };
+  }),
 
   /** The projects an idea can be filed under: those of the user's connections in use (R-2.9). */
   projects: protectedProcedure.query(({ ctx }) =>
@@ -347,7 +353,9 @@ export const ideasRouter = createRouter({
           .then((c) => c.markdown)
           .catch(() => null)
       : null;
-    return handoffPrompt(idea, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null, issueText);
+    // Its pictures as links an agent can open (signed, revoked with the others).
+    const body = await withSharedIdeaFiles(ctx.user.id, idea.body, new URL(ctx.req.url).origin, input.minutes);
+    return handoffPrompt({ ...idea, body }, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null, issueText);
   }),
 
   /** Whether "Suggest" is offered (R-2.8): a local model configured, on a local address unless allowed. */

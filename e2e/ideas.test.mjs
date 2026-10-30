@@ -272,3 +272,32 @@ test("ideas at 320 px", () =>
       }
     },
   ));
+
+test("an idea takes pictures (added, or pasted on a phone's picker) and links, shown in its preview", () =>
+  withApp(
+    {
+      viewport: { width: 390, height: 844 },
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO ideas (user_id, title, body, state, position, created_at, updated_at) VALUES (1, 'Scanner view', 'See [the spec](https://example.com/spec).', 'raw', 0, ?, ?)", now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/ideas");
+      await page.getByRole("button", { name: "Open Scanner view" }).click();
+      const sheet = page.getByRole("dialog");
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+      const [chooser] = await Promise.all([page.waitForEvent("filechooser"), sheet.getByRole("button", { name: "Add image" }).click()]);
+      await chooser.setFiles({ name: "shelf.png", mimeType: "image/png", buffer: png });
+      for (let i = 0; i < 50 && !/idea-file:\d+/.test((await db.q("SELECT body FROM ideas"))[0].body); i++) await new Promise(r => setTimeout(r, 100));
+      assert.match((await db.q("SELECT body FROM ideas"))[0].body, /^See \[the spec\]\(https:\/\/example\.com\/spec\)\.\n!\[shelf\.png\]\(idea-file:\d+\)\n$/);
+      await sheet.getByRole("radio", { name: "Preview" }).click();
+      const img = sheet.getByRole("img", { name: "shelf.png" });
+      await img.waitFor();
+      await img.evaluate(el => (el.complete ? null : new Promise(r => el.addEventListener("load", r, { once: true }))));
+      assert.ok(await img.evaluate(el => el.naturalWidth > 0), "the picture loads");
+      await sheet.getByText("the spec", { exact: true }).waitFor();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(overflow <= 1, `horizontal overflow: ${overflow}`);
+    }
+  ));

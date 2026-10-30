@@ -15,6 +15,8 @@ type Ctx = {
   connectionId?: number | null;
   internalLinks?: boolean;
   headingLevel?: number;
+  /** The app's own pictures (an idea's `idea-file:`): where it serves them, or null for any other */
+  resolveImage?: (image: { name?: string; url?: string }) => string | null;
 };
 
 function internalNoteOrIssue(value: string): string | null {
@@ -164,6 +166,14 @@ function block(b: Block, key: number, ctx: Ctx): ReactNode {
     case "hr":
       return <hr key={key} className="border-border" />;
     case "image": {
+      const own = ctx.resolveImage?.({ name: b.name, url: b.url });
+      if (own) {
+        return (
+          <a key={key} href={own} target="_blank" rel="noreferrer" className="block w-fit">
+            <img src={own} alt={b.alt ?? b.name ?? ""} loading="lazy" className="max-h-80 w-auto max-w-full rounded-lg border" />
+          </a>
+        );
+      }
       const id = b.name ? ctx.images.get(b.name) : undefined;
       if (id) {
         const src = attachmentUrl(id, "content", ctx.connectionId);
@@ -205,6 +215,7 @@ export function RichText({
   collapseAfter = 700,
   variant = "text",
   headingLevel,
+  resolveImage,
 }: {
   doc: RichDoc;
   images: Map<string, string>;
@@ -215,12 +226,14 @@ export function RichText({
   variant?: "text" | "document";
   /** ARIA level of the first Markdown heading in a document. */
   headingLevel?: number;
+  /** Pictures the app keeps itself (an idea's), by their reference */
+  resolveImage?: (image: { name?: string; url?: string }) => string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const words = plainText(doc);
   const long = variant !== "document" && (words.length > collapseAfter || words.split("\n").length > 14);
   const collapsed = long && !expanded;
-  const ctx = { images, connectionId, internalLinks: variant === "document", headingLevel: variant === "document" ? headingLevel ?? 2 : undefined };
+  const ctx = { images, connectionId, internalLinks: variant === "document", headingLevel: variant === "document" ? headingLevel ?? 2 : undefined, resolveImage };
   const box = useRef<HTMLDivElement>(null);
   // Collapsed, what is cut off can't be focused (Tab would land on something unseen): out of
   // the tab order until "Show all"; back in once shown.

@@ -15,6 +15,8 @@ import { purgeDismissedNotifications } from "./routers/notifications";
 import { purgeIdleModuleFiles } from "./modules/files";
 import { purgeTrash } from "./queries/trash";
 import { registerAttachmentRoutes, UPLOAD_MAX_BYTES } from "./attachments";
+import { registerIdeaFileRoutes } from "./ideaFiles";
+import { IDEA_FILE_MAX_BYTES } from "@contracts/ideaFiles";
 import { registerDownloadRoutes } from "./downloads";
 import { registerModuleRoutes } from "./modules/routes";
 import { ACTIVATION_DEFAULTS, renewActivations } from "./modules/activation";
@@ -79,6 +81,11 @@ app.use("/login", compress());
 if (env.isProduction) app.use("/api/*", requestLog());
 // JSON RPC stays small; only attachment uploads may carry files.
 const smallBody = bodyLimit({ maxSize: 1024 * 1024 });
+// A picture into an idea (contracts/ideaFiles.ts), with room for the multipart around it.
+const ideaFileBody = bodyLimit({
+  maxSize: IDEA_FILE_MAX_BYTES + 64 * 1024,
+  onError: (c) => c.json({ error: t("server.ideas.fileTooLarge", { mb: IDEA_FILE_MAX_BYTES / 1024 / 1024 }) }, 413),
+});
 const uploadBody = bodyLimit({
   maxSize: UPLOAD_MAX_BYTES,
   onError: (c) => c.json({ error: t("server.attachments.tooLarge") }, 413),
@@ -95,6 +102,8 @@ app.use((c, next) =>
     ? mailCopyBody(c, next)
     : c.req.method === "POST" && /^\/api\/issues\/[^/]+\/attachments$/.test(c.req.path)
     ? uploadBody(c, next)
+    : c.req.method === "POST" && /^\/api\/ideas\/\d+\/files$/.test(c.req.path)
+    ? ideaFileBody(c, next)
     : c.req.method === "POST" && c.req.path === `${MODULES_PATH}/upload`
       ? moduleBody(c, next)
       : smallBody(c, next),
@@ -146,6 +155,7 @@ registerStoreRoutes(app);
 registerHookRoutes(app);
 registerOutlookRoutes(app);
 registerCopyRoutes(app);
+registerIdeaFileRoutes(app);
 registerEventRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({

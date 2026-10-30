@@ -21,6 +21,8 @@ export type SharePayload = {
   g: number;
   /** The issue it is in, when the tracker finds files through their issue (GitHub) */
   k?: string;
+  /** Not a tracker's file: a picture of the user's idea (`a` its id, `c` 0) */
+  f?: "idea-file";
 };
 
 const mac = (key: Buffer, payload: string) => createHmac("sha256", key).update(payload).digest();
@@ -35,7 +37,7 @@ export function signShare(p: Omit<SharePayload, "v">): string {
 const isPayload = (x: unknown): x is SharePayload => {
   if (!x || typeof x !== "object") return false;
   const p = x as Record<string, unknown>;
-  return p.v === 1 && [p.u, p.c, p.iat, p.exp, p.g].every((n) => Number.isSafeInteger(n)) && typeof p.a === "string" && p.a.length > 0 && (p.k === undefined || typeof p.k === "string");
+  return p.v === 1 && [p.u, p.c, p.iat, p.exp, p.g].every((n) => Number.isSafeInteger(n)) && typeof p.a === "string" && p.a.length > 0 && (p.k === undefined || typeof p.k === "string") && (p.f === undefined || p.f === "idea-file");
 };
 
 /** What a token grants, when its signature holds and it is fresh and short; null otherwise. */

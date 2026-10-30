@@ -176,6 +176,13 @@
       "when": 1793378517812,
       "tag": "0024_note_date_ai",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793380016001,
+      "tag": "0025_idea_files",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
-import { MoreHorizontal } from "lucide-react";
+import { Image as ImageIcon, MoreHorizontal } from "lucide-react";
+import { ideaFileIds } from "@contracts/ideaFiles";
 import { IDEA_STATES, type IdeaState } from "@contracts/ideas";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/app/Chip";
@@ -21,6 +22,7 @@ export type Idea = inferRouterOutputs<AppRouter>["ideas"]["list"][number];
 /** An idea on the board or in the list: its title opens it, it drags to another column, and its menu (or Alt+←/→) moves it by keyboard. */
 export function IdeaCard({ idea, onOpen, onMove, onDelete }: { idea: Idea; onOpen: () => void; onMove: (to: IdeaState) => void; onDelete: () => void }) {
   const openQuestions = idea.questions.filter(q => q.answer.trim() === "").length;
+  const pictures = ideaFileIds(idea.body).length;
   const at = IDEA_STATES.indexOf(idea.state);
   return (
     <li
@@ -72,11 +74,17 @@ export function IdeaCard({ idea, onOpen, onMove, onDelete }: { idea: Idea; onOpe
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {(idea.container || idea.route || openQuestions > 0 || idea.source || idea.promoted) && (
+      {(idea.container || idea.route || openQuestions > 0 || pictures > 0 || idea.source || idea.promoted) && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {idea.container && <Chip>{idea.container.key}</Chip>}
           {idea.route && <Chip tone="info">{t(`pages.ideas.route.${idea.route}`)}</Chip>}
           {openQuestions > 0 && <Chip tone="warning">{t("pages.ideas.openQuestions", { count: openQuestions })}</Chip>}
+          {pictures > 0 && (
+            <Chip>
+              <ImageIcon className="h-3 w-3" aria-hidden />
+              {t("pages.ideas.images", { count: pictures })}
+            </Chip>
+          )}
           {idea.source && <Chip>{idea.source.key}</Chip>}
           {idea.promoted &&
             (idea.promoted.gone ? (

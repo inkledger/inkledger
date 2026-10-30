@@ -7,6 +7,7 @@ import { connections, issues, users, type Connection } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { restUser } from "./context";
 import { verifyShare } from "./lib/shareLinks";
+import { ownIdeaFile } from "./ideaFiles";
 import { createRateLimiter } from "./lib/security";
 import { clientIp } from "./lib/session";
 import { getSettings } from "./routers/settings";
@@ -169,6 +170,17 @@ export function registerAttachmentRoutes(app: App) {
     try {
       const [user] = await getDb().select().from(users).where(eq(users.id, grant.u)).limit(1);
       if (!user || (await getSettings(user.id)).shareLinkGeneration !== grant.g) return notShared();
+      if (grant.f === "idea-file") {
+        // A picture in an idea handed to an agent: the user's own bytes, never a tracker's.
+        const file = /^\d+$/.test(grant.a) ? await ownIdeaFile(user.id, Number(grant.a)) : null;
+        if (!file) return notShared();
+        const headers = attachmentHeaders(file.contentType, file.name);
+        headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));
+        headers.set("Content-Security-Policy", SANDBOXED);
+        headers.set("Cache-Control", "private, no-store");
+        headers.set("Referrer-Policy", "no-referrer");
+        return new Response(new Uint8Array(file.bytes), { status: 200, headers });
+      }
       const conn = await ownConnection(user.id, grant.c).catch(() => null);
       if (!conn) return notShared();
       const res =

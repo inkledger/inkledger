@@ -7,7 +7,6 @@ import { IdeaSuggestionPanel, type SuggestionField } from "@/components/ideas/Id
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -17,6 +16,8 @@ import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 import type { Idea } from "@/components/ideas/IdeaCard";
+import { IdeaBody } from "@/components/ideas/IdeaBody";
+import type { RichDoc } from "@contracts/richtext";
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 type RouteChoice = IdeaRoute | "none";
@@ -57,6 +58,7 @@ export function IdeaSheet({
           <IdeaFields
             key={idea.data.id}
             idea={idea.data}
+            doc={idea.data.doc}
             onPromote={() => idea.data && onPromote(idea.data)}
             onDiscard={() => idea.data && onDiscard(idea.data)}
             onDelete={() => idea.data && onDelete(idea.data)}
@@ -69,7 +71,7 @@ export function IdeaSheet({
   );
 }
 
-function IdeaFields({ idea, onPromote, onDiscard, onDelete, markDirty }: { idea: Idea; onPromote: () => void; onDiscard: () => void; onDelete: () => void; markDirty: (dirty: boolean) => void }) {
+function IdeaFields({ idea, doc, onPromote, onDiscard, onDelete, markDirty }: { idea: Idea; doc: RichDoc; onPromote: () => void; onDiscard: () => void; onDelete: () => void; markDirty: (dirty: boolean) => void }) {
   const utils = trpc.useUtils();
   const llm = trpc.ideas.llm.useQuery(undefined, { staleTime: 5 * 60_000 });
   const suggestion = trpc.ideas.suggest.useQuery({ id: idea.id }, { enabled: false, retry: false, staleTime: Infinity, gcTime: 0 });
@@ -86,7 +88,8 @@ function IdeaFields({ idea, onPromote, onDiscard, onDelete, markDirty }: { idea:
   });
   const projects = trpc.ideas.projects.useQuery(undefined, { staleTime: 5 * 60_000 });
   const update = trpc.ideas.update.useMutation({
-    onSuccess: saved => utils.ideas.get.setData({ id: idea.id }, saved),
+    // The saved text is drawn by the server (its links and pictures): read again.
+    onSuccess: () => void utils.ideas.get.invalidate({ id: idea.id }),
     onError: e => toastError(e),
     onSettled: () => void utils.ideas.list.invalidate(),
   });
@@ -166,10 +169,7 @@ function IdeaFields({ idea, onPromote, onDiscard, onDelete, markDirty }: { idea:
         <span className="font-medium">{t("pages.ideas.ideaTitle")}</span>
         <Input value={title} maxLength={200} onChange={e => setTitle(e.currentTarget.value)} onBlur={() => title.trim() && title !== idea.title && save({ title })} />
       </label>
-      <label className="grid gap-1.5 text-body-sm">
-        <span className="font-medium">{t("pages.ideas.problem")}</span>
-        <Textarea rows={5} value={body} onChange={e => setBody(e.currentTarget.value)} onBlur={() => body !== idea.body && save({ body })} />
-      </label>
+      <IdeaBody ideaId={idea.id} body={body} setBody={setBody} save={next => save({ body: next })} doc={doc} saved={body === idea.body} />
 
       <section className="grid gap-2" aria-label={t("pages.ideas.acceptance")}>
         <h3 className="text-body-sm font-medium">{t("pages.ideas.acceptance")}</h3>

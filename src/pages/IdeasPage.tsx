@@ -18,6 +18,7 @@ import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { attachToIssue, ideaImagesForIssue } from "@/lib/ideaImages";
 
 type View = "columns" | "list";
 const VIEW_KEY = "ikl-ideas-view";
@@ -70,14 +71,22 @@ export default function IdeasPage() {
     },
   });
   /** Through the usual "New issue" dialog (R-2.5), filled from the idea; once created, the idea becomes it. */
-  const promote = (idea: Idea) => {
+  const promote = async (idea: Idea) => {
     setOpen(null);
+    // Its pictures go with it: named in the text as the issue's attachments, attached once it exists.
+    const text = issueDescription(idea, { acceptance: t("pages.ideas.acceptance"), decisions: t("pages.ideas.decisions") });
+    const { markdown, files } = await ideaImagesForIssue(text);
     // Once the sheet has let go of the focus: the dialog opens on its own, filled in.
     requestAnimationFrame(() =>
       openCreateIssue({
         summary: idea.title,
-        description: issueDescription(idea, { acceptance: t("pages.ideas.acceptance"), decisions: t("pages.ideas.decisions") }),
-        onCreated: (issueKey, connectionId) => link.mutate({ id: idea.id, issueKey, connectionId }),
+        description: markdown,
+        onCreated: (issueKey, connectionId) => {
+          link.mutate({ id: idea.id, issueKey, connectionId });
+          void attachToIssue(issueKey, connectionId, files).then(ok => {
+            if (!ok) toast.warning(t("pages.ideas.imagesNotAttached", { key: issueKey }));
+          });
+        },
       }),
     );
   };
