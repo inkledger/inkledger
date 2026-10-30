@@ -1,5 +1,5 @@
 import { toastError } from "@/lib/errorText";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   formatSeconds,
@@ -158,6 +158,26 @@ function LogTimeForm({
   const [comment, setComment] = useState(
     worklog?.comment ?? prefillComment ?? ""
   );
+  // A stopped timer's dialog closed without logging (Later, Esc, outside): what was
+  // typed stays as the timer's note, so the next opening has it back.
+  const utils = trpc.useUtils();
+  const typed = useRef(comment);
+  const settled = useRef(false);
+  useEffect(
+    () => () => {
+      const note = typed.current.slice(0, 500);
+      if (!fromTimer || settled.current || note === (prefillComment ?? "")) return;
+      void utils.client.timers.setNote
+        .mutate({ issueKey, connectionId: connectionId ?? undefined, note })
+        .then(() => utils.timers.list.invalidate())
+        .catch(() => {
+          // The timer went meanwhile (logged elsewhere, discarded): nothing to keep the note on.
+        });
+    },
+    // Once, on close: the refs carry the latest values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   // A typed "1d" is the work schedule's day (of the day being logged).
   const { targetFor } = useWorkSchedule();
@@ -226,7 +246,10 @@ function LogTimeForm({
     onClose();
     onDone?.();
   };
-  const onError = (e: unknown) => toastError(e);
+  const onError = (e: unknown) => {
+    settled.current = false;
+    toastError(e);
+  };
   const create = trpc.worklogs.create.useMutation({ onSuccess, onError });
   const update = trpc.worklogs.update.useMutation({ onSuccess, onError });
   const pending = create.isPending || update.isPending;
@@ -259,7 +282,10 @@ function LogTimeForm({
           ? { id: worklog.id }
           : { issueKey, remoteId: worklog.remoteId, connectionId: conn ?? undefined }),
       });
-    else create.mutate({ ...payload, issueKey, connectionId, fromTimer });
+    else {
+      settled.current = true;
+      create.mutate({ ...payload, issueKey, connectionId, fromTimer });
+    }
   };
 
   return (
@@ -368,7 +394,10 @@ function LogTimeForm({
             id={`${id}-comment`}
             placeholder={t("ui.logTime.commentPlaceholder")}
             value={comment}
-            onChange={e => setComment(e.target.value)}
+            onChange={e => {
+              typed.current = e.target.value;
+              setComment(e.target.value);
+            }}
             rows={3}
           />
         </div>

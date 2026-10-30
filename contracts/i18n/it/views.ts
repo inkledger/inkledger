@@ -45,6 +45,9 @@ export const views: Shape<typeof en> = {
       noEntries: "Nessuna registrazione.",
       entry: "{key} dalle {time}, {duration}",
       running: " (in corso)",
+      toLog: " (fermato, da registrare)",
+      pendingLabel: "{key}, {duration} tracciato e non ancora registrato: registralo",
+      pendingList: "Timer fermati da registrare",
     },
     activity: {
       empty: "Nessuna registrazione negli ultimi 14 giorni",

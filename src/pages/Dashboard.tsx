@@ -89,6 +89,8 @@ import { dateFormat, t } from "@/i18n";
 import { ModuleSlot } from "@/modules/ModuleHost";
 import { isClosed, isWaiting } from "@contracts/categories";
 import { gapNeighbours } from "@/lib/gapCuts";
+import { placePendingTimers } from "@/lib/pendingTimers";
+import { timerLog } from "@/lib/timerLog";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun },
@@ -154,6 +156,9 @@ function HeaderTimer() {
   const timer = timers.find(tm => tm.state === "running") ?? timers[0];
   if (!timer) return null;
   const running = timer.state === "running";
+  const toLog = timers
+    .filter(tm => tm.state !== "running" && tm.pausedAt && tm.elapsedSeconds > 0)
+    .sort((a, b) => new Date(a.pausedAt ?? 0).getTime() - new Date(b.pausedAt ?? 0).getTime());
   return (
     <span className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
       <TimerRing running={running} />
@@ -161,6 +166,22 @@ function HeaderTimer() {
       {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
       <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
       <ActiveTimerQuickControls />
+      {/* Stopped ones behind the running one ("Later"): still to log, never out of sight. */}
+      {running && toLog.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          title={t("pages.dashboard.toLogTitle")}
+          className="text-warning"
+          onClick={() => {
+            const [oldest] = toLog;
+            if (oldest.pausedAt)
+              timerLog.push({ issueKey: oldest.issueKey, connectionId: oldest.connectionId ?? undefined, seconds: oldest.elapsedSeconds, note: oldest.note, end: new Date(oldest.pausedAt) });
+          }}
+        >
+          {t("pages.dashboard.toLog", { count: toLog.length })}
+        </Button>
+      )}
     </span>
   );
 }
@@ -302,18 +323,6 @@ export default function Dashboard() {
     });
   }
 
-  // A stopped timer's time is tracked, just not logged yet: not a hole
-  // (filling it would count that time twice). Same stretch as DayReview uses.
-  const pausedSpans: TimeSpan[] = timers.flatMap(tm =>
-    tm.state === "running" || !tm.pausedAt || tm.elapsedSeconds <= 0
-      ? []
-      : [
-          {
-            start: new Date(new Date(tm.pausedAt).getTime() - tm.elapsedSeconds * 1000),
-            seconds: tm.elapsedSeconds,
-          },
-        ]
-  );
   // Holes of the working day still to log: open weeks only, up to now.
   const dayView = range.kind === "day";
   const weekStatus = trpc.weeks.status.useQuery(
@@ -322,11 +331,26 @@ export default function Dashboard() {
   );
   const daySchedule = forDay(range.from);
   const holesUntil = new Date();
+  // A stopped timer's time is tracked, just not logged yet: drawn where logging
+  // it would put it ("Later" keeps it here), and never a hole (filling it would
+  // count that time twice).
+  if (dayView) {
+    for (const p of placePendingTimers({ day: range.from, now: holesUntil, timers, occupied: timelineEntries, schedule: daySchedule }))
+      timelineEntries.push({
+        id: `pending:${issueId(p.timer)}`,
+        issueKey: p.timer.issueKey,
+        connectionId: p.timer.connectionId ?? undefined,
+        summary: issueByKey.get(issueId(p.timer))?.summary,
+        start: p.start,
+        seconds: p.seconds,
+        pending: true,
+      });
+  }
   const missing =
     dayView && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? effectiveWorkSpans(range.from, daySchedule, plannedEntries).flatMap(work => {
           const end = new Date(Math.min(work.start.getTime() + work.seconds * 1000, holesUntil.getTime()));
-          return end <= work.start ? [] : findGaps([...timelineEntries, ...pausedSpans], work.start, end, 1);
+          return end <= work.start ? [] : findGaps(timelineEntries, work.start, end, 1);
         })
       : [];
   // The hole reaching now: a timer can start from its start (Play on it). None while one runs.
@@ -362,6 +386,18 @@ export default function Dashboard() {
   const editPlanned = (entry: PlannedEntry) => {
     setEditingPlanned(entry);
     setPlanOpen(true);
+  };
+  // A stopped timer on the timeline asks to be logged again, as at its stop.
+  const logPending = (entry: TimelineEntry) => {
+    const tm = timers.find(x => `pending:${issueId(x)}` === entry.id);
+    if (!tm?.pausedAt) return;
+    timerLog.push({
+      issueKey: tm.issueKey,
+      connectionId: tm.connectionId ?? undefined,
+      seconds: tm.elapsedSeconds,
+      note: tm.note,
+      end: new Date(tm.pausedAt),
+    });
   };
 
   const stacks: DayStack[] = range.days.map(day => ({
@@ -625,6 +661,7 @@ export default function Dashboard() {
                   floor={<ModuleSlot id="dashboard-perch" />}
                   todoSpans={todoSpans}
                   liveControls={running ? LIVE_CONTROLS : undefined}
+                  onPending={logPending}
                   plannedEntries={plannedEntries}
                   onEditPlanned={editPlanned}
                 />

@@ -43,6 +43,9 @@ export const views = {
       noEntries: "No entries.",
       entry: "{key} from {time}, {duration}",
       running: " (running)",
+      toLog: " (stopped, to log)",
+      pendingLabel: "{key}, {duration} tracked and not logged yet: log it",
+      pendingList: "Stopped timers to log",
     },
     activity: {
       empty: "No entries in the last 14 days",

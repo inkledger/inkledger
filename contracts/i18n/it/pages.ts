@@ -702,6 +702,8 @@ export const pages: Shape<typeof en> = {
     pickDate: "Scegli una data",
     goToDay: "Vai al giorno",
     timerRunning: "Timer attivo su {key}",
+    toLog: "{count} da registrare",
+    toLogTitle: "Timer fermati non ancora registrati: registra il più vecchio",
     period: "Periodo",
     logTime: "Registra tempo",
     customize: "Personalizza dashboard",

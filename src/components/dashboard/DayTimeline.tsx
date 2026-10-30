@@ -35,6 +35,8 @@ export type TimelineEntry = {
   seconds: number;
   /** In-progress entry (running timer): drawn hatched */
   live?: boolean;
+  /** A stopped timer not logged yet: hatched and still, a tap logs it */
+  pending?: boolean;
 };
 
 /** Gaps shorter than this between two entries are not drawn as pauses. */
@@ -64,6 +66,7 @@ export function DayTimeline({
   liveControls,
   plannedEntries = [],
   onEditPlanned,
+  onPending,
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -87,6 +90,8 @@ export function DayTimeline({
   /** Future intentions: drawn beside logged entries, never counted with them. */
   plannedEntries?: PlannedEntry[];
   onEditPlanned?: (entry: PlannedEntry) => void;
+  /** A stopped timer's block: log it (the same dialog as at its stop). */
+  onPending?: (entry: TimelineEntry) => void;
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
@@ -162,8 +167,11 @@ export function DayTimeline({
     : [];
   const missingTotal = missing.reduce((a, g) => a + g.seconds, 0);
   // Work in parallel: what was logged against how long the day took.
-  const logged = entries.reduce((a, e) => a + e.seconds, 0);
-  const clock_ = realSeconds(entries);
+  // Stopped timers are tracked, not logged: never counted with the worklogs.
+  const counted = entries.filter(e => !e.pending);
+  const logged = counted.reduce((a, e) => a + e.seconds, 0);
+  const clock_ = realSeconds(counted);
+  const pendingEntries = sorted.filter(e => e.pending);
 
   return (
     <figure className="m-0">
@@ -313,6 +321,28 @@ export function DayTimeline({
                 )}
               </div>
             );
+          // A stopped timer: the same stripes, still (tracked, not logged yet); a tap logs it.
+          if (b.pending) {
+            const label = t("views.dashboard.timeline.pendingLabel", { key: b.issueKey, duration: formatDurationLong(b.seconds) });
+            return (
+              <button
+                key={b.id}
+                type="button"
+                title={`${title}${t("views.dashboard.timeline.toLog")}`}
+                aria-label={label}
+                disabled={!onPending}
+                onClick={() => onPending?.(b)}
+                {...surface("glass")}
+                className={cn(
+                  "stripes-pending absolute z-10 flex min-w-target rounded-md text-left outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+                  b.lanes === 1 && "bottom-6 top-3"
+                )}
+                style={style}
+              >
+                {body}
+              </button>
+            );
+          }
           // A logged slice opens its issue.
           return (
             <Link
@@ -361,10 +391,10 @@ export function DayTimeline({
             <span
               key={b.id}
               aria-hidden
-              {...(b.live ? surface("glass") : surface("bar"))}
+              {...(b.live || b.pending ? surface("glass") : surface("bar"))}
               className={cn(
                 "absolute inset-y-0 rounded-sm",
-                b.live ? "stripes-pending stripes-live" : b.color.fill
+                b.live ? "stripes-pending stripes-live" : b.pending ? "stripes-pending" : b.color.fill
               )}
               style={{ left: `${b.left}%`, width: `${b.width}%` }}
             />
@@ -444,6 +474,27 @@ export function DayTimeline({
           ))}
         </ul>
       )}
+      {/* Stopped timers to log, as rows big enough to tap on a phone (a block may be a sliver). */}
+      {onPending && pendingEntries.length > 0 && (
+        <ul className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1.5 sm:hidden" aria-label={t("views.dashboard.timeline.pendingList")}>
+          {pendingEntries.map(e => (
+            <li key={e.id} className="min-w-0">
+              <button
+                type="button"
+                {...surface("glass")}
+                onClick={() => onPending(e)}
+                className="stripes-pending flex min-h-touch w-full min-w-0 items-center justify-between gap-3 rounded-lg px-3 text-body-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="sr-only">
+                  {t("views.dashboard.timeline.pendingLabel", { key: e.issueKey, duration: formatDurationLong(e.seconds) })}
+                </span>
+                <span aria-hidden className="min-w-0 truncate font-medium">{e.issueKey}</span>
+                <span aria-hidden className="shrink-0 tabular">{formatDuration(e.seconds)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {planned.length > 0 && onEditPlanned && (
         <ul className="mt-3 grid gap-2" aria-label={t("views.dashboard.timeline.plannedList")}>
           {planned.map(p => (
@@ -459,7 +510,7 @@ export function DayTimeline({
           : sorted
               .map(
                 e =>
-                  `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: timeOfDay(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : ""}`
+                  `${t("views.dashboard.timeline.entry", { key: e.issueKey, time: timeOfDay(e.start), duration: formatDurationLong(e.seconds) })}${e.live ? t("views.dashboard.timeline.running") : e.pending ? t("views.dashboard.timeline.toLog") : ""}`
               )
               .join("; ")}
         {planned.map(p => `; ${plannedKindLabel(p.entry.kind)} · ${t("ui.planned.status")} · ${formatDurationLong(p.seconds)}`).join("")}

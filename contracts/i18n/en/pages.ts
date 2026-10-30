@@ -690,6 +690,8 @@ export const pages = {
     pickDate: "Pick a date",
     goToDay: "Go to day",
     timerRunning: "Timer running on {key}",
+    toLog: "{count} to log",
+    toLogTitle: "Stopped timers not logged yet: log the oldest",
     period: "Period",
     logTime: "Log time",
     customize: "Customize dashboard",
