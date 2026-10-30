@@ -30,6 +30,10 @@ Written under each Q in its doc. Unblocked:
 
 | Batch | Doc | R / AC | State | Commit | Checks run (command → outcome) | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+| C1 | issue-copy | R-6.2; AC-6.1–6.4 | todo | | | First in order (2026-10-30) |
+| C2 | issue-copy | R-6.1, 6.3–6.7; AC-6.5–6.11 | todo | | | |
+| C3 | issue-copy | R-6.8; AC-6.12 | todo | | | |
+| C4 | issue-copy | R-6.9; AC-6.13 | todo | | | |
 | B3.1 | estimates | AC-3.1–3.15, 3.46–3.48, 3.52, 3.56, 3.57 | done | (this commit) | `vitest run contracts/estimate.test.ts` → 21/21; mutation check (current status, sourceOrdinal removed) → 2 fail as expected; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 195 files, 2374 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Spec revision 3 + patch 3.1 + 5 corrections. AC-3.57 passed before its grouping too (strict `<` already); no coverage tool in the repo |
 | B3.2a1 | estimates | 2a1: AC-3.58, 3.59, 3.60 (single-field rows) | done | (this commit) | `vitest run api/providers/core/validate.test.ts` → fail then pass; jira test → fail (no simulator move) then pass; mutation (statusSteps empty) → 8/8 rows fail; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 196 files, 2384 passed; `pnpm parity:update` → trpc-contract (capability type); `pnpm build` → ok; `pnpm test:smoke` → 21 ok | Decisions under batch 2a in the doc; Monday blank status to place in batch 2 |
 | B3.2a2 | estimates | 2a2: AC-3.60 (composite rows), 3.61, 3.62 | done, part blocked | (this commit) | adapter tests: gitea 38, gitlab 70, asana 62, todoist 50, basecamp 68 passed; `pnpm lint` → ok; `pnpm check` → ok; `pnpm test` → 198 files, 2406 passed; `pnpm build` → ok; `pnpm test:smoke` → 21 ok | GitLab, Gitea, Asana, Todoist, Basecamp to-dos done. Basecamp cards: Q10. OpenProject: Q11. Facts and decisions under batch 2a in the doc |

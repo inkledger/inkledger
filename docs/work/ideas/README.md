@@ -87,6 +87,7 @@ Answers to open questions go under each Q in its doc, with the date. The loop re
    - Where these specs write "not blocking (default X)", read "proposal X, to ask when the batch that touches it is reached".
 
 **Implementation order:**
+0. **First, before everything:** `issue-copy.md` batches C1–C4 (added 2026-10-30)
 1. B3 batches 1–3
 2. B2 batches 1–4
 3. B5 batches 1, 3
