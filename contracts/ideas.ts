@@ -68,8 +68,12 @@ const slug = (text: string, max: number) =>
     .slice(0, max)
     .replace(/-+$/, "");
 
-/** The idea as a prompt for a coding agent, in the agreed shape (R-2.6). */
-export function handoffPrompt(idea: IdeaView, issue: { key: string; url: string } | null): { markdown: string; filename: string } {
+/**
+ * The idea as a prompt for a coding agent, in the agreed shape (R-2.6);
+ * `issueText`, the issue it came from or became, as copied for an agent
+ * (docs/work/ideas/issue-copy.md R-6.8).
+ */
+export function handoffPrompt(idea: IdeaView, issue: { key: string; url: string } | null, issueText: string | null = null): { markdown: string; filename: string } {
   const answered = idea.questions.filter((q) => q.answer.trim() !== "");
   const open = idea.questions.filter((q) => q.answer.trim() === "");
   const lines = [
@@ -89,6 +93,7 @@ export function handoffPrompt(idea: IdeaView, issue: { key: string; url: string 
     "## Open questions (ask before deciding)",
     ...open.map((q) => `- ${q.text}`),
     "",
+    ...(issueText ? ["## Issue", "", issueText.trimEnd(), ""] : []),
     "## Constraints",
     "Follow the repository's CLAUDE.md and its checks. Do not push.",
     "",

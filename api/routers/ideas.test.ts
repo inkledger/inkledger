@@ -1,5 +1,6 @@
 // Ideas in triage (docs/work/ideas/triage.md R-2.1–R-2.3, R-2.7, R-2.9): capture, readiness, ownership, the trash.
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+import { jiraSignIn } from "../testing/signIn";
 
 process.env.DATABASE_URL = ":memory:";
 
@@ -147,5 +148,46 @@ describe("ideas", () => {
     await expect(other.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await q("UPDATE connections SET archived_at = 1 WHERE id = ?", conn);
     await expect(u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("the agent prompt carries its issue", async () => {
+    const SITE = "https://acme.atlassian.net";
+    const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/rest/api/3/myself")) return json({ accountId: "acc-handoff", displayName: "Mario" });
+      if (url.includes("?fields=description"))
+        return json({ fields: { description: { type: "doc", version: 1, content: [{ type: "paragraph", content: [{ type: "text", text: "Steps to reproduce" }] }] } } });
+      if (url.includes("?fields=attachment")) return json({ fields: { attachment: [{ id: "91", filename: "trace.log", mimeType: "text/plain", size: 3 }] } });
+      return new Response("{}", { status: 500 });
+    });
+    try {
+      const resHeaders = new Headers();
+      await jiraSignIn({ req: new Request("http://localhost/"), resHeaders }, { siteUrl: SITE, deployment: "cloud", authType: "basic", username: "h@x.it", secret: "t" });
+      const cookie = (resHeaders.get("set-cookie") ?? "").split(";")[0];
+      const { userFromRequest } = await import("../context");
+      const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+      const { appRouter } = await import("../router");
+      const caller = appRouter.createCaller({ req: new Request("http://ikl.test/"), resHeaders: new Headers(), user: ctx.user, sessionId: ctx.sessionId });
+      const [{ id: conn }] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ?", ctx.user!.id);
+      await q(
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, 'h1', 'APP-4', 'Crash on save', 'To Do', 'APP', 'App', ?, 1)",
+        ctx.user!.id, conn, `${SITE}/browse/APP-4`,
+      );
+      const idea = await caller.ideas.fromIssue({ issueKey: "APP-4", connectionId: conn });
+      const { markdown } = await caller.ideas.handoff({ id: idea.id, minutes: 15 });
+      expect(markdown).toContain("## Issue\n\n### APP-4: Crash on save");
+      expect(markdown).toContain("#### Description\n\nSteps to reproduce");
+      expect(markdown).toMatch(/- \[trace\.log\]\(http:\/\/ikl\.test\/api\/shared\/[^)]+\)/);
+      // The issue sits before the constraints, which still close the prompt.
+      expect(markdown.indexOf("## Issue")).toBeLessThan(markdown.indexOf("## Constraints"));
+      // Its tracker unreachable: the prompt comes without the issue, not an error.
+      vi.stubGlobal("fetch", async () => new Response("{}", { status: 500 }));
+      const plain = (await caller.ideas.handoff({ id: idea.id })).markdown;
+      expect(plain).not.toContain("## Issue");
+      expect(plain).toContain("## Constraints");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

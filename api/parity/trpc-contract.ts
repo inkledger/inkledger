@@ -62,7 +62,7 @@ export interface FrozenIn {
   "ideas.forIssue": { connectionId?: number | undefined; issueKey: string };
   "ideas.fromIssue": { connectionId?: number | undefined; issueKey: string };
   "ideas.get": { id: number };
-  "ideas.handoff": { id: number };
+  "ideas.handoff": { id: number; minutes?: number | undefined };
   "ideas.linkPromoted": { connectionId: number; id: number; issueKey: string };
   "ideas.list": { containerId?: "none" | number | undefined; states?: ("discarded" | "promoted" | "raw" | "ready" | "refining")[] | undefined };
   "ideas.move": { id: number; index: number; reason?: string | undefined; state: "discarded" | "promoted" | "raw" | "ready" | "refining" };

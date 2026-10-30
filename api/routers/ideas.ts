@@ -11,6 +11,7 @@ import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STAT
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueKeyInput } from "../lib/inputs";
+import { agentCopy } from "../issues/agentCopy";
 
 /** How long a deleted idea can be brought back */
 const TRASH_DAYS = 30;
@@ -328,10 +329,21 @@ export const ideasRouter = createRouter({
     return ownIdea(ctx.user.id, input.id);
   }),
 
-  /** The idea as a prompt for a coding agent (R-2.6): made here, never sent. */
-  handoff: protectedProcedure.input(z.object({ id })).query(async ({ ctx, input }) => {
+  /**
+   * The idea as a prompt for a coding agent (R-2.6): made here, never sent.
+   * Its issue (the one it became, else the one it came from) goes in as
+   * copied for an agent, links valid `minutes` (docs/work/ideas/issue-copy.md R-6.8);
+   * an issue its tracker can't give now is left out, the prompt still comes.
+   */
+  handoff: protectedProcedure.input(z.object({ id, minutes: z.number().int().min(5).max(1440).optional() })).query(async ({ ctx, input }) => {
     const idea = await ownIdea(ctx.user.id, input.id);
-    return handoffPrompt(idea, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null);
+    const linked = idea.promoted ?? idea.source;
+    const issueText = linked
+      ? await agentCopy(ctx.user, linked.key, { connectionId: linked.connectionId, minutes: input.minutes, origin: new URL(ctx.req.url).origin, depth: 3 })
+          .then((c) => c.markdown)
+          .catch(() => null)
+      : null;
+    return handoffPrompt(idea, idea.promoted?.url ? { key: idea.promoted.key, url: idea.promoted.url } : null, issueText);
   }),
 
   /** A mail link asking its open questions (R-2.6): the user's mail program sends it, if they want. */
