@@ -86,7 +86,7 @@ export function ConflictBanner({
           <div className="min-w-0">
             <h3 className="mb-1 font-medium">{t("pages.notes.myVersion")}</h3>
             <pre
-              {...surface("nav", { edge: false })}
+              {...surface("ground")}
               className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 text-caption"
             >{`${title}\n\n${body}`}</pre>
           </div>
@@ -95,7 +95,7 @@ export function ConflictBanner({
               {t("pages.notes.serverVersion")}
             </h3>
             <pre
-              {...surface("nav", { edge: false })}
+              {...surface("ground")}
               className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 text-caption"
             >{`${current.title}\n\n${current.body}`}</pre>
           </div>

@@ -484,8 +484,9 @@ test("folders like a file manager: make, rename, fill, open, move, keyboard, del
     // The open note's breadcrumb goes through its folder, a step that opens it.
     await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Work" }).waitFor();
 
-    // A click opens the folder's view: where it is and what it holds.
-    await tree.getByRole("treeitem", { name: "Work, Folder" }).click();
+    // Enter opens the folder's view: where it is and what it holds (a click toggles the branch).
+    await tree.getByRole("treeitem", { name: "Work, Folder" }).focus();
+    await page.keyboard.press("Enter");
     const contents = page.getByRole("region", { name: "Contents of Work" });
     await contents.getByRole("link", { name: /Plan/ }).waitFor();
     await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Work").waitFor();
@@ -644,3 +645,115 @@ test("moving: drag into a folder or beside a row, never a folder into a note, Mo
       await waitFor(async () => (await parentOf("Loose")) === null, "undone again");
     }
   ));
+
+test("a long title inside nested folders truncates: the tree never scrolls sideways and only the open row stands out", async () => {
+  const long = "Proposta AI per call center con riassunti automatici delle chiamate, instradamento e report settimanali per il cliente";
+  const seed = async db => {
+    const now = Date.now();
+    const add = (id, parent, kind, title) =>
+      db.q(
+        "INSERT INTO markdown_notes (id, user_id, parent_id, kind, title, body, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?)",
+        id, parent, kind, title, kind === "note" ? "text" : "", now, now
+      );
+    await add("00000000-0000-4000-8000-0000000000c1", null, "folder", "Clients");
+    await add("00000000-0000-4000-8000-0000000000c2", "00000000-0000-4000-8000-0000000000c1", "folder", "Call center");
+    await add("00000000-0000-4000-8000-0000000000c3", "00000000-0000-4000-8000-0000000000c2", "note", long);
+    await add("00000000-0000-4000-8000-0000000000c4", null, "note", "Short");
+  };
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 760 }]) {
+    await withApp({ viewport, seed }, async ({ page, base }) => {
+      // On a phone an open note hides the tree: look at the tree with nothing open there.
+      const path = viewport.width >= 1024 ? "/notes/00000000-0000-4000-8000-0000000000c3" : "/notes";
+      await page.goto(base + path);
+      const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+      // Arrows open the branches (a click opens a folder's view, which on a phone hides the tree).
+      await tree.getByRole("treeitem", { name: "Clients, Folder" }).focus();
+      await page.keyboard.press("ArrowRight");
+      await tree.getByRole("treeitem", { name: "Call center, Folder" }).focus();
+      await page.keyboard.press("ArrowRight");
+      const row = tree.getByRole("treeitem", { name: long });
+      await row.waitFor();
+      const sizes = await page.evaluate(() => {
+        const aside = document.querySelector('[data-scroll-key="notes-tree"]');
+        return {
+          page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          aside: aside ? aside.scrollWidth - aside.clientWidth : -1,
+        };
+      });
+      assert.ok(sizes.page <= 1, `page scrolls sideways at ${viewport.width}px: ${sizes.page}`);
+      assert.ok(sizes.aside <= 1, `tree scrolls sideways at ${viewport.width}px: ${sizes.aside}`);
+      const label = row.locator("span.truncate").first();
+      assert.ok(await label.evaluate(el => el.scrollWidth > el.clientWidth), "the long title is cut with an ellipsis");
+      // Every row may stand out, the Shadow mod lifts it only off the ones that aren't the open one.
+      const short = tree.getByRole("treeitem", { name: "Short" });
+      assert.equal(await short.getAttribute("data-surface-current"), "", "a closed row is marked current-only");
+    });
+  }
+});
+
+test("a click on a folder's row opens and closes it, not only its arrow; on a phone the tree stays", async () => {
+  const seed = async db => {
+    const now = Date.now();
+    const add = (id, parent, kind, title) =>
+      db.q(
+        "INSERT INTO markdown_notes (id, user_id, parent_id, kind, title, body, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?)",
+        id, parent, kind, title, kind === "note" ? "text" : "", now, now
+      );
+    await add("00000000-0000-4000-8000-0000000000d1", null, "folder", "Jakala");
+    await add("00000000-0000-4000-8000-0000000000d2", "00000000-0000-4000-8000-0000000000d1", "note", "Kickoff");
+  };
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 760 }]) {
+    await withApp({ viewport, seed }, async ({ page, base }) => {
+      await page.goto(base + "/notes");
+      const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+      const folder = tree.getByRole("treeitem", { name: "Jakala, Folder" });
+      const child = tree.getByRole("treeitem", { name: "Kickoff" });
+      await folder.click();
+      await child.waitFor();
+      assert.equal(await folder.getAttribute("aria-expanded"), "true");
+      if (viewport.width >= 1024) await page.getByRole("region", { name: "Contents of Jakala" }).waitFor();
+      await folder.click();
+      await child.waitFor({ state: "detached" });
+      assert.equal(await folder.getAttribute("aria-expanded"), "false");
+      // The tree is still there to keep going (a phone never swaps it for the folder's view on a click).
+      assert.ok(await tree.isVisible());
+    });
+  }
+});
+
+test("a click on a folder acts on that folder only: a parent of the open note closes, the open folder stays closed", async () => {
+  const seed = async db => {
+    const now = Date.now();
+    const add = (id, parent, kind, title) =>
+      db.q(
+        "INSERT INTO markdown_notes (id, user_id, parent_id, kind, title, body, created_at, updated_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?)",
+        id, parent, kind, title, kind === "note" ? "text" : "", now, now
+      );
+    await add("00000000-0000-4000-8000-0000000000e1", null, "folder", "Jakala");
+    await add("00000000-0000-4000-8000-0000000000e2", "00000000-0000-4000-8000-0000000000e1", "folder", "MrCall");
+    await add("00000000-0000-4000-8000-0000000000e3", "00000000-0000-4000-8000-0000000000e2", "note", "Proposta");
+    await add("00000000-0000-4000-8000-0000000000e4", null, "folder", "Codemotion");
+    await add("00000000-0000-4000-8000-0000000000e5", "00000000-0000-4000-8000-0000000000e4", "note", "Talk");
+  };
+  await withApp({ viewport: { width: 1280, height: 800 }, seed }, async ({ page, base }) => {
+    await page.goto(base + "/notes/00000000-0000-4000-8000-0000000000e3");
+    const tree = page.getByRole("tree", { name: "Notes hierarchy" });
+    const jakala = tree.getByRole("treeitem", { name: "Jakala, Folder" });
+    const mrcall = tree.getByRole("treeitem", { name: "MrCall, Folder" });
+    // The open note's branch shows; its outer folder closes on a click all the same.
+    await tree.getByRole("treeitem", { name: "Proposta" }).waitFor();
+    await jakala.click();
+    await mrcall.waitFor({ state: "detached" });
+    assert.equal(await jakala.getAttribute("aria-expanded"), "false");
+    // Another folder opening leaves the closed one closed.
+    await tree.getByRole("treeitem", { name: "Codemotion, Folder" }).click();
+    await tree.getByRole("treeitem", { name: "Talk" }).waitFor();
+    assert.equal(await jakala.getAttribute("aria-expanded"), "false");
+    // The open folder closed by hand stays closed when another one is clicked.
+    await tree.getByRole("treeitem", { name: "Codemotion, Folder" }).click();
+    await tree.getByRole("treeitem", { name: "Talk" }).waitFor({ state: "detached" });
+    await jakala.click();
+    await mrcall.waitFor();
+    assert.equal(await tree.getByRole("treeitem", { name: "Codemotion, Folder" }).getAttribute("aria-expanded"), "false");
+  });
+});

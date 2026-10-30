@@ -134,6 +134,23 @@ for (const file of walkAll(ROOT)) {
       }
     });
 }
+// A nav item stands out only while it is the current page: the Shadow mod
+// lifts the shadow off `data-surface-current` rows that aren't aria-current.
+// Without `current: true` every other row cast one (the notes tree looked
+// like a stack of cards).
+const NAV_NOT_CURRENT = /surface\("nav"(?![^)]*current:\s*true)/g;
+for (const file of walkAll(ROOT)) {
+  readFileSync(file, "utf8")
+    .split("\n")
+    .forEach((line, i) => {
+      for (const m of line.matchAll(NAV_NOT_CURRENT)) {
+        problems++;
+        console.log(
+          `${relative(process.cwd(), file)}:${i + 1}  ${m[0]}  → a nav casts only while current: pass current: true (aria-current says which)`
+        );
+      }
+    });
+}
 
 // Every box that stands out (rounded, bordered, opaque or with a shadow) is a
 // surface, so a module drawing on surfaces (Shadow) reaches the whole app: it

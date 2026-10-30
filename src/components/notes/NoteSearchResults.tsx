@@ -14,13 +14,13 @@ export function NoteSearchResults({
 }) {
   return (
     <ul
-      className="grid gap-1 px-2 pb-2"
+      className="grid grid-cols-[minmax(0,1fr)] gap-1 px-2 pb-2"
       aria-label={t("pages.notes.searchResults")}
     >
       {results.map(result => (
         <li
           key={result.id}
-          className="rounded-md px-3 py-2 transition-colors hover:bg-accent/70"
+          className="min-w-0 rounded-md px-3 py-2 transition-colors hover:bg-accent/70"
         >
           <Link
             to={`/notes/${result.id}${search}`}

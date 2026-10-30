@@ -54,6 +54,8 @@ import { MoveDialog } from "./NoteActions";
 import { useMoveNote } from "./useMoveNote";
 
 const untitled = (title: string) => title || t("pages.notes.untitled");
+/** Wide enough for the tree and the open folder's view side by side (lg). */
+const sideBySide = () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
 
 /** Where a dragged row would land on another: just above it, inside it, or just below it. */
 type Zone = "before" | "into" | "after";
@@ -316,7 +318,7 @@ export function NoteTree({
     const list = entries(node);
     const Icon = isFolder ? (isOpen && hasChildren ? FolderOpen : Folder) : FileText;
     return (
-      <li key={node.id} role="none">
+      <li key={node.id} role="none" className="min-w-0">
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div
@@ -378,9 +380,16 @@ export function NoteTree({
               onClick={event => {
                 // A menu item's click (drawn in a portal) reaches here through React: only the row's own opens.
                 if (renaming === node.id || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+                if (isFolder) {
+                  // A folder's row opens and closes it, like a file manager's; beside the tree its
+                  // view shows too (on a phone the view would cover the tree: Enter opens it there).
+                  if (hasChildren) toggle(node.id);
+                  if (sideBySide() && (!isOpen || !hasChildren)) void navigate(`/notes/${node.id}${search}`);
+                  return;
+                }
                 open(node.id);
               }}
-              {...surface("nav", { current: active, edge: false })}
+              {...surface("nav", { current: true, edge: false })}
               data-drop={drop?.id === node.id ? drop.zone : undefined}
               className={cn(
                 "group relative flex min-h-9 min-w-0 cursor-pointer items-center rounded-md text-body-sm outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch",
@@ -475,7 +484,7 @@ export function NoteTree({
           </ContextMenuContent>
         </ContextMenu>
         {hasChildren && isOpen && (
-          <ul role="group" className="ml-4 grid gap-0.5 border-l pl-1">
+          <ul role="group" className="ml-4 grid grid-cols-[minmax(0,1fr)] gap-0.5 border-l pl-1">
             {node.children.map(child => renderNode(child, level + 1))}
           </ul>
         )}
@@ -504,7 +513,7 @@ export function NoteTree({
         </Button>
       </div>
       {roots.length ? (
-        <ul ref={treeRef} role="tree" aria-label={t("pages.notes.tree")} className="grid gap-0.5">
+        <ul ref={treeRef} role="tree" aria-label={t("pages.notes.tree")} className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {roots.map(node => renderNode(node, 1))}
         </ul>
       ) : (

@@ -121,8 +121,9 @@ export default function NotesPage() {
   const selected = noteId
     ? tree.data?.find(item => item.id === noteId)
     : undefined;
-  // An open folder shows what it holds, until closed by hand while open.
-  const [closedOpen, setClosedOpen] = useState<string | null>(null);
+  // The note or folder opened is revealed once (its branch opened); after that
+  // each folder opens and closes only by hand, never because another one did.
+  const [revealedFor, setRevealedFor] = useState<string | null>(null);
   const initialParent =
     isNew && parentParam && /^[0-9a-f-]{36}$/i.test(parentParam)
       ? parentParam
@@ -153,11 +154,13 @@ export default function NotesPage() {
   };
 
   // What leads to the open note or folder is shown, and an open folder shows what it holds.
-  const shownExpanded = new Set([
-    ...expanded,
-    ...(noteId && tree.data ? ancestorIds(tree.data, noteId) : []),
-    ...(selected?.kind === "folder" && closedOpen !== selected.id ? [selected.id] : []),
-  ]);
+  // (Once it is in the tree: a note just made may come with the next read.)
+  if (noteId && tree.data && selected && revealedFor !== noteId) {
+    setRevealedFor(noteId);
+    const reveal = [...ancestorIds(tree.data, noteId), ...(selected?.kind === "folder" ? [noteId] : [])];
+    if (reveal.some(id => !expanded.has(id))) setExpanded(new Set([...expanded, ...reveal]));
+  }
+  const shownExpanded = expanded;
 
   useEffect(() => {
     const refresh = () => setDrafts(userId ? listDrafts(userId) : []);
@@ -204,8 +207,7 @@ export default function NotesPage() {
     });
   };
   const toggle = (id: string) => {
-    const closing = shownExpanded.has(id);
-    setClosedOpen(closing && id === selected?.id ? id : null);
+    const closing = expanded.has(id);
     setExpanded(previous => {
       const next = new Set(previous);
       if (closing) next.delete(id);
@@ -286,7 +288,7 @@ export default function NotesPage() {
                   hasDocument && "max-lg:hidden"
                 )}
               >
-                <div className="grid gap-2 p-3">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-3">
                   <div className="relative">
                     <Search
                       className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"

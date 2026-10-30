@@ -30,11 +30,11 @@ export function LocalDrafts({
           {t("pages.notes.noDrafts")}
         </p>
       ) : (
-        <ul className="grid gap-1">
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
           {drafts.map(draft => (
             <li
               key={`${draft.noteId ?? "new"}:${draft.draftId}:${draft.tabId}`}
-              className="group"
+              className="group min-w-0"
             >
               <ActionRow
                 actions={
