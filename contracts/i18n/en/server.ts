@@ -180,6 +180,12 @@ export const server = {
       notInMailbox: "This mail isn't in your mailbox: drop its .eml file to keep a copy.",
       graphFailed: "Outlook didn't give the mail's content: try again.",
       noGraph: "Sign in to your mailbox in Settings → Outlook first.",
+      locked: "This copy can't be opened with this server's key.",
+      bodyOnly: "Only the text of this mail was kept, not the file nor its attachments.",
+      from: "From",
+      to: "To",
+      cc: "Cc",
+      date: "Date",
     },
   },
   notes: {

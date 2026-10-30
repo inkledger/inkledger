@@ -13,6 +13,7 @@ import { beginSession, closeStaleSession, endSession, openSession } from "../que
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
 import { t } from "@contracts/i18n";
+import { mailCopyColumns } from "../mail/copies";
 
 /**
  * The user's TODO list. "Today" is the user's day as their device says it
@@ -133,7 +134,7 @@ async function rows(where: SQL | undefined, order: SQL[], limit?: number) {
       statusCategory: issues.statusCategory,
       noteBody: issueNotes.body,
       spentSeconds: spentOf,
-      mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, webLink: mails.webLink },
+      mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, webLink: mails.webLink, ...mailCopyColumns },
     })
     .from(todos)
     .leftJoin(issues, eq(issues.id, todos.itemId))

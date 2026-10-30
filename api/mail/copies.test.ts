@@ -46,16 +46,16 @@ describe("mail copies", () => {
     await a.copied("One", 1000);
     await a.copied("Two", 2500);
     const theirs = await b.copied("Theirs", 400);
-    expect(await a.caller.mails.copyUsage()).toEqual({ count: 2, bytes: 3500 });
+    expect(await a.caller.mails.copyUsage()).toEqual({ available: true, count: 2, bytes: 3500 });
     expect(await a.caller.mails.deleteAllCopies()).toEqual({ count: 2 });
-    expect(await a.caller.mails.copyUsage()).toEqual({ count: 0, bytes: 0 });
+    expect(await a.caller.mails.copyUsage()).toEqual({ available: true, count: 0, bytes: 0 });
     // The mails stay pinned; only their copies go. Someone else's are untouched.
     expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM mails WHERE user_id = ?", a.userId))[0].n).toBe(2);
-    expect(await b.caller.mails.copyUsage()).toEqual({ count: 1, bytes: 400 });
+    expect(await b.caller.mails.copyUsage()).toEqual({ available: true, count: 1, bytes: 400 });
     expect((await q("SELECT 1 FROM mail_copies WHERE mail_id = ?", theirs)).length).toBe(1);
     // A mail removed takes its copy with it.
     await q("DELETE FROM mails WHERE id = ?", theirs);
-    expect(await b.caller.mails.copyUsage()).toEqual({ count: 0, bytes: 0 });
+    expect(await b.caller.mails.copyUsage()).toEqual({ available: true, count: 0, bytes: 0 });
   });
 
 });
@@ -189,6 +189,84 @@ describe("mail copies: capture", () => {
     const ok = await app.request(`/api/mail/${mail.id}/copy`, { method: "POST", body: "From: a@b.c\r\nSubject: small\r\n\r\nhi", headers: { cookie: u.cookie, "Content-Type": "message/rfc822" } });
     expect(ok.status).toBe(200);
     expect(await ok.json()).toMatchObject({ mode: "full" });
+  });
+
+  it("the view is sandboxed", async () => {
+    const u = await signedIn("view1");
+    await u.caller.settings.update({ mailCopies: "full", mailCopiesConsent: true });
+    const { mail } = await pin(u.caller);
+    const app = (await import("../boot")).default;
+    const res = await app.request(`/api/mail/${mail.id}/view`, { headers: { cookie: u.cookie } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(res.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.text()).toContain("<b>Release 2.3 sign-off</b>");
+    // The EML and its attachment, in full mode: as they were, always downloads.
+    const eml = await app.request(`/api/mail/${mail.id}/eml`, { headers: { cookie: u.cookie } });
+    expect(eml.headers.get("content-type")).toBe("message/rfc822");
+    expect(eml.headers.get("content-disposition")).toMatch(/^attachment; filename="Release 2\.3 sign-off\.eml"/);
+    const { simulatedEml, SIM_ATTACHMENT } = await import("./simulator");
+    const fixture = simulatedEml({ subject: SIM.subject, from: { emailAddress: { name: "Anna Bianchi", address: "anna@example.com" } }, internetMessageId: SIM.internetMessageId, receivedDateTime: "2026-10-27T15:30:00Z" });
+    expect(Buffer.from(await eml.arrayBuffer()).equals(fixture)).toBe(true);
+    const att = await app.request(`/api/mail/${mail.id}/attachment/0`, { headers: { cookie: u.cookie } });
+    expect(att.headers.get("content-disposition")).toMatch(/^attachment; filename="notes\.bin"/);
+    expect(att.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(Buffer.from(await att.arrayBuffer()).equals(SIM_ATTACHMENT)).toBe(true);
+    expect((await app.request(`/api/mail/${mail.id}/attachment/1`, { headers: { cookie: u.cookie } })).status).toBe(404);
+    // Without a session, or someone else's: nothing, and not a word on whether it exists.
+    expect((await app.request(`/api/mail/${mail.id}/view`)).status).toBe(401);
+    const other = await signedIn("view2");
+    for (const path of ["view", "eml", "attachment/0"]) expect((await app.request(`/api/mail/${mail.id}/${path}`, { headers: { cookie: other.cookie } })).status).toBe(404);
+    // Body mode keeps no EML nor attachments to give.
+    await u.caller.settings.update({ mailCopies: "body" });
+    await u.caller.mails.deleteCopy({ id: mail.id });
+    await u.caller.mails.retryCopy({ id: mail.id });
+    const bodyOnly = await app.request(`/api/mail/${mail.id}/eml`, { headers: { cookie: u.cookie } });
+    expect(bodyOnly.status).toBe(404);
+    expect(await bodyOnly.json()).toEqual({ error: "Only the text of this mail was kept, not the file nor its attachments." });
+    expect(await (await app.request(`/api/mail/${mail.id}/view`, { headers: { cookie: u.cookie } })).text()).toContain("<b>Release 2.3 sign-off</b>");
+  });
+
+  it("reads are audited and purged after a year", async () => {
+    const u = await signedIn("audit1");
+    await u.caller.settings.update({ mailCopies: "full", mailCopiesConsent: true });
+    const { mail } = await pin(u.caller);
+    const app = (await import("../boot")).default;
+    for (const path of ["view", "eml", "attachment/0"]) await app.request(`/api/mail/${mail.id}/${path}`, { headers: { cookie: u.cookie } });
+    const reads = await q<{ via: string }>("SELECT via FROM mail_copy_reads WHERE mail_id = ? ORDER BY id", mail.id);
+    expect(reads.map((r) => r.via)).toEqual(["view", "eml", "attachment"]);
+    // A year and a day later they go; younger ones stay.
+    const { purgeMailCopyReads } = await import("./copies");
+    const DAY = 86_400_000;
+    expect(await purgeMailCopyReads(Date.now() + 364 * DAY)).toBe(0);
+    expect(await purgeMailCopyReads(Date.now() + 366 * DAY)).toBeGreaterThanOrEqual(3);
+    expect((await q("SELECT 1 FROM mail_copy_reads WHERE mail_id = ?", mail.id)).length).toBe(0);
+  });
+
+  it("SSR never carries a mail copy", async () => {
+    const u = await signedIn("ssr1");
+    await u.caller.settings.update({ mailCopies: "body", mailCopiesConsent: true });
+    // A mail with its copy, on a TODO due today: the dashboard's own data reaches it.
+    const today = new Date();
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const { mail } = await u.caller.mails.pinTo({ mail: { source: "graph", subject: SIM.subject, internetMessageId: SIM.internetMessageId }, to: { todo: { dueOn: day } } });
+    expect((await u.caller.mails.copyInfo({ id: mail.id })).copy?.mode).toBe("body");
+    const { createServerSideHelpers } = await import("@trpc/react-query/server");
+    const superjson = (await import("superjson")).default;
+    const { appRouter } = await import("../router");
+    const { prefetchSSR } = await import("../ssrQueries");
+    const { userFromRequest } = await import("../context");
+    const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie: u.cookie } }));
+    const helpers = createServerSideHelpers({ router: appRouter, ctx: { req: new Request("http://localhost/"), resHeaders: new Headers(), user: ctx.user, sessionId: ctx.sessionId }, transformer: superjson });
+    await prefetchSSR(helpers, new URL("http://localhost/"), false);
+    const state = JSON.stringify(helpers.dehydrate());
+    expect(state).toContain(SIM.subject);
+    expect(state).not.toContain("Hello Mario");
+    expect(state).not.toContain("tracker.example.net");
+    expect(state).not.toMatch(/sealed|mail_copies/);
   });
 });
 

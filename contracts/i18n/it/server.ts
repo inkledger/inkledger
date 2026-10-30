@@ -181,6 +181,12 @@ export const server: Shape<typeof en> = {
       notInMailbox: "Questa mail non è nella tua casella: trascina il suo file .eml per tenerne una copia.",
       graphFailed: "Outlook non ha dato il contenuto della mail: riprova.",
       noGraph: "Prima accedi alla tua casella in Impostazioni → Outlook.",
+      locked: "Questa copia non si apre con la chiave di questo server.",
+      bodyOnly: "Di questa mail è stato tenuto solo il testo, non il file né gli allegati.",
+      from: "Da",
+      to: "A",
+      cc: "Cc",
+      date: "Data",
     },
   },
   notes: {

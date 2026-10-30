@@ -21,6 +21,7 @@ import {
   NOTE_COLORS,
 } from "@contracts/pinboard";
 import { t } from "@contracts/i18n";
+import { mailCopyColumns } from "../mail/copies";
 
 const color = z.enum(NOTE_COLORS);
 const coord = z.number().finite();
@@ -428,7 +429,7 @@ export const pinboardRouter = createRouter({
           noteBody: issueNotes.body,
           noteCreatedAt: issueNotes.createdAt,
           todo: todos,
-          mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, fromAddress: mails.fromAddress, receivedAt: mails.receivedAt, webLink: mails.webLink },
+          mail: { id: mails.id, subject: mails.subject, fromName: mails.fromName, fromAddress: mails.fromAddress, receivedAt: mails.receivedAt, webLink: mails.webLink, ...mailCopyColumns },
         })
         .from(pinboardNotes)
         .leftJoin(issues, pinnedIssue)

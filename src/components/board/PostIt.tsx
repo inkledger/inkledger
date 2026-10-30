@@ -10,8 +10,7 @@ import {
   MoveRight,
   X,
 } from "lucide-react";
-import { ExternalLink } from "@/components/app/ExternalLink";
-import type { MailView } from "@/components/mail/MailCard";
+import { MailSubject, type MailView } from "@/components/mail/MailCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToday } from "@/hooks/useToday";
 import { dayLabel } from "@/lib/todoDay";
@@ -375,13 +374,7 @@ export function PostIt({
           ) : mail ? (
             <>
               <p className="line-clamp-3 [overflow-wrap:anywhere] font-display text-body font-semibold leading-snug">
-                {mail.webLink ? (
-                  <ExternalLink url={mail.webLink}>
-                    {mail.subject || t("ui.mail.noSubject")}
-                  </ExternalLink>
-                ) : (
-                  mail.subject || t("ui.mail.noSubject")
-                )}
+                <MailSubject mail={mail} />
               </p>
               {mail.receivedAt && (
                 <p className="text-2xs opacity-70">

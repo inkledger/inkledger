@@ -9,6 +9,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FormError } from "@/components/auth/AuthShell";
 import { failureText, toastError } from "@/lib/errorText";
 import { mediumDate } from "@/lib/dates";
+import { formatBytes } from "@/lib/initials";
+import { ErrorState } from "@/components/app/States";
+import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { t } from "@/i18n";
 
 const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success(t("settings.outlook.copied")));
@@ -18,8 +32,104 @@ export function OutlookSection() {
   return (
     <>
       <MailboxGroup />
+      <CopiesGroup />
       <AddinGroup />
     </>
+  );
+}
+
+type CopyMode = "off" | "body" | "full";
+
+/**
+ * Copies of the mails I pin (docs/work/ideas/mail-copies.md R-1.1, R-1.2, R-1.12): off by
+ * default, turned on only through a consent dialog the first time; the space they take,
+ * and deleting them all. Absent when the server keeps no copies (MAIL_COPIES=off).
+ */
+function CopiesGroup() {
+  const utils = trpc.useUtils();
+  const prefs = trpc.settings.get.useQuery();
+  const usage = trpc.mails.copyUsage.useQuery();
+  const [asking, setAsking] = useState<CopyMode | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const update = trpc.settings.update.useMutation({
+    onSuccess: data => utils.settings.get.setData(undefined, data),
+    onError: e => toastError(e),
+  });
+  const deleteAll = trpc.mails.deleteAllCopies.useMutation({
+    onSuccess: r => {
+      void utils.mails.invalidate();
+      toast.success(t("settings.outlook.copies.deleted", { count: r.count }));
+    },
+    onError: e => toastError(e),
+  });
+  if (usage.data && !usage.data.available) return null;
+  const mode = (prefs.data?.mailCopies ?? "off") as CopyMode;
+  const choose = (next: CopyMode) => {
+    // The first time copies go on, the user says yes knowingly (R-1.2).
+    if (next !== "off" && !prefs.data?.mailCopiesConsentAt) return setAsking(next);
+    update.mutate({ mailCopies: next });
+  };
+  return (
+    <SettingsGroup id="outlook-copies" title={t("settings.outlook.copies.title")} description={t("settings.outlook.copies.description")} keywords={t("settings.outlook.copies.keywords")}>
+      {prefs.isError || usage.isError ? (
+        <ErrorState onRetry={() => void Promise.all([prefs.refetch(), usage.refetch()])} />
+      ) : !prefs.data || !usage.data ? (
+        <Skeleton className="h-20" />
+      ) : (
+        <div className="grid gap-3">
+          <SegmentedControl<CopyMode>
+            label={t("settings.outlook.copies.mode")}
+            value={mode}
+            onChange={choose}
+            options={(["off", "body", "full"] as const).map(v => ({ value: v, label: t(`settings.outlook.copies.${v}`) }))}
+            className="flex-wrap"
+          />
+          <div className="flex flex-wrap items-center gap-3 text-body-sm">
+            <span className="text-muted-foreground tabular">{t("settings.outlook.copies.usage", { count: usage.data.count, size: formatBytes(usage.data.bytes) })}</span>
+            {usage.data.count > 0 && (
+              <Button variant="outline" size="sm" disabled={deleteAll.isPending} onClick={() => setDeleting(true)}>
+                {t("settings.outlook.copies.deleteAll")}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      <Dialog open={asking !== null} onOpenChange={o => !o && setAsking(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("settings.outlook.copies.consentTitle")}</DialogTitle>
+            <DialogDescription>{t("settings.outlook.copies.consentBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAsking(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (asking) update.mutate({ mailCopies: asking, mailCopiesConsent: true });
+                setAsking(null);
+              }}
+            >
+              {t("settings.outlook.copies.accept")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={deleting} onOpenChange={setDeleting}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("settings.outlook.copies.deleteAll")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("settings.outlook.copies.deleteAllConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction destructive onClick={() => deleteAll.mutate()}>
+              {t("settings.outlook.copies.deleteAll")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </SettingsGroup>
   );
 }
 

@@ -292,7 +292,7 @@ copyUsage: protectedProcedure.query()                                           
 ## Batches
 1. [x] (2026-10-30) `crypto` bytes, migration, setting with consent, `copyUsage`, `deleteAllCopies` (R-1.1, 1.2, 1.5, 1.12; AC-1.2, 1.5, 1.6, 1.20).
 2. [x] (2026-10-30) Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
-3. View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
+3. [x] (2026-10-30) View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
 4. Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
 5. Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
 6. Docs (R-1.14).
@@ -306,6 +306,14 @@ copyUsage: protectedProcedure.query()                                           
 - Messages: E-1.3 is two texts: `server.mails.copy.off` (the server's switch) and `userOff` (the user's own setting, with where to turn it on); `notInMailbox`, `graphFailed`, `noGraph` (E-1.6) added. `POST /api/mail/:id/copy` has its own body limit (`MAIL_COPY_MAX_MB` + 64 KB) and stores the refusal reason on the mail too.
 - In the app, a dropped or picked `.eml` is remembered beside its draft; after the pin, when copies are on, the whole file goes to `/api/mail/:id/copy` (the issue page's drop, the "Pin a mail" dialog, its pick flow); a refusal shows a toast, the pin stays.
 - AC-1.4's `/eml` and `/attachment/0` reads, and AC-1.7's view/eml/attachment routes, come with batch 3 (the routes don't exist yet); here the stored bytes are compared directly.
+
+### Batch 3 decisions (2026-10-30, to review)
+- The Settings group (mode, consent dialog the first time, space used, "Delete all copies") wasn't in any batch: it came here, since AC-1.17 starts from it. It is absent when the server keeps no copies: `copyUsage` gains `available` (the feature's own router says so, R-0.1).
+- The copy's header block (from, to, cc, date in the user's language) is part of the page the server serves into the sandboxed frame, escaped there: `copyInfo` never carries content. A text-only mail is shown as preformatted text in the same page. The page has its own white background (mails are written for one), not the app's theme.
+- Reading routes share one check: a session, the user's own mail with a copy, else 404 (no existence leak); a copy that doesn't open with the server's keys answers 409 `server.mails.copy.locked`. Each read writes `mail_copy_reads` (view, eml, attachment); `purgeMailCopyReads` (365 days) joins the boot purge list. `/eml` and `/attachment/:n` answer 404 `bodyOnly` for a body copy; attachments always download (`Content-Disposition: attachment`, sandbox CSP, `no-store`).
+- Lists (`mails.recent`, `forIssue`, `forNote`, a TODO's mail, a post-it's mail) carry `copyMode`, `copyError`, `goneAt` from one shared fragment (`mailCopyColumns`), never the copy.
+- `MailCard`: "Copy saved" (neutral), "Deleted in Outlook" (warning), "Copy not saved" (danger, its reason as a tooltip, with "Try again"); a menu "Copy of {subject}": Open the copy, Download .eml (full), Delete the copy. The subject opens the copy when the mail is gone or has no link. TODOs and post-its use `MailSubject`: the same rule, plus a small "Open the copy" button. "Is it still there?" comes with batch 5 (it needs `checkGone`).
+- AC-1.16 lives in `api/mail/copies.test.ts` (it needs the sign-in and copies set up there), not `api/ssr.test.ts`; it checks the dehydrated state of `/` with a copied mail on today's TODO.
 
 ## Open questions
 - **Q1, blocks all:** confirm reversing "never the body", off by default. **Answer 2026-10-30: yes**, off by default, consent required.

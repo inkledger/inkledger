@@ -8,7 +8,7 @@ import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNot
 import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
-import { captureFromGraph, copyInfo, ownMailRow } from "../mail/copies";
+import { captureFromGraph, copyInfo, mailCopyColumns, ownMailRow } from "../mail/copies";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
 import { todosRouter } from "./todos";
 import { pinboardRouter } from "./pinboard";
@@ -66,6 +66,10 @@ const columns = {
   internetMessageId: mails.internetMessageId,
   source: mails.source,
 };
+
+/** A row in a list: with what is known of its copy (the cards' chips). */
+const listed = { ...columns, ...mailCopyColumns };
+type ListedMail = MailRow & { copyMode: "body" | "full" | null; copyError: string | null; goneAt: Date | null };
 
 const pick = (m: Mail): MailRow => ({
   id: m.id,
@@ -194,7 +198,8 @@ export const mailsRouter = createRouter({
       .select({ count: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${mailCopies.plainBytes}), 0)::int` })
       .from(mailCopies)
       .where(eq(mailCopies.userId, ctx.user.id));
-    return { count: row?.count ?? 0, bytes: row?.bytes ?? 0 };
+    // Whether the server keeps copies at all (MAIL_COPIES): the Settings group is absent otherwise (R-0.1).
+    return { available: env.mailCopies, count: row?.count ?? 0, bytes: row?.bytes ?? 0 };
   }),
 
   /** What is known of a mail's copy, never its content (R-1.6, R-1.13). */
@@ -344,10 +349,10 @@ export const mailsRouter = createRouter({
     }),
 
   /** The mails pinned to an issue, the newest message first. */
-  forIssue: protectedProcedure.input(z.object({ issueKey: issueKeyInput, connectionId: idInput.optional() })).query(async ({ ctx, input }): Promise<MailRow[]> => {
+  forIssue: protectedProcedure.input(z.object({ issueKey: issueKeyInput, connectionId: idInput.optional() })).query(async ({ ctx, input }): Promise<ListedMail[]> => {
     const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
     return getDb()
-      .select(columns)
+      .select(listed)
       .from(mailLinks)
       .innerJoin(mails, eq(mails.id, mailLinks.mailId))
       .where(and(eq(mailLinks.userId, ctx.user.id), eq(mailLinks.connectionId, conn.id), eq(mailLinks.issueKey, input.issueKey)))
@@ -355,9 +360,9 @@ export const mailsRouter = createRouter({
   }),
 
   /** The mails pinned to a Markdown note. */
-  forNote: protectedProcedure.input(z.object({ noteId })).query(async ({ ctx, input }): Promise<MailRow[]> =>
+  forNote: protectedProcedure.input(z.object({ noteId })).query(async ({ ctx, input }): Promise<ListedMail[]> =>
     getDb()
-      .select(columns)
+      .select(listed)
       .from(mailLinks)
       .innerJoin(mails, eq(mails.id, mailLinks.mailId))
       .where(and(eq(mailLinks.userId, ctx.user.id), eq(mailLinks.noteId, input.noteId)))
@@ -365,10 +370,10 @@ export const mailsRouter = createRouter({
   ),
 
   /** The mails kept lately (to pin one again elsewhere), by subject or sender. */
-  recent: protectedProcedure.input(z.object({ query: z.string().trim().max(200).optional() })).query(async ({ ctx, input }): Promise<MailRow[]> => {
+  recent: protectedProcedure.input(z.object({ query: z.string().trim().max(200).optional() })).query(async ({ ctx, input }): Promise<ListedMail[]> => {
     const q = input.query ? `%${input.query.replace(/[\\%_]/g, c => `\\${c}`)}%` : null;
     return getDb()
-      .select(columns)
+      .select(listed)
       .from(mails)
       .where(and(eq(mails.userId, ctx.user.id), q ? or(ilike(mails.subject, q), ilike(mails.fromName, q), ilike(mails.fromAddress, q)) : undefined))
       .orderBy(desc(mails.updatedAt), desc(mails.id))

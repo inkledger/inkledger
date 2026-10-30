@@ -22,7 +22,7 @@ import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
 import { outlookFrames, registerOutlookRoutes } from "./mail/addin";
-import { copyUploadMaxBytes, registerCopyRoutes } from "./mail/copies";
+import { copyUploadMaxBytes, purgeMailCopyReads, registerCopyRoutes } from "./mail/copies";
 import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
@@ -180,7 +180,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas(), purgeMailCopyReads()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

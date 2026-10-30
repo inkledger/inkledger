@@ -19,7 +19,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { ExternalLink } from "@/components/app/ExternalLink";
+import { MailSubject } from "@/components/mail/MailCard";
 import { PinMailDialog } from "@/components/mail/PinMailDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -874,15 +874,7 @@ function TodoRow({
                 className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground"
               >
                 <Mail className="h-3 w-3 shrink-0" aria-hidden />
-                {x.mail.webLink ? (
-                  <ExternalLink url={x.mail.webLink} className="truncate">
-                    {x.mail.subject || t("ui.mail.noSubject")}
-                  </ExternalLink>
-                ) : (
-                  <span className="truncate">
-                    {x.mail.subject || t("ui.mail.noSubject")}
-                  </span>
-                )}
+                <MailSubject mail={x.mail} className="truncate" />
               </span>
             )}
             {x.estimateSeconds !== null ? (
