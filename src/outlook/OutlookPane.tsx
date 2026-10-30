@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Check, ClipboardList, Layers, Link2, Mail, Pin, PinIcon, Search } from "lucide-react";
+import { Check, ClipboardList, Layers, Link2, Mail, Pin, PinIcon, Search, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import { surface } from "@/components/app/surface";
 import { BrandMark } from "@/components/app/BrandMark";
 import { dateFormat, t, useLocale } from "@/i18n";
 import { call, PaneError } from "./api";
-import { hasFollowed, noteFollowed, office, onMailChanged, openMail, storedKey, storeKey, type OpenMail } from "./office";
+import { hasFollowed, noteFollowed, office, onMailChanged, openMail, storedKey, storeKey, type OpenMail, canReadWholeMail, readWholeMail } from "./office";
 
 type Status = { text: string; tone: "ok" | "bad" | "muted" } | null;
 type Places = { issues: string[]; todos: string[]; boards: string[] };
@@ -157,10 +157,16 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
   const [followed, setFollowed] = useState(hasFollowed);
   // Bumped when the pane's bucket changes: the issues and boards it offers are asked again.
   const [scope, setScope] = useState(0);
+  // Copies of pinned mails: what the user keeps, and whether this Outlook can send them.
+  const [copies, setCopies] = useState<"off" | "body" | "full">("off");
+  const [copyNote, setCopyNote] = useState(false);
 
   // The user's theme colour; and a pinned pane follows the mail selected.
   useEffect(() => {
-    call<{ themeColor: string }>("GET", "me").then(me => applyTheme(me.themeColor, false), onFailed);
+    call<{ themeColor: string; mailCopies: "off" | "body" | "full" }>("GET", "me").then(me => {
+      applyTheme(me.themeColor, false);
+      setCopies(me.mailCopies);
+    }, onFailed);
     onMailChanged(() => {
       setMail(openMail());
       onStatus(null);
@@ -183,11 +189,25 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
     try {
       const r = await call<{ boardName?: string }>("POST", "pin", { mail, to });
       onStatus({ text: done(r), tone: "ok" });
+      await sendCopy();
       refreshPlaces();
     } catch (e) {
       onFailed(e);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** After a pin: the open mail's copy, read by Outlook itself where it can; else a note says the server will make it. */
+  const sendCopy = async () => {
+    if (!mail || copies === "off") return;
+    if (!canReadWholeMail()) return setCopyNote(true);
+    const eml = await readWholeMail();
+    if (!eml) return;
+    try {
+      await call("POST", "copy", { mail, eml });
+    } catch (e) {
+      onFailed(e);
     }
   };
 
@@ -255,6 +275,12 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
         </>
       )}
 
+      {copyNote && (
+        <p className="flex items-start gap-1.5 text-caption text-muted-foreground" data-testid="copy-unsupported">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("ui.outlook.copyUnsupported")}
+        </p>
+      )}
       {!followed && (
         <p className="flex items-start gap-1.5 text-caption text-muted-foreground">
           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

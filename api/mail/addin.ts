@@ -11,7 +11,9 @@ import { TRPCError } from "@trpc/server";
 import { getHTTPStatusCodeFromError } from "@trpc/server/http";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { mailAddinKeys, settings, users, type User } from "@db/schema";
+import { mailAddinKeys, mails, settings, users, type User } from "@db/schema";
+import { z } from "zod";
+import { CopyError, copyMode, keepCopy } from "./copies";
 import { appRouter } from "../router";
 import { addinKeyHash } from "../routers/mails";
 import { withLocale } from "../lib/i18n";
@@ -169,6 +171,9 @@ async function asKeyOwner(c: Context, run: (caller: ReturnType<typeof appRouter.
   }
 }
 
+/** What the pane sends with a copy: the mail's headers (as for a pin) and the whole message, base64. */
+const copyInput = z.object({ mail: z.record(z.string(), z.unknown()), eml: z.string().min(1).max(Math.ceil(64 * 1024 * 1024 * 1.37)) });
+
 export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.get(`${BASE}/manifest.xml`, c =>
     c.body(manifestXml(originOf(c)), 200, {
@@ -183,7 +188,8 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.get(`${BASE}/me`, c =>
     asKeyOwner(c, async (_caller, user) => {
       const [s] = await getDb().select({ themeColor: settings.themeColor }).from(settings).where(eq(settings.userId, user.id));
-      return { themeColor: s?.themeColor ?? "#B5562F" };
+      // Whether the pane sends the open mail's copy after a pin (docs/work/ideas/mail-copies.md R-1.6).
+      return { themeColor: s?.themeColor ?? "#B5562F", mailCopies: await copyMode(user.id) };
     }),
   );
   app.get(`${BASE}/issues`, c =>
@@ -217,5 +223,22 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   app.post(`${BASE}/pin`, async c => {
     const body: unknown = await c.req.json().catch(() => null);
     return asKeyOwner(c, caller => caller.mails.pinTo(body as Parameters<typeof caller.mails.pinTo>[0]));
+  });
+  /** The open mail's copy, read by Outlook itself (Mailbox 1.14 getAsFileAsync): kept for the mail it pinned. */
+  app.post(`${BASE}/copy`, async c => {
+    const body = copyInput.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: t("server.mails.copy.badEml") }, 400);
+    const raw = Buffer.from(body.data.eml, "base64");
+    return asKeyOwner(c, async (caller, user) => {
+      // The same mail the pin saved (by its Message-ID or Exchange id): save's own checks apply.
+      const mail = await caller.mails.save(body.data.mail as Parameters<typeof caller.mails.save>[0]);
+      try {
+        return { mailId: mail.id, ...(await keepCopy(user.id, mail.id, raw, "addin")) };
+      } catch (e) {
+        if (!(e instanceof CopyError)) throw e;
+        if (e.kind !== "off") await getDb().update(mails).set({ copyError: e.message }).where(eq(mails.id, mail.id));
+        throw new TRPCError({ code: e.kind === "off" ? "FORBIDDEN" : e.kind === "tooLarge" ? "PAYLOAD_TOO_LARGE" : "BAD_REQUEST", message: e.message });
+      }
+    });
   });
 }

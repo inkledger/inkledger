@@ -1,5 +1,6 @@
 // What the Outlook pane uses of Office.js (loaded by outlook.html), typed.
-// Only the open mail's headers are read: subject, sender, date, ids.
+// The open mail's headers (subject, sender, date, ids); its whole message only
+// when the user keeps copies of pinned mails (docs/work/ideas/mail-copies.md).
 
 type OfficeMailItem = {
   itemId?: string;
@@ -8,11 +9,14 @@ type OfficeMailItem = {
   sender?: { displayName?: string; emailAddress?: string } | null;
   dateTimeCreated?: Date;
   internetMessageId?: string;
+  /** Mailbox 1.14: the whole message (MIME), base64 */
+  getAsFileAsync?(done: (r: { status: string; value?: string; error?: { message?: string } }) => void): void;
 };
 
 type OfficeApi = {
   context: {
     displayLanguage?: string;
+    requirements?: { isSetSupported(name: string, version?: string): boolean };
     roamingSettings: { get(name: string): unknown; set(name: string, value: string): void; saveAsync(done?: () => void): void };
     mailbox?: {
       item: OfficeMailItem | null;
@@ -112,3 +116,19 @@ export function onMailChanged(changed: () => void): void {
   const type = o?.EventType?.ItemChanged;
   if (type) o?.context.mailbox?.addHandlerAsync?.(type, changed);
 }
+
+/** Whether this Outlook can give the open mail whole (Mailbox 1.14), for its copy. */
+export function canReadWholeMail(): boolean {
+  const o = office();
+  return !!o?.context.requirements?.isSetSupported("Mailbox", "1.14") && typeof o.context.mailbox?.item?.getAsFileAsync === "function";
+}
+
+/** The open mail, whole, base64 (null when Outlook can't or won't). */
+export function readWholeMail(): Promise<string | null> {
+  const item = office()?.context.mailbox?.item;
+  return new Promise(resolve => {
+    if (!item?.getAsFileAsync) return resolve(null);
+    item.getAsFileAsync(r => resolve(r.status === "succeeded" && r.value ? r.value : null));
+  });
+}
+

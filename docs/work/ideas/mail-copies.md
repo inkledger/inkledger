@@ -293,7 +293,7 @@ copyUsage: protectedProcedure.query()                                           
 1. [x] (2026-10-30) `crypto` bytes, migration, setting with consent, `copyUsage`, `deleteAllCopies` (R-1.1, 1.2, 1.5, 1.12; AC-1.2, 1.5, 1.6, 1.20).
 2. [x] (2026-10-30) Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
 3. [x] (2026-10-30) View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
-4. Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
+4. [x] (2026-10-30) Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
 5. Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
 6. Docs (R-1.14).
 
@@ -314,6 +314,11 @@ copyUsage: protectedProcedure.query()                                           
 - Lists (`mails.recent`, `forIssue`, `forNote`, a TODO's mail, a post-it's mail) carry `copyMode`, `copyError`, `goneAt` from one shared fragment (`mailCopyColumns`), never the copy.
 - `MailCard`: "Copy saved" (neutral), "Deleted in Outlook" (warning), "Copy not saved" (danger, its reason as a tooltip, with "Try again"); a menu "Copy of {subject}": Open the copy, Download .eml (full), Delete the copy. The subject opens the copy when the mail is gone or has no link. TODOs and post-its use `MailSubject`: the same rule, plus a small "Open the copy" button. "Is it still there?" comes with batch 5 (it needs `checkGone`).
 - AC-1.16 lives in `api/mail/copies.test.ts` (it needs the sign-in and copies set up there), not `api/ssr.test.ts`; it checks the dehydrated state of `/` with a copied mail on today's TODO.
+
+### Batch 4 decisions (2026-10-30, to review)
+- The pane learns the user's copy mode from `GET /api/outlook/me` (`mailCopies`); after a pin, when copies are on: Mailbox 1.14 and `getAsFileAsync` → the whole mail, base64, to `POST /api/outlook/copy` with the headers; else the note `ui.outlook.copyUnsupported`. The route saves the mail by its headers (the same row the pin made) and keeps the copy with source `addin`; refusals go on the mail like the others. One body limit for `.eml` uploads and the pane's base64 (`MAIL_COPY_MAX_MB` × 1.37 + 64 KB); the decoded size is still checked against the limit.
+- D-1.5's manifest `<Version>` 1.2.0.0 is **not** applied: `ReadItem` already allows `getAsFileAsync`, nothing in the manifest changes, and a new version would only make users reinstall.
+- Migration lesson: the `attachments` column (batch 2) is now `0022_mail_copy_attachments`; 0021 stays as first applied.
 
 ## Open questions
 - **Q1, blocks all:** confirm reversing "never the body", off by default. **Answer 2026-10-30: yes**, off by default, consent required.

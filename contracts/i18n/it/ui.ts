@@ -685,6 +685,7 @@ export const ui: Shape<typeof en> = {
     todoAdd: "Aggiungi TODO",
     boardPin: "Fissa qui",
     pinTip: "Fissa questo pannello (la puntina in alto): resta aperto e segue la mail che selezioni.",
+    copyUnsupported: "Questo Outlook non può inviare la copia: accedi alla casella da inkledger e la farà il server.",
   },
   planned: {
     plan: "Pianifica",

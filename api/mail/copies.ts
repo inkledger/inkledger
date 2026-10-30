@@ -172,8 +172,11 @@ export async function copyInfo(userId: number, mailId: number) {
   };
 }
 
-/** A whole .eml dropped on a mail already pinned (R-1.6): its own body limit, beside attachments'. */
-export const copyUploadMaxBytes = () => Math.ceil(env.mailCopyMaxMb * 1024 * 1024) + 64 * 1024;
+/**
+ * A whole mail sent for its copy (R-1.6): a dropped .eml as it is, or the add-in's base64
+ * (a third bigger) in JSON: one body limit for both, beside attachments'.
+ */
+export const copyUploadMaxBytes = () => Math.ceil(env.mailCopyMaxMb * 1024 * 1024 * 1.37) + 64 * 1024;
 
 /** How long each read of a copy is remembered (R-1.9, R-1.10). */
 const READS_KEPT_MS = 365 * 86_400_000;

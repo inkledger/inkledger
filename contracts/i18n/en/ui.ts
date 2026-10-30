@@ -684,6 +684,7 @@ export const ui = {
     todoAdd: "Add TODO",
     boardPin: "Pin here",
     pinTip: "Pin this pane (the pin at its top): it stays open and follows the mail you select.",
+    copyUnsupported: "This Outlook can't send the copy: sign in to the mailbox in inkledger and the server will make it.",
   },
   planned: {
     plan: "Plan",

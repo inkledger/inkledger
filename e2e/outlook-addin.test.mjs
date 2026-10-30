@@ -17,12 +17,23 @@ const OFFICE = `
     from: { displayName: "Giulia Rossi", emailAddress: "giulia@example.com" },
     dateTimeCreated: new Date("2026-10-27T09:00:00Z"),
     internetMessageId: "<mail-" + n + "@example.com>",
+    // Mailbox 1.14: the whole message, as a copy needs it.
+    getAsFileAsync: done => done({ status: "succeeded", value: btoa([
+      "From: Giulia Rossi <giulia@example.com>",
+      "Subject: " + subject,
+      "Message-ID: <mail-" + n + "@example.com>",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Numbers for " + subject + ".",
+    ].join("\\r\\n")) }),
   });
   const stored = JSON.parse(sessionStorage.getItem("roaming") || "{}");
   window.__mail = mail;
   window.Office = {
     context: {
       displayLanguage: "en-US",
+      // An Outlook too old for getAsFileAsync when the test says so.
+      requirements: { isSetSupported: (name, version) => !(name === "Mailbox" && version === "1.14" && sessionStorage.getItem("mailbox1.14") === "no") },
       roamingSettings: {
         get: k => stored[k],
         set: (k, v) => { stored[k] = v; },
@@ -196,3 +207,39 @@ test("the pane's own bucket: chosen there, it narrows the issues and stays after
     await app.stop();
   }
 });
+
+test("the pane sends the copy where Outlook can", async () => {
+  const app = await start({
+    viewport: { width: 320, height: 800 },
+    seed: async db => {
+      await db.q("INSERT INTO settings (user_id, mail_copies, mail_copies_consent_at) VALUES (1, 'body', 1) ON CONFLICT (user_id) DO UPDATE SET mail_copies = 'body', mail_copies_consent_at = 1");
+      await db.q("INSERT INTO mail_addin_keys (user_id, key_hash, created_at) VALUES (1, ?, 1)", createHash("sha256").update(KEY).digest("hex"));
+    },
+  });
+  try {
+    const { page, base, db } = app;
+    await page.route("https://appsforoffice.microsoft.com/**", r => r.fulfill({ body: OFFICE, contentType: "text/javascript" }));
+    await page.goto(base + "/outlook.html");
+    await page.getByLabel("Add-in key").fill(KEY);
+    await page.getByRole("button", { name: "Connect" }).click();
+    await page.getByText("Budget 2027", { exact: true }).waitFor();
+    // Outlook with Mailbox 1.14: pinned, then its copy sent by the pane, kept as the add-in's.
+    await page.getByRole("button", { name: "Add TODO" }).click();
+    await page.getByText(/Pinned already: TODO/).waitFor();
+    for (let i = 0; i < 50 && !(await db.q("SELECT 1 FROM mail_copies")).length; i++) await page.waitForTimeout(100);
+    assert.deepEqual(await db.q("SELECT c.source, c.mode, m.subject FROM mail_copies c JOIN mails m ON m.id = c.mail_id"), [{ source: "addin", mode: "body", subject: "Budget 2027" }]);
+    assert.equal(await page.getByTestId("copy-unsupported").count(), 0);
+    // An older Outlook: no copy from here, and the pane says how to get one.
+    await page.evaluate(() => sessionStorage.setItem("mailbox1.14", "no"));
+    await page.reload();
+    await page.getByText("Budget 2027", { exact: true }).waitFor();
+    await db.q("DELETE FROM mail_copies");
+    await page.getByRole("button", { name: "Add TODO" }).click();
+    await page.getByTestId("copy-unsupported").getByText("This Outlook can't send the copy: sign in to the mailbox in inkledger and the server will make it.").waitFor();
+    assert.deepEqual(await db.q("SELECT count(*)::int AS n FROM mail_copies"), [{ n: 0 }]);
+    await fitsWidth(page);
+  } finally {
+    await app.stop();
+  }
+});
+

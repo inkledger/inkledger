@@ -90,7 +90,7 @@ const moduleBody = bodyLimit({
 const mailCopyBody = (c: Parameters<typeof uploadBody>[0], next: Parameters<typeof uploadBody>[1]) =>
   bodyLimit({ maxSize: copyUploadMaxBytes(), onError: (cc) => cc.json({ error: t("server.mails.copy.tooLarge", { mb: env.mailCopyMaxMb }) }, 413) })(c, next);
 app.use((c, next) =>
-  c.req.method === "POST" && /^\/api\/mail\/\d+\/copy$/.test(c.req.path)
+  c.req.method === "POST" && (/^\/api\/mail\/\d+\/copy$/.test(c.req.path) || c.req.path === "/api/outlook/copy")
     ? mailCopyBody(c, next)
     : c.req.method === "POST" && /^\/api\/issues\/[^/]+\/attachments$/.test(c.req.path)
     ? uploadBody(c, next)
