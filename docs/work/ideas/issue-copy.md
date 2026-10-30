@@ -1,7 +1,7 @@
 # Copy an issue for an agent
 
 ## 1. Status
-2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1–C3 done; C4 todo.
+2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1–C4 done; C4's check on a real GitHub issue pending (Q3).
 
 ## 2. Problem
 The user passes issues to an AI agent by hand: copy, paste into the agent. The issue page can copy the key and the branch, not the issue. Attachments make it worse: their tracker links need the tracker login, and the app's own links (`/api/attachments/:id/content`, `api/attachments.ts:127`) need the app's session cookie, so an agent opening them gets 401. Triage (`docs/work/ideas/triage.md`) needs the same text to hand an idea's issue to an agent.
@@ -33,6 +33,7 @@ Comments; other trackers than Jira and GitHub; uploading anything to the agent; 
 - **D-6.9 (C2)** The clipboard is claimed at the click with a `ClipboardItem` whose text arrives later (`copyLater`, `src/lib/issues.ts`): Safari refuses a write after the network wait. Rate limit: 120 shared downloads a minute per address.
 - **D-6.10 (C2)** The e2e serves its stand-in Jira on this machine's private IPv4: trackers on loopback are refused by design (`api/lib/security.ts`). `copyForAgent` needs the issue synced (its title and status come from the stored row); a remote-only issue doesn't offer it.
 - **D-6.11 (C3, to review)** The prompt's issue is the one the idea became, else the one it came from, under `## Issue` before `## Constraints`, its headings two levels deeper (`### KEY: title`, `#### Description`). When its tracker can't give it now, the prompt comes without it rather than failing. The shared code moved to `api/issues/agentCopy.ts` (used by `issues.copyForAgent` and `ideas.handoff`). "Copy prompt" uses the Settings default duration (no `minutes` sent).
+- **D-6.12 (C4, user's choice 2026-10-30: body_html)** GitHub pastes (`github.com/user-attachments/assets|files/…`, the older `*user-images.githubusercontent.com`) are found in the body and listed as attachments (images named `image-<id>`, files by their name); in the copied text their URLs become the app's signed links (`mapUrls`, `contracts/richtext.ts`). On download the route reads the issue with `Accept: application/vnd.github.full+json` (no ETag cache: its signed links last minutes), takes the signed link with the same asset id from `body_html` and fetches it **without** the token (only the API call carries it); a public repository's link is fetched as it is. A link no longer in the issue (edited away) is 404. Hosts allowed: github.com, private-user-images, user-images, objects.githubusercontent.com (GitHub Enterprise not covered). The payload gains `k` (the issue key). The adapter's `attachments.read` capability stays false: it drives the issue page's attachment list, which GitHub still doesn't have.
 
 ## 6. Data model (`0020_share_links.sql`)
 ```ts
@@ -117,8 +118,9 @@ Empty description → header + "(no description)". Attachment named twice → li
 - [x] **C1** `toMarkdown`, `issueMarkdown`. R-6.2. AC-6.1–6.4.
 - [x] **C2** migration, `shareLinks`, `/api/shared/:token`, `copyForAgent`, Settings group, issue-page submenu. R-6.1, 6.3–6.7. AC-6.5–6.11.
 - [x] **C3** triage handoff. R-6.8. AC-6.12.
-- [ ] **C4** GitHub attachments. R-6.9. AC-6.13.
+- [x] **C4** GitHub attachments. R-6.9. AC-6.13.
 
 ## 14. Open questions
 - **Q1, answered 2026-10-30:** links signed, duration chosen at copy time and default in Settings, max 24 h; "Revoke all links" yes; content header + description; Jira first then GitHub, proxied through the app.
 - **Q2, to review at C2:** the Settings default is 1 h (proposal approved with the plan 2026-10-30).
+- **Q3, open (C4):** which real GitHub issue with a pasted image may I read (one read-only GET with your connection) to confirm `body_html` carries the signed link as the simulator does?

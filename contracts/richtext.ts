@@ -88,6 +88,45 @@ export function plainText(doc: RichDoc): string {
   return doc.blocks.map(blockText).filter(Boolean).join("\n\n").trim();
 }
 
+/**
+ * The document with its outside addresses (images by URL, links) passed
+ * through `to`: a replacement, or null to keep the address as it is.
+ */
+export function mapUrls(doc: RichDoc, to: (url: string) => string | null): RichDoc {
+  const inl = (xs: Inline[]): Inline[] =>
+    xs.map((x) => {
+      switch (x.t) {
+        case "strong":
+        case "em":
+        case "strike":
+          return { ...x, c: inl(x.c) };
+        case "link":
+          return { ...x, url: to(x.url) ?? x.url, c: inl(x.c) };
+        default:
+          return x;
+      }
+    });
+  const blk = (b: Block): Block => {
+    switch (b.t) {
+      case "p":
+      case "h":
+        return { ...b, c: inl(b.c) };
+      case "list":
+        return { ...b, items: b.items.map((i) => ({ ...i, c: i.c.map(blk) })) };
+      case "quote":
+      case "panel":
+        return { ...b, c: b.c.map(blk) };
+      case "table":
+        return { ...b, rows: b.rows.map((r) => r.map(inl)) };
+      case "image":
+        return b.url ? { ...b, url: to(b.url) ?? b.url } : b;
+      default:
+        return b;
+    }
+  };
+  return { ...doc, blocks: doc.blocks.map(blk) };
+}
+
 // ── Markdown, for an agent (docs/work/ideas/issue-copy.md R-6.2) ──
 
 /** Text as Markdown reads it literally: the characters that would format are escaped. */

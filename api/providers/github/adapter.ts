@@ -158,7 +158,7 @@ const toRemoteComment = (c: GitHubComment): RemoteComment => ({
   updatedAt: instantFrom(c.updated_at),
 });
 
-const issuePath = (key: string) => {
+export const issuePath = (key: string) => {
   const p = parts(key);
   return `/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.repo)}/issues/${p.number}`;
 };

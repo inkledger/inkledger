@@ -6,6 +6,8 @@ import { and, eq } from "drizzle-orm";
 import { issues, type User } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { issueMarkdown } from "@contracts/issueCopy";
+import { mapUrls } from "@contracts/richtext";
+import { bodyAttachments } from "../providers/github/attachments";
 import { getDb } from "../queries/connection";
 import { boundTracker } from "../sync/engine";
 import { contextFor, issueConnection } from "../providers/connections";
@@ -40,17 +42,19 @@ export async function agentCopy(
   const exp = now + (o.minutes ?? prefs.shareLinkMinutes) * 60_000;
   const ref = { remoteId: row.remoteId ?? key, key };
   const body = b.description ? await providerCall(() => b.description!(callMeta(), ref)) : null;
-  // Attachments are Jira's alone for now (GitHub follows: batch C4).
-  const files = conn.type === "jira" ? await fetchAttachments(contextFor(user, conn).creds, key) : [];
-  const attachments = files.map((f) => ({
-    name: f.filename,
-    url: `${o.origin}/api/shared/${signShare({ u: user.id, c: conn.id, a: f.id, iat: now, exp, g: prefs.shareLinkGeneration })}`,
-  }));
-  const markdown = issueMarkdown(
-    { key, title: row.summary, url: row.url, status: row.status, type: row.issueType || null },
-    toRichDoc(body),
-    attachments,
-    o.depth,
-  );
+  const link = (a: string, k?: string) =>
+    `${o.origin}/api/shared/${signShare({ u: user.id, c: conn.id, a, iat: now, exp, g: prefs.shareLinkGeneration, ...(k ? { k } : {}) })}`;
+  let doc = toRichDoc(body);
+  let attachments: { name: string; url: string }[] = [];
+  if (conn.type === "jira") {
+    attachments = (await fetchAttachments(contextFor(user, conn).creds, key)).map((f) => ({ name: f.filename, url: link(f.id) }));
+  } else if (conn.type === "github" && body?.kind === "text") {
+    // Pasted into the body: found by their github.com link, served through the issue (R-6.9).
+    const pasted = bodyAttachments(body.text).map((p) => ({ ...p, shared: link(p.url, key) }));
+    const byUrl = new Map(pasted.map((p) => [p.url, p.shared]));
+    doc = mapUrls(doc, (url) => byUrl.get(url) ?? null);
+    attachments = pasted.map((p) => ({ name: p.name, url: p.shared }));
+  }
+  const markdown = issueMarkdown({ key, title: row.summary, url: row.url, status: row.status, type: row.issueType || null }, doc, attachments, o.depth);
   return { markdown, expiresAt: new Date(exp) };
 }

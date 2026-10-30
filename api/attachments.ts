@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { connections, issues, users } from "@db/schema";
+import { connections, issues, users, type Connection } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { restUser } from "./context";
 import { verifyShare } from "./lib/shareLinks";
@@ -19,7 +19,8 @@ import {
   uploadAttachments,
 } from "./jira/client";
 import { t } from "@contracts/i18n";
-import { contextFor, jiraContextFor, jiraCredentials, ownConnection } from "./providers/connections";
+import { connOf, contextFor, jiraContextFor, jiraCredentials, ownConnection } from "./providers/connections";
+import { fetchGitHubAttachment } from "./providers/github/attachments";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 
@@ -140,6 +141,16 @@ async function streamAttachment(creds: Parameters<typeof fetchAttachmentMeta>[0]
   return new Response(res.body, { status: 200, headers });
 }
 
+/** A file pasted into a GitHub issue, as a download (docs/work/ideas/issue-copy.md R-6.9). */
+async function githubFile(conn: Connection, key: string, url: string): Promise<Response> {
+  const cred = await connOf(conn).credential();
+  const token = cred.kind === "oauth" ? cred.accessToken : cred.kind === "token" ? cred.token : "";
+  const res = await fetchGitHubAttachment({ apiBase: conn.baseUrl, token }, key, url);
+  const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "file");
+  const headers = attachmentHeaders(res.headers.get("content-type") ?? "application/octet-stream", name);
+  return new Response(res.body, { status: 200, headers });
+}
+
 /** Shared links: a few a minute per address is plenty for an agent reading one issue. */
 const sharedLimiter = createRateLimiter(120, 60_000);
 
@@ -159,8 +170,13 @@ export function registerAttachmentRoutes(app: App) {
       const [user] = await getDb().select().from(users).where(eq(users.id, grant.u)).limit(1);
       if (!user || (await getSettings(user.id)).shareLinkGeneration !== grant.g) return notShared();
       const conn = await ownConnection(user.id, grant.c).catch(() => null);
-      if (!conn || conn.type !== "jira") return notShared();
-      const res = await streamAttachment(contextFor(user, conn).creds, grant.a, "content");
+      if (!conn) return notShared();
+      const res =
+        conn.type === "jira"
+          ? await streamAttachment(contextFor(user, conn).creds, grant.a, "content")
+          : conn.type === "github" && grant.k
+            ? await githubFile(conn, grant.k, grant.a)
+            : null;
       if (!res) return notShared();
       const headers = new Headers(res.headers);
       headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));

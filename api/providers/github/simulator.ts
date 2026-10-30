@@ -82,7 +82,8 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     const res = await answer(input, init);
     // A GET answers with an ETag of its body; asked again with it, unchanged: 304 (free on GitHub).
-    if ((init?.method ?? "GET").toUpperCase() !== "GET" || !res.ok) return res;
+    // Files (pasted images) are bytes, not API pages: no ETag.
+    if ((init?.method ?? "GET").toUpperCase() !== "GET" || !res.ok || !res.headers.get("Content-Type")?.includes("json")) return res;
     const text = await res.text();
     const etag = `"${createHash("sha1").update(text).digest("hex")}"`;
     const headers = new Headers(res.headers);
@@ -94,9 +95,29 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
     return new Response(text, { status: res.status, headers });
   }
 
+  /**
+   * Images pasted into issues, as a private repository serves them: the
+   * github.com link answers 404 without a browser session; the API's
+   * body_html (Accept full+json) carries a signed private-user-images link,
+   * valid five minutes. `uploads` maps an asset id to its bytes.
+   */
+  const uploads = new Map<string, Uint8Array>();
+  const IMAGE_HOST = "https://private-user-images.githubusercontent.com";
+  let signingNow = () => Date.now();
+  const bodyHtml = (body: string) =>
+    body.replace(/https:\/\/github\.com\/user-attachments\/assets\/([\w-]+)/g, (_, asset: string) => `${IMAGE_HOST}/${me.id}/1-${asset}.png?jwt=sim.${signingNow() + 5 * 60_000}`);
+
   async function answer(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     const url = new URL(String(input instanceof Request ? input.url : input));
     const method = (init?.method ?? "GET").toUpperCase();
+    if (url.origin === "https://github.com" && url.pathname.startsWith("/user-attachments/")) return json({ message: "Not Found" }, 404);
+    if (url.origin === IMAGE_HOST) {
+      const signed = /^sim\.(\d+)$/.exec(url.searchParams.get("jwt") ?? "");
+      const asset = /\/\d+-([\w-]+)\.png$/.exec(url.pathname)?.[1] ?? "";
+      const bytes = uploads.get(asset);
+      if (!signed || Number(signed[1]) < signingNow() || !bytes) return new Response("expired", { status: 404 });
+      return new Response(bytes, { headers: { "Content-Type": "image/png" } });
+    }
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     const path = url.pathname.replace(new URL(apiBase).pathname.replace(/\/$/, ""), "");
     if (path === "/user") return json(me);
@@ -206,7 +227,8 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
         }
         i.updated_at = tick();
       }
-      return json(shown(i));
+      const full = new Headers(init?.headers).get("Accept")?.includes("full+json");
+      return json(full ? { ...shown(i), body_html: bodyHtml(i.body ?? "") } : shown(i));
     }
     m = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/.exec(path);
     if (m) {
@@ -224,5 +246,24 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
     return json({ message: `unmocked ${method} ${path}` }, 404);
   }
 
-  return { apiBase, me, add, repo: addRepo, issues, threads, notify, fetch: handle, notModified: () => notModified };
+  return {
+    apiBase,
+    me,
+    add,
+    repo: addRepo,
+    issues,
+    threads,
+    notify,
+    fetch: handle,
+    notModified: () => notModified,
+    /** An image pasted into an issue: its github.com link to write in a body. */
+    upload: (asset: string, bytes: Uint8Array) => {
+      uploads.set(asset, bytes);
+      return `https://github.com/user-attachments/assets/${asset}`;
+    },
+    /** Moves the signed links' clock (they last five minutes). */
+    setClock: (now: () => number) => {
+      signingNow = now;
+    },
+  };
 }
