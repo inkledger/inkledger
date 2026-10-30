@@ -295,7 +295,7 @@ copyUsage: protectedProcedure.query()                                           
 3. [x] (2026-10-30) View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
 4. [x] (2026-10-30) Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
 5. [x] (2026-10-30) Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
-6. Docs (R-1.14).
+6. [x] (2026-10-30) Docs (R-1.14).
 
 ### Batch 2 decisions (2026-10-30, to review)
 - `postal-mime` **4.0.7**: the newest release at least two weeks old (4.2.0 came out the day before); its licence is MIT-0 (MIT without the attribution clause), no dependencies.

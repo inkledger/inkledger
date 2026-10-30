@@ -1,6 +1,6 @@
 # Pinning Outlook mails
 
-You can pin a mail to an issue, a TODO or the pinboard to get back to the conversation in Outlook. inkledger keeps only the mail's headers (subject, sender, date, Message-ID) and its link. It never keeps the body.
+You can pin a mail to an issue, a TODO or the pinboard to get back to the conversation in Outlook. By default inkledger keeps only the mail's headers (subject, sender, date, Message-ID) and its link, never the body. If you choose to, it also keeps an encrypted copy of each mail you pin (see "Copies of pinned mails").
 
 There are three ways to pin a mail. They work alone or together.
 
@@ -14,7 +14,7 @@ When you are signed in, a mail that arrives without a link (an `.eml` file) gets
 
 ## Searching the mailbox (Microsoft sign-in)
 
-inkledger signs in with the device code flow, as it does for GitHub: you type a code at microsoft.com and nothing has to reach inkledger. It asks Graph for `Mail.Read offline_access User.Read` and reads headers only. The tokens are sealed in the database for that user (`mail_accounts`), and signing out deletes them.
+inkledger signs in with the device code flow, as it does for GitHub: you type a code at microsoft.com and nothing has to reach inkledger. It asks Graph for `Mail.Read offline_access User.Read` and reads headers only, plus the whole message of a mail you pin when you keep copies. The tokens are sealed in the database for that user (`mail_accounts`), and signing out deletes them.
 
 Before anyone can sign in, whoever runs the server registers an app once:
 
@@ -82,6 +82,32 @@ The key opens only `/api/outlook/*`, where the add-in can search issues and pin 
 
 Some organizations block custom add-ins. If "Add a custom add-in" is missing, the search and the drop still work.
 
+## Copies of pinned mails
+
+A pin is a link: when the mail is deleted in Outlook, the link opens nothing. To keep what a mail said, turn on Settings → Outlook → "Copies of pinned mails". It is off by default, and the first time you turn it on you are asked to agree: a copy leaves your mailbox, and your company's rules or the GDPR may not allow it.
+
+### What is kept
+
+| Setting | The copy holds |
+| --- | --- |
+| Off (default) | Nothing: headers and the link only |
+| Text and layout | From, to, cc, date, subject, the text, the HTML, and the attachments' names, types and sizes (not their content) |
+| Everything, with attachments | The whole message as Outlook stores it (`.eml`), attachments included, up to `MAIL_COPY_MAX_MB` (30 MB) |
+
+- **Where it comes from:** the mailbox when you are signed in (Microsoft Graph), the add-in's pane where Outlook allows it (Mailbox 1.14), or an `.eml` file you drop. If a copy can't be made, the pin still works and the card says "Copy not saved", with Try again.
+- **How it is kept:** encrypted with AES-256-GCM using `CREDENTIALS_KEY`, sealed to its own mail: moved to another row, it doesn't open.
+- **How it is shown:** in a frame that runs no script and loads nothing from outside (no tracking pixels); attachments always download.
+- **Who reads it:** only you. Every read (view, `.eml`, attachment) is logged for a year.
+- **Deleted in Outlook:** once a day the server looks for your pinned mails in the mailbox (up to 200 per pass). A mail it can't find gets "Deleted in Outlook", and its subject opens the copy. "Is it still there?" in the card's menu checks one at once.
+- **How long:** a copy goes with its mail, and 7 days after its mail is pinned nowhere. You can delete one copy from its card, or all of them in Settings → Outlook. `MAIL_COPIES=off` turns the feature off for the whole server.
+
+### Without inkledger
+
+If you need every mail kept, or must not copy any:
+
+- **An archive of the whole mailbox:** a self-hosted archiver such as Open Archiver or MailPiler keeps every mail, searchable, apart from inkledger.
+- **Microsoft 365 retention:** retention policies or litigation hold keep deleted mails in the tenant for as long as the policy says, and no copy leaves Microsoft. Ask your administrator.
+
 ## What leaves the server
 
 Settings → Network lists every host the server has called: trackers, Microsoft, GitHub, the weather, the module store. For each it shows what it is for, the number of calls and failures, and the last call. Only the host is kept, never what was asked or answered (`api/lib/egress.ts`, table `egress_hosts`).
@@ -93,6 +119,7 @@ Links to Outlook mails open directly, without asking to allow the domain: inkled
 ## For developers
 
 - Parsers (Outlook links, `.eml` headers, the deeplink builder): `contracts/mail.ts`.
+- Copies: `api/mail/copies.ts` (capture, sealing, the reading routes, purges), `api/mail/goneCheck.ts` (the daily check); spec in `docs/work/ideas/mail-copies.md`.
 - API: `api/routers/mails.ts`; `pinTo` saves and pins in one call.
 - Microsoft sign-in and search: `api/mail/microsoft.ts`. Tests use `api/mail/simulator.ts` (`MAIL_SIMULATOR=1`), never Microsoft.
 - Add-in:

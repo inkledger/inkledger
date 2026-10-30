@@ -26,7 +26,9 @@ out of scope.
 
 The main safeguards are listed in the README ("Security and privacy"). For operators:
 
-- Set `SESSION_SECRET` and `CREDENTIALS_KEY`, and keep `CREDENTIALS_KEY` with your backups.
+- Set `SESSION_SECRET` and `CREDENTIALS_KEY`, and keep `CREDENTIALS_KEY` with your backups, but
+  apart from them: copies of pinned mails (an opt-in, `docs/outlook.md`) are in the database
+  encrypted with it, so a `pg_dump` holds them only as ciphertext, and losing the key loses them.
 - The first admin gets a random password in production (its file path is logged); change it.
 - Set `REMOTE_ALLOWED_HOSTS` to the self-hosted trackers you use.
 - Backups are written readable by the server's user only: keep them that way.

@@ -7,6 +7,9 @@ Done (2026-10-29): mailbox search (Microsoft sign-in), a two-step "Pin a mail" f
   conversation in Outlook.
 - Works with every client: Outlook on the web, new Outlook, classic Outlook, mobile.
 - Only headers are kept (subject, sender, date, Message-ID, Exchange id, link): never the body.
+  **Reversed 2026-10-30** (user's answer, `docs/work/ideas/mail-copies.md` Q1): a pinned mail
+  may also keep an encrypted copy of its body, off by default and only after the user's consent,
+  because a pin whose mail was deleted in Outlook opened nothing.
 
 ## Constraints and out of scope
 - Reading the mailbox through Graph (`Mail.Read`) usually needs tenant admin consent, so it is
