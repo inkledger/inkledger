@@ -268,5 +268,30 @@ describe("mail copies: capture", () => {
     expect(state).not.toContain("tracker.example.net");
     expect(state).not.toMatch(/sealed|mail_copies/);
   });
+
+  it("orphan copies go after seven days", async () => {
+    const u = await signedIn("orphan1");
+    await u.caller.settings.update({ mailCopies: "body", mailCopiesConsent: true });
+    const { mail, todoId } = await pin(u.caller);
+    const other = await u.caller.mails.pinTo({ mail: { source: "graph", subject: "Budget 2027", internetMessageId: "<sim-2@example.com>" }, to: { todo: {} } });
+    const { purgeOrphanMailCopies } = await import("./copies");
+    const DAY = 86_400_000;
+    const now = Date.now();
+    // Both pinned: nothing marked, nothing gone.
+    expect(await purgeOrphanMailCopies(now)).toBe(0);
+    // One unpinned (its TODO deleted): marked by the next purge, kept for seven days.
+    await q("DELETE FROM todos WHERE id = ?", todoId);
+    expect(await purgeOrphanMailCopies(now)).toBe(0);
+    expect(await purgeOrphanMailCopies(now + 6 * DAY)).toBe(0);
+    // Pinned again meanwhile: the mark goes, the clock starts over when it's unpinned again.
+    const again = await u.caller.mails.pinTo({ mail: { id: mail.id }, to: { todo: {} } });
+    expect(await purgeOrphanMailCopies(now + 7 * DAY)).toBe(0);
+    await q("DELETE FROM todos WHERE id = ?", again.todoId);
+    expect(await purgeOrphanMailCopies(now + 8 * DAY)).toBe(0);
+    expect(await purgeOrphanMailCopies(now + 15 * DAY + 1)).toBe(1);
+    expect((await u.caller.mails.copyInfo({ id: mail.id })).copy).toBeNull();
+    // The one still pinned keeps its copy.
+    expect((await u.caller.mails.copyInfo({ id: other.mail.id })).copy?.mode).toBe("body");
+  });
 });
 

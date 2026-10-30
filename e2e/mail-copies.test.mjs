@@ -51,6 +51,17 @@ test("a pinned mail survives its deletion in Outlook", () =>
     await viewer.getByText("Attachments are not kept").waitFor();
     await page.keyboard.press("Escape");
     await viewer.waitFor({ state: "detached" });
+    // Deleted in Outlook (the simulated mailbox no longer has it): "Is it still there?" says so.
+    await db.q("UPDATE mails SET internet_message_id = 'deleted-in-outlook@example.com'");
+    await page.getByRole("button", { name: "Copy of Budget 2027" }).click();
+    await page.getByRole("menuitem", { name: "Is it still there?" }).click();
+    await page.getByText("Deleted in Outlook").first().waitFor();
+    assert.equal((await db.q("SELECT gone_at IS NOT NULL AS gone FROM mails"))[0].gone, true);
+    // Now its subject opens the copy, not Outlook.
+    await page.getByRole("button", { name: "Budget 2027", exact: true }).click();
+    await viewer.frameLocator("iframe").getByText("Hello Mario, about").waitFor();
+    await page.keyboard.press("Escape");
+    await viewer.waitFor({ state: "detached" });
     // Deleted: the pin stays, without a copy.
     await page.getByRole("button", { name: "Copy of Budget 2027" }).click();
     await page.getByRole("menuitem", { name: "Delete the copy" }).click();
@@ -58,7 +69,6 @@ test("a pinned mail survives its deletion in Outlook", () =>
     await page.getByText("Copy saved").waitFor({ state: "detached" });
     assert.deepEqual(await db.q("SELECT count(*)::int AS n FROM mail_copies"), [{ n: 0 }]);
     assert.deepEqual(await db.q("SELECT count(*)::int AS n FROM mail_links"), [{ n: 1 }]);
-    // Batch 5 adds: the simulator forgets the mail, "Deleted in Outlook", the subject opens the copy.
   }));
 
 test("a saved mail shows without loading remote images", () =>

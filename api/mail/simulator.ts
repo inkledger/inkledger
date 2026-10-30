@@ -74,6 +74,16 @@ export function simulatedEml(m: { subject: string; from: { emailAddress: { name:
   return Buffer.from(lines.join("\r\n"), "utf8");
 }
 
+/** Under the tests: a message deleted in Outlook (null: none), and Graph throttling after so many message calls (null: never). */
+let forgotten: string | null = null;
+let throttleAfter: number | null = null;
+export function simulateForget(internetMessageId: string | null): void {
+  forgotten = internetMessageId;
+}
+export function simulateThrottle(afterCalls: number | null): void {
+  throttleAfter = afterCalls;
+}
+
 /** Under the tests: Graph refusing to give messages' content (a capture that fails). */
 let contentFails = false;
 export function simulateContentFailure(on: boolean): void {
@@ -92,6 +102,7 @@ export async function simulatedMicrosoft(url: string, init: RequestInit): Promis
   }
   if (new Headers(init.headers).get("Authorization") !== "Bearer sim-access") return json({ error: { code: "InvalidAuthenticationToken" } }, 401);
   if (u.pathname === "/v1.0/me") return json({ userPrincipalName: "mario.rossi@example.com", displayName: "Mario Rossi" });
+  if (u.pathname.startsWith("/v1.0/me/messages") && throttleAfter !== null && throttleAfter-- <= 0) return json({ error: { code: "TooManyRequests" } }, 429);
   const content = /^\/v1\.0\/me\/messages\/([^/]+)\/\$value$/.exec(u.pathname);
   if (content) {
     const m = MAILBOX.find(x => x.id === decodeURIComponent(content[1]));
@@ -104,7 +115,8 @@ export async function simulatedMicrosoft(url: string, init: RequestInit): Promis
   const found = MAILBOX.filter(
     m =>
       (!search || `${m.subject} ${m.from.emailAddress.name} ${m.from.emailAddress.address}`.toLowerCase().includes(search)) &&
-      (!filter || m.internetMessageId === filter),
+      (!filter || m.internetMessageId === filter) &&
+      m.internetMessageId !== forgotten,
   );
   return json({ value: found });
 }

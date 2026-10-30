@@ -126,6 +126,7 @@ export interface FrozenIn {
   "issues.watch": { connectionId?: number | undefined; key: string; watch: boolean };
   "mails.account": void;
   "mails.addinKey": void;
+  "mails.checkGone": { id: number };
   "mails.copyInfo": { id: number };
   "mails.copyUsage": void;
   "mails.deleteAllCopies": void;
@@ -416,6 +417,7 @@ export interface FrozenOut {
   "issues.watch": { key: string; watching: boolean };
   "mails.account": { account: null | { account: string; displayName: null | string }; available: boolean };
   "mails.addinKey": { createdAt: Date; lastUsedAt: Date | null };
+  "mails.checkGone": { goneAt: Date | null };
   "mails.copyInfo": { copy: null | { attachments: { index: number; name: string; size: number; type: string }[]; bytes: number; capturedAt: Date; mode: "body" | "full" }; copyError: null | string; goneAt: Date | null };
   "mails.copyUsage": { available: boolean; bytes: number; count: number };
   "mails.deleteAllCopies": { count: number };

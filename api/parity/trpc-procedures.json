@@ -484,6 +484,10 @@
     "type": "query"
   },
   {
+    "path": "mails.checkGone",
+    "type": "mutation"
+  },
+  {
     "path": "mails.copyInfo",
     "type": "query"
   },

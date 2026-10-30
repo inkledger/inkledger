@@ -913,6 +913,8 @@ export const mailCopies = pgTable(
     plainBytes: integer("plain_bytes").notNull(),
     /** JSON [{ name, type, size }]: the attachments, listed without opening the copy */
     attachments: text("attachments").notNull().default("[]"),
+    /** When the daily purge first found its mail pinned nowhere (cleared when pinned again); gone 7 days later (R-1.10) */
+    orphanedAt: ms("orphaned_at"),
     /** addin | graph | eml */
     source: text("source").notNull(),
     capturedAt: ms("captured_at")

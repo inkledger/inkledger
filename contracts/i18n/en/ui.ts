@@ -649,6 +649,8 @@ export const ui = {
       loading: "Opening the copy…",
       none: "No copy of this mail is kept.",
       attachments: "Attachments",
+      check: "Is it still there?",
+      stillThere: "Still in Outlook",
     },
   },
   outlook: {

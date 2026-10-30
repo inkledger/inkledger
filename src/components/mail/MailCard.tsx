@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Archive, Download, Mail, MoreHorizontal, RotateCw, Trash2 } from "lucide-react";
+import { Archive, Download, Mail, MoreHorizontal, RotateCw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { surface } from "@/components/app/surface";
 import { ExternalLink } from "@/components/app/ExternalLink";
@@ -115,6 +115,17 @@ function CopyMenu({ mail, onOpen }: { mail: MailView; onOpen: () => void }) {
     },
     onError: e => toastError(e),
   });
+  // Looked for in the mailbox now: only when signed in to it (the server's daily check does the rest).
+  const account = trpc.mails.account.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const check = trpc.mails.checkGone.useMutation({
+    onSuccess: r => {
+      void utils.mails.invalidate();
+      void utils.todos.invalidate();
+      void utils.pinboard.list.invalidate();
+      toast.success(r.goneAt ? t("ui.mail.copy.gone") : t("ui.mail.copy.stillThere"));
+    },
+    onError: e => toastError(e),
+  });
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -131,6 +142,11 @@ function CopyMenu({ mail, onOpen }: { mail: MailView; onOpen: () => void }) {
             <a href={`/api/mail/${mail.id}/eml`} download>
               <Download className="h-4 w-4" /> {t("ui.mail.copy.download")}
             </a>
+          </DropdownMenuItem>
+        )}
+        {account.data?.account && (
+          <DropdownMenuItem disabled={check.isPending} onSelect={() => check.mutate({ id: mail.id })}>
+            <Search className="h-4 w-4" /> {t("ui.mail.copy.check")}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem className="text-danger" onSelect={() => remove.mutate({ id: mail.id })}>

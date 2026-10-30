@@ -650,6 +650,8 @@ export const ui: Shape<typeof en> = {
       loading: "Apro la copia…",
       none: "Di questa mail non c'è una copia.",
       attachments: "Allegati",
+      check: "C'è ancora?",
+      stillThere: "Ancora in Outlook",
     },
   },
   outlook: {

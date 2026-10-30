@@ -1,0 +1,1 @@
+ALTER TABLE "mail_copies" ADD COLUMN "orphaned_at" bigint;

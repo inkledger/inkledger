@@ -9,6 +9,7 @@ import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
 import { captureFromGraph, copyInfo, mailCopyColumns, ownMailRow } from "../mail/copies";
+import { checkMail } from "../mail/goneCheck";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
 import { todosRouter } from "./todos";
 import { pinboardRouter } from "./pinboard";
@@ -218,6 +219,15 @@ export const mailsRouter = createRouter({
     if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
     await captureFromGraph(ctx.user.id, mail);
     return copyInfo(ctx.user.id, input.id);
+  }),
+
+  /** Is it still in my mailbox? Looked for now (R-1.11); E-1.6 when not signed in. */
+  checkGone: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
+    const mail = await ownMailRow(ctx.user.id, input.id);
+    if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
+    if (!mail.internetMessageId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.notInMailbox") });
+    const goneAt = await providerCall(() => checkMail(ctx.user.id, { id: mail.id, internetMessageId: mail.internetMessageId!, goneAt: mail.goneAt }, Date.now()));
+    return { goneAt };
   }),
 
   /** Every copy of my mails gone at once; the pins stay (R-1.12). */

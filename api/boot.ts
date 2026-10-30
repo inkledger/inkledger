@@ -22,7 +22,8 @@ import { ACTIVATION_KEYS } from "./modules/keys";
 import { validLicenses } from "./modules/registry";
 import { purgeWebhookDeliveries, registerHookRoutes } from "./hooks";
 import { outlookFrames, registerOutlookRoutes } from "./mail/addin";
-import { copyUploadMaxBytes, purgeMailCopyReads, registerCopyRoutes } from "./mail/copies";
+import { copyUploadMaxBytes, purgeMailCopyReads, purgeOrphanMailCopies, registerCopyRoutes } from "./mail/copies";
+import { startGoneCheck } from "./mail/goneCheck";
 import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
@@ -171,16 +172,19 @@ void ollamaRefusal().then((why) => {
 
 // Background Jira sync. In dev the module is re-evaluated on reload: keep a
 // single scheduler per process.
-const g = globalThis as { __iklStopSync?: () => Promise<void> };
+const g = globalThis as { __iklStopSync?: () => Promise<void>; __iklStopGone?: () => Promise<void> };
 void g.__iklStopSync?.();
 g.__iklStopSync = startSyncScheduler(env.syncIntervalMin);
+// Pinned mails deleted in Outlook, looked for daily (docs/work/ideas/mail-copies.md R-1.11); not on test servers' short lives.
+void g.__iklStopGone?.();
+if (env.syncIntervalMin > 0) g.__iklStopGone = startGoneCheck();
 
 if (env.isProduction || env.serveBuild) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas(), purgeMailCopyReads()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;
@@ -224,6 +228,7 @@ if (env.isProduction || env.serveBuild) {
     await Promise.all([
       new Promise<void>((resolve) => server.close(() => resolve())),
       atMost(g.__iklStopSync?.(), 5_000),
+      atMost(g.__iklStopGone?.(), 5_000),
       settleInFlightSyncs(5_000),
     ]);
     await flushEgress().catch(() => undefined);

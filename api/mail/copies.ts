@@ -3,11 +3,11 @@
 // pin they come with (R-1.6). From a dropped .eml, from Graph, from the add-in.
 import { createHash } from "node:crypto";
 import PostalMime from "postal-mime";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { Context, Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
-import { mailCopies, mailCopyReads, mails, settings } from "@db/schema";
+import { mailCopies, mailCopyReads, mailLinks, mails, pinboardNotes, settings, todos } from "@db/schema";
 import { mailCopyBodySchema } from "@contracts/mail";
 import { openBytesFor } from "../lib/crypto";
 import { attachmentHeaders, contentDisposition } from "../attachments";
@@ -177,6 +177,28 @@ export async function copyInfo(userId: number, mailId: number) {
  * (a third bigger) in JSON: one body limit for both, beside attachments'.
  */
 export const copyUploadMaxBytes = () => Math.ceil(env.mailCopyMaxMb * 1024 * 1024 * 1.37) + 64 * 1024;
+
+/** How long a copy outlives its mail's last pin (R-1.10). */
+const ORPHAN_KEPT_MS = 7 * 86_400_000;
+
+/**
+ * Copies whose mail is pinned nowhere for seven days, gone (R-1.10). Each run marks the
+ * copies that just lost their last pin (a TODO, a post-it, an issue or a note) and
+ * unmarks those pinned again: the seven days count from the first run that found it alone.
+ */
+export async function purgeOrphanMailCopies(now = Date.now()): Promise<number> {
+  const pinned = sql`(EXISTS (SELECT 1 FROM ${mailLinks} l WHERE l.mail_id = ${mailCopies.mailId})
+    OR EXISTS (SELECT 1 FROM ${todos} td WHERE td.mail_id = ${mailCopies.mailId})
+    OR EXISTS (SELECT 1 FROM ${pinboardNotes} p WHERE p.mail_id = ${mailCopies.mailId}))`;
+  const db = getDb();
+  await db.update(mailCopies).set({ orphanedAt: null }).where(and(isNotNull(mailCopies.orphanedAt), pinned));
+  await db.update(mailCopies).set({ orphanedAt: new Date(now) }).where(and(isNull(mailCopies.orphanedAt), sql`NOT ${pinned}`));
+  const gone = await db
+    .delete(mailCopies)
+    .where(and(lt(mailCopies.orphanedAt, new Date(now - ORPHAN_KEPT_MS)), sql`NOT ${pinned}`))
+    .returning({ id: mailCopies.mailId });
+  return gone.length;
+}
 
 /** How long each read of a copy is remembered (R-1.9, R-1.10). */
 const READS_KEPT_MS = 365 * 86_400_000;

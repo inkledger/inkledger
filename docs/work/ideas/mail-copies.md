@@ -294,7 +294,7 @@ copyUsage: protectedProcedure.query()                                           
 2. [x] (2026-10-30) Capture from .eml and Graph, `copyInfo`, `deleteCopy`, `retryCopy`, simulator `$value` (R-1.3, 1.4, 1.6, 1.13; AC-1.1, 1.3, 1.4, 1.7, 1.10, 1.15).
 3. [x] (2026-10-30) View, eml and attachment routes, audit, `MailCopyDialog`, `MailCard` and its entry points (R-1.7, 1.8, 1.9; AC-1.8, 1.9, 1.14, 1.16, 1.17 partial, 1.19).
 4. [x] (2026-10-30) Add-in `getAsFileAsync` and `/api/outlook/copy` (AC-1.18).
-5. Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
+5. [x] (2026-10-30) Gone job, `checkGone`, orphan purge (R-1.10, 1.11; AC-1.11, 1.12, 1.13, 1.17 complete).
 6. Docs (R-1.14).
 
 ### Batch 2 decisions (2026-10-30, to review)
@@ -319,6 +319,12 @@ copyUsage: protectedProcedure.query()                                           
 - The pane learns the user's copy mode from `GET /api/outlook/me` (`mailCopies`); after a pin, when copies are on: Mailbox 1.14 and `getAsFileAsync` → the whole mail, base64, to `POST /api/outlook/copy` with the headers; else the note `ui.outlook.copyUnsupported`. The route saves the mail by its headers (the same row the pin made) and keeps the copy with source `addin`; refusals go on the mail like the others. One body limit for `.eml` uploads and the pane's base64 (`MAIL_COPY_MAX_MB` × 1.37 + 64 KB); the decoded size is still checked against the limit.
 - D-1.5's manifest `<Version>` 1.2.0.0 is **not** applied: `ReadItem` already allows `getAsFileAsync`, nothing in the manifest changes, and a new version would only make users reinstall.
 - Migration lesson: the `attachments` column (batch 2) is now `0022_mail_copy_attachments`; 0021 stays as first applied.
+
+### Batch 5 decisions (2026-10-30, to review)
+- "No pins for 7 days" needs a start: `mail_copies.orphaned_at` (migration 0023). The daily purge marks copies whose mail is pinned nowhere (no issue or note link, no TODO, no post-it), clears the mark of those pinned again, and deletes those marked more than 7 days ago: the 7 days count from the first purge that found it alone (± a day).
+- The daily check (`api/mail/goneCheck.ts`, R-0.4): first pass 15 min after start, then 24 h after each end; only when background sync is on (test servers have it off); stopped at shutdown. Per signed-in user, up to 200 mails with a Message-ID, longest unchecked first (`checked_at` nulls first); looked for by Message-ID in the whole mailbox (Deleted Items included: a mail is gone only when it's really gone); not found → `gone_at` (kept from the first time), found → cleared. Any refusal (429, 503, signed out) stops that user's pass.
+- `checkGone` (E-1.6 when not signed in; a mail without Message-ID can't be looked for) and the card's "Is it still there?" (only when signed in) do the same for one mail.
+- AC-1.17's "the simulator forgets" is done in the e2e by changing the mail's Message-ID in the database to one the simulated mailbox doesn't have, then "Is it still there?": the server can't be switched from the browser test; the switch itself (`simulateForget`) is covered by `goneCheck.test.ts`.
 
 ## Open questions
 - **Q1, blocks all:** confirm reversing "never the body", off by default. **Answer 2026-10-30: yes**, off by default, consent required.
