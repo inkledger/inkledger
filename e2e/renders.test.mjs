@@ -81,16 +81,18 @@ const WINDOW = 300_000;
  * The page's clock paused between steps (it had kept flowing with real time, so a slower machine
  * counted more seconds in a window; CI went over by 1–3%): 38 / 2803, 367 / 6203, 361 / 10713,
  * 362 / 9396, the same with answers 200 ms slower.
- * Each limit is the most
- * measured since, plus 2% (network timing moves a poll's work by a commit or two). A change
- * that lowers them lowers them here; raising one is a deliberate edit with its reason in the
- * commit, never a side effect.
+ * The sidebar's links memoized (drawn again only when they change), three runs identical on
+ * 2026-10-30: 38 / 1853, 362 / 5246, 361 / 9763, 362 / 8446.
+ * Each limit is the most measured since plus 2% for commits (network timing moves a poll's
+ * work by a commit or two) and plus 5% for renders (the user's choice on 2026-10-30, when they
+ * were lowered to the memoized sidebar's). A change that lowers them lowers them here; raising
+ * one is a deliberate edit with its reason in the commit, never a side effect.
  */
 const MEASURED = {
-  "dashboard, no timer": { commits: 39, renders: 2860 },
-  "issue page, timer running": { commits: 375, renders: 6328 },
-  "dashboard, timer running": { commits: 369, renders: 10928 },
-  "timesheet, timer running": { commits: 370, renders: 9584 },
+  "dashboard, no timer": { commits: 39, renders: 1946 },
+  "issue page, timer running": { commits: 375, renders: 5509 },
+  "dashboard, timer running": { commits: 369, renders: 10252 },
+  "timesheet, timer running": { commits: 370, renders: 8869 },
 };
 
 test("React work per five minutes, page by page", async () => {
