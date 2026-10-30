@@ -30,7 +30,8 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
       <SectionLabel as="h3" className="mb-2 px-2">
         {t("views.todos.remindersTitle")} ({items.length})
       </SectionLabel>
-      <ul className="grid gap-2">
+      {/* Tracks of minmax(0, 1fr): a long title cuts inside the card, never widens it past the panel. */}
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
         {items.map(x => {
           const late = !!x.dueOn && x.dueOn < todayKey;
           return (
@@ -38,7 +39,7 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
               key={x.id}
               {...surface("card")}
               aria-label={x.text}
-              className="grid gap-1.5 rounded-xl border bg-card px-3 py-2.5 shadow-xs"
+              className="grid grid-cols-[minmax(0,1fr)] gap-1.5 rounded-xl border bg-card px-3 py-2.5 shadow-xs"
             >
               <div className="flex items-start gap-2">
                 <ListChecks
@@ -70,7 +71,7 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
                       connectionId: x.connectionId,
                     })}
                     onClick={onOpen}
-                    className="truncate rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+                    className="min-w-0 max-w-full truncate rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
                   >
                     {x.summary ? `${x.issueKey} · ${x.summary}` : x.issueKey}
                   </Link>

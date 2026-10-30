@@ -83,7 +83,7 @@ export function NotificationCenter() {
               message={t("settings.notifications.emptyMessage")}
             />
           ) : (
-            <div className="grid gap-5">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
               {/* Today's TODOs first: what the user planned comes before what happened. */}
               <TodoReminders onOpen={close} />
               {groups(items).map(g => (
@@ -91,7 +91,7 @@ export function NotificationCenter() {
                   <SectionLabel as="h3" className="mb-2 px-2">
                     {g.label}
                   </SectionLabel>
-                  <ul className="stagger grid gap-2">
+                  <ul className="stagger grid grid-cols-[minmax(0,1fr)] gap-2">
                     {g.items.map(n => (
                       <NotificationItem
                         key={n.id}
