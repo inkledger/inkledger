@@ -216,6 +216,14 @@
     "type": "query"
   },
   {
+    "path": "ideas.forIssue",
+    "type": "query"
+  },
+  {
+    "path": "ideas.fromIssue",
+    "type": "mutation"
+  },
+  {
     "path": "ideas.get",
     "type": "query"
   },

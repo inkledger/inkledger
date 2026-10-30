@@ -39,6 +39,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Chip } from "@/components/app/Chip";
 import { IssueTags } from "@/components/issue/IssueTags";
 import { MakeTodoButton } from "@/components/todo/MakeTodo";
+import { TriageButton } from "@/components/ideas/TriageButton";
 import { TodoList } from "@/components/todo/TodoList";
 import { useHashFlash } from "@/hooks/useHashFlash";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -466,6 +467,7 @@ export default function IssueDetail({
             )}
             <PinButton issueKey={i.key} connectionId={i.connectionId} />
             <MakeTodoButton label={t("views.todos.onIssueLabel")} initial="" link={{ issueKey: i.key, connectionId: i.connectionId ?? undefined }} />
+            {!i.remote && i.connectionId && <TriageButton issueKey={i.key} connectionId={i.connectionId} />}
             <TimerControls issueKey={i.key} connectionId={i.connectionId} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

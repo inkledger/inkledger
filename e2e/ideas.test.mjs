@@ -169,6 +169,24 @@ test("an idea I will do becomes an issue and a TODO", () =>
     },
   ));
 
+test("a vague issue goes to triage and back", () =>
+  withApp({ seed: async db => void (await db.q("UPDATE issues SET connection_id = 1 WHERE key = 'DEMO-103'")) }, async ({ page, base, db }) => {
+    await page.goto(base + "/issues/DEMO-103?c=1");
+    await page.getByRole("button", { name: "Send to triage" }).click();
+    const chip = page.getByRole("link", { name: "In triage" });
+    await chip.waitFor();
+    // Made from the issue, nothing sent to its tracker; once only.
+    assert.deepEqual(await db.q("SELECT title, state, source_issue_key, source_connection_id FROM ideas"), [{ title: "Test task number 3", state: "raw", source_issue_key: "DEMO-103", source_connection_id: 1 }]);
+    await chip.click();
+    await page.waitForURL(/\/ideas\?open=\d+/);
+    await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).waitFor();
+    assert.equal(await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).inputValue(), "Test task number 3");
+    // Back on the issue, it says so again after a reload.
+    await page.goto(base + "/issues/DEMO-103?c=1");
+    await page.getByRole("link", { name: "In triage" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Send to triage" }).count(), 0);
+  }));
+
 test("ideas at 320 px", () =>
   withApp(
     {

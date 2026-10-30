@@ -109,6 +109,45 @@ async function ownContainer(userId: number, containerId: number): Promise<void> 
   if (!found) throw new TRPCError({ code: "NOT_FOUND", message: t("server.ideas.noContainer") });
 }
 
+/** An issue of the user's in the catalogue, on a connection in use (by its key, on its connection when given), else NOT_FOUND. */
+async function ownIssue(userId: number, issueKey: string, connectionId: number | undefined) {
+  const rows = await getDb()
+    .select({ id: issues.id, key: issues.key, summary: issues.summary, connectionId: issues.connectionId })
+    .from(issues)
+    .innerJoin(connections, eq(connections.id, issues.connectionId))
+    .where(
+      and(
+        eq(issues.userId, userId),
+        eq(issues.key, issueKey),
+        isNull(connections.archivedAt),
+        connectionId !== undefined ? eq(issues.connectionId, connectionId) : undefined,
+      ),
+    )
+    .limit(2);
+  if (rows.length > 1) throw new TRPCError({ code: "CONFLICT", message: t("server.connections.ambiguousKey", { key: issueKey }) });
+  const issue = rows[0];
+  if (!issue || issue.connectionId === null) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
+  return { ...issue, connectionId: issue.connectionId };
+}
+
+/** The issue's open idea (not promoted, discarded or deleted), if any (R-2.4). */
+async function openIdeaOf(userId: number, connectionId: number, issueKey: string) {
+  const [row] = await getDb()
+    .select({ id: ideas.id, state: ideas.state })
+    .from(ideas)
+    .where(
+      and(
+        eq(ideas.userId, userId),
+        eq(ideas.sourceConnectionId, connectionId),
+        eq(ideas.sourceIssueKey, issueKey),
+        isNull(ideas.deletedAt),
+        sql`${ideas.state} NOT IN ('promoted', 'discarded')`,
+      ),
+    )
+    .limit(1);
+  return row ? { id: row.id, state: isState(row.state) ? row.state : "raw" } : null;
+}
+
 /** Deleted ideas older than 30 days are gone for good (R-2.7). */
 export async function purgeIdeas(now: number = Date.now()): Promise<number> {
   const gone = await getDb()
@@ -242,6 +281,34 @@ export const ideasRouter = createRouter({
           .where(and(eq(ideas.id, ideaId), eq(ideas.userId, ctx.user.id), eq(ideas.state, input.state), isNull(ideas.deletedAt)));
     });
     return { ok: true as const };
+  }),
+
+  /** A vague issue to triage, nothing written to its tracker (R-2.4): its open idea, made when there is none. */
+  fromIssue: protectedProcedure.input(z.object({ issueKey: issueKeyInput, connectionId: id.optional() })).mutation(async ({ ctx, input }) => {
+    const issue = await ownIssue(ctx.user.id, input.issueKey, input.connectionId);
+    const open = await openIdeaOf(ctx.user.id, issue.connectionId, issue.key);
+    if (open) return ownIdea(ctx.user.id, open.id);
+    // At the top of Raw; a second request racing this one finds the one the unique index lets in.
+    const made = await getDb().transaction(async (tx) => {
+      await tx
+        .update(ideas)
+        .set({ position: sql`${ideas.position} + 1` })
+        .where(and(eq(ideas.userId, ctx.user.id), eq(ideas.state, "raw"), isNull(ideas.deletedAt)));
+      return tx
+        .insert(ideas)
+        .values({ userId: ctx.user.id, title: issue.summary.slice(0, 200) || issue.key, state: "raw", position: 0, sourceConnectionId: issue.connectionId, sourceItemId: issue.id, sourceIssueKey: issue.key })
+        .onConflictDoNothing()
+        .returning({ id: ideas.id });
+    });
+    const ideaId = made[0]?.id ?? (await openIdeaOf(ctx.user.id, issue.connectionId, issue.key))?.id;
+    if (ideaId === undefined) throw notFound();
+    return ownIdea(ctx.user.id, ideaId);
+  }),
+
+  /** The issue's open idea, for its page's chip (R-2.10). */
+  forIssue: protectedProcedure.input(z.object({ issueKey: issueKeyInput, connectionId: id.optional() })).query(async ({ ctx, input }) => {
+    const issue = await ownIssue(ctx.user.id, input.issueKey, input.connectionId);
+    return openIdeaOf(ctx.user.id, issue.connectionId, issue.key);
   }),
 
   /** The issue it became, once created through the usual dialog (R-2.5): it must be one of mine, in the catalogue. */

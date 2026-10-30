@@ -715,6 +715,10 @@ export const ui = {
     title: "Timer running for {duration}",
     body: "{key} has been tracking for over {minutes} minutes. Stop it or log the time?",
   },
+  ideas: {
+    sendToTriage: "Send to triage",
+    inTriage: "In triage",
+  },
   estimate: {
     likely: "Likely",
     basis: "median {p50} · {n} similar issues · {basis}",

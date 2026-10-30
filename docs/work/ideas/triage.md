@@ -1,6 +1,6 @@
 # Spec: a waiting room that turns ideas into issues (#6)
 
-Status: batches 1–3 done (2026-10-30); batch 4 next. Open questions are asked when their batch is reached (README, R-0.12).
+Status: batches 1–4 done (2026-10-30); batch 5 waits for Q3 (the model and where Ollama runs) and for infra batch 3. Open questions are asked when their batch is reached (README, R-0.12).
 
 
 ## Problem
@@ -347,7 +347,12 @@ Sheet IdeaDetail (side; full screen < md): title Input · body (Markdown editor 
      - **The sheet** closes and then opens the usual "New issue" dialog; after creating it goes to the new issue, as it always does. "Copy prompt" and "Download .md" are offered on every idea (they are the "Copy as text" of D-2.2 for trackers that can't create); "Write mail" only when there are open questions; "Make a TODO" on a promoted idea routed "I'll do it".
      - **Found and fixed:** "New issue" lost its prefill when its lazy form suspended (the prefill was cleared by the first read, and React reads again after a suspended render). The prefill now stays until the dialog closes (`src/lib/createIssue.ts`); the post-it's "Make an issue" had the same risk. AC-2.17's e2e failed on it before the fix.
      - **New texts:** `createIssue`, `copyPrompt`, `downloadPrompt`, `writeMail` as in the spec; `promptCopied`, `makeTodo`, `todoMade`, `decisions`, `became`, `gone` written here.
-4. `fromIssue`, `forIssue`, issue chip. R-2.4, 2.10. AC-2.10, 2.18.
+4. [x] `fromIssue`, `forIssue`, issue chip. R-2.4, 2.10. AC-2.10, 2.18.
+   - **Done (2026-10-30).** Decisions, to review:
+     - **An idea from an issue** takes the issue's title and an empty body (its description would be a tracker read the spec doesn't ask for); it goes to the top of Raw. Two requests at once: the unique index lets one in, the other returns it.
+     - **The issue** must be mine, in the catalogue, on a connection in use; a key on two connections without `connectionId` is CONFLICT, as elsewhere.
+     - **On the issue page**, beside "TODO": "Send to triage", or "In triage" as a link to `/ideas?open=<id>`; only for an issue in the catalogue. A promoted or discarded idea is not open: the issue offers "Send to triage" again.
+     - The render budget is unchanged and holds (issue page 362/375 commits).
 5. LLM (after B5 batch 3). R-2.8. AC-2.13, 2.14, 2.19.
 
 ## Open questions

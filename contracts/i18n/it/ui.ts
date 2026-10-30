@@ -716,6 +716,10 @@ export const ui: Shape<typeof en> = {
     title: "Timer attivo da {duration}",
     body: "{key} è in tracking da oltre {minutes} minuti. Vuoi fermarlo o consuntivare?",
   },
+  ideas: {
+    sendToTriage: "Manda in smistamento",
+    inTriage: "In smistamento",
+  },
   estimate: {
     likely: "Probabile",
     basis: "mediana {p50} · {n} issue simili · {basis}",

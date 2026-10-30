@@ -127,4 +127,25 @@ describe("ideas", () => {
     expect((await a.caller.ideas.handoff({ id: idea.id })).markdown).toContain("Issue: NEW-1 https://jira.example/browse/APP-1");
     expect((await a.caller.ideas.askMail({ id: idea.id, to: null })).url.startsWith("mailto:?subject=Ship%20it")).toBe(true);
   });
+
+  it("an issue has at most one open idea", async () => {
+    const u = await makeUser("i7");
+    const [{ connection_id: conn }] = await q<{ connection_id: number }>("SELECT connection_id FROM containers WHERE id = ?", u.containerId);
+    await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, 'r1', 'APP-3', 'Something vague', 'To Do', 'APP', 'App', 'https://x/APP-3', 1)", u.userId, conn);
+    expect(await u.caller.ideas.forIssue({ issueKey: "APP-3", connectionId: conn })).toBeNull();
+    const first = await u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn });
+    expect(first).toMatchObject({ title: "Something vague", state: "raw", source: { key: "APP-3", connectionId: conn, summary: "Something vague" } });
+    expect((await u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).id).toBe(first.id);
+    expect(await u.caller.ideas.forIssue({ issueKey: "APP-3", connectionId: conn })).toEqual({ id: first.id, state: "raw" });
+    // Discarded: no longer open, so a new one may come.
+    await u.caller.ideas.move({ id: first.id, state: "discarded", index: 0 });
+    expect(await u.caller.ideas.forIssue({ issueKey: "APP-3", connectionId: conn })).toBeNull();
+    const second = await u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn });
+    expect(second.id).not.toBe(first.id);
+    // Another user's issue, or one of an archived connection: not found.
+    const other = await makeUser("i7b");
+    await expect(other.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await q("UPDATE connections SET archived_at = 1 WHERE id = ?", conn);
+    await expect(u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });
