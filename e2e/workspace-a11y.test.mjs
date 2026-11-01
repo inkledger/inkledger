@@ -28,7 +28,7 @@ test("Workspace editing, conflict and presentation states are accessible", { tim
     await page.locator("#workspace-layout").waitFor();
     assert.deepEqual(await violations(page, 'a[href$="workspace"]'), []);
     assert.deepEqual(await violations(page), []);
-    await page.locator('[data-anchor="dashboard.activity"]').getByRole("checkbox", { name: "Visible" }).click();
+    await page.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show / }).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
     assert.deepEqual(await violations(page), []);
     await page.getByRole("radio", { name: "Mobile tabs", exact: true }).click();
@@ -57,14 +57,21 @@ test("Workspace editing, conflict and presentation states are accessible", { tim
     assert.deepEqual(await violations(page), []);
     await page.setViewportSize({ width: 320, height: 760 });
     await page.getByRole("radio", { name: "Mobile tabs", exact: true }).click();
-    const move = page.locator('[data-anchor="mobile.board"]').getByRole("button", { name: "Move up" });
-    await move.focus();
+    // Keyboard only: Space on the handle picks the block up, an arrow moves it, Enter puts it down.
+    const handle = page.locator('[data-anchor="mobile.board"]').getByRole("button", { name: "Move Board", exact: true });
+    await handle.focus();
+    await page.keyboard.press("Space");
+    await page.getByText("Board picked up. Arrows move it, Enter puts it down, Escape puts it back.", { exact: true }).waitFor();
+    await page.keyboard.press("ArrowUp");
+    await page.getByText(/^Board: Tab bar, place 1 of 5\.$/).waitFor();
+    assert.deepEqual(await violations(page), []);
     await page.keyboard.press("Enter");
     await page.getByText(/Preview, not applied yet/).waitFor();
     await page.getByRole("button", { name: "Apply layout", exact: true }).focus();
     await page.keyboard.press("Enter");
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
-    assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), "BODY");
+    // Focus goes back to the block just moved, not to the top of the page.
+    assert.equal(await page.evaluate(() => document.activeElement?.closest("[data-anchor]")?.getAttribute("data-anchor")), "mobile.board");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1));
     assert.deepEqual(await violations(page), []);
   });

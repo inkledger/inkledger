@@ -195,17 +195,17 @@ test("Two tabs editing the layout: the second is told it changed, nothing is ove
     const other = await context.newPage();
     await page.goto(`${base}/settings/workspace`);
     await other.goto(`${base}/settings/workspace`);
-    await page.locator('[data-anchor="dashboard.stats"]').getByRole("checkbox", { name: "Visible" }).click();
+    await page.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Show / }).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
     // The second tab still shows the layout before the first tab's draft, and edits it.
-    await other.locator('[data-anchor="dashboard.activity"]').getByRole("checkbox", { name: "Visible" }).click();
+    await other.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show / }).click();
     await other.getByRole("alert").filter({ hasText: "The layout changed meanwhile: reload it and try again." }).waitFor();
     const [draft] = await db.q("SELECT patches FROM workspace_drafts ORDER BY updated_at DESC LIMIT 1");
     const touched = JSON.parse(draft.patches).flatMap(patch => patch.operations.map(operation => operation.anchorId));
     assert.deepEqual(touched, ["dashboard.stats"], "the first tab's intent is still the draft");
     await other.reload();
     await other.getByText(/Preview, not applied yet/).waitFor();
-    await other.locator('[data-anchor="dashboard.activity"]').getByRole("checkbox", { name: "Visible" }).click();
+    await other.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show / }).click();
     await waitUntil(async () => {
       const [latest] = await db.q("SELECT patches FROM workspace_drafts ORDER BY updated_at DESC LIMIT 1");
       return JSON.parse(latest.patches).length === 2;

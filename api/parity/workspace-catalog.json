@@ -631,11 +631,11 @@
             "default",
             "expanded"
           ],
-          "descriptionKey": "ui.layout.more"
+          "descriptionKey": "ui.layout.moduleDock"
         },
         "accessibility": {
           "role": "region",
-          "labelKey": "ui.layout.more",
+          "labelKey": "ui.layout.moduleDock",
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
@@ -1978,7 +1978,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.layout.more",
+          "labelKey": "ui.layout.moduleDock",
           "keyboard": "activation",
           "minTouchTargetPx": 44
         },

@@ -68,6 +68,7 @@ export const ui: Shape<typeof en> = {
     skip: "Vai al contenuto",
     tabBar: "Sezioni rapide",
     more: "Altro",
+    moduleDock: "Pulsanti dei moduli sulla barra",
     moreTitle: "Altre sezioni e impostazioni",
     sections: "Sezioni",
     timers: "Timer",

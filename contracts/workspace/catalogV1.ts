@@ -144,7 +144,7 @@ const anchors: AnchorManifest[] = [
   anchor("mobile.more", "mobile-tabs", "MobileMoreSheet", "local", "ui.layout.more"),
   anchor("mobile.todos", "mobile-tabs", "MobileTodos", "external", "ui.todoFloat.open"),
   anchor("mobile.notifications", "mobile-tabs", "MobileBell", "external", "ui.layout.notifications"),
-  anchor("mobile.dock", "mobile-tabs", "ModuleDock", "external", "ui.layout.more"),
+  anchor("mobile.dock", "mobile-tabs", "ModuleDock", "external", "ui.layout.moduleDock"),
 ];
 
 const dashboardAreas = [
@@ -238,7 +238,7 @@ const controls: ControlDefinition[] = [
   control("mobile.timer.open", "mobile.timer.active", "ui.timer.active", { kind: "disclosure", critical: true, minTouchTargetPx: 44 }),
   control("mobile.todos.open", "mobile.todos", "ui.todoFloat.open", { kind: "disclosure", minTouchTargetPx: 44 }),
   control("mobile.notifications.open", "mobile.notifications", "ui.layout.notifications", { kind: "disclosure", minTouchTargetPx: 44 }),
-  control("mobile.dock.module", "mobile.dock", "ui.layout.more", { sensitive: true, telemetry: "disabled", minTouchTargetPx: 44 }),
+  control("mobile.dock.module", "mobile.dock", "ui.layout.moduleDock", { sensitive: true, telemetry: "disabled", minTouchTargetPx: 44 }),
 ];
 
 export const CATALOG_V1: CatalogManifest = orderCatalogManifest({

@@ -67,6 +67,7 @@ export const ui = {
     skip: "Skip to content",
     tabBar: "Quick sections",
     more: "More",
+    moduleDock: "Module buttons on the tab bar",
     moreTitle: "More sections and settings",
     sections: "Sections",
     timers: "Timers",

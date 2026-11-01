@@ -1,46 +1,55 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-
-const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
-const PlannerPanel = lazy(() => import("./PlannerPanel"));
-import { ArrowDown, ArrowUp, Eye, EyeOff, Pin, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { ActionRow } from "@/components/app/ActionRow";
 import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
-import { areaLabel, inPageOrder } from "@/lib/workspace/labels";
+import { areaLabel, anchorLabel, inPageOrder } from "@/lib/workspace/labels";
+import { applyLocally, blocksIn, sketchFor, type LocalChange } from "@/lib/workspace/sketch";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
-import type { Draft, ResolvedWorkspace, Scope, SuggestionPatch, SurfaceId } from "@contracts/workspace/model";
+import type { Draft, ResolvedPlacement, ResolvedWorkspace, Scope, SuggestionPatch, Variant } from "@contracts/workspace/model";
 import { failureText } from "@/lib/errorText";
-import { dateFormat, t, type MessageKey } from "@/i18n";
+import { useProviderName } from "@/hooks/useConnections";
+import { dateFormat, t } from "@/i18n";
+import { LayoutCanvas, type BlockRules, type CanvasActions } from "./LayoutCanvas";
 
-const scopes: { value: SurfaceId; label: string }[] = [
-  { value: "dashboard", label: t("settings.categories.workspace.dashboard") },
-  { value: "shell-desktop", label: t("settings.categories.workspace.shell") },
-  { value: "mobile-tabs", label: t("settings.categories.workspace.mobile") },
+const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
+const PlannerPanel = lazy(() => import("./PlannerPanel"));
+
+/** The pages a layout is made for, each with its own: the Dashboard has one per device class. */
+const SCOPES = {
+  "dashboard:desktop": { surfaceId: "dashboard", deviceClass: "desktop" },
+  "dashboard:mobile": { surfaceId: "dashboard", deviceClass: "mobile" },
+  "shell-desktop:desktop": { surfaceId: "shell-desktop", deviceClass: "desktop" },
+  "mobile-tabs:mobile": { surfaceId: "mobile-tabs", deviceClass: "mobile" },
+} as const satisfies Record<string, Scope>;
+type ScopeKey = keyof typeof SCOPES;
+// Labels read when drawn, never at import: they follow the language the page is in.
+const scopeOptions = (): { value: ScopeKey; label: string }[] => [
+  { value: "dashboard:desktop", label: t("settings.categories.workspace.dashboardDesktop") },
+  { value: "dashboard:mobile", label: t("settings.categories.workspace.dashboardPhone") },
+  { value: "shell-desktop:desktop", label: t("settings.categories.workspace.shell") },
+  { value: "mobile-tabs:mobile", label: t("settings.categories.workspace.mobile") },
 ];
 
-type Pending = { draft: Draft; descriptor: string; workspace: ResolvedWorkspace | null };
-
+type Pending = { draft: Draft; workspace: ResolvedWorkspace | null };
 
 const savedAt = () => dateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export function WorkspaceSection() {
-  const [surfaceId, setSurfaceId] = useState<SurfaceId>("dashboard");
-  const scope: Scope = { surfaceId, deviceClass: surfaceId === "mobile-tabs" ? "mobile" : "desktop" };
+  const [scopeKey, setScopeKey] = useState<ScopeKey>("dashboard:desktop");
   return (
     <div className="contents">
       <SettingsGroup id="workspace-scope" title={t("settings.categories.workspace.scope")} description={t("settings.categories.workspace.scopeHint")}>
-        <SegmentedControl label={t("settings.categories.workspace.scope")} value={surfaceId} onChange={setSurfaceId} options={scopes} />
+        <SegmentedControl label={t("settings.categories.workspace.scope")} value={scopeKey} onChange={setScopeKey} options={scopeOptions()} />
       </SettingsGroup>
-      <WorkspaceScopeProvider key={surfaceId} scope={scope} live>
+      <WorkspaceScopeProvider key={scopeKey} scope={SCOPES[scopeKey]} live>
         <WorkspaceEditor />
       </WorkspaceScopeProvider>
     </div>
@@ -48,6 +57,7 @@ export function WorkspaceSection() {
 }
 
 function WorkspaceEditor() {
+  const provider = useProviderName();
   const { workspace, revisions, actions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
   const [localPending, setLocalPending] = useState<Pending | null>(null);
   const [completedDraftId, setCompletedDraftId] = useState<string | null>(null);
@@ -55,8 +65,10 @@ function WorkspaceEditor() {
   // "Applying" only while a layout is being applied; a preview being saved says so instead.
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dragged, setDragged] = useState<{ anchorId: string; areaId: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // The change drawn at once, before the server's preview of it comes back (or refuses it).
+  const [optimistic, setOptimistic] = useState<ResolvedPlacement[] | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const [showApplied, setShowApplied] = useState(false);
   const lastActionAnchor = useRef<string | undefined>(undefined);
   const restoreFocus = useRef<string | null | undefined>(undefined);
   const previewQueue = useRef<Promise<void>>(Promise.resolve());
@@ -64,10 +76,12 @@ function WorkspaceEditor() {
   const queuedPreviews = useRef(0);
   const anchors = useMemo(() => new Map(CATALOG_V1.anchors.map(anchor => [anchor.id, anchor] as const)), []);
   const areas = useMemo(() => inPageOrder(CATALOG_V1.areas.filter(area => area.surfaceId === workspace.scope.surfaceId)), [workspace.scope.surfaceId]);
-  const restoredPending = restoredDraft && restoredDraft.draftId !== completedDraftId ? { draft: restoredDraft, descriptor: draftDescriptor?.effectiveRevision ?? "conflict", workspace: draftWorkspace } : null;
+  const restoredPending = restoredDraft && restoredDraft.draftId !== completedDraftId ? { draft: restoredDraft, workspace: draftWorkspace } : null;
   const pending = restoredPending && (!localPending || restoredPending.draft.draftRevision > localPending.draft.draftRevision) ? restoredPending : localPending;
   const editingWorkspace = pending?.workspace ?? workspace;
   const placements = useMemo(() => [...editingWorkspace.placements].sort((a, b) => (a.areaId < b.areaId ? -1 : a.areaId > b.areaId ? 1 : 0) || a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1)), [editingWorkspace]);
+  const shownPlacements = showApplied && pending ? workspace.placements : optimistic ?? placements;
+  const sketch = sketchFor(workspace.scope);
   const setPending = setLocalPending;
   const visibleError = error ?? (restoredDraft && !draftDescriptor ? t("settings.categories.workspace.conflict") : null);
 
@@ -81,7 +95,11 @@ function WorkspaceEditor() {
     restoreFocus.current = undefined;
   }, [busy, pending]);
 
-  const preview = (patch: Parameters<typeof draftFromWorkspace>[1][number]): Promise<void> => {
+  const preview = (patch: Parameters<typeof draftFromWorkspace>[1][number], local?: LocalChange): Promise<void> => {
+    if (local) {
+      setShowApplied(false);
+      setOptimistic(current => applyLocally(current ?? placements, local));
+    }
     const operation = patch.operations[0];
     if (operation?.type !== "reorder") lastActionAnchor.current = patch.operations.length === 1 ? operation?.anchorId : undefined;
     const displayed = pending?.draft ?? restoredDraft;
@@ -96,13 +114,17 @@ function WorkspaceEditor() {
         const result = await actions.saveDraft(draft);
         if (latestDraft.current === draft) {
           latestDraft.current = result.draft;
-          setPending({ draft: result.draft, descriptor: result.preview.descriptor.effectiveRevision, workspace: result.preview.workspace });
+          setPending({ draft: result.draft, workspace: result.preview.workspace });
         }
       } catch (e) {
         if (latestDraft.current === draft) setError(failureText(e));
       } finally {
         queuedPreviews.current--;
-        if (queuedPreviews.current === 0) setBusy(false);
+        // Once every queued change has its answer, the server's preview is what is drawn.
+        if (queuedPreviews.current === 0) {
+          setBusy(false);
+          setOptimistic(null);
+        }
       }
     };
     previewQueue.current = previewQueue.current.then(save);
@@ -208,18 +230,6 @@ function WorkspaceEditor() {
     });
   };
 
-  const reorder = (anchorId: string, direction: -1 | 1) => {
-    const current = placements.filter(placement => placement.areaId === placements.find(item => item.anchorId === anchorId)?.areaId);
-    const index = current.findIndex(placement => placement.anchorId === anchorId);
-    const other = current[index + direction];
-    if (!other) return;
-    const areaId = current[index].areaId;
-    const anchorIds = current.map(placement => placement.anchorId);
-    [anchorIds[index], anchorIds[index + direction]] = [anchorIds[index + direction], anchorIds[index]];
-    lastActionAnchor.current = anchorId;
-    void preview(reorderPatch(workspace, areaId, anchorIds));
-  };
-
   const dropAssessment = (anchorId: string, sourceAreaId: string, targetAreaId: string, orderedAnchorIds?: readonly string[]) => {
     const anchor = anchors.get(anchorId);
     const targetArea = areas.find(area => area.id === targetAreaId);
@@ -247,46 +257,73 @@ function WorkspaceEditor() {
     return `${detail} ${alternatives.length > 0 ? t("settings.categories.workspace.dropAlternatives", { areas: alternatives.join(", ") }) : t("settings.categories.workspace.dropUseMenu")}`;
   };
 
-  const drop = (targetAreaId: string, targetAnchorId?: string) => {
-    if (!dragged) return;
-    const { anchorId, areaId: sourceAreaId } = dragged;
-    const finish = () => { setDragged(null); setDropTarget(null); };
-    if (sourceAreaId === targetAreaId && targetAnchorId === anchorId) {
-      finish();
-      return;
+  /**
+   * A block put at `index` among the target area's other blocks, as drawn (hidden ones included): within
+   * its area a reorder of the visible ones, into another area a move to the block it lands before.
+   */
+  const target = (anchorId: string, areaId: string, index: number) => {
+    const placement = placements.find(item => item.anchorId === anchorId);
+    if (!placement) return null;
+    const rest = blocksIn(placements, areaId).filter(item => item.anchorId !== anchorId);
+    const at = Math.max(0, Math.min(index, rest.length));
+    if (placement.areaId === areaId) {
+      const visible = rest.filter(item => item.visible).map(item => item.anchorId);
+      const before = rest.slice(0, at).filter(item => item.visible).length;
+      const ordered = [...visible.slice(0, before), anchorId, ...visible.slice(before)];
+      const current = blocksIn(placements, areaId).filter(item => item.visible).map(item => item.anchorId);
+      return { kind: "reorder" as const, ordered, unchanged: ordered.join("\n") === current.join("\n"), index: at, source: placement.areaId };
     }
-    const currentIds = placements.filter(item => item.areaId === targetAreaId && item.visible).sort((a, b) => a.order - b.order).map(item => item.anchorId);
-    let orderedAnchorIds: string[] | undefined;
-    if (sourceAreaId === targetAreaId) {
-      orderedAnchorIds = currentIds.filter(id => id !== anchorId);
-      const targetIndex = targetAnchorId ? orderedAnchorIds.indexOf(targetAnchorId) : orderedAnchorIds.length;
-      if (targetIndex < 0) {
-        finish();
-        setError(dropError(anchorId, sourceAreaId, targetAreaId));
-        return;
-      }
-      orderedAnchorIds.splice(targetIndex, 0, anchorId);
-    }
-    const assessment = dropAssessment(anchorId, sourceAreaId, targetAreaId, orderedAnchorIds);
-    finish();
-    if (!assessment.allowed) {
-      setError(dropError(anchorId, sourceAreaId, targetAreaId, orderedAnchorIds));
+    return { kind: "move" as const, order: rest[at]?.order ?? (rest.length > 0 ? Math.max(...rest.map(item => item.order)) + 1 : 0), index: at, source: placement.areaId };
+  };
+
+  const check: CanvasActions["check"] = (anchorId, areaId, index) => {
+    const where = target(anchorId, areaId, index);
+    if (!where) return { allowed: false, reason: dropError(anchorId, areaId, areaId) };
+    if (where.kind === "reorder" && where.unchanged) return { allowed: true };
+    const ordered = where.kind === "reorder" ? where.ordered : undefined;
+    return dropAssessment(anchorId, where.source, areaId, ordered).allowed ? { allowed: true } : { allowed: false, reason: dropError(anchorId, where.source, areaId, ordered) };
+  };
+
+  const place = (anchorId: string, areaId: string, index: number) => {
+    const where = target(anchorId, areaId, index);
+    if (!where || (where.kind === "reorder" && where.unchanged)) return;
+    const verdict = check(anchorId, areaId, index);
+    if (!verdict.allowed) {
+      setError(verdict.reason);
       return;
     }
     setError(null);
     lastActionAnchor.current = anchorId;
-    if (assessment.operation === "reorder" && orderedAnchorIds) {
-      if (orderedAnchorIds.join("\n") !== currentIds.join("\n")) void preview(reorderPatch(workspace, targetAreaId, orderedAnchorIds));
-      return;
-    }
-    const targetOrder = targetAnchorId ? placements.find(item => item.anchorId === targetAnchorId)?.order ?? currentIds.length : currentIds.length;
-    void preview(movePatch(workspace, anchorId, targetAreaId, targetOrder));
+    const local: LocalChange = { kind: "place", anchorId, areaId, index: where.index };
+    void preview(where.kind === "reorder" ? reorderPatch(workspace, areaId, where.ordered) : movePatch(workspace, anchorId, areaId, where.order), local);
   };
 
-  const endDrag = () => {
-    if (dragged && dropTarget && !dropAssessment(dragged.anchorId, dragged.areaId, dropTarget).allowed) setError(dropError(dragged.anchorId, dragged.areaId, dropTarget));
-    setDragged(null);
-    setDropTarget(null);
+  const canvasActions: CanvasActions = {
+    visible: (anchorId, visible) => void preview(visibilityPatch(workspace, anchorId, visible), { kind: "visible", anchorId, visible }),
+    pinned: (anchorId, pinned) => void preview(pinPatch(workspace, anchorId, pinned), { kind: "pinned", anchorId, pinned }),
+    variant: (anchorId, variant: Variant) => void preview(variantPatch(workspace, anchorId, variant), { kind: "variant", anchorId, variant }),
+    place,
+    check,
+  };
+
+  /** What each block may do here, and in words why one cannot move (said on the block, not learnt by failing). */
+  const rules = (anchorId: string): BlockRules => {
+    const anchor = anchors.get(anchorId);
+    const operations = anchor?.studio.operations ?? [];
+    const pinnedByRule = constraints.some(constraint => constraint.status === "explicit" && constraint.anchorId === anchorId && constraint.kind === "pin");
+    const locked = !anchor ? null
+      : anchor.critical || anchor.statePolicy === "critical" ? t("settings.categories.workspace.lockedCritical", { block: anchorLabel(anchorId) })
+        : anchor.statePolicy === "dirty" ? t("settings.categories.workspace.lockedDialog", { block: anchorLabel(anchorId) })
+          : pinnedByRule ? t("settings.categories.workspace.lockedPinned", { block: anchorLabel(anchorId) })
+            : null;
+    return {
+      canMove: !locked && operations.includes("move"),
+      canReorder: !locked && operations.includes("reorder"),
+      canHide: operations.includes("hide"),
+      canPin: operations.includes("pin"),
+      variants: anchor?.studio.variants ?? [],
+      locked,
+    };
   };
 
   const markDiscovery = async (id: string, placed: boolean, kind: "anchor" | "area" = "anchor") => {
@@ -315,7 +352,7 @@ function WorkspaceEditor() {
       const result = await actions.rollback(targetRevision);
       restoreFocus.current = null;
       latestDraft.current = result.draft;
-      setPending({ draft: result.draft, descriptor: result.candidate.descriptor.effectiveRevision, workspace: result.candidate.workspace });
+      setPending({ draft: result.draft, workspace: result.candidate.workspace });
     } catch (e) {
       setError(failureText(e));
     } finally {
@@ -332,119 +369,35 @@ function WorkspaceEditor() {
         {pendingActivation && <Button size="sm" variant="outline" disabled={busy} onClick={() => void recover()}>{t("settings.categories.workspace.recover")}</Button>}
       </div>}
       <SettingsGroup id="workspace-layout" title={t("settings.categories.workspace.layoutTitle")} description={t("settings.categories.workspace.layoutDescription")}>
-        <p className="text-caption text-muted-foreground">{t("settings.categories.workspace.dragHint")}</p>
-        <div className="grid gap-4">
-          {areas.map(targetArea => {
-            const areaPlacements = placements.filter(placement => placement.areaId === targetArea.id);
-            const visibleCount = areaPlacements.filter(placement => placement.visible).length;
-            const assessment = dragged ? dropAssessment(dragged.anchorId, dragged.areaId, targetArea.id) : null;
-            const areaLabelId = `workspace-area-${targetArea.id.replace(/[^A-Za-z0-9_-]/g, "-")}`;
-            return (
-              <section
-                key={targetArea.id}
-                aria-labelledby={areaLabelId}
-                data-drop-area={targetArea.id}
-                data-drop-state={dropTarget === targetArea.id && assessment ? assessment.allowed ? "allowed" : "invalid" : undefined}
-                className={`rounded-md border p-3 ${dropTarget === targetArea.id ? assessment?.allowed ? "border-primary" : "border-destructive" : "border-transparent"}`}
-                onDragOver={event => {
-                  if (!dragged) return;
-                  setDropTarget(targetArea.id);
-                  if (dropAssessment(dragged.anchorId, dragged.areaId, targetArea.id).allowed) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                  }
-                }}
-                onDragLeave={event => {
-                  if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDropTarget(null);
-                }}
-                onDrop={event => {
-                  event.preventDefault();
-                  const targetAnchorId = event.target instanceof Element ? event.target.closest("[data-anchor]")?.getAttribute("data-anchor") ?? undefined : undefined;
-                  drop(targetArea.id, targetAnchorId);
-                }}
-              >
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 id={areaLabelId} className="text-body-sm font-medium">{areaLabel(targetArea.id)}</h3>
-                  <p className="text-caption text-muted-foreground">{t("settings.categories.workspace.areaCapacity", { used: visibleCount, capacity: targetArea.capacity })}</p>
-                </div>
-                {dropTarget === targetArea.id && dragged && assessment && <p role="status" className="mb-3 text-caption text-muted-foreground">{assessment.allowed ? t("settings.categories.workspace.dropAllowed") : t(`settings.categories.workspace.dropReasons.${assessment.reason}`, { area: areaLabel(targetArea.id), used: visibleCount, capacity: targetArea.capacity })}</p>}
-                <div className="grid gap-3">
-                  {areaPlacements.map(placement => {
-                    const anchor = anchors.get(placement.anchorId);
-                    const canMove = anchor?.studio.operations.includes("move") ?? false;
-                    const canReorder = (direction: -1 | 1) => {
-                      if (!anchor?.studio.operations.includes("reorder")) return false;
-                      const index = placements.findIndex(item => item.anchorId === placement.anchorId);
-                      const other = placements[index + direction];
-                      const target = other?.areaId === placement.areaId && other ? anchors.get(other.anchorId) : undefined;
-                      return Boolean(target && !target.critical && target.statePolicy !== "dirty" && target.studio.operations.includes("reorder"));
-                    };
-                    const label = anchor ? t(anchor.accessibility.labelKey as MessageKey) : placement.anchorId;
-                    const labelId = `workspace-anchor-${placement.anchorId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
-                    return (
-                      <div
-                        key={placement.anchorId}
-                        role="group"
-                        aria-labelledby={labelId}
-                        className="grid gap-2 border-b pb-3 last:border-b-0 last:pb-0"
-                        data-anchor={placement.anchorId}
-                        draggable={!busy && (canMove || anchor?.studio.operations.includes("reorder"))}
-                        onDragStart={event => {
-                          event.dataTransfer.setData("text/plain", placement.anchorId);
-                          event.dataTransfer.effectAllowed = "move";
-                          setDragged({ anchorId: placement.anchorId, areaId: placement.areaId });
-                          setError(null);
-                        }}
-                        onDragEnd={endDrag}
-                      >
-                        <div className="flex min-w-0 items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p id={labelId} className="font-medium">{label}</p>
-                            <p className="text-caption text-muted-foreground">{areaLabel(targetArea.id)} · {t(`settings.categories.workspace.variants.${placement.variant}`)}</p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <Button variant="ghost" size="icon-sm" disabled={!canReorder(-1) || busy} aria-label={`${t("settings.categories.workspace.up")}: ${label}`} onClick={() => reorder(placement.anchorId, -1)}>
-                              <ArrowUp className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon-sm" disabled={!canReorder(1) || busy} aria-label={`${t("settings.categories.workspace.down")}: ${label}`} onClick={() => reorder(placement.anchorId, 1)}>
-                              <ArrowDown className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <label className="flex min-h-11 items-center gap-2 text-body-sm sm:min-h-6">
-                            <Checkbox className="size-target" disabled={busy || !anchor?.studio.operations.includes("hide")} checked={placement.visible} onCheckedChange={() => void preview(visibilityPatch(workspace, placement.anchorId, !placement.visible))} />
-                            {placement.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                            {placement.visible ? t("settings.categories.workspace.visible") : t("settings.categories.workspace.hidden")}
-                          </label>
-                          <label className="flex min-h-11 items-center gap-2 text-body-sm sm:min-h-6">
-                            <Pin className="h-4 w-4" />
-                            <Checkbox className="size-target" disabled={busy || !anchor?.studio.operations.includes("pin")} checked={placement.pinned} onCheckedChange={() => void preview(pinPatch(workspace, placement.anchorId, !placement.pinned))} />
-                            {t("settings.categories.workspace.pinned")}
-                          </label>
-                          <Select value={placement.variant} onValueChange={value => void preview(variantPatch(workspace, placement.anchorId, value as typeof placement.variant))}>
-                            <SelectTrigger disabled={busy} aria-label={t("settings.categories.workspace.variant")} className="w-full sm:w-32"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {anchor?.studio.variants.map(variant => <SelectItem key={variant} value={variant}>{t(`settings.categories.workspace.variants.${variant}`)}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          {canMove && (
-                            <Select value={placement.areaId} onValueChange={value => void preview(movePatch(workspace, placement.anchorId, value))}>
-                              <SelectTrigger disabled={busy} aria-label={t("settings.categories.workspace.area")} className="w-full sm:w-44"><SelectValue>{areaLabel(placement.areaId)}</SelectValue></SelectTrigger>
-                              <SelectContent>
-                                {areas.filter(area => area.id !== placement.areaId && area.allowedAnchorIds.includes(placement.anchorId)).map(area => <SelectItem key={area.id} value={area.id}>{areaLabel(area.id)}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+        <p id="workspace-canvas-hint" className="text-caption text-muted-foreground">{t("settings.categories.workspace.canvasHint")}</p>
+        {pending && (
+          <SegmentedControl
+            label={t("settings.categories.workspace.compare")}
+            value={showApplied ? "applied" : "preview"}
+            onChange={value => setShowApplied(value === "applied")}
+            options={[
+              { value: "preview", label: t("settings.categories.workspace.comparePreview") },
+              { value: "applied", label: t("settings.categories.workspace.compareApplied") },
+            ]}
+          />
+        )}
+        {sketch && (
+          <div inert={showApplied && pending ? true : undefined}>
+            <LayoutCanvas
+              sketch={sketch}
+              placements={shownPlacements}
+              applied={workspace.placements}
+              areas={areas}
+              anchors={anchors}
+              rules={rules}
+              busy={busy || applying}
+              actions={canvasActions}
+              label={anchorId => anchorLabel(anchorId, { provider })}
+              onAnnounce={setAnnouncement}
+            />
+          </div>
+        )}
+        <p aria-live="polite" className="sr-only">{announcement}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button id="workspace-reset" variant="outline" size="sm" disabled={busy || placements.length === 0} onClick={reset}>
             <RotateCcw className="h-4 w-4" /> {t("settings.categories.workspace.reset")}
@@ -491,7 +444,7 @@ function WorkspaceEditor() {
               </span>
             </li>)}
             {workspace.discoveryAnchorIds.map(anchorId => <li key={anchorId} data-discovery-anchor={anchorId} className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <span className="min-w-0">{anchors.get(anchorId) ? t(anchors.get(anchorId)!.accessibility.labelKey as MessageKey) : anchorId}</span>
+              <span className="min-w-0">{anchorLabel(anchorId, { provider })}</span>
               <span className="flex flex-wrap items-center gap-2">
                 <Chip tone="info">{t("settings.categories.workspace.new")}</Chip>
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => void markDiscovery(anchorId, true)}>{t("settings.categories.workspace.place")}</Button>
@@ -502,7 +455,7 @@ function WorkspaceEditor() {
         </SettingsGroup>
       )}
       <Suspense fallback={null}><FlowMapPanel onPatch={preview} /></Suspense>
-      <Suspense fallback={null}><PlannerPanel draft={pending?.draft ?? null} onPatch={preview} onRestore={(draft, descriptor, previewWorkspace) => { latestDraft.current = draft; setPending({ draft, descriptor, workspace: previewWorkspace }); }} /></Suspense>
+      <Suspense fallback={null}><PlannerPanel draft={pending?.draft ?? null} onPatch={preview} onRestore={(draft, _descriptor, previewWorkspace) => { latestDraft.current = draft; setPending({ draft, workspace: previewWorkspace }); }} /></Suspense>
     </>
   );
 }

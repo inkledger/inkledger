@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 import type { EvidenceSet, ExpectationGap, FlowMapDocument, FlowMapView } from "@contracts/workspace/flowMap";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import type { SuggestionPatch } from "@contracts/workspace/model";
-import { dateFormat, t, type MessageKey } from "@/i18n";
-import { areaLabel, controlLabel } from "@/lib/workspace/labels";
+import { t, type MessageKey } from "@/i18n";
+import { areaLabel, controlLabel, periodLabel } from "@/lib/workspace/labels";
 import { HeatTimeline } from "./HeatTimeline";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
@@ -104,10 +104,10 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
           label: `${t(key(`patterns.${gap.pattern}`), { area: areaLabel(gap.areaId) })}${gap.destinationControlId ? ` → ${controlLabel(gap.destinationControlId)}` : ""}`,
           detail: t(key("expectationDetail"), { count: gap.occurrences, confidence: Math.round(gap.confidence * 100), state: t(key(`expectationStates.${gap.state}`)) }),
         }));
-  const period = (coverage: EvidenceSet["coverage"]) => {
-    const day = dateFormat({ day: "numeric", month: "short" });
-    return t(key("evidenceRange"), { range: `${day.format(coverage.firstAt)} – ${day.format(coverage.lastAt)}`, count: coverage.activeDays });
-  };
+  // Nothing used yet: no dates to show (an empty set has none), only that it is empty.
+  const period = (coverage: EvidenceSet["coverage"]) => coverage.lastAt > 0
+    ? t(key("evidenceRange"), { range: periodLabel(coverage), count: coverage.activeDays })
+    : t(key("evidenceEmpty"));
   return (
     <SettingsGroup id="workspace-flowmap" title={t(key("flowTitle"))} description={t(key("flowDescription"))}>
       {error && <p role="alert" className="mb-3 text-body-sm text-danger">{error}</p>}
@@ -119,7 +119,7 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
         })} />
       </SettingsRow>
       {(query.data?.settings.enabled || (query.data?.evidence.length ?? 0) > 0) && (
-        <HeatTimeline evidence={query.data?.evidence ?? []} layouts={query.data?.layouts ?? {}} surfaceId={scope.surfaceId} />
+        <HeatTimeline evidence={query.data?.evidence ?? []} layouts={query.data?.layouts ?? {}} scope={scope} />
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <SegmentedControl label={t(key("view"))} value={view} onChange={setView} options={(["heat", "flow", "friction", "expectation"] as const).map(value => ({ value, label: t(key(`views.${value}`)) }))} />
