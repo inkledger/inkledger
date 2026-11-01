@@ -115,5 +115,28 @@ Close the Workspace/FlowMap work (studio/flowmap-adaptive-workspace.md, Phases 0
 - Cause: the pane treated the copy setting as "off" until `me` answered, so a pin made in that moment skipped the mail's copy without a word.
 - Fixed in 38c24cd, with a deterministic regression test (the `me` answer is held until after the pin). The Outlook file then passed 6 out of 6 runs.
 
+## Review 2 (1 Nov, after the commits)
+Three independent read-only audits (kernel and server, client and UI, FlowMap/planner/tests) of `origin/main..HEAD`. Each finding was checked in the code; each fix has a regression test that failed before it, or is listed below as not reproduced.
+
+Fixed (commits eb212fe, 72d0d5a, ae27d90):
+- Kernel: a reorder checked only the first pinned block; timeline and summary were not hideable, so the legacy data migration threw at boot for anyone who had hidden them; FlowMap checksums and order depended on the server's locale; active days were UTC days.
+- Server: a draft discarded by another tab could still be committed; "applied" was set on a newer draft revision; the draft compare-and-swap compared JSON text, so a FlowMap Delete (jsonb rewrite) left drafts that could never be saved; the boot purge never dropped idle presentations, finished drafts, old operations or imports; discovery marks lost updates; an oversized `.workspace` gave a 500; server-written flow events collided on their id; an unsupported scope gave a 500.
+- FlowMap and planner: empty daily periods; forged control ids on exposure/discovery events; no throttle on aggregate, export and suggest, no cap on raw events, a prune on every batch; the model's order was dropped and "picked nothing" read as "unavailable"; feedback reported as saved with collection off; Delete kept planner feedback and suggestion data in drafts.
+- Client: the Dashboard ignored where the Studio placed sections (rail, bands, desk hide); Customize built every tick on a stale layout, left drafts that blocked the next tick, changed one device only and flashed; a focused field removed without blur kept the typing task forever; a beacon was sent after opt-out; shared timer controls were counted as the sidebar's; missing label keys showed raw keys; Settings colours differed for everyone; planner lost the typed request, showed ids and raw numbers.
+- Outlook: the copy could be the next mail's file, and it held the pane's buttons while waiting.
+
+Not changed, with reason:
+- Revision operations still accumulate: compacting them would change the fingerprints of layouts already presented. An export over 1024 operations is refused as too large, not with a 500.
+- Descriptors are not purged: one row per distinct layout, used by "Use over time".
+- Kernel helpers used only by tests stay (they check the real catalog); `src/lib/workspace/crypto.ts` stays as the browser half of the cross-platform digest tests.
+- The forced interleaving "consent read, Delete, insert" is not unit-tested; consent is re-read under the flow lock (checked in the code).
+
+Visual Layout editor (user request, 1 Nov), D-58:
+- `src/lib/workspace/sketch.ts` draws each page the way it is laid out (Dashboard desktop and phone, sidebar, phone tabs); the editor and "Use over time" share it (`PageSketch`).
+- Every block sits in its area with its eye, pin and ⋯ menu (size, up/down/start/end, move to); hidden blocks stay as dashed ghosts; locked ones say why.
+- Drag by the handle with pointer events (mouse, pen, finger; `touch-action:none` only on the handle), live slot, inline refusal reason, edge auto-scroll; keyboard: Space, arrows, Enter, Escape, announced.
+- Each change is drawn at once and replaced by the server's preview; "Now on the page" shows the applied layout.
+- Two Dashboard scopes in the Studio; Customize changes both.
+
 ## Status
-Complete: the full gate is green on the committed tree (lint, check, 2668 unit, build, smoke 922.0/293.0 KiB, 311/311 e2e, db:check). The commits are local, not pushed.
+Complete: the full gate is green on the committed tree after review 2 and the editor (lint, check, 2700 unit, build, smoke 924.1/293.8 KiB within 925/295, 317/317 e2e, db:check). One unrelated e2e (timesheet dialog height) measured mid-animation under load; fixed in its own commit. The commits are local, not pushed.
