@@ -100,7 +100,7 @@ Close the Workspace/FlowMap work (studio/flowmap-adaptive-workspace.md, Phases 0
 | `pnpm test` | unit | 2668/2668 |
 | `pnpm build` | bundle | ok |
 | `pnpm test:smoke` | server + first-load | ok; 922.0 KiB, 293.0 KiB gzip (limits 925/295 unchanged: the catalogue checks moved off the client) |
-| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | full matrix | 309/310. The one failure (axe target-size measured after a leftover scroll) was fixed in the test, then 26/26 workspace/flowmap/a11y/guarantees passed. |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | full matrix | 311/311 on the committed tree. Earlier runs had two failures, both fixed: an axe check measured after a leftover scroll, and an Outlook pane race (see below). |
 | `pnpm db:check` | migrations vs schema | ok |
 | HEAD layout signature | never-customized user, 1400/1280/375 px | only difference: the new Workspace settings category |
 | Regressions on the pre-fix snapshot | kernel, canonical, collector, import, flow | each new test fails before its fix |
@@ -110,5 +110,10 @@ Close the Workspace/FlowMap work (studio/flowmap-adaptive-workspace.md, Phases 0
 - The service-level concurrency tests (prepare per tab, racing commits, single-use lease, read vs activation) were written after the change: the untracked files had no copy from before, so their failure on the old code is not proven.
 - From then on, a snapshot (`scratchpad/snap1`) was used.
 
-## Blocks and next action
-- None. Next: full gate, visual check on dev :3000, grouped commits (no push).
+## Outside the workspace, found by the gate
+- `e2e/outlook-addin.test.mjs` "the pane sends the copy where Outlook can" failed now and then, on HEAD as well.
+- Cause: the pane treated the copy setting as "off" until `me` answered, so a pin made in that moment skipped the mail's copy without a word.
+- Fixed in 38c24cd, with a deterministic regression test (the `me` answer is held until after the pin). The Outlook file then passed 6 out of 6 runs.
+
+## Status
+Complete: the full gate is green on the committed tree (lint, check, 2668 unit, build, smoke 922.0/293.0 KiB, 311/311 e2e, db:check). The commits are local, not pushed.
