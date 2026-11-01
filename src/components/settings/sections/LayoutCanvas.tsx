@@ -1,4 +1,4 @@
-import { Fragment, useRef } from "react";
+import { Fragment, useRef, type ReactNode } from "react";
 import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Eye, EyeOff, GripVertical, Lock, MoreHorizontal, Pin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,12 +14,12 @@ import {
 import { surface } from "@/components/app/surface";
 import { cn } from "@/lib/utils";
 import { areaLabel } from "@/lib/workspace/labels";
-import { blocksIn, type Sketch, type SketchArea, type SketchAxis } from "@/lib/workspace/sketch";
+import { blocksIn, heatClass, type Sketch, type SketchArea, type SketchAxis } from "@/lib/workspace/sketch";
 import { useBlockDrag, type BlockDrag } from "@/lib/workspace/useBlockDrag";
 import type { AnchorManifest, AreaManifest } from "@contracts/workspace/catalogTypes";
 import type { ResolvedPlacement, Variant } from "@contracts/workspace/model";
 import { t, type MessageKey } from "@/i18n";
-import { PageSketch } from "./PageSketch";
+import { AreaBlocks, PageSketch } from "./PageSketch";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
@@ -41,18 +41,13 @@ type Reorder = "up" | "down" | "first" | "last";
 const HEIGHT: Record<Variant, string> = { compact: "min-h-9", default: "min-h-12", expanded: "min-h-16" };
 const WIDTH: Record<Variant, string> = { compact: "min-w-24", default: "min-w-32", expanded: "min-w-40" };
 
-function list(axis: SketchAxis): string {
-  if (axis === "row") return "flex flex-wrap gap-1.5";
-  if (axis === "tiles") return "grid grid-cols-[repeat(auto-fill,minmax(min(7rem,100%),1fr))] gap-1.5";
-  return "grid gap-1.5";
-}
 
 /**
  * The Layout editor: the page drawn small with every block where it is, changed on the block itself.
  * Drag a block by its handle (or pick it up with Space and move it with the arrows) to another place;
  * the eye shows or hides it, the pin keeps it where it is, the menu sets its size and moves it too.
  */
-export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rules, busy, actions, label, onAnnounce }: {
+export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rules, busy, actions, label, usage = null, onAnnounce }: {
   sketch: Sketch;
   placements: readonly ResolvedPlacement[];
   /** The layout on screen now: blocks that differ in the preview are marked as changed. */
@@ -64,8 +59,11 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
   actions: CanvasActions;
   /** A block's name, as the page writes it (with the user's tracker in it). */
   label: (anchorId: string) => string;
+  /** How much each block was used (FlowMap), drawn on the blocks when given. */
+  usage?: ReadonlyMap<string, number> | null;
   onAnnounce: (text: string) => void;
 }) {
+  const most = usage ? Math.max(1, ...usage.values()) : 1;
   const root = useRef<HTMLDivElement>(null);
   const editable = sketch.areas.filter(area => areas.some(item => item.id === area.areaId));
   const others = (areaId: string, anchorId: string) => blocksIn(placements, areaId).filter(placement => placement.anchorId !== anchorId);
@@ -114,7 +112,11 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
     if (index !== null) actions.place(placement.anchorId, areaId, index);
   };
 
-  const renderArea = (area: SketchArea) => {
+  const nested = (areaId: string) => {
+    const area = sketch.areas.find(item => item.areaId === areaId && item.region === "nested");
+    return area ? renderArea(area) : null;
+  };
+  const renderArea = (area: SketchArea): ReactNode => {
     const manifest = areas.find(item => item.id === area.areaId);
     if (!manifest) return null;
     const blocks = blocksIn(placements, area.areaId);
@@ -127,6 +129,40 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
       // surface: none — the dashed slot where the moved block would land, not a box of its own
       <div key="slot" aria-hidden data-drop-slot className={cn("rounded-md border-2 border-dashed", check?.allowed === false ? "border-danger" : "border-primary", area.axis === "row" ? "min-h-9 min-w-24" : "min-h-9")} />
     );
+    // One block as drawn, with the slot before it when the moved block would land there.
+    const tileFor = (anchorId: string) => {
+      const placement = blocks.find(item => item.anchorId === anchorId);
+      if (!placement) return null;
+      const moving = placement.anchorId === drag?.anchorId;
+      // The slot goes before the block at the target index among the area's other blocks.
+      const otherIndex = shown.indexOf(placement);
+      return (
+        <Fragment key={placement.anchorId}>
+          {targeted && !moving && drag?.index === otherIndex && slot}
+          <Block
+            placement={placement}
+            areaId={area.areaId}
+            axis={area.axis}
+            name={label(placement.anchorId)}
+            overlay={area.region === "tray"}
+            stacked={area.axis === "row" || area.axis === "tiles" || (area.region === "nested" && sketch.frame === "page")}
+            anchor={anchors.get(placement.anchorId)}
+            rules={rules(placement.anchorId)}
+            changed={isChanged(placement, applied)}
+            uses={usage ? usage.get(placement.anchorId) ?? 0 : null}
+            most={most}
+            busy={busy}
+            areas={areas}
+            actions={actions}
+            reorder={to => reorder(placement, area.areaId, to)}
+            canReorderTo={to => reorderIndex(placement, area.areaId, to) !== null}
+            dragging={moving}
+            onHandlePointerDown={event => onPointerDown(event, placement.anchorId, area.areaId)}
+            onHandleKeyDown={event => onKeyDown(event, placement.anchorId, area.areaId)}
+          />
+        </Fragment>
+      );
+    };
     return (
       <section
         {...surface("ground")}
@@ -144,40 +180,10 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
             </span>
           )}
         </div>
-        {sketch.frame === "phone-page" && area.region === "rail" && <p className="text-caption text-muted-foreground">{t(key("railOnPhone"))}</p>}
-        <div className={list(area.axis)}>
-          {blocks.map(placement => {
-            const moving = placement.anchorId === drag?.anchorId;
-            // The slot goes before the block at the target index among the area's other blocks.
-            const otherIndex = shown.indexOf(placement);
-            return (
-              <Fragment key={placement.anchorId}>
-                {targeted && !moving && drag?.index === otherIndex && slot}
-                <Block
-                  placement={placement}
-                  areaId={area.areaId}
-                  axis={area.axis}
-                  name={label(placement.anchorId)}
-                  overlay={area.region === "tray"}
-                  stacked={area.axis !== "column" || (area.region === "rail" && sketch.frame === "page")}
-                  anchor={anchors.get(placement.anchorId)}
-                  rules={rules(placement.anchorId)}
-                  changed={isChanged(placement, applied)}
-                  busy={busy}
-                  areas={areas}
-                  actions={actions}
-                  reorder={to => reorder(placement, area.areaId, to)}
-                  canReorderTo={to => reorderIndex(placement, area.areaId, to) !== null}
-                  dragging={moving}
-                  onHandlePointerDown={event => onPointerDown(event, placement.anchorId, area.areaId)}
-                  onHandleKeyDown={event => onKeyDown(event, placement.anchorId, area.areaId)}
-                />
-              </Fragment>
-            );
-          })}
-          {targeted && drag && drag.index >= shown.length && slot}
-          {blocks.length === 0 && !targeted && <p className="text-caption text-muted-foreground">{t(key("emptyArea"))}</p>}
-        </div>
+        {sketch.frame === "phone-page" && area.areaId === "dashboard.secondary" && <p className="text-caption text-muted-foreground">{t(key("railOnPhone"))}</p>}
+        <AreaBlocks area={area} sketch={sketch} anchorIds={blocks.map(placement => placement.anchorId)} tileFor={tileFor} nested={nested} />
+        {targeted && drag && drag.index >= shown.length && slot}
+        {blocks.length === 0 && !targeted && <p className="text-caption text-muted-foreground">{t(key("emptyArea"))}</p>}
         {check && !check.allowed && <p role="status" className="text-caption text-danger">{check.reason}</p>}
       </section>
     );
@@ -195,7 +201,7 @@ function isChanged(placement: ResolvedPlacement, applied: readonly ResolvedPlace
   return !before || before.areaId !== placement.areaId || before.order !== placement.order || before.visible !== placement.visible || before.variant !== placement.variant || before.pinned !== placement.pinned;
 }
 
-function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor, rules, changed, busy, areas, actions, reorder, canReorderTo, dragging, onHandlePointerDown, onHandleKeyDown }: {
+function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor, rules, changed, uses, most, busy, areas, actions, reorder, canReorderTo, dragging, onHandlePointerDown, onHandleKeyDown }: {
   placement: ResolvedPlacement;
   areaId: string;
   axis: SketchAxis;
@@ -207,6 +213,9 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
   anchor: AnchorManifest | undefined;
   rules: BlockRules;
   changed: boolean;
+  /** Times used, when use is shown (null: not shown). */
+  uses: number | null;
+  most: number;
   busy: boolean;
   areas: readonly AreaManifest[];
   actions: CanvasActions;
@@ -243,6 +252,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
       <span id={labelId} className="min-w-0 flex-1 truncate text-body-sm" title={block}>{block}</span>
       {changed && <span role="img" aria-label={t(key("changed"))} title={t(key("changed"))} className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-strong" />}
       {ghost && <span className="sr-only">{t(key("hidden"))}</span>}
+      {uses !== null && uses > 0 && <span className="shrink-0 text-caption tabular-nums text-foreground" title={t(key("timelineBlock"), { block, count: uses })}>{t(key("usesShort"), { count: uses })}</span>}
     </>
   );
   const buttons = overlay ? null : (
@@ -318,7 +328,8 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
       data-visible={placement.visible}
       data-variant={placement.variant}
       className={cn(
-        "min-w-0 rounded-md border bg-card p-0.5",
+        "min-w-0 rounded-md border p-0.5",
+        uses !== null ? heatClass(uses, most) : "bg-card",
         stacked ? "grid content-between gap-0.5" : "flex items-center gap-0.5 pr-1",
         axis === "row" ? cn("flex-1", WIDTH[placement.variant]) : HEIGHT[placement.variant],
         ghost && "border-dashed bg-transparent text-muted-foreground",

@@ -39,6 +39,20 @@ describe("server-side layout evidence", () => {
     expect(await loadFlowEvents(1, phone, mobile.descriptor.effectiveRevision)).toHaveLength(1);
   });
 
+  it("reads back what it wrote: a commit's revision id (with its underscore) never breaks the maps", async () => {
+    await setFlowConsent(1, true);
+    const current = await getWorkspace(1, scope, "tab-a");
+    await recordWorkspaceCommitted(1, scope, "tab-a", "wr_Ab-cd_EF");
+    expect(await loadFlowEvents(1, scope, current.descriptor.effectiveRevision)).toHaveLength(1);
+  });
+
+  it("skips a stored event it cannot read instead of failing every map", async () => {
+    await setFlowConsent(1, true);
+    const current = await getWorkspace(1, scope, "tab-a");
+    await q("INSERT INTO workspace_flow_events (user_id, id, surface_id, device_class, effective_revision, occurred_at, payload, received_at) VALUES (1, 'broken', 'dashboard', 'desktop', ?, ?, '{\"not\":\"an event\"}', ?)", current.descriptor.effectiveRevision, Date.now(), Date.now());
+    expect(await loadFlowEvents(1, scope, current.descriptor.effectiveRevision)).toEqual([]);
+  });
+
   it("keeps presented and undo events separate and idempotent", async () => {
     await setFlowConsent(1, true);
     const current = await getWorkspace(1, scope, "tab-a");

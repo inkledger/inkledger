@@ -87,7 +87,15 @@ export async function loadFlowEvents(userId: number, scope: Scope, effectiveRevi
     eq(workspaceFlowEvents.effectiveRevision, effectiveRevision),
     since === undefined ? undefined : gte(workspaceFlowEvents.occurredAt, since),
   )).orderBy(workspaceFlowEvents.occurredAt, workspaceFlowEvents.id);
-  return rows.map(row => flowEventSchema.parse(JSON.parse(row.payload)));
+  // A row this version cannot read (written by another one, or damaged) is left out: one event never takes every map down.
+  return rows.flatMap(row => {
+    try {
+      const parsed = flowEventSchema.safeParse(JSON.parse(row.payload));
+      return parsed.success ? [parsed.data] : [];
+    } catch {
+      return [];
+    }
+  });
 }
 
 export async function saveEvidence(userId: number, evidence: EvidenceSet): Promise<void> {

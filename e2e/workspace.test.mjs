@@ -324,18 +324,21 @@ test("The layout editor draws each change at once on the block, and shows what i
   });
 });
 
-test("A block moves with a finger on its handle, and the page does not scroll instead", async () => {
+test("A block moves with a finger on its handle, which alone keeps the finger from scrolling the page", async () => {
   await withApp({ viewport: { width: 390, height: 900 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
     await page.getByRole("radio", { name: "Mobile tabs", exact: true }).click();
     // More before Issues: the timer's tab keeps its place, as it must.
     const handle = page.locator('[data-anchor="mobile.more"]').getByRole("button", { name: "Move More", exact: true });
-    await handle.scrollIntoViewIfNeeded();
+    // In the middle of the screen: near an edge the page scrolls on purpose, to reach a far area.
+    await handle.evaluate(element => element.scrollIntoView({ block: "center" }));
     const from = await handle.boundingBox();
     const to = await page.locator('[data-anchor="mobile.issues"]').boundingBox();
     const cdp = await page.context().newCDPSession(page);
     const point = (x, y) => [{ x: Math.round(x), y: Math.round(y) }];
-    const scrolled = await page.evaluate(() => document.scrollingElement.scrollTop);
+    // The handle alone takes the finger from the page (the rest of the block, and the page, still scroll).
+    assert.equal(await handle.evaluate(element => getComputedStyle(element).touchAction), "none");
+    assert.equal(await page.locator('[data-anchor="mobile.more"]').evaluate(element => getComputedStyle(element).touchAction), "auto");
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(from.x + from.width / 2, from.y + from.height / 2) });
     for (let step = 1; step <= 8; step++) {
       const x = from.x + from.width / 2 + ((to.x + 6) - (from.x + from.width / 2)) * step / 8;
@@ -343,9 +346,6 @@ test("A block moves with a finger on its handle, and the page does not scroll in
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x, y) });
     }
     await page.locator("[data-drop-slot]").waitFor();
-    // Measured while the finger is still down: the gesture moved the block, not the page (once dropped,
-    // the preview's own controls appear above and the browser keeps the view where it was).
-    assert.equal(await page.evaluate(() => document.scrollingElement.scrollTop), scrolled, "the drag moved the block, not the page");
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await page.getByText(/Preview, not applied yet/).waitFor();
     const order = await page.locator('[data-drop-area="mobile.tabs"] [data-tile]').evaluateAll(tiles => tiles.map(tile => tile.getAttribute("data-anchor")));

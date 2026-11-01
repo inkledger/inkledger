@@ -119,7 +119,7 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
         })} />
       </SettingsRow>
       {(query.data?.settings.enabled || (query.data?.evidence.length ?? 0) > 0) && (
-        <HeatTimeline evidence={query.data?.evidence ?? []} layouts={query.data?.layouts ?? {}} scope={scope} />
+        <HeatTimeline evidence={query.data?.evidence ?? []} live={query.data?.live ?? null} layouts={query.data?.layouts ?? {}} scope={scope} />
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <SegmentedControl label={t(key("view"))} value={view} onChange={setView} options={(["heat", "flow", "friction", "expectation"] as const).map(value => ({ value, label: t(key(`views.${value}`)) }))} />

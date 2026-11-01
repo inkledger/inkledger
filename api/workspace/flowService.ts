@@ -125,9 +125,23 @@ export async function flowMapOverview(userId: number, scope: Scope) {
     const snapshot = await workspaceAtDescriptor(userId, scope, revision).catch(() => null);
     layouts[revision] = snapshot ? snapshot.workspace.placements.map(({ anchorId, areaId, order, visible }) => ({ anchorId, areaId, order, visible })) : null;
   }
+  const settings = await getFlowSettings(userId);
+  // This week so far on the layout shown now, worked out on the fly (and stored nowhere): use shows as soon
+  // as there is some, not only after the next daily period is made.
+  let live: EvidenceSet | null = null;
+  if (settings.enabled) {
+    const current = await getWorkspace(userId, scope);
+    const events = await loadFlowEvents(userId, scope, current.descriptor.effectiveRevision, Date.now() - 7 * DAY);
+    if (events.length > 0) {
+      const areasByAnchor = Object.fromEntries(current.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
+      live = aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor);
+      layouts[current.descriptor.effectiveRevision] ??= current.workspace.placements.map(({ anchorId, areaId, order, visible }) => ({ anchorId, areaId, order, visible }));
+    }
+  }
   return {
-    settings: await getFlowSettings(userId),
+    settings,
     evidence,
+    live,
     layouts,
     imports: await listFlowImports(userId, scope),
   };

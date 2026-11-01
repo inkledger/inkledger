@@ -138,5 +138,11 @@ Visual Layout editor (user request, 1 Nov), D-58:
 - Each change is drawn at once and replaced by the server's preview; "Now on the page" shows the applied layout.
 - Two Dashboard scopes in the Studio; Customize changes both.
 
+## Review 3 (1 Nov, on the user's own data and pages)
+- A layout saved under older rules (the header timer hidden then shown, before C-01) no longer resolved: the whole saved layout was dropped and every new commit on it failed. Saved operations the current rules refuse are now set aside (listed as `isolated` fallbacks); drafts still follow today's rules. Found on the dev database, reproduced in `resolve.test.ts` and an e2e.
+- The Studio's drawing did not match the pages: the rail is beside the timeline only, the summary sits beside My issues and Recent activity (stacked), the header stands beside the page title, the sidebar's timer sits before "Start timer". The Dashboard and every drawing of it now share one composition (`dashboardSegments`, `sidebarActionSegments`, `AreaBlocks`).
+- No heat map showed because FlowMap had never been turned on (opt-in) and a period appeared only after the daily snapshot. Now: this week's use is worked out on the fly (stored nowhere) and shown at once in "Use over time" and on the editor's blocks ("Show use"); with FlowMap off the editor says so and leads to its switch.
+- One unreadable stored event made every map fail: such rows are now skipped.
+
 ## Status
 Complete: the full gate is green on the committed tree after review 2 and the editor (lint, check, 2700 unit, build, smoke 924.1/293.8 KiB within 925/295, 317/317 e2e, db:check). One unrelated e2e (timesheet dialog height) measured mid-animation under load; fixed in its own commit. The commits are local, not pushed.

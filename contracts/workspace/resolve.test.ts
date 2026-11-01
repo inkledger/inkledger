@@ -243,6 +243,25 @@ describe("workspace resolver", () => {
     }
   });
 
+  it("sets aside a saved change that newer rules refuse, and keeps the rest of the saved layout", () => {
+    // Saved before the timer became critical: a history must never stop resolving.
+    const saved = (operation: SuggestionPatch["operations"][number]) => ({ operation, origin: "user" as const, acceptedByUser: true });
+    const history = active({ operations: [
+      saved({ type: "visibility", operationId: "old-hide-timer", anchorId: "timer", visible: false }),
+      saved({ type: "visibility", operationId: "old-show-timer", anchorId: "timer", visible: true }),
+      saved({ type: "visibility", operationId: "hide-stats", anchorId: "stats", visible: false }),
+    ] });
+    const result = resolve(input({ activeRevision: history }));
+    expect(result.kind).toBe("resolved");
+    const resolved = placements(result);
+    expect(resolved.find(placement => placement.anchorId === "stats")?.visible).toBe(false);
+    expect(resolved.find(placement => placement.anchorId === "timer")?.visible).toBe(true);
+    if (result.kind === "resolved") expect(result.workspace.fallbacks).toEqual([{ anchorId: "timer", reason: "isolated" }]);
+    // A draft on top still follows today's rules.
+    const now = patch({ author: "user", intent: { kind: "custom", status: "explicit" }, suggestionSignature: undefined, operations: [{ type: "visibility", operationId: "new-hide-timer", anchorId: "timer", visible: false }] });
+    expect(resolve(input({ activeRevision: history, draft: draftOf([now]) })).kind).toBe("conflicts");
+  });
+
   it("keeps every pinned anchor of a reorder in place, not only the first", () => {
     const four = { ...productDefault, placements: [...productDefault.placements, { anchorId: "new-feature", areaId: "primary", order: 3, visible: true, variant: "default" as const, pinned: false }] };
     const pins = [constraintOf({ id: "pin-timeline", anchorId: "timeline" }), constraintOf({ id: "pin-tasks", anchorId: "tasks" })];

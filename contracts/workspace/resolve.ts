@@ -205,8 +205,21 @@ export function resolve(input: ResolveInput): ResolveResult {
     placement.operationId = operation.operationId;
   };
 
+  // A saved layout never stops resolving: a change it holds that the rules of a newer version refuse is
+  // set aside (and listed as a fallback), the rest of it still applies. Drafts follow today's rules.
   for (const committed of activeRevision.operations) {
+    const conflictCount = conflicts.length;
+    const fallbackCount = fallbacks.length;
+    const before = placements.map(placement => ({ ...placement }));
     applyOperation(committed.operation, committed.origin === "product" ? "product" : "user");
+    if (conflicts.length === conflictCount) continue;
+    const refused = conflicts.splice(conflictCount);
+    placements.splice(0, placements.length, ...before);
+    fallbacks.length = fallbackCount;
+    const anchorIds = committed.operation.type === "reorder" ? committed.operation.anchorIds : [committed.operation.anchorId];
+    for (const anchorId of new Set(refused.map(conflict => conflict.anchorId ?? anchorIds[0]))) {
+      if (!fallbacks.some(fallback => fallback.anchorId === anchorId && fallback.reason === "isolated")) fallbacks.push({ anchorId, reason: "isolated" });
+    }
   }
 
   const applyConstraint = (constraint: Constraint) => {

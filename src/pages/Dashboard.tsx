@@ -33,6 +33,7 @@ import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
 import { placementsFor, useWorkspaceDeviceClass } from "@/lib/workspace/utils";
 import type { ResolvedPlacement } from "@contracts/workspace/model";
+import { dashboardSegments } from "@/lib/workspace/sketch";
 import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { setSectionVisibility, type CustomizeTarget } from "@/lib/workspace/customize";
@@ -285,52 +286,39 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
   const inArea = (areaId: string) => workspace.placements
     .filter(placement => placement.areaId === areaId && shown(placement))
     .sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
-  const primary = inArea("dashboard.primary");
   const rail = inArea("dashboard.secondary");
   // The secondary area is the rail beside the timeline when the timeline leads; else a band of its own on top.
-  const lead = primary[0]?.anchorId === "dashboard.timeline" ? primary[0] : undefined;
-  const rest = lead ? primary.slice(1) : primary;
+  // The same composition draws the Studio's picture of this page (dashboardSegments).
+  const { lead, segments } = dashboardSegments(inArea("dashboard.primary").map(placement => placement.anchorId));
   const railNode = rail.length === 1
     ? renderAnchor(rail[0].anchorId)
     : rail.length > 1 ? <div className="grid min-w-0 gap-6">{rail.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div> : null;
-  // Full-width bands keep their place in the order; the sections between them share a row.
-  const segments: ResolvedPlacement[][] = [];
-  for (const placement of rest) {
-    if (BANDS.has(placement.anchorId) || segments.length === 0 || BANDS.has(segments.at(-1)![0].anchorId)) segments.push([placement]);
-    else segments.at(-1)!.push(placement);
-  }
   return (
     <>
       {(lead || railNode) && (
         <div className={cn("grid gap-6 border-b p-5 md:p-6", lead && railNode && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
-          {lead && renderAnchor(lead.anchorId)}
+          {lead && renderAnchor(lead)}
           {railNode}
         </div>
       )}
-      {segments.map(segment => BANDS.has(segment[0].anchorId)
-        ? <Fragment key={segment[0].anchorId}>{renderAnchor(segment[0].anchorId)}</Fragment>
-        : <SectionRow key={segment[0].anchorId} placements={segment} renderAnchor={renderAnchor} />)}
+      {segments.map(segment => segment.kind === "band"
+        ? <Fragment key={segment.anchorId}>{renderAnchor(segment.anchorId)}</Fragment>
+        : <SectionRow key={String(segment.items[0])} items={segment.items} renderAnchor={renderAnchor} />)}
       {inArea("dashboard.desk").map(placement => <Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>)}
     </>
   );
 }
 
-/** Sections that span the whole page width, wherever they sit in the order. */
-const BANDS = new Set(["dashboard.timeline", "dashboard.recap"]);
 /** The sections Customize shows and hides: their content is already empty when hidden. */
 const CUSTOMIZABLE = new Set(DASHBOARD_WIDGETS.map(widget => `dashboard.${widget.id}`));
 
-/** A row of sections: My issues and Recent activity stack in one column beside the summary, wherever the first of them sits. */
-function SectionRow({ placements, renderAnchor }: { placements: readonly ResolvedPlacement[]; renderAnchor: (anchorId: string) => ReactNode }) {
-  const stacked = new Set(["dashboard.tasks", "dashboard.activity"]);
-  const column = placements.filter(placement => stacked.has(placement.anchorId));
-  const nodes = placements.flatMap(placement => {
-    if (!stacked.has(placement.anchorId)) return [<Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>];
-    if (placement !== column[0]) return [];
-    return [<div key="dashboard.tasks+activity" className="min-w-0">{column.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div>];
-  });
-  const summary = placements.some(placement => placement.anchorId === "dashboard.summary");
-  return <div className={cn("grid", summary && column.length > 0 && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
+/** A row of sections: My issues and Recent activity stack in one column beside the summary. */
+function SectionRow({ items, renderAnchor }: { items: readonly (string | readonly string[])[]; renderAnchor: (anchorId: string) => ReactNode }) {
+  const nodes = items.map(item => typeof item === "string"
+    ? <Fragment key={item}>{renderAnchor(item)}</Fragment>
+    : <div key="dashboard.tasks+activity" className="min-w-0">{item.map(anchorId => <Fragment key={anchorId}>{renderAnchor(anchorId)}</Fragment>)}</div>);
+  const summary = items.includes("dashboard.summary");
+  return <div className={cn("grid", summary && items.some(item => typeof item !== "string") && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
 }
 
 function DashboardContent() {

@@ -232,6 +232,16 @@ describe("FlowMap service", () => {
     expect(await snapshotFlowEvidence(Date.now() + 21 * 3_600_000), "nobody collecting, nothing new").toBe(0);
   });
 
+  it("shows the current week's use at once, worked out on the fly and stored nowhere", async () => {
+    expect((await flowMapOverview(userId, scope)).live, "nothing collected").toBeNull();
+    await setFlowConsent(userId, true);
+    await ingestFlowEvents(userId, [event()]);
+    const overview = await flowMapOverview(userId, scope);
+    expect(overview.live?.heat.some(point => point.anchorId === "dashboard.customize" && point.activations === 1)).toBe(true);
+    expect(overview.layouts[overview.live!.descriptor.effectiveRevision]?.some(row => row.anchorId === "dashboard.customize")).toBe(true);
+    expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM workspace_flow_aggregates WHERE user_id = ?", userId))[0].n, "a read writes nothing").toBe(0);
+  });
+
   it("makes no period for a page whose new layout has not been used yet", async () => {
     await setFlowConsent(userId, true);
     // Used yesterday on a layout that is no longer the current one.

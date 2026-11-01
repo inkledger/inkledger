@@ -10,7 +10,8 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
 import { areaLabel, anchorLabel, inPageOrder } from "@/lib/workspace/labels";
-import { applyLocally, blocksIn, sketchFor, type LocalChange } from "@/lib/workspace/sketch";
+import { applyLocally, blocksIn, sketchFor, usesByAnchor, type LocalChange } from "@/lib/workspace/sketch";
+import { trpc } from "@/lib/trpc";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { Draft, ResolvedPlacement, ResolvedWorkspace, Scope, SuggestionPatch, Variant } from "@contracts/workspace/model";
@@ -58,7 +59,7 @@ export function WorkspaceSection() {
 
 function WorkspaceEditor() {
   const provider = useProviderName();
-  const { workspace, revisions, actions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
+  const { workspace, descriptor, revisions, actions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
   const [localPending, setLocalPending] = useState<Pending | null>(null);
   const [completedDraftId, setCompletedDraftId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +70,13 @@ function WorkspaceEditor() {
   const [optimistic, setOptimistic] = useState<ResolvedPlacement[] | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [showApplied, setShowApplied] = useState(false);
+  const [showUse, setShowUse] = useState(false);
+  // How much each block is used (FlowMap): this week so far, else the newest saved period of this layout.
+  const flow = trpc.flowMap.get.useQuery({ scope: workspace.scope });
+  const usage = useMemo(() => {
+    const current = flow.data?.live ?? flow.data?.evidence.find(item => item.origin === "local" && item.descriptor.effectiveRevision === descriptor.effectiveRevision);
+    return current && current.heat.some(point => point.activations > 0) ? usesByAnchor(current.heat) : null;
+  }, [flow.data, descriptor.effectiveRevision]);
   const lastActionAnchor = useRef<string | undefined>(undefined);
   const restoreFocus = useRef<string | null | undefined>(undefined);
   const previewQueue = useRef<Promise<void>>(Promise.resolve());
@@ -298,6 +306,13 @@ function WorkspaceEditor() {
     void preview(where.kind === "reorder" ? reorderPatch(workspace, areaId, where.ordered) : movePatch(workspace, anchorId, areaId, where.order), local);
   };
 
+  // FlowMap is off: take the user to its switch (with its explanation), never turn it on from here.
+  const showFlowMap = () => {
+    const section = document.getElementById("workspace-flowmap");
+    section?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    section?.querySelector<HTMLElement>("[role='checkbox']")?.focus({ preventScroll: true });
+  };
+
   const canvasActions: CanvasActions = {
     visible: (anchorId, visible) => void preview(visibilityPatch(workspace, anchorId, visible), { kind: "visible", anchorId, visible }),
     pinned: (anchorId, pinned) => void preview(pinPatch(workspace, anchorId, pinned), { kind: "pinned", anchorId, pinned }),
@@ -370,6 +385,16 @@ function WorkspaceEditor() {
       </div>}
       <SettingsGroup id="workspace-layout" title={t("settings.categories.workspace.layoutTitle")} description={t("settings.categories.workspace.layoutDescription")}>
         <p id="workspace-canvas-hint" className="text-caption text-muted-foreground">{t("settings.categories.workspace.canvasHint")}</p>
+        {flow.data && !flow.data.settings.enabled && (
+          <ActionRow actions={<Button variant="outline" size="sm" onClick={showFlowMap}>{t("settings.categories.workspace.useOff")}</Button>}>
+            <span className="text-caption text-muted-foreground">{t("settings.categories.workspace.useOffHint")}</span>
+          </ActionRow>
+        )}
+        {flow.data?.settings.enabled && (
+          <ActionRow actions={<Button variant="outline" size="sm" aria-pressed={showUse && usage !== null} disabled={!usage} onClick={() => setShowUse(value => !value)}>{t("settings.categories.workspace.showUse")}</Button>}>
+            <span className="text-caption text-muted-foreground">{usage ? t("settings.categories.workspace.showUseHint") : t("settings.categories.workspace.useNone")}</span>
+          </ActionRow>
+        )}
         {pending && (
           <SegmentedControl
             label={t("settings.categories.workspace.compare")}
@@ -393,6 +418,7 @@ function WorkspaceEditor() {
               busy={busy || applying}
               actions={canvasActions}
               label={anchorId => anchorLabel(anchorId, { provider })}
+              usage={showUse ? usage : null}
               onAnnounce={setAnnouncement}
             />
           </div>

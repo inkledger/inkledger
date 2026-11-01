@@ -290,3 +290,39 @@ test("An imported layout from a newer version stays read-only", () =>
     assert.equal(await page.getByRole("button", { name: "Apply layout", exact: true }).count(), 0, "nothing offers to apply it");
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0, "nothing applied");
   }));
+
+test("A layout saved under older rules still shows: what the rules now refuse is set aside, not the whole layout", () =>
+  withApp({
+    viewport: { width: 1280, height: 1400 },
+    seed: async db => {
+      // As saved before the header's timer became critical: hidden then shown again, the period too; Customize hidden.
+      const op = (id, anchorId, visible) => ({ operation: { type: "visibility", operationId: id, anchorId, visible }, origin: "user", acceptedByUser: true });
+      const operations = [op("a", "dashboard.headerTimer", false), op("b", "dashboard.headerTimer", true), op("c", "dashboard.period", false), op("d", "dashboard.period", true), op("e", "dashboard.customize", false)];
+      await db.q("INSERT INTO workspace_revisions (id, user_id, surface_id, device_class, revision_number, catalog_version, product_default_version, committed_at, operations, constraints) VALUES ('older-rules', 1, 'dashboard', 'desktop', 1, '1.0.0', 'product-1', ?, ?, '[]')", Date.now(), JSON.stringify(operations));
+    },
+  }, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Log time", exact: true }).first().waitFor();
+    await quiet(page);
+    assert.equal(await page.getByRole("button", { name: "Customize dashboard" }).count(), 0, "the user's own choice still applies");
+    await page.goto(`${base}/settings/workspace`);
+    await page.locator('[data-anchor="dashboard.customize"][data-visible="false"]').waitFor();
+    // And a new change on top of it applies.
+    await page.locator('[data-anchor="dashboard.recap"]').getByRole("button", { name: /^Show / }).click();
+    await page.getByText(/Preview, not applied yet/).waitFor();
+    await page.getByRole("button", { name: "Apply layout", exact: true }).click();
+    await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions WHERE status = 'committed'"))[0].n, 1);
+    assert.equal((await db.q("SELECT revision_number FROM workspace_revisions WHERE status = 'committed'"))[0].revision_number, 2);
+  }));
+
+test("The Studio draws the Dashboard as it is laid out: the rail beside the timeline, the summary beside My issues", () =>
+  withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base }) => {
+    await page.goto(`${base}/settings/workspace`);
+    const box = async anchorId => page.locator(`[data-anchor="${anchorId}"]`).boundingBox();
+    const [timeline, stats, summary, tasks, activity, recap] = await Promise.all(["dashboard.timeline", "dashboard.stats", "dashboard.summary", "dashboard.tasks", "dashboard.activity", "dashboard.recap"].map(box));
+    assert.ok(Math.abs(stats.y - timeline.y) < 40 && stats.x > timeline.x + timeline.width, "Quick numbers beside the timeline");
+    assert.ok(Math.abs(tasks.y - summary.y) < 4 && tasks.x > summary.x + summary.width, "My issues beside the summary");
+    assert.ok(activity.y > tasks.y && Math.abs(activity.x - tasks.x) < 4, "Recent activity under My issues");
+    assert.ok(recap.y > activity.y + activity.height - 1 && recap.width > tasks.width * 1.5, "Your week across the page");
+  }));

@@ -287,3 +287,29 @@ test("Each page's use over time shows at once, one map per period, oldest first"
     assert.equal(await timeline.evaluate(list => list.scrollLeft + list.clientWidth >= list.scrollWidth - 2), true);
   });
 });
+
+test("Use shows at once: on the editor's blocks and as this week so far, with nothing stored by looking", { timeout: 120_000 }, async () => {
+  await withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
+    await seedPlannerEvidence(db, page, base, PLANNER_STEPS);
+    await page.goto(`${base}/settings/workspace`);
+    // No "Update evidence", no daily period yet: this week's use is there already.
+    const timeline = page.getByRole("list", { name: "Use over time" });
+    await timeline.getByRole("figure", { name: "This week so far" }).waitFor();
+    const show = page.getByRole("button", { name: "Show use", exact: true });
+    await show.click();
+    assert.equal(await show.getAttribute("aria-pressed"), "true");
+    const tasks = page.locator('[data-anchor="dashboard.tasks"]');
+    await tasks.getByText(/^\d+ uses?$/).waitFor();
+    assert.ok(Number((await tasks.getByText(/^\d+ uses?$/).textContent()).split(" ")[0]) > 0, "the block used shows its count");
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_flow_aggregates"))[0].n, 0, "looking stores no period");
+  });
+});
+
+test("With FlowMap off the editor says how to see use, and takes you to its switch", async () => {
+  await withApp({ viewport: { width: 1280, height: 1000 } }, async ({ page, base, db }) => {
+    await page.goto(`${base}/settings/workspace`);
+    await page.getByRole("button", { name: "Go to FlowMap", exact: true }).click();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Collect interaction maps");
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_flow_settings WHERE enabled"))[0].n, 0, "never turned on for the user");
+  });
+});

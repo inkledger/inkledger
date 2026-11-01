@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { surface } from "@/components/app/surface";
 import { cn } from "@/lib/utils";
-import type { Sketch, SketchArea, SketchRegion } from "@/lib/workspace/sketch";
+import { dashboardSegments, sidebarActionSegments, type Sketch, type SketchArea, type SketchAxis, type SketchRegion } from "@/lib/workspace/sketch";
 import { t, type MessageKey } from "@/i18n";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
@@ -31,7 +31,7 @@ export function PageSketch({ sketch, renderArea, dense = false }: { sketch: Sket
         <div {...surface("card")} className={cn("grid rounded-lg border bg-canvas p-2 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]", gap)}>
           <div className={cn("flex min-w-0 flex-col justify-between", gap)} data-sketch-region="sidebar">
             <div className={cn("grid", gap)}>{at("sidebar-top")}</div>
-            <div className={cn("grid", gap)}>{at("sidebar-dock")}{at("sidebar-bottom")}</div>
+            <div className={cn("grid", gap)}>{at("sidebar-bottom")}</div>
           </div>
           {/* The page beside the sidebar, only for orientation: nothing to place there. */}
           <div aria-hidden className="hidden min-h-24 flex-col gap-2 p-3 sm:flex">
@@ -61,14 +61,70 @@ export function PageSketch({ sketch, renderArea, dense = false }: { sketch: Sket
   return (
     <div className={cn("grid", gap)}>
       <div {...surface("card")} className={cn("grid rounded-lg border bg-canvas p-2", gap, phone && "mx-auto w-full max-w-xs rounded-2xl")}>
-        {at("top")}
-        <div className={cn("grid", gap, !phone && "sm:grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]")}>
-          <div className={cn("grid content-start", gap)}>{at("main")}</div>
-          <div className={cn("grid content-start", gap)}>{at("rail")}</div>
-        </div>
+        {/* The page's title on the left, only for orientation; the header's controls stand beside it, as on the page. */}
+        {dense ? at("top") : (
+          <div className={cn("grid items-start", gap, !phone && "sm:grid-cols-[minmax(0,0.5fr)_minmax(0,1.5fr)]")}>
+            <span aria-hidden className={cn("p-1.5 text-caption text-muted-foreground", !phone && "hidden sm:block")}>{t(key("pageTitle"))}</span>
+            {at("top")}
+          </div>
+        )}
+        {at("main")}
         {at("bottom")}
       </div>
       {trayNode}
     </div>
   );
+}
+
+function list(axis: SketchAxis, dense: boolean): string {
+  const gap = dense ? "gap-0.5" : "gap-1.5";
+  if (axis === "row") return cn("flex flex-wrap", gap);
+  if (axis === "tiles") return cn("grid grid-cols-[repeat(auto-fill,minmax(min(7rem,100%),1fr))]", gap);
+  return cn("grid", gap);
+}
+
+/**
+ * An area's blocks as the real page arranges them (the editor and the maps of use share it): the
+ * Dashboard's flow with the rail beside the timeline (dashboardSegments, as Dashboard.tsx), the sidebar's
+ * actions around the running timer, else a plain row, column or grid of tiles. `nested` draws an area that
+ * sits inside this one.
+ */
+export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested, dense = false }: {
+  area: SketchArea;
+  sketch: Sketch;
+  anchorIds: readonly string[];
+  tileFor: (anchorId: string) => ReactNode;
+  nested: (areaId: string) => ReactNode;
+  dense?: boolean;
+}) {
+  const gap = dense ? "gap-0.5" : "gap-1.5";
+  if (area.axis === "flow") {
+    const wide = sketch.frame === "page";
+    const { lead, segments } = dashboardSegments(anchorIds);
+    const rail = nested("dashboard.secondary");
+    return (
+      <div className={cn("grid", gap)}>
+        {(lead || rail) && (
+          <div className={cn("grid", gap, lead && rail && wide && (dense ? "grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]" : "sm:grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]"))}>
+            {lead && <div className="grid min-w-0 content-start">{tileFor(lead)}</div>}
+            {rail}
+          </div>
+        )}
+        {segments.map(segment => segment.kind === "band"
+          ? <Fragment key={segment.anchorId}>{tileFor(segment.anchorId)}</Fragment>
+          : (
+            <div key={String(segment.items[0])} className={cn("grid", gap, wide && segment.items.includes("dashboard.summary") && segment.items.some(item => typeof item !== "string") && (dense ? "grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]" : "sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]"))}>
+              {segment.items.map(item => typeof item === "string"
+                ? <div key={item} className="grid min-w-0 content-start">{tileFor(item)}</div>
+                : <div key={item.join("+")} className={cn("grid min-w-0 content-start", gap)}>{item.map(anchorId => tileFor(anchorId))}</div>)}
+            </div>
+          ))}
+      </div>
+    );
+  }
+  if (area.areaId === "shell.actions") {
+    const { before, after } = sidebarActionSegments(anchorIds, anchorIds.indexOf("shell.quick-start"));
+    return <div className={cn("grid", gap)}>{before.map(tileFor)}{nested("shell.timer")}{after.map(tileFor)}</div>;
+  }
+  return <div className={list(area.axis, dense)}>{anchorIds.map(tileFor)}</div>;
 }

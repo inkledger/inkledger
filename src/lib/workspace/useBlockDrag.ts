@@ -49,7 +49,10 @@ export function useBlockDrag({ root, areas, countIn, indexOf, onDrop, announce }
     const area = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-drop-area]");
     if (!area || !root.current?.contains(area)) return null;
     const areaId = area.dataset.dropArea!;
-    const rects = [...area.querySelectorAll<HTMLElement>("[data-tile]")].filter(tile => tile.dataset.anchor !== anchorId).map(tile => tile.getBoundingClientRect());
+    // Its own blocks only: an area drawn inside it (the rail beside the timeline) has its own.
+    const rects = [...area.querySelectorAll<HTMLElement>("[data-tile]")]
+      .filter(tile => tile.dataset.anchor !== anchorId && tile.closest("[data-drop-area]") === area)
+      .map(tile => tile.getBoundingClientRect());
     return { areaId, index: insertionIndex(rects, { x, y }, axisOf(areaId)) };
   };
 
