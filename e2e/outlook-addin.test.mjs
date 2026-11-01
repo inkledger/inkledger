@@ -208,6 +208,40 @@ test("the pane's own bucket: chosen there, it narrows the issues and stays after
   }
 });
 
+test("a pin made before the pane knows the copy setting still sends the copy", async () => {
+  const app = await start({
+    viewport: { width: 320, height: 800 },
+    seed: async db => {
+      await db.q("INSERT INTO settings (user_id, mail_copies, mail_copies_consent_at) VALUES (1, 'body', 1) ON CONFLICT (user_id) DO UPDATE SET mail_copies = 'body', mail_copies_consent_at = 1");
+      await db.q("INSERT INTO mail_addin_keys (user_id, key_hash, created_at) VALUES (1, ?, 1)", createHash("sha256").update(KEY).digest("hex"));
+    },
+  });
+  try {
+    const { page, base, db } = app;
+    await page.route("https://appsforoffice.microsoft.com/**", r => r.fulfill({ body: OFFICE, contentType: "text/javascript" }));
+    // The first "me" checks the key; the pane's own one (the copy setting) waits until the pin is made.
+    let calls = 0;
+    let release = () => {};
+    const held = new Promise(resolve => (release = resolve));
+    await page.route("**/api/outlook/me", async route => {
+      if (++calls > 1) await held;
+      await route.continue();
+    });
+    await page.goto(base + "/outlook.html");
+    await page.getByLabel("Add-in key").fill(KEY);
+    await page.getByRole("button", { name: "Connect" }).click();
+    await page.getByText("Budget 2027", { exact: true }).waitFor();
+    const pinned = page.waitForResponse(response => response.url().includes("/api/outlook/pin"));
+    await page.getByRole("button", { name: "Add TODO" }).click();
+    await pinned;
+    release();
+    for (let i = 0; i < 50 && !(await db.q("SELECT 1 FROM mail_copies")).length; i++) await page.waitForTimeout(100);
+    assert.deepEqual(await db.q("SELECT c.source, c.mode FROM mail_copies c"), [{ source: "addin", mode: "body" }]);
+  } finally {
+    await app.stop();
+  }
+});
+
 test("the pane sends the copy where Outlook can", async () => {
   const app = await start({
     viewport: { width: 320, height: 800 },

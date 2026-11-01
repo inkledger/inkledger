@@ -158,15 +158,15 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
   // Bumped when the pane's bucket changes: the issues and boards it offers are asked again.
   const [scope, setScope] = useState(0);
   // Copies of pinned mails: what the user keeps, and whether this Outlook can send them.
-  const [copies, setCopies] = useState<"off" | "body" | "full">("off");
+  // The user's choice, as the server says it: a pin made before it arrives waits for it (never "off" by default).
+  const copies = useRef<Promise<"off" | "body" | "full"> | null>(null);
   const [copyNote, setCopyNote] = useState(false);
 
   // The user's theme colour; and a pinned pane follows the mail selected.
   useEffect(() => {
-    call<{ themeColor: string; mailCopies: "off" | "body" | "full" }>("GET", "me").then(me => {
-      applyTheme(me.themeColor, false);
-      setCopies(me.mailCopies);
-    }, onFailed);
+    const me = call<{ themeColor: string; mailCopies: "off" | "body" | "full" }>("GET", "me");
+    copies.current = me.then(answer => answer.mailCopies, () => "off" as const);
+    me.then(answer => applyTheme(answer.themeColor, false), onFailed);
     onMailChanged(() => {
       setMail(openMail());
       onStatus(null);
@@ -200,7 +200,7 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
 
   /** After a pin: the open mail's copy, read by Outlook itself where it can; else a note says the server will make it. */
   const sendCopy = async () => {
-    if (!mail || copies === "off") return;
+    if (!mail || (await copies.current) === "off") return;
     if (!canReadWholeMail()) return setCopyNote(true);
     const eml = await readWholeMail();
     if (!eml) return;
