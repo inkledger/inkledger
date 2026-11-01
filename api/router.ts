@@ -31,6 +31,9 @@ import { mailsRouter } from "./routers/mails";
 import { egressRouter } from "./routers/egress";
 import { plannedRouter } from "./routers/planned";
 import { projectPathsRouter } from "./routers/projectPaths";
+import { workspaceRouter } from "./routers/workspace";
+import { flowMapRouter } from "./routers/flowMap";
+import { plannerRouter } from "./routers/planner";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -66,6 +69,9 @@ export const appRouter = createRouter({
   egress: egressRouter,
   planned: plannedRouter,
   projectPaths: projectPathsRouter,
+  workspace: workspaceRouter,
+  flowMap: flowMapRouter,
+  planner: plannerRouter,
 });
 
 export type AppRouter = typeof appRouter;

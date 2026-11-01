@@ -38,6 +38,7 @@ import { registerEventRoutes } from "./events";
 import { closeAllStreams } from "./lib/userEvents";
 import { purgeTimerOps } from "./routers/timers";
 import { purgeIdeas } from "./routers/ideas";
+import { purgeWorkspace } from "./workspace/purge";
 import { ollamaRefusal } from "./ai/ollama";
 import { startSyncScheduler } from "./syncScheduler";
 import { settleInFlightSyncs } from "./routers/issues";
@@ -194,7 +195,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

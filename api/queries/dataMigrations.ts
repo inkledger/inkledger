@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { markdownNotes, serverSettings } from "@db/schema";
+import { markdownNotes, serverSettings, settings } from "@db/schema";
+import { normalizeDashboardLayout } from "@contracts/dashboard";
 import { dayKey } from "@contracts/time";
 import type { Db } from "./connection";
 
@@ -52,6 +53,24 @@ export const DATA_MIGRATIONS: DataMigration[] = [
           .limit(500);
         if (rows.length === 0) return;
         for (const row of rows) await db.update(markdownNotes).set({ notedOn: dayKey(row.createdAt) }).where(eq(markdownNotes.id, row.id));
+      }
+    },
+  },
+  {
+    // The Dashboard layout lives in the workspace now: who hid sections before keeps them hidden.
+    id: "dashboard-layout-to-workspace",
+    run: async (db) => {
+      const { seedLegacyDashboard } = await import("../workspace/service");
+      const rows = await db.select({ userId: settings.userId, layout: settings.dashboardLayout }).from(settings);
+      for (const row of rows) {
+        let saved: unknown = null;
+        try {
+          saved = row.layout ? JSON.parse(row.layout) : null;
+        } catch {
+          saved = null;
+        }
+        const hidden = normalizeDashboardLayout(saved).filter(item => !item.visible).map(item => `dashboard.${item.id}`);
+        await seedLegacyDashboard(row.userId, hidden);
       }
     },
   },

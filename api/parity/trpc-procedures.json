@@ -204,6 +204,42 @@
     "type": "query"
   },
   {
+    "path": "flowMap.aggregate",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.consent",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.delete",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.export",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.feedback",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.get",
+    "type": "query"
+  },
+  {
+    "path": "flowMap.import",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.ingest",
+    "type": "mutation"
+  },
+  {
+    "path": "flowMap.settings",
+    "type": "query"
+  },
+  {
     "path": "forecast.available",
     "type": "query"
   },
@@ -920,6 +956,34 @@
     "type": "mutation"
   },
   {
+    "path": "planner.confirmConstraint",
+    "type": "mutation"
+  },
+  {
+    "path": "planner.evaluate",
+    "type": "query"
+  },
+  {
+    "path": "planner.export",
+    "type": "mutation"
+  },
+  {
+    "path": "planner.import",
+    "type": "mutation"
+  },
+  {
+    "path": "planner.interpret",
+    "type": "mutation"
+  },
+  {
+    "path": "planner.suggest",
+    "type": "mutation"
+  },
+  {
+    "path": "planner.suppress",
+    "type": "mutation"
+  },
+  {
     "path": "projectPaths.list",
     "type": "query"
   },
@@ -1209,6 +1273,58 @@
   },
   {
     "path": "worklogs.update",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.acknowledge",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.activate",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.commit",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.completeDraft",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.defer",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.discardDraft",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.discovery",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.get",
+    "type": "query"
+  },
+  {
+    "path": "workspace.prepare",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.reconcile",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.renew",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.rollback",
+    "type": "mutation"
+  },
+  {
+    "path": "workspace.saveDraft",
     "type": "mutation"
   }
 ]

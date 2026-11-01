@@ -13,6 +13,8 @@ import {
 } from "@contracts/dashboard";
 import { t } from "@contracts/i18n";
 import { isAgentCommand } from "@contracts/analyze";
+import { customizedScopes } from "../workspace/store";
+import { getFlowSettings } from "../workspace/flowStore";
 
 const DEFAULTS = {
   dailyTargetSeconds: 8 * 3600,
@@ -68,10 +70,15 @@ function withDashboard(row: Settings): SettingsWithDashboard {
   };
 }
 
+/** What settings.get and settings.update return: the row, plus which workspace runtime the user needs. */
+async function settingsView(userId: number) {
+  const [row, scopes, flow] = await Promise.all([getSettings(userId), customizedScopes(userId), getFlowSettings(userId)]);
+  // Who never customized a layout nor turned FlowMap on runs none of the workspace runtime.
+  return { ...withDashboard(row), workspace: { scopes, flowMap: flow.enabled } };
+}
+
 export const settingsRouter = createRouter({
-  get: protectedProcedure.query(async ({ ctx }) =>
-    withDashboard(await getSettings(ctx.user.id)),
-  ),
+  get: protectedProcedure.query(({ ctx }) => settingsView(ctx.user.id)),
 
   update: protectedProcedure
     .input(
@@ -143,7 +150,7 @@ export const settingsRouter = createRouter({
             : {}),
         })
         .where(eq(settings.userId, ctx.user.id));
-      return withDashboard(await getSettings(ctx.user.id));
+      return settingsView(ctx.user.id);
     }),
 
   /** Every attachment link copied for an agent so far stops working (docs/work/ideas/issue-copy.md R-6.5). */

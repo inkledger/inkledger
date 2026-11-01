@@ -48,4 +48,18 @@ export async function prefetchSSR(helpers: SSRHelpers, url: URL, mustChangePassw
     helpers.weeks.status.prefetch({ week: dayKey(from) }),
     ...common,
   ]);
+  // Only the layouts the user customized: everyone else renders the bundled default, with no query.
+  const { workspace } = await helpers.settings.get.fetch(undefined, { staleTime: Infinity });
+  await Promise.all(
+    SSR_WORKSPACE_SCOPES.filter(scope => workspace.scopes.includes(`${scope.surfaceId}:${scope.deviceClass}`) || workspace.flowMap)
+      .map(scope => helpers.workspace.get.prefetch({ scope, clientInstanceId: "ssr" })),
+  );
 }
+
+/** The scopes the SSR page shows; the server cannot tell a phone, so the Dashboard is there for both. */
+const SSR_WORKSPACE_SCOPES = [
+  { surfaceId: "dashboard", deviceClass: "desktop" },
+  { surfaceId: "dashboard", deviceClass: "mobile" },
+  { surfaceId: "shell-desktop", deviceClass: "desktop" },
+  { surfaceId: "mobile-tabs", deviceClass: "mobile" },
+] as const;

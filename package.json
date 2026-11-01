@@ -41,6 +41,7 @@
     "user:reset": "tsx api/cli.ts reset-password",
     "catalog:matrix": "tsx api/providers/catalogMatrixCli.ts",
     "parity:update": "tsx api/parity/cli.ts",
+    "eval:workspace:ollama": "tsx scripts/workspace-ollama-eval.ts",
     "db:check": "drizzle-kit check"
   },
   "dependencies": {

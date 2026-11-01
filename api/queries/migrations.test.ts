@@ -143,6 +143,7 @@ describe("migrations over a draft of 0010", () => {
     await up();
     // As a dev database left by the draft: the column there, the lease table and the final 0010 not.
     const w10 = journal.find(e => e.tag === "0010_write_claims")!.when;
+    for (const t of ["descriptors", "discovery", "drafts", "flow_aggregates", "flow_events", "flow_feedback", "flow_imports", "flow_settings", "imports", "operations", "planner_feedback", "prepared", "presentations", "revisions"]) await query(`DROP TABLE "workspace_${t}" CASCADE`);
     await query('DROP TABLE "mail_copy_reads"');
     await query('DROP TABLE "mail_copies"');
     for (const c of ["gone_at", "checked_at", "copy_error"]) await query(`ALTER TABLE "mails" DROP COLUMN "${c}"`);

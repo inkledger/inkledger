@@ -2,6 +2,7 @@ import {
   uuid,
   pgTable,
   integer,
+  boolean,
   bigint,
   serial,
   text,
@@ -1714,3 +1715,209 @@ export const ideaFiles = pgTable(
   },
   (t) => [index("idx_idea_files_idea").on(t.ideaId), index("idx_idea_files_user").on(t.userId), check("idea_files_name", sql`length(${t.name}) BETWEEN 1 AND 200`)],
 );
+
+export const workspaceRevisions = pgTable("workspace_revisions", {
+  id: text("id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  catalogVersion: text("catalog_version").notNull(),
+  productDefaultVersion: text("product_default_version").notNull(),
+  committedAt: epochMs("committed_at").notNull(),
+  operations: text("operations").notNull(),
+  constraints: text("constraints").notNull(),
+  causedByRevision: text("caused_by_revision"),
+  status: text("status").notNull().default("committed"),
+  /** Unknown future content (D-28), kept byte-identical and read-only: JSON array of opaque entries. */
+  opaque: text("opaque").notNull().default("[]"),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  uniqueIndex("uq_workspace_revision_scope").on(t.userId, t.surfaceId, t.deviceClass, t.revisionNumber),
+  index("idx_workspace_revision_current").on(t.userId, t.surfaceId, t.deviceClass, t.status, t.revisionNumber),
+  check("workspace_revision_status", sql`${t.status} IN ('committed','superseded')`),
+  check("workspace_revision_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceDrafts = pgTable("workspace_drafts", {
+  id: text("id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  baseRevision: text("base_revision").notNull(),
+  draftRevision: integer("draft_revision").notNull(),
+  status: text("status").notNull(),
+  patches: text("patches").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  // Scoped: the same draft id in another scope is another draft, never this one overwritten.
+  primaryKey({ columns: [t.userId, t.surfaceId, t.deviceClass, t.id] }),
+  index("idx_workspace_draft_scope").on(t.userId, t.surfaceId, t.deviceClass, t.status),
+  check("workspace_draft_status", sql`${t.status} IN ('editing','ready','conflict','stale','applying','applied','aborted','discarded')`),
+  check("workspace_draft_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceDescriptors = pgTable("workspace_descriptors", {
+  effectiveRevision: text("effective_revision").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  sourceActiveRevision: text("source_active_revision").notNull(),
+  workspaceFingerprint: text("workspace_fingerprint").notNull(),
+  descriptor: text("descriptor").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.effectiveRevision] }),
+  index("idx_workspace_descriptor_source").on(t.userId, t.surfaceId, t.deviceClass, t.sourceActiveRevision),
+  check("workspace_descriptor_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspacePrepared = pgTable("workspace_prepared", {
+  prepareId: text("prepare_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  baseRevision: text("base_revision").notNull(),
+  draftRevision: integer("draft_revision").notNull(),
+  clientInstanceId: text("client_instance_id").notNull(),
+  interactionEpoch: integer("interaction_epoch").notNull(),
+  descriptor: text("descriptor").notNull(),
+  expiresAt: epochMs("expires_at").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.surfaceId, t.deviceClass, t.prepareId] }),
+  index("idx_workspace_prepared_client").on(t.userId, t.clientInstanceId, t.expiresAt),
+  check("workspace_prepared_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspacePresentations = pgTable("workspace_presentations", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  clientInstanceId: text("client_instance_id").notNull(),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  status: text("status").notNull(),
+  lastIssuedEpoch: integer("last_issued_epoch").notNull(),
+  presentedDescriptor: text("presented_descriptor"),
+  presentedEpoch: integer("presented_epoch"),
+  pending: text("pending"),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.clientInstanceId, t.surfaceId, t.deviceClass] }),
+  index("idx_workspace_presentation_scope").on(t.userId, t.surfaceId, t.deviceClass, t.status),
+  check("workspace_presentation_status", sql`${t.status} IN ('stable','pendingActivation','activationUncertain','unknown')`),
+  check("workspace_presentation_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceOperations = pgTable("workspace_operations", {
+  operationId: text("operation_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  kind: text("kind").notNull(),
+  response: text("response").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.surfaceId, t.deviceClass, t.operationId] }),
+  index("idx_workspace_operation_scope").on(t.userId, t.surfaceId, t.deviceClass, t.kind),
+  check("workspace_operation_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceDiscovery = pgTable("workspace_discovery", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  seenAnchorIds: text("seen_anchor_ids").notNull().default("[]"),
+  placedAnchorIds: text("placed_anchor_ids").notNull().default("[]"),
+  dismissedAnchorIds: text("dismissed_anchor_ids").notNull().default("[]"),
+  seenAreaIds: text("seen_area_ids").notNull().default("[]"),
+  placedAreaIds: text("placed_area_ids").notNull().default("[]"),
+  dismissedAreaIds: text("dismissed_area_ids").notNull().default("[]"),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.surfaceId, t.deviceClass] }),
+  check("workspace_discovery_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceFlowSettings = pgTable("workspace_flow_settings", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  rawRetentionDays: integer("raw_retention_days").notNull().default(30),
+  aggregateRetentionDays: integer("aggregate_retention_days").notNull().default(365),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+});
+
+export const workspaceFlowEvents = pgTable("workspace_flow_events", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").notNull(),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  effectiveRevision: text("effective_revision").notNull(),
+  occurredAt: epochMs("occurred_at").notNull(),
+  payload: text("payload").notNull(),
+  receivedAt: epochMs("received_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  index("idx_flow_events_scope_revision").on(t.userId, t.surfaceId, t.deviceClass, t.effectiveRevision, t.occurredAt),
+  check("flow_events_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceFlowAggregates = pgTable("workspace_flow_aggregates", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").notNull(),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  effectiveRevision: text("effective_revision").notNull(),
+  origin: text("origin").notNull().default("local"),
+  payload: text("payload").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  index("idx_flow_aggregates_scope").on(t.userId, t.surfaceId, t.deviceClass, t.createdAt),
+  check("flow_aggregates_origin", sql`${t.origin} IN ('local','import')`),
+  check("flow_aggregates_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceFlowImports = pgTable("workspace_flow_imports", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").notNull(),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  document: text("document").notNull(),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  index("idx_flow_imports_scope").on(t.userId, t.surfaceId, t.deviceClass, t.createdAt),
+  check("flow_imports_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
+
+export const workspaceFlowFeedback = pgTable("workspace_flow_feedback", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").notNull(),
+  status: text("status").notNull(),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  check("flow_feedback_status", sql`${t.status} IN ('unconfirmed','confirmed','rejected')`),
+]);
+
+export const workspacePlannerFeedback = pgTable("workspace_planner_feedback", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  signature: text("signature").notNull(),
+  updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [primaryKey({ columns: [t.userId, t.signature] })]);
+
+export const workspaceImports = pgTable("workspace_imports", {
+  id: text("id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  surfaceId: text("surface_id").notNull(),
+  deviceClass: text("device_class").notNull(),
+  draftId: text("draft_id").notNull(),
+  document: text("document").notNull(),
+  hasUnknownContent: boolean("has_unknown_content").notNull().default(false),
+  createdAt: epochMs("created_at").notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.id] }),
+  uniqueIndex("uq_workspace_import_draft").on(t.userId, t.draftId),
+  check("workspace_import_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
+]);
