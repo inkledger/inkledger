@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   BarChart3,
@@ -58,6 +58,7 @@ import { BUCKET_SCOPE, useBuckets } from "@/hooks/useBuckets";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatQuery, parseQuery } from "@contracts/query";
 import { newDraftId } from "@/components/notes/drafts";
+import { emitWorkspaceSearch } from "@/lib/workspace/searchEvents";
 
 /**
  * Global ⌘K palette: jump to any issue, navigate, sync, toggle theme.
@@ -71,6 +72,20 @@ export function CommandPalette() {
   const { pathname } = useLocation();
   const pinTarget = usePinboardTarget(pathname);
   const todoTarget = useTodoTarget(pathname);
+  const searchSelected = useRef(false);
+  const searchWasOpen = useRef(false);
+  useEffect(() => {
+    if (open) {
+      if (!searchWasOpen.current) {
+        searchSelected.current = false;
+        searchWasOpen.current = true;
+        emitWorkspaceSearch("search.opened");
+      }
+      return;
+    }
+    if (searchWasOpen.current && !searchSelected.current) emitWorkspaceSearch("search.abandoned");
+    searchWasOpen.current = false;
+  }, [open]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -113,6 +128,8 @@ export function CommandPalette() {
   const provider = useProviderName();
 
   const go = (path: string) => {
+    searchSelected.current = true;
+    emitWorkspaceSearch("search.selected", path);
     setOpen(false);
     void navigate(path);
   };

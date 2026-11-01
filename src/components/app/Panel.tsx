@@ -11,17 +11,23 @@ export function PanelSection({
   actions,
   className,
   children,
+  anchorId,
+  variant = "default",
 }: {
   title?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
+  anchorId?: string;
+  variant?: "compact" | "default" | "expanded";
 }) {
   const id = useId();
   return (
     <section
       aria-labelledby={title ? id : undefined}
-      className={cn("min-w-0 p-5 md:p-6", className)}
+      data-workspace-anchor={anchorId}
+      data-workspace-variant={variant}
+      className={cn("min-w-0", variant === "compact" ? "p-3" : variant === "expanded" ? "p-6 md:p-8" : "p-5 md:p-6", className)}
     >
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

@@ -55,6 +55,12 @@
       "permission": null
     },
     {
+      "id": "workspace",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": null
+    },
+    {
       "id": "pinboard",
       "nativeOnly": false,
       "desktopOnly": false,

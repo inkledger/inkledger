@@ -22,6 +22,7 @@ export function QuickStatsCard({
   extra,
   title = t("views.dashboard.quickStats.title"),
   cover = "cover-sunset",
+  variant = "default",
 }: {
   title?: string;
   /** Cover class for the header band */
@@ -29,11 +30,12 @@ export function QuickStatsCard({
   stats: [Stat, Stat];
   note?: string;
   extra?: Stat[];
+  variant?: "compact" | "default" | "expanded";
 }) {
   return (
-    <div {...surface("card", { elevation: 2, role: "wrap" })} className="rounded-xl">
+    <div {...surface("card", { elevation: 2, role: "wrap" })} data-workspace-anchor="dashboard.stats" data-workspace-variant={variant} className="rounded-xl">
       <div {...surfaceFace()} className="overflow-hidden rounded-xl border bg-card">
-        <div className={cn("grain h-24 px-4 pt-3", cover)}>
+        <div className={cn("grain px-4 pt-3", variant === "compact" ? "h-16" : variant === "expanded" ? "h-32" : "h-24", cover)}>
           <h2 className="font-display text-heading text-cover-title">
             {title}
           </h2>

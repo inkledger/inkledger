@@ -73,6 +73,7 @@ const appEventsLink: TRPCLink<AppRouter> = () => ({ op, next }) =>
     next(op).subscribe({
       next(result) {
         if (op.type === "mutation") {
+          if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("workspace:mutation-result", { detail: { path: op.path, succeeded: result.result.type === "data" } }));
           try {
             eventsOf(op.path, op.input, result.result.type === "data" ? result.result.data : undefined);
           } catch (e) {
@@ -81,7 +82,10 @@ const appEventsLink: TRPCLink<AppRouter> = () => ({ op, next }) =>
         }
         observer.next(result);
       },
-      error: err => observer.error(err),
+      error: err => {
+        if (op.type === "mutation" && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("workspace:mutation-result", { detail: { path: op.path, succeeded: false } }));
+        observer.error(err);
+      },
       complete: () => observer.complete(),
     })
   );

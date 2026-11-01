@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router";
-import { ListChecks, Moon, Pin, RefreshCw, Sparkles } from "lucide-react";
+import { Bell, ListChecks, Moon, Pin, RefreshCw, Sparkles } from "lucide-react";
+import { notificationCenter } from "@/lib/flag";
+import { useNotificationCount } from "@/hooks/useNotifications";
+import { useWorkspace } from "@/lib/workspace/context";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { useTheme } from "next-themes";
 import { useSync } from "@/hooks/useSync";
 import { useSyncHint } from "@/hooks/useSyncHint";
@@ -42,6 +46,10 @@ export function MobileMoreSheet({
   const sync = useSync();
   const provider = useProviderName();
   const { hint, error } = useSyncHint();
+  const { workspace } = useWorkspace();
+  const inbox = useNotificationCount();
+  const morePlacements = workspace.placements.filter(placement => placement.areaId === "mobile.more" && placement.visible).sort((a, b) => a.order - b.order || a.anchorId.localeCompare(b.anchorId));
+  const dockInMore = workspace.placements.some(placement => placement.anchorId === "mobile.dock" && placement.areaId === "mobile.dock" && placement.visible);
   const sections = useNavItems()
     .flatMap(g => g.items)
     .filter(i => !TAB_ROUTES.includes(i.to));
@@ -62,6 +70,22 @@ export function MobileMoreSheet({
     shown.current = pathname;
     onOpenChange(false);
   }, [pathname, onOpenChange]);
+
+  const renderMorePlacement = (anchorId: string) => {
+    if (anchorId === "mobile.todos" && todoTile) return (
+      <button type="button" aria-label={t("ui.todoFloat.open")} onClick={() => { onOpenChange(false); requestAnimationFrame(openTodosSheet); }} {...surface("control")} {...flowControlProps("mobile.todos.open")} className={TILE}>
+        <ListChecks className="h-5 w-5" aria-hidden /><span className="max-w-full truncate">{t("views.todos.title")}</span>
+      </button>
+    );
+    // The bell lives in the header (AppLayout MobileBell); a tile here only once the user placed it in More.
+    if (anchorId === "mobile.notifications" && morePlacements.some(placement => placement.anchorId === anchorId && placement.origin !== "product")) return (
+      <button type="button" aria-label={inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications")} onClick={() => { onOpenChange(false); requestAnimationFrame(() => notificationCenter.set(true)); }} {...surface("control")} {...flowControlProps("mobile.notifications.open")} className={TILE}>
+        <Bell className="h-5 w-5" aria-hidden /><span className="max-w-full truncate">{t("ui.layout.notifications")}</span>
+      </button>
+    );
+    if (anchorId === "mobile.dock") return <div data-workspace-anchor="mobile.dock" className={TILE}><ModuleSlot id="mobile-more" /></div>;
+    return null;
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -103,22 +127,7 @@ export function MobileMoreSheet({
               <span className="max-w-full truncate">{t("pages.board.pinboard")}</span>
             </button>
             )}
-            {todoTile && (
-              <button
-                type="button"
-                aria-label={t("ui.todoFloat.open")}
-                onClick={() => {
-                  onOpenChange(false);
-                  // After the sheet lets go of focus, so the list keeps it.
-                  requestAnimationFrame(openTodosSheet);
-                }}
-                {...surface("control")}
-                className={TILE}
-              >
-                <ListChecks className="h-5 w-5" aria-hidden />
-                <span className="max-w-full truncate">{t("views.todos.title")}</span>
-              </button>
-            )}
+            {morePlacements.map(placement => <div className="contents" data-workspace-area="mobile.more" key={placement.anchorId}>{renderMorePlacement(placement.anchorId)}</div>)}
             <button
               type="button"
               onClick={() => {
@@ -132,7 +141,7 @@ export function MobileMoreSheet({
               <span className="max-w-full truncate">{t("ui.layout.screensaver")}</span>
             </button>
           </nav>
-          <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />
+          {dockInMore && <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />}
 
           {/* Favorites as in the sidebar, rows and ▶ sized for a thumb. */}
           <div className="-mx-1 flex flex-col [&_.group>a]:py-2.5 [&_.group>a]:text-body-sm [&_.group>button]:h-9 [&_.group>button]:w-9 [&_.group>button_svg]:h-4 [&_.group>button_svg]:w-4">

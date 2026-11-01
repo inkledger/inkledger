@@ -30,6 +30,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { surface } from "@/components/app/surface";
+import { useFlowControlProps } from "@/lib/workspace/instrumentation";
 
 /** Live ticking elapsed time, "h:mm:ss". */
 export function TickingElapsed({
@@ -326,6 +327,8 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
   // Only what it draws: reading `fetchedAt` would re-render it on every poll.
   const { running, pending, heldElsewhere, pause, start, stop, move, discard } = useTimerActions(issueKey, connectionId);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const pauseTelemetry = useFlowControlProps(running ? "timer.pause" : "timer.resume");
+  const stopTelemetry = useFlowControlProps("timer.stop");
   if (heldElsewhere) return null;
   const size = compact ? "h-7 w-7" : "h-8 w-8";
   return (
@@ -338,6 +341,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         title={running ? t("ui.timer.pause") : t("ui.timer.resume")}
         disabled={pending}
         onClick={running ? pause : start}
+        {...pauseTelemetry}
       >
         {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </Button>
@@ -349,6 +353,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         title={t("ui.timer.stopAndLog")}
         disabled={pending}
         onClick={stop}
+        {...stopTelemetry}
       >
         <Square className="h-4 w-4" />
       </Button>

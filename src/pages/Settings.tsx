@@ -106,13 +106,13 @@ export default function Settings() {
           <div className="border-b px-5 py-4 md:px-6">
             <Link
               to="/settings"
-              className="mb-2 inline-flex items-center gap-1 text-body-sm text-muted-foreground hover:text-foreground lg:hidden"
+              className="mb-2 inline-flex items-center gap-1 text-body-sm text-foreground lg:hidden"
             >
               <ChevronLeft className="h-4 w-4" />
               {t("pages.settings.title")}
             </Link>
             <h2 className="font-display text-heading">{active.label}</h2>
-            <p className="text-body-sm text-muted-foreground">{active.description}</p>
+            <p className={cn("text-body-sm", active.id === "workspace" ? "text-foreground" : "text-muted-foreground")}>{active.description}</p>
           </div>
           <SettingsSearch.Provider value={query}>
             <active.Content />
@@ -132,7 +132,7 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
       {...surface("nav", { current: true, edge: false })}
       className={cn(
         "group flex min-w-0 items-center gap-3 rounded-md px-3 py-2 outline-none transition-colors hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-ring",
-        active && "lg:bg-primary-soft lg:text-primary-strong"
+        active && "lg:bg-primary-soft lg:text-foreground"
       )}
     >
       <span
@@ -140,14 +140,14 @@ function CategoryLink({ category: c, active }: { category: SettingsCategory; act
         {...surface("picture")}
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground",
-          active && "lg:bg-card lg:text-primary-strong"
+          active && "lg:bg-card lg:text-foreground"
         )}
       >
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{c.label}</span>
-        <span className={cn("block truncate text-caption text-muted-foreground", active && "lg:text-primary-strong")}>
+        <span className={cn("block truncate text-caption text-muted-foreground", active && "lg:text-foreground")}>
           <c.Summary />
         </span>
       </span>

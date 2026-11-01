@@ -331,6 +331,7 @@ export function DayTimeline({
                 title={`${title}${t("views.dashboard.timeline.toLog")}`}
                 aria-label={label}
                 disabled={!onPending}
+                data-workspace-control="dashboard.timeline.pendingLog"
                 onClick={() => onPending?.(b)}
                 {...surface("glass")}
                 className={cn(
@@ -483,6 +484,7 @@ export function DayTimeline({
                 type="button"
                 {...surface("glass")}
                 onClick={() => onPending(e)}
+                data-workspace-control="dashboard.timeline.pendingLog"
                 className="stripes-pending flex min-h-touch w-full min-w-0 items-center justify-between gap-3 rounded-lg px-3 text-body-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="sr-only">

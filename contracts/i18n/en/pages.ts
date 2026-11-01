@@ -735,6 +735,8 @@ export const pages = {
     periodWeek: "Week",
     periodMonth: "Month",
     prefNotSaved: "Preference not saved: {message}",
+    prefDeferred: "Finish what you are typing, then try again",
+    prefConflict: "The layout changed meanwhile",
     weekTitle: "Week {from} – {to}",
     overdueOne: {
       one: "{key} has been overdue for {days} day: update the due date or close it.",

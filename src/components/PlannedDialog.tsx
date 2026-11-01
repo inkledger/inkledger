@@ -160,7 +160,7 @@ function PlannedForm({ day, entry, onClose, onLogActual }: { day: Date; entry?: 
           </Button>
         )}
         <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={!canSubmit}>{pending ? t("common.saving") : t(entry ? "ui.planned.update" : "ui.planned.create")}</Button>
+        <Button type="submit" disabled={!canSubmit} data-workspace-control="dashboard.planned.save" data-workspace-anchor="dashboard.planned-dialog">{pending ? t("common.saving") : t(entry ? "ui.planned.update" : "ui.planned.create")}</Button>
       </DialogFooter>
     </form>
   );

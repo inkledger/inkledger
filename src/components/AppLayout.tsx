@@ -55,6 +55,11 @@ import { HotCorner } from "@/components/todo/HotCorner";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
 import { DashboardBackdrop, ModuleSlot, ModulesProvider } from "@/modules/ModuleHost";
+import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
+import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
+import { useWorkspace } from "@/lib/workspace/context";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
+import { routeControlId } from "@/lib/workspace/searchEvents";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
@@ -213,6 +218,7 @@ const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, coun
         aria-label={collapsed ? name : undefined}
         // Stands out only while current; keeps its own ::before bar.
         {...surface("nav", { current: true, edge: false })}
+        {...(routeControlId(to) ? flowControlProps(routeControlId(to)!) : {})}
         className={cn(
           ROW,
           "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
@@ -245,6 +251,10 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         ? { count: due, title: t("ui.layout.todosDue", { count: due }), sr: t("ui.layout.forToday") }
         : null;
   const pinboard = usePinboardPanel();
+  const { workspace } = useWorkspace();
+  const placementsIn = (areaId: string) => workspace.placements.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order || a.anchorId.localeCompare(b.anchorId));
+  const navigationPlacements = placementsIn("shell.navigation");
+  const isVisible = (anchorId: string, areaId: string) => workspace.placements.some(placement => placement.anchorId === anchorId && placement.areaId === areaId && placement.visible);
   const navItems = useNavItems();
   // The Board's pin button opens the Board's own panel there; "p" the widget first.
   const pinTarget = usePinboardTarget(pathname, true);
@@ -252,6 +262,150 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const row = ROW;
   const label = labelClass(collapsed);
   const icon = ICON;
+  const anchorOrder = (anchorId: string) => navigationPlacements.find(placement => placement.anchorId === anchorId)?.order ?? Number.MAX_SAFE_INTEGER;
+  const accessoryInline = (to: "/pinboard" | "/todos", name: string, Icon: LucideIcon) => {
+    const anchorId = to === "/pinboard" ? "shell.pinboard" : "shell.todos";
+    if (!isVisible(anchorId, "shell.navigation") || anchorOrder(anchorId) < anchorOrder("shell.navigation")) return null;
+    const chip = chipOf(to);
+    return <NavRow key={to} to={to} name={name} Icon={Icon} collapsed={collapsed} padForPin={false} count={chip?.count ?? null} countTitle={chip?.title} countSr={chip?.sr} />;
+  };
+  const navigation = (
+    <nav
+      aria-label={t("ui.layout.mainNav")}
+      data-workspace-anchor="shell.navigation"
+      // The sections never scroll: only the favorites below them do. After search and notifications,
+      // the sidebar's own gap-3 apart from them (the area's rows sit at gap-0.5).
+      className={cn("flex shrink-0 flex-col gap-1.5", navigationPlacements[0]?.anchorId !== "shell.navigation" && "mt-2.5")}
+    >
+      {navItems.map(({ group, title, items }) => {
+        const accessories = items.filter(item => item.to === "/pinboard" || item.to === "/todos").sort((a, b) => anchorOrder(a.to === "/pinboard" ? "shell.pinboard" : "shell.todos") - anchorOrder(b.to === "/pinboard" ? "shell.pinboard" : "shell.todos"));
+        const links = items.map(item => item.to === "/pinboard" || item.to === "/todos" ? accessories.shift()! : item).map(({ to, label: name, icon: Icon }) => {
+          if (to === "/pinboard" || to === "/todos") return accessoryInline(to, name, Icon);
+          const chip = chipOf(to);
+          const link = (
+            <NavRow
+              key={to}
+              to={to}
+              name={name}
+              Icon={Icon}
+              collapsed={collapsed}
+              padForPin={to === "/board" && !collapsed}
+              count={chip?.count ?? null}
+              countTitle={chip?.title}
+              countSr={chip?.sr}
+            />
+          );
+          if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page" || !isVisible("shell.pinboard", "shell.navigation")) return link;
+          // The pinboard, one tap away from any page: a sibling of the
+          // link, never inside it.
+          const panelOpen = pathname === "/board" && pinboard !== "closed";
+          return (
+            <div key={to} className="relative">
+              {link}
+              <button
+                type="button"
+                aria-label={t("ui.layout.openPinboard")}
+                title={t("ui.layout.openPinboardTitle")}
+                aria-pressed={panelOpen}
+                onClick={() => togglePinboard(pathname, true)}
+                {...flowControlProps("shell.pinboard.toggle")}
+                className={cn(
+                  "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
+                  panelOpen && "text-primary-strong"
+                )}
+              >
+                <Pin className="h-3.5 w-3.5 -rotate-12" aria-hidden />
+              </button>
+            </div>
+          );
+        });
+        // No titles: a thin line between the sections, open or closed.
+        return (
+          <div key={group} role="group" aria-label={title} className="flex shrink-0 flex-col gap-0.5">
+            <div aria-hidden className="mx-2 mb-1 border-t" />
+            {links}
+          </div>
+        );
+      })}
+    </nav>
+  );
+  const renderShellAnchor = (anchorId: string) => {
+    let content: React.ReactNode = null;
+    if (anchorId === "shell.navigation") content = navigation;
+    else if (anchorId === "shell.search") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.searchTip", { shortcut: PALETTE_SHORTCUT })}>
+        <button type="button" onClick={() => commandPalette.set(true)} aria-label={collapsed ? t("ui.layout.search") : undefined} {...surface("control")} {...flowControlProps("shell.search.open")} className={cn(row, "mb-1 border border-border/80 bg-background pl-5 font-normal hover:bg-background")}>
+          <Search className={icon} aria-hidden /><span className={label}>{t("ui.layout.searchEllipsis")}</span>{!collapsed && <Kbd className="ml-auto">{PALETTE_SHORTCUT}</Kbd>}
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.notifications") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
+        <button type="button" onClick={() => notificationCenter.set(true)} {...flowControlProps("shell.notifications.open")} aria-label={collapsed || inbox > 0 ? inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications") : undefined} className={row}>
+          <Bell className={icon} aria-hidden /><span className={label}>{t("ui.layout.notifications")}</span>{inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.pinboard" && (isVisible(anchorId, "shell.overlays") || anchorOrder(anchorId) < anchorOrder("shell.navigation"))) content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.openPinboard")}>
+        <button type="button" onClick={() => togglePinboard(pathname, true)} {...flowControlProps("shell.pinboard.toggle")} className={row}>
+          <Pin className={icon} aria-hidden /><span className={label}>{t("ui.layout.openPinboard")}</span>
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.todos" && (isVisible(anchorId, "shell.overlays") || anchorOrder(anchorId) < anchorOrder("shell.navigation"))) content = (
+      <RailTip collapsed={collapsed} label={t("ui.todoFloat.open")}>
+        <button type="button" onClick={openTodosSheet} {...flowControlProps("shell.todos.open")} className={row}>
+          <ListChecks className={icon} aria-hidden /><span className={label}>{t("ui.todoFloat.open")}</span>
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.screensaver") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.screensaverTip")}>
+        <button type="button" onClick={() => screensaver.set(true)} {...flowControlProps("shell.screensaver.open")} aria-label={collapsed ? t("ui.layout.screensaver") : undefined} className={row}>
+          <Sparkles className={icon} strokeWidth={1.75} aria-hidden /><span className={label}>{t("ui.layout.screensaver")}</span>{!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">Z</Kbd>}
+        </button>
+      </RailTip>
+    );
+    return content ? <div className="contents" data-workspace-anchor={anchorId}>{content}</div> : null;
+  };
+  const actionPlacements = placementsIn("shell.actions");
+  const quickStartOrder = workspace.placements.find(placement => placement.anchorId === "shell.quick-start")?.order ?? Number.MAX_SAFE_INTEGER;
+  const renderActionAnchor = (anchorId: string) => {
+    if (anchorId === "shell.screensaver") return renderShellAnchor(anchorId);
+    let content: React.ReactNode = null;
+    if (anchorId === "shell.theme") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.darkTheme")}>
+        <button type="button" role="switch" aria-checked={resolvedTheme === "dark"} aria-label={t("ui.layout.darkTheme")} onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} {...flowControlProps("shell.theme.toggle")} className={row}>
+          <Moon className={icon} strokeWidth={1.75} aria-hidden /><span className={label} aria-hidden>{t("ui.layout.darkTheme")}</span>{!collapsed && <SwitchLook className="ml-auto" checked={resolvedTheme === "dark"} />}
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.quick-start") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.startTimerTip")}>
+        <button type="button" onClick={() => quickStart.set(true)} {...flowControlProps("shell.quickStart.open")} aria-label={collapsed ? t("ui.layout.startTimer") : undefined} className={cn(row, "text-foreground")}>
+          <Play className={icon} aria-hidden /><span className={label}>{t("ui.layout.startTimer")}</span>{!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">T</Kbd>}
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.sync") content = (
+      <RailTip collapsed={collapsed} label={syncHint ? `${t("ui.layout.syncJira", { provider })} · ${syncHint}` : t("ui.layout.syncJira", { provider })}>
+        <button type="button" onClick={() => sync.mutate()} {...flowControlProps("shell.sync.start")} disabled={sync.isPending} aria-label={collapsed ? t("ui.layout.syncJira", { provider }) : undefined} title={collapsed ? undefined : (syncError ?? undefined)} className={cn(row, "disabled:opacity-60")}>
+          <RefreshCw className={cn(icon, sync.isPending && "motion-safe:animate-spin")} aria-hidden /><span className={label}>{sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider })}</span>
+          {!collapsed && syncHint && !sync.isPending && <span className={cn("ml-auto min-w-0 truncate text-2xs font-normal", syncError ? "text-warning" : "text-muted-foreground")}>{syncHint}</span>}
+        </button>
+      </RailTip>
+    );
+    else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} />;
+    else if (anchorId === "shell.sidebar") content = (
+      <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
+        <button type="button" onClick={sidebar.toggle} {...flowControlProps("shell.sidebar.toggle")} aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")} className={cn(row, "font-normal")}>
+          {collapsed ? <PanelLeftOpen className={icon} aria-hidden /> : <PanelLeftClose className={icon} aria-hidden />}<span className={label}>{t("ui.layout.collapseShort")}</span>{!collapsed && <Kbd className="ml-auto">[</Kbd>}
+        </button>
+      </RailTip>
+    );
+    return content ? <div className="contents" data-workspace-anchor={anchorId}>{content}</div> : null;
+  };
 
   return (
     <div
@@ -263,94 +417,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     >
       <Brand collapsed={collapsed} />
 
-      <div className="flex shrink-0 flex-col gap-0.5">
-        <RailTip collapsed={collapsed} label={t("ui.layout.searchTip", { shortcut: PALETTE_SHORTCUT })}>
-          <button
-            type="button"
-            onClick={() => commandPalette.set(true)}
-            aria-label={collapsed ? t("ui.layout.search") : undefined}
-            {...surface("control")}
-            className={cn(row, "mb-1 border border-border/80 bg-background pl-5 font-normal hover:bg-background")}
-          >
-            <Search className={icon} aria-hidden />
-            <span className={label}>{t("ui.layout.searchEllipsis")}</span>
-            {!collapsed && <Kbd className="ml-auto">{PALETTE_SHORTCUT}</Kbd>}
-          </button>
-        </RailTip>
-
-        <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
-          <button
-            type="button"
-            onClick={() => notificationCenter.set(true)}
-            aria-label={
-              collapsed || inbox > 0
-                ? inbox > 0
-                  ? t("ui.layout.notificationsUnseen", { count: inbox })
-                  : t("ui.layout.notifications")
-                : undefined
-            }
-            className={row}
-          >
-            <Bell className={icon} aria-hidden />
-            <span className={label}>{t("ui.layout.notifications")}</span>
-            {inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
-          </button>
-        </RailTip>
+      <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.navigation">
+        {navigationPlacements.map(placement => <div className="contents" key={placement.anchorId}>{renderShellAnchor(placement.anchorId)}</div>)}
       </div>
-
-      <nav
-        aria-label={t("ui.layout.mainNav")}
-        // The sections never scroll: only the favorites below them do.
-        className="flex shrink-0 flex-col gap-1.5"
-      >
-        {navItems.map(({ group, title, items }) => {
-          const links = items.map(({ to, label: name, icon: Icon }) => {
-            const chip = chipOf(to);
-            const link = (
-              <NavRow
-                key={to}
-                to={to}
-                name={name}
-                Icon={Icon}
-                collapsed={collapsed}
-                padForPin={to === "/board" && !collapsed}
-                count={chip?.count ?? null}
-                countTitle={chip?.title}
-                countSr={chip?.sr}
-              />
-            );
-            if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page") return link;
-            // The pinboard, one tap away from any page: a sibling of the
-            // link, never inside it.
-            const panelOpen = pathname === "/board" && pinboard !== "closed";
-            return (
-              <div key={to} className="relative">
-                {link}
-                <button
-                  type="button"
-                  aria-label={t("ui.layout.openPinboard")}
-                  title={t("ui.layout.openPinboardTitle")}
-                  aria-pressed={panelOpen}
-                  onClick={() => togglePinboard(pathname, true)}
-                  className={cn(
-                    "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
-                    panelOpen && "text-primary-strong"
-                  )}
-                >
-                  <Pin className="h-3.5 w-3.5 -rotate-12" aria-hidden />
-                </button>
-              </div>
-            );
-          });
-          // No titles: a thin line between the sections, open or closed.
-          return (
-            <div key={group} role="group" aria-label={title} className="flex shrink-0 flex-col gap-0.5">
-              <div aria-hidden className="mx-2 mb-1 border-t" />
-              {links}
-            </div>
-          );
-        })}
-      </nav>
 
       {/* What is left between the sections and the foot: the favorites, scrolling on their own. */}
       <div className="flex min-h-0 flex-1 flex-col">{!collapsed && <SidebarFavorites />}</div>
@@ -360,31 +429,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       ) : (
         <ModuleSlot id="sidebar-footer" />
       )}
-      <div className="flex shrink-0 flex-col gap-0.5">
-        <RailTip collapsed={collapsed} label={t("ui.layout.darkTheme")}>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={resolvedTheme === "dark"}
-            aria-label={t("ui.layout.darkTheme")}
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className={row}
-          >
-            <Moon className={icon} strokeWidth={1.75} aria-hidden />
-            <span className={label} aria-hidden>
-              {t("ui.layout.darkTheme")}
-            </span>
-            {!collapsed && <SwitchLook className="ml-auto" checked={resolvedTheme === "dark"} />}
-          </button>
-        </RailTip>
-        <RailTip collapsed={collapsed} label={t("ui.layout.screensaverTip")}>
-          <button type="button" onClick={() => screensaver.set(true)} aria-label={collapsed ? t("ui.layout.screensaver") : undefined} className={row}>
-            <Sparkles className={icon} strokeWidth={1.75} aria-hidden />
-            <span className={label}>{t("ui.layout.screensaver")}</span>
-            {!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">Z</Kbd>}
-          </button>
-        </RailTip>
-        {collapsed ? (
+      <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.actions">
+        {actionPlacements.filter(placement => placement.order < quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
+        {isVisible("shell.timer.active", "shell.timer") && <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">{collapsed ? (
           <div className="flex flex-col items-center gap-0.5">
             <ActiveTimerRailButton />
             <ActiveTimerQuickControls compact />
@@ -398,44 +445,12 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             </div>
             <ActiveTimerNote />
           </div>
-        )}
-        <RailTip collapsed={collapsed} label={t("ui.layout.startTimerTip")}>
-          <button type="button" onClick={() => quickStart.set(true)} aria-label={collapsed ? t("ui.layout.startTimer") : undefined} className={cn(row, "text-foreground")}>
-            <Play className={icon} aria-hidden />
-            <span className={label}>{t("ui.layout.startTimer")}</span>
-            {!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">T</Kbd>}
-          </button>
-        </RailTip>
-        <RailTip collapsed={collapsed} label={syncHint ? `${t("ui.layout.syncJira", { provider })} · ${syncHint}` : t("ui.layout.syncJira", { provider })}>
-          <button
-            type="button"
-            onClick={() => sync.mutate()}
-            disabled={sync.isPending}
-            aria-label={collapsed ? t("ui.layout.syncJira", { provider }) : undefined}
-            title={collapsed ? undefined : (syncError ?? undefined)}
-            className={cn(row, "disabled:opacity-60")}
-          >
-            <RefreshCw className={cn(icon, sync.isPending && "motion-safe:animate-spin")} aria-hidden />
-            <span className={label}>{sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider })}</span>
-            {!collapsed && syncHint && !sync.isPending && (
-              <span className={cn("ml-auto min-w-0 truncate text-2xs font-normal", syncError ? "text-warning" : "text-muted-foreground")}>{syncHint}</span>
-            )}
-          </button>
-        </RailTip>
-        <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} />
-        <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
-          <button
-            type="button"
-            onClick={sidebar.toggle}
-            aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")}
-            className={cn(row, "font-normal")}
-          >
-            {collapsed ? <PanelLeftOpen className={icon} aria-hidden /> : <PanelLeftClose className={icon} aria-hidden />}
-            <span className={label}>{t("ui.layout.collapseShort")}</span>
-            {!collapsed && <Kbd className="ml-auto">[</Kbd>}
-          </button>
-        </RailTip>
+        )}</div>}
+        {actionPlacements.filter(placement => placement.order >= quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
       </div>
+      {placementsIn("shell.overlays").length > 0 && <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.overlays">
+        {placementsIn("shell.overlays").map(placement => <div className="contents" key={placement.anchorId}>{renderShellAnchor(placement.anchorId)}</div>)}
+      </div>}
     </div>
   );
 }
@@ -446,13 +461,16 @@ function MobileTodos() {
   const due = useTodoReminders().items.length;
   const { pathname } = useLocation();
   const s = useTodoSurfacesNow();
-  if (!(s.menu || s.widget) || pathname === "/todos") return null;
+  const { workspace } = useWorkspace();
+  const visible = workspace.placements.some(placement => placement.anchorId === "mobile.todos" && placement.areaId === "mobile.more" && placement.visible);
+  if (!visible || !(s.menu || s.widget) || pathname === "/todos") return null;
   return (
     <Button
       variant="ghost"
       size="icon"
       className="relative shrink-0"
       aria-label={due > 0 ? t("ui.layout.todosDue", { count: due }) : t("ui.todoFloat.open")}
+      {...flowControlProps("mobile.todos.open")}
       onClick={openTodosSheet}
     >
       <ListChecks className="h-5 w-5" />
@@ -467,6 +485,8 @@ function MobileTodos() {
 
 function MobileBell() {
   const inbox = useNotificationCount();
+  const { workspace } = useWorkspace();
+  if (!workspace.placements.some(placement => placement.anchorId === "mobile.notifications" && placement.areaId === "mobile.more" && placement.visible)) return null;
   return (
     <Button
       variant="ghost"
@@ -477,6 +497,7 @@ function MobileBell() {
           ? t("ui.layout.notificationsUnseen", { count: inbox })
           : t("ui.layout.notifications")
       }
+      {...flowControlProps("mobile.notifications.open")}
       onClick={() => notificationCenter.set(true)}
     >
       <Bell className="h-5 w-5" />
@@ -532,6 +553,7 @@ export function AppLayout() {
   return (
     <TooltipProvider delayDuration={200}>
       <ShellWatchers />
+      <WorkspaceScopeProvider scope={{ surfaceId: "shell-desktop", deviceClass: "desktop" }}>
       <ModulesProvider>
       <div data-surface-stage className="min-h-dvh bg-canvas">
         {/* App-wide modules (the Shadow's light): mounted once, never with a page. */}
@@ -574,8 +596,10 @@ export function AppLayout() {
           >
             <Search className="h-5 w-5" />
           </Button>
-          <MobileTodos />
-          <MobileBell />
+          <WorkspaceScopeProvider scope={{ surfaceId: "mobile-tabs", deviceClass: "mobile" }} telemetry={false}>
+            <MobileTodos />
+            <MobileBell />
+          </WorkspaceScopeProvider>
         </header>
 
         <div
@@ -641,14 +665,17 @@ export function AppLayout() {
         <MobileTabBar />
         <CommandPalette />
         <PinMailHost />
-        <QuickStart />
-        <IdleDialog />
+        <WorkspaceInteractionBoundary>
+          {/* Logging time from anywhere: typing there holds a layout change back (T-01). */}
+          <QuickStart />
+          <IdleDialog />
+        </WorkspaceInteractionBoundary>
         <DayReview />
         <FocusMode />
         <Screensaver />
         <LiveTitle />
         <ShortcutsDialog />
-        <TimerLogHost />
+        <WorkspaceInteractionBoundary><TimerLogHost /></WorkspaceInteractionBoundary>
         <NotificationCenter />
         <PinboardWidget />
         <TodoWidget />
@@ -661,6 +688,7 @@ export function AppLayout() {
         <ModuleSettingsSheet />
       </div>
       </ModulesProvider>
+      </WorkspaceScopeProvider>
     </TooltipProvider>
   );
 }

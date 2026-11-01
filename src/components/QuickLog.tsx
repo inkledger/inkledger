@@ -168,7 +168,7 @@ export function QuickLog({
           value={comment}
           onChange={e => setComment(e.target.value)}
         />
-        <Button type="submit" disabled={!canSubmit}>
+        <Button type="submit" disabled={!canSubmit} data-workspace-control="dashboard.quickLog.save" data-workspace-anchor="dashboard.quick-log">
           {create.isPending
             ? t("common.saving")
             : parsed && !placement.ready

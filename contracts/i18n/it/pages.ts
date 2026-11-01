@@ -747,6 +747,8 @@ export const pages: Shape<typeof en> = {
     periodWeek: "Settimana",
     periodMonth: "Mese",
     prefNotSaved: "Preferenza non salvata: {message}",
+    prefDeferred: "Finisci quello che stai scrivendo, poi riprova",
+    prefConflict: "Il layout è cambiato nel frattempo",
     weekTitle: "Settimana {from} – {to}",
     overdueOne: {
       one: "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.",

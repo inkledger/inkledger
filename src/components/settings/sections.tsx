@@ -22,6 +22,7 @@ import {
   Network,
   FolderGit2,
   Hourglass,
+  PanelsTopLeft,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -40,6 +41,7 @@ import { weekSeconds } from "@/lib/weekSeconds";
 import { DENSITIES, THEMES } from "@/lib/appearance";
 import { AccountSection } from "@/components/settings/sections/Account";
 import { AppearanceSection } from "@/components/settings/sections/Appearance";
+import { WorkspaceSection } from "@/components/settings/sections/Workspace";
 import { PinboardSection } from "@/components/settings/sections/Pinboard";
 import { TodosSection } from "@/components/settings/sections/Todos";
 import { EstimatesSection } from "@/components/settings/sections/Estimates";
@@ -205,6 +207,15 @@ export const CATEGORIES: SettingsCategory[] = [
       const densityLabel = DENSITIES.find(x => x.value === density)?.label;
       return [themeLabel, densityLabel].filter(Boolean).join(" · ");
     },
+  },
+  {
+    id: "workspace",
+    get label() { return t("settings.categories.workspace.label"); },
+    get description() { return t("settings.categories.workspace.description"); },
+    icon: PanelsTopLeft,
+    get keywords() { return t("settings.categories.workspace.keywords"); },
+    Content: WorkspaceSection,
+    Summary: () => t("settings.categories.workspace.summary"),
   },
   {
     id: "pinboard",

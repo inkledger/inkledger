@@ -1,7 +1,7 @@
 import { failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, cloneElement, isValidElement, useCallback, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { useToday } from "@/hooks/useToday";
 import {
   CalendarDays,
@@ -27,9 +27,14 @@ import {
 import { todoTimeByDay } from "@contracts/todo";
 import {
   DASHBOARD_WIDGETS,
-  normalizeDashboardLayout,
   type DashboardLayoutItem,
 } from "@contracts/dashboard";
+import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
+import { useWorkspace } from "@/lib/workspace/context";
+import { placementsFor, useWorkspaceDeviceClass } from "@/lib/workspace/utils";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
+import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
+import { draftFromWorkspace, visibilityPatch } from "@/lib/workspace/draft";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap } from "@contracts/workSchedule";
@@ -107,40 +112,31 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** The Customize popover's six sections (as before the workspace): shown or hidden, saved as a layout. */
 function useDashboardLayout() {
-  const utils = trpc.useUtils();
-  const settings = trpc.settings.get.useQuery();
-  const update = trpc.settings.update.useMutation({
-    // Optimistic: the toggle shows at once, rolled back on error.
-    onMutate: async input => {
-      await utils.settings.get.cancel();
-      const previous = utils.settings.get.getData();
-      if (previous && input.dashboardLayout) {
-        utils.settings.get.setData(undefined, {
-          ...previous,
-          dashboard: input.dashboardLayout,
-        });
-      }
-      return { previous };
-    },
-    onError: (e, _input, ctx) => {
-      if (ctx?.previous) utils.settings.get.setData(undefined, ctx.previous);
-      toast.error(t("pages.dashboard.prefNotSaved", { message: failureText(e) }));
-    },
-    onSettled: () => utils.settings.get.invalidate(),
-  });
-  const layout: DashboardLayoutItem[] =
-    settings.data?.dashboard ?? normalizeDashboardLayout(null);
+  const { workspace, actions } = useWorkspace();
+  // What the user just ticked, shown at once and dropped once saved (or put back if it failed).
+  const [ticked, setTicked] = useState<Record<string, boolean>>({});
+  const shown = (anchorId: string) => ticked[anchorId] ?? workspace.placements.find(placement => placement.anchorId === anchorId)?.visible !== false;
+  const layout: DashboardLayoutItem[] = DASHBOARD_WIDGETS
+    .map(widget => `dashboard.${widget.id}`)
+    .filter(anchorId => workspace.placements.some(placement => placement.anchorId === anchorId))
+    .map(anchorId => ({ id: anchorId, visible: shown(anchorId) }));
   return {
-    settings,
     layout,
-    isVisible: (id: string) => layout.find(l => l.id === id)?.visible !== false,
-    toggle: (id: string) =>
-      update.mutate({
-        dashboardLayout: layout.map(l =>
-          l.id === id ? { ...l, visible: !l.visible } : l
-        ),
-      }),
+    isVisible: shown,
+    toggle: (id: string) => {
+      const visible = !shown(id);
+      setTicked(current => ({ ...current, [id]: visible }));
+      const settle = () => setTicked(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+      void actions.applyDraft(draftFromWorkspace(workspace, [visibilityPatch(workspace, id, visible)]))
+        .then(result => {
+          if (result.status === "deferred") toast.info(t("pages.dashboard.prefDeferred"));
+          else if (result.status === "conflict") toast.error(t("pages.dashboard.prefNotSaved", { message: t("pages.dashboard.prefConflict") }));
+        })
+        .catch((error: unknown) => toast.error(t("pages.dashboard.prefNotSaved", { message: failureText(error) })))
+        .finally(settle);
+    },
   };
 }
 
@@ -186,7 +182,122 @@ function HeaderTimer() {
   );
 }
 
-export default function Dashboard() {
+function DashboardHeaderActions({ range, setKind, prev, next, reset, openAdd, futureDay, layout, toggle }: {
+  range: ReturnType<typeof usePeriod>["range"];
+  setKind: (kind: PeriodKind) => void;
+  prev: () => void;
+  next: () => void;
+  reset: () => void;
+  openAdd: () => void;
+  futureDay: boolean;
+  layout: DashboardLayoutItem[];
+  toggle: (id: string) => void;
+}) {
+  const { workspace } = useWorkspace();
+  const content: Record<string, ReactNode> = {
+    "dashboard.period": (
+      <>
+        <SegmentedControl label={t("pages.dashboard.period")} value={range.kind} onChange={setKind} options={periodOptions()} />
+        <PeriodNav onPrev={prev} onNext={next} onToday={reset} isCurrent={range.isCurrent} />
+      </>
+    ),
+    "dashboard.headerTimer": <HeaderTimer />,
+    "dashboard.quickActions": (
+      <Button onClick={openAdd} {...flowControlProps(futureDay ? "dashboard.plan" : "dashboard.logTime")}>
+        <Plus className="h-4 w-4" />
+        {futureDay ? t("ui.planned.plan") : t("pages.dashboard.logTime")}
+      </Button>
+    ),
+    "dashboard.customize": (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label={t("pages.dashboard.customize")} title={t("pages.dashboard.customizeShort")} {...flowControlProps("dashboard.customize.open")}>
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-60">
+          <p className="mb-2 text-body-sm font-medium">{t("pages.dashboard.visibleSections")}</p>
+          <ul className="grid gap-2">
+            {layout.map(l => {
+              const widget = DASHBOARD_WIDGETS.find(w => `dashboard.${w.id}` === l.id)!;
+              const label = t(`pages.dashboard.widgets.${widget.id}`);
+              return (
+                <li key={l.id}>
+                  <label className="flex items-center gap-2 text-body-sm">
+                    <Checkbox checked={l.visible} onCheckedChange={() => toggle(l.id)} />
+                    {label}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </PopoverContent>
+      </Popover>
+    ),
+  };
+  return (
+    <>
+      {placementsFor(workspace, "dashboard.header").map(placement => <Fragment key={placement.anchorId}>{content[placement.anchorId]}</Fragment>)}
+    </>
+  );
+}
+
+function DashboardSections({ content }: { content: Record<string, ReactNode> }) {
+  const { workspace } = useWorkspace();
+  const renderAnchor = (anchorId: string): ReactNode => {
+    const node = content[anchorId];
+    const placement = workspace.placements.find(item => item.anchorId === anchorId);
+    if (!isValidElement(node) || !placement) return node;
+    if (node.type === PanelSection) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
+    if (node.type === QuickStatsCard) return cloneElement(node as ReactElement<{ variant: typeof placement.variant }>, { variant: placement.variant });
+    if (anchorId === "dashboard.timeline") {
+      const section = node as ReactElement<{ className?: string; "data-workspace-anchor"?: string; "data-workspace-variant"?: string }>;
+      return cloneElement(section, {
+        "data-workspace-anchor": anchorId,
+        "data-workspace-variant": placement.variant,
+        className: cn(section.props.className, placement.variant === "compact" && "p-3", placement.variant === "expanded" && "p-6 md:p-8"),
+      });
+    }
+    return node;
+  };
+  // My issues and Recent activity stack in one column beside the summary, wherever the first of them sits.
+  const stacked = new Set(["dashboard.tasks", "dashboard.activity"]);
+  const primaryPlacements = placementsFor(workspace, "dashboard.primary")
+    .filter(placement => placement.anchorId !== "dashboard.timeline" && placement.anchorId !== "dashboard.recap");
+  const column = primaryPlacements.filter(placement => stacked.has(placement.anchorId));
+  const primary = primaryPlacements.flatMap(placement => {
+    if (!stacked.has(placement.anchorId)) return [<Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>];
+    if (placement !== column[0]) return [];
+    return [<div key="dashboard.tasks+activity" className="min-w-0">{column.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div>];
+  });
+  const timeline = renderAnchor("dashboard.timeline");
+  const stats = renderAnchor("dashboard.stats");
+  const summary = content["dashboard.summary"];
+  const tasks = content["dashboard.tasks"];
+  const activity = content["dashboard.activity"];
+  const recap = renderAnchor("dashboard.recap");
+  const desk = renderAnchor("dashboard.desk");
+  const hasSecondaryContent = Boolean(tasks || activity);
+  return (
+    <>
+      {(timeline || stats) && (
+        <div className={cn("grid gap-6 border-b p-5 md:p-6", timeline && stats && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
+          {timeline}
+          {stats}
+        </div>
+      )}
+      {primary.length > 0 && (
+        <div className={cn("grid", summary && hasSecondaryContent && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>
+          {primary}
+        </div>
+      )}
+      {recap}
+      {desk}
+    </>
+  );
+}
+
+function DashboardContent() {
   const provider = useProviderName();
   const { range, setKind, prev, next, reset, jumpTo } = usePeriod("day");
   const { layout, isVisible, toggle } = useDashboardLayout();
@@ -232,7 +343,7 @@ export default function Dashboard() {
   // TODO time in the period: beside the logged time, never added to it.
   const todoSessions = trpc.todos.sessions.useQuery(
     { from: range.from.toISOString(), to: range.to.toISOString() },
-    { placeholderData: keepPreviousData, enabled: isVisible("timeline") }
+    { placeholderData: keepPreviousData, enabled: isVisible("dashboard.timeline") }
   );
   const todoSpans = useMemo(() => todoSessions.data ?? [], [todoSessions.data]);
   const todoByDay = useMemo(() => todoTimeByDay(todoSpans), [todoSpans]);
@@ -518,12 +629,12 @@ export default function Dashboard() {
         : t("pages.dashboard.hoursMonth");
 
   const show = {
-    timeline: isVisible("timeline"),
-    stats: isVisible("stats"),
-    summary: isVisible("summary"),
-    tasks: isVisible("tasks"),
-    activity: isVisible("activity"),
-    recap: isVisible("recap"),
+    timeline: isVisible("dashboard.timeline"),
+    stats: isVisible("dashboard.stats"),
+    summary: isVisible("dashboard.summary"),
+    tasks: isVisible("dashboard.tasks"),
+    activity: isVisible("dashboard.activity"),
+    recap: isVisible("dashboard.recap"),
   };
 
   return (
@@ -572,299 +683,173 @@ export default function Dashboard() {
           </>
         }
         actions={
-          <>
-            <HeaderTimer />
-            <SegmentedControl
-              label={t("pages.dashboard.period")}
-              value={range.kind}
-              onChange={setKind}
-              options={periodOptions()}
-            />
-            <PeriodNav
-              onPrev={prev}
-              onNext={next}
-              onToday={reset}
-              isCurrent={range.isCurrent}
-            />
-            <Button onClick={openAdd}>
-              <Plus className="h-4 w-4" />
-              {futureDay ? t("ui.planned.plan") : t("pages.dashboard.logTime")}
-            </Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t("pages.dashboard.customize")}
-                  title={t("pages.dashboard.customizeShort")}
-                >
-                  <Settings2 className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-60">
-                <p className="mb-2 text-body-sm font-medium">{t("pages.dashboard.visibleSections")}</p>
-                <ul className="grid gap-2">
-                  {layout.map(l => {
-                    const widget = DASHBOARD_WIDGETS.find(w => w.id === l.id);
-                    const label = widget ? t(`pages.dashboard.widgets.${widget.id}`) : l.id;
-                    return (
-                      <li key={l.id}>
-                        <label className="flex items-center gap-2 text-body-sm">
-                          <Checkbox
-                            checked={l.visible}
-                            onCheckedChange={() => toggle(l.id)}
-                          />
-                          {label}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </PopoverContent>
-            </Popover>
-          </>
+          <DashboardHeaderActions
+            range={range}
+            setKind={setKind}
+            prev={prev}
+            next={next}
+            reset={reset}
+            openAdd={openAdd}
+            futureDay={futureDay}
+            layout={layout}
+            toggle={toggle}
+          />
         }
       />
 
 
-      {/* Row 1: period chart + quick stats */}
-      {(show.timeline || show.stats) && (
-        <div
-          className={cn(
-            "grid gap-6 border-b p-5 md:p-6",
-            show.timeline && show.stats && "xl:grid-cols-[minmax(0,1fr)_340px]"
-          )}
-        >
-          {show.timeline && (
-            <section
-              aria-label={t("pages.dashboard.periodTrend")}
-              aria-busy={logs.isPlaceholderData}
-              // The last period's while the new one comes: shown faded.
-              className={cn("min-w-0 transition-opacity", logs.isPlaceholderData && "opacity-60")}
-            >
-              {logs.isPending ? (
-                <Skeleton className="h-64 rounded-xl" />
-              ) : logs.error ? (
-                <ErrorState
-                  message={errorText(logs.error)}
-                  onRetry={() => logs.refetch()}
-                />
-              ) : range.kind === "day" ? (
-                <DayTimeline
-                  day={range.from}
-                  entries={timelineEntries}
-                  colorOf={derived.colorOf}
-                  schedule={daySchedule}
-                  missing={missing}
-                  onGap={setGap}
-                  openHole={openHole}
-                  floor={<ModuleSlot id="dashboard-perch" />}
-                  todoSpans={todoSpans}
-                  liveControls={running ? LIVE_CONTROLS : undefined}
-                  onPending={logPending}
-                  plannedEntries={plannedEntries}
-                  onEditPlanned={editPlanned}
-                />
-              ) : (
-                <PeriodBars
-                  stacks={stacks}
-                  colorOf={derived.colorOf}
-                  targetFor={targetFor}
-                  dense={range.kind === "month"}
-                  pending={pending}
-                  parallel={todoByDay}
-                />
-              )}
-            </section>
-          )}
-          {show.stats &&
-            (stats.isPending ? (
+      {(() => {
+        const sections: Record<string, ReactNode> = {
+        "dashboard.timeline": show.timeline && (
+          <section
+            aria-label={t("pages.dashboard.periodTrend")}
+            aria-busy={logs.isPlaceholderData}
+            className={cn("min-w-0 transition-opacity", logs.isPlaceholderData && "opacity-60")}
+          >
+            {logs.isPending ? (
               <Skeleton className="h-64 rounded-xl" />
-            ) : stats.error ? (
-              <ErrorState
-                message={errorText(stats.error)}
-                onRetry={() => stats.refetch()}
+            ) : logs.error ? (
+              <ErrorState message={errorText(logs.error)} onRetry={() => logs.refetch()} />
+            ) : range.kind === "day" ? (
+              <DayTimeline
+                day={range.from}
+                entries={timelineEntries}
+                colorOf={derived.colorOf}
+                schedule={daySchedule}
+                missing={missing}
+                onGap={setGap}
+                openHole={openHole}
+                floor={<ModuleSlot id="dashboard-perch" />}
+                todoSpans={todoSpans}
+                liveControls={running ? LIVE_CONTROLS : undefined}
+                onPending={logPending}
+                plannedEntries={plannedEntries}
+                onEditPlanned={editPlanned}
               />
             ) : (
-              <QuickStatsCard
-                stats={[
-                  {
-                    label: t("pages.dashboard.overdue"),
-                    value: String(overdue.length),
-                    tone: overdue.length > 0 ? "danger" : undefined,
-                  },
-                  { label: t("pages.dashboard.inProgress"), value: String(inProgress) },
-                ]}
-                extra={[
-                  {
-                    label: t("pages.dashboard.week"),
-                    value: formatDuration(stats.data.weekSeconds),
-                  },
-                  {
-                    label: t("pages.dashboard.month"),
-                    value: formatDuration(stats.data.monthSeconds),
-                  },
-                  { label: t("pages.dashboard.open"), value: String(stats.data.openIssueCount) },
-                  {
-                    label: t("pages.dashboard.weeklyGoal"),
-                    value: formatDuration(weeklyTarget),
-                  },
-                ]}
-                note={note}
+              <PeriodBars
+                stacks={stacks}
+                colorOf={derived.colorOf}
+                targetFor={targetFor}
+                dense={range.kind === "month"}
+                pending={pending}
+                parallel={todoByDay}
               />
-            ))}
-        </div>
-      )}
-
-      {/* Row 2: summary | my issues + recent activity */}
-      {(show.summary || show.tasks || show.activity) && (
-        <div
-          className={cn(
-            "grid",
-            show.summary &&
-              (show.tasks || show.activity) &&
-              "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]"
-          )}
-        >
-          {show.summary && (
-            <PanelSection
-              title={t("pages.dashboard.summary")}
-              className="border-b xl:border-b-0 xl:border-r"
-              actions={
-                pending && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => dayReview.set(true)}
-                  >
-                    <Sunset className="h-4 w-4" />
-                    {t("pages.dashboard.closeDay")}
-                  </Button>
-                )
-              }
-            >
-              {logs.isPending ? (
-                <Skeleton className="h-80" />
-              ) : logs.error ? (
-                <ErrorState
-                  message={errorText(logs.error)}
-                  onRetry={() => logs.refetch()}
+            )}
+          </section>
+        ),
+        "dashboard.stats": show.stats && (stats.isPending ? (
+          <Skeleton className="h-64 rounded-xl" />
+        ) : stats.error ? (
+          <ErrorState message={errorText(stats.error)} onRetry={() => stats.refetch()} />
+        ) : (
+          <QuickStatsCard
+            stats={[
+              { label: t("pages.dashboard.overdue"), value: String(overdue.length), tone: overdue.length > 0 ? "danger" : undefined },
+              { label: t("pages.dashboard.inProgress"), value: String(inProgress) },
+            ]}
+            extra={[
+              { label: t("pages.dashboard.week"), value: formatDuration(stats.data.weekSeconds) },
+              { label: t("pages.dashboard.month"), value: formatDuration(stats.data.monthSeconds) },
+              { label: t("pages.dashboard.open"), value: String(stats.data.openIssueCount) },
+              { label: t("pages.dashboard.weeklyGoal"), value: formatDuration(weeklyTarget) },
+            ]}
+            note={note}
+          />
+        )),
+        "dashboard.summary": show.summary && (
+          <PanelSection
+            title={t("pages.dashboard.summary")}
+            className="border-b xl:border-b-0 xl:border-r"
+            actions={pending && (
+              <Button variant="outline" size="sm" onClick={() => dayReview.set(true)}>
+                <Sunset className="h-4 w-4" />
+                {t("pages.dashboard.closeDay")}
+              </Button>
+            )}
+          >
+            {logs.isPending ? (
+              <Skeleton className="h-80" />
+            ) : logs.error ? (
+              <ErrorState message={errorText(logs.error)} onRetry={() => logs.refetch()} />
+            ) : (
+              <PeriodSummary
+                label={periodLabel}
+                totalSeconds={derived.total}
+                loggedSeconds={range.kind === "day" ? undefined : derived.logged}
+                targetSeconds={target}
+                legend={derived.legend}
+                issues={issueTotals}
+                colorOf={derived.colorOf}
+                pending={pending}
+                celebrate={range.kind === "day" && pending}
+              />
+            )}
+            {stats.data && (
+              <div className="mt-8">
+                <SectionLabel as="h3" className="mb-3 px-0">{t("pages.dashboard.last14")}</SectionLabel>
+                <PeriodBars
+                  compact
+                  stacks={stats.data.perDay.map(d => ({ day: parseDayKey(d.date) ?? today, parts: [{ project: "_", seconds: d.seconds }] }))}
+                  colorOf={() => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" })}
+                  targetFor={targetFor}
+                  dense
+                  pending
                 />
-              ) : (
-                <PeriodSummary
-                  label={periodLabel}
-                  totalSeconds={derived.total}
-                  // The day's timeline says it already.
-                  loggedSeconds={range.kind === "day" ? undefined : derived.logged}
-                  targetSeconds={target}
-                  legend={derived.legend}
-                  issues={issueTotals}
-                  colorOf={derived.colorOf}
-                  pending={pending}
-                  celebrate={range.kind === "day" && pending}
-                />
-              )}
-              {stats.data && (
-                <div className="mt-8">
-                  <SectionLabel as="h3" className="mb-3 px-0">
-                    {t("pages.dashboard.last14")}
-                  </SectionLabel>
-                  <PeriodBars
-                    compact
-                    stacks={stats.data.perDay.map(d => ({
-                      day: parseDayKey(d.date) ?? today,
-                      parts: [{ project: "_", seconds: d.seconds }],
-                    }))}
-                    colorOf={() => ({
-                      fill: "bg-chart-focus",
-                      soft: "",
-                      solid: "",
-                      stroke: "",
-                    })}
-                    targetFor={targetFor}
-                    dense
-                    pending
-                  />
-                </div>
-              )}
-            </PanelSection>
-          )}
-          {(show.tasks || show.activity) && (
-            <div className="min-w-0">
-              {show.tasks && (
-                <PanelSection
-                  title={t("pages.dashboard.myIssues")}
-                  className="border-b"
-                  actions={
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/board">{t("pages.dashboard.openBoard")}</Link>
-                    </Button>
-                  }
-                >
-                  {issues.isPending ? (
-                    <Skeleton className="h-72" />
-                  ) : issues.error ? (
-                    <ErrorState
-                      message={errorText(issues.error)}
-                      onRetry={() => issues.refetch()}
-                    />
-                  ) : (
-                    <TasksBoard
-                      columns={columns}
-                      collapsed={tasksCollapsed.collapsed}
-                      onToggle={tasksCollapsed.toggle}
-                    />
-                  )}
-                </PanelSection>
-              )}
-              {show.activity && (
-                <PanelSection title={t("pages.dashboard.recentActivity")}>
-                  {recent.isPending ? (
-                    <Skeleton className="h-48" />
-                  ) : recent.error ? (
-                    <ErrorState
-                      message={errorText(recent.error)}
-                      onRetry={() => recent.refetch()}
-                    />
-                  ) : (
-                    <ActivityTable rows={activity} />
-                  )}
-                </PanelSection>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {show.recap && (
-        <PanelSection title={t("pages.dashboard.yourWeek")} className="border-t">
-          {recent.isPending ? (
-            <Skeleton className="h-28" />
-          ) : recent.error ? (
-            <ErrorState
-              message={errorText(recent.error)}
-              onRetry={() => recent.refetch()}
-            />
-          ) : (
-            <WeekRecapCard
-              recap={recap}
-              targetFor={targetFor}
-              pending
-              summaryOf={top => issueByKey.get(issueId(top))?.summary}
-            />
-          )}
-        </PanelSection>
-      )}
-
-      <ModuleSlot
-        id="dashboard-widget"
-        frame={boxes => (
-          // A module may hide its card (e.g. the Bonsai living on the timeline instead): no empty desk.
-          <PanelSection title={t("pages.dashboard.desk")} className="border-t [&:not(:has([data-module]:not([hidden])))]:hidden">
-            <div className="grid gap-4 md:grid-cols-2">{boxes}</div>
+              </div>
+            )}
           </PanelSection>
-        )}
-      />
+        ),
+        "dashboard.tasks": show.tasks && (
+          <PanelSection
+            title={t("pages.dashboard.myIssues")}
+            className="border-b"
+            actions={<Button asChild variant="outline" size="sm"><Link to="/board">{t("pages.dashboard.openBoard")}</Link></Button>}
+          >
+            {issues.isPending ? (
+              <Skeleton className="h-72" />
+            ) : issues.error ? (
+              <ErrorState message={errorText(issues.error)} onRetry={() => issues.refetch()} />
+            ) : (
+              <TasksBoard columns={columns} collapsed={tasksCollapsed.collapsed} onToggle={tasksCollapsed.toggle} />
+            )}
+          </PanelSection>
+        ),
+        "dashboard.activity": show.activity && (
+          <PanelSection title={t("pages.dashboard.recentActivity")}>
+            {recent.isPending ? (
+              <Skeleton className="h-48" />
+            ) : recent.error ? (
+              <ErrorState message={errorText(recent.error)} onRetry={() => recent.refetch()} />
+            ) : (
+              <ActivityTable rows={activity} />
+            )}
+          </PanelSection>
+        ),
+        "dashboard.recap": show.recap && (
+          <PanelSection title={t("pages.dashboard.yourWeek")} className="border-t">
+            {recent.isPending ? (
+              <Skeleton className="h-28" />
+            ) : recent.error ? (
+              <ErrorState message={errorText(recent.error)} onRetry={() => recent.refetch()} />
+            ) : (
+              <WeekRecapCard recap={recap} targetFor={targetFor} pending summaryOf={top => issueByKey.get(issueId(top))?.summary} />
+            )}
+          </PanelSection>
+        ),
+        "dashboard.desk": (
+          <ModuleSlot
+            id="dashboard-widget"
+            frame={boxes => (
+              <PanelSection title={t("pages.dashboard.desk")} className="border-t [&:not(:has([data-module]:not([hidden])))]:hidden">
+                <div className="grid gap-4 md:grid-cols-2">{boxes}</div>
+              </PanelSection>
+            )}
+          />
+        ),
+      };
+        return <DashboardSections content={sections} />;
+      })()}
 
       <PlannedDialog
         day={range.from}
@@ -899,5 +884,14 @@ export default function Dashboard() {
         onOpenChange={open => !open && setGap(null)}
       />
     </>
+  );
+}
+
+export default function Dashboard() {
+  const deviceClass = useWorkspaceDeviceClass();
+  return (
+    <WorkspaceScopeProvider scope={{ surfaceId: "dashboard", deviceClass }}>
+      <WorkspaceInteractionBoundary><DashboardContent /></WorkspaceInteractionBoundary>
+    </WorkspaceScopeProvider>
   );
 }

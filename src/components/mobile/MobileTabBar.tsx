@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { Ellipsis, Play } from "lucide-react";
 import { formatHMS } from "@contracts/time";
@@ -13,6 +13,11 @@ import { ModuleSlot } from "@/modules/ModuleHost";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
+import { useWorkspace } from "@/lib/workspace/context";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
+import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
+import { placementsFor } from "@/lib/workspace/utils";
 
 const CELL =
   "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -20,7 +25,7 @@ const CELL =
 const ACTIVE =
   "text-primary-strong before:absolute before:-top-1 before:h-0.5 before:w-6 before:rounded-full before:bg-primary";
 
-function Tab({ to }: { to: string }) {
+function Tab({ to, controlId }: { to: string; controlId: string }) {
   const { pathname } = useLocation();
   const unread = useUnreadCount();
   const item = navItems()
@@ -33,6 +38,7 @@ function Tab({ to }: { to: string }) {
     <NavLink
       to={to}
       end={to === "/"}
+      {...flowControlProps(controlId)}
       onClick={e => {
         // Tapping the page you are on takes you back to its top.
         if (pathname !== to) return;
@@ -83,6 +89,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
         aria-label={t("ui.layout.startTimer")}
         onClick={() => quickStart.set(true)}
         {...surface("control")}
+        {...flowControlProps("mobile.timer.start")}
         className={cn(round, "bg-primary text-primary-foreground active:bg-primary-strong")}
       >
         <Play className="h-5 w-5 translate-x-px" fill="currentColor" aria-hidden />
@@ -101,6 +108,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
       })}
       onClick={onOpen}
       {...surface("control")}
+      {...flowControlProps("mobile.timer.open")}
       className={cn(round, "border bg-card active:bg-accent")}
     >
       <TimerRing running={running} className="h-5 w-5" />
@@ -120,13 +128,26 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
  * Phones and tablets: the sections used all day and the timer, one tap away
  * at the bottom of the screen. Steps aside while the soft keyboard is up.
  */
-export function MobileTabBar() {
+function MobileTabBarContent() {
   const { pathname } = useLocation();
+  const { workspace } = useWorkspace();
   const [timersOpen, setTimersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const entry = navEntryFor(pathname);
   const inMore =
     entry !== null && !TAB_ROUTES.includes(entry.to);
+  const visibleTabs = placementsFor(workspace, "mobile.tabs");
+  const isVisible = (anchorId: string, areaId: string) => workspace.placements.some(placement => placement.anchorId === anchorId && placement.areaId === areaId && placement.visible);
+  const density = visibleTabs.some(placement => placement.variant === "expanded") ? "expanded" : visibleTabs.every(placement => placement.variant === "compact") ? "compact" : "default";
+  // The bar's height feeds --bottom-nav-h through CSS, so wide screens and the soft keyboard still zero it.
+  useEffect(() => {
+    if (density === "default") return;
+    const root = document.documentElement;
+    root.dataset.tabDensity = density;
+    return () => {
+      delete root.dataset.tabDensity;
+    };
+  }, [density]);
 
   return (
     <>
@@ -140,32 +161,63 @@ export function MobileTabBar() {
         )}
       >
         {/* Add-ons' anchor on the bar's top-right edge (e.g. a player while music plays). */}
-        <div className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-0 h-0 w-0">
-          <ModuleSlot id="mobile-dock" />
-        </div>
-        <div className="mx-auto grid h-14 max-w-md grid-cols-5 items-center px-1">
-          <Tab to="/" />
-          <Tab to="/board" />
-          <div className="flex justify-center">
-            <TimerButton onOpen={() => setTimersOpen(true)} />
+        {isVisible("mobile.dock", "mobile.dock") && (
+          <div data-workspace-area="mobile.dock" data-workspace-anchor="mobile.dock" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-0 h-0 w-0">
+            <ModuleSlot id="mobile-dock" />
           </div>
-          <Tab to="/issues" />
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            aria-current={inMore ? "page" : undefined}
-            onClick={() => setMoreOpen(true)}
-            className={cn(CELL, inMore && ACTIVE)}
-            {...surface("nav", { current: true, edge: false })}
-          >
-            <Ellipsis className="h-5 w-5" aria-hidden />
-            <span className="max-w-full truncate">{t("ui.layout.more")}</span>
-          </button>
+        )}
+        <div
+          data-workspace-variant={density}
+          className={cn("mx-auto grid max-w-md items-center px-1", density === "compact" ? "h-12" : density === "expanded" ? "h-16" : "h-14")}
+          style={{ gridTemplateColumns: `repeat(${Math.max(visibleTabs.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {visibleTabs.map(placement => {
+            switch (placement.anchorId) {
+              case "mobile.home":
+                return <Tab key={placement.anchorId} to="/" controlId="mobile.tabs.home" />;
+              case "mobile.board":
+                return <Tab key={placement.anchorId} to="/board" controlId="mobile.tabs.board" />;
+              case "mobile.issues":
+                return <Tab key={placement.anchorId} to="/issues" controlId="mobile.tabs.issues" />;
+              case "mobile.timer.active":
+                return (
+                  <div key={placement.anchorId} className="flex justify-center">
+                    <TimerButton onOpen={() => setTimersOpen(true)} />
+                  </div>
+                );
+              case "mobile.more":
+                return (
+                  <button
+                    key={placement.anchorId}
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={moreOpen}
+                    aria-current={inMore ? "page" : undefined}
+                    onClick={() => setMoreOpen(true)}
+                    className={cn(CELL, inMore && ACTIVE)}
+                    {...surface("nav", { current: true, edge: false })}
+                    {...flowControlProps("mobile.tabs.more")}
+                  >
+                    <Ellipsis className="h-5 w-5" aria-hidden />
+                    <span className="max-w-full truncate">{t("ui.layout.more")}</span>
+                  </button>
+                );
+              default:
+                return null;
+            }
+          })}
         </div>
       </nav>
       <MobileTimerSheet open={timersOpen} onOpenChange={setTimersOpen} />
       <MobileMoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
     </>
+  );
+}
+
+export function MobileTabBar() {
+  return (
+    <WorkspaceScopeProvider scope={{ surfaceId: "mobile-tabs", deviceClass: "mobile" }}>
+      <WorkspaceInteractionBoundary><MobileTabBarContent /></WorkspaceInteractionBoundary>
+    </WorkspaceScopeProvider>
   );
 }

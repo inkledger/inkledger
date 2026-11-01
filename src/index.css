@@ -674,12 +674,21 @@
 :root {
   --bottom-nav-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
 }
+/* A tab bar made compact or roomier in the workspace Studio (MobileTabBar sets the attribute). */
+:root[data-tab-density="compact"] {
+  --bottom-nav-h: calc(3rem + env(safe-area-inset-bottom, 0px));
+}
+:root[data-tab-density="expanded"] {
+  --bottom-nav-h: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
 @media (min-width: 1024px) {
-  :root {
+  :root,
+  :root[data-tab-density] {
     --bottom-nav-h: 0px;
   }
 }
-html[data-keyboard] {
+html[data-keyboard],
+html[data-keyboard][data-tab-density] {
   --bottom-nav-h: 0px;
 }
 /* A module showing a control on the tab bar's edge (its mobile-dock box marked
