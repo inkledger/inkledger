@@ -132,6 +132,9 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       DATABASE_URL: dbUrl.toString(),
       SESSION_SECRET: SECRET,
       JIRA_READ_ONLY: "1",
+      // Never a real local model from a test: each test that wants one brings its own fixture.
+      OLLAMA_URL: "",
+      OLLAMA_SIMULATOR: "",
       SYNC_INTERVAL_MIN: "0",
       TZ: "Europe/Rome",
       DOWNLOADS_DIR: join(dir, "downloads"),

@@ -25,5 +25,5 @@
       "@db/*": ["./db/*"]
     }
   },
-  "include": ["api", "contracts", "db"]
+  "include": ["api", "contracts", "db", "scripts/**/*.ts"]
 }

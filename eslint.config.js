@@ -45,7 +45,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['api/**/*.ts', 'db/**/*.ts', 'contracts/**/*.ts', '*.config.ts'],
+    files: ['api/**/*.ts', 'db/**/*.ts', 'contracts/**/*.ts', 'scripts/**/*.ts', '*.config.ts'],
     languageOptions: { globals: globals.node },
   },
   {
