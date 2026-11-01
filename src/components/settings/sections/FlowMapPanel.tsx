@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, FileUp, RefreshCw, Trash2 } from "lucide-react";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { trpc } from "@/lib/trpc";
 import { useWorkspace } from "@/lib/workspace/context";
 import { failureText } from "@/lib/errorText";
+import { cn } from "@/lib/utils";
 import type { EvidenceSet, ExpectationGap, FlowMapDocument, FlowMapView } from "@contracts/workspace/flowMap";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import type { SuggestionPatch } from "@contracts/workspace/model";
@@ -29,10 +30,16 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
   const feedback = trpc.flowMap.feedback.useMutation();
   const deleteData = trpc.flowMap.delete.useMutation();
   const [view, setView] = useState<FlowMapView>("heat");
-  const [preview, setPreview] = useState<{ contents: string; document: FlowMapDocument; filename: string } | null>(null);
+  const [preview, setPreviewState] = useState<{ contents: string; document: FlowMapDocument; filename: string; imageUrl: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const imageUrl = useMemo(() => preview ? URL.createObjectURL(new Blob([preview.document.svg], { type: "image/svg+xml" })) : null, [preview]);
-  useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
+  // The picture's URL is made when a preview is chosen and revoked when it is replaced or the panel goes.
+  const imageUrl = useRef<string | null>(null);
+  const setPreview = (next: { contents: string; document: FlowMapDocument; filename: string } | null) => {
+    if (imageUrl.current) URL.revokeObjectURL(imageUrl.current);
+    imageUrl.current = next ? URL.createObjectURL(new Blob([next.document.svg], { type: "image/svg+xml" })) : null;
+    setPreviewState(next && imageUrl.current ? { ...next, imageUrl: imageUrl.current } : null);
+  };
+  useEffect(() => () => { if (imageUrl.current) URL.revokeObjectURL(imageUrl.current); }, []);
   const busy = consent.isPending || aggregate.isPending || exportMap.isPending || importMap.isPending || feedback.isPending || deleteData.isPending;
 
   const refresh = async () => {
@@ -131,8 +138,8 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
           </table>
           {view === "expectation" && evidence.expectations.length > 0 && <p className="text-caption text-muted-foreground">{t(key("expectationHint"))}</p>}
           {view === "expectation" && evidence.expectations.map(gap => <div key={gap.id} className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "confirmed" }); await refresh(); })}>{t(key("confirmExpectation"))}</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "rejected" }); await refresh(); })}>{t(key("rejectExpectation"))}</Button>
+            <Button size="sm" variant="outline" disabled={busy} aria-label={`${t(key("confirmExpectation"))}: ${areaLabel(gap.areaId)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "confirmed" }); await refresh(); })}>{t(key("confirmExpectation"))}</Button>
+            <Button size="sm" variant="ghost" disabled={busy} aria-label={`${t(key("rejectExpectation"))}: ${areaLabel(gap.areaId)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "rejected" }); await refresh(); })}>{t(key("rejectExpectation"))}</Button>
             {gap.state === "confirmed" && expectationTarget(gap) && <Button size="sm" disabled={busy} onClick={() => void previewExpectation(evidence, gap)}>{t(key("useExpectation"))}</Button>}
           </div>)}
           <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => void prepare(evidence.evidenceId)}>{t(key("previewFile"))}</Button>
@@ -144,13 +151,13 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
         <Button className="mt-2" size="sm" variant="outline" disabled={busy} onClick={() => setPreview({ contents: JSON.stringify(item.document), document: item.document, filename: `import-${item.importId}.flowmap` })}>{t(key("previewFile"))}</Button>
       </section>)}
       {preview && <section className="mt-4 border-t pt-3" aria-label={t(key("previewFile"))}>
-        <img src={imageUrl ?? undefined} alt={t(key("previewAlt"))} className="max-h-96 w-full rounded-md border object-contain" />
+        <img src={preview.imageUrl} alt={t(key("previewAlt"))} className="max-h-96 w-full rounded-md border object-contain" />
         <p className="mt-2 text-caption text-muted-foreground">{t(key("downloadHint"))}</p>
         <Button className="mt-2" size="sm" onClick={download}><Download className="h-4 w-4" />{t(key("download"))}</Button>
       </section>}
       <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
         <Button variant="outline" size="sm" asChild>
-          <label className="cursor-pointer"><FileUp className="h-4 w-4" />{t(key("import"))}<Input type="file" accept=".flowmap,application/json" className="sr-only" aria-label={t(key("import"))} disabled={busy} onChange={event => {
+          <label className={cn("cursor-pointer focus-within:ring-2 focus-within:ring-ring", busy && "pointer-events-none opacity-50")}><FileUp className="h-4 w-4" />{t(key("import"))}<Input type="file" accept=".flowmap,application/json" className="sr-only" aria-label={t(key("import"))} disabled={busy} onChange={event => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (file) void run(async () => {

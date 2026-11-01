@@ -111,6 +111,15 @@ describe("FlowMap collection delivery", () => {
     expect(sendBeacon).toHaveBeenCalledOnce();
   });
 
+  it("sends nothing at all when the collection stops because the user opted out", () => {
+    const sendBeacon = vi.fn(() => true);
+    vi.stubGlobal("navigator", { sendBeacon });
+    const { document, stop } = setup(async () => {});
+    for (let index = 0; index < 3; index++) click(document);
+    stop({ optedOut: true });
+    expect(sendBeacon).not.toHaveBeenCalled();
+  });
+
   it("records an action's outcome even when another mutation finishes first", () => {
     const sends: FlowEvent[][] = [];
     vi.stubGlobal("navigator", { sendBeacon: vi.fn((_url: string, body: Blob) => { void body.text().then(text => sends.push((JSON.parse(text) as { json: { events: FlowEvent[] } }).json.events)); return true; }) });

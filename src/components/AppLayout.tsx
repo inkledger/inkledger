@@ -58,7 +58,7 @@ import { DashboardBackdrop, ModuleSlot, ModulesProvider } from "@/modules/Module
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { useWorkspace } from "@/lib/workspace/context";
-import { flowControlProps } from "@/lib/workspace/instrumentation";
+import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentation";
 import { routeControlId } from "@/lib/workspace/searchEvents";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
@@ -252,7 +252,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         : null;
   const pinboard = usePinboardPanel();
   const { workspace } = useWorkspace();
-  const placementsIn = (areaId: string) => workspace.placements.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order || a.anchorId.localeCompare(b.anchorId));
+  const placementsIn = (areaId: string) => workspace.placements.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
   const navigationPlacements = placementsIn("shell.navigation");
   const isVisible = (anchorId: string, areaId: string) => workspace.placements.some(placement => placement.anchorId === anchorId && placement.areaId === areaId && placement.visible);
   const navItems = useNavItems();
@@ -431,7 +431,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       )}
       <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.actions">
         {actionPlacements.filter(placement => placement.order < quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
-        {isVisible("shell.timer.active", "shell.timer") && <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">{collapsed ? (
+        {isVisible("shell.timer.active", "shell.timer") && <FlowControlHost.Provider value="shell.timer.active"><div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">{collapsed ? (
           <div className="flex flex-col items-center gap-0.5">
             <ActiveTimerRailButton />
             <ActiveTimerQuickControls compact />
@@ -445,7 +445,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             </div>
             <ActiveTimerNote />
           </div>
-        )}</div>}
+        )}</div></FlowControlHost.Provider>}
         {actionPlacements.filter(placement => placement.order >= quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
       </div>
       {placementsIn("shell.overlays").length > 0 && <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.overlays">

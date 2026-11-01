@@ -106,13 +106,13 @@ export default function Settings() {
           <div className="border-b px-5 py-4 md:px-6">
             <Link
               to="/settings"
-              className="mb-2 inline-flex items-center gap-1 text-body-sm text-foreground lg:hidden"
+              className="mb-2 inline-flex items-center gap-1 text-body-sm text-muted-foreground hover:text-foreground lg:hidden"
             >
               <ChevronLeft className="h-4 w-4" />
               {t("pages.settings.title")}
             </Link>
             <h2 className="font-display text-heading">{active.label}</h2>
-            <p className={cn("text-body-sm", active.id === "workspace" ? "text-foreground" : "text-muted-foreground")}>{active.description}</p>
+            <p className="text-body-sm text-muted-foreground">{active.description}</p>
           </div>
           <SettingsSearch.Provider value={query}>
             <active.Content />

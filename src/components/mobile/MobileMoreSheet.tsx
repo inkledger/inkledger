@@ -48,8 +48,10 @@ export function MobileMoreSheet({
   const { hint, error } = useSyncHint();
   const { workspace } = useWorkspace();
   const inbox = useNotificationCount();
-  const morePlacements = workspace.placements.filter(placement => placement.areaId === "mobile.more" && placement.visible).sort((a, b) => a.order - b.order || a.anchorId.localeCompare(b.anchorId));
-  const dockInMore = workspace.placements.some(placement => placement.anchorId === "mobile.dock" && placement.areaId === "mobile.dock" && placement.visible);
+  const morePlacements = workspace.placements.filter(placement => placement.areaId === "mobile.more" && placement.visible).sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
+  // The module dock where it was (the tab bar's edge): its More modules keep their own section below, as before.
+  // Placed among the More tiles instead, those modules show as that tile, never twice.
+  const dockOnBar = workspace.placements.some(placement => placement.anchorId === "mobile.dock" && placement.areaId === "mobile.dock" && placement.visible);
   const sections = useNavItems()
     .flatMap(g => g.items)
     .filter(i => !TAB_ROUTES.includes(i.to));
@@ -141,7 +143,7 @@ export function MobileMoreSheet({
               <span className="max-w-full truncate">{t("ui.layout.screensaver")}</span>
             </button>
           </nav>
-          {dockInMore && <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />}
+          {dockOnBar && <ModuleSlot id="mobile-more" frame={boxes => <section className="grid gap-2">{boxes}</section>} />}
 
           {/* Favorites as in the sidebar, rows and ▶ sized for a thumb. */}
           <div className="-mx-1 flex flex-col [&_.group>a]:py-2.5 [&_.group>a]:text-body-sm [&_.group>button]:h-9 [&_.group>button]:w-9 [&_.group>button_svg]:h-4 [&_.group>button_svg]:w-4">

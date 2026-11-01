@@ -36,7 +36,3 @@ export function beginWorkspaceTask(): () => void {
   };
 }
 
-export function resetWorkspaceTasksForTests(): void {
-  interactionEpoch = 1;
-  activeTasks = 0;
-}

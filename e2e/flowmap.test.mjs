@@ -49,7 +49,7 @@ test("FlowMap is opt-in, exports only aggregates and deletes all derived data", 
     await page.getByRole("button", { name: "Delete data", exact: true }).click();
     const deleted = await deleting;
     assert.equal(deleted.status(), 200, await deleted.text());
-    for (const table of ["workspace_flow_events", "workspace_flow_aggregates", "workspace_flow_imports", "workspace_flow_feedback"]) {
+    for (const table of ["workspace_flow_events", "workspace_flow_aggregates", "workspace_flow_imports", "workspace_flow_feedback", "workspace_planner_feedback"]) {
       assert.equal(await waitForCount(db, table, 0), 0);
     }
     assert.equal((await db.q("SELECT enabled FROM workspace_flow_settings"))[0].enabled, false);
@@ -88,7 +88,7 @@ test("An Expectation becomes an explicit constraint only through preview and app
     await page.getByRole("button", { name: "Update evidence", exact: true }).click();
     await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
     await page.getByRole("radio", { name: "Expectation", exact: true }).click();
-    await page.getByRole("button", { name: "Relevant", exact: true }).click();
+    await page.getByRole("button", { name: /^Relevant: / }).first().click();
     await page.getByText(/\d+ times? · \d+% sure · confirmed/).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0, "relevance feedback cannot apply a constraint");
     await page.getByRole("button", { name: "Use in layout", exact: true }).click();

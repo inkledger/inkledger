@@ -34,50 +34,56 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
       return result;
     },
     applyDraft: async (draft: Draft) => {
-      if (workspaceTaskActive()) return { status: "deferred" as const };
-      const interactionEpoch = workspaceInteractionEpoch();
-      // A task that started (even ended) between two steps changed the page: hold back, do not swap it.
-      const interrupted = () => workspaceTaskActive() || workspaceInteractionEpoch() !== interactionEpoch;
-      const ready = await saveDraft({ scope, draft });
-      if (ready.draft.status !== "ready") return { status: "conflict" as const, preview: ready.preview };
-      if (interrupted()) return { status: "deferred" as const };
-      const prepared = await prepare({
-        scope,
-        prepareId: `prepare_${crypto.randomUUID()}`,
-        clientInstanceId,
-        draftRevision: ready.draft.draftRevision,
-        interactionEpoch,
-      });
-      if (interrupted()) return { status: "deferred" as const };
-      const committed = await commit({
-        scope,
-        prepareId: prepared.prepareId,
-        operationId: `apply_${crypto.randomUUID()}`,
-        clientInstanceId,
-        draftRevision: ready.draft.draftRevision,
-        interactionEpoch,
-      });
-      if (!committed.leaseToken) {
+      try {
+        if (workspaceTaskActive()) return { status: "deferred" as const };
+        const interactionEpoch = workspaceInteractionEpoch();
+        // A task that started (even ended) between two steps changed the page: hold back, do not swap it.
+        const interrupted = () => workspaceTaskActive() || workspaceInteractionEpoch() !== interactionEpoch;
+        const ready = await saveDraft({ scope, draft });
+        if (ready.draft.status !== "ready") return { status: "conflict" as const, preview: ready.preview };
+        if (interrupted()) return { status: "deferred" as const };
+        const prepared = await prepare({
+          scope,
+          prepareId: `prepare_${crypto.randomUUID()}`,
+          clientInstanceId,
+          draftRevision: ready.draft.draftRevision,
+          interactionEpoch,
+        });
+        if (interrupted()) return { status: "deferred" as const };
+        const committed = await commit({
+          scope,
+          prepareId: prepared.prepareId,
+          operationId: `apply_${crypto.randomUUID()}`,
+          clientInstanceId,
+          draftRevision: ready.draft.draftRevision,
+          interactionEpoch,
+        });
+        if (!committed.leaseToken) {
+          await invalidate();
+          return { status: "committed" as const, revision: committed.revision };
+        }
+        if (interrupted()) {
+          await defer({ scope, clientInstanceId, interactionEpoch: committed.presentation.pending?.interactionEpoch ?? interactionEpoch });
+          await invalidate();
+          return { status: "deferred" as const };
+        }
+        const activated = await activate({ scope, clientInstanceId, interactionEpoch, leaseToken: committed.leaseToken });
+        await acknowledge({
+          scope,
+          clientInstanceId,
+          activationId: activated.activationId,
+          effectiveRevision: activated.presentation.pending!.descriptor.effectiveRevision,
+          workspaceFingerprint: activated.presentation.pending!.descriptor.workspaceFingerprint,
+          presentationEpoch: activated.presentation.pending!.presentationEpoch,
+        });
+        await completeDraft({ scope, draftId: ready.draft.draftId, draftRevision: ready.draft.draftRevision });
         await invalidate();
-        return { status: "committed" as const, revision: committed.revision };
+        return { status: "applied" as const, revision: committed.revision };
+      } catch (error) {
+        // Failed after a step the server already took (a commit, an activation): show what it holds now.
+        await invalidate().catch(() => {});
+        throw error;
       }
-      if (interrupted()) {
-        await defer({ scope, clientInstanceId, interactionEpoch: committed.presentation.pending?.interactionEpoch ?? interactionEpoch });
-        await invalidate();
-        return { status: "deferred" as const };
-      }
-      const activated = await activate({ scope, clientInstanceId, interactionEpoch, leaseToken: committed.leaseToken });
-      await acknowledge({
-        scope,
-        clientInstanceId,
-        activationId: activated.activationId,
-        effectiveRevision: activated.presentation.pending!.descriptor.effectiveRevision,
-        workspaceFingerprint: activated.presentation.pending!.descriptor.workspaceFingerprint,
-        presentationEpoch: activated.presentation.pending!.presentationEpoch,
-      });
-      await completeDraft({ scope, draftId: ready.draft.draftId });
-      await invalidate();
-      return { status: "applied" as const, revision: committed.revision };
     },
     defer: async (interactionEpoch: number) => {
       const result = await defer({ scope, clientInstanceId, interactionEpoch });

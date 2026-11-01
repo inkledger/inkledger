@@ -168,8 +168,8 @@ function MobileTabBarContent() {
         )}
         <div
           data-workspace-variant={density}
-          className={cn("mx-auto grid max-w-md items-center px-1", density === "compact" ? "h-12" : density === "expanded" ? "h-16" : "h-14")}
-          style={{ gridTemplateColumns: `repeat(${Math.max(visibleTabs.length, 1)}, minmax(0, 1fr))` }}
+          // One equal column per tab, however many the layout shows (five by default, as before).
+          className={cn("mx-auto grid max-w-md auto-cols-[minmax(0,1fr)] grid-flow-col items-center px-1", density === "compact" ? "h-12" : density === "expanded" ? "h-16" : "h-14")}
         >
           {visibleTabs.map(placement => {
             switch (placement.anchorId) {

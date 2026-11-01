@@ -3,11 +3,10 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
-import type { PresentationDescriptor, ResolvedPlacement, ResolvedWorkspace, Scope } from "@contracts/workspace/model";
+import type { PresentationDescriptor, ResolvedWorkspace, Scope } from "@contracts/workspace/model";
 import { workspaceClientInstanceId } from "./client";
 import { useWorkspaceActions } from "./actions";
-import { WorkspaceContext, useWorkspace, type WorkspaceContextValue } from "./context";
-import { placementsFor } from "./utils";
+import { WorkspaceContext, type WorkspaceContextValue } from "./context";
 import { useWorkspaceTelemetry } from "./telemetry";
 import { useWorkspaceMutationGuard } from "./mutationGuard";
 
@@ -86,15 +85,3 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
   }, [actions, query.data, scope]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
-
-export function WorkspaceArea({ id, render }: { id: string; render: (placements: readonly ResolvedPlacement[]) => ReactNode }) {
-  const { workspace } = useWorkspace();
-  return <>{render(placementsFor(workspace, id))}</>;
-}
-
-export function WorkspaceAnchor({ id, render }: { id: string; render: (placement: ResolvedPlacement) => ReactNode }) {
-  const { workspace } = useWorkspace();
-  const placement = workspace.placements.find(item => item.anchorId === id && item.visible);
-  return placement ? <>{render(placement)}</> : null;
-}
-

@@ -42,6 +42,16 @@ function recordProcedures(page) {
   return seen;
 }
 
+/** Until the page has started no request for a while: a late one would still be seen (polls never block it). */
+async function quiet(page, ms = 700) {
+  let last = Date.now();
+  const seen = () => { last = Date.now(); };
+  page.on("request", seen);
+  const deadline = Date.now() + 10_000;
+  while (Date.now() - last < ms && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+  page.off("request", seen);
+}
+
 async function waitUntil(check, what) {
   for (let i = 0; i < 80; i++) {
     if (await check()) return;
@@ -57,7 +67,8 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 375, height: 800 
       for (const path of ["/", "/issues", "/settings", "/"]) {
         await page.goto(base + path);
         await page.locator("main").first().waitFor();
-        await page.waitForTimeout(400);
+        // Until the page has made every request it was going to: a late one would still be counted.
+        await quiet(page);
       }
       assert.deepEqual(seen.filter(name => WORKSPACE_PROCS.test(name)), []);
       for (const table of ["workspace_presentations", "workspace_descriptors", "workspace_revisions", "workspace_drafts"]) {
@@ -76,12 +87,67 @@ test("Customize lists the six Dashboard sections by name and its first change ma
     assert.deepEqual(labels.map(label => label.trim()), ["Period trend", "Quick numbers", "Summary", "My issues", "Recent activity", "Your week"]);
     await page.getByRole("dialog").getByRole("checkbox", { name: "Recent activity" }).click();
     await page.getByRole("heading", { name: "Recent activity" }).waitFor({ state: "detached" });
-    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 1, "the first revision");
+    // One setting for every device, as before the workspace: the desktop and the phone Dashboard both change.
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 2, "a revision on each Dashboard");
+    assert.deepEqual((await db.q("SELECT device_class FROM workspace_revisions ORDER BY device_class")).map(row => row.device_class), ["desktop", "mobile"]);
     const seen = recordProcedures(page);
     await page.reload();
     await page.locator("main").first().waitFor();
     assert.equal(await page.getByRole("heading", { name: "Recent activity" }).count(), 0, "still hidden after a reload");
     await waitUntil(() => seen.some(name => name === "workspace.get"), "the now customized Dashboard to ask for its layout");
+  }));
+
+test("Two quick ticks in Customize both stick, the first never undone by the second", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Customize dashboard" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("checkbox", { name: "Recent activity" }).click();
+    await dialog.getByRole("checkbox", { name: "Period trend" }).click();
+    // Both gone at once, before the server answered.
+    await page.getByRole("heading", { name: "Recent activity" }).waitFor({ state: "detached" });
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 4, "both ticks on both Dashboards");
+    assert.equal(await page.getByText(/Preference not saved/).count(), 0, "neither tick refused");
+    for (const viewport of [{ width: 1400, height: 900 }, { width: 390, height: 800 }]) {
+      await page.setViewportSize(viewport);
+      await page.reload();
+      await page.getByRole("button", { name: "Customize dashboard" }).waitFor();
+      await quiet(page);
+      assert.equal(await page.locator('[data-workspace-anchor="dashboard.activity"]').count(), 0, `activity hidden at ${viewport.width}px`);
+      assert.equal(await page.locator('[data-workspace-anchor="dashboard.timeline"]').count(), 0, `timeline hidden at ${viewport.width}px`);
+    }
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_drafts WHERE status NOT IN ('applied', 'discarded', 'aborted')"))[0].n, 0, "no draft left behind to block the next tick");
+  }));
+
+test("A section the Studio moved beside the timeline is drawn there", () =>
+  withApp({
+    seed: async db => {
+      const move = JSON.stringify([{ operation: { type: "move", operationId: "move-activity", anchorId: "dashboard.activity", toAreaId: "dashboard.secondary", order: 1 }, origin: "user", acceptedByUser: true }]);
+      await db.q("INSERT INTO workspace_revisions (id, user_id, surface_id, device_class, revision_number, catalog_version, product_default_version, committed_at, operations, constraints) VALUES ('seeded-move', 1, 'dashboard', 'desktop', 1, '1.0.0', 'product-1', ?, ?, '[]')", Date.now(), move);
+    },
+  }, async ({ page, base }) => {
+    await page.goto(base + "/");
+    await page.locator('[data-workspace-anchor="dashboard.activity"]').waitFor();
+    // The timeline's band holds the rail: Recent activity sits in it, after the quick numbers.
+    const band = await page.locator('[data-workspace-anchor="dashboard.timeline"]').evaluate(timeline => [...timeline.parentElement.querySelectorAll("[data-workspace-anchor]")].map(element => element.getAttribute("data-workspace-anchor")).filter(id => ["dashboard.timeline", "dashboard.stats", "dashboard.activity"].includes(id)));
+    assert.deepEqual(band, ["dashboard.timeline", "dashboard.stats", "dashboard.activity"]);
+  }));
+
+test("Starting a timer from the quick start with Enter does not hold the layout back", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    // The sidebar's own way in (its T shortcut opens the same list).
+    await page.locator('[data-workspace-control="shell.quickStart.open"]').click();
+    const input = page.getByPlaceholder("Start timer on… (key or title)");
+    await input.fill("DEMO-1");
+    await page.getByRole("option").first().waitFor();
+    // Enter starts and closes the list: the focused field is removed, with no blur in most browsers.
+    await input.press("Enter");
+    await input.waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Customize dashboard" }).click();
+    await page.getByRole("dialog").getByRole("checkbox", { name: "Your week" }).click();
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 2, "the change to apply");
+    assert.equal(await page.getByText(/Not changed while something is being typed/).count(), 0);
   }));
 
 test("A customized phone Dashboard never shows the default first", () =>
@@ -103,7 +169,9 @@ test("A customized phone Dashboard never shows the default first", () =>
     });
     await page.goto(base + "/");
     await page.getByRole("button", { name: "Log time", exact: true }).first().waitFor();
-    await page.waitForTimeout(1500);
+    // The layout's own answer arrived and was drawn: from then on the section could only come by mistake.
+    await quiet(page);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(await page.evaluate(() => window.__sawActivity), false);
   }));
 
@@ -118,8 +186,8 @@ test("Cancelling a half-typed time entry does not hold the layout back afterward
     await dialog.waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Customize dashboard" }).click();
     await page.getByRole("dialog").getByRole("checkbox", { name: "Your week" }).click();
-    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 1, "the change to apply");
-    assert.equal(await page.getByText("Finish what you are typing, then try again").count(), 0);
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 2, "the change to apply");
+    assert.equal(await page.getByText(/Not changed while something is being typed/).count(), 0);
   }));
 
 test("Two tabs editing the layout: the second is told it changed, nothing is overwritten", () =>
@@ -197,7 +265,7 @@ test("Searches that find nothing say something may be missing, without naming it
     await page.getByRole("radio", { name: "Expectation", exact: true }).click();
     const gap = page.getByRole("rowheader", { name: /^Something looked for may be missing/ });
     await gap.first().waitFor();
-    assert.equal((await gap.first().textContent()).includes("→"), false, "no destination is invented");
+    assert.deepEqual((await gap.allTextContents()).filter(text => text.includes("→")), [], "no destination is invented, on any row");
   }));
 
 test("An imported layout from a newer version stays read-only", () =>
@@ -218,10 +286,7 @@ test("An imported layout from a newer version stays read-only", () =>
     await page.getByText(/come from a newer version/).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_imports WHERE has_unknown_content"))[0].n, 1, "accepted into quarantine, content kept");
     // Applying it is refused: what is shown is the read-only notice, never a new revision.
-    const apply = page.getByRole("button", { name: "Apply layout", exact: true });
-    if (await apply.count()) {
-      await apply.click();
-      await page.getByRole("alert").filter({ hasText: /newer version/ }).waitFor();
-    }
+    // Read-only: no way to apply it is offered at all (the server refusing a write is covered by portability.test.ts).
+    assert.equal(await page.getByRole("button", { name: "Apply layout", exact: true }).count(), 0, "nothing offers to apply it");
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0, "nothing applied");
   }));

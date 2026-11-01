@@ -1,7 +1,7 @@
 import { failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
-import { Fragment, cloneElement, isValidElement, useCallback, useMemo, useState, type ReactElement, type ReactNode } from "react";
+import { Fragment, cloneElement, isValidElement, useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { useToday } from "@/hooks/useToday";
 import {
   CalendarDays,
@@ -32,9 +32,12 @@ import {
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
 import { placementsFor, useWorkspaceDeviceClass } from "@/lib/workspace/utils";
-import { flowControlProps } from "@/lib/workspace/instrumentation";
+import type { ResolvedPlacement } from "@contracts/workspace/model";
+import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
-import { draftFromWorkspace, visibilityPatch } from "@/lib/workspace/draft";
+import { setSectionVisibility, type CustomizeTarget } from "@/lib/workspace/customize";
+import { useWorkspaceActions } from "@/lib/workspace/actions";
+import { workspaceClientInstanceId } from "@/lib/workspace/client";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap } from "@contracts/workSchedule";
@@ -114,7 +117,13 @@ function capitalize(s: string) {
 
 /** The Customize popover's six sections (as before the workspace): shown or hidden, saved as a layout. */
 function useDashboardLayout() {
-  const { workspace, actions } = useWorkspace();
+  const { workspace, scope, actions } = useWorkspace();
+  const utils = trpc.useUtils();
+  const clientInstanceId = useMemo(() => workspaceClientInstanceId(), []);
+  const otherScope = useMemo(() => ({ surfaceId: "dashboard" as const, deviceClass: scope.deviceClass === "desktop" ? "mobile" as const : "desktop" as const }), [scope.deviceClass]);
+  const otherActions = useWorkspaceActions(otherScope, clientInstanceId);
+  // One tick after the other: each starts from the layout the previous one left.
+  const queue = useRef<Promise<void>>(Promise.resolve());
   // What the user just ticked, shown at once and dropped once saved (or put back if it failed).
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const shown = (anchorId: string) => ticked[anchorId] ?? workspace.placements.find(placement => placement.anchorId === anchorId)?.visible !== false;
@@ -129,12 +138,23 @@ function useDashboardLayout() {
       const visible = !shown(id);
       setTicked(current => ({ ...current, [id]: visible }));
       const settle = () => setTicked(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
-      void actions.applyDraft(draftFromWorkspace(workspace, [visibilityPatch(workspace, id, visible)]))
-        .then(result => {
-          if (result.status === "deferred") toast.info(t("pages.dashboard.prefDeferred"));
-          else if (result.status === "conflict") toast.error(t("pages.dashboard.prefNotSaved", { message: t("pages.dashboard.prefConflict") }));
+      // Both Dashboard scopes, as the old setting was one for every device: this page's first, so it changes at once.
+      const targets: CustomizeTarget[] = [{ scope, actions }, { scope: otherScope, actions: otherActions }].map(({ scope: target, actions: targetActions }) => ({
+        scope: target,
+        load: () => utils.workspace.get.fetch({ scope: target, clientInstanceId }, { staleTime: 0 }),
+        apply: draft => targetActions.applyDraft(draft),
+        discard: draftId => targetActions.discardDraft(draftId),
+      }));
+      queue.current = queue.current
+        .then(() => setSectionVisibility(targets, id, visible))
+        .then(async result => {
+          if (result === "deferred") toast.info(t("pages.dashboard.prefDeferred"));
+          else if (result === "conflict") toast.error(t("pages.dashboard.prefNotSaved", { message: t("pages.dashboard.prefConflict") }));
+          else if (result === "studio-draft") toast.info(t("pages.dashboard.prefStudioDraft"));
+          // The page shows the saved layout before the tick is let go: no flash of the old one in between.
+          else await utils.workspace.get.fetch({ scope, clientInstanceId }, { staleTime: 0 });
         })
-        .catch((error: unknown) => toast.error(t("pages.dashboard.prefNotSaved", { message: failureText(error) })))
+        .catch((error: unknown) => { toast.error(t("pages.dashboard.prefNotSaved", { message: failureText(error) })); })
         .finally(settle);
     },
   };
@@ -201,7 +221,7 @@ function DashboardHeaderActions({ range, setKind, prev, next, reset, openAdd, fu
         <PeriodNav onPrev={prev} onNext={next} onToday={reset} isCurrent={range.isCurrent} />
       </>
     ),
-    "dashboard.headerTimer": <HeaderTimer />,
+    "dashboard.headerTimer": <FlowControlHost.Provider value="dashboard.headerTimer"><HeaderTimer /></FlowControlHost.Provider>,
     "dashboard.quickActions": (
       <Button onClick={openAdd} {...flowControlProps(futureDay ? "dashboard.plan" : "dashboard.logTime")}>
         <Plus className="h-4 w-4" />
@@ -260,41 +280,57 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
     }
     return node;
   };
-  // My issues and Recent activity stack in one column beside the summary, wherever the first of them sits.
+  // Customize's six sections already come empty when hidden (so a tick shows at once); the rest follow their placement.
+  const shown = (placement: ResolvedPlacement) => Boolean(content[placement.anchorId]) && (CUSTOMIZABLE.has(placement.anchorId) || placement.visible);
+  const inArea = (areaId: string) => workspace.placements
+    .filter(placement => placement.areaId === areaId && shown(placement))
+    .sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
+  const primary = inArea("dashboard.primary");
+  const rail = inArea("dashboard.secondary");
+  // The secondary area is the rail beside the timeline when the timeline leads; else a band of its own on top.
+  const lead = primary[0]?.anchorId === "dashboard.timeline" ? primary[0] : undefined;
+  const rest = lead ? primary.slice(1) : primary;
+  const railNode = rail.length === 1
+    ? renderAnchor(rail[0].anchorId)
+    : rail.length > 1 ? <div className="grid min-w-0 gap-6">{rail.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div> : null;
+  // Full-width bands keep their place in the order; the sections between them share a row.
+  const segments: ResolvedPlacement[][] = [];
+  for (const placement of rest) {
+    if (BANDS.has(placement.anchorId) || segments.length === 0 || BANDS.has(segments.at(-1)![0].anchorId)) segments.push([placement]);
+    else segments.at(-1)!.push(placement);
+  }
+  return (
+    <>
+      {(lead || railNode) && (
+        <div className={cn("grid gap-6 border-b p-5 md:p-6", lead && railNode && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
+          {lead && renderAnchor(lead.anchorId)}
+          {railNode}
+        </div>
+      )}
+      {segments.map(segment => BANDS.has(segment[0].anchorId)
+        ? <Fragment key={segment[0].anchorId}>{renderAnchor(segment[0].anchorId)}</Fragment>
+        : <SectionRow key={segment[0].anchorId} placements={segment} renderAnchor={renderAnchor} />)}
+      {inArea("dashboard.desk").map(placement => <Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>)}
+    </>
+  );
+}
+
+/** Sections that span the whole page width, wherever they sit in the order. */
+const BANDS = new Set(["dashboard.timeline", "dashboard.recap"]);
+/** The sections Customize shows and hides: their content is already empty when hidden. */
+const CUSTOMIZABLE = new Set(DASHBOARD_WIDGETS.map(widget => `dashboard.${widget.id}`));
+
+/** A row of sections: My issues and Recent activity stack in one column beside the summary, wherever the first of them sits. */
+function SectionRow({ placements, renderAnchor }: { placements: readonly ResolvedPlacement[]; renderAnchor: (anchorId: string) => ReactNode }) {
   const stacked = new Set(["dashboard.tasks", "dashboard.activity"]);
-  const primaryPlacements = placementsFor(workspace, "dashboard.primary")
-    .filter(placement => placement.anchorId !== "dashboard.timeline" && placement.anchorId !== "dashboard.recap");
-  const column = primaryPlacements.filter(placement => stacked.has(placement.anchorId));
-  const primary = primaryPlacements.flatMap(placement => {
+  const column = placements.filter(placement => stacked.has(placement.anchorId));
+  const nodes = placements.flatMap(placement => {
     if (!stacked.has(placement.anchorId)) return [<Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>];
     if (placement !== column[0]) return [];
     return [<div key="dashboard.tasks+activity" className="min-w-0">{column.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div>];
   });
-  const timeline = renderAnchor("dashboard.timeline");
-  const stats = renderAnchor("dashboard.stats");
-  const summary = content["dashboard.summary"];
-  const tasks = content["dashboard.tasks"];
-  const activity = content["dashboard.activity"];
-  const recap = renderAnchor("dashboard.recap");
-  const desk = renderAnchor("dashboard.desk");
-  const hasSecondaryContent = Boolean(tasks || activity);
-  return (
-    <>
-      {(timeline || stats) && (
-        <div className={cn("grid gap-6 border-b p-5 md:p-6", timeline && stats && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
-          {timeline}
-          {stats}
-        </div>
-      )}
-      {primary.length > 0 && (
-        <div className={cn("grid", summary && hasSecondaryContent && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>
-          {primary}
-        </div>
-      )}
-      {recap}
-      {desk}
-    </>
-  );
+  const summary = placements.some(placement => placement.anchorId === "dashboard.summary");
+  return <div className={cn("grid", summary && column.length > 0 && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
 }
 
 function DashboardContent() {

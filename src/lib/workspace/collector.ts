@@ -21,7 +21,7 @@ export function flowCell(clientX: number, clientY: number, rect: DOMRect): { x: 
   };
 }
 
-export function startFlowCollection(options: FlowCollectionOptions): () => void {
+export function startFlowCollection(options: FlowCollectionOptions): (stop?: { optedOut?: boolean }) => void {
   const { scope, descriptor, clientInstanceId, presentationEpoch, activationId, send } = options;
   let queue: FlowEvent[] = [];
   let sequence = 0;
@@ -209,9 +209,9 @@ export function startFlowCollection(options: FlowCollectionOptions): () => void 
   observeAnchors();
   const mutations = new MutationObserver(observeAnchors);
   mutations.observe(document.body, { childList: true, subtree: true });
-  return () => {
-    // What was collected still goes (the server drops it if consent is off): leaving a page is not a reason to lose it.
-    beacon();
+  return ({ optedOut = false } = {}) => {
+    // What was collected still goes when the page or layout changes; after an opt-out not even a request leaves.
+    if (!optedOut) beacon();
     stopped = true;
     clearSchedule();
     observer.disconnect();

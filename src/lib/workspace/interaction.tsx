@@ -13,11 +13,13 @@ function holdsText(element: HTMLElement | null): boolean {
 /**
  * While someone types in a field inside, a layout is not activated (T-01). The task ends when focus
  * leaves the fields, unless what was typed is still there: then it ends once that field is emptied
- * or gone (a dialog closed by its Cancel button, not only by Escape or submit).
+ * or gone (a dialog closed by its Cancel button, not only by Escape or submit). A focused field that
+ * is removed fires no blur in most browsers (a command list closed by Enter): it is watched for too.
  */
 export function WorkspaceInteractionBoundary({ children }: { children: ReactNode }) {
   const end = useRef<(() => void) | null>(null);
   const typed = useRef<HTMLElement | null>(null);
+  const focused = useRef<HTMLElement | null>(null);
   const recheck = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearRecheck = () => {
     if (recheck.current) clearTimeout(recheck.current);
@@ -28,10 +30,20 @@ export function WorkspaceInteractionBoundary({ children }: { children: ReactNode
     end.current?.();
     end.current = null;
     typed.current = null;
+    focused.current = null;
   };
-  const start = () => {
+  // While the field keeps focus, nothing to decide; once it lost it without a blur (removed), decide as a blur would.
+  const watch = () => {
     clearRecheck();
+    recheck.current = setTimeout(() => {
+      if (focused.current?.isConnected && document.activeElement === focused.current) watch();
+      else stop();
+    }, 500);
+  };
+  const start = (field: HTMLElement) => {
+    focused.current = field;
     if (!end.current) end.current = beginWorkspaceTask();
+    watch();
   };
   const stop = (force = false) => {
     if (force || !holdsText(typed.current)) {
@@ -50,18 +62,19 @@ export function WorkspaceInteractionBoundary({ children }: { children: ReactNode
   return (
     <div
       className="contents"
-      onFocusCapture={event => { if ((event.target as HTMLElement).matches?.(editable)) start(); }}
+      onFocusCapture={event => { if ((event.target as HTMLElement).matches?.(editable)) start(event.target); }}
       onInput={event => {
         if ((event.target as HTMLElement).matches?.(editable)) {
           typed.current = event.target as HTMLElement;
-          start();
+          start(event.target as HTMLElement);
         }
       }}
       onBlurCapture={event => {
         if ((event.target as HTMLElement).matches?.(editable) && !(event.relatedTarget as HTMLElement | null)?.matches?.(editable)) stop();
       }}
       onSubmit={() => queueMicrotask(() => stop(true))}
-      onKeyDown={event => { if (event.key === "Escape") stop(true); }}
+      // Escape may only close a menu inside a dialog that still holds the text: decide once it has closed what it closes.
+      onKeyDown={event => { if (event.key === "Escape") setTimeout(() => stop(), 0); }}
     >
       {children}
     </div>

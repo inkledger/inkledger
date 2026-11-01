@@ -12,11 +12,15 @@ import { failureText } from "@/lib/errorText";
 import type { Ranking } from "@contracts/workspace/planner";
 import type { Draft, ResolvedWorkspace, SuggestionPatch } from "@contracts/workspace/model";
 import type { WorkspaceDocument } from "@contracts/workspace/portability";
-import { dateFormat, t, type MessageKey } from "@/i18n";
+import { dateFormat, numberFormat, t, type MessageKey } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { anchorLabel, areaLabel } from "@/lib/workspace/labels";
 
 type Candidate = { patch: SuggestionPatch; preview: ResolvedWorkspace; reason: string; ranking: Ranking; adaptationWindowDays: number };
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
+/** Ranking values: a share or a score, at most two decimals, written the user's way. */
+const score = (value: number) => numberFormat({ maximumFractionDigits: 2 }).format(value);
+const rate = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** A proposed change in words: what moves, where, never its ids. */
 function operationText(operation: SuggestionPatch["operations"][number]): string {
@@ -102,14 +106,16 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
     setSuggestions(result.suggestions);
     setSelected(current => ({ ...current, ...Object.fromEntries(result.suggestions.map(candidate => [candidate.patch.patchId, candidate.patch.operations.map(operation => operation.operationId)])) }));
     if (result.ai === "unavailable") setNotice(t(key("aiUnavailable")));
+    else if (result.ai === "none") setNotice(t(key("aiNone")));
   });
   const interpretRequest = () => void run(async () => {
     setNotice(null);
     setClarification(null);
     setRequestCandidate(null);
     const result = await interpret.mutateAsync({ scope, originalText: requestText });
-    setRequestText("");
+    // Only a request turned into a change is done with; anything else keeps what the user typed.
     if (result.status === "ready") {
+      setRequestText("");
       setRequestCandidate({ patch: result.patch, preview: result.preview });
       setSelected(current => ({ ...current, [result.patch.patchId]: result.patch.operations.map(operation => operation.operationId) }));
     } else if (result.status === "clarify") setClarification(result.question);
@@ -183,10 +189,10 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
           <span>{operationText(operation)}</span>
         </label>)}</div>
         <dl className="mt-3 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-x-4 gap-y-1 text-caption sm:grid-cols-[repeat(4,minmax(0,1fr))]">
-          <div><dt className="text-muted-foreground">{t(key("benefit"))}</dt><dd>{candidate.ranking.benefit.minimum}–{candidate.ranking.benefit.maximum}</dd></div>
-          <div><dt className="text-muted-foreground">{t(key("evidenceQuality"))}</dt><dd>{candidate.ranking.evidenceQuality}</dd></div>
-          <div><dt className="text-muted-foreground">{t(key("relearning"))}</dt><dd>{candidate.ranking.relearningCost}</dd></div>
-          <div><dt className="text-muted-foreground">{t(key("instability"))}</dt><dd>{candidate.ranking.instability}</dd></div>
+          <div><dt className="text-muted-foreground">{t(key("benefit"))}</dt><dd className="tabular-nums">{score(candidate.ranking.benefit.minimum)}–{score(candidate.ranking.benefit.maximum)}</dd></div>
+          <div><dt className="text-muted-foreground">{t(key("evidenceQuality"))}</dt><dd className="tabular-nums">{score(candidate.ranking.evidenceQuality)}</dd></div>
+          <div><dt className="text-muted-foreground">{t(key("relearning"))}</dt><dd className="tabular-nums">{score(candidate.ranking.relearningCost)}</dd></div>
+          <div><dt className="text-muted-foreground">{t(key("instability"))}</dt><dd className="tabular-nums">{score(candidate.ranking.instability)}</dd></div>
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={busy || (selected[candidate.patch.patchId] ?? []).length === 0} onClick={() => void run(() => accept(candidate))}>{t(key("addDraft"))}</Button>
@@ -223,7 +229,7 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
         {(evidenceQuery.data?.evidence.length ?? 0) < 2 && <p className="mt-2 text-caption text-muted-foreground">{t(key("insufficientComparison"))}</p>}
         {review && <div role="status" className="mt-3 rounded-md border p-3">
           <p className="text-body-sm font-medium">{t(key(`outcomes.${review.outcome}`))}</p>
-          {review.beforeRate !== undefined && review.afterRate !== undefined && <p className="mt-1 text-caption">{t(key("stepsPerSuccess"), { before: review.beforeRate.toFixed(2), after: review.afterRate.toFixed(2) })}</p>}
+          {review.beforeRate !== undefined && review.afterRate !== undefined && <p className="mt-1 text-caption">{t(key("stepsPerSuccess"), { before: rate().format(review.beforeRate), after: rate().format(review.afterRate) })}</p>}
           <ul className="mt-2 grid gap-1 text-caption text-muted-foreground">{review.confounds.map(confound => <li key={confound}>{t(key(`confounds.${confound}`))}</li>)}</ul>
         </div>}
       </section>
@@ -232,7 +238,7 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
           const result = await exportDocument.mutateAsync({ scope });
           setExported({ contents: result.contents, document: JSON.parse(result.contents) as WorkspaceDocument });
         })}>{t(key("exportWorkspace"))}</Button>
-        <Button size="sm" variant="ghost" asChild><label className="cursor-pointer"><FileUp className="h-4 w-4" />{t(key("importWorkspace"))}<Input className="sr-only" type="file" accept=".workspace,application/json" aria-label={t(key("importWorkspace"))} disabled={busy} onChange={event => {
+        <Button size="sm" variant="ghost" asChild><label className={cn("cursor-pointer focus-within:ring-2 focus-within:ring-ring", busy && "pointer-events-none opacity-50")}><FileUp className="h-4 w-4" />{t(key("importWorkspace"))}<Input className="sr-only" type="file" accept=".workspace,application/json" aria-label={t(key("importWorkspace"))} disabled={busy} onChange={event => {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (file) void run(async () => {
@@ -245,7 +251,7 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
       <p className="mt-2 text-caption text-muted-foreground">{t(key("workspaceImportHint"))}</p>
       {exported && <section className="mt-3">
         <Textarea readOnly aria-label={t(key("exportWorkspace"))} value={exported.contents} className="min-h-32 text-caption" />
-        <p className="mt-1 text-caption text-muted-foreground">{exported.document.revision.revisionId} · {exported.document.draft?.patches.length ?? 0} draft patches</p>
+        <p className="mt-1 text-caption text-muted-foreground">{t(key("exportSummary"), { when: dateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(exported.document.exportedAt), count: exported.document.draft?.patches.length ?? 0 })}</p>
         <Button className="mt-2" size="sm" onClick={download}><Download className="h-4 w-4" />{t(key("downloadWorkspace"))}</Button>
       </section>}
     </SettingsGroup>

@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { createContext, useContext } from "react";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { WorkspaceContext } from "./context";
 
@@ -8,12 +8,16 @@ export function flowControlProps(controlId: string) {
   return { "data-workspace-control": control.id, "data-workspace-anchor": control.anchorId } as const;
 }
 
+/** The block a shared control is drawn in (the sidebar timer, the Dashboard header's): elsewhere it is not counted. */
+export const FlowControlHost = createContext<string | null>(null);
+
 export function useFlowControlProps(localControlId: string) {
   const context = useContext(WorkspaceContext);
-  if (!context || context.scope.surfaceId === "mobile-tabs") return {};
+  const host = useContext(FlowControlHost);
+  if (!context || !host || context.scope.surfaceId === "mobile-tabs") return {};
   const prefix = context.scope.surfaceId === "shell-desktop" ? "shell" : "dashboard";
   const controlId = `${prefix}.${localControlId}`;
-  return CATALOG_V1.controls.some(control => control.id === controlId) ? flowControlProps(controlId) : {};
+  return CATALOG_V1.controls.some(control => control.id === controlId && control.anchorId === host) ? flowControlProps(controlId) : {};
 }
 
 export function workspaceMutationPath(controlId: string): readonly string[] | undefined {
