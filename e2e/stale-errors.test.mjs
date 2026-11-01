@@ -79,6 +79,8 @@ test("a dialog taller than a short screen scrolls: its last action stays reachab
     const dialog = page.getByRole("dialog");
     const last = dialog.getByRole("button", { name: "Restore" }).last();
     await last.waitFor();
+    // Measured once the dialog has finished opening: mid zoom-in its boxes are not where they end up.
+    await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
     await last.scrollIntoViewIfNeeded();
     const box = await last.boundingBox();
     assert.ok(box && box.y >= 0 && box.y + box.height <= 420, `the last Restore is on screen (y ${box?.y})`);
