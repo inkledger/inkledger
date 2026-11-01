@@ -407,6 +407,11 @@ export async function i18nKeys(): Promise<{ en: string[]; it: string[] }> {
 
 const json = (v: unknown) => JSON.stringify(v, null, 2) + "\n";
 
+async function workspaceCatalog(): Promise<string> {
+  const { workspaceCatalogInventory } = await import("./workspaceCatalog");
+  return json(workspaceCatalogInventory());
+}
+
 /** Every inventory file, by path relative to the repo root. */
 export async function inventories(): Promise<Record<string, string>> {
   const { contract, compat } = await trpcContract();
@@ -417,6 +422,7 @@ export async function inventories(): Promise<Record<string, string>> {
     "api/parity/routes.json": json(routes()),
     "api/parity/settings-sections.json": json(settingsSections()),
     "api/parity/i18n-keys.json": json(await i18nKeys()),
+    "api/parity/workspace-catalog.json": await workspaceCatalog(),
   };
 }
 

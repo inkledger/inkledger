@@ -1,0 +1,3329 @@
+{
+  "catalog": {
+    "schemaVersion": 1,
+    "catalogVersion": "1.0.0",
+    "productDefaultVersion": "product-1",
+    "resolverVersion": 1,
+    "surfaces": [
+      {
+        "id": "dashboard",
+        "route": "/",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
+        "id": "mobile-tabs",
+        "route": "*",
+        "deviceClasses": [
+          "mobile"
+        ]
+      },
+      {
+        "id": "shell-desktop",
+        "route": "*",
+        "deviceClasses": [
+          "desktop"
+        ]
+      }
+    ],
+    "areas": [
+      {
+        "id": "dashboard.desk",
+        "surfaceId": "dashboard",
+        "role": "secondary",
+        "capacity": 4,
+        "allowedAnchorIds": [
+          "dashboard.desk"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "dashboard.header",
+        "surfaceId": "dashboard",
+        "role": "actions",
+        "capacity": 6,
+        "allowedAnchorIds": [
+          "dashboard.customize",
+          "dashboard.headerTimer",
+          "dashboard.period",
+          "dashboard.quickActions"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "dashboard.overlays",
+        "surfaceId": "dashboard",
+        "role": "overlay",
+        "capacity": 3,
+        "allowedAnchorIds": [
+          "dashboard.gap-cutter",
+          "dashboard.planned-dialog",
+          "dashboard.quick-log"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "dashboard.primary",
+        "surfaceId": "dashboard",
+        "role": "primary",
+        "capacity": 5,
+        "allowedAnchorIds": [
+          "dashboard.activity",
+          "dashboard.recap",
+          "dashboard.summary",
+          "dashboard.tasks",
+          "dashboard.timeline"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "dashboard.secondary",
+        "surfaceId": "dashboard",
+        "role": "secondary",
+        "capacity": 2,
+        "allowedAnchorIds": [
+          "dashboard.activity",
+          "dashboard.stats",
+          "dashboard.summary"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "mobile.dock",
+        "surfaceId": "mobile-tabs",
+        "role": "dock",
+        "capacity": 2,
+        "allowedAnchorIds": [
+          "mobile.dock"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "mobile.more",
+        "surfaceId": "mobile-tabs",
+        "role": "secondary",
+        "capacity": 12,
+        "allowedAnchorIds": [
+          "mobile.dock",
+          "mobile.more",
+          "mobile.notifications",
+          "mobile.todos"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "mobile.tabs",
+        "surfaceId": "mobile-tabs",
+        "role": "navigation",
+        "capacity": 5,
+        "allowedAnchorIds": [
+          "mobile.board",
+          "mobile.home",
+          "mobile.issues",
+          "mobile.more",
+          "mobile.timer.active"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "shell.actions",
+        "surfaceId": "shell-desktop",
+        "role": "actions",
+        "capacity": 8,
+        "allowedAnchorIds": [
+          "shell.account",
+          "shell.quick-start",
+          "shell.screensaver",
+          "shell.sidebar",
+          "shell.sync",
+          "shell.theme"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "shell.navigation",
+        "surfaceId": "shell-desktop",
+        "role": "navigation",
+        "capacity": 12,
+        "allowedAnchorIds": [
+          "shell.navigation",
+          "shell.notifications",
+          "shell.pinboard",
+          "shell.search",
+          "shell.todos"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "shell.overlays",
+        "surfaceId": "shell-desktop",
+        "role": "overlay",
+        "capacity": 4,
+        "allowedAnchorIds": [
+          "shell.notifications",
+          "shell.pinboard",
+          "shell.screensaver",
+          "shell.search",
+          "shell.todos"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "shell.timer",
+        "surfaceId": "shell-desktop",
+        "role": "dock",
+        "capacity": 3,
+        "allowedAnchorIds": [
+          "shell.timer.active"
+        ],
+        "introducedIn": "1.0.0"
+      }
+    ],
+    "anchors": [
+      {
+        "id": "dashboard.activity",
+        "surfaceId": "dashboard",
+        "renderer": "ActivityTable",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.activity"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.activity",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.customize",
+        "surfaceId": "dashboard",
+        "renderer": "DashboardCustomize",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.customize"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.customize",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.desk",
+        "surfaceId": "dashboard",
+        "renderer": "ModuleSlot",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.desk"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.desk",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.gap-cutter",
+        "surfaceId": "dashboard",
+        "renderer": "GapCutter",
+        "statePolicy": "dirty",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.gapCutter"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.gapCutter",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.headerTimer",
+        "surfaceId": "dashboard",
+        "renderer": "HeaderTimer",
+        "statePolicy": "external",
+        "critical": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.timer.active"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.timer.active",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.period",
+        "surfaceId": "dashboard",
+        "renderer": "PeriodNav",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.period"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.period",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.planned-dialog",
+        "surfaceId": "dashboard",
+        "renderer": "PlannedDialog",
+        "statePolicy": "dirty",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.planned.plan"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.planned.plan",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.quick-log",
+        "surfaceId": "dashboard",
+        "renderer": "QuickLog",
+        "statePolicy": "dirty",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.logTime"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.logTime",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.quickActions",
+        "surfaceId": "dashboard",
+        "renderer": "DashboardQuickActions",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.logTime"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.logTime",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.recap",
+        "surfaceId": "dashboard",
+        "renderer": "WeekRecapCard",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.recap"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.recap",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.stats",
+        "surfaceId": "dashboard",
+        "renderer": "QuickStatsCard",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.stats"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.stats",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.summary",
+        "surfaceId": "dashboard",
+        "renderer": "PeriodSummary",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.summary"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.summary",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.tasks",
+        "surfaceId": "dashboard",
+        "renderer": "TasksBoard",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.tasks"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.tasks",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "dashboard.timeline",
+        "surfaceId": "dashboard",
+        "renderer": "DayTimeline",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.dashboard.widgets.timeline"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.dashboard.widgets.timeline",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.board",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileBoardTab",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.nav.board"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.nav.board",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.dock",
+        "surfaceId": "mobile-tabs",
+        "renderer": "ModuleDock",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.more"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.more",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.home",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileHomeTab",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.nav.dashboard"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.nav.dashboard",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.issues",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileIssuesTab",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.nav.issues"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.nav.issues",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.more",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileMoreSheet",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.more"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.more",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.notifications",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileBell",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.notifications"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.notifications",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.timer.active",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileTimerSheet",
+        "statePolicy": "critical",
+        "critical": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.timer.active"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.timer.active",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "mobile.todos",
+        "surfaceId": "mobile-tabs",
+        "renderer": "MobileTodos",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.todoFloat.open"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.todoFloat.open",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.account",
+        "surfaceId": "shell-desktop",
+        "renderer": "AccountMenu",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.account"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.account",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.navigation",
+        "surfaceId": "shell-desktop",
+        "renderer": "SidebarNavigation",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.mainNav"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.mainNav",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.notifications",
+        "surfaceId": "shell-desktop",
+        "renderer": "NotificationCenter",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.notifications"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.notifications",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.pinboard",
+        "surfaceId": "shell-desktop",
+        "renderer": "PinboardWidget",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.openPinboard"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.openPinboard",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.quick-start",
+        "surfaceId": "shell-desktop",
+        "renderer": "QuickStart",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.startTimer"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.startTimer",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.screensaver",
+        "surfaceId": "shell-desktop",
+        "renderer": "Screensaver",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.screensaver"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.screensaver",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.search",
+        "surfaceId": "shell-desktop",
+        "renderer": "CommandPalette",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.search"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.search",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.sidebar",
+        "surfaceId": "shell-desktop",
+        "renderer": "SidebarToggle",
+        "statePolicy": "local",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "reorder",
+            "variant",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.collapse"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.collapse",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.sync",
+        "surfaceId": "shell-desktop",
+        "renderer": "SyncButton",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.syncJira"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.syncJira",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.theme",
+        "surfaceId": "shell-desktop",
+        "renderer": "ThemeToggle",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.layout.darkTheme"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.layout.darkTheme",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.timer.active",
+        "surfaceId": "shell-desktop",
+        "renderer": "TimerControls",
+        "statePolicy": "critical",
+        "critical": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "variant"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.timer.active"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.timer.active",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "shell.todos",
+        "surfaceId": "shell-desktop",
+        "renderer": "TodoWidget",
+        "statePolicy": "external",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [
+            "move",
+            "reorder",
+            "variant",
+            "hide",
+            "pin"
+          ],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "ui.todoFloat.open"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "ui.todoFloat.open",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      }
+    ],
+    "controls": [
+      {
+        "id": "dashboard.closeDay",
+        "anchorId": "dashboard.quickActions",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.closeDay",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.closeDay.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.customize.open",
+        "anchorId": "dashboard.customize",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.customize",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.customize.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.customize.toggle",
+        "anchorId": "dashboard.customize",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "checkbox",
+          "labelKey": "pages.dashboard.visibleSections",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.customize.toggle.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.desk.module",
+        "anchorId": "dashboard.desk",
+        "kind": "command",
+        "critical": false,
+        "sensitive": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.desk",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.desk.module.activate",
+            "kind": "activate",
+            "telemetry": "disabled"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.gapCutter.cancel",
+        "anchorId": "dashboard.gap-cutter",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.action.cancel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.gapCutter.cancel.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.gapCutter.save",
+        "anchorId": "dashboard.gap-cutter",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.gapCutter",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.gapCutter.save.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.gapCutter.save.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.gapCutter.save.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.logTime",
+        "anchorId": "dashboard.quickActions",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.logTime",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.logTime.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.logTime.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.logTime.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.day",
+        "anchorId": "dashboard.period",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.dashboard.periodDay",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.day.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.month",
+        "anchorId": "dashboard.period",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.dashboard.periodMonth",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.month.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.next",
+        "anchorId": "dashboard.period",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.period.next",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.next.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.pickDate",
+        "anchorId": "dashboard.period",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.pickDate",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.pickDate.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.previous",
+        "anchorId": "dashboard.period",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.period.previous",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.previous.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.today",
+        "anchorId": "dashboard.period",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.period.today",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.today.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.period.week",
+        "anchorId": "dashboard.period",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.dashboard.periodWeek",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.period.week.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.plan",
+        "anchorId": "dashboard.quickActions",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.planned.plan",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.plan.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.plan.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.plan.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.planned.cancel",
+        "anchorId": "dashboard.planned-dialog",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.action.cancel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.planned.cancel.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.planned.input",
+        "anchorId": "dashboard.planned-dialog",
+        "kind": "input",
+        "critical": false,
+        "sensitive": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "textbox",
+          "labelKey": "ui.planned.plan",
+          "keyboard": "input",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.planned.input.activate",
+            "kind": "activate",
+            "telemetry": "disabled"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.planned.save",
+        "anchorId": "dashboard.planned-dialog",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.planned.plan",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.planned.save.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.planned.save.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.planned.save.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.quickLog.cancel",
+        "anchorId": "dashboard.quick-log",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.action.cancel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.quickLog.cancel.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.quickLog.input",
+        "anchorId": "dashboard.quick-log",
+        "kind": "input",
+        "critical": false,
+        "sensitive": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "textbox",
+          "labelKey": "pages.dashboard.logPick",
+          "keyboard": "input",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.quickLog.input.activate",
+            "kind": "activate",
+            "telemetry": "disabled"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.quickLog.save",
+        "anchorId": "dashboard.quick-log",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.logTime",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.quickLog.save.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.quickLog.save.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.quickLog.save.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.tasks.collapse",
+        "anchorId": "dashboard.tasks",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "checkbox",
+          "labelKey": "ui.board.collapse",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.tasks.collapse.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.tasks.issueOpen",
+        "anchorId": "dashboard.tasks",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.issue.open",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.tasks.issueOpen.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.tasks.openBoard",
+        "anchorId": "dashboard.tasks",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "pages.dashboard.openBoard",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.tasks.openBoard.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timeline.gap",
+        "anchorId": "dashboard.timeline",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.gapCutter",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timeline.gap.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timeline.issueOpen",
+        "anchorId": "dashboard.timeline",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.issue.open",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timeline.issueOpen.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timeline.pendingLog",
+        "anchorId": "dashboard.timeline",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.toLog",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timeline.pendingLog.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timeline.pendingLog.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timeline.pendingLog.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timeline.plannedEdit",
+        "anchorId": "dashboard.timeline",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.planned.plan",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timeline.plannedEdit.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timer.logStopped",
+        "anchorId": "dashboard.headerTimer",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.toLog",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timer.logStopped.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.logStopped.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.logStopped.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timer.pause",
+        "anchorId": "dashboard.headerTimer",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.pause",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timer.pause.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.pause.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.pause.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timer.resume",
+        "anchorId": "dashboard.headerTimer",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.resume",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timer.resume.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.resume.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.resume.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.timer.stop",
+        "anchorId": "dashboard.headerTimer",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.stop",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.timer.stop.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.stop.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.timer.stop.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.dock.module",
+        "anchorId": "mobile.dock",
+        "kind": "command",
+        "critical": false,
+        "sensitive": true,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.more",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.dock.module.activate",
+            "kind": "activate",
+            "telemetry": "disabled"
+          }
+        ]
+      },
+      {
+        "id": "mobile.notifications.open",
+        "anchorId": "mobile.notifications",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.notifications",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.notifications.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.tabs.board",
+        "anchorId": "mobile.board",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "ui.nav.board",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.tabs.board.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.tabs.home",
+        "anchorId": "mobile.home",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "ui.nav.dashboard",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.tabs.home.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.tabs.issues",
+        "anchorId": "mobile.issues",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "ui.nav.issues",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.tabs.issues.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.tabs.more",
+        "anchorId": "mobile.more",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "ui.layout.more",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.tabs.more.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.timer.open",
+        "anchorId": "mobile.timer.active",
+        "kind": "disclosure",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.active",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.timer.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.timer.start",
+        "anchorId": "mobile.timer.active",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.startTimer",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.timer.start.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "mobile.timer.start.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "mobile.timer.start.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "mobile.todos.open",
+        "anchorId": "mobile.todos",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.todoFloat.open",
+          "keyboard": "activation",
+          "minTouchTargetPx": 44
+        },
+        "interactions": [
+          {
+            "eventId": "mobile.todos.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.account.logout",
+        "anchorId": "shell.account",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.auth.logout",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.account.logout.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.account.open",
+        "anchorId": "shell.account",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.account",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.account.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.account.settings",
+        "anchorId": "shell.account",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "menuitem",
+          "labelKey": "ui.nav.settings",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.account.settings.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.board",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.board",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.board.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.home",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.dashboard",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.home.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.ideas",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.ideas",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.ideas.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.info",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.info",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.info.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.issues",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.issues",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.issues.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.notes",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.notes",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.notes.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.pinboard",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.pinboard",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.pinboard.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.reports",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.reports",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.reports.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.settings",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.settings",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.settings.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.timesheet",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.timesheet",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.timesheet.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.todos",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.todos",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.todos.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.notifications.open",
+        "anchorId": "shell.notifications",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.notifications",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.notifications.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.pinboard.toggle",
+        "anchorId": "shell.pinboard",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "checkbox",
+          "labelKey": "ui.layout.openPinboard",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.pinboard.toggle.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.quickStart.open",
+        "anchorId": "shell.quick-start",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.startTimer",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.quickStart.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.screensaver.open",
+        "anchorId": "shell.screensaver",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.screensaver",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.screensaver.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.search.open",
+        "anchorId": "shell.search",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.search",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.search.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.search.select",
+        "anchorId": "shell.search",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "menuitem",
+          "labelKey": "ui.layout.search",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.search.select.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.sidebar.toggle",
+        "anchorId": "shell.sidebar",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "checkbox",
+          "labelKey": "ui.layout.collapse",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.sidebar.toggle.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.sync.start",
+        "anchorId": "shell.sync",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.syncJira",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.sync.start.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.sync.start.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.sync.start.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.theme.toggle",
+        "anchorId": "shell.theme",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "switch",
+          "labelKey": "ui.layout.darkTheme",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.theme.toggle.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.timer.focus",
+        "anchorId": "shell.timer.active",
+        "kind": "disclosure",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.focusMode",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.timer.focus.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.timer.pause",
+        "anchorId": "shell.timer.active",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.pause",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.timer.pause.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.pause.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.pause.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.timer.resume",
+        "anchorId": "shell.timer.active",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.resume",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.timer.resume.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.resume.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.resume.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.timer.start",
+        "anchorId": "shell.timer.active",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.layout.startTimer",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.timer.start.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.start.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.start.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.timer.stop",
+        "anchorId": "shell.timer.active",
+        "kind": "mutation",
+        "critical": true,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.stop",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.timer.stop.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.stop.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "shell.timer.stop.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.todos.open",
+        "anchorId": "shell.todos",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.todoFloat.open",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.todos.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      }
+    ],
+    "rendererBindings": [
+      {
+        "anchorId": "dashboard.activity",
+        "kind": "core",
+        "renderer": "ActivityTable"
+      },
+      {
+        "anchorId": "dashboard.customize",
+        "kind": "core",
+        "renderer": "DashboardCustomize"
+      },
+      {
+        "anchorId": "dashboard.desk",
+        "kind": "core",
+        "renderer": "ModuleSlot"
+      },
+      {
+        "anchorId": "dashboard.gap-cutter",
+        "kind": "core",
+        "renderer": "GapCutter"
+      },
+      {
+        "anchorId": "dashboard.headerTimer",
+        "kind": "core",
+        "renderer": "HeaderTimer"
+      },
+      {
+        "anchorId": "dashboard.period",
+        "kind": "core",
+        "renderer": "PeriodNav"
+      },
+      {
+        "anchorId": "dashboard.planned-dialog",
+        "kind": "core",
+        "renderer": "PlannedDialog"
+      },
+      {
+        "anchorId": "dashboard.quick-log",
+        "kind": "core",
+        "renderer": "QuickLog"
+      },
+      {
+        "anchorId": "dashboard.quickActions",
+        "kind": "core",
+        "renderer": "DashboardQuickActions"
+      },
+      {
+        "anchorId": "dashboard.recap",
+        "kind": "core",
+        "renderer": "WeekRecapCard"
+      },
+      {
+        "anchorId": "dashboard.stats",
+        "kind": "core",
+        "renderer": "QuickStatsCard"
+      },
+      {
+        "anchorId": "dashboard.summary",
+        "kind": "core",
+        "renderer": "PeriodSummary"
+      },
+      {
+        "anchorId": "dashboard.tasks",
+        "kind": "core",
+        "renderer": "TasksBoard"
+      },
+      {
+        "anchorId": "dashboard.timeline",
+        "kind": "core",
+        "renderer": "DayTimeline"
+      },
+      {
+        "anchorId": "mobile.board",
+        "kind": "core",
+        "renderer": "MobileBoardTab"
+      },
+      {
+        "anchorId": "mobile.dock",
+        "kind": "core",
+        "renderer": "ModuleDock"
+      },
+      {
+        "anchorId": "mobile.home",
+        "kind": "core",
+        "renderer": "MobileHomeTab"
+      },
+      {
+        "anchorId": "mobile.issues",
+        "kind": "core",
+        "renderer": "MobileIssuesTab"
+      },
+      {
+        "anchorId": "mobile.more",
+        "kind": "core",
+        "renderer": "MobileMoreSheet"
+      },
+      {
+        "anchorId": "mobile.notifications",
+        "kind": "core",
+        "renderer": "MobileBell"
+      },
+      {
+        "anchorId": "mobile.timer.active",
+        "kind": "core",
+        "renderer": "MobileTimerSheet"
+      },
+      {
+        "anchorId": "mobile.todos",
+        "kind": "core",
+        "renderer": "MobileTodos"
+      },
+      {
+        "anchorId": "shell.account",
+        "kind": "core",
+        "renderer": "AccountMenu"
+      },
+      {
+        "anchorId": "shell.navigation",
+        "kind": "core",
+        "renderer": "SidebarNavigation"
+      },
+      {
+        "anchorId": "shell.notifications",
+        "kind": "core",
+        "renderer": "NotificationCenter"
+      },
+      {
+        "anchorId": "shell.pinboard",
+        "kind": "core",
+        "renderer": "PinboardWidget"
+      },
+      {
+        "anchorId": "shell.quick-start",
+        "kind": "core",
+        "renderer": "QuickStart"
+      },
+      {
+        "anchorId": "shell.screensaver",
+        "kind": "core",
+        "renderer": "Screensaver"
+      },
+      {
+        "anchorId": "shell.search",
+        "kind": "core",
+        "renderer": "CommandPalette"
+      },
+      {
+        "anchorId": "shell.sidebar",
+        "kind": "core",
+        "renderer": "SidebarToggle"
+      },
+      {
+        "anchorId": "shell.sync",
+        "kind": "core",
+        "renderer": "SyncButton"
+      },
+      {
+        "anchorId": "shell.theme",
+        "kind": "core",
+        "renderer": "ThemeToggle"
+      },
+      {
+        "anchorId": "shell.timer.active",
+        "kind": "core",
+        "renderer": "TimerControls"
+      },
+      {
+        "anchorId": "shell.todos",
+        "kind": "core",
+        "renderer": "TodoWidget"
+      }
+    ],
+    "tombstones": []
+  },
+  "productDefaults": {
+    "dashboard": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "dashboard.headerTimer",
+          "areaId": "dashboard.header",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "dashboard.period",
+          "areaId": "dashboard.header",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "dashboard.quickActions",
+          "areaId": "dashboard.header",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.customize",
+          "areaId": "dashboard.header",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.timeline",
+          "areaId": "dashboard.primary",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.stats",
+          "areaId": "dashboard.secondary",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.summary",
+          "areaId": "dashboard.primary",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.tasks",
+          "areaId": "dashboard.primary",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.activity",
+          "areaId": "dashboard.primary",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.recap",
+          "areaId": "dashboard.primary",
+          "order": 4,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.desk",
+          "areaId": "dashboard.desk",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "dashboard.quick-log",
+          "areaId": "dashboard.overlays",
+          "order": 0,
+          "visible": false,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "dashboard.planned-dialog",
+          "areaId": "dashboard.overlays",
+          "order": 1,
+          "visible": false,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "dashboard.gap-cutter",
+          "areaId": "dashboard.overlays",
+          "order": 2,
+          "visible": false,
+          "variant": "default",
+          "pinned": true
+        }
+      ]
+    },
+    "shell-desktop": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "shell.search",
+          "areaId": "shell.navigation",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.notifications",
+          "areaId": "shell.navigation",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.navigation",
+          "areaId": "shell.navigation",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.pinboard",
+          "areaId": "shell.navigation",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.todos",
+          "areaId": "shell.navigation",
+          "order": 4,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.theme",
+          "areaId": "shell.actions",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.screensaver",
+          "areaId": "shell.actions",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.timer.active",
+          "areaId": "shell.timer",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "shell.quick-start",
+          "areaId": "shell.actions",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.sync",
+          "areaId": "shell.actions",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "shell.account",
+          "areaId": "shell.actions",
+          "order": 4,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "shell.sidebar",
+          "areaId": "shell.actions",
+          "order": 5,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        }
+      ]
+    },
+    "mobile-tabs": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "mobile.home",
+          "areaId": "mobile.tabs",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "mobile.board",
+          "areaId": "mobile.tabs",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "mobile.timer.active",
+          "areaId": "mobile.tabs",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "mobile.issues",
+          "areaId": "mobile.tabs",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": true
+        },
+        {
+          "anchorId": "mobile.more",
+          "areaId": "mobile.tabs",
+          "order": 4,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "mobile.todos",
+          "areaId": "mobile.more",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "mobile.notifications",
+          "areaId": "mobile.more",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "mobile.dock",
+          "areaId": "mobile.dock",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    }
+  }
+}

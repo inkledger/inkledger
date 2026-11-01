@@ -13,7 +13,7 @@ describe("parity inventories", () => {
   }, 120_000);
 
   it("the frozen files are canonical: no absolute path, no timestamp", () => {
-    for (const f of ["trpc-procedures.json", "trpc-contract.ts", "trpc-compat.ts", "routes.json", "settings-sections.json", "i18n-keys.json"]) {
+    for (const f of ["trpc-procedures.json", "trpc-contract.ts", "trpc-compat.ts", "routes.json", "settings-sections.json", "i18n-keys.json", "workspace-catalog.json"]) {
       const text = readFileSync(path.join(root, "api/parity", f), "utf8");
       expect(text, f).not.toContain(root);
       expect(text, f).not.toMatch(/\/Users\/|\/home\/|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
