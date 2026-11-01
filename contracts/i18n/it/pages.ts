@@ -747,7 +747,9 @@ export const pages: Shape<typeof en> = {
     periodWeek: "Settimana",
     periodMonth: "Mese",
     prefNotSaved: "Preferenza non salvata: {message}",
-    prefDeferred: "Finisci quello che stai scrivendo, poi riprova",
+    prefDeferred: "Non cambiato mentre stai scrivendo o salvando qualcosa. Riprova tra un attimo",
+    collapseColumn: "Comprimi una colonna",
+    prefStudioDraft: "Prima applica o scarta le modifiche al layout in Impostazioni → Workspace",
     prefConflict: "Il layout è cambiato nel frattempo",
     weekTitle: "Settimana {from} – {to}",
     overdueOne: {

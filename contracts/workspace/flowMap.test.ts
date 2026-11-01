@@ -120,3 +120,21 @@ describe("FlowMap aggregation", () => {
     expect(result.expectations.find(gap => gap.pattern === "missing-capability")?.destinationControlId).toBeUndefined();
   });
 });
+
+describe("FlowMap checksum input", () => {
+  it("orders keys by code unit, not by the server's locale", async () => {
+    const { flowMapChecksumInput } = await import("./flowMap");
+    // A locale puts "_" before letters; code-unit order puts "B" (0x42) before "_" (0x5f).
+    expect(flowMapChecksumInput({ a_b: 2, aB: 1 })).toBe('{"aB":1,"a_b":2}');
+  });
+});
+
+describe("FlowMap active days", () => {
+  it("counts the user's local days, not UTC ones", () => {
+    // Europe/Rome (the test TZ): 00:30 local is still the previous UTC day.
+    const early = new Date(2026, 10, 2, 0, 30).getTime();
+    const late = new Date(2026, 10, 2, 23, 30).getTime();
+    const evidence = aggregateEvidence([event({ occurredAt: early }), event({ occurredAt: late, sequence: 2 })], descriptor, scope, "evidence-days");
+    expect(evidence.coverage.activeDays).toBe(1);
+  });
+});

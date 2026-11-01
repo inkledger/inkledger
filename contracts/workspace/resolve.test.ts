@@ -243,6 +243,13 @@ describe("workspace resolver", () => {
     }
   });
 
+  it("keeps every pinned anchor of a reorder in place, not only the first", () => {
+    const four = { ...productDefault, placements: [...productDefault.placements, { anchorId: "new-feature", areaId: "primary", order: 3, visible: true, variant: "default" as const, pinned: false }] };
+    const pins = [constraintOf({ id: "pin-timeline", anchorId: "timeline" }), constraintOf({ id: "pin-tasks", anchorId: "tasks" })];
+    const reorder = patch({ author: "user", intent: { kind: "custom", status: "explicit" }, suggestionSignature: undefined, operations: [{ type: "reorder", operationId: "r", areaId: "primary", anchorIds: ["timeline", "timer", "new-feature", "tasks"] }] });
+    expect(resolve(input({ productDefault: four, draft: draftOf([reorder]), explicitConstraints: pins }))).toMatchObject({ kind: "conflicts", conflicts: [{ code: "constraint-conflict", anchorId: "tasks" }] });
+  });
+
   it("leaves a pinned placement to the user: a suggestion cannot change or reorder it", () => {
     const pinned = { ...productDefault, placements: productDefault.placements.map(item => item.anchorId === "tasks" ? { ...item, pinned: true } : item) };
     const variant = patch({ operations: [{ type: "variant", operationId: "v", anchorId: "tasks", variant: "compact" }] });

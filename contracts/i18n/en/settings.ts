@@ -129,6 +129,8 @@ export const settings = {
       insufficient: "Not enough use yet: {days}/5 active days and {count}/30 actions. You can still arrange things by hand.",
       evidenceRange: { one: "{range} · {count} active day", other: "{range} · {count} active days" },
       aiUnavailable: "The local AI is unavailable. The other suggestions are unaffected.",
+      exportSummary: { one: "Saved {when} · 1 change not applied yet", other: "Saved {when} · {count} changes not applied yet" },
+      aiNone: "The local AI found nothing better to add. These suggestions come from your own use.",
       addDraft: "Add selected changes to the draft",
       notNow: "Not now",
       doNotSuggest: "Do not suggest again",

@@ -225,7 +225,7 @@ export const server = {
     invalidFile: "This isn't a valid layout or FlowMap file.",
     tooLarge: "The file is too large.",
     flowOff: "FlowMap is off: turn it on first.",
-    evidenceGone: "That evidence is no longer available.",
+    evidenceGone: "That usage data is no longer available.",
     oldView: "That older view can't be drawn on this version.",
     requestLength: "Write the request in 1 to 2000 characters.",
     noChange: "That suggestion wouldn't change the layout.",

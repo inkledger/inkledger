@@ -4,6 +4,11 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null;
 };
 
+/** Code-unit order: the same on every server and browser, whatever the locale. */
+export function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function canonicalJSON(value: unknown): string {
   if (value === null || typeof value === "boolean") return JSON.stringify(value);
   if (typeof value === "number") {
@@ -20,7 +25,7 @@ export function canonicalJSON(value: unknown): string {
   if (isPlainRecord(value)) {
     // NFC before sorting: "é" and "e\u0301" are one key, and two such keys are refused, not both written.
     const entries = Object.keys(value).filter(key => value[key] !== undefined).map(key => [key.normalize("NFC"), key] as const);
-    entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    entries.sort(([a], [b]) => byCodeUnit(a, b));
     for (let index = 1; index < entries.length; index++) {
       if (entries[index][0] === entries[index - 1][0]) throw new Error("workspace canon v1: keys equal after NFC");
     }

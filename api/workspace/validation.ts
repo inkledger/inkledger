@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { assertOpaqueEntries, base64UrlToBytes } from "@contracts/workspace/opaque";
 
 /** Ids and short labels: bounded, so a request cannot make resolve or storage work on megabytes (D-28). */
@@ -9,7 +10,10 @@ const text = z.string().max(500);
 const scopeSchema = z.strictObject({
   surfaceId: z.enum(["dashboard", "shell-desktop", "mobile-tabs"]),
   deviceClass: z.enum(["desktop", "mobile"]),
-});
+}).refine(
+  value => CATALOG_V1.surfaces.some(surface => surface.id === value.surfaceId && surface.deviceClasses.includes(value.deviceClass)),
+  { message: "Unsupported workspace scope" },
+);
 const statePolicySchema = z.enum(["stateless", "external", "local", "dirty", "critical"]);
 const variantSchema = z.enum(["compact", "default", "expanded"]);
 const authorSchema = z.enum(["user", "deterministic", "AI", "import"]);

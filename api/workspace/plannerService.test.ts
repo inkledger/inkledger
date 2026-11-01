@@ -5,7 +5,7 @@ import type { Scope } from "@contracts/workspace/model";
 import { getWorkspace, saveWorkspaceDraft } from "./service";
 import { generateFlowEvidence } from "./flowService";
 import { saveEvidence, setFlowConsent } from "./flowStore";
-import { generateWorkspaceSuggestions, interpretWorkspaceRequest, suppressPlannerSuggestion } from "./plannerService";
+import { generateWorkspaceSuggestions, interpretWorkspaceRequest, rankSuggestions, suppressPlannerSuggestion } from "./plannerService";
 import { chat } from "../ai/ollama";
 
 // A local model "configured" whatever this machine's .env says (CI has none): only `chat` answers vary.
@@ -66,7 +66,8 @@ describe("workspace planner service", () => {
     // New evidence for the same change does not bring a dismissed suggestion back.
     await seedEvidence("evidence-later");
     const later = await generateWorkspaceSuggestions(1, scope);
-    if (later.status === "ready") expect(later.suggestions.map(item => item.patch.suggestionSignature)).not.toContain(result.suggestions[0].patch.suggestionSignature);
+    expect(later.status).toBe("ready");
+    expect(later.suggestions.map(item => item.patch.suggestionSignature)).not.toContain(result.suggestions[0].patch.suggestionSignature);
     expect((await getWorkspace(1, scope)).committedRevision).toBeNull();
   });
 
@@ -116,7 +117,8 @@ describe("workspace planner service", () => {
     const result = await generateWorkspaceSuggestions(1, scope, true);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.ai).toBe("unavailable");
+    // The model answered "nothing to add": not the same as a model that did not answer.
+    expect(result.ai).toBe("none");
     expect(result.suggestions).toHaveLength(1);
     expect(result.suggestions[0].patch.author).toBe("deterministic");
     expect(result.suggestions[0].patch.operations[0]).toMatchObject({ type: "reorder", anchorIds: ["dashboard.summary", "dashboard.tasks", "dashboard.timeline", "dashboard.activity", "dashboard.recap"] });
@@ -223,5 +225,17 @@ describe("workspace planner service", () => {
     expect(empty.heat).toEqual([]);
     const result = await generateWorkspaceSuggestions(1, scope);
     expect(result).toMatchObject({ status: "insufficient-evidence", actual: { activeDays: 0, activations: 0 }, suggestions: [] });
+  });
+
+  it("keeps the model's own order among its picks, and breaks ties the same way every time", () => {
+    const item = (author: "AI" | "deterministic", signature: string, benefit: number) => ({ patch: { author, suggestionSignature: signature }, ranking: { benefit: { maximum: benefit }, evidenceQuality: 1, relearningCost: 1 } });
+    const list = [item("AI", "s-ai-first", 0.1), item("AI", "s-ai-second", 0.9), item("deterministic", "s-b", 0.5), item("deterministic", "s-a", 0.5)];
+    expect(rankSuggestions(list).map(entry => entry.patch.suggestionSignature)).toEqual(["s-ai-first", "s-ai-second", "s-a", "s-b"]);
+    expect(rankSuggestions([...list].reverse().filter(entry => entry.patch.author === "deterministic")).map(entry => entry.patch.suggestionSignature)).toEqual(["s-a", "s-b"]);
+  });
+
+  it("calls a ready answer that picks nothing invalid, not unavailable", async () => {
+    vi.mocked(chat).mockImplementation(async (schema: { parse: (value: unknown) => unknown }) => schema.parse({ status: "ready", intent: { kind: "custom" }, candidateIds: [], constraints: [] }));
+    expect(await interpretWorkspaceRequest(1, scope, "move the stats")).toEqual({ status: "invalid" });
   });
 });

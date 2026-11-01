@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { workspaceDiscovery } from "@db/schema";
 import { getDb } from "../queries/connection";
 import type { DiscoveryState, Scope } from "@contracts/workspace/model";
@@ -21,8 +21,10 @@ function stringArray(text: string): string[] {
   return JSON.parse(text) as string[];
 }
 
-export async function getDiscoveryState(userId: number, scope: Scope): Promise<DiscoveryState> {
-  const rows = await getDb().select().from(workspaceDiscovery).where(where(userId, scope)).limit(1);
+type Executor = Pick<ReturnType<typeof getDb>, "select" | "insert">;
+
+export async function getDiscoveryState(userId: number, scope: Scope, db: Executor = getDb()): Promise<DiscoveryState> {
+  const rows = await db.select().from(workspaceDiscovery).where(where(userId, scope)).limit(1);
   if (!rows[0]) return empty;
   return {
     seenAnchorIds: stringArray(rows[0].seenAnchorIds),
@@ -34,8 +36,8 @@ export async function getDiscoveryState(userId: number, scope: Scope): Promise<D
   };
 }
 
-export async function saveDiscoveryState(userId: number, scope: Scope, state: DiscoveryState): Promise<void> {
-  await getDb().insert(workspaceDiscovery).values({
+export async function saveDiscoveryState(userId: number, scope: Scope, state: DiscoveryState, db: Executor = getDb()): Promise<void> {
+  await db.insert(workspaceDiscovery).values({
     userId,
     surfaceId: scope.surfaceId,
     deviceClass: scope.deviceClass,
@@ -57,5 +59,16 @@ export async function saveDiscoveryState(userId: number, scope: Scope, state: Di
       dismissedAreaIds: JSON.stringify(normalized(state.dismissedAreaIds ?? [])),
       updatedAt: Date.now(),
     },
+  });
+}
+
+/** Read, merge and write under one lock: two tabs marking at once both keep their marks. */
+export async function updateDiscoveryState(userId: number, scope: Scope, merge: (previous: DiscoveryState) => DiscoveryState): Promise<{ previous: DiscoveryState; next: DiscoveryState }> {
+  return getDb().transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`discovery:${userId}:${scope.surfaceId}:${scope.deviceClass}`}, 0))`);
+    const previous = await getDiscoveryState(userId, scope, tx);
+    const next = merge(previous);
+    await saveDiscoveryState(userId, scope, next, tx);
+    return { previous, next };
   });
 }

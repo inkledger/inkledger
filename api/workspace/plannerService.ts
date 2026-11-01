@@ -56,7 +56,7 @@ const aiOutput = z.strictObject({ candidateIds: z.array(z.string().regex(/^candi
 async function aiCandidates(userId: number, scope: Scope): Promise<CandidateSeed[] | null> {
   const { current, evidence, seeds } = await deterministicCandidates(userId, scope);
   if (!evidence || seeds.length === 0) return [];
-  if (await ollamaRefusal({ url: env.ollamaUrl, allowPublic: false, simulator: env.ollamaSimulator })) return null;
+  if (await ollamaRefusal({ url: env.ollamaUrl, allowPublic: env.ollamaAllowPublic, simulator: env.ollamaSimulator })) return null;
   const aggregates = {
     scope,
     effectiveRevision: evidence.descriptor.effectiveRevision,
@@ -93,7 +93,7 @@ const requestOutput = z.discriminatedUnion("status", [
       anchorId: z.string().max(128).optional(),
       areaId: z.string().max(128).optional(),
     }),
-    candidateIds: z.array(z.string().regex(/^request-\d+$/)).min(1).max(3),
+    candidateIds: z.array(z.string().regex(/^request-\d+$/)).max(3),
     constraints: z.array(z.strictObject({
       kind: z.enum(["pin", "hide", "keepVisible", "expectHere", "doNotSuggest"]),
       anchorId: z.string().max(128),
@@ -105,7 +105,7 @@ const requestOutput = z.discriminatedUnion("status", [
 export async function interpretWorkspaceRequest(userId: number, scope: Scope, originalText: string) {
   const request = originalText.trim();
   if (!request || request.length > 2_000) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.requestLength") });
-  if (await ollamaRefusal({ url: env.ollamaUrl, allowPublic: false, simulator: env.ollamaSimulator })) return { status: "unavailable" as const };
+  if (await ollamaRefusal({ url: env.ollamaUrl, allowPublic: env.ollamaAllowPublic, simulator: env.ollamaSimulator })) return { status: "unavailable" as const };
   const current = await getWorkspace(userId, scope);
   const workspace = current.draftWorkspace ?? current.workspace;
   // Only options that resolve and change what is on screen: a pick of a no-op or a refused one is never offered.
@@ -167,6 +167,23 @@ export async function interpretWorkspaceRequest(userId: number, scope: Scope, or
   }
 }
 
+type Ranked = { patch: { author: SuggestionPatch["author"]; suggestionSignature?: string }; ranking: { benefit: { maximum: number }; evidenceQuality: number; relearningCost: number } };
+
+/**
+ * The model's picks first, in the order it ranked them (they come first in the list); then the rest
+ * by benefit, evidence and relearning cost; ties by signature, so the same evidence ranks the same way.
+ */
+export function rankSuggestions<T extends Ranked>(suggestions: readonly T[]): T[] {
+  const aiOrder = new Map(suggestions.filter(item => item.patch.author === "AI").map((item, index) => [item, index] as const));
+  return [...suggestions].sort((a, b) => {
+    const left = aiOrder.get(a) ?? Infinity;
+    const right = aiOrder.get(b) ?? Infinity;
+    if (left !== right) return left < right ? -1 : 1;
+    return b.ranking.benefit.maximum - a.ranking.benefit.maximum || b.ranking.evidenceQuality - a.ranking.evidenceQuality || a.ranking.relearningCost - b.ranking.relearningCost
+      || ((a.patch.suggestionSignature ?? "") < (b.patch.suggestionSignature ?? "") ? -1 : (a.patch.suggestionSignature ?? "") > (b.patch.suggestionSignature ?? "") ? 1 : 0);
+  });
+}
+
 export async function generateWorkspaceSuggestions(userId: number, scope: Scope, enrichAI = false) {
   const { current, evidence, seeds } = await deterministicCandidates(userId, scope);
   const observed = evidence?.heat.reduce((sum, point) => sum + point.activations, 0) ?? 0;
@@ -207,9 +224,10 @@ export async function generateWorkspaceSuggestions(userId: number, scope: Scope,
       continue;
     }
   }
-  suggestions.sort((a, b) => b.ranking.benefit.maximum - a.ranking.benefit.maximum || b.ranking.evidenceQuality - a.ranking.evidenceQuality || a.ranking.relearningCost - b.ranking.relearningCost || (a.patch.patchId < b.patch.patchId ? -1 : 1));
-  const ranked = suggestions.slice(0, 3);
-  return { status: "ready" as const, ai: enrichAI ? ranked.some(candidate => candidate.patch.author === "AI") ? "enriched" as const : "unavailable" as const : "not-requested" as const, evidenceId: evidence.evidenceId, suggestions: ranked };
+  const ranked = rankSuggestions(suggestions).slice(0, 3);
+  // Unavailable: the model did not answer. None: it answered and picked nothing, which is a valid answer.
+  const aiStatus = !enrichAI ? "not-requested" as const : ai === null ? "unavailable" as const : ranked.some(candidate => candidate.patch.author === "AI") ? "enriched" as const : "none" as const;
+  return { status: "ready" as const, ai: aiStatus, evidenceId: evidence.evidenceId, suggestions: ranked };
 }
 
 export async function evaluateWorkspaceAdaptation(userId: number, scope: Scope, beforeId: string, afterId: string) {

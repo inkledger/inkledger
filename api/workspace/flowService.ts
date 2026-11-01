@@ -40,6 +40,8 @@ function checkEventCatalog(event: FlowEvent): boolean {
   if (event.kind.startsWith("layout.")) return false;
   const anchor = event.anchorId ? CATALOG_V1.anchors.find(item => item.id === event.anchorId && item.surfaceId === event.scope.surfaceId) : undefined;
   if (event.anchorId && !anchor) return false;
+  // These name a block or an area, never a control: a control id here could only be forged.
+  if ((event.kind === "anchor.exposure" || event.kind.startsWith("discovery.")) && (event.controlId || event.destinationControlId)) return false;
   if (event.kind === "anchor.exposure") return Boolean(anchor) && !event.areaId && event.semanticRevision === anchor!.semanticRevision;
   if (event.kind === "discovery.seen" || event.kind === "discovery.placed") {
     if (event.areaId) return !event.anchorId && event.semanticRevision === 1 && CATALOG_V1.areas.some(area => area.id === event.areaId && area.surfaceId === event.scope.surfaceId);
@@ -92,12 +94,18 @@ export async function ingestFlowEvents(userId: number, events: readonly FlowEven
 
 /** `since`: only the events from then on (the daily snapshot's rolling week), else every event of that presentation. */
 export async function generateFlowEvidence(userId: number, scope: Scope, effectiveRevision?: string, since?: number): Promise<EvidenceSet> {
+  return (await buildFlowEvidence(userId, scope, effectiveRevision, since, false))!;
+}
+
+/** The evidence of one layout, saved; with `onlyIfUsed`, nothing (null) when that layout has no events in the window. */
+async function buildFlowEvidence(userId: number, scope: Scope, effectiveRevision: string | undefined, since: number | undefined, onlyIfUsed: boolean): Promise<EvidenceSet | null> {
   if (!(await getFlowSettings(userId)).enabled) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.flowOff") });
   await pruneFlowData(userId);
   const current = await getWorkspace(userId, scope, "ssr");
   const snapshot = await workspaceAtDescriptor(userId, scope, effectiveRevision ?? current.descriptor.effectiveRevision);
   if (!snapshot) throw new TRPCError({ code: "NOT_FOUND", message: t("server.workspace.gone") });
   const events = await loadFlowEvents(userId, scope, snapshot.descriptor.effectiveRevision, since);
+  if (onlyIfUsed && events.length === 0) return null;
   const id = `evidence_${fingerprint("workspace", { algorithm: FLOW_AGGREGATION_VERSION, effectiveRevision: snapshot.descriptor.effectiveRevision, eventIds: events.map(event => event.id).sort() }).value}`;
   const areasByAnchor = Object.fromEntries(snapshot.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
   const evidence = aggregateEvidence(events, snapshot.descriptor, scope, id, 0, areasByAnchor);
@@ -183,7 +191,7 @@ export async function importFlowMap(userId: number, text: string) {
 export async function reviewExpectation(userId: number, scope: Scope, expectationId: string, status: "confirmed" | "rejected" | "unconfirmed") {
   const known = (await listEvidence(userId, scope)).some(evidence => evidence.expectations.some(gap => gap.id === expectationId));
   if (!known) throw new TRPCError({ code: "NOT_FOUND", message: t("server.workspace.evidenceGone") });
-  await setExpectationFeedback(userId, expectationId, status);
+  if (!(await setExpectationFeedback(userId, expectationId, status))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.flowOff") });
   return { expectationId, status, constraintCreated: false };
 }
 
@@ -201,7 +209,8 @@ export async function snapshotFlowEvidence(now = Date.now()): Promise<number> {
     if (candidate.newestEvidenceAt !== null && candidate.newestEvidenceAt > now - 20 * 3_600_000) continue;
     const scope = { surfaceId: candidate.surfaceId, deviceClass: candidate.deviceClass } as Scope;
     // A page whose layout cannot be drawn any more just waits for the next one.
-    made += await generateFlowEvidence(candidate.userId, scope, undefined, now - 7 * DAY).then(() => 1, () => 0);
+    // A layout applied since and not used yet makes no (empty) period.
+    made += await buildFlowEvidence(candidate.userId, scope, undefined, now - 7 * DAY, true).then(evidence => (evidence ? 1 : 0), () => 0);
   }
   return made;
 }

@@ -21,6 +21,11 @@ describe("workspace router", () => {
     await resetDbForTests();
   });
 
+  it("refuses a scope the catalog does not have as a bad request, not a server error", async () => {
+    const me = await signedInCaller();
+    await expect(me.workspace.get({ scope: { surfaceId: "shell-desktop", deviceClass: "mobile" }, clientInstanceId: "tab-a" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("returns the default workspace only to an authenticated user", async () => {
     const me = await signedInCaller();
     const result = await me.workspace.get({ scope: { surfaceId: "dashboard", deviceClass: "desktop" }, clientInstanceId: "tab-a" });
@@ -57,6 +62,17 @@ describe("workspace router", () => {
     expect(await q("SELECT user_id FROM workspace_revisions WHERE id = 'wr_other'")).toEqual([{ user_id: otherId }]);
     // A refused transition never shows its internal code.
     await expect(me.workspace.commit({ scope, prepareId: "missing", operationId: "o-missing", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 })).rejects.toMatchObject({ message: t("server.workspace.changed") });
+  });
+
+  it("does not let FlowMap analysis or deterministic suggestions run in a loop", async () => {
+    const me = await signedInCaller();
+    const scope = { surfaceId: "dashboard", deviceClass: "desktop" } as const;
+    const codes: string[] = [];
+    // FlowMap is off for this user: every call is refused cheaply until the limit, then throttled.
+    for (let i = 0; i < 31; i++) codes.push(await me.flowMap.aggregate({ scope }).then(() => "OK", (error: { code: string }) => error.code));
+    expect(codes.at(-1)).toBe("TOO_MANY_REQUESTS");
+    await expect(me.flowMap.export({ scope, evidenceId: "evidence_x", view: "heat" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    await expect(me.planner.suggest({ scope })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
   });
 
   it("does not let imports run in a loop", async () => {

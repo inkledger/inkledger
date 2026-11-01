@@ -13,6 +13,7 @@ export const plannerRouter = createRouter({
     return guard(() => interpretWorkspaceRequest(ctx.user.id, input.scope, input.originalText));
   }),
   suggest: protectedProcedure.input(z.strictObject({ scope, enrichAI: z.boolean().default(false) })).mutation(({ ctx, input }) => {
+    throttle(WORKSPACE_LIMITS.analysis, ctx.user.id);
     if (input.enrichAI) throttle(WORKSPACE_LIMITS.model, ctx.user.id);
     return guard(() => generateWorkspaceSuggestions(ctx.user.id, input.scope, input.enrichAI));
   }),

@@ -71,8 +71,8 @@ export const workspaceRouter = createRouter({
     .mutation(({ ctx, input }) => guard(() => saveWorkspaceDraft(ctx.user.id, input.scope, input.draft))),
 
   completeDraft: protectedProcedure
-    .input(z.strictObject({ scope, draftId: z.string().min(1).max(128) }))
-    .mutation(({ ctx, input }) => guard(() => completeWorkspaceDraft(ctx.user.id, input.scope, input.draftId))),
+    .input(z.strictObject({ scope, draftId: z.string().min(1).max(128), draftRevision: z.number().int().positive().optional() }))
+    .mutation(({ ctx, input }) => guard(() => completeWorkspaceDraft(ctx.user.id, input.scope, input.draftId, input.draftRevision))),
 
   discardDraft: protectedProcedure
     .input(z.strictObject({ scope, draftId: z.string().min(1).max(128) }))

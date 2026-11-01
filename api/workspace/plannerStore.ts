@@ -5,6 +5,7 @@ import { workspaceDrafts, workspaceImports, workspacePlannerFeedback } from "@db
 import { getDb } from "../queries/connection";
 import type { Draft, Scope } from "@contracts/workspace/model";
 import type { WorkspaceDocument } from "@contracts/workspace/portability";
+import { samePatches } from "./store";
 import { draftSchema } from "./validation";
 
 export async function plannerFeedback(userId: number): Promise<{ suppressedSuggestionSignatures: string[] }> {
@@ -24,7 +25,7 @@ export async function quarantineWorkspace(userId: number, id: string, draft: Dra
       .where(and(eq(workspaceDrafts.userId, userId), eq(workspaceDrafts.surfaceId, draft.scope.surfaceId), eq(workspaceDrafts.deviceClass, draft.scope.deviceClass)))
       .orderBy(desc(workspaceDrafts.updatedAt)).limit(1);
     const current = rows[0];
-    const matches = current && expected && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && current.patches === JSON.stringify(expected.patches);
+    const matches = current && expected && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && samePatches(current.patches, expected.patches);
     if ((expected === null && current) || (expected !== null && !matches) || (current && !["applied", "discarded", "aborted"].includes(current.status) && current.id !== draft.draftId && draft.draftRevision <= current.draftRevision)) {
       throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
     }

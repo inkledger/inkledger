@@ -12,6 +12,7 @@ import type {
   Scope,
   WorkspaceConflict,
 } from "./model";
+import { byCodeUnit as byId } from "./canonical";
 import { compareWorkspaceVersions } from "./versions";
 
 type Resolution = {
@@ -42,11 +43,6 @@ function resolveAnchor(catalog: Catalog, anchorId: string): Resolution {
   return {
     conflict: { code: "unknown-anchor", anchorId, detail: `No safe migration for ${anchorId}` },
   };
-}
-
-/** Code-unit order: the same on every server and browser, whatever the locale. */
-function byId(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** What a reorder must list: exactly the area's visible anchors, so nothing is left at a guessed place. */
@@ -308,8 +304,10 @@ export function resolve(input: ResolveInput): ResolveResult {
         const constraints = [...activeRevision.constraints, ...explicitConstraints, ...draft.patches.flatMap(item => item.proposedConstraints)].filter(constraint => constraint.status === "explicit" && !revokedConstraintIds.has(constraint.id) && operationAnchorIds.includes(canonicalId(constraint.anchorId)));
         // A pin keeps the anchor where it is and on screen; its variant stays the user's to change (D-55).
         const movesOrHides = operation.type === "move" || operation.type === "reorder" || (operation.type === "visibility" && !operation.visible) || (operation.type === "pin" && !operation.pinned);
-        const pinnedAnchorId = movesOrHides ? operationAnchorIds.find(anchorId => constraints.some(constraint => canonicalId(constraint.anchorId) === anchorId && constraint.kind === "pin")) : undefined;
-        if (pinnedAnchorId && !(operation.type === "reorder" && visibleOrder(operation.areaId).indexOf(pinnedAnchorId) === operationAnchorIds.indexOf(pinnedAnchorId))) {
+        // A reorder may list pinned anchors, as long as each of them keeps its index.
+        const pinnedAnchorId = movesOrHides ? operationAnchorIds.find(anchorId => constraints.some(constraint => canonicalId(constraint.anchorId) === anchorId && constraint.kind === "pin")
+          && !(operation.type === "reorder" && visibleOrder(operation.areaId).indexOf(anchorId) === operationAnchorIds.indexOf(anchorId))) : undefined;
+        if (pinnedAnchorId) {
           conflicts.push({ code: "constraint-conflict", anchorId: pinnedAnchorId, detail: `Pinned anchor ${pinnedAnchorId} cannot be changed` });
           continue;
         }

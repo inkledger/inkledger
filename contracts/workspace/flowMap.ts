@@ -1,3 +1,5 @@
+import { dayKey } from "../time";
+import { byCodeUnit } from "./canonical";
 import type { CatalogManifest } from "./catalogTypes";
 import type { PresentationDescriptor, ResolvedWorkspace, Scope } from "./model";
 
@@ -146,7 +148,7 @@ export function aggregateEvidence(
   }>();
   const flows = new Map<string, FlowTransition>();
   const friction = new Map<string, FrictionPoint>();
-  const days = new Set<number>();
+  const days = new Set<string>();
   const sessions = new Set<string>();
   const exposures = new Map<string, string>();
   const exposuresByAnchor = new Map<string, number>();
@@ -156,13 +158,14 @@ export function aggregateEvidence(
   const previousBySession = new Map<string, FlowEvent>();
   const previousEventBySession = new Map<string, FlowEvent>();
   const searches = new Map<string, { anchorId?: string; selected: FlowEvent[]; abandoned: number }>();
-  const sorted = [...events].sort((a, b) => a.sessionId.localeCompare(b.sessionId) || a.sequence - b.sequence || a.occurredAt - b.occurredAt || a.id.localeCompare(b.id));
+  const sorted = [...events].sort((a, b) => byCodeUnit(a.sessionId, b.sessionId) || a.sequence - b.sequence || a.occurredAt - b.occurredAt || byCodeUnit(a.id, b.id));
   for (const event of sorted) {
     if (event.descriptor.effectiveRevision !== descriptor.effectiveRevision) continue;
     if (event.droppedBefore) gaps += event.droppedBefore;
     firstAt = Math.min(firstAt, event.occurredAt);
     lastAt = Math.max(lastAt, event.occurredAt);
-    days.add(Math.floor(event.occurredAt / 86_400_000));
+    // The user's own days (contracts/time is local time): one evening is one day, wherever UTC midnight falls.
+    days.add(dayKey(new Date(event.occurredAt)));
     sessions.add(event.sessionId);
     const controlId = event.controlId ?? event.anchorId ?? event.scope.surfaceId;
     if (event.kind === "control.activate" || event.kind === "action.succeeded" || event.kind === "action.failed") {
@@ -237,7 +240,7 @@ export function aggregateEvidence(
     const exposures = exposuresByAnchor.get(point.anchorId) ?? 0;
     return { ...point, exposures, activationRate: exposures ? point.activations / exposures : 0 };
   });
-  const transition = [...flows.values()].sort((a, b) => b.count - a.count || a.fromControlId.localeCompare(b.fromControlId) || a.toControlId.localeCompare(b.toControlId));
+  const transition = [...flows.values()].sort((a, b) => b.count - a.count || byCodeUnit(a.fromControlId, b.fromControlId) || byCodeUnit(a.toControlId, b.toControlId));
   const activations = heatPoints.reduce((sum, point) => sum + point.activations, 0);
   const expectations: ExpectationGap[] = [];
   if (days.size >= FLOW_MIN_ACTIVE_DAYS && activations >= FLOW_MIN_ACTIVATIONS) {
@@ -287,9 +290,9 @@ export function aggregateEvidence(
       droppedEvents,
       gaps,
     },
-    heat: heatPoints.sort((a, b) => a.controlId.localeCompare(b.controlId)),
+    heat: heatPoints.sort((a, b) => byCodeUnit(a.controlId, b.controlId)),
     flows: transition,
-    friction: [...friction.values()].sort((a, b) => a.controlId.localeCompare(b.controlId)),
+    friction: [...friction.values()].sort((a, b) => byCodeUnit(a.controlId, b.controlId)),
     expectations,
   };
 }
@@ -302,7 +305,7 @@ export function flowMapChecksumInput(document: unknown): string {
     if (value !== null && typeof value === "object") {
       return Object.fromEntries(Object.entries(value as Record<string, unknown>)
         .filter(([, item]) => item !== undefined)
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => byCodeUnit(left, right))
         .map(([key, item]) => [key, normalize(item)]));
     }
     return value;

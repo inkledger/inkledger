@@ -15,8 +15,14 @@ export const flowMapRouter = createRouter({
     throttle(WORKSPACE_LIMITS.ingest, ctx.user.id);
     return ingestFlowEvents(ctx.user.id, input.events);
   }),
-  aggregate: protectedProcedure.input(z.strictObject({ scope, effectiveRevision: z.string().min(1).max(256).optional() })).mutation(({ ctx, input }) => generateFlowEvidence(ctx.user.id, input.scope, input.effectiveRevision)),
-  export: protectedProcedure.input(z.strictObject({ scope, evidenceId: z.string().min(1).max(128), view: z.enum(["heat", "flow", "friction", "expectation"]) })).mutation(({ ctx, input }) => exportFlowMap(ctx.user.id, input.scope, input.evidenceId, input.view)),
+  aggregate: protectedProcedure.input(z.strictObject({ scope, effectiveRevision: z.string().min(1).max(256).optional() })).mutation(({ ctx, input }) => {
+    throttle(WORKSPACE_LIMITS.analysis, ctx.user.id);
+    return generateFlowEvidence(ctx.user.id, input.scope, input.effectiveRevision);
+  }),
+  export: protectedProcedure.input(z.strictObject({ scope, evidenceId: z.string().min(1).max(128), view: z.enum(["heat", "flow", "friction", "expectation"]) })).mutation(({ ctx, input }) => {
+    throttle(WORKSPACE_LIMITS.analysis, ctx.user.id);
+    return exportFlowMap(ctx.user.id, input.scope, input.evidenceId, input.view);
+  }),
   import: protectedProcedure.input(z.strictObject({ contents: z.string().max(512_000) })).mutation(({ ctx, input }) => {
     throttle(WORKSPACE_LIMITS.imports, ctx.user.id);
     return importFlowMap(ctx.user.id, input.contents);

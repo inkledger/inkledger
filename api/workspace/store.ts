@@ -1,10 +1,12 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { WorkspaceApplyError } from "@contracts/workspace/applyMachine";
+import { canonicalJSON } from "@contracts/workspace/canonical";
 import { APPLY_POLICY_V1 } from "@contracts/workspace/versions";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
   workspaceDescriptors,
   workspaceDrafts,
+  workspaceImports,
   workspaceOperations,
   workspacePrepared,
   workspacePresentations,
@@ -118,6 +120,15 @@ export async function latestDraft(userId: number, scope: Scope): Promise<Draft |
   return rows[0] ? draftOf(rows[0]) : null;
 }
 
+/** The stored patches are the expected ones: compared by content, so how the JSON text is spaced never matters. */
+export function samePatches(stored: string, expected: Draft["patches"]): boolean {
+  try {
+    return canonicalJSON(JSON.parse(stored)) === canonicalJSON(expected);
+  } catch {
+    return false;
+  }
+}
+
 export async function upsertDraft(userId: number, draft: Draft, expected?: Draft | null): Promise<void> {
   const validated = draftSchema.parse(draft);
   await getDb().transaction(async tx => {
@@ -128,7 +139,7 @@ export async function upsertDraft(userId: number, draft: Draft, expected?: Draft
       .orderBy(desc(workspaceDrafts.updatedAt)).limit(1);
     const current = rows[0];
     if (expected !== undefined) {
-      const matches = current && expected && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && current.patches === JSON.stringify(expected.patches);
+      const matches = current && expected && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && samePatches(current.patches, expected.patches);
       if ((expected === null && current) || (expected !== null && !matches)) throw new WorkspaceApplyError("draft-concurrent-modification");
       if (current && !["applied", "discarded", "aborted"].includes(current.status) && current.id !== validated.draftId && validated.draftRevision <= current.draftRevision) {
         throw new WorkspaceApplyError("draft-revision-conflict");
@@ -268,7 +279,7 @@ export async function loadApplyState(userId: number, scope: Scope, prepareId?: s
   ]);
   const committed = revisionRows.at(-1);
   const committedDescriptorRow = committed
-    ? descriptorRows.filter(row => row.sourceActiveRevision === committed.id).sort((a, b) => b.createdAt - a.createdAt)[0]
+    ? descriptorRows.filter(row => row.sourceActiveRevision === committed.id).sort((a, b) => b.createdAt - a.createdAt || (a.effectiveRevision < b.effectiveRevision ? 1 : a.effectiveRevision > b.effectiveRevision ? -1 : 0))[0]
     : undefined;
   return {
     scope,
@@ -308,10 +319,12 @@ export async function commitRevision(input: {
     const [current, preparedRow, draftRow] = await Promise.all([
       tx.select({ id: workspaceRevisions.id }).from(workspaceRevisions).where(and(eq(workspaceRevisions.userId, userId), scopeWhere(scope)(workspaceRevisions), eq(workspaceRevisions.status, "committed"))).limit(1),
       tx.select().from(workspacePrepared).where(and(eq(workspacePrepared.userId, userId), scopeWhere(scope)(workspacePrepared), eq(workspacePrepared.prepareId, input.prepareId))).limit(1),
-      tx.select({ id: workspaceDrafts.id, draftRevision: workspaceDrafts.draftRevision }).from(workspaceDrafts).where(and(eq(workspaceDrafts.userId, userId), scopeWhere(scope)(workspaceDrafts))).orderBy(desc(workspaceDrafts.updatedAt)).limit(1),
+      tx.select({ id: workspaceDrafts.id, draftRevision: workspaceDrafts.draftRevision, status: workspaceDrafts.status }).from(workspaceDrafts).where(and(eq(workspaceDrafts.userId, userId), scopeWhere(scope)(workspaceDrafts))).orderBy(desc(workspaceDrafts.updatedAt)).limit(1),
     ]);
     const preparedDescriptor = preparedRow[0] ? presentationDescriptorSchema.parse(parseJson(preparedRow[0].descriptor)) : null;
-    if ((current[0]?.id ?? "default") !== input.baseRevision || !preparedRow[0] || preparedRow[0].baseRevision !== input.baseRevision || preparedRow[0].clientInstanceId !== presentation.clientInstanceId || preparedRow[0].draftRevision !== input.draftRevision || preparedRow[0].expiresAt <= Date.now() || preparedDescriptor?.workspaceFingerprint !== descriptor.workspaceFingerprint || (draftRow[0]?.id ?? null) !== input.draftId || (input.draftId !== null && draftRow[0]?.draftRevision !== input.draftRevision)) {
+    // A draft discarded or applied meanwhile is not the one this commit was prepared from.
+    const openDraft = draftRow[0] && !["applied", "discarded", "aborted"].includes(draftRow[0].status) ? draftRow[0] : undefined;
+    if ((current[0]?.id ?? "default") !== input.baseRevision || !preparedRow[0] || preparedRow[0].baseRevision !== input.baseRevision || preparedRow[0].clientInstanceId !== presentation.clientInstanceId || preparedRow[0].draftRevision !== input.draftRevision || preparedRow[0].expiresAt <= Date.now() || preparedDescriptor?.workspaceFingerprint !== descriptor.workspaceFingerprint || (openDraft?.id ?? null) !== input.draftId || (input.draftId !== null && openDraft?.draftRevision !== input.draftRevision)) {
       throw new WorkspaceApplyError("stale-base");
     }
     await tx.insert(workspaceOperations).values({
@@ -396,10 +409,20 @@ export async function insertSeedRevision(userId: number, scope: Scope, revision:
 }
 
 /** The boot purge: expired prepares and presentations left unknown past their retention, for every user. */
+/** A tab untouched this long is closed: its presentation goes (an open one makes a new one on its next look). */
+const IDLE_PRESENTATION_MS = 7 * 86_400_000;
+/** Finished drafts, commit replay records and quarantined imports no open draft uses: kept a month, then dropped. */
+const FINISHED_RETENTION_MS = 30 * 86_400_000;
+
 export async function pruneWorkspaceState(now: number): Promise<void> {
+  const finishedBefore = now - FINISHED_RETENTION_MS;
   await Promise.all([
     getDb().delete(workspacePrepared).where(lt(workspacePrepared.expiresAt, now)),
     getDb().delete(workspacePresentations).where(and(eq(workspacePresentations.status, "unknown"), lt(workspacePresentations.updatedAt, now - APPLY_POLICY_V1.activationUncertainRetentionMs))),
+    getDb().delete(workspacePresentations).where(lt(workspacePresentations.updatedAt, now - IDLE_PRESENTATION_MS)),
+    getDb().delete(workspaceOperations).where(lt(workspaceOperations.createdAt, finishedBefore)),
+    getDb().delete(workspaceDrafts).where(and(sql`${workspaceDrafts.status} IN ('applied', 'discarded', 'aborted')`, lt(workspaceDrafts.updatedAt, finishedBefore))),
+    getDb().delete(workspaceImports).where(and(lt(workspaceImports.createdAt, finishedBefore), sql`NOT EXISTS (SELECT 1 FROM workspace_drafts d WHERE d.user_id = ${workspaceImports.userId} AND d.surface_id = ${workspaceImports.surfaceId} AND d.device_class = ${workspaceImports.deviceClass} AND d.id = ${workspaceImports.draftId} AND d.status NOT IN ('applied', 'discarded', 'aborted'))`)),
   ]);
 }
 

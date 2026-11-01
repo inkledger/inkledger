@@ -20,7 +20,7 @@ import { resolve } from "@contracts/workspace/resolve";
 import { rollbackOperations } from "@contracts/workspace/rollback";
 import { fingerprint } from "./crypto";
 import { hashActivationToken, newActivationToken } from "./lease";
-import { getDiscoveryState, saveDiscoveryState } from "./discovery";
+import { getDiscoveryState, updateDiscoveryState } from "./discovery";
 import { importHasUnknownContent, plannerFeedback } from "./plannerStore";
 import { recordWorkspaceCommitted, recordWorkspaceDiscovery, recordWorkspacePresented } from "./flowAttribution";
 import {
@@ -72,10 +72,18 @@ async function discoveryFor(userId: number, scope: Scope): Promise<ResolveInput[
   return getDiscoveryState(userId, scope);
 }
 
+/** Drafts still being worked on; an applied, discarded or aborted one is history and never resolved again. */
+const OPEN_DRAFT: readonly Draft["status"][] = ["editing", "ready", "applying", "conflict", "stale"];
+
+async function openDraft(userId: number, scope: Scope): Promise<Draft | null> {
+  const draft = await latestDraft(userId, scope);
+  return draft && OPEN_DRAFT.includes(draft.status) ? draft : null;
+}
+
 async function inputFor(userId: number, scope: Scope, draftOverride?: Draft | null, activeOverride?: ActiveRevision): Promise<ResolveInput> {
   scopeFor(CATALOG_V1, scope.surfaceId, scope.deviceClass);
   const activeRevision = activeOverride ?? (await latestRevision(userId, scope)) ?? defaultRevision(scope);
-  const draft = draftOverride === undefined ? await latestDraft(userId, scope) : draftOverride;
+  const draft = draftOverride === undefined ? await openDraft(userId, scope) : draftOverride;
   return {
     catalog: CATALOG_V1,
     productDefault: productDefaultFor(PRODUCT_DEFAULTS_V1, scope.surfaceId),
@@ -220,18 +228,17 @@ export async function saveWorkspaceDraft(userId: number, scope: Scope, draft: Dr
   }
   const active = await inputFor(userId, scope, null);
   if (draft.baseRevision !== active.activeRevision.revisionId) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
+  // resolvedFor throws on conflicts: what is saved always resolves.
   const result = await resolvedFor(userId, scope, draft);
-  const saved: Draft = {
-    ...draft,
-    status: result.workspace ? "ready" : "conflict",
-  };
+  const saved: Draft = { ...draft, status: "ready" };
   await upsertDraft(userId, saved, previous);
   return { draft: saved, preview: result };
 }
 
-export async function completeWorkspaceDraft(userId: number, scope: Scope, draftId: string) {
+export async function completeWorkspaceDraft(userId: number, scope: Scope, draftId: string, draftRevision?: number) {
   const draft = await latestDraft(userId, scope);
-  if (!draft || draft.draftId !== draftId || !["editing", "ready", "applying"].includes(draft.status)) return;
+  // A revision saved while the earlier one was committing is still the user's open work, not applied.
+  if (!draft || draft.draftId !== draftId || !["editing", "ready", "applying"].includes(draft.status) || (draftRevision !== undefined && draft.draftRevision !== draftRevision)) return;
   await upsertDraft(userId, { ...draft, status: "applied" }, draft);
 }
 
@@ -504,20 +511,21 @@ export async function markWorkspaceDiscovery(userId: number, scope: Scope, state
   if ([...state.seenAreaIds ?? [], ...state.placedAreaIds ?? [], ...state.dismissedAreaIds ?? []].some(areaId => !knownAreas.has(areaId))) {
     throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.invalidRequest") });
   }
-  const previous = await getDiscoveryState(userId, scope);
-  const placed = new Set([...previous.placedAnchorIds, ...state.placedAnchorIds]);
-  const dismissed = new Set([...previous.dismissedAnchorIds, ...state.dismissedAnchorIds].filter(anchorId => !placed.has(anchorId)));
-  const seen = new Set([...previous.seenAnchorIds, ...state.seenAnchorIds, ...placed, ...dismissed]);
-  const placedAreas = new Set([...previous.placedAreaIds ?? [], ...state.placedAreaIds ?? []]);
-  const dismissedAreas = new Set([...previous.dismissedAreaIds ?? [], ...state.dismissedAreaIds ?? []].filter(areaId => !placedAreas.has(areaId)));
-  const seenAreas = new Set([...previous.seenAreaIds ?? [], ...state.seenAreaIds ?? [], ...placedAreas, ...dismissedAreas]);
-  await saveDiscoveryState(userId, scope, {
-    seenAnchorIds: [...seen],
-    placedAnchorIds: [...placed],
-    dismissedAnchorIds: [...dismissed],
-    seenAreaIds: [...seenAreas],
-    placedAreaIds: [...placedAreas],
-    dismissedAreaIds: [...dismissedAreas],
+  const { previous } = await updateDiscoveryState(userId, scope, previous => {
+    const placed = new Set([...previous.placedAnchorIds, ...state.placedAnchorIds]);
+    const dismissed = new Set([...previous.dismissedAnchorIds, ...state.dismissedAnchorIds].filter(anchorId => !placed.has(anchorId)));
+    const seen = new Set([...previous.seenAnchorIds, ...state.seenAnchorIds, ...placed, ...dismissed]);
+    const placedAreas = new Set([...previous.placedAreaIds ?? [], ...state.placedAreaIds ?? []]);
+    const dismissedAreas = new Set([...previous.dismissedAreaIds ?? [], ...state.dismissedAreaIds ?? []].filter(areaId => !placedAreas.has(areaId)));
+    const seenAreas = new Set([...previous.seenAreaIds ?? [], ...state.seenAreaIds ?? [], ...placedAreas, ...dismissedAreas]);
+    return {
+      seenAnchorIds: [...seen],
+      placedAnchorIds: [...placed],
+      dismissedAnchorIds: [...dismissed],
+      seenAreaIds: [...seenAreas],
+      placedAreaIds: [...placedAreas],
+      dismissedAreaIds: [...dismissedAreas],
+    };
   });
   if (clientInstanceId) {
     for (const anchorId of state.seenAnchorIds.filter(anchorId => !previous.seenAnchorIds.includes(anchorId))) await recordWorkspaceDiscovery(userId, scope, clientInstanceId, "seen", anchorId).catch(() => {});

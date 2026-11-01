@@ -226,7 +226,7 @@ export const server: Shape<typeof en> = {
     invalidFile: "Non è un file di layout o FlowMap valido.",
     tooLarge: "Il file è troppo grande.",
     flowOff: "FlowMap è spento: accendilo prima.",
-    evidenceGone: "Quell'evidenza non è più disponibile.",
+    evidenceGone: "Quei dati di utilizzo non ci sono più.",
     oldView: "Quella vista precedente non si può disegnare su questa versione.",
     requestLength: "Scrivi la richiesta in 1-2000 caratteri.",
     noChange: "Quel suggerimento non cambierebbe il layout.",

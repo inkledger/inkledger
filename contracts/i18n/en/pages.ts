@@ -735,7 +735,9 @@ export const pages = {
     periodWeek: "Week",
     periodMonth: "Month",
     prefNotSaved: "Preference not saved: {message}",
-    prefDeferred: "Finish what you are typing, then try again",
+    prefDeferred: "Not changed while something is being typed or saved. Try again in a moment",
+    collapseColumn: "Collapse a column",
+    prefStudioDraft: "Apply or discard the layout changes in Settings → Workspace first",
     prefConflict: "The layout changed meanwhile",
     weekTitle: "Week {from} – {to}",
     overdueOne: {

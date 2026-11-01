@@ -3,11 +3,13 @@ import { t } from "@contracts/i18n";
 import { WorkspaceApplyError } from "@contracts/workspace/applyMachine";
 import { createRateLimiter } from "../lib/security";
 
-/** Per user: the local model, file imports and FlowMap batches cannot be called in a loop. */
+/** Per user: the local model, file imports, FlowMap batches and analysis cannot be called in a loop. */
 export const WORKSPACE_LIMITS = {
   model: createRateLimiter(10, 60_000),
   imports: createRateLimiter(10, 60_000),
   ingest: createRateLimiter(120, 60_000),
+  // Aggregating, exporting and ranking read every event of a layout: generous for a person, not for a loop.
+  analysis: createRateLimiter(30, 60_000),
 };
 
 export function throttle(limiter: ReturnType<typeof createRateLimiter>, userId: number): void {

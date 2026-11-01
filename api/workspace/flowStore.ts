@@ -2,7 +2,7 @@ import { t } from "@contracts/i18n";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
-import { workspaceFlowAggregates, workspaceFlowEvents, workspaceFlowFeedback, workspaceFlowImports, workspaceFlowSettings } from "@db/schema";
+import { workspaceDrafts, workspaceFlowAggregates, workspaceFlowEvents, workspaceFlowFeedback, workspaceFlowImports, workspaceFlowSettings, workspacePlannerFeedback } from "@db/schema";
 import { getDb, q } from "../queries/connection";
 import type { EvidenceSet, FlowEvent, FlowMapDocument } from "@contracts/workspace/flowMap";
 import type { Scope } from "@contracts/workspace/model";
@@ -29,8 +29,17 @@ export async function setFlowConsent(userId: number, enabled: boolean) {
   return getFlowSettings(userId);
 }
 
-export async function pruneFlowData(userId: number, now = Date.now()): Promise<void> {
+/** Raw events kept per user at most: the newest ones, whatever the retention window allows. */
+export const FLOW_MAX_EVENTS_PER_USER = 100_000;
+const lastPruned = new Map<number, number>();
+
+export async function pruneFlowData(userId: number, now = Date.now(), maxEvents = FLOW_MAX_EVENTS_PER_USER): Promise<void> {
+  // At most once a minute per user: every ingest batch asks, the deletes need not run for each.
+  if ((lastPruned.get(userId) ?? -Infinity) > now - 60_000) return;
+  lastPruned.set(userId, now);
+  if (lastPruned.size > 10_000) lastPruned.clear();
   const settings = await getFlowSettings(userId);
+  await getDb().execute(sql`DELETE FROM workspace_flow_events WHERE user_id = ${userId} AND id IN (SELECT id FROM workspace_flow_events WHERE user_id = ${userId} ORDER BY occurred_at DESC, id DESC OFFSET ${maxEvents})`);
   await Promise.all([
     getDb().delete(workspaceFlowEvents).where(and(eq(workspaceFlowEvents.userId, userId), lt(workspaceFlowEvents.occurredAt, now - settings.rawRetentionDays * 86_400_000))),
     getDb().delete(workspaceFlowAggregates).where(and(eq(workspaceFlowAggregates.userId, userId), lt(workspaceFlowAggregates.createdAt, now - settings.aggregateRetentionDays * 86_400_000))),
@@ -136,12 +145,14 @@ export async function feedbackById(userId: number): Promise<Record<string, "unco
   return Object.fromEntries(rows.map(row => [row.id, row.status as "unconfirmed" | "confirmed" | "rejected"]));
 }
 
-export async function setExpectationFeedback(userId: number, id: string, status: "unconfirmed" | "confirmed" | "rejected"): Promise<void> {
-  await getDb().transaction(async tx => {
+/** False when collection is off: nothing is stored then, and the caller must not say it was. */
+export async function setExpectationFeedback(userId: number, id: string, status: "unconfirmed" | "confirmed" | "rejected"): Promise<boolean> {
+  return getDb().transaction(async tx => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
-    if (!settings[0]?.enabled) return;
+    if (!settings[0]?.enabled) return false;
     await tx.insert(workspaceFlowFeedback).values({ userId, id, status, updatedAt: Date.now() }).onConflictDoUpdate({ target: [workspaceFlowFeedback.userId, workspaceFlowFeedback.id], set: { status, updatedAt: Date.now() } });
+    return true;
   });
 }
 
@@ -152,8 +163,16 @@ export async function deleteFlowData(userId: number): Promise<void> {
     await tx.delete(workspaceFlowAggregates).where(eq(workspaceFlowAggregates.userId, userId));
     await tx.delete(workspaceFlowImports).where(eq(workspaceFlowImports.userId, userId));
     await tx.delete(workspaceFlowFeedback).where(eq(workspaceFlowFeedback.userId, userId));
-    // Drafts keep their operations but no longer point at evidence that is gone (§16.2).
-    await tx.execute(sql`UPDATE workspace_drafts SET patches = (SELECT COALESCE(jsonb_agg(jsonb_set(p, '{evidence}', '[]'::jsonb)), '[]'::jsonb)::text FROM jsonb_array_elements(patches::jsonb) AS p) WHERE user_id = ${userId} AND patches LIKE '%evidenceId%'`);
+    await tx.delete(workspacePlannerFeedback).where(eq(workspacePlannerFeedback.userId, userId));
+    // Drafts keep their operations but no longer point at evidence that is gone, nor at what it suggested (§16.2).
+    // Rewritten here in the same compact JSON the draft store writes, so its compare-and-swap still matches.
+    const drafts = await tx.select({ id: workspaceDrafts.id, surfaceId: workspaceDrafts.surfaceId, deviceClass: workspaceDrafts.deviceClass, patches: workspaceDrafts.patches })
+      .from(workspaceDrafts).where(and(eq(workspaceDrafts.userId, userId), sql`${workspaceDrafts.patches} LIKE '%evidenceId%'`));
+    for (const draft of drafts) {
+      const patches = (JSON.parse(draft.patches) as Record<string, unknown>[]).map(patch => ({ ...patch, evidence: [], suggestionSignature: undefined, expectedOutcome: undefined }));
+      await tx.update(workspaceDrafts).set({ patches: JSON.stringify(patches) })
+        .where(and(eq(workspaceDrafts.userId, userId), eq(workspaceDrafts.surfaceId, draft.surfaceId), eq(workspaceDrafts.deviceClass, draft.deviceClass), eq(workspaceDrafts.id, draft.id)));
+    }
     await tx.insert(workspaceFlowSettings).values({ userId, enabled: false, updatedAt: Date.now() }).onConflictDoUpdate({ target: workspaceFlowSettings.userId, set: { enabled: false, updatedAt: Date.now() } });
   });
 }

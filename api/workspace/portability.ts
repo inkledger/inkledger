@@ -62,7 +62,9 @@ export async function importWorkspace(userId: number, scope: Scope, text: string
   if (document.scope.surfaceId !== scope.surfaceId || document.scope.deviceClass !== scope.deviceClass || document.revision.scope.surfaceId !== scope.surfaceId || document.revision.scope.deviceClass !== scope.deviceClass) {
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.invalidRequest") });
   }
-  if (document.revision.operations.length > 1024) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.workspace.invalidRequest") });
+  // One draft holds 32 patches of 32 operations: the revision's operations and the draft's patches together must fit.
+  const patchCount = Math.ceil(document.revision.operations.length / 32) + (document.draft?.patches.length ?? 0);
+  if (document.revision.operations.length > 1024 || patchCount > 32) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.workspace.tooLarge") });
   const current = await getWorkspace(userId, scope);
   const importId = `import_${randomUUID()}`;
   const constraints: Constraint[] = document.revision.constraints.map(constraint => ({

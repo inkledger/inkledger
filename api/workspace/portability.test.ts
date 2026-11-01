@@ -77,6 +77,21 @@ describe("workspace portability", () => {
     await expect(importWorkspace(userId, scope, JSON.stringify(unsafe))).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("refuses a file whose revision and draft make more patches than a draft holds, as too large", async () => {
+    const original = await documentForUser();
+    const operation = original.revision.operations[0];
+    const draftPatch = { patchId: "patch-extra", patchSchemaVersion: 1 as const, scope, baseRevision: "default", catalogVersion: "1.0.0", author: "user" as const, provenance: {}, intent: { kind: "custom" as const, status: "explicit" as const }, operations: [], evidence: [], proposedConstraints: [] };
+    const body = {
+      ...original,
+      checksum: undefined,
+      revision: { ...original.revision, operations: Array.from({ length: 1024 }, (_, index) => ({ ...operation, operation: { ...operation.operation, operationId: `op-${index}` } })) },
+      draft: { draftId: "draft-big", draftRevision: 1, baseRevision: "default", scope, status: "ready" as const, patches: [draftPatch] },
+    };
+    delete body.checksum;
+    const contents = JSON.stringify({ ...body, checksum: fingerprint("workspace", body).value });
+    await expect(importWorkspace(userId, scope, contents)).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+  });
+
   it("preserves unknown content in quarantine and denies writes", async () => {
     const original = await documentForUser();
     original.revision.opaque = [createOpaqueEntry("future-layout", 2, new TextEncoder().encode("{}"))];

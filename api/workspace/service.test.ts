@@ -6,6 +6,7 @@ import {
   activateWorkspace,
   commitWorkspace,
   completeWorkspaceDraft,
+  discardWorkspaceDraft,
   getWorkspace,
   markWorkspaceDiscovery,
   prepareWorkspace,
@@ -49,6 +50,60 @@ describe("workspace application service", () => {
   beforeEach(async () => {
     await resetDbForTests();
     userId = await user();
+  });
+
+  it("never commits a draft another tab discarded after this one prepared it", async () => {
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "prepare-d", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await discardWorkspaceDraft(userId, scope, "draft-1");
+    await expect(commitWorkspace({ userId, scope, prepareId: "prepare-d", operationId: "operation-d", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await q("SELECT COUNT(*)::int AS n FROM workspace_revisions WHERE user_id = ?", userId)).toEqual([{ n: 0 }]);
+    expect((await getWorkspace(userId, scope, "tab-b")).workspace.placements.find(placement => placement.anchorId === "dashboard.stats")?.visible).toBe(true);
+  });
+
+  it("matches a stored draft by its content, not by how its JSON text is spaced", async () => {
+    const first = draft(false);
+    await q("INSERT INTO workspace_drafts (id, user_id, surface_id, device_class, base_revision, draft_revision, status, patches, created_at, updated_at) VALUES ('draft-1', ?, 'dashboard', 'desktop', 'default', 1, 'ready', ?, ?, ?)",
+      userId, JSON.stringify(first.patches, null, 1), Date.now(), Date.now());
+    await saveWorkspaceDraft(userId, scope, { ...draft(true), draftRevision: 2 });
+    await discardWorkspaceDraft(userId, scope, "draft-1");
+  });
+
+  it("lets the boot purge drop what closed tabs and finished drafts leave behind, never a revision", async () => {
+    const { pruneWorkspaceState } = await import("./store");
+    await getWorkspace(userId, scope, "tab-old");
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "prepare-old", clientInstanceId: "tab-old", draftRevision: 1, interactionEpoch: 1 });
+    await commitWorkspace({ userId, scope, prepareId: "prepare-old", operationId: "operation-old", clientInstanceId: "tab-old", draftRevision: 1, interactionEpoch: 1 });
+    await completeWorkspaceDraft(userId, scope, "draft-1", 1);
+    const counts = async () => (await q<Record<string, number>>(`SELECT
+      (SELECT count(*)::int FROM workspace_presentations WHERE user_id = ?) AS presentations,
+      (SELECT count(*)::int FROM workspace_operations WHERE user_id = ?) AS operations,
+      (SELECT count(*)::int FROM workspace_drafts WHERE user_id = ?) AS drafts,
+      (SELECT count(*)::int FROM workspace_revisions WHERE user_id = ?) AS revisions`, userId, userId, userId, userId))[0];
+    const day = 86_400_000;
+    await pruneWorkspaceState(Date.now() + day);
+    expect(await counts()).toEqual({ presentations: 1, operations: 1, drafts: 1, revisions: 1 });
+    await pruneWorkspaceState(Date.now() + 31 * day);
+    expect(await counts()).toEqual({ presentations: 0, operations: 0, drafts: 0, revisions: 1 });
+  });
+
+  it("keeps both of two discovery marks sent at the same time", async () => {
+    const none = { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [] };
+    await Promise.all([
+      markWorkspaceDiscovery(userId, scope, { ...none, seenAnchorIds: ["dashboard.recap"] }),
+      markWorkspaceDiscovery(userId, scope, { ...none, placedAnchorIds: ["dashboard.desk"] }),
+    ]);
+    const [row] = await q<{ seen_anchor_ids: string; placed_anchor_ids: string }>("SELECT seen_anchor_ids, placed_anchor_ids FROM workspace_discovery WHERE user_id = ?", userId);
+    expect(JSON.parse(row.seen_anchor_ids)).toEqual(expect.arrayContaining(["dashboard.desk", "dashboard.recap"]));
+    expect(JSON.parse(row.placed_anchor_ids)).toEqual(["dashboard.desk"]);
+  });
+
+  it("marks applied only the draft revision that was committed", async () => {
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await saveWorkspaceDraft(userId, scope, { ...draft(true), draftRevision: 2 });
+    await completeWorkspaceDraft(userId, scope, "draft-1", 1);
+    expect((await q<{ status: string }>("SELECT status FROM workspace_drafts WHERE user_id = ?", userId))[0].status).toBe("ready");
   });
 
   it("starts from ProductDefault without inventing an active revision", async () => {
@@ -380,6 +435,22 @@ describe("the Dashboard layout from before the workspace", () => {
       expect(result.history).toHaveLength(2);
     }
     expect(await q("SELECT COUNT(*)::int AS n FROM workspace_revisions WHERE user_id = ?", other)).toEqual([{ n: 0 }]);
+  });
+
+  it("carries over every section the old Customize could hide", async () => {
+    await resetDbForTests();
+    const userId = await user();
+    const { DASHBOARD_WIDGETS } = await import("../../contracts/dashboard");
+    await q("INSERT INTO settings (user_id, dashboard_layout) VALUES (?, ?)", userId, JSON.stringify(DASHBOARD_WIDGETS.map(widget => ({ id: widget.id, visible: false }))));
+    const { DATA_MIGRATIONS } = await import("../queries/dataMigrations");
+    const { getDb } = await import("../queries/connection");
+    await DATA_MIGRATIONS.find(item => item.id === "dashboard-layout-to-workspace")!.run(getDb());
+    for (const deviceClass of ["desktop", "mobile"] as const) {
+      const result = await getWorkspace(userId, { surfaceId: "dashboard", deviceClass }, "tab-a");
+      for (const widget of DASHBOARD_WIDGETS) {
+        expect(result.workspace.placements.find(placement => placement.anchorId === `dashboard.${widget.id}`)?.visible, widget.id).toBe(false);
+      }
+    }
   });
 });
 

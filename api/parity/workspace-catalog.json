@@ -289,11 +289,11 @@
             "default",
             "expanded"
           ],
-          "descriptionKey": "pages.dashboard.gapCutter"
+          "descriptionKey": "views.dashboard.gap.title"
         },
         "accessibility": {
           "role": "region",
-          "labelKey": "pages.dashboard.gapCutter",
+          "labelKey": "views.dashboard.gap.title",
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
@@ -506,7 +506,8 @@
           "operations": [
             "reorder",
             "variant",
-            "pin"
+            "pin",
+            "hide"
           ],
           "variants": [
             "compact",
@@ -564,7 +565,8 @@
           "operations": [
             "reorder",
             "variant",
-            "pin"
+            "pin",
+            "hide"
           ],
           "variants": [
             "compact",
@@ -827,11 +829,11 @@
             "default",
             "expanded"
           ],
-          "descriptionKey": "ui.layout.account"
+          "descriptionKey": "ui.layout.accountMenu"
         },
         "accessibility": {
           "role": "region",
-          "labelKey": "ui.layout.account",
+          "labelKey": "ui.layout.accountMenu",
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
@@ -1260,7 +1262,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.action.cancel",
+          "labelKey": "common.cancel",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1282,7 +1284,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "pages.dashboard.gapCutter",
+          "labelKey": "views.dashboard.gap.title",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1434,7 +1436,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.period.previous",
+          "labelKey": "ui.period.prev",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1456,7 +1458,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.period.today",
+          "labelKey": "common.today",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1532,7 +1534,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.action.cancel",
+          "labelKey": "common.cancel",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1608,7 +1610,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.action.cancel",
+          "labelKey": "common.cancel",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1684,7 +1686,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "checkbox",
-          "labelKey": "ui.board.collapse",
+          "labelKey": "pages.dashboard.collapseColumn",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1706,7 +1708,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "link",
-          "labelKey": "ui.issue.open",
+          "labelKey": "common.open",
           "keyboard": "navigation",
           "minTouchTargetPx": 24
         },
@@ -1750,7 +1752,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "pages.dashboard.gapCutter",
+          "labelKey": "views.dashboard.gap.title",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -1772,7 +1774,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "link",
-          "labelKey": "ui.issue.open",
+          "labelKey": "common.open",
           "keyboard": "navigation",
           "minTouchTargetPx": 24
         },
@@ -1944,7 +1946,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.timer.stop",
+          "labelKey": "ui.timer.stopAndLog",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -2184,7 +2186,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.auth.logout",
+          "labelKey": "ui.layout.logout",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -2206,7 +2208,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.layout.account",
+          "labelKey": "ui.layout.accountMenu",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },
@@ -2818,7 +2820,7 @@
         "semanticRevision": 1,
         "accessibility": {
           "role": "button",
-          "labelKey": "ui.timer.stop",
+          "labelKey": "ui.timer.stopAndLog",
           "keyboard": "activation",
           "minTouchTargetPx": 24
         },

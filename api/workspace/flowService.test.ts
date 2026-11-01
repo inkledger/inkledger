@@ -52,6 +52,10 @@ describe("FlowMap service", () => {
     const expired = event({ id: "expired", occurredAt: Date.now() - 31 * 86_400_000 });
     const sensitive = event({ id: "sensitive", controlId: "dashboard.quickLog.input", anchorId: "dashboard.quick-log" });
     expect(await ingestFlowEvents(userId, [item, item, stale, unknown, expired, sensitive])).toEqual({ received: 2, stored: 1, isolated: 4 });
+    // An exposure or discovery mark names a block, never a control: a forged control id would make junk flows.
+    const exposure = event({ id: "exposure-forged", kind: "anchor.exposure", controlId: "made.up", cell: undefined });
+    const discovery = event({ id: "discovery-forged", kind: "discovery.seen", controlId: undefined, destinationControlId: "dashboard.customize.open", cell: undefined });
+    expect(await ingestFlowEvents(userId, [exposure, discovery])).toEqual({ received: 0, stored: 0, isolated: 2 });
     const shellScope: Scope = { surfaceId: "shell-desktop", deviceClass: "desktop" };
     await getWorkspace(userId, shellScope, "tab-a");
     expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM workspace_presentations WHERE user_id = ? AND client_instance_id = 'tab-a'", userId))[0].n).toBe(2);
@@ -93,7 +97,13 @@ describe("FlowMap service", () => {
     document.checksum = flowMapChecksum(body);
     expect(checksum).not.toBe(document.checksum);
     await expect(importFlowMap(userId, JSON.stringify(document))).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // A harmless picture with a valid checksum: taken, but drawn again from the numbers, never kept as sent.
     document.svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><text>private</text></svg>";
+    document.checksum = flowMapChecksum({ ...document, checksum: undefined });
+    const redrawn = await importFlowMap(userId, JSON.stringify(document));
+    expect(redrawn.document.svg).not.toContain("private");
+    // The same picture with the checksum of another body is refused as a damaged file.
+    document.checksum = checksum;
     await expect(importFlowMap(userId, JSON.stringify(document))).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
@@ -108,6 +118,16 @@ describe("FlowMap service", () => {
     expect(await q("SELECT id FROM workspace_flow_events")).toEqual([]);
   });
 
+  it("refuses expectation feedback once collection is off, instead of answering as if saved", async () => {
+    await setFlowConsent(userId, true);
+    await ingestFlowEvents(userId, [event()]);
+    const { saveEvidence } = await import("./flowStore");
+    const evidence = await generateFlowEvidence(userId, scope);
+    await saveEvidence(userId, { ...evidence, evidenceId: "evidence-gap", expectations: [{ id: "gap-1", pattern: "placement", areaId: "dashboard.header", occurrences: 3, coverage: 0.5, confidence: 0.5, state: "unconfirmed" }] });
+    await setFlowConsent(userId, false);
+    await expect(reviewExpectation(userId, scope, "gap-1", "confirmed")).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
   it("deletes raw and derived data independently for each user and disables collection", async () => {
     const second = await user("Second");
     await setFlowConsent(userId, true);
@@ -115,7 +135,11 @@ describe("FlowMap service", () => {
     await ingestFlowEvents(userId, [event()]);
     const evidence = await generateFlowEvidence(userId, scope);
     await importFlowMap(userId, (await exportFlowMap(userId, scope, evidence.evidenceId, "flow")).contents);
-    await reviewExpectation(userId, scope, "placement:dashboard.header:dashboard.logTime", "rejected").catch(() => {});
+    // Feedback really stored before the Delete, so the check below proves the Delete removed it.
+    const { saveEvidence } = await import("./flowStore");
+    await saveEvidence(userId, { ...evidence, evidenceId: "evidence-gap", expectations: [{ id: "gap-1", pattern: "placement", areaId: "dashboard.header", occurrences: 3, coverage: 0.5, confidence: 0.5, state: "unconfirmed" }] });
+    await reviewExpectation(userId, scope, "gap-1", "rejected");
+    expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM workspace_flow_feedback WHERE user_id = ?", userId))[0].n).toBe(1);
     await deleteFlowData(userId);
     expect((await getWorkspace(second, scope, "tab-b")).workspace.placements.length).toBeGreaterThan(0);
     for (const table of ["workspace_flow_events", "workspace_flow_aggregates", "workspace_flow_imports", "workspace_flow_feedback"]) {
@@ -153,12 +177,44 @@ describe("FlowMap service", () => {
     expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM workspace_flow_imports WHERE user_id = ?", userId))[0].n).toBe(0);
   });
 
+  it("keeps only the newest raw events of a user over the cap, and prunes at most once a minute", async () => {
+    const { pruneFlowData, saveFlowEvents } = await import("./flowStore");
+    await setFlowConsent(userId, true);
+    const now = Date.now();
+    await saveFlowEvents(userId, [event({ id: "oldest", occurredAt: now - 3000 }), event({ id: "middle", occurredAt: now - 2000 }), event({ id: "newest", occurredAt: now - 1000 })]);
+    await pruneFlowData(userId, now + 120_000, 2);
+    const ids = async () => (await q<{ id: string }>("SELECT id FROM workspace_flow_events WHERE user_id = ? ORDER BY id", userId)).map(row => row.id);
+    expect(await ids()).toEqual(["middle", "newest"]);
+    await pruneFlowData(userId, now + 130_000, 1);
+    expect(await ids(), "pruned a moment ago").toHaveLength(2);
+  });
+
   it("leaves drafts with no reference to the evidence a Delete removed", async () => {
     await q("INSERT INTO workspace_drafts (id, user_id, surface_id, device_class, base_revision, draft_revision, status, patches, created_at, updated_at) VALUES ('d', ?, 'dashboard', 'desktop', 'default', 1, 'editing', ?, ?, ?)",
       userId, JSON.stringify([{ patchId: "p", operations: [], evidence: [{ evidenceId: "evidence_x", effectiveRevision: "eff" }] }]), Date.now(), Date.now());
     await deleteFlowData(userId);
     const [draft] = await q<{ patches: string }>("SELECT patches FROM workspace_drafts WHERE id = 'd'");
     expect(JSON.parse(draft.patches)).toEqual([{ patchId: "p", operations: [], evidence: [] }]);
+  });
+
+  it("leaves a draft that referred to deleted evidence saveable and discardable", async () => {
+    const { saveWorkspaceDraft, discardWorkspaceDraft } = await import("./service");
+    const patch = {
+      patchId: "patch-evidence", patchSchemaVersion: 1 as const, scope, baseRevision: "default", catalogVersion: "1.0.0", author: "deterministic" as const, provenance: {},
+      intent: { kind: "reduce" as const, status: "proposed" as const, anchorId: "dashboard.stats" },
+      operations: [{ type: "visibility" as const, operationId: "op-evidence", anchorId: "dashboard.stats", visible: false }],
+      evidence: [{ evidenceId: "evidence_x", effectiveRevision: "eff" }], proposedConstraints: [], suggestionSignature: "signature-x", expectedOutcome: "Fewer clicks",
+    };
+    const first = { draftId: "draft-evidence", draftRevision: 1, baseRevision: "default", scope, status: "ready" as const, patches: [patch] };
+    await saveWorkspaceDraft(userId, scope, first);
+    await deleteFlowData(userId);
+    const [stored] = await q<{ patches: string }>("SELECT patches FROM workspace_drafts WHERE id = 'draft-evidence'");
+    const cleaned = JSON.parse(stored.patches);
+    expect(cleaned[0].evidence).toEqual([]);
+    expect(cleaned[0].suggestionSignature).toBeUndefined();
+    expect(cleaned[0].expectedOutcome).toBeUndefined();
+    await saveWorkspaceDraft(userId, scope, { ...first, draftRevision: 2, patches: cleaned });
+    await discardWorkspaceDraft(userId, scope, "draft-evidence");
   });
 
   it("makes one period a day for whom collects, each drawn on the layout it was used on", async () => {
@@ -172,7 +228,17 @@ describe("FlowMap service", () => {
     expect(layout?.some(placement => placement.anchorId === "dashboard.customize" && placement.areaId === "dashboard.header")).toBe(true);
     await setFlowConsent(userId, false);
     await ingestFlowEvents(userId, [event({ id: "while-off" })]);
-    expect(await snapshotFlowEvidence(Date.now() + 86_400_000), "nobody collecting, nothing new").toBe(0);
+    // 21 h later: past the once-a-day guard and with the earlier event still in the window, only consent stops it.
+    expect(await snapshotFlowEvidence(Date.now() + 21 * 3_600_000), "nobody collecting, nothing new").toBe(0);
+  });
+
+  it("makes no period for a page whose new layout has not been used yet", async () => {
+    await setFlowConsent(userId, true);
+    // Used yesterday on a layout that is no longer the current one.
+    const { saveFlowEvents } = await import("./flowStore");
+    expect(await saveFlowEvents(userId, [event({ descriptor: { ...descriptor, effectiveRevision: "effective-earlier" } })])).toBe(1);
+    expect(await snapshotFlowEvidence()).toBe(0);
+    expect((await flowMapOverview(userId, scope)).evidence).toEqual([]);
   });
 });
 

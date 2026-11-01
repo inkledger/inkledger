@@ -7,7 +7,7 @@ export function rollbackOperations(current: ResolvedWorkspace, target: ResolvedW
     const wanted = targetByAnchor.get(placement.anchorId);
     // Not in the target (it came later, or it is critical): left where it is, never hidden by an undo.
     if (!wanted) continue;
-    if (placement.areaId !== wanted.areaId || placement.order !== wanted.order && placement.areaId !== wanted.areaId) {
+    if (placement.areaId !== wanted.areaId) {
       operations.push({ type: "move", operationId: operationId(), anchorId: placement.anchorId, toAreaId: wanted.areaId, order: wanted.order });
     }
     if (placement.variant !== wanted.variant) operations.push({ type: "variant", operationId: operationId(), anchorId: placement.anchorId, variant: wanted.variant });
