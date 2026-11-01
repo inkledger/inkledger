@@ -242,6 +242,54 @@ test("a pin made before the pane knows the copy setting still sends the copy", a
   }
 });
 
+test("a pin's copy is of the mail pinned, even when the pane moved on before the setting came", async () => {
+  const app = await start({
+    viewport: { width: 320, height: 800 },
+    seed: async db => {
+      await db.q("INSERT INTO settings (user_id, mail_copies, mail_copies_consent_at) VALUES (1, 'body', 1) ON CONFLICT (user_id) DO UPDATE SET mail_copies = 'body', mail_copies_consent_at = 1");
+      await db.q("INSERT INTO mail_addin_keys (user_id, key_hash, created_at) VALUES (1, ?, 1)", createHash("sha256").update(KEY).digest("hex"));
+    },
+  });
+  try {
+    const { page, base } = app;
+    await page.route("https://appsforoffice.microsoft.com/**", r => r.fulfill({ body: OFFICE, contentType: "text/javascript" }));
+    let calls = 0;
+    let release = () => {};
+    const held = new Promise(resolve => (release = resolve));
+    await page.route("**/api/outlook/me", async route => {
+      if (++calls > 1) await held;
+      await route.continue();
+    });
+    const copied = [];
+    await page.route("**/api/outlook/copy", async route => {
+      copied.push(Buffer.from(JSON.parse(route.request().postData() ?? "{}").eml ?? "", "base64").toString("utf8"));
+      await route.continue();
+    });
+    await page.goto(base + "/outlook.html");
+    await page.getByLabel("Add-in key").fill(KEY);
+    await page.getByRole("button", { name: "Connect" }).click();
+    await page.getByText("Budget 2027", { exact: true }).waitFor();
+    const pinned = page.waitForResponse(response => response.url().includes("/api/outlook/pin"));
+    await page.getByRole("button", { name: "Add TODO" }).click();
+    await pinned;
+    // The pinned pane follows the next mail while the copy setting is still on its way.
+    await page.evaluate(() => {
+      window.Office.context.mailbox.item = window.__mail(2, "Kick-off notes");
+      window.__itemChanged({ type: "olkItemSelectedChanged" });
+    });
+    await page.getByText("Kick-off notes", { exact: true }).waitFor();
+    // The buttons answer at once: the pin is done, the copy does not hold them.
+    assert.equal(await page.getByRole("button", { name: "Add TODO" }).isDisabled(), false);
+    const settled = page.waitForResponse(response => response.url().includes("/api/outlook/me"));
+    release();
+    await settled;
+    await page.waitForLoadState("networkidle");
+    assert.equal(copied.some(eml => eml.includes("Kick-off notes")), false, "never the next mail's file under the pinned one");
+  } finally {
+    await app.stop();
+  }
+});
+
 test("the pane sends the copy where Outlook can", async () => {
   const app = await start({
     viewport: { width: 320, height: 800 },

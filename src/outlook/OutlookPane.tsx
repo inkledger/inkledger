@@ -189,7 +189,8 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
     try {
       const r = await call<{ boardName?: string }>("POST", "pin", { mail, to });
       onStatus({ text: done(r), tone: "ok" });
-      await sendCopy();
+      // Not awaited: the copy may wait for the setting, the pane's buttons do not.
+      void sendCopy(mail);
       refreshPlaces();
     } catch (e) {
       onFailed(e);
@@ -198,14 +199,17 @@ function PinMail({ onStatus, onFailed, onChangeKey }: { onStatus: (s: Status) =>
     }
   };
 
-  /** After a pin: the open mail's copy, read by Outlook itself where it can; else a note says the server will make it. */
-  const sendCopy = async () => {
-    if (!mail || (await copies.current) === "off") return;
-    if (!canReadWholeMail()) return setCopyNote(true);
+  /**
+   * After a pin: the pinned mail's copy, read by Outlook itself where it can; else a note says the server will
+   * make it. Outlook reads only the mail open now: if the pane moved on meanwhile, the server makes that copy too.
+   */
+  const sendCopy = async (pinned: OpenMail) => {
+    if ((await copies.current) === "off") return;
+    if (!canReadWholeMail() || openMail()?.exchangeId !== pinned.exchangeId) return setCopyNote(true);
     const eml = await readWholeMail();
     if (!eml) return;
     try {
-      await call("POST", "copy", { mail, eml });
+      await call("POST", "copy", { mail: pinned, eml });
     } catch (e) {
       onFailed(e);
     }
