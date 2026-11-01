@@ -98,6 +98,8 @@ async function fakeCreate(page, sent) {
       if (!mine(n)) return real[i];
       if (n === "issues.createTargets") return { result: { data: { json: [{ connectionId: 1, name: "Jira", label: "Work Jira", types: true, containers: [{ key: "DEMO", name: "Demo", mine: true }] }] } } };
       if (n === "issues.createTypes") return { result: { data: { json: [{ id: "10001", name: "Task" }] } } };
+      // A Task asks no extra fields (issues.createFields came after this fake: answered as a create, the form broke).
+      if (n === "issues.createFields") return { result: { data: { json: [] } } };
       sent.push((url.searchParams.has("batch") ? input[i]?.json : input.json) ?? {});
       return { result: { data: { json: { key: "DEMO-101", connectionId: 1, remoteId: "DEMO-101" } } } };
     });
