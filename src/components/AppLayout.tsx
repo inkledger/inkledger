@@ -23,6 +23,8 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrackerSites } from "@/hooks/useConnections";
 import { useHotkeys, useMouseHistoryButtons } from "@/hooks/useHotkeys";
+import { useOpenBeside } from "@/hooks/useOpenBeside";
+import { DeskDropTarget } from "@/components/desk/DeskDropTarget";
 import { useLiveSync } from "@/hooks/useLiveSync";
 import { useTimerAlerts } from "@/hooks/useTimerAlerts";
 import { useNativeBridge } from "@/hooks/useNativeBridge";
@@ -254,7 +256,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const due = useTodoReminders().items.length;
   // The Desk's panes, only once the desk was read (it never adds a request to a page).
   const desk = trpc.desks.current.useQuery(undefined, { enabled: false }).data;
-  const onDesk = desk ? desk.panes.length + desk.parked.length : 0;
+  const onDesk = desk ? desk.panes.filter(slot => !("empty" in slot)).length + desk.parked.length : 0;
   // The count beside a section: issues with news, TODOs due today or late, issues on the desk.
   const chipOf = (to: string) =>
     to === "/issues" && unread > 0
@@ -312,6 +314,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
               end={to === "/" || (to === "/issues" && pathname.startsWith("/issues/desk"))}
             />
           );
+          if (to === "/issues/desk") return <DeskDropTarget key={to}>{link}</DeskDropTarget>;
           if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page" || !isVisible("shell.pinboard", "shell.navigation")) return link;
           // The pinboard, one tap away from any page: a sibling of the
           // link, never inside it.
@@ -546,6 +549,7 @@ function ShellWatchers() {
 /** App shell: grouped sidebar on canvas, content in a single white panel. */
 export function AppLayout() {
   useHotkeys();
+  useOpenBeside();
   useCommandPaletteShortcut();
   usePinboardWiring();
   useShadowReach();

@@ -8,14 +8,16 @@ import { Link } from "react-router";
 import {
   CalendarDays,
   Clock3,
+  Columns2,
   ListChecks,
   MoveRight,
   Star,
 } from "lucide-react";
+import { useOpenBesideAction } from "@/hooks/useOpenBeside";
 import { PinMenuItems } from "@/components/issue/PinMenu";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone } from "@/lib/jira";
-import { relevanceText, issuePath } from "@/lib/issues";
+import { relevanceText, issuePath, setIssueDragData } from "@/lib/issues";
 import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { surface } from "@/components/app/surface";
@@ -28,12 +30,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 export type BoardIssue = {
   /** Its connection (a key may be on two) */
   connectionId?: number;
+  /** Its identity on the connection, when known (the Desk follows it through a key change) */
+  remoteId?: string | null;
   key: string;
   summary: string;
   status: string;
@@ -93,6 +98,7 @@ export function BoardCard({
           ).length > 0
       )
     : null;
+  const openBeside = useOpenBesideAction();
   const press = useRef<number | null>(null);
   const endPress = () => {
     if (press.current !== null) window.clearTimeout(press.current);
@@ -117,6 +123,8 @@ export function BoardCard({
           "application/x-connection",
           String(issue.connectionId)
         );
+        // …and to the Desk (its empty slots, its sidebar entry).
+        setIssueDragData(e.dataTransfer, issue);
         // move = change status (columns), copy = pin it (lavagna)
         e.dataTransfer.effectAllowed = "copyMove";
         onDragStart();
@@ -141,6 +149,11 @@ export function BoardCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openBeside(issue)}>
+              <Columns2 className="h-4 w-4" aria-hidden />
+              {t("views.issues.row.openBeside")}
+              <DropdownMenuShortcut>{t("ui.keys.shiftClick")}</DropdownMenuShortcut>
+            </DropdownMenuItem>
             <PinMenuItems
               issueKey={issue.key}
               connectionId={issue.connectionId}
