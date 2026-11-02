@@ -13,7 +13,7 @@ import { getDb } from "../queries/connection";
 import { TRASH_DAYS } from "../queries/trash";
 import { issueKeyInput } from "../lib/inputs";
 import { agentCopy } from "../issues/agentCopy";
-import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
+import { askModel, assertModelOn, chat, ollamaRefusal } from "../ai/ollama";
 import { ideaPrompt } from "../ai/prompts/idea";
 import { env } from "../lib/env";
 import { currentLocale } from "@contracts/i18n/core";
@@ -365,15 +365,8 @@ export const ideasRouter = createRouter({
   /** What the local model suggests for the idea (R-2.8): nothing is saved here, each field is used by hand. */
   suggest: protectedProcedure.input(z.object({ id })).query(async ({ ctx, input, signal }) => {
     const idea = await ownIdea(ctx.user.id, input.id);
-    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
-    try {
-      return await chat(ideaSuggestionSchema, ideaPrompt(idea, currentLocale()), { timeoutMs: 90_000, signal });
-    } catch (e) {
-      if (!(e instanceof OllamaError)) throw e;
-      if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
-      if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
-      throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
-    }
+    await assertModelOn();
+    return askModel(() => chat(ideaSuggestionSchema, ideaPrompt(idea, currentLocale()), { timeoutMs: 90_000, signal }));
   }),
 
   /** A mail link asking its open questions (R-2.6): the user's mail program sends it, if they want. */

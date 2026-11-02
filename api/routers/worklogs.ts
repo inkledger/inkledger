@@ -601,17 +601,13 @@ export const worklogsRouter = createRouter({
       return withWriteLock(ctx.user.id, () => deleteLocked());
 
       async function deleteLocked() {
+        const where = worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id);
+        // Read once: nothing here writes the row before it goes.
+        const [whole] = await db.select().from(worklogs).where(where);
         // The lock is driven by the worklog's own week, not the current one.
-        const local = await db
-          .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
-          .from(worklogs)
-          .where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
-        if (local[0]) {
-          await assertWeekOpen(ctx.user.id, local[0].started);
-        }
-        await assertUnlocked(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
+        if (whole) await assertWeekOpen(ctx.user.id, whole.started);
+        await assertUnlocked(where);
         // Its entries on the time sinks go too: held now (its rows go with it), due once it is gone.
-        const [whole] = await db.select().from(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
         if (whole) await holdSinkDeletes(whole);
         try {
           const done = await deleteNow();
@@ -623,11 +619,15 @@ export const worklogsRouter = createRouter({
           throw e;
         }
 
+        function deleted() {
+          return { ok: true, seconds: whole?.timeSpentSeconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+        }
+
         async function deleteNow() {
           // Kept only in inkledger: it goes to the trash, no tracker to tell.
           if (isLocalId(input.remoteId)) {
             await deleteLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, conn.id);
-            return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+            return deleted();
           }
           // Pending worklog: drop the queued operation, nothing to tell its tracker.
           if (isPendingId(input.remoteId)) {
@@ -637,24 +637,22 @@ export const worklogsRouter = createRouter({
               await withDeleteReason("user", async (tx) => {
                 const [taken] = await tx.delete(outbox).where(stillQueued(ctx.user.id, oid)).returning({ id: outbox.id });
                 if (!taken) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
-                await tx.delete(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
+                await tx.delete(worklogs).where(where);
               });
-              return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+              return deleted();
             });
           }
-          const [filedRow] = await db.select().from(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
           // Filed through a sink standing in for its tracker: deleted there.
-          const filed = filedRow ? await companionEntry(filedRow) : null;
-          if (filedRow && filed) {
-            await deleteViaCompanion(filed, filedRow);
-            return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+          const filed = whole ? await companionEntry(whole) : null;
+          if (whole && filed) {
+            await deleteViaCompanion(filed, whole);
+            return deleted();
           }
           const through = await contractTime(ctx.user.id, conn, input.issueKey);
           if (!through) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.noTimeHere") });
-          const [row] = await db.select().from(worklogs).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id));
-          if (row) {
-            await deleteThrough(through, row);
-            return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+          if (whole) {
+            await deleteThrough(through, whole);
+            return deleted();
           }
           // Not read back here yet: the lock still follows its own week, read from the tracker; gone there too, nothing to do.
           // The tracker unreachable: the delete is queued, the replay sends it later.
@@ -662,16 +660,16 @@ export const worklogsRouter = createRouter({
             const there = through.b.worklogs?.get
               ? await through.b.worklogs.get(callMeta("time"), through.ref, input.remoteId)
               : (await through.b.worklogs?.list(callMeta("time"), through.ref))?.find((w) => w.remoteId === input.remoteId);
-            if (!there) return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+            if (!there) return deleted();
             if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
             await deleteThere(through.b, callMeta("time"), through.ref, input.remoteId);
           } catch (e) {
             // Gone there meanwhile (read, then deleted elsewhere): done, as for an entry read back.
-            if (e instanceof ProviderError && e.kind === "notFound") return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+            if (e instanceof ProviderError && e.kind === "notFound") return deleted();
             if (!(e instanceof ProviderError && e.transient)) throw e;
             await db.insert(outbox).values({ userId: ctx.user.id, connectionId: conn.id, kind: "delete", issueKey: input.issueKey, remoteId: input.remoteId });
           }
-          return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
+          return deleted();
         }
       }
     }),

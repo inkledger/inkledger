@@ -5,6 +5,8 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { t } from "@contracts/i18n";
 import { env } from "../lib/env";
 import { isPrivateAddress } from "../lib/security";
 
@@ -42,6 +44,11 @@ export async function ollamaRefusal(
   if (o.allowPublic) return null;
   const local = await isLocal(new URL(o.url).hostname, resolve);
   return local === null ? "unresolved" : local ? null : "public";
+}
+
+/** A model set up and allowed (R-2.8), else PRECONDITION_FAILED. */
+export async function assertModelOn(): Promise<void> {
+  if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
 }
 
 /** A fixed answer for tests: valid against the schema, or not. */
@@ -122,4 +129,16 @@ export async function chat<T>(
   const checked = schema.safeParse(parsed);
   if (!checked.success) throw new OllamaError("bad", "the answer doesn't match the schema");
   return checked.data;
+}
+
+/** A model's answer, its failures said in words (slow, unusable, unreachable). */
+export async function askModel<T>(ask: () => Promise<T>): Promise<T> {
+  try {
+    return await ask();
+  } catch (e) {
+    if (!(e instanceof OllamaError)) throw e;
+    if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
+    if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
+    throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
+  }
 }

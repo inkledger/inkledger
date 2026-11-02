@@ -4,7 +4,7 @@ import { and, asc, desc, eq, getTableColumns, inArray, notInArray, sql, type SQL
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { activity, containers, issues, itemAliases, type Connection, syncState, timers, worklogs, type User, type Issue } from "@db/schema";
-import { boundTracker, syncConnectionEntries, syncConnectionIssues, withStream } from "../sync/engine";
+import { boundTracker, freshError, syncConnectionEntries, syncConnectionIssues, withStream } from "../sync/engine";
 import { toRichDoc } from "../providers/core/richtext";
 import { replayContract } from "../sync/timeWrites";
 import { fieldsOf, upsertRemote } from "../sync/issues";
@@ -119,7 +119,6 @@ async function containersOf(conn: Connection, b: NonNullable<ReturnType<typeof b
   return (await getDb().select({ key: containers.key, name: containers.name }).from(containers).where(eq(containers.connectionId, conn.id))).map((c) => ({ key: c.key, name: c.name ?? c.key }));
 }
 
-/** A transition field's value, as the form sends it (checked against the field by the core). */
 /** Field values as the providers take them: dates as local dates. */
 const fieldValues = (raw: Record<string, z.infer<typeof fieldValueInput>> | undefined): Record<string, FieldValue> =>
   Object.fromEntries(Object.entries(raw ?? {}).map(([id, v]) => [id, typeof v === "object" && !Array.isArray(v) && "date" in v ? { date: localDate(v.date) } : v]));
@@ -132,7 +131,6 @@ const fieldValueInput = z.union([
   z.object({ user: z.string().min(1).max(200) }),
 ]);
 
-/** The user's tracker for an issue, bound, and the issue's reference on it. */
 /** The issue's tracker, bound to its connection, and the issue's reference on it. */
 async function boundFor(user: User, key: string, connectionId?: number) {
   const conn = await issueConnection(user.id, key, connectionId);
@@ -165,10 +163,13 @@ async function otherTracker(user: User, key: string, connectionId?: number) {
 
 type ManageOp = "assignable" | "assign" | "labelOptions" | "setLabels" | "edit";
 
+/** The issue's tracker can't do that (its provider named). */
+const cannotManage = (type: string) => new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(type) }) });
+
 /** The issue's tracker when it can do `op`, with the issue's reference, container and my id there. */
 async function managed(user: User, key: string, connectionId: number | undefined, op: ManageOp) {
   const found = await boundFor(user, key, connectionId);
-  if (!found.b.manage?.[op]) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(found.conn.type) }) });
+  if (!found.b.manage?.[op]) throw cannotManage(found.conn.type);
   const [row] = await getDb()
     .select({ projectKey: issues.projectKey })
     .from(issues)
@@ -177,6 +178,24 @@ async function managed(user: User, key: string, connectionId: number | undefined
   const containerKey = row?.projectKey ?? key.replace(/#\d+$/, "").replace(/-\d+$/, "");
   return { ...found, ref: { ...found.ref, me: found.conn.remoteAccountId }, container: { remoteId: containerKey, key: containerKey } };
 }
+
+/** What an issue not in the catalogue (shown live from its tracker) has of a catalogue row's own: nothing yet. */
+const GHOST = {
+  id: 0,
+  containerId: null,
+  favorite: 0,
+  favoriteRank: 0,
+  hidden: 0,
+  watching: 0,
+  lastCommentAt: null,
+  activityAt: null,
+  othersActivityAt: null,
+  seenAt: null,
+  raw: null,
+} as const;
+
+/** An issue as the page shows it: its labels and components read, and whether it is only live from its tracker. */
+const shownIssue = (row: Issue, remote: boolean) => ({ ...row, labels: parseStringList(row.labels), components: parseStringList(row.components), remote });
 
 /** After a change: the issue as the tracker now has it, in the catalogue. */
 async function refreshManaged(userId: number, m: Awaited<ReturnType<typeof managed>>, after: RemoteIssue | null) {
@@ -278,11 +297,7 @@ export const issuesRouter = createRouter({
     const s = rows[0];
     return {
       lastSyncAt: s?.lastSyncAt ?? null,
-      // An error older than the last success is stale.
-      lastError:
-        s?.lastError && (!s.lastSyncAt || (s.lastErrorAt ?? 0) >= s.lastSyncAt)
-          ? s.lastError
-          : null,
+      lastError: freshError(s?.lastError, s?.lastErrorAt ?? null, s?.lastSyncAt ?? null),
       intervalMin: env.syncIntervalMin,
     };
   }),
@@ -374,7 +389,7 @@ export const issuesRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const other = await otherTracker(ctx.user, input.key, input.connectionId);
       if (other) {
-        if (!other.b.watch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(other.conn.type) }) });
+        if (!other.b.watch) throw cannotManage(other.conn.type);
         await providerCall(() => other.b.watch!(callMeta(), other.ref, input.watch));
         if (input.watch) await importRemote(ctx.user.id, other);
         await getDb()
@@ -622,7 +637,7 @@ export const issuesRouter = createRouter({
     .input(z.object({ ...onConnection, key: issueKeyInput, text: z.string().trim().min(1).max(10_000) }))
     .mutation(async ({ ctx, input }) => {
       const { b, ref, conn } = await boundFor(ctx.user, input.key, input.connectionId);
-      if (!b.comments?.add) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(conn.type) }) });
+      if (!b.comments?.add) throw cannotManage(conn.type);
       const added = await providerCall(() => b.comments!.add!(callMeta(), ref, markdown(input.text), { idempotencyKey: randomUUID() }));
       await markSeen(ctx.user.id, input.key, conn.id);
       return { id: added.comment?.id ?? "" };
@@ -825,7 +840,7 @@ export const issuesRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const conn = await ownConnection(ctx.user.id, input.connectionId);
       const b = boundTracker(conn);
-      if (!b?.manage?.create) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.issues.cannotManage", { provider: providerName(conn.type) }) });
+      if (!b?.manage?.create) throw cannotManage(conn.type);
       // Me as the tracker knows me (with the handle it assigns by).
       const me = input.assignToMe ? await providerCall(() => b.verify(callMeta())) : null;
       // The type's own fields, checked as a transition's are: required, of their kind, nothing else.
@@ -1196,48 +1211,14 @@ export const issuesRouter = createRouter({
         if (other) {
           const hit = await providerCall(() => other.b.findIssue(callMeta(), { key: input.key }));
           if (hit.kind !== "found") throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFoundOnJira") });
-          const row: Issue = {
-            id: 0,
-            userId: ctx.user.id,
-            connectionId: other.conn.id,
-            remoteId: hit.issue.remoteId,
-            containerId: null,
-            favorite: 0,
-            favoriteRank: 0,
-            hidden: 0,
-            watching: 0,
-            remoteUpdated: null,
-            lastCommentAt: null,
-            activityAt: null,
-            othersActivityAt: null,
-            seenAt: null,
-            raw: null,
-            ...fieldsOf(hit.issue),
-          };
-          return { ...row, labels: parseStringList(row.labels), components: parseStringList(row.components), remote: true as boolean };
+          return shownIssue({ ...GHOST, userId: ctx.user.id, connectionId: other.conn.id, remoteId: hit.issue.remoteId, remoteUpdated: null, ...fieldsOf(hit.issue) }, true);
         }
         const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
         const remote = await fetchIssueByKey(creds, input.key);
         if (!remote) {
           throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFoundOnJira") });
         }
-        const row: Issue = {
-          id: 0,
-          containerId: null,
-          goneAt: null,
-          goneReason: null,
-          favorite: 0,
-          favoriteRank: 0,
-          hidden: 0,
-          watching: 0,
-          lastCommentAt: null,
-          activityAt: null,
-          othersActivityAt: null,
-          seenAt: null,
-          raw: null,
-          ...toRow(user.id, user.siteUrl, user.connectionId, remote),
-        };
-        return { ...row, labels: parseStringList(row.labels), components: parseStringList(row.components), remote: true as boolean };
+        return shownIssue({ ...GHOST, goneAt: null, goneReason: null, ...toRow(user.id, user.siteUrl, user.connectionId, remote) }, true);
       }
       // Rows synced before the people columns existed: fill them once (GET only).
       if (rows[0].reporterName === null) {
@@ -1253,6 +1234,6 @@ export const issuesRouter = createRouter({
           console.warn(`[issues.get] people of ${input.key} not refreshed: ${String(e)}`);
         }
       }
-      return { ...rows[0], labels: parseStringList(rows[0].labels), components: parseStringList(rows[0].components), remote: false as boolean };
+      return shownIssue(rows[0], false);
     }),
 });

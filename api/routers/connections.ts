@@ -51,7 +51,7 @@ import {
   storeGitHubTokenSet,
   storeSecret,
 } from "../providers/connections";
-import { boundTracker, forgetProbes } from "../sync/engine";
+import { boundTracker, forgetProbes, freshError } from "../sync/engine";
 import { providerCall } from "../providers/trpc";
 import {
   pollDeviceLogin,
@@ -156,12 +156,7 @@ async function shown(c: Connection) {
     status: c.status,
     legacy: c.legacy === 1,
     lastSyncAt: sync?.lastOkAt ?? null,
-    // An error older than the last success is stale.
-    lastError:
-      sync?.lastError &&
-      (!sync.lastOkAt || (sync.lastErrorAt ?? 0) >= sync.lastOkAt)
-        ? sync.lastError
-        : null,
+    lastError: freshError(sync?.lastError, sync?.lastErrorAt ?? null, sync?.lastOkAt ?? null),
     probedAt: c.probedAt,
     // Whether its tracker can leave some containers out of the sync (GitHub repositories).
     excludable: excludableOf(c),

@@ -132,6 +132,27 @@ async function pinTarget(userId: number, deviceId: string | undefined, boardId?:
   return free;
 }
 
+/** What a pin answers: the post-it, whether it was there already, and its board. */
+const pinned = (board: Pinboard, id: number, existed: boolean) => ({ id, existed, boardId: board.id, boardName: boardDisplayName(board.name) });
+
+/** A TODO or a mail hung on a board once: there already, it comes to the front; else in the first free slot, while the board has room. */
+async function pinOnce(userId: number, board: Pinboard, item: { todoId: number } | { mailId: number }, color: NoteColor) {
+  const db = getDb();
+  const [column, itemId] = "todoId" in item ? [pinboardNotes.todoId, item.todoId] : [pinboardNotes.mailId, item.mailId];
+  const mine = await db.select({ id: pinboardNotes.id, itemId: column, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
+  const already = mine.find((m) => m.itemId === itemId);
+  if (already) {
+    await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
+    return pinned(board, already.id, true);
+  }
+  if (mine.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
+  const [row] = await db
+    .insert(pinboardNotes)
+    .values({ userId, boardId: board.id, ...item, note: "", color, ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
+    .returning({ id: pinboardNotes.id });
+  return pinned(board, row.id, false);
+}
+
 /** A TODO hung on a board, as it is now (its text, day, done, its issue). */
 type PinnedTodo = { id: number; text: string; dueOn: string | null; done: boolean; priority: number; steps: string; issueKey: string | null; connectionId: number | null };
 
@@ -487,7 +508,7 @@ export const pinboardRouter = createRouter({
           .update(pinboardNotes)
           .set({ ...pos, z, updatedAt: new Date() })
           .where(eq(pinboardNotes.id, existing.id));
-        return { id: existing.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
+        return pinned(board, existing.id, true);
       }
       if (mine.length >= MAX_NOTES) {
         throw new TRPCError({
@@ -513,7 +534,7 @@ export const pinboardRouter = createRouter({
           z,
         })
         .returning({ id: pinboardNotes.id });
-      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+      return pinned(board, row.id, false);
     }),
 
   /**
@@ -533,7 +554,7 @@ export const pinboardRouter = createRouter({
       const already = mine.find((m) => m.issueNoteId === n.id);
       if (already) {
         await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
-        return { id: already.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
+        return pinned(board, already.id, true);
       }
       let issue = mine.find((m) => m.issueKey === n.issueKey && m.connectionId === n.connectionId && m.issueNoteId === null);
       if (mine.length + (issue ? 1 : 2) > MAX_NOTES) {
@@ -563,7 +584,7 @@ export const pinboardRouter = createRouter({
           z: await nextZ(board.id),
         })
         .returning({ id: pinboardNotes.id });
-      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+      return pinned(board, row.id, false);
     }),
 
   /**
@@ -574,42 +595,16 @@ export const pinboardRouter = createRouter({
   pinTodo: protectedProcedure
     .input(z.object({ todoId: z.number().int().positive(), boardId: boardIdInput.optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
       const todo = await ownTodo(ctx.user.id, input.todoId);
-      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
-      const mine = await db.select({ id: pinboardNotes.id, todoId: pinboardNotes.todoId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
-      const already = mine.find((m) => m.todoId === todo.id);
-      if (already) {
-        await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
-        return { id: already.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
-      }
-      if (mine.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
-      const [row] = await db
-        .insert(pinboardNotes)
-        .values({ userId: ctx.user.id, boardId: board.id, todoId: todo.id, note: "", color: "green", ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
-        .returning({ id: pinboardNotes.id });
-      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+      return pinOnce(ctx.user.id, await pinTarget(ctx.user.id, ctx.deviceId, input.boardId), { todoId: todo.id }, "green");
     }),
 
   /** Hangs a pinned mail on a board (once per board: again brings it to the front). */
   pinMail: protectedProcedure
     .input(z.object({ mailId: z.number().int().positive(), boardId: boardIdInput.optional() }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
       const mail = await ownMail(ctx.user.id, input.mailId);
-      const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
-      const mine = await db.select({ id: pinboardNotes.id, mailId: pinboardNotes.mailId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
-      const already = mine.find((m) => m.mailId === mail.id);
-      if (already) {
-        await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
-        return { id: already.id, existed: true, boardId: board.id, boardName: boardDisplayName(board.name) };
-      }
-      if (mine.length >= MAX_NOTES) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
-      const [row] = await db
-        .insert(pinboardNotes)
-        .values({ userId: ctx.user.id, boardId: board.id, mailId: mail.id, note: "", color: "blue", ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
-        .returning({ id: pinboardNotes.id });
-      return { id: row.id, existed: false, boardId: board.id, boardName: boardDisplayName(board.name) };
+      return pinOnce(ctx.user.id, await pinTarget(ctx.user.id, ctx.deviceId, input.boardId), { mailId: mail.id }, "blue");
     }),
 
   /**

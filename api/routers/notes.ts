@@ -17,7 +17,7 @@ import { DIARY_MAX_DAYS, diaryInstructions, diaryMarkdown } from "@contracts/dia
 import { TIDY_MAX } from "@contracts/noteTidy";
 import { currentLocale } from "@contracts/i18n/core";
 import { markdownNoteVersions, markdownNotes, type MarkdownNote } from "@db/schema";
-import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
+import { askModel, assertModelOn, chat, ollamaRefusal } from "../ai/ollama";
 import { diaryPrompt } from "../ai/prompts/diary";
 import { noteTidyPrompt } from "../ai/prompts/noteTidy";
 import { diaryFor, diaryText } from "../notes/diary";
@@ -35,6 +35,7 @@ import {
   noteTreeItem,
   ownNote,
   renameNote,
+  writeAtRevision,
   restoreNoteBatch,
   snapshotNote,
 } from "../queries/notes";
@@ -92,18 +93,6 @@ const diaryInput = z
 
 /** What the model writes back: one Markdown document. */
 const modelMarkdown = z.object({ markdown: z.string().trim().min(1).max(NOTE_BODY_MAX) });
-
-/** A model's answer, its failures said in words (slow, unusable, unreachable). */
-async function askModel<T>(ask: () => Promise<T>): Promise<T> {
-  try {
-    return await ask();
-  } catch (e) {
-    if (!(e instanceof OllamaError)) throw e;
-    if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
-    if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
-    throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
-  }
-}
 
 /** The AI copy beside the text, made from its revision now (the text itself untouched). */
 async function setAiCopy(userId: number, row: MarkdownNote, markdown: string): Promise<NoteDocument> {
@@ -283,7 +272,7 @@ export const notesRouter = createRouter({
     const days = await diaryFor(ctx.user.id, input);
     const { markdown, cut } = diaryText(days);
     if (!markdown) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.summaryEmpty") });
-    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
+    await assertModelOn();
     const answer = await askModel(() =>
       chat(modelMarkdown, diaryPrompt(markdown, input.mode, currentLocale(), input.fromDay, input.toDay), {
         signal,
@@ -306,7 +295,7 @@ export const notesRouter = createRouter({
     const row = await ownNote(getDb(), ctx.user.id, input.id, true);
     if (row.kind !== "note" || !row.body.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.tidyEmpty") });
     if (row.body.length > TIDY_MAX) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.tidyTooLong", { count: TIDY_MAX }) });
-    if ((await ollamaRefusal()) !== null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.ideas.llmOff") });
+    await assertModelOn();
     const answer = await askModel(() =>
       chat(modelMarkdown, noteTidyPrompt(row.title, row.body, currentLocale()), {
         signal,
@@ -336,21 +325,22 @@ export const notesRouter = createRouter({
         if (current.contentRevision !== input.expectedRevision) return { status: "conflict", current: noteDocument(current) };
         const versionId = await snapshotNote(tx, current, "ai");
         const derived = noteDerived(current.title, current.aiBody);
-        const [next] = await tx
-          .update(markdownNotes)
-          .set({
+        const next = await writeAtRevision(
+          tx,
+          ctx.user.id,
+          input.id,
+          input.expectedRevision,
+          {
             body: current.aiBody,
             bodyText: derived.bodyText,
             searchTitle: derived.searchTitle,
             searchText: derived.searchText,
-            contentRevision: sql`${markdownNotes.contentRevision} + 1`,
             aiBody: null,
             aiSourceRevision: null,
             aiCreatedAt: null,
-            updatedAt: new Date(),
-          })
-          .where(and(eq(markdownNotes.id, input.id), eq(markdownNotes.userId, ctx.user.id), eq(markdownNotes.contentRevision, input.expectedRevision)))
-          .returning();
+          },
+          { evenDeleted: true }
+        );
         if (!next) return { status: "conflict", current: noteDocument(await ownNote(tx, ctx.user.id, input.id)) };
         return { status: "updated", note: noteDocument(next), versionId };
       });
@@ -405,26 +395,13 @@ export const notesRouter = createRouter({
             });
           if (current.contentRevision !== input.expectedRevision)
             return { status: "conflict", current: noteDocument(current) };
-          const [next] = await tx
-            .update(markdownNotes)
-            .set({
-              title: input.title,
-              body: input.body,
-              bodyText: derived.bodyText,
-              searchTitle: derived.searchTitle,
-              searchText: derived.searchText,
-              contentRevision: sql`${markdownNotes.contentRevision} + 1`,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(markdownNotes.id, input.id),
-                eq(markdownNotes.userId, ctx.user.id),
-                isNull(markdownNotes.deletedAt),
-                eq(markdownNotes.contentRevision, input.expectedRevision)
-              )
-            )
-            .returning();
+          const next = await writeAtRevision(tx, ctx.user.id, input.id, input.expectedRevision, {
+            title: input.title,
+            body: input.body,
+            bodyText: derived.bodyText,
+            searchTitle: derived.searchTitle,
+            searchText: derived.searchText,
+          });
           if (!next) {
             const now = await ownNote(tx, ctx.user.id, input.id);
             if (now.deletedAt)
@@ -714,26 +691,13 @@ export const notesRouter = createRouter({
           if (current.contentRevision !== input.expectedRevision)
             return { status: "conflict", current: noteDocument(current) };
           const derived = noteDerived(version.title, version.body);
-          const [next] = await tx
-            .update(markdownNotes)
-            .set({
-              title: version.title,
-              body: version.body,
-              bodyText: derived.bodyText,
-              searchTitle: derived.searchTitle,
-              searchText: derived.searchText,
-              contentRevision: sql`${markdownNotes.contentRevision} + 1`,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(markdownNotes.id, input.id),
-                eq(markdownNotes.userId, ctx.user.id),
-                isNull(markdownNotes.deletedAt),
-                eq(markdownNotes.contentRevision, input.expectedRevision)
-              )
-            )
-            .returning();
+          const next = await writeAtRevision(tx, ctx.user.id, input.id, input.expectedRevision, {
+            title: version.title,
+            body: version.body,
+            bodyText: derived.bodyText,
+            searchTitle: derived.searchTitle,
+            searchText: derived.searchText,
+          });
           if (!next)
             return {
               status: "conflict",

@@ -156,3 +156,7 @@ export async function forgetProbes(connectionId?: number): Promise<void> {
     .set({ probedAt: null })
     .where(connectionId === undefined ? sql`true` : eq(connections.id, connectionId));
 }
+
+/** A stream's last error, unless a success came after it (then it is stale). */
+export const freshError = (error: string | null | undefined, errorAt: Date | null, okAt: Date | null): string | null =>
+  error && (!okAt || (errorAt?.getTime() ?? 0) >= okAt.getTime()) ? error : null;

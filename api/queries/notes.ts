@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import {
   NOTE_MAX_DEPTH,
   NOTE_MAX_SUBTREE,
@@ -380,6 +381,34 @@ export async function moveNote(
   });
 }
 
+/**
+ * `set` written over the revision the note was shown with (that revision + 1,
+ * updated now): the row, or undefined when it moved meanwhile (or went to the
+ * trash, unless `evenDeleted`).
+ */
+export async function writeAtRevision(
+  tx: NoteTx,
+  userId: number,
+  id: string,
+  expectedRevision: number,
+  set: PgUpdateSetSource<typeof markdownNotes>,
+  opts: { evenDeleted?: boolean } = {}
+): Promise<MarkdownNote | undefined> {
+  const [next] = await tx
+    .update(markdownNotes)
+    .set({ ...set, contentRevision: sql`${markdownNotes.contentRevision} + 1`, updatedAt: new Date() })
+    .where(
+      and(
+        eq(markdownNotes.id, id),
+        eq(markdownNotes.userId, userId),
+        opts.evenDeleted ? undefined : isNull(markdownNotes.deletedAt),
+        eq(markdownNotes.contentRevision, expectedRevision)
+      )
+    )
+    .returning();
+  return next;
+}
+
 /** A new title, over the revision it was shown with; the text stays as it is. */
 export async function renameNote(
   userId: number,
@@ -394,24 +423,11 @@ export async function renameNote(
     if (current.contentRevision !== expectedRevision)
       return { status: "conflict", current: noteDocument(current) };
     const derived = noteDerived(title, current.body);
-    const [next] = await tx
-      .update(markdownNotes)
-      .set({
-        title,
-        searchTitle: derived.searchTitle,
-        searchText: derived.searchText,
-        contentRevision: sql`${markdownNotes.contentRevision} + 1`,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(markdownNotes.id, id),
-          eq(markdownNotes.userId, userId),
-          isNull(markdownNotes.deletedAt),
-          eq(markdownNotes.contentRevision, expectedRevision)
-        )
-      )
-      .returning();
+    const next = await writeAtRevision(tx, userId, id, expectedRevision, {
+      title,
+      searchTitle: derived.searchTitle,
+      searchText: derived.searchText,
+    });
     if (!next) return { status: "conflict", current: noteDocument(await ownNote(tx, userId, id)) };
     return { status: "updated", note: noteDocument(next) };
   });
