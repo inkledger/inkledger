@@ -98,9 +98,12 @@ function workPieces(free: [number, number][], breaks: [number, number][]): Piece
     let linked = false;
     for (const [bs, be] of breaks) {
       if (be <= cursor || bs >= b) continue;
-      if (bs > cursor) out.push({ lo: cursor, hi: bs, linked });
+      // Linked only to work just before the break in this same stretch: a stretch
+      // starting in a break begins at other time (a worklog), never chained over it.
+      const before = bs > cursor;
+      if (before) out.push({ lo: cursor, hi: bs, linked });
       cursor = Math.max(cursor, be);
-      linked = true;
+      linked = before;
     }
     if (cursor < b) out.push({ lo: cursor, hi: b, linked });
   }
@@ -108,6 +111,24 @@ function workPieces(free: [number, number][], breaks: [number, number][]): Piece
   return out
     .map((p, i, all) => ({ ...p, linked: p.linked && i > 0 && all[i - 1].hi - all[i - 1].lo >= MINUTE }))
     .filter((p) => p.hi - p.lo >= MINUTE);
+}
+
+/**
+ * No piece under a minute (a worklog's least): a short first piece starts its
+ * neighbour that much earlier, a short last one runs the one before on, both
+ * within the sub-minute tolerance over the break between them.
+ */
+function foldShort(parts: Block[]): Block[] {
+  const out = parts.map((p) => ({ ...p }));
+  if (out.length > 1 && out[0].seconds * 1000 < MINUTE) {
+    const [short, next] = out.splice(0, 2);
+    out.unshift({ start: new Date(next.start.getTime() - short.seconds * 1000), seconds: next.seconds + short.seconds });
+  }
+  if (out.length > 1 && out[out.length - 1].seconds * 1000 < MINUTE) {
+    const short = out.pop() as Block;
+    out[out.length - 1] = { ...out[out.length - 1], seconds: out[out.length - 1].seconds + short.seconds };
+  }
+  return out;
 }
 
 /**
@@ -127,7 +148,7 @@ function fillBack(pieces: Piece[], seconds: number): Block[] | null {
       if (end - lo >= remaining) {
         parts.unshift({ start: new Date(floorMinute(end - remaining)), seconds: remaining / 1000 });
         if (parts[0].start.getTime() < lo - OVERLAP_TOLERANCE_MS) break;
-        return parts;
+        return foldShort(parts);
       }
       if (!linked || end - lo < MINUTE) break;
       parts.unshift({ start: new Date(lo), seconds: (end - lo) / 1000 });
@@ -289,11 +310,12 @@ export function placeBlock(opts: {
     from = be;
   }
   parts.push({ start: new Date(from), seconds: remaining / 1000 });
-  const hits = parts.flatMap((p) => overlapping(p, occupied));
-  if (endMs(parts[parts.length - 1]) > dayEnd || hits.length > 0) {
+  const pieces = foldShort(parts);
+  const hits = pieces.flatMap((p) => overlapping(p, occupied));
+  if (endMs(pieces[pieces.length - 1]) > dayEnd || hits.length > 0) {
     return { ok: false, reason: t("server.placement.dayFull"), with: hits };
   }
-  return placed(parts);
+  return placed(pieces);
 }
 
 /**

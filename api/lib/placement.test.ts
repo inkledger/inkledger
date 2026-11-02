@@ -279,3 +279,32 @@ describe("pieces for logging", () => {
     expect(partsLabel(parts)).toBe("09:00–13:00 + 14:00–18:00");
   });
 });
+
+describe("placeBlock: split around breaks, edge cases", () => {
+  const MON = 12; // Monday 2026-10-12, a past day when now is Friday
+
+  it("never chains a split over another worklog: free time starting in the break is not linked to the morning", () => {
+    // 12:30–13:30 taken; a 6 h timer stopped at 18:00 can't be 10:30–12:30 + 14:00–18:00 (around the worklog).
+    const taken = [wl(at(FRI, 12, 30), 60)];
+    const r = place({ seconds: 6 * 60 * MIN, endAt: at(FRI, 18), now: at(FRI, 19), occupied: taken });
+    const parts = r.ok ? (r.parts ?? [{ start: r.start, seconds: 6 * 60 * MIN }]) : [];
+    for (const p of parts) expect(overlapping(p, taken)).toEqual([]);
+    expect(parts.some(p => p.start < at(FRI, 12, 30)) && parts.some(p => p.start >= at(FRI, 13, 30))).toBe(false);
+  });
+
+  it("no piece under a minute when appending on a past day (4h 0m 30s from 9:00)", () => {
+    const r = placeBlock({ day: at(MON, 0), occupied: [], schedule: sched, now: at(FRI, 15), seconds: 4 * 3600 + 30 });
+    // 9:00–13:00 then the 30 s run on past the break's start (within the tolerance), not alone at 14:00.
+    expect(r).toEqual({ ok: true, start: at(MON, 9) });
+  });
+
+  it("no piece under a minute when filling back across breaks", () => {
+    const two = sched.map(d => (d.enabled ? { ...d, breaks: [{ start: "11:00", end: "11:30" }, { start: "13:00", end: "14:00" }] } : d));
+    const r = place({ schedule: two, seconds: 19830, endAt: at(FRI, 18), now: at(FRI, 19) });
+    expect(r.ok).toBe(true);
+    if (r.ok && r.parts) {
+      for (const p of r.parts) expect(p.seconds).toBeGreaterThanOrEqual(60);
+      expect(r.parts.reduce((a, p) => a + p.seconds, 0)).toBe(19830);
+    }
+  });
+});
