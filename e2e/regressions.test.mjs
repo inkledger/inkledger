@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { APP, fakeProcedures, holdRoute, mockNative, start, startTimer, withApp } from "./harness.mjs";
+import { APP, dayKey, fakeProcedures, holdRoute, lastWorkday, mockNative, start, startTimer, withApp } from "./harness.mjs";
 
 const note = (db, text, x, y) => {
   const now = Date.now();
@@ -412,16 +412,7 @@ test("on a narrow window More's pinboard opens the Board's pinboard sheet", () =
  * whole, at any hour and on any day the tests run (today's start at 9:00, and a
  * Saturday or Sunday has none).
  */
-function lastWorkday() {
-  const d = new Date();
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 0 || d.getDay() === 6);
-  return d;
-}
-const lastWorkdayKey = () => {
-  const d = lastWorkday();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+const lastWorkdayKey = () => dayKey(lastWorkday());
 
 test("filling a hole: click and C cut, arrows move a cut by 1 or 15 minutes", () =>
   withApp({}, async ({ page, base }) => {

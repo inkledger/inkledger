@@ -2,10 +2,8 @@
 // and where it lives (Settings → TODO).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeProcedures, start, withApp } from "./harness.mjs";
+import { dayKey, fakeProcedures, start, withApp } from "./harness.mjs";
 
-const pad = n => String(n).padStart(2, "0");
-const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const inDays = n => {
   const d = new Date();
   d.setDate(d.getDate() + n);
@@ -392,7 +390,7 @@ test("Period trend: TODO time beside the bars and over the day's blocks", () =>
     },
     async ({ page, base }) => {
       const today = new Date();
-      const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const key = dayKey(today);
       await page.goto(`${base}/?period=week&from=${key}`);
       const trend = page.getByRole("region", { name: "Period trend" });
       await trend.getByText("TODO time with no issue: not logged, to cover with one").waitFor();

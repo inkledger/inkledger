@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash, createCipheriv, randomBytes } from "node:crypto";
@@ -27,12 +28,6 @@ function encrypt(plain) {
   return [iv.toString("base64"), c.getAuthTag().toString("base64"), enc.toString("base64")].join(".");
 }
 
-/**
- * Starts the app and a browser page logged in as "mrossi". `seed(db)` adds
- * rows before the page opens; `viewport` overrides the 1400×900 default;
- * `env` adds server variables (e.g. ALLOWED_HOSTS); `userAgent` sets the
- * browser's (a phone).
- */
 pg.types.setTypeParser(20, v => Number(v));
 pg.types.setTypeParser(1700, v => Number(v));
 
@@ -72,14 +67,6 @@ async function syncSequences(client) {
 }
 
 /**
- * Starts the app and a browser page logged in as "mrossi". `seed(db)` adds
- * rows before the page opens (db.q(sql, ...params), may be async);
- * `viewport` overrides the 1400×900 default; `env` adds server variables
- * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). `devBuild`
- * serves the production bundle through tsx; `viteDev` starts the real Vite dev
- * server. Each run has its own Postgres database, dropped at stop().
- */
-/**
  * Play on an issue. With a hole of today still open the app asks first (from its start, or
  * from now): answered "from now", so a test does the same at any hour of the day.
  */
@@ -93,6 +80,14 @@ export async function startTimer(page, key) {
   await running.waitFor();
 }
 
+/**
+ * Starts the app and a browser page logged in as "mrossi". `seed(db)` adds
+ * rows before the page opens (db.q(sql, ...params), may be async);
+ * `viewport` overrides the 1400×900 default; `env` adds server variables
+ * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). `devBuild`
+ * serves the production bundle through tsx; `viteDev` starts the real Vite dev
+ * server. Each run has its own Postgres database, dropped at stop().
+ */
 export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would
@@ -312,6 +307,20 @@ export async function awayFromMidnight(before = 2 * 60_000, after = 3 * 60_000) 
   if (until > now) await new Promise(r => setTimeout(r, until - now));
 }
 
+/** A day as the app keys it (YYYY-MM-DD, local time). */
+export const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** The last working day (Monday to Friday) before today, at this time of day. */
+export function lastWorkday() {
+  const d = new Date();
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
+  return d;
+}
+
+/** axe-core's source, to evaluate in a page before `axe.run`. */
+export const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+
 
 /** Pretends to be the native app's window: records the commands it gets. */
 export async function mockNative(context, answers = {}) {
@@ -339,7 +348,7 @@ export async function mockNative(context, answers = {}) {
 export async function fakeProcedures(page, fake) {
   await page.route(/\/api\/trpc\//, async route => {
     const url = new URL(route.request().url());
-    const names = decodeURIComponent(url.pathname.split("/api/trpc/")[1] ?? "").split(",");
+    const names = trpcProcs(url);
     if (!names.some(n => n in fake)) return route.continue();
     const res = await route.fetch().catch(() => null);
     let body = [];

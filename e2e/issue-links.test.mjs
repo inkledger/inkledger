@@ -1,7 +1,7 @@
 // Issue links: by identity, and old ones (a key, a key the issue had before) still arriving.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, withApp } from "./harness.mjs";
+import { dayKey, lastWorkday, start, withApp } from "./harness.mjs";
 
 test("an old link by key, or by a key the issue had before, lands on the issue's own link", () =>
   withApp(
@@ -25,11 +25,9 @@ test("an old link by key, or by a key the issue had before, lands on the issue's
 
 /** 10:00 on the last working day (Monday to Friday), and that day as the Dashboard's `from`. */
 function lastWorkdayAt10() {
-  const d = new Date();
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 0 || d.getDay() === 6);
+  const d = lastWorkday();
   d.setHours(10, 0, 0, 0);
-  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const day = dayKey(d);
   return { at: d.getTime(), day };
 }
 

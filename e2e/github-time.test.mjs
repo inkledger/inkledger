@@ -2,7 +2,7 @@
 // (it used to be sent to Jira's API and fail).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, withApp } from "./harness.mjs";
+import { dayKey, start, withApp } from "./harness.mjs";
 
 let github = 0;
 const githubIssue = async db => {
@@ -34,7 +34,7 @@ test("time logged on a GitHub issue stays in inkledger, said as such", () =>
     await dialog.getByLabel("Time spent").fill("30m");
     // A start of its own: the one placed from the clock has no room just after midnight.
     const y = new Date(Date.now() - 86_400_000);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await dialog.getByLabel("Start", { exact: true }).fill(`${day}T10:00`);
     await dialog.getByRole("button", { name: "Log", exact: true }).click();
     await dialog.waitFor({ state: "detached" });

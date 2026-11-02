@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { dayKey, start } from "./harness.mjs";
 
 const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/timesheet?view=month", "/board", "/reports", "/settings", "/settings/store", "/info", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 const VIEWPORTS = [320, 390, 768, 1024, 1400];
@@ -15,7 +15,7 @@ async function seed(db) {
   // For the overlays: a TODO due today on the issue with the long title (the notification center's
   // "To do today"), and a notification about it.
   const today = new Date();
-  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const day = dayKey(today);
   await db.q("INSERT INTO todos (user_id, text, due_on, issue_key, connection_id, position, created_at, updated_at) VALUES (1, ?, ?, 'DEMO-101', 1, 1, ?, ?)", `Finish ${TOKEN}`, day, now, now);
   await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (1, 1, 'assigned', 'DEMO-101', ?, 'assigned:overflow', ?)", TOKEN, now - 60_000);
 }

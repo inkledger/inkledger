@@ -2,7 +2,7 @@
 // be read, the dialog says so and offers Retry instead of "computing" forever.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, trpcProcs } from "./harness.mjs";
+import { dayKey, start, trpcProcs } from "./harness.mjs";
 
 test("Log time: the day's worklogs failing to load is said, with Retry; Log waits", async () => {
   const app = await start({});
@@ -25,7 +25,7 @@ test("Log time: the day's worklogs failing to load is said, with Retry; Log wait
     await dialog.getByLabel("Time spent").fill("30m");
     // Another day than the one the page already read: a fresh read, which fails.
     const d = new Date(Date.now() - 3 * 86_400_000);
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const day = dayKey(d);
     await dialog.getByLabel("Start", { exact: true }).fill(`${day}T10:00`);
     await dialog.getByRole("alert").filter({ hasText: "couldn't be read" }).waitFor();
     assert.equal(await dialog.locator("button[type=submit]").isDisabled(), true, "Log waits");

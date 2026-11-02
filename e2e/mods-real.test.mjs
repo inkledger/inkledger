@@ -6,10 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start } from "./harness.mjs";
+import { AXE, start } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -19,7 +18,6 @@ const IDS = existsSync(BUILD) ? readdirSync(BUILD).filter(id => existsSync(join(
 const skip = IDS.length === 0 ? "no unsigned modules build (MODS_BUILD)" : false;
 const KEY = generateKeyPairSync("ed25519");
 const PEM = KEY.publicKey.export({ type: "spki", format: "pem" }).toString();
-const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 
 const license = id =>
   signEnvelope(Buffer.from(JSON.stringify({ id: `L-${id}`, email_hash: "h", product: `inkledger.${id}`, issued: 1, v: 1 })), "inkledger-license-v1\n", KEY.privateKey);

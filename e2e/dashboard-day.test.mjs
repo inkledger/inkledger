@@ -5,13 +5,13 @@
 // and its week's status travel in one batch, so none shows: this pins it.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, start } from "./harness.mjs";
+import { awayFromMidnight, dayKey, start } from "./harness.mjs";
 
 /** Monday of last week, as the Dashboard's `from`: past, and the next day in the same week. */
 function lastMonday() {
   const d = new Date();
   d.setDate(d.getDate() - 7 - ((d.getDay() + 6) % 7));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dayKey(d);
 }
 
 test("while the next day's worklogs are on their way, the last day's holes can't be acted on", async () => {

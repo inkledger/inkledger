@@ -1,7 +1,7 @@
 // Buckets: a device narrows its lists to one tracker, and goes back to everything.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, withApp } from "./harness.mjs";
+import { dayKey, lastWorkday, start, withApp } from "./harness.mjs";
 
 const secondJira = async db => {
   const now = Date.now();
@@ -43,18 +43,11 @@ test("a bucket narrows this device's board and lists; the chip goes back to ever
 
 // The last working day 10–11 on the first tracker, 11–12 on Client B (a working day:
 // its holes are checked below, and a Saturday or Sunday has none).
-const dayBefore = () => {
-  const d = new Date();
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 0 || d.getDay() === 6);
-  return d;
-};
-const keyOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const secondJiraWithTime = async db => {
   await secondJira(db);
   const [{ id }] = await db.q("SELECT id FROM connections WHERE label = 'Client B'");
   const at = h => {
-    const d = dayBefore();
+    const d = lastWorkday();
     d.setHours(h, 0, 0, 0);
     return d.getTime();
   };
@@ -77,7 +70,7 @@ test("D9: Timesheet and Report follow the bucket, All shows everything; the day'
     await page.getByRole("menuitemradio", { name: "Client B" }).click();
     await switched;
 
-    const day = keyOf(dayBefore());
+    const day = dayKey(lastWorkday());
     await page.goto(`${base}/timesheet?day=${day}`);
     await page.getByText("CLB-1").first().waitFor();
     assert.equal(await page.getByText("DEMO-101").count(), 0);

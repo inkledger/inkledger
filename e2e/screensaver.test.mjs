@@ -1,10 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { start } from "./harness.mjs";
-
-const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+import { AXE, start } from "./harness.mjs";
 
 test("screensaver swallows closing keys and supports scene navigation and pointer exit", async () => {
   const app = await start({});

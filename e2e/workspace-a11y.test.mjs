@@ -1,10 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { withApp } from "./harness.mjs";
-
-const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+import { AXE, withApp } from "./harness.mjs";
 
 async function violations(page, selector = '[data-scroll-key="settings-category"]') {
   // Contrast is measured on the settled page: mid fade-in, every colour reads lighter than it is.

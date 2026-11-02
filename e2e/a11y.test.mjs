@@ -3,11 +3,8 @@
 // checks by hand stay part of a release.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
-import { start } from "./harness.mjs";
+import { AXE, start } from "./harness.mjs";
 
-const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 
 test("key routes have no serious or critical accessibility violation", async () => {

@@ -2,7 +2,7 @@
 // one more (it used to offer only today's Log time), and the dialog names the day.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, start } from "./harness.mjs";
+import { awayFromMidnight, dayKey, start } from "./harness.mjs";
 
 let github = 0;
 const yesterday = () => {
@@ -10,7 +10,6 @@ const yesterday = () => {
   d.setHours(10, 0, 0, 0);
   return d;
 };
-const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 test("a day with entries takes one more, on that day; the header logs today, said as such", { timeout: 600_000 }, async () => {
   await awayFromMidnight();

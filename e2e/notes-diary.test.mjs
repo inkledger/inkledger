@@ -3,9 +3,9 @@
 // kept beside it (Original | AI) until it is kept or discarded.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, withApp } from "./harness.mjs";
+import { awayFromMidnight, dayKey, withApp } from "./harness.mjs";
 
-const day = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const day = (d = new Date()) => dayKey(d);
 const yesterday = () => day(new Date(Date.now() - 86_400_000));
 
 async function waitFor(check, message) {

@@ -3,7 +3,7 @@
 // "on more than one tracker").
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, mockNative, start, withApp } from "./harness.mjs";
+import { awayFromMidnight, dayKey, mockNative, start, withApp } from "./harness.mjs";
 
 let github = 0;
 /** DEMO-101 on GitHub too (which keeps no time: its entries stay in inkledger), with one entry at `started`. */
@@ -39,7 +39,7 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
   return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
     // Yesterday's week (duplicating is for a day before today).
     const y = new Date(Date.now() - 86_400_000);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();
     await page.getByLabel("Go to day").fill(day);
@@ -88,7 +88,7 @@ test("Log time from the issue list logs on the row's own tracker", () =>
     await dialog.getByText("GitHub keeps no time").waitFor();
     await dialog.getByLabel("Time spent").fill("30m");
     const y = new Date(Date.now() - 86_400_000);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await dialog.getByLabel("Start", { exact: true }).fill(`${day}T10:00`);
     await dialog.getByRole("button", { name: "Log", exact: true }).click();
     await dialog.waitFor({ state: "detached" });
@@ -149,7 +149,7 @@ test("deleting an entry another device has just removed counts as done, not as a
   await awayFromMidnight();
   return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
     const y = new Date(Date.now() - 86_400_000);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();
     await page.getByLabel("Go to day").fill(day);
@@ -167,7 +167,7 @@ test("an entry whose tracker is archived is not deleted, and says so", { timeout
   await awayFromMidnight();
   return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
     const y = new Date(Date.now() - 86_400_000);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await db.q("UPDATE connections SET archived_at = ? WHERE id = ?", Date.now(), github);
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();

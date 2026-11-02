@@ -6,7 +6,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start, trpcProcs } from "./harness.mjs";
+import { dayKey, lastWorkday, start, trpcProcs } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -100,7 +100,7 @@ test("a module hears time logged, as the server confirmed it, with the issue it 
       const dialog = page.getByRole("dialog");
       await dialog.getByLabel("Time spent").fill("30m");
       const y = new Date(Date.now() - 86_400_000);
-      await dialog.getByLabel("Start", { exact: true }).fill(`${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}T10:00`);
+      await dialog.getByLabel("Start", { exact: true }).fill(`${dayKey(y)}T10:00`);
       await dialog.getByRole("button", { name: "Log", exact: true }).click();
       await dialog.waitFor({ state: "detached" });
       const hello = page.getByTestId("module-hello");
@@ -493,10 +493,7 @@ test("a dashboard widget gets its own card below the dashboard, inside the panel
 
 /** A past working day (Monday to Friday): its holes are all there, in an open week. */
 function pastWorkday() {
-  const d = new Date();
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 0 || d.getDay() === 6);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dayKey(lastWorkday());
 }
 
 test("a module over the day timeline takes clicks on its shape only: the hole under the rest opens the cutter", async () => {

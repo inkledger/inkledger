@@ -1,7 +1,7 @@
 // Settings → Connections: several trackers, one archived leaves the lists.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, withApp } from "./harness.mjs";
+import { dayKey, start, withApp } from "./harness.mjs";
 
 const secondJira = async db => {
   const now = Date.now();
@@ -62,7 +62,7 @@ test("two trackers in Settings → Connections; archiving one takes its issues o
     // Its time stays: the Timesheet still counts the hour logged on it.
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const day = dayKey(y);
     await page.goto(`${base}/timesheet?day=${day}`);
     await page.getByText("CLB-1").first().waitFor();
   }));
