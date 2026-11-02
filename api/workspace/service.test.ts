@@ -508,6 +508,19 @@ describe("undo after a constraint", () => {
     expect(undo.draft.patches[0].revokedConstraintIds).toEqual(["pin-stats"]);
     expect(undo.candidate.workspace.placements.find(placement => placement.anchorId === "dashboard.stats")).toMatchObject({ variant: "default", pinned: false });
   });
+
+  it("discards a rollback preview that was never saved, leaving the stored draft alone", async () => {
+    await resetDbForTests();
+    const userId = await user();
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "p", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await commitWorkspace({ userId, scope, prepareId: "p", operationId: "o", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    const before = await q("SELECT id, status FROM workspace_drafts WHERE user_id = ?", userId);
+    const undo = await rollbackWorkspace(userId, scope, "tab-a", "default");
+    await expect(discardWorkspaceDraft(userId, scope, undo.draft.draftId)).resolves.toBeUndefined();
+    expect(await q("SELECT id, status FROM workspace_drafts WHERE user_id = ?", userId)).toEqual(before);
+    await expect(discardWorkspaceDraft(userId, scope, "draft-other")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });
 
 describe("a draft made on an older layout (§21 #16)", () => {

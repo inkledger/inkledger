@@ -266,6 +266,13 @@ test("The footer holds the draft and its status: the drawing never moves on an e
     await history.getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
     await footer.getByText(/Preview, not applied yet/).waitFor();
     await page.locator("#workspace-history").waitFor({ state: "detached" });
+    // Going back is a preview: discarding it is quiet, it was never saved.
+    await footer.getByRole("button", { name: "Discard draft", exact: true }).click();
+    await footer.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
+    assert.equal(await footer.getByRole("alert").count(), 0, "discarding a going-back preview is no error");
+    await footer.getByRole("button", { name: "History", exact: true }).click();
+    await history.getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
+    await footer.getByText(/Preview, not applied yet/).waitFor();
     await footer.getByRole("button", { name: "Apply layout", exact: true }).click();
     await footer.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
   }));

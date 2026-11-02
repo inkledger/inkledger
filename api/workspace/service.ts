@@ -310,8 +310,12 @@ export async function completeWorkspaceDraft(userId: number, scope: Scope, draft
   await upsertDraft(userId, { ...draft, status: "applied" }, draft);
 }
 
+const ROLLBACK_DRAFT = "rollback_";
+
 export async function discardWorkspaceDraft(userId: number, scope: Scope, draftId: string) {
   const draft = await latestDraft(userId, scope);
+  // A rollback is a preview the server never stored until edited: dropping it leaves nothing to mark.
+  if ((!draft || draft.draftId !== draftId) && draftId.startsWith(ROLLBACK_DRAFT)) return;
   if (!draft || draft.draftId !== draftId) throw new TRPCError({ code: "NOT_FOUND", message: t("server.workspace.gone") });
   await upsertDraft(userId, { ...draft, status: "discarded" }, draft);
 }
@@ -559,7 +563,7 @@ export async function rollbackWorkspace(userId: number, scope: Scope, clientInst
     causalParentRevision: targetRevision,
   };
   const draft: Draft = {
-    draftId: `rollback_${newActivationToken()}`,
+    draftId: `${ROLLBACK_DRAFT}${newActivationToken()}`,
     draftRevision: (previousDraft?.draftRevision ?? 0) + 1,
     baseRevision: state.committedRevision ?? "default",
     scope,
