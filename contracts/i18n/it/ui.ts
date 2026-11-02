@@ -169,6 +169,8 @@ export const ui: Shape<typeof en> = {
     computing: "Calcolo l'orario in base alle registrazioni del giorno…",
     endsAtStop: "Finisce quando hai fermato il timer.",
     endsNow: "Finisce adesso, senza coprire registrazioni già fatte.",
+    splitAroundBreak: "Diviso attorno alla pausa: {parts}.",
+    overBreak: "Non c'è spazio attorno alla pausa: la copre.",
     comment: "Commento",
     commentPlaceholder: "Cosa hai fatto?",
     calc: "Calcolo orario…",
@@ -340,6 +342,8 @@ export const ui: Shape<typeof en> = {
     assign: "Assegna ad altra issue",
     keep: "Tieni",
     remove: "Togli {duration}",
+    myBreak: "Era la mia pausa",
+    myBreakTitle: "Togli {duration} dal timer e fai di {from}–{to} la pausa di oggi",
   },
   server: {
     profiles: "Profili",

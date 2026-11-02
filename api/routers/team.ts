@@ -13,7 +13,7 @@ import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueOfWorklog } from "../queries/worklogScope";
-import { scheduleVersionsOf, timeFreshness } from "../queries/teamTime";
+import { dayOverridesOf, scheduleVersionsOf, timeFreshness } from "../queries/teamTime";
 import { issueIdentity, projectGroup, rangeOf, worklogProjectKey } from "./reports";
 
 const view = permProcedure("viewTeamTime");
@@ -67,7 +67,7 @@ async function summarize(ids: number[], from: Date, to: Date, now: Date) {
         .select({ userId: worklogs.userId, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
         .from(worklogs)
         .where(and(inArray(worklogs.userId, ids), gte(worklogs.started, from), lt(worklogs.started, to)));
-  const [versions, away] = await Promise.all([scheduleVersionsOf(ids), vacations(ids, from, to)]);
+  const [versions, away, ownDays] = await Promise.all([scheduleVersionsOf(ids), vacations(ids, from, to), dayOverridesOf(ids)]);
   const days: Date[] = [];
   for (let d = from; d < to; d = addDays(d, 1)) days.push(d);
   const today = dayKey(now);
@@ -85,7 +85,7 @@ async function summarize(ids: number[], from: Date, to: Date, now: Date) {
       const planned = away.get(id) ?? [];
       const schedules = versions.get(id) ?? [];
       const perDay = days.map((d) => {
-        const schedule = scheduleFor(d, schedules);
+        const schedule = scheduleFor(d, schedules, ownDays.get(id));
         const targetSeconds = effectiveTargetSeconds(d, schedule, planned);
         return {
           day: dayKey(d),
@@ -217,7 +217,7 @@ export const teamRouter = createRouter({
         .leftJoin(issues, issueOfWorklog)
         .where(and(eq(worklogs.userId, person.id), gte(worklogs.started, day), lt(worklogs.started, next)))
         .orderBy(asc(worklogs.started));
-      const [versions, away] = await Promise.all([scheduleVersionsOf([person.id]), vacations([person.id], day, next)]);
+      const [versions, away, ownDays] = await Promise.all([scheduleVersionsOf([person.id]), vacations([person.id], day, next), dayOverridesOf([person.id])]);
       return {
         entries: entries.map((e) => ({
           id: String(e.id),
@@ -229,7 +229,7 @@ export const teamRouter = createRouter({
           seconds: e.seconds,
         })),
         away: (away.get(person.id) ?? []).map((v) => ({ startsAt: v.startsAt, endsAt: v.endsAt })),
-        schedule: scheduleFor(day, versions.get(person.id) ?? []),
+        schedule: scheduleFor(day, versions.get(person.id) ?? [], ownDays.get(person.id)),
       };
     }),
 });

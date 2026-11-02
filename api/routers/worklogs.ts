@@ -442,14 +442,34 @@ export const worklogsRouter = createRouter({
           ...timeFields,
           /** Logging the time of a stopped timer: clear it once saved (if still stopped). */
           fromTimer: z.boolean().default(false),
+          /**
+           * The same time split around the day's breaks (contracts/placement.ts):
+           * one worklog per part, in order, adding up to `seconds`. The timer's
+           * time is taken once for all of them.
+           */
+          parts: z
+            .array(z.object({ started: z.iso.datetime({ offset: true }), seconds: z.number().int().min(60).max(MAX_WORKLOG_SECONDS) }))
+            .min(2)
+            .max(5)
+            .optional(),
         })
         .refine(hasDuration, "seconds or timeSpent"),
     )
     .mutation(async ({ ctx, input }) => {
       const { seconds, started } = parseLogInput(input);
+      const parts = input.parts
+        ? input.parts.map((p) => ({ started: new Date(p.started), seconds: p.seconds }))
+        : [{ started, seconds }];
+      const inOrder = parts.every((p, i) => i === 0 || p.started.getTime() >= parts[i - 1].started.getTime() + parts[i - 1].seconds * 1000);
+      if (parts.reduce((a, p) => a + p.seconds, 0) !== seconds || !inOrder) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.invalidParts") });
+      }
       return withWriteLease(ctx.user.id, async () => {
-        await assertWeekOpen(ctx.user.id, started);
-        await assertNoOverlap(ctx.user.id, { start: started, seconds });
+        // Every part checked before anything is written or taken from the timer.
+        for (const p of parts) {
+          await assertWeekOpen(ctx.user.id, p.started);
+          await assertNoOverlap(ctx.user.id, { start: p.started, seconds: p.seconds });
+        }
         // A timer's time is logged once: it is taken under the database lock
         // before the worklog is written, so two devices logging it at once
         // can't both succeed (gone means another flow logged it). A stopped
@@ -459,14 +479,21 @@ export const worklogsRouter = createRouter({
         if (input.fromTimer && !claim) {
           throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.timerLogged", { key: input.issueKey }) });
         }
-        const saved = await createWorklog(ctx.user, input, seconds, started).catch(async (e: unknown) => {
-          await claim?.undo();
-          throw e;
-        });
-        // Its time goes to the user's time sinks too, in the background.
-        await markForSinks(ctx.user.id, saved.id);
+        // A part that fails gives back the time not logged yet; the parts before it stay logged.
+        const saved: Awaited<ReturnType<typeof createWorklog>>[] = [];
+        let left = seconds;
+        for (const p of parts) {
+          const one = await createWorklog(ctx.user, input, p.seconds, p.started).catch(async (e: unknown) => {
+            await claim?.undo(left);
+            throw e;
+          });
+          left -= p.seconds;
+          saved.push(one);
+          // Its time goes to the user's time sinks too, in the background.
+          await markForSinks(ctx.user.id, one.id);
+        }
         sinksSoon(ctx.user.id);
-        return saved;
+        return saved[0];
       });
     }),
 

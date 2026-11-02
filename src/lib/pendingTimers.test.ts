@@ -46,6 +46,14 @@ describe("placePendingTimers: stopped timers on the day's timeline", () => {
     expect(a[1] <= b[0] || b[1] <= a[0]).toBe(true);
   });
 
+  it("split around the lunch break as logging it would be; a timer that ran through it in one piece", () => {
+    const [b] = placePendingTimers({ day, now, timers: [paused("A-1", "15:00", 3 * 3600)], occupied: [], schedule: defaultWorkSchedule() });
+    expect(b.parts.map(p => [p.start, p.seconds])).toEqual([[at("11:00"), 2 * 3600], [at("14:00"), 3600]]);
+    expect(b.start).toEqual(at("11:00"));
+    const [c] = placePendingTimers({ day, now, timers: [{ ...paused("A-1", "15:00", 3 * 3600), unbroken: true }], occupied: [], schedule: defaultWorkSchedule() });
+    expect(c.parts).toEqual([{ start: at("12:00"), seconds: 3 * 3600 }]);
+  });
+
   it("only that day's: running timers and ones stopped on another day stay out", () => {
     const blocks = placePendingTimers({
       day,

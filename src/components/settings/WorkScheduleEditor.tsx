@@ -21,7 +21,8 @@ import {
   type WorkSchedule,
 } from "@contracts/workSchedule";
 import { workDaySchema } from "@contracts/workScheduleSchema";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useSaveDayHours } from "@/components/dashboard/useDayHoursEdit";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/app/TimeInput";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -78,33 +80,6 @@ const weekdayLabels = () => [
   t("settings.schedule.day.sun"),
 ];
 
-function TimeInput({
-  value,
-  onChange,
-  label,
-  disabled,
-  invalid,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  label: string;
-  disabled?: boolean;
-  invalid?: boolean;
-}) {
-  return (
-    <Input
-      type="time"
-      step={300}
-      value={value}
-      disabled={disabled}
-      aria-label={label}
-      aria-invalid={invalid || undefined}
-      onChange={e => e.target.value && onChange(e.target.value)}
-      className="h-8 w-[6.5rem] px-2 tabular"
-    />
-  );
-}
-
 /**
  * Work hours per weekday with breaks (time when no worklog is expected).
  * Saved as a new version from a chosen date: the days before it keep the
@@ -115,8 +90,13 @@ export function WorkScheduleEditor() {
   const days = weekdayLabels();
   const utils = trpc.useUtils();
   const today = useToday();
-  const { versions, isPending } = useWorkSchedule();
+  const { versions, overrides, isPending } = useWorkSchedule();
+  const { save: saveDayHours, pending: dayPending } = useSaveDayHours();
   const current = scheduleFor(today, versions);
+  // Days with hours of their own from today on (past ones stay as they were judged).
+  const ownDays = Object.entries(overrides).filter(([day]) => day >= dayKey(today));
+  // Asked on save: the days with their own hours the new version covers.
+  const [askOwn, setAskOwn] = useState(false);
   const monday = startOfWeek(today);
 
   const [draft, setDraft] = useState<WorkSchedule | null>(null);
@@ -139,7 +119,11 @@ export function WorkScheduleEditor() {
   const onSaved = (data: typeof versions) => {
     utils.workSchedule.list.setData(undefined, data);
     void utils.workSchedule.list.invalidate();
+    void utils.workSchedule.days.invalidate();
   };
+  const until = versions.find(v => v.validFrom > validFrom)?.validFrom;
+  const covered = Object.keys(overrides).filter(day => day >= validFrom && (!until || day < until));
+  const saveVersion = (own: "keep" | "drop") => save.mutate({ validFrom, schedule: shown, overrides: own });
   const save = trpc.workSchedule.save.useMutation({
     onSuccess: data => {
       onSaved(data);
@@ -347,7 +331,7 @@ export function WorkScheduleEditor() {
             <Button
               type="button"
               disabled={!dirty || !valid || save.isPending}
-              onClick={() => save.mutate({ validFrom, schedule: shown })}
+              onClick={() => (covered.length > 0 ? setAskOwn(true) : saveVersion("keep"))}
             >
               {t("settings.schedule.save")}
             </Button>
@@ -426,6 +410,65 @@ export function WorkScheduleEditor() {
           </ul>
         </SettingsDisclosure>
       )}
+
+      {ownDays.length > 0 && (
+        <SettingsDisclosure
+          id="schedule-own-days"
+          title={t("settings.schedule.ownDays", { count: ownDays.length })}
+          keywords={t("settings.schedule.ownDaysKeywords")}
+        >
+          <p className="mb-2 text-caption text-muted-foreground">{t("settings.schedule.ownDaysHint")}</p>
+          <ul className="divide-y text-body-sm">
+            {ownDays.map(([key, hours]) => {
+              const day = parseDayKey(key);
+              if (!day) return null;
+              const label = formatDate(day, "short");
+              return (
+                <li key={key} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="min-w-0">
+                    {label}
+                    <span className="text-muted-foreground tabular">
+                      {" · "}
+                      {hours.enabled
+                        ? [`${hours.start}–${hours.end}`, ...hours.breaks.map(b => `${t("settings.schedule.break").toLowerCase()} ${b.start}–${b.end}`)].join(", ")
+                        : t("settings.schedule.ownDayOff")}
+                    </span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t("settings.schedule.ownDayRemove", { day: label })}
+                    title={t("settings.schedule.ownDayRemove", { day: label })}
+                    disabled={dayPending}
+                    onClick={() => void saveDayHours(day, null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </SettingsDisclosure>
+      )}
+
+      <AlertDialog open={askOwn} onOpenChange={setAskOwn}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("settings.schedule.keepOwnTitle", { count: covered.length })}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("settings.schedule.keepOwnBody", { date: parseDayKey(validFrom) ? formatDate(parseDayKey(validFrom)!, "short") : validFrom })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction className={buttonVariants({ variant: "outline" })} onClick={() => saveVersion("drop")}>
+              {t("settings.schedule.dropOwn")}
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => saveVersion("keep")}>{t("settings.schedule.keepOwn")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={removing !== null} onOpenChange={o => !o && setRemoving(null)}>
         <AlertDialogContent>

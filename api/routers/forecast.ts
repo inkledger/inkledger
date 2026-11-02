@@ -28,7 +28,7 @@ import { closedSamples, defaultCache, estimateForIssue } from "../estimates/esti
 import { estimateRevision } from "../queries/estimateRevision";
 import { mapInPool } from "../lib/pool";
 import { forecast, ForecastError, readiness, type ForecastRequest } from "../ml/forecast";
-import { listScheduleVersions } from "./workSchedule";
+import { listDayOverrides, listScheduleVersions } from "./workSchedule";
 
 const HISTORY_DAYS = 365;
 const FINISH_DAYS = 90;
@@ -66,7 +66,7 @@ async function capacity(userId: number, horizon: number, now: number): Promise<F
   const today = startOfDay(new Date(now));
   const first = addDays(today, -HISTORY_DAYS);
   const end = addDays(today, horizon);
-  const [logs, holidays, versions] = await Promise.all([
+  const [logs, holidays, versions, ownDays] = await Promise.all([
     getDb()
       .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogs)
@@ -76,6 +76,7 @@ async function capacity(userId: number, horizon: number, now: number): Promise<F
       .from(plannedEntries)
       .where(and(eq(plannedEntries.userId, userId), eq(plannedEntries.kind, "vacation"), lt(plannedEntries.startsAt, end), sql`${plannedEntries.endsAt} > ${first.getTime()}`)),
     listScheduleVersions(userId),
+    listDayOverrides(userId),
   ]);
   const hours = new Map<string, number>();
   for (const l of logs) {
@@ -89,7 +90,7 @@ async function capacity(userId: number, horizon: number, now: number): Promise<F
   };
   const isWorkday = (key: string) => {
     const d = parseDayKey(key)!;
-    return workBounds(d, scheduleFor(d, versions)) !== null;
+    return workBounds(d, scheduleFor(d, versions, ownDays)) !== null;
   };
   const past = span(first, HISTORY_DAYS);
   const ahead = span(today, horizon);

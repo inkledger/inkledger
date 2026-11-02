@@ -26,7 +26,7 @@ import { timerOnDay } from "@/lib/timerDay";
 import { issueId } from "@/lib/issues";
 import { useTimers } from "@/hooks/useTimers";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
-import { placeBlock, type Occupied } from "@contracts/placement";
+import { partsInput, placeBlock, type Occupied } from "@contracts/placement";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import {
   SheetDescription,
@@ -53,9 +53,10 @@ import { ErrorState } from "@/components/app/States";
 import { projectOf } from "@/lib/projectColors";
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
+import { BreakSuggestion } from "@/components/dashboard/BreakSuggestion";
 import { toast } from "sonner";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
-import { missingSpans } from "@contracts/workSchedule";
+import { missingSpans, suggestBreakMove } from "@contracts/workSchedule";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
@@ -140,6 +141,10 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
     [placement.ready, placement.occupied, today, now, forDay]
   );
 
+  // Worked through the break with a gap as long: moving the break is offered (open weeks only).
+  const week = trpc.weeks.status.useQuery({ week: dayKey(today) });
+  const breakMove = placement.ready && week.data === null ? suggestBreakMove(today, forDay(today), placement.occupied, now) : null;
+
   // Running timers keep counting while the sheet is open: untouched rows
   // take their live value when the batch is confirmed.
   const liveSeconds = (id: string): number | null => {
@@ -218,6 +223,13 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
       let paused: string | null = null;
       const timer = timers.find(t => issueId(t) === issueId(d));
       const endAt = endOf(issueId(d));
+      const tracked = timer ? timer.elapsedSeconds + (timer.state === "running" ? Math.max(0, at.getTime() - fetchedAt) / 1000 : 0) : undefined;
+      // Run without a pause (stopped, or still running since it started): one piece, over the break too.
+      const unbroken =
+        !!timer &&
+        (timer.unbroken ||
+          (timer.state === "running" && !!timer.runningSince && tracked !== undefined &&
+            Math.abs((at.getTime() - new Date(timer.runningSince).getTime()) / 1000 - tracked) < 60));
       const placed =
         dayKey(endAt) === dayKey(today)
           ? placeBlock({
@@ -228,7 +240,8 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
               now: at,
               endAt,
               // What the timer tracked up to then: typed over it, the block is not that work.
-              tracked: timer ? timer.elapsedSeconds + (timer.state === "running" ? Math.max(0, at.getTime() - fetchedAt) / 1000 : 0) : undefined,
+              tracked,
+              unbroken,
             })
           : ({
               ok: false,
@@ -254,9 +267,10 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
           started: placed.start.toISOString(),
           comment: d.comment.trim(),
           fromTimer: true,
+          parts: placed.parts && partsInput(placed.parts, d.seconds),
         });
         ok++;
-        occupied.push({ start: placed.start, seconds: d.seconds, label: d.issueKey });
+        for (const p of placed.parts ?? [{ start: placed.start, seconds: d.seconds }]) occupied.push({ ...p, label: d.issueKey });
         setStatus(s => ({ ...s, [issueId(d)]: "done" }));
       } catch (e) {
         // Not logged: the timer we paused keeps running as before.
@@ -382,6 +396,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
           <SectionLabel as="h3" className="mb-3 px-0">
             {t("ui.dayReview.gaps")}
           </SectionLabel>
+          {breakMove && <BreakSuggestion day={today} move={breakMove} className="mb-3" />}
           {gaps.length === 0 ? (
             <p className="text-body-sm text-muted-foreground">
               {target === 0

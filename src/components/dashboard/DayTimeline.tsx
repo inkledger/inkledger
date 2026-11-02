@@ -8,8 +8,11 @@ import {
 import {
   breakSpans,
   workBounds,
+  type WorkDay,
   type WorkSchedule,
 } from "@contracts/workSchedule";
+import { DayHoursHandles } from "./DayHoursEditor";
+import type { EditAxis } from "./useDayHoursEdit";
 import { projectOf, type ProjectColor } from "@/lib/projectColors";
 import { lanesOf, realSeconds } from "@contracts/placement";
 import type { CSSProperties, ReactNode } from "react";
@@ -69,6 +72,7 @@ export function DayTimeline({
   onEditPlanned,
   onPending,
   readOnly = false,
+  hoursEdit,
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -96,6 +100,11 @@ export function DayTimeline({
   onPending?: (entry: TimelineEntry) => void;
   /** Someone else's day (team report): its blocks open nothing (their issues aren't the viewer's). */
   readOnly?: boolean;
+  /**
+   * The day's hours being edited (`schedule` already holds the draft): the
+   * axis stays fixed, everything else is still, and the handles go on top.
+   */
+  hoursEdit?: { draft: WorkDay; onChange: (d: WorkDay) => void; axis: EditAxis; onSubmit: () => void };
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
@@ -115,8 +124,9 @@ export function DayTimeline({
   // The axis spans the working day (8–18 without one), widened to the entries.
   const workFrom = work ? wallHours(work.start.getTime(), dayStart) : 8;
   const workTo = work ? wallHours(work.end.getTime(), dayStart) : 18;
-  const first = Math.max(0, Math.floor(Math.min(...hours, workFrom)));
-  const last = Math.min(24, Math.ceil(Math.max(...hours, workTo)));
+  // While editing the hours the axis holds still (room around the day to drag its edges).
+  const first = hoursEdit ? Math.min(hoursEdit.axis.first, Math.max(0, Math.floor(Math.min(...hours)))) : Math.max(0, Math.floor(Math.min(...hours, workFrom)));
+  const last = hoursEdit ? Math.max(hoursEdit.axis.last, Math.min(24, Math.ceil(Math.max(...hours)))) : Math.min(24, Math.ceil(Math.max(...hours, workTo)));
   const span = last - first;
   const ticks = Array.from({ length: span + 1 }, (_, i) => first + i);
   const pos = (ms: number) => ((wallHours(ms, dayStart) - first) / span) * 100;
@@ -179,8 +189,14 @@ export function DayTimeline({
 
   return (
     <figure className="m-0">
+      <div className="relative">
       {/* isolate: the blocks and a module on the perch stack inside the timeline, so the sticky page header stays over them. */}
-      <div {...surface("ground")} className="relative isolate h-56 overflow-hidden rounded-lg bg-muted/30">
+      {/* While the hours are edited it is still (inert): only the handles above it move. */}
+      <div
+        {...surface("ground")}
+        inert={hoursEdit ? true : undefined}
+        className={cn("relative isolate h-56 overflow-hidden rounded-lg bg-muted/30", hoursEdit && "[&_a]:opacity-50 [&_button]:opacity-50")}
+      >
         {ticks.slice(1, -1).map(h => (
           <div
             key={h}
@@ -434,6 +450,8 @@ export function DayTimeline({
               : t("views.dashboard.timeline.empty")}
           </p>
         )}
+      </div>
+      {hoursEdit && <DayHoursHandles draft={hoursEdit.draft} onChange={hoursEdit.onChange} axis={{ first, last }} onSubmit={hoursEdit.onSubmit} />}
       </div>
       <div
         aria-hidden

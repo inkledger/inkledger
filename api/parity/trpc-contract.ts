@@ -317,10 +317,13 @@ export interface FrozenIn {
   "weeks.list": void;
   "weeks.reopen": { week: string };
   "weeks.status": { week: string };
+  "workSchedule.days": void;
   "workSchedule.list": void;
   "workSchedule.remove": { validFrom: string };
-  "workSchedule.save": { schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string };
-  "worklogs.create": { comment?: string | undefined; connectionId?: number | undefined; fromTimer?: false | true | undefined; issueKey: string; seconds?: number | undefined; started: string; timeSpent?: string | undefined };
+  "workSchedule.removeDay": { day: string };
+  "workSchedule.save": { overrides?: "drop" | "keep" | undefined; schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string };
+  "workSchedule.saveDay": { day: string; workDay: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string } };
+  "worklogs.create": { comment?: string | undefined; connectionId?: number | undefined; fromTimer?: false | true | undefined; issueKey: string; parts?: undefined | { seconds: number; started: string }[]; seconds?: number | undefined; started: string; timeSpent?: string | undefined };
   "worklogs.delete": { connectionId?: number | undefined; id?: number | undefined; issueKey?: string | undefined; jiraWorklogId?: string | undefined; remoteId?: string | undefined };
   "worklogs.list": undefined | void | { connectionId?: number | undefined; from?: string | undefined; issueKey?: string | undefined; scope?: "all" | "bucket" | undefined; search?: string | undefined; to?: string | undefined };
   "worklogs.reimport": void;
@@ -628,7 +631,7 @@ export interface FrozenOut {
   "team.person": { issues: { key: string; seconds: number; summary: string }[]; projects: { key: string; name: string; seconds: number }[] };
   "timers.discard": { epoch: number; ok: boolean };
   "timers.heartbeat": { epoch: number; owned: boolean };
-  "timers.list": { connectionId: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string }[];
+  "timers.list": { connectionId: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string; unbroken: boolean }[];
   "timers.move": { epoch: number; merged: boolean; note: string; ok: boolean; running: boolean; seconds: number; toLog: number; total: number };
   "timers.pause": { epoch: number; ok: boolean };
   "timers.setNote": { epoch: number; ok: boolean };
@@ -660,9 +663,12 @@ export interface FrozenOut {
   "weeks.list": { closedAt: Date; id: number; note: string; userId: number; weekStart: string }[];
   "weeks.reopen": { ok: boolean };
   "weeks.status": { closedAt: Date; id: number; note: string; userId: number; weekStart: string };
+  "workSchedule.days": { readonly [key: string]: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string } };
   "workSchedule.list": { schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string }[];
   "workSchedule.remove": { schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string }[];
+  "workSchedule.removeDay": { readonly [key: string]: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string } };
   "workSchedule.save": { schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string }[];
+  "workSchedule.saveDay": { readonly [key: string]: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string } };
   "worklogs.create": { authorAccountId: string; comment: string; connectionId: number; id: number; issueKey: string; itemId: null | number; remoteCreated: null | string; remoteId: string; remoteUpdated: null | string; started: Date; syncedAt: Date; timeSpentSeconds: number; userId: number; uuid: string };
   "worklogs.delete": { connectionId: number; issueKey: string; ok: boolean; seconds: number };
   "worklogs.list": { authorAccountId: string; comment: string; connectionId: number; id: number; issueKey: string; itemId: null | number; remoteCreated: null | string; remoteId: string; remoteUpdated: null | string; sink: { error: null | string; locked: null | { cause: string; message?: string | undefined }; remote: null | { comment: string; seconds: number; started: number }; state: "conflict" | "failed" | "pending" | "synced" | null }; started: Date; syncedAt: Date; timeSpentSeconds: number; userId: number; uuid: string }[];

@@ -187,6 +187,20 @@ describe("team report", () => {
     expect(r.projects.map((p) => [p.key, p.seconds])).toEqual([["APP", 8 * HOUR], ["WEB", 1 * HOUR]]);
   });
 
+  it("a day's own hours count: its target and the schedule its day shows", async () => {
+    const short = { enabled: true, start: "09:00", end: "14:00", breaks: [{ start: "12:00", end: "13:00" }] };
+    await q("INSERT INTO work_day_overrides (user_id, day, work_day, created_at) VALUES (?, '2026-10-06', ?, 1)", id.ann, JSON.stringify(short));
+    try {
+      const annRow = (await ann.team.overview(week)).people.find((p) => p.displayName === "Ann");
+      expect(annRow?.days[1].targetSeconds).toBe(4 * HOUR);
+      expect(annRow?.targetSeconds).toBe(36 * HOUR);
+      const tue = await ann.team.day({ userId: id.ann, day: "2026-10-06" });
+      expect(tue.schedule[1]).toEqual(short);
+    } finally {
+      await q("DELETE FROM work_day_overrides");
+    }
+  });
+
   it("no day for an account turned off or missing", async () => {
     await expect(ann.team.day({ userId: id.eve, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(ann.team.day({ userId: 99_999, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });

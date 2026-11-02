@@ -24,6 +24,8 @@ export function useLiveSync() {
         if (type === "timers" || type === "hello") void Promise.all([utils.timers.list.invalidate(), utils.todos.working.invalidate()]);
         // Another tab of this device switched the bucket: everything here follows, as there.
         if (type === "bucket" && isRecord(data) && data.deviceId === deviceId()) void utils.invalidate();
+        // Hours changed on another page or device: holes, placement and targets follow at once.
+        if (type === "schedule" || type === "hello") void utils.workSchedule.invalidate();
         if (type === "notes" || type === "hello") {
           void utils.notes.tree.invalidate();
           void utils.notes.trash.invalidate();

@@ -1272,6 +1272,28 @@ export const workSchedules = pgTable(
   (t) => [uniqueIndex("uq_work_schedules_user_from").on(t.userId, t.validFrom)],
 );
 
+/**
+ * Hours of a single day (JSON WorkDay, contracts/workScheduleSchema.ts):
+ * on `day` they replace that weekday's hours of the version in force
+ * (a late lunch, a day off), past or future.
+ */
+export const workDayOverrides = pgTable(
+  "work_day_overrides",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The day, "YYYY-MM-DD" */
+    day: text("day").notNull(),
+    workDay: text("work_day").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("uq_work_day_overrides_user_day").on(t.userId, t.day)],
+);
+
 export type OutboxEntry = typeof outbox.$inferSelect;
 
 export type Settings = typeof settings.$inferSelect;

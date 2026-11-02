@@ -84,3 +84,66 @@ describe("work schedule versions", () => {
     expect(((await q("SELECT count(*) n FROM work_schedules"))[0] as { n: number }).n).toBe(1);
   });
 });
+
+describe("hours of a single day", () => {
+  let caller: ReturnType<typeof import("../router").appRouter.createCaller>;
+  let userId = 0;
+  const lateLunch = { enabled: true, start: "09:00", end: "17:00", breaks: [{ start: "15:00", end: "16:00" }] };
+
+  beforeAll(async () => {
+    const conn = await import("../queries/connection");
+    await conn.resetDbForTests();
+    const { appRouter } = await import("../router");
+    const resHeaders = new Headers();
+    await jiraSignIn({ req: new Request("http://localhost/"), resHeaders }, { siteUrl: "https://acme.atlassian.net", deployment: "cloud", authType: "basic", username: "m@x.it", secret: "t" });
+    const cookie = (resHeaders.get("set-cookie") ?? "").split(";")[0];
+    const { userFromRequest } = await import("../context");
+    const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+    caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: ctx.user, sessionId: ctx.sessionId });
+    userId = ctx.user!.id;
+  });
+
+  it("saves, replaces and removes a day's hours, past or future", async () => {
+    expect(await caller.workSchedule.days()).toEqual({});
+    expect(await caller.workSchedule.saveDay({ day: "2026-10-13", workDay: lateLunch })).toEqual({ "2026-10-13": lateLunch });
+    const off = { enabled: false, start: "09:00", end: "18:00", breaks: [] };
+    await caller.workSchedule.saveDay({ day: "2026-10-13", workDay: off });
+    expect(await caller.workSchedule.saveDay({ day: "2030-01-07", workDay: lateLunch })).toEqual({ "2026-10-13": off, "2030-01-07": lateLunch });
+    expect(await caller.workSchedule.removeDay({ day: "2030-01-07" })).toEqual({ "2026-10-13": off });
+    expect(await caller.workSchedule.removeDay({ day: "2030-01-07" })).toEqual({ "2026-10-13": off });
+  });
+
+  it("the same hours as the week's: the day follows the week again", async () => {
+    const versions = await caller.workSchedule.list();
+    expect(await caller.workSchedule.saveDay({ day: "2026-10-13", workDay: versions[0].schedule[1] })).toEqual({});
+  });
+
+  it("refuses a closed week (a Monday too), invalid hours and dates", async () => {
+    await caller.weeks.close({ week: "2026-10-26" });
+    await expect(caller.workSchedule.saveDay({ day: "2026-10-26", workDay: lateLunch })).rejects.toThrow(/closed/);
+    await expect(caller.workSchedule.saveDay({ day: "2026-11-01", workDay: lateLunch })).rejects.toThrow(/closed/);
+    await expect(caller.workSchedule.removeDay({ day: "2026-10-28" })).rejects.toThrow(/closed/);
+    await caller.workSchedule.saveDay({ day: "2026-11-02", workDay: lateLunch });
+    await caller.weeks.reopen({ week: "2026-10-26" });
+    await expect(caller.workSchedule.saveDay({ day: "2026-10-27", workDay: { ...lateLunch, breaks: [{ start: "18:00", end: "19:00" }] } })).rejects.toThrow();
+    await expect(caller.workSchedule.saveDay({ day: "2026-02-30", workDay: lateLunch })).rejects.toThrow();
+  });
+
+  it("a new weekly version keeps the days it covers, or drops them when asked", async () => {
+    await caller.workSchedule.saveDay({ day: "2026-12-01", workDay: lateLunch });
+    await caller.workSchedule.save({ validFrom: "2026-11-15", schedule: defaultWorkSchedule() });
+    expect(Object.keys(await caller.workSchedule.days())).toEqual(["2026-11-02", "2026-12-01"]);
+    await caller.workSchedule.save({ validFrom: "2026-11-15", schedule: defaultWorkSchedule(7 * H), overrides: "drop" });
+    expect(Object.keys(await caller.workSchedule.days())).toEqual(["2026-11-02"]);
+  });
+
+  it("tells the user's other pages", async () => {
+    const { subscribe } = await import("../lib/userEvents");
+    const seen: string[] = [];
+    const stop = subscribe(userId, (e) => seen.push(e.type), () => undefined);
+    await caller.workSchedule.saveDay({ day: "2026-12-02", workDay: lateLunch });
+    await caller.workSchedule.removeDay({ day: "2026-12-02" });
+    stop();
+    expect(seen).toEqual(["schedule", "schedule"]);
+  });
+});

@@ -168,6 +168,8 @@ export const ui = {
     computing: "Working out the time from the day's entries…",
     endsAtStop: "Ends when you stopped the timer.",
     endsNow: "Ends now, without covering entries already logged.",
+    splitAroundBreak: "Split around your break: {parts}.",
+    overBreak: "No room around your break: it covers it.",
     comment: "Comment",
     commentPlaceholder: "What did you do?",
     calc: "Working out the time…",
@@ -339,6 +341,8 @@ export const ui = {
     assign: "Assign to another issue",
     keep: "Keep",
     remove: "Remove {duration}",
+    myBreak: "It was my break",
+    myBreakTitle: "Remove {duration} from the timer and make {from}–{to} today's break",
   },
   server: {
     profiles: "Profiles",

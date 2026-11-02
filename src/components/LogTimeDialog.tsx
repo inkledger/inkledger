@@ -33,7 +33,7 @@ import { t } from "@/i18n";
 import { issueId } from "@/lib/issues";
 import { useTimerActions } from "@/hooks/useTimerActions";
 import { DiscardTimerDialog } from "@/components/TimerControls";
-import { occupiedId } from "@contracts/placement";
+import { occupiedId, partsInput, partsLabel } from "@contracts/placement";
 
 export type EditableWorklog = {
   /** inkledger's id: edits go by it when known */
@@ -207,6 +207,8 @@ function LogTimeForm({
     : auto?.ok
       ? toLocalInputValue(auto.start)
       : "";
+  // Placed around the day's break: one worklog per piece. A start chosen by hand is one piece.
+  const parts = !startedTouched && auto?.ok ? auto.parts : undefined;
   // Editing without touching time or duration: what Jira has stays as is.
   const unchangedEdit =
     !!worklog && !startedEdited && parsed === worklog.timeSpentSeconds;
@@ -220,10 +222,11 @@ function LogTimeForm({
     auto && !auto.ok
       ? null
       : startedShown && parsed && parsed > 0 && !unchangedEdit
-        ? placement.conflictOf(
-            { start: new Date(startedShown), seconds: parsed },
-            worklog && occupiedId({ connectionId: conn ?? null, remoteId: worklog.remoteId })
-          )
+        ? (parts ?? [{ start: new Date(startedShown), seconds: parsed }])
+            .map(block =>
+              placement.conflictOf(block, worklog && occupiedId({ connectionId: conn ?? null, remoteId: worklog.remoteId }))
+            )
+            .find(m => m !== null) ?? null
         : null;
   const conflict =
     auto && !auto.ok
@@ -298,7 +301,7 @@ function LogTimeForm({
       });
     else {
       settled.current = true;
-      create.mutate({ ...payload, issueKey, connectionId, fromTimer });
+      create.mutate({ ...payload, issueKey, connectionId, fromTimer, parts: parts && partsInput(parts, parsed) });
     }
   };
 
@@ -390,11 +393,15 @@ function LogTimeForm({
                 ? placement.error
                   ? t("ui.logTime.placementFailed")
                   : t("ui.logTime.computing")
-                : !startedTouched && startedShown
-                  ? endAt
-                    ? t("ui.logTime.endsAtStop")
-                    : t("ui.logTime.endsNow")
-                  : "\u00a0")}
+                : parts
+                  ? t("ui.logTime.splitAroundBreak", { parts: partsLabel(parts) })
+                  : !startedTouched && auto?.ok && auto.overBreak
+                    ? t("ui.logTime.overBreak")
+                    : !startedTouched && startedShown
+                      ? endAt
+                        ? t("ui.logTime.endsAtStop")
+                        : t("ui.logTime.endsNow")
+                      : "\u00a0")}
           </p>
           {waiting && placement.error && (
             <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={placement.retry}>

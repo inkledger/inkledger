@@ -1248,6 +1248,10 @@
     "type": "query"
   },
   {
+    "path": "workSchedule.days",
+    "type": "query"
+  },
+  {
     "path": "workSchedule.list",
     "type": "query"
   },
@@ -1256,7 +1260,15 @@
     "type": "mutation"
   },
   {
+    "path": "workSchedule.removeDay",
+    "type": "mutation"
+  },
+  {
     "path": "workSchedule.save",
+    "type": "mutation"
+  },
+  {
+    "path": "workSchedule.saveDay",
     "type": "mutation"
   },
   {

@@ -47,8 +47,8 @@ describe("placeBlock: today ends now", () => {
   it("does not cover a block ending a few seconds past the minute", () => {
     const occupied = [wl(at(FRI, 14, 0, 30), 30)]; // 14:00:30–14:30:30
     const r = place({ seconds: 30 * MIN, occupied, now: at(FRI, 14, 50) });
-    // 14:20–14:50 would overlap by 10m30s: goes before it
-    expect(r).toEqual({ ok: true, start: at(FRI, 13, 30) });
+    // 14:20–14:50 would overlap by 10m30s: goes before it, and before lunch (13–14)
+    expect(r).toEqual({ ok: true, start: at(FRI, 12, 30) });
   });
 
   it("tracked work begun before the working hours ends at its stop in its own place (a timer from 8:15 stopped at 9:05)", () => {
@@ -96,6 +96,68 @@ describe("placeBlock: a stopped timer ends at the stop", () => {
     expect(
       place({ day: at(FRI - 1, 0), seconds: 30 * MIN, now: at(FRI, 9), endAt: at(FRI - 1, 18) }),
     ).toEqual({ ok: true, start: at(FRI - 1, 17, 30) });
+  });
+});
+
+describe("placeBlock: around the day's breaks (lunch 13–14)", () => {
+  const THU = FRI - 1;
+  const parts = (...p: [Date, number][]) => p.map(([start, minutes]) => ({ start, seconds: minutes * MIN }));
+
+  it("a paused timer of 8h stopped at 18:00 → 9–13 and 14–18", () => {
+    expect(place({ seconds: 480 * MIN, tracked: 480 * MIN, now: at(FRI, 18), endAt: at(FRI, 18) })).toEqual({
+      ok: true,
+      start: at(FRI, 9),
+      parts: parts([at(FRI, 9), 240], [at(FRI, 14), 240]),
+    });
+  });
+
+  it("a timer that ran through lunch (never paused) stays in one piece", () => {
+    expect(place({ seconds: 120 * MIN, tracked: 120 * MIN, unbroken: true, now: at(FRI, 14, 30), endAt: at(FRI, 14, 30) })).toEqual({
+      ok: true,
+      start: at(FRI, 12, 30),
+    });
+  });
+
+  it("2h typed at 14:30 → 11:30–13:00 and 14:00–14:30", () => {
+    expect(place({ seconds: 120 * MIN, now: at(FRI, 14, 30) })).toEqual({
+      ok: true,
+      start: at(FRI, 11, 30),
+      parts: parts([at(FRI, 11, 30), 90], [at(FRI, 14), 30]),
+    });
+  });
+
+  it("never splits over other time: goes further back instead", () => {
+    // 14:00–14:20 taken: 30m can't continue from 14:20–14:30 over it, so it fits before lunch.
+    expect(place({ seconds: 30 * MIN, now: at(FRI, 14, 30), occupied: [wl(at(FRI, 14), 20)] })).toEqual({ ok: true, start: at(FRI, 12, 30) });
+  });
+
+  it("follows the day's own break", () => {
+    const own = sched.map((d, i) => (i === 4 ? { ...d, breaks: [{ start: "15:00", end: "16:00" }] } : d));
+    expect(place({ seconds: 120 * MIN, now: at(FRI, 16, 30), schedule: own })).toEqual({
+      ok: true,
+      start: at(FRI, 13, 30),
+      parts: parts([at(FRI, 13, 30), 90], [at(FRI, 16), 30]),
+    });
+  });
+
+  it("nothing fits around the break: one piece over it, said so", () => {
+    // 9–12 taken, 2h at 14:30: 12–13 + 14–14:30 is only 1h30.
+    expect(place({ seconds: 120 * MIN, now: at(FRI, 14, 30), occupied: [wl(at(FRI, 9), 180)] })).toEqual({
+      ok: true,
+      start: at(FRI, 12, 30),
+      overBreak: true,
+    });
+  });
+
+  it("past days: appended after a break, never in it, split by one further on", () => {
+    expect(place({ day: at(THU, 0), seconds: 60 * MIN, occupied: [wl(at(THU, 9), 240)] })).toEqual({ ok: true, start: at(THU, 14) });
+    expect(place({ day: at(THU, 0), seconds: 120 * MIN, occupied: [wl(at(THU, 9), 180)] })).toEqual({
+      ok: true,
+      start: at(THU, 12),
+      parts: parts([at(THU, 12), 60], [at(THU, 14), 60]),
+    });
+    // Ends right at the break: one piece.
+    expect(place({ day: at(THU, 0), seconds: 60 * MIN, occupied: [wl(at(THU, 9), 180)] })).toEqual({ ok: true, start: at(THU, 12) });
   });
 });
 
@@ -195,5 +257,25 @@ describe("hours worked (parallel work once)", () => {
     const items = [b(FRI, 9, 0, 60), b(FRI, 9, 0, 60), b(FRI + 1, 9, 0, 30)];
     expect([...realSecondsByDay(items).values()]).toEqual([60 * MIN, 30 * MIN]);
     expect(realSecondsTotal(items)).toBe(90 * MIN);
+  });
+});
+
+describe("pieces for logging", () => {
+  it("blocks laid over a split placement go on after the break, in pieces", async () => {
+    const { layOver } = await import("@contracts/placement");
+    const parts = [{ start: at(FRI, 12), seconds: 60 * MIN }, { start: at(FRI, 14), seconds: 90 * MIN }];
+    const laid = layOver(parts, [30 * MIN, 60 * MIN, 60 * MIN]);
+    expect(laid.map((b) => b.map((p) => [p.start.getHours(), p.start.getMinutes(), p.seconds / MIN]))).toEqual([
+      [[12, 0, 30]],
+      [[12, 30, 30], [14, 0, 30]],
+      [[14, 30, 60]],
+    ]);
+  });
+
+  it("whole seconds adding up exactly; the label of the pieces", async () => {
+    const { partsInput, partsLabel } = await import("@contracts/placement");
+    const parts = [{ start: at(FRI, 9), seconds: 240 * MIN }, { start: at(FRI, 14), seconds: 240 * MIN + 0.4 }];
+    expect(partsInput(parts, 480 * MIN + 1).map((p) => p.seconds)).toEqual([240 * MIN, 240 * MIN + 1]);
+    expect(partsLabel(parts)).toBe("09:00–13:00 + 14:00–18:00");
   });
 });

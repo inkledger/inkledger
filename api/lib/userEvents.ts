@@ -5,9 +5,13 @@
  * page with no stream left keeps polling, so nothing depends on delivery.
  */
 
-/** timers: a timer changed; bucket: a device switched its bucket; notes: a Markdown note changed. */
+/**
+ * timers: a timer changed; bucket: a device switched its bucket; notes: a Markdown note changed;
+ * schedule: the work schedule or a day's hours changed.
+ */
 export type UserEvent =
   | { type: "timers"; epoch: number }
+  | { type: "schedule" }
   | { type: "bucket"; deviceId: string }
   | { type: "notes"; id: string; change: "create" | "content" | "move" | "issue" | "delete" | "restore" | "version" };
 

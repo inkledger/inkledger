@@ -22,10 +22,12 @@ async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
   const fresh = { staleTime: 0 };
   const timers = await utils.timers.list.fetch(undefined, fresh);
   if (timers.some(tm => tm.state === "running")) return null;
-  const [week, logs, versions] = await Promise.all([
+  const [week, logs, versions, ownDays] = await Promise.all([
     utils.weeks.status.fetch({ week: dayKey(day) }, fresh),
     utils.worklogs.list.fetch({ from: day.toISOString(), to: addDays(day, 1).toISOString() }, fresh),
     utils.workSchedule.list.fetch(undefined, { staleTime: 5 * 60_000 }),
+    // Today's own hours may have just been changed on another device.
+    utils.workSchedule.days.fetch(undefined, fresh),
   ]);
   if (week !== null) return null;
   const logged: TimeSpan[] = logs.map(w => ({ start: new Date(w.started), seconds: w.timeSpentSeconds }));
@@ -33,7 +35,7 @@ async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
   const paused: TimeSpan[] = timers.flatMap(tm =>
     !tm.pausedAt || tm.elapsedSeconds <= 0 ? [] : [{ start: new Date(new Date(tm.pausedAt).getTime() - tm.elapsedSeconds * 1000), seconds: tm.elapsedSeconds }]
   );
-  const gap = openGap(missingSpans(day, scheduleFor(day, versions), [...logged, ...paused], now), now);
+  const gap = openGap(missingSpans(day, scheduleFor(day, versions, ownDays), [...logged, ...paused], now), now);
   // A timer paused in it (even with no time left) ends the hole there, as the server sees it.
   const lastPause = Math.max(0, ...timers.flatMap(tm => (tm.pausedAt ? [new Date(tm.pausedAt).getTime()] : [])));
   if (!gap || lastPause <= gap.start.getTime()) return gap;

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import { addDays, dayKey, formatDurationLong, formatDuration, parseDayKey, startOfWeek, hoursDecimal, roundToMinute, DAY_MS } from "@contracts/time";
+import { layOver, partsInput } from "@contracts/placement";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useWorklogSelection } from "@/hooks/useWorklogSelection";
 import { downloadCsv } from "@/lib/csv";
@@ -394,19 +395,21 @@ export default function Timesheet() {
       });
       return;
     }
-    let cursor = placed.start.getTime();
+    // One after another over the placed time; a block reaching a break goes on after it, in pieces.
+    const laid = layOver(placed.parts ?? [{ start: placed.start, seconds: total }], blocks.map(b => b.seconds));
     setBusy(true);
     const done: string[] = [];
     try {
-      for (const { w, seconds } of blocks) {
+      for (const [i, { w, seconds }] of blocks.entries()) {
+        const pieces = laid[i];
         await create.mutateAsync({
           issueKey: w.issueKey,
           connectionId: w.connectionId ?? undefined,
           seconds,
-          started: new Date(cursor).toISOString(),
+          started: pieces[0].start.toISOString(),
           comment: w.comment,
+          parts: pieces.length > 1 ? partsInput(pieces, seconds) : undefined,
         });
-        cursor += seconds * 1000;
         done.push(w.issueKey);
       }
       toast.success(t("pages.timesheet.duplicated", { count: done.length }));

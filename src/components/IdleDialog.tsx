@@ -1,4 +1,9 @@
-import { timeOfDay } from "@/lib/dates";
+import { dayMonth, timeOfDay } from "@/lib/dates";
+import { useWorkSchedule } from "@/hooks/useWorkSchedule";
+import { useSaveDayHours } from "@/components/dashboard/useDayHoursEdit";
+import { breakAt } from "@/components/dashboard/dayHours";
+import { dayKey, startOfDay } from "@contracts/time";
+import { weekdayIndex } from "@contracts/workSchedule";
 import { toastError, failureText } from "@/lib/errorText";
 import { Coffee } from "lucide-react";
 import { formatDuration } from "@contracts/time";
@@ -29,9 +34,24 @@ export function IdleDialog() {
     onSuccess: () => utils.timers.list.invalidate(),
     onError: e => toastError(e),
   });
+  const schedule = useWorkSchedule();
+  const { save: saveHours } = useSaveDayHours();
   if (!away) return null;
 
   const minutes = Math.round(away.seconds / 60) * 60;
+  // "It was my break": the away time leaves the timer and becomes the day's break
+  // (holes and placement follow), when it falls within that day's hours.
+  const awayDay = startOfDay(away.since);
+  const awayEnd = new Date(away.since.getTime() + away.seconds * 1000);
+  const sameDay = dayKey(awayEnd) === dayKey(away.since);
+  const asBreak = sameDay && !schedule.isPending
+    ? breakAt(
+        schedule.forDay(awayDay)[weekdayIndex(awayDay)],
+        away.since.getHours() * 60 + away.since.getMinutes(),
+        awayEnd.getHours() * 60 + awayEnd.getMinutes() + (awayEnd.getSeconds() > 0 ? 1 : 0)
+      )
+    : null;
+  const moved = asBreak?.breaks.find(b => !schedule.forDay(awayDay)[weekdayIndex(awayDay)].breaks.some(x => x.start === b.start && x.end === b.end));
   const remove = (then?: () => void) =>
     trim.mutate(
       { issueKey: away.issueKey, connectionId: away.connectionId, seconds: away.seconds },
@@ -98,10 +118,24 @@ export function IdleDialog() {
           >
             {t("ui.idle.assign")}
           </Button>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={dismiss}>
               {t("ui.idle.keep")}
             </Button>
+            {asBreak && moved && (
+              <Button
+                variant="outline"
+                disabled={trim.isPending}
+                title={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
+                onClick={() =>
+                  remove(() =>
+                    void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end }))
+                  )
+                }
+              >
+                {t("ui.idle.myBreak")}
+              </Button>
+            )}
             <Button disabled={trim.isPending} onClick={() => remove()}>
               {t("ui.idle.remove", { duration: formatDuration(away.seconds) })}
             </Button>

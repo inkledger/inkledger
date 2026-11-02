@@ -4,8 +4,13 @@ import {
   defaultWorkSchedule,
   expectedSeconds,
   expectedSecondsBetween,
+  effectiveTargetSecondsBetween,
   firstFreeStart,
+  keepTargetEnd,
   missingSpans,
+  sameWorkDay,
+  suggestBreakMove,
+  workBounds,
   openGap,
   scheduleFor,
   workSpans,
@@ -107,5 +112,79 @@ describe("work schedule", () => {
     expect(day({ breaks: [{ start: "12:00", end: "13:00" }, { start: "12:30", end: "14:00" }] })).toBe(false);
     expect(day({ enabled: false, start: "18:00", end: "09:00" })).toBe(true);
     expect(normalizeWorkSchedule("garbage")).toEqual(defaultWorkSchedule());
+  });
+});
+
+describe("hours of a single day", () => {
+  const versions = [{ validFrom: EPOCH_DAY, schedule: defaultWorkSchedule() }];
+  const lateLunch = { enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "15:00", end: "16:00" }] };
+  const overrides = { "2026-10-13": lateLunch }; // Tuesday
+
+  it("replaces its weekday's hours on that date only", () => {
+    expect(breakSpans(at(MON + 1, 0), scheduleFor(at(MON + 1, 0), versions, overrides))).toEqual([{ start: at(MON + 1, 15), seconds: H }]);
+    // The same weekday a week later, and the day before, keep the weekly hours.
+    expect(breakSpans(at(MON + 8, 0), scheduleFor(at(MON + 8, 0), versions, overrides))).toEqual([{ start: at(MON + 8, 13), seconds: H }]);
+    expect(breakSpans(at(MON, 0), scheduleFor(at(MON, 0), versions, overrides))).toEqual([{ start: at(MON, 13), seconds: H }]);
+  });
+
+  it("moves the holes with the break, the target unchanged", () => {
+    const day = at(MON + 1, 0);
+    const logged = [{ start: at(MON + 1, 9), seconds: 6 * H }]; // 9–15, through the usual lunch
+    expect(missingSpans(day, scheduleFor(day, versions, overrides), logged, at(MON + 2, 0))).toEqual([{ start: at(MON + 1, 16), seconds: 2 * H }]);
+    expect(expectedSecondsBetween(at(MON, 0), 7, versions, overrides)).toBe(40 * H);
+  });
+
+  it("wins over a later weekly version, and can be a day off", () => {
+    const later = [...versions, { validFrom: "2026-10-01", schedule: defaultWorkSchedule(6 * H) }];
+    expect(expectedSeconds(at(MON + 1, 0), scheduleFor(at(MON + 1, 0), later, overrides))).toBe(8 * H);
+    const off = { "2026-10-14": { enabled: false, start: "09:00", end: "18:00", breaks: [] } };
+    expect(workBounds(at(MON + 2, 0), scheduleFor(at(MON + 2, 0), versions, off))).toBeNull();
+    expect(effectiveTargetSecondsBetween(at(MON, 0), 7, versions, [], off)).toBe(32 * H);
+  });
+
+  it("keeps a DST day's wall-clock hours", () => {
+    const sun = new Date(2026, 9, 25);
+    const own = { "2026-10-25": { enabled: true, start: "01:00", end: "05:00", breaks: [] } };
+    expect(workBounds(sun, scheduleFor(sun, versions, own))).toEqual({ start: new Date(2026, 9, 25, 1), end: new Date(2026, 9, 25, 5) });
+  });
+
+  it("same hours, ignoring a day off's", () => {
+    const base = defaultWorkSchedule()[0];
+    expect(sameWorkDay(base, { ...base, breaks: [{ start: "13:00", end: "14:00" }] })).toBe(true);
+    expect(sameWorkDay(base, lateLunch)).toBe(false);
+    expect(sameWorkDay({ ...base, enabled: false }, { enabled: false, start: "08:00", end: "12:00", breaks: [] })).toBe(true);
+  });
+
+  it("keeping the target moves the end", () => {
+    const base = defaultWorkSchedule()[0]; // 9–18, lunch 13–14
+    expect(keepTargetEnd(base, { ...base, breaks: [] })).toMatchObject({ end: "17:00" });
+    expect(keepTargetEnd(base, { ...base, breaks: [{ start: "13:00", end: "13:30" }] })).toMatchObject({ end: "17:30" });
+    expect(keepTargetEnd(base, { ...base, breaks: [{ start: "12:00", end: "14:00" }] })).toMatchObject({ end: "19:00" });
+    expect(keepTargetEnd(base, lateLunch)).toBe(lateLunch);
+    // Past the end of the day, or before the last break: can't.
+    expect(keepTargetEnd(base, { ...base, start: "16:00", end: "18:00", breaks: [] })).toBeNull();
+    expect(keepTargetEnd({ ...base, end: "12:00", breaks: [] }, { ...base, end: "18:00", breaks: [{ start: "16:00", end: "17:00" }] })).toBeNull();
+    expect(keepTargetEnd(base, { ...base, enabled: false })).toBeNull();
+  });
+});
+
+describe("worked through the break", () => {
+  const sched = defaultWorkSchedule();
+  const day = at(MON, 0);
+
+  it("a covered break and a hole as long → the break moved there", () => {
+    const logged = [{ start: at(MON, 9), seconds: 6 * H }, { start: at(MON, 16), seconds: 2 * H }]; // hole 15–16
+    expect(suggestBreakMove(day, sched, logged, at(MON, 18, 30))).toEqual({
+      from: { start: "13:00", end: "14:00" },
+      to: { start: "15:00", end: "16:00" },
+      workDay: { enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "15:00", end: "16:00" }] },
+    });
+  });
+
+  it("nothing when the break was taken, the hole is too short, or the break is still to come", () => {
+    expect(suggestBreakMove(day, sched, [{ start: at(MON, 9), seconds: 4 * H }], at(MON, 18))).toBeNull();
+    const short = [{ start: at(MON, 9), seconds: 6 * H }, { start: at(MON, 15, 30), seconds: 2.5 * H }];
+    expect(suggestBreakMove(day, sched, short, at(MON, 18, 30))).toBeNull();
+    expect(suggestBreakMove(day, sched, [{ start: at(MON, 9), seconds: 4 * H }], at(MON, 12))).toBeNull();
   });
 });

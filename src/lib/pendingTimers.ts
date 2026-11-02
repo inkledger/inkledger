@@ -1,4 +1,4 @@
-import { placeBlock, type Occupied } from "@contracts/placement";
+import { placeBlock, type Block, type Occupied } from "@contracts/placement";
 import type { WorkSchedule } from "@contracts/workSchedule";
 import { timerOnDay } from "./timerDay";
 
@@ -8,13 +8,16 @@ type PausedTimer = {
   state: string;
   pausedAt: string | Date | null;
   elapsedSeconds: number;
+  /** Stopped after a single run: one piece, over a break too */
+  unbroken?: boolean;
   note?: string;
 };
 
 /** No working hours: placement may use the whole day. */
 const OFF_WEEK: WorkSchedule = Array.from({ length: 7 }, () => ({ enabled: false, start: "09:00", end: "18:00", breaks: [] }));
 
-export type PendingBlock<T extends PausedTimer = PausedTimer> = { timer: T; start: Date; seconds: number };
+/** `parts`: where logging it would put it, split around the day's breaks (one piece when not). */
+export type PendingBlock<T extends PausedTimer = PausedTimer> = { timer: T; start: Date; seconds: number; parts: Block[] };
 
 /**
  * Where the stopped, not yet logged timers of `day` sit on its timeline: each
@@ -39,13 +42,14 @@ export function placePendingTimers<T extends PausedTimer>(opts: {
     const end = new Date(timer.pausedAt ?? 0);
     const seconds = timer.elapsedSeconds;
     const place = (schedule: WorkSchedule) =>
-      placeBlock({ day: opts.day, seconds, occupied, schedule, now: opts.now, endAt: end, tracked: seconds });
+      placeBlock({ day: opts.day, seconds, occupied, schedule, now: opts.now, endAt: end, tracked: seconds, unbroken: timer.unbroken });
     // Not within the working hours: the latest free stretch of the day, as it was tracked
     // outside them; only a full day falls back to the stretch before the stop.
     const placed = [place(opts.schedule), place(OFF_WEEK)].find(p => p.ok);
     const start = placed?.ok ? placed.start : new Date(end.getTime() - seconds * 1000);
-    out.push({ timer, start, seconds });
-    occupied.push({ start, seconds, label: `timer ${timer.issueKey}` });
+    const parts = (placed?.ok && placed.parts) || [{ start, seconds }];
+    out.push({ timer, start, seconds, parts });
+    for (const p of parts) occupied.push({ ...p, label: `timer ${timer.issueKey}` });
   }
   return out;
 }

@@ -173,4 +173,15 @@ describe("nobody reaches another user's things by id", () => {
     await expect(ann.team.overview({ from: "2025-10-01", to: "2025-10-31" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(ann.team.person({ userId: b.id, from: "2025-10-01", to: "2025-10-31" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("hours of a day: each user only ever reads and changes their own", async () => {
+    const [b] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'bob'");
+    const late = { enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "15:00", end: "16:00" }] };
+    await q("INSERT INTO work_day_overrides (user_id, day, work_day, created_at) VALUES (?, '2026-10-13', ?, 1)", b.id, JSON.stringify(late));
+    expect(await ann.workSchedule.days()).toEqual({});
+    await ann.workSchedule.removeDay({ day: "2026-10-13" });
+    await ann.workSchedule.saveDay({ day: "2026-10-13", workDay: { ...late, end: "17:00" } });
+    await ann.workSchedule.save({ validFrom: "2026-10-01", schedule: (await ann.workSchedule.list())[0].schedule, overrides: "drop" });
+    expect(await q("SELECT user_id, work_day FROM work_day_overrides")).toEqual([{ user_id: b.id, work_day: JSON.stringify(late) }]);
+  });
 });

@@ -1,5 +1,5 @@
 import { addDays, dayKey, hhmm, startOfDay } from "./time";
-import { workBounds, type WorkSchedule } from "./workSchedule";
+import { breakSpans, workBounds, type WorkSchedule } from "./workSchedule";
 import { t } from "./i18n";
 
 /**
@@ -23,7 +23,17 @@ export type Occupied = {
 export type Block = { start: Date; seconds: number };
 
 export type Placement =
-  | { ok: true; start: Date }
+  | {
+      ok: true;
+      start: Date;
+      /**
+       * Split around the day's breaks: the pieces in order (`start` is the
+       * first's), each a worklog of its own. Absent when the block is one piece.
+       */
+      parts?: Block[];
+      /** One piece over a break of the day: nothing fitted around it. */
+      overBreak?: true;
+    }
   | { ok: false; reason: string; with: Occupied[] };
 
 /**
@@ -78,7 +88,115 @@ function fitAtEnd(lo: number, hi: number, seconds: number): number | null {
     : null;
 }
 
+type Piece = { lo: number; hi: number; /** right after a break that ends the previous piece */ linked: boolean };
+
+/** `free` stretches minus `breaks`: pieces of working time, linked across a break inside one stretch. */
+function workPieces(free: [number, number][], breaks: [number, number][]): Piece[] {
+  const out: Piece[] = [];
+  for (const [a, b] of free) {
+    let cursor = a;
+    let linked = false;
+    for (const [bs, be] of breaks) {
+      if (be <= cursor || bs >= b) continue;
+      if (bs > cursor) out.push({ lo: cursor, hi: bs, linked });
+      cursor = Math.max(cursor, be);
+      linked = true;
+    }
+    if (cursor < b) out.push({ lo: cursor, hi: b, linked });
+  }
+  // Under a minute is no room for a worklog: never a piece of a chain.
+  return out
+    .map((p, i, all) => ({ ...p, linked: p.linked && i > 0 && all[i - 1].hi - all[i - 1].lo >= MINUTE }))
+    .filter((p) => p.hi - p.lo >= MINUTE);
+}
+
+/**
+ * `seconds` ending as late as possible in `pieces`, continued backwards only
+ * across a break (never over other time): the parts in order, or null.
+ */
+function fillBack(pieces: Piece[], seconds: number): Block[] | null {
+  for (let i = pieces.length - 1; i >= 0; i--) {
+    const single = fitAtEnd(pieces[i].lo, pieces[i].hi, seconds);
+    if (single !== null) return [{ start: new Date(single), seconds }];
+    const parts: Block[] = [];
+    let remaining = seconds * 1000;
+    let j = i;
+    let end = floorMinute(pieces[i].hi);
+    for (;;) {
+      const { lo, linked } = pieces[j];
+      if (end - lo >= remaining) {
+        parts.unshift({ start: new Date(floorMinute(end - remaining)), seconds: remaining / 1000 });
+        if (parts[0].start.getTime() < lo - OVERLAP_TOLERANCE_MS) break;
+        return parts;
+      }
+      if (!linked || end - lo < MINUTE) break;
+      parts.unshift({ start: new Date(lo), seconds: (end - lo) / 1000 });
+      remaining -= end - lo;
+      j -= 1;
+      end = pieces[j].hi;
+    }
+  }
+  return null;
+}
+
+/** Whether [a, b] covers part of a break (beyond the tolerance). */
+const overBreak = (a: number, b: number, breaks: [number, number][]) =>
+  breaks.some(([bs, be]) => Math.min(b, be) - Math.max(a, bs) > OVERLAP_TOLERANCE_MS);
+
+const placed = (parts: Block[], over = false): Placement => ({
+  ok: true,
+  start: parts[0].start,
+  ...(parts.length > 1 ? { parts } : {}),
+  ...(over ? { overBreak: true as const } : {}),
+});
+
 const describe = (o: Occupied) => `${o.label ? `${o.label} ` : ""}${hhmm(o.start)}–${hhmm(new Date(endMs(o)))}`;
+
+/** "09:00–13:00 + 14:00–18:00" */
+export const partsLabel = (parts: Block[]) => parts.map((p) => `${hhmm(p.start)}–${hhmm(new Date(endMs(p)))}`).join(" + ");
+
+/**
+ * The pieces as `worklogs.create` takes them: whole seconds adding up to
+ * `seconds` exactly (the last one takes the rounding).
+ */
+export function partsInput(parts: Block[], seconds: number): { started: string; seconds: number }[] {
+  const out = parts.map((p) => ({ started: p.start.toISOString(), seconds: Math.round(p.seconds) }));
+  out[out.length - 1].seconds += seconds - out.reduce((a, p) => a + p.seconds, 0);
+  return out;
+}
+
+/**
+ * Blocks of `durations` (seconds) laid one after another over `parts` (a
+ * placement split around breaks, as long as all of them): each block's pieces.
+ */
+export function layOver(parts: Block[], durations: number[]): Block[][] {
+  let i = 0;
+  let cursor = parts[0].start.getTime();
+  let room = parts[0].seconds * 1000;
+  return durations.map((d) => {
+    const out: Block[] = [];
+    let left = d * 1000;
+    while (left > 0) {
+      if (room <= 0) {
+        if (i + 1 >= parts.length) {
+          // Longer than the parts: the rest goes on where the last one ends.
+          out.push({ start: new Date(cursor), seconds: left / 1000 });
+          cursor += left;
+          break;
+        }
+        i += 1;
+        cursor = parts[i].start.getTime();
+        room = parts[i].seconds * 1000;
+      }
+      const take = Math.min(left, room);
+      out.push({ start: new Date(cursor), seconds: take / 1000 });
+      cursor += take;
+      left -= take;
+      room -= take;
+    }
+    return out;
+  });
+}
 
 /** Human message for a collision with `with`. */
 export function conflictMessage(withItems: Occupied[]): string {
@@ -106,6 +224,8 @@ export function placeBlock(opts: {
   endAt?: Date;
   /** What a timer actually tracked (seconds): a block no longer than that, ending at `endAt`, is that work. */
   tracked?: number;
+  /** That timer ran without a pause: its time stays in one piece, over a break too (worked through it). */
+  unbroken?: boolean;
 }): Placement {
   const { day, seconds, schedule, now } = opts;
   const dayStart = startOfDay(day).getTime();
@@ -114,27 +234,36 @@ export function placeBlock(opts: {
   if (seconds <= 0) return { ok: false, reason: t("server.placement.invalidDuration"), with: [] };
 
   const isToday = dayKey(day) === dayKey(now);
+  const allBreaks: [number, number][] = breakSpans(day, schedule).map((b) => [b.start.getTime(), endMs(b)]);
   if (opts.endAt || isToday) {
     const limit = Math.min(dayEnd, Math.max(dayStart, (opts.endAt ?? now).getTime()));
+    // A break still running at the end (now, or the stop) was worked through: only whole breaks before it count.
+    const breaks = allBreaks.filter(([, be]) => be <= limit);
     // Tracked time (ending at its stop, no longer than the timer tracked, give or take
     // the minute it is rounded to) first in its own place, wherever it starts: work
     // begun before the working hours (a timer from 8:15 stopped at 9:05) ends there
-    // too. A typed duration, one typed over a timer's, or a copied day keeps out of
-    // the night (below).
+    // too. Over a break only when the timer ran through it (`unbroken`), else it is
+    // split around it below. A typed duration, one typed over a timer's, or a copied
+    // day keeps out of the night (below).
     const tracked = !!opts.endAt && opts.tracked !== undefined && seconds <= opts.tracked + 60;
     const [own] = tracked ? freeIntervals(occupied, dayStart, limit).slice(-1) : [];
     if (own && own[1] === limit) {
       const start = fitAtEnd(own[0], own[1], seconds);
-      if (start !== null) return { ok: true, start: new Date(start) };
+      if (start !== null && (opts.unbroken || !overBreak(start, start + seconds * 1000, breaks))) {
+        return placed([{ start: new Date(start), seconds }]);
+      }
     }
     // Taken: moved back, but not into the night: to the start of the working hours
-    // at most, unless the block itself ends before them.
+    // at most, unless the block itself ends before them. Around the breaks when it
+    // fits (split across them), else in one piece over a break.
     const workStart = workBounds(day, schedule)?.start.getTime() ?? dayStart;
     const floor = limit > workStart ? workStart : dayStart;
     const free = freeIntervals(occupied, floor, limit);
+    const around = fillBack(workPieces(free, breaks), seconds);
+    if (around) return placed(around);
     for (let i = free.length - 1; i >= 0; i--) {
       const start = fitAtEnd(free[i][0], free[i][1], seconds);
-      if (start !== null) return { ok: true, start: new Date(start) };
+      if (start !== null) return placed([{ start: new Date(start), seconds }], overBreak(start, start + seconds * 1000, breaks));
     }
     return {
       ok: false,
@@ -145,14 +274,26 @@ export function placeBlock(opts: {
 
   const lastEnd = occupied.reduce((m, o) => Math.max(m, endMs(o)), -Infinity);
   const nine = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9).getTime();
-  const from =
+  let from =
     lastEnd > -Infinity ? ceilMinute(lastEnd) : (workBounds(day, schedule)?.start.getTime() ?? nine);
-  const block = { start: new Date(from), seconds };
-  const hits = overlapping(block, occupied);
-  if (from + seconds * 1000 > dayEnd || hits.length > 0) {
+  // Appended after a break, never in it; a break further on splits it.
+  const parts: Block[] = [];
+  let remaining = seconds * 1000;
+  for (const [bs, be] of allBreaks) {
+    if (be <= from) continue;
+    if (bs > from && bs - from >= remaining) break;
+    if (bs - from >= MINUTE) {
+      parts.push({ start: new Date(from), seconds: (bs - from) / 1000 });
+      remaining -= bs - from;
+    }
+    from = be;
+  }
+  parts.push({ start: new Date(from), seconds: remaining / 1000 });
+  const hits = parts.flatMap((p) => overlapping(p, occupied));
+  if (endMs(parts[parts.length - 1]) > dayEnd || hits.length > 0) {
     return { ok: false, reason: t("server.placement.dayFull"), with: hits };
   }
-  return { ok: true, start: block.start };
+  return placed(parts);
 }
 
 /**

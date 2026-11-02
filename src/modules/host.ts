@@ -170,11 +170,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     const stats = utils.stats.dashboard.getData();
     const settings = utils.settings.get.getData();
     const versions = utils.workSchedule.list.getData();
+    const ownDays = utils.workSchedule.days.getData();
     if (stats) {
       const now = new Date();
-      const bounds = versions ? workBounds(now, scheduleFor(now, versions)) : null;
-      // Today's goal: the work schedule's, as the Dashboard counts it.
-      const goal = versions ? expectedSeconds(now, scheduleFor(now, versions)) || null : (settings?.dailyTargetSeconds ?? null);
+      const bounds = versions ? workBounds(now, scheduleFor(now, versions, ownDays)) : null;
+      // Today's goal: the work schedule's (today's own hours when it has them), as the Dashboard counts it.
+      const goal = versions ? expectedSeconds(now, scheduleFor(now, versions, ownDays)) || null : (settings?.dailyTargetSeconds ?? null);
       today.set({
         loggedSeconds: stats.todaySeconds,
         goalSeconds: goal,
@@ -207,6 +208,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     void utils.stats.dashboard.prefetch();
     void utils.settings.get.prefetch();
     void utils.workSchedule.list.prefetch();
+    void utils.workSchedule.days.prefetch();
   };
   prefetch();
   const refresh = setInterval(() => {

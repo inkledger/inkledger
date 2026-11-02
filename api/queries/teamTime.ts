@@ -2,13 +2,13 @@
 // fresh its time is (the trackers it imports time from) and its work
 // schedules (the target its hours are judged against). Read only.
 import { and, inArray, isNull } from "drizzle-orm";
-import { connections, connectionSync, syncState, workSchedules, type Connection } from "@db/schema";
-import { EPOCH_DAY, type ScheduleVersion } from "@contracts/workSchedule";
-import { normalizeWorkSchedule } from "@contracts/workScheduleSchema";
+import { connections, connectionSync, syncState, workDayOverrides, workSchedules, type Connection } from "@db/schema";
+import { EPOCH_DAY, type DayOverrides, type ScheduleVersion } from "@contracts/workSchedule";
+import { normalizeWorkSchedule, type WorkDay } from "@contracts/workScheduleSchema";
 import { getDb } from "./connection";
 import { boundTracker } from "../sync/engine";
 import { entriesOf } from "../sync/worklogs";
-import { listScheduleVersions } from "../routers/workSchedule";
+import { listScheduleVersions, parseWorkDay } from "../routers/workSchedule";
 
 /** Time read more than this long ago may miss what was logged on the tracker since. */
 export const STALE_AFTER_MS = 24 * 60 * 60_000;
@@ -97,6 +97,22 @@ export async function scheduleVersionsOf(userIds: number[]): Promise<Map<number,
     const versions = out.get(id) ?? [];
     if (!versions.some((v) => v.validFrom === EPOCH_DAY)) out.set(id, await listScheduleVersions(id));
     else versions.sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+  }
+  return out;
+}
+
+/** Each account's hours of single days (a late lunch, a day off), in one read. */
+export async function dayOverridesOf(userIds: number[]): Promise<Map<number, DayOverrides>> {
+  const out = new Map<number, Record<string, WorkDay>>(userIds.map((id) => [id, {}]));
+  if (userIds.length === 0) return out;
+  const rows = await getDb()
+    .select({ userId: workDayOverrides.userId, day: workDayOverrides.day, workDay: workDayOverrides.workDay })
+    .from(workDayOverrides)
+    .where(inArray(workDayOverrides.userId, userIds));
+  for (const r of rows) {
+    const d = parseWorkDay(r.workDay);
+    const mine = out.get(r.userId);
+    if (d && mine) mine[r.day] = d;
   }
   return out;
 }

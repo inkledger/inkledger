@@ -318,6 +318,7 @@ export const server: Shape<typeof en> = {
     busy: "Un'altra modifica al tuo tempo è ancora in salvataggio: riprova tra un momento.",
     invalidDuration: 'Durata non valida: "{value}". Usa formati come "2h 30m", "1d", "45m".',
     minDuration: "Una registrazione deve durare almeno 1 minuto.",
+    invalidParts: "I pezzi di questo tempo devono susseguirsi e sommare alla sua durata.",
     maxDuration: "Una singola registrazione non può superare le 24 ore.",
     invalidStart: "Data di inizio non valida",
     timerLogged: "Il tempo del timer di {key} è già stato registrato.",

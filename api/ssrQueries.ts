@@ -42,6 +42,7 @@ export async function prefetchSSR(helpers: SSRHelpers, url: URL, mustChangePassw
     helpers.stats.dashboard.prefetch(),
     helpers.issues.all.prefetch(),
     helpers.workSchedule.list.prefetch(),
+    helpers.workSchedule.days.prefetch(),
     helpers.worklogs.list.prefetch(period),
     helpers.worklogs.list.prefetch(recent),
     helpers.todos.sessions.prefetch(period),

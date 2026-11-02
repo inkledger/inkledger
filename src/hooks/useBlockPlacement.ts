@@ -62,7 +62,11 @@ export function useBlockPlacement(
     return out;
   }, [logs.data, timers, fetchedAt, opts.excludeTimer]);
 
-  /** Place `seconds` (ending at `endAt` for a stopped timer). */
+  /**
+   * Place `seconds` (ending at `endAt` for a stopped timer), around the day's
+   * breaks: `parts` when split. A timer of its own (`excludeTimer`) that ran
+   * without a pause stays in one piece.
+   */
   const place = useCallback(
     (seconds: number, at: { now: Date; endAt?: Date; tracked?: number }): Placement =>
       placeBlock({
@@ -73,8 +77,9 @@ export function useBlockPlacement(
         now: at.now,
         endAt: at.endAt,
         tracked: at.tracked,
+        unbroken: at.tracked !== undefined && !!timers.find(t => issueId(t) === opts.excludeTimer)?.unbroken,
       }),
-    [from, occupied, schedule]
+    [from, occupied, schedule, timers, opts.excludeTimer]
   );
 
   /** Collision message for a block chosen by hand, or null. */

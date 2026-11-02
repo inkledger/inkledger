@@ -317,6 +317,7 @@ export const server = {
     busy: "Another change to your time is still being saved: try again in a moment.",
     invalidDuration: 'Invalid duration: "{value}". Use formats like "2h 30m", "1d", "45m".',
     minDuration: "A worklog must last at least 1 minute.",
+    invalidParts: "The pieces of this time must follow one another and add up to its duration.",
     maxDuration: "A single worklog can't exceed 24 hours.",
     invalidStart: "Invalid start date",
     timerLogged: "The timer time of {key} has already been logged.",

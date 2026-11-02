@@ -162,7 +162,7 @@ export async function claimTimerSeconds(
   seconds: number,
   connectionId?: number,
   now: Date = new Date(),
-): Promise<{ undo: () => Promise<void> } | null> {
+): Promise<{ undo: (back?: number) => Promise<void> } | null> {
   const conn = await issueConnection(userId, issueKey, connectionId);
   const claimed = await withTimerLock(userId, async (tx) => {
     const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
@@ -180,15 +180,23 @@ export async function claimTimerSeconds(
   if (!claimed) return null;
   publish(userId, { type: "timers", epoch: claimed.epoch + 1 });
   return {
-    undo: async () => {
+    /** Put back `back` seconds (all of them by default; less when part of the time was logged). */
+    undo: async (back: number = seconds) => {
+      const logged = seconds - back;
       await withTimerLock(userId, async (tx) => {
         const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
         if (!t) {
-          await tx.insert(timers).values({ ...claimed, id: undefined, epoch: claimed.epoch + 2, updatedAt: new Date() });
+          await tx.insert(timers).values({
+            ...claimed,
+            id: undefined,
+            accumulatedSeconds: Math.max(0, claimed.accumulatedSeconds - logged),
+            epoch: claimed.epoch + 2,
+            updatedAt: new Date(),
+          });
         } else {
           await tx
             .update(timers)
-            .set({ accumulatedSeconds: t.accumulatedSeconds + seconds, epoch: t.epoch + 1, updatedAt: new Date() })
+            .set({ accumulatedSeconds: t.accumulatedSeconds + back, epoch: t.epoch + 1, updatedAt: new Date() })
             .where(eq(timers.id, t.id));
         }
       });
@@ -312,6 +320,13 @@ export const timersRouter = createRouter({
         epoch: t.epoch,
         /** Running: when this run began (server clock) */
         runningSince: t.state === "running" ? t.startedAt : null,
+        /**
+         * Paused/stopped after a single run (never paused before): its time ran
+         * without a break, so it is placed in one piece, over a lunch break too.
+         */
+        unbroken:
+          t.state !== "running" &&
+          Math.abs(((t.pausedAt ?? t.updatedAt).getTime() - t.startedAt.getTime()) / 1000 - t.accumulatedSeconds) < 60,
         ownerLabel: t.ownerLabel,
         /** This device controls it */
         ownedHere,

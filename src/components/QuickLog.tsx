@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { visibleIssues } from "@/lib/issues";
 import { formatDuration, parseDurationToSeconds } from "@contracts/time";
+import { partsInput, partsLabel } from "@contracts/placement";
 import { DURATION_PRESETS } from "@/lib/jira";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,10 +47,11 @@ export function QuickLog({
   const [openedAt] = useState(() => new Date());
 
   const create = trpc.worklogs.create.useMutation({
-    onSuccess: w => {
+    onSuccess: (w, input) => {
       toast.success(
         t("ui.quickLog.logged", {
-          duration: formatDuration(w.timeSpentSeconds),
+          // All of it, when it went in pieces around a break.
+          duration: formatDuration(input.seconds ?? w.timeSpentSeconds),
           key: w.issueKey,
         })
       );
@@ -88,6 +90,7 @@ export function QuickLog({
       seconds: parsed,
       started: placed.start.toISOString(),
       comment,
+      parts: placed.parts && partsInput(placed.parts, parsed),
     });
   };
 
@@ -157,12 +160,14 @@ export function QuickLog({
             placed.ok ? "text-muted-foreground" : "text-danger"
           )}
         >
-          {placed.ok
-            ? t("ui.quickLog.range", {
-                from: timeOfDay(placed.start),
-                to: timeOfDay(new Date(placed.start.getTime() + (parsed ?? 0) * 1000)),
-              })
-            : t("ui.quickLog.noRoom", { reason: placed.reason })}
+          {!placed.ok
+            ? t("ui.quickLog.noRoom", { reason: placed.reason })
+            : placed.parts
+              ? t("ui.logTime.splitAroundBreak", { parts: partsLabel(placed.parts) })
+              : t("ui.quickLog.range", {
+                  from: timeOfDay(placed.start),
+                  to: timeOfDay(new Date(placed.start.getTime() + (parsed ?? 0) * 1000)),
+                })}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-[1fr_auto]">

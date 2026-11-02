@@ -40,7 +40,12 @@ import { setSectionVisibility, type CustomizeTarget } from "@/lib/workspace/cust
 import { useWorkspaceActions } from "@/lib/workspace/actions";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
-import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap } from "@contracts/workSchedule";
+import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap, suggestBreakMove, withDay } from "@contracts/workSchedule";
+import { useDayHoursEdit } from "@/components/dashboard/useDayHoursEdit";
+import { DayHoursBar, DayHoursSheet } from "@/components/dashboard/DayHoursEditor";
+import { BreakSuggestion } from "@/components/dashboard/BreakSuggestion";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useDirtyClose } from "@/components/app/DirtyClose";
 import type { PlannedEntry } from "@contracts/planned";
 import { GapCutter } from "@/components/dashboard/GapCutter";
 import { PlannedDialog } from "@/components/PlannedDialog";
@@ -404,7 +409,12 @@ function DashboardContent() {
   }, [logs.data]);
 
   // Vacation removes only its intersection with the schedule; work and travel never change the target.
-  const { forDay, versions } = useWorkSchedule();
+  const schedule = useWorkSchedule();
+  const { forDay, versions, overrides } = schedule;
+  // The day's own hours, edited on its timeline (drag) or as fields (phones, and without dragging).
+  const hoursEdit = useDayHoursEdit(range.from);
+  const [hoursSheet, setHoursSheet] = useState(false);
+  const phone = useMediaQuery("(max-width: 639px)", false);
   const targetFor = useCallback(
     (date: Date) => effectiveTargetSeconds(date, forDay(date), plannedEntries),
     [forDay, plannedEntries]
@@ -415,8 +425,8 @@ function DashboardContent() {
     [recent.data, today, targetFor]
   );
 
-  const weeklyTarget = effectiveTargetSecondsBetween(startOfWeek(today), 7, versions, plannedEntries);
-  const target = effectiveTargetSecondsBetween(range.from, range.days.length, versions, plannedEntries);
+  const weeklyTarget = effectiveTargetSecondsBetween(startOfWeek(today), 7, versions, plannedEntries, overrides);
+  const target = effectiveTargetSecondsBetween(range.from, range.days.length, versions, plannedEntries, overrides);
 
   const issueTotals = useMemo(() => topIssueTotals(logs.data ?? [], issueByKey), [logs.data, issueByKey]);
 
@@ -449,25 +459,30 @@ function DashboardContent() {
     { week: dayKey(range.from) },
     { enabled: dayView }
   );
-  const daySchedule = forDay(range.from);
+  // A draft of the day's hours shows at once: its breaks, off-hours and holes.
+  const daySchedule = hoursEdit.draft ? withDay(forDay(range.from), range.from, hoursEdit.draft) : forDay(range.from);
   const holesUntil = new Date();
   // A stopped timer's time is tracked, just not logged yet: drawn where logging
   // it would put it ("Later" keeps it here), and never a hole (filling it would
   // count that time twice).
   if (dayView) {
     for (const p of placePendingTimers({ day: range.from, now: holesUntil, timers, occupied: timelineEntries, schedule: daySchedule }))
-      timelineEntries.push({
-        id: `pending:${issueId(p.timer)}`,
-        issueKey: p.timer.issueKey,
-        connectionId: p.timer.connectionId ?? undefined,
-        summary: issueByKey.get(issueId(p.timer))?.summary,
-        start: p.start,
-        seconds: p.seconds,
-        pending: true,
-      });
+      // Split around a break as logging it would be: one block per piece, each opening the same timer.
+      p.parts.forEach((part, i) =>
+        timelineEntries.push({
+          id: i === 0 ? `pending:${issueId(p.timer)}` : `pending:${issueId(p.timer)}#${i}`,
+          issueKey: p.timer.issueKey,
+          connectionId: p.timer.connectionId ?? undefined,
+          summary: issueByKey.get(issueId(p.timer))?.summary,
+          start: part.start,
+          seconds: part.seconds,
+          pending: true,
+        })
+      );
   }
+  // Not before the day's own hours are read: holes at the weekly break would be offered meanwhile.
   const missing =
-    dayView && weekStatus.data === null && range.from.getTime() <= today.getTime()
+    dayView && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? effectiveWorkSpans(range.from, daySchedule, plannedEntries).flatMap(work => {
           const end = new Date(Math.min(work.start.getTime() + work.seconds * 1000, holesUntil.getTime()));
           return end <= work.start ? [] : findGaps(timelineEntries, work.start, end, 1);
@@ -476,6 +491,32 @@ function DashboardContent() {
   // The hole reaching now: a timer can start from its start (Play on it). None while one runs.
   const openHole = running ? null : openGap(missing, holesUntil);
   const [gap, setGap] = useState<TimeSpan | null>(null);
+  const { start: startDraft } = hoursEdit;
+  const startHoursEdit = useCallback(() => {
+    setGap(null);
+    startDraft();
+  }, [startDraft, setGap]);
+  const openHoursSheet = useCallback(() => setHoursSheet(true), []);
+  // "You worked through your break": offered under the timeline of an open, past or current day.
+  const breakMove =
+    dayView && !hoursEdit.draft && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
+      ? suggestBreakMove(range.from, daySchedule, timelineEntries, holesUntil)
+      : null;
+  // Leaving a day whose hours are being edited (another period, another day): asked first when changed.
+  const pendingNav = useRef<(() => void) | null>(null);
+  const leaveHours = useDirtyClose(() => {
+    hoursEdit.cancel();
+    pendingNav.current?.();
+    pendingNav.current = null;
+  });
+  const guarded =
+    <A extends unknown[]>(go: (...args: A) => void) =>
+    (...args: A) => {
+      if (!hoursEdit.draft) return go(...args);
+      pendingNav.current = () => go(...args);
+      leaveHours.markDirty(hoursEdit.dirty);
+      leaveHours.onOpenChange(false);
+    };
   // The worklogs next to the hole, which it can extend instead of a tiny new one.
   const neighbours = useMemo(
     () =>
@@ -509,7 +550,7 @@ function DashboardContent() {
   };
   // A stopped timer on the timeline asks to be logged again, as at its stop.
   const logPending = (entry: TimelineEntry) => {
-    const tm = timers.find(x => `pending:${issueId(x)}` === entry.id);
+    const tm = timers.find(x => `pending:${issueId(x)}` === entry.id.split("#")[0]);
     if (!tm?.pausedAt) return;
     timerLog.push({
       issueKey: tm.issueKey,
@@ -681,7 +722,7 @@ function DashboardContent() {
                   onChange={e => {
                     const d = parseDayKey(e.target.value);
                     if (d) {
-                      jumpTo(d);
+                      guarded(jumpTo)(d);
                       setPickOpen(false);
                     }
                   }}
@@ -694,10 +735,10 @@ function DashboardContent() {
         actions={
           <DashboardHeaderActions
             range={range}
-            setKind={setKind}
-            prev={prev}
-            next={next}
-            reset={reset}
+            setKind={guarded(setKind)}
+            prev={guarded(prev)}
+            next={guarded(next)}
+            reset={guarded(reset)}
             openAdd={openAdd}
             futureDay={futureDay}
             layout={layout}
@@ -720,21 +761,39 @@ function DashboardContent() {
             ) : logs.error ? (
               <ErrorState message={errorText(logs.error)} onRetry={() => logs.refetch()} />
             ) : range.kind === "day" ? (
-              <DayTimeline
-                day={range.from}
-                entries={timelineEntries}
-                colorOf={derived.colorOf}
-                schedule={daySchedule}
-                missing={missing}
-                onGap={setGap}
-                openHole={openHole}
-                floor={<ModuleSlot id="dashboard-perch" />}
-                todoSpans={todoSpans}
-                liveControls={running ? LIVE_CONTROLS : undefined}
-                onPending={logPending}
-                plannedEntries={plannedEntries}
-                onEditPlanned={editPlanned}
-              />
+              <>
+                <DayHoursBar
+                  edit={hoursEdit}
+                  locked={!!weekStatus.data}
+                  onStart={startHoursEdit}
+                  onFields={openHoursSheet}
+                  fieldsOnly={phone}
+                />
+                <DayTimeline
+                  day={range.from}
+                  entries={timelineEntries}
+                  colorOf={derived.colorOf}
+                  schedule={daySchedule}
+                  missing={missing}
+                  onGap={setGap}
+                  openHole={hoursEdit.draft ? null : openHole}
+                  floor={<ModuleSlot id="dashboard-perch" />}
+                  todoSpans={todoSpans}
+                  liveControls={running ? LIVE_CONTROLS : undefined}
+                  onPending={logPending}
+                  plannedEntries={plannedEntries}
+                  onEditPlanned={editPlanned}
+                  hoursEdit={
+                    hoursEdit.draft && hoursEdit.axis
+                      ? { draft: hoursEdit.draft, onChange: hoursEdit.setDraft, axis: hoursEdit.axis, onSubmit: hoursEdit.submit }
+                      : undefined
+                  }
+                />
+                {breakMove && <BreakSuggestion day={range.from} move={breakMove} className="mt-2" />}
+                {/* Mounted only while used: nothing extra renders with every tick of a running timer. */}
+                {hoursSheet && <DayHoursSheet day={range.from} edit={hoursEdit} open onOpenChange={setHoursSheet} />}
+                {hoursEdit.draft && leaveHours.confirm}
+              </>
             ) : (
               <PeriodBars
                 stacks={stacks}

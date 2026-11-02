@@ -170,6 +170,74 @@ describe("worklogs and stats", () => {
     expect(await caller.timers.list()).toEqual([]);
   });
 
+  it("a stopped timer's time split around a break: two worklogs, the timer taken once", async () => {
+    (await q("DELETE FROM timers"));
+    (await q("DELETE FROM worklogs"));
+    await caller.timers.start({ issueKey: "SPL-1" });
+    await caller.timers.stop({ issueKey: "SPL-1" });
+    (await q("UPDATE timers SET accumulated_seconds = 28800 WHERE issue_key = 'SPL-1'"));
+    const day = new Date(2026, 9, 14);
+    const at = (h: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), h).toISOString();
+    await caller.worklogs.create({
+      issueKey: "SPL-1",
+      seconds: 28800,
+      started: at(9),
+      fromTimer: true,
+      parts: [{ started: at(9), seconds: 14400 }, { started: at(14), seconds: 14400 }],
+    });
+    const logs = await caller.worklogs.list({ from: at(0), to: at(23) });
+    expect(logs.map((l) => [new Date(l.started).getHours(), l.timeSpentSeconds]).sort((a, b) => a[0] - b[0])).toEqual([[9, 14400], [14, 14400]]);
+    expect(await caller.timers.list()).toEqual([]);
+  });
+
+  it("parts are all checked first: one over other time writes nothing and keeps the timer", async () => {
+    (await q("DELETE FROM timers"));
+    (await q("DELETE FROM worklogs"));
+    await caller.timers.start({ issueKey: "SPL-2" });
+    await caller.timers.stop({ issueKey: "SPL-2" });
+    (await q("UPDATE timers SET accumulated_seconds = 7200 WHERE issue_key = 'SPL-2'"));
+    const at = (h: number) => new Date(2026, 9, 15, h).toISOString();
+    await insertLog("OTH-1", new Date(2026, 9, 15, 14), 1800);
+    await caller.settings.update({ overlapPolicy: "block" });
+    try {
+      await expect(
+        caller.worklogs.create({ issueKey: "SPL-2", seconds: 7200, started: at(12), fromTimer: true, parts: [{ started: at(12), seconds: 3600 }, { started: at(14), seconds: 3600 }] }),
+      ).rejects.toThrow(/OTH-1/);
+    } finally {
+      await caller.settings.update({ overlapPolicy: "warn" });
+    }
+    expect((await caller.worklogs.list({ from: at(0), to: at(23) })).map((l) => l.issueKey)).toEqual(["OTH-1"]);
+    expect((await caller.timers.list())[0].elapsedSeconds).toBe(7200);
+    // Parts that don't add up, or out of order.
+    await expect(caller.worklogs.create({ issueKey: "SPL-2", seconds: 7200, started: at(9), parts: [{ started: at(9), seconds: 3600 }, { started: at(16), seconds: 1800 }] })).rejects.toThrow(/add up/);
+    await expect(caller.worklogs.create({ issueKey: "SPL-2", seconds: 7200, started: at(9), parts: [{ started: at(16), seconds: 3600 }, { started: at(9), seconds: 3600 }] })).rejects.toThrow(/add up/);
+  });
+
+  it("a part refused by the tracker gives back only the time not logged", async () => {
+    (await q("DELETE FROM timers"));
+    (await q("DELETE FROM worklogs"));
+    await caller.timers.start({ issueKey: "SPL-3" });
+    await caller.timers.stop({ issueKey: "SPL-3" });
+    (await q("UPDATE timers SET accumulated_seconds = 7200 WHERE issue_key = 'SPL-3'"));
+    const at = (h: number) => new Date(2026, 9, 16, h).toISOString();
+    type Fetch = (i: string, init?: RequestInit) => Promise<Response>;
+    const mock = vi.mocked(fetch as unknown as Fetch);
+    const real = mock.getMockImplementation()!;
+    let posts = 0;
+    mock.mockImplementation(async (i, init) =>
+      String(i).endsWith("/worklog") && init?.method === "POST" && ++posts === 2 ? json({ errorMessages: ["refused"] }, 400) : real(i, init),
+    );
+    try {
+      await expect(
+        caller.worklogs.create({ issueKey: "SPL-3", seconds: 7200, started: at(12), fromTimer: true, parts: [{ started: at(12), seconds: 3600 }, { started: at(14), seconds: 3600 }] }),
+      ).rejects.toThrow();
+    } finally {
+      mock.mockImplementation(real);
+    }
+    expect((await caller.worklogs.list({ from: at(0), to: at(23) })).map((l) => l.timeSpentSeconds)).toEqual([3600]);
+    expect((await caller.timers.list())[0].elapsedSeconds).toBe(3600);
+  });
+
   it("delete without a local copy checks the worklog's week on Jira; gone on Jira is ok", async () => {
     (await q("DELETE FROM worklogs"));
     const lockedDay = new Date(2026, 0, 14, 10);

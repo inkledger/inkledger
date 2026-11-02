@@ -20,7 +20,7 @@ function fakeUtils(timers: () => Timer[]) {
     issues: { all: none },
     stats: { dashboard: none },
     settings: { get: none },
-    workSchedule: { list: none },
+    workSchedule: { list: none, days: none },
   };
 }
 
