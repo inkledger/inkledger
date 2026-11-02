@@ -179,6 +179,62 @@ function toolCallsOf(value: unknown): OllamaToolCall[] {
 }
 
 /**
+ * An answer without the model's thinking, which some models write even when told not to
+ * (qwen3): `<think>…</think>` blocks, what comes before a lone `</think>`, and an
+ * unfinished `<think>` (still thinking: nothing yet).
+ */
+export function withoutThinking(text: string): string {
+  let out = text.replace(/<think>[\s\S]*?<\/think>/g, "");
+  const close = out.lastIndexOf("</think>");
+  if (close >= 0) out = out.slice(close + "</think>".length);
+  const open = out.indexOf("<think>");
+  if (open >= 0) out = out.slice(0, open);
+  return text === out ? text : out.trim();
+}
+
+/** Calls to tools offered, when the whole of `body` is one call, an array of them, or several on their own lines. */
+function callsOf(body: string, offered: readonly string[]): OllamaToolCall[] | null {
+  const text = body
+    .trim()
+    .replace(/^```(?:json)?\s*|\s*```$/g, "")
+    .replace(/<\/?tool_call>/g, "\n")
+    .trim();
+  if (!text.startsWith("{") && !text.startsWith("[")) return null;
+  let items: unknown[];
+  try {
+    const whole: unknown = JSON.parse(text);
+    items = Array.isArray(whole) ? whole : [whole];
+  } catch {
+    try {
+      items = text.split(/\n\s*(?=[{[])/).flatMap(part => JSON.parse(part) as unknown);
+    } catch {
+      return null;
+    }
+  }
+  const calls = items.map(item =>
+    isRecord(item) && typeof item.name === "string" && offered.includes(item.name) ? toolCallsOf([{ function: { name: item.name, arguments: item.arguments ?? item.parameters ?? {} } }])[0] : undefined,
+  );
+  return calls.length && calls.every(c => c !== undefined) ? (calls) : null;
+}
+
+/**
+ * The tool calls a model wrote as text instead of `tool_calls`, as some templates make it
+ * do (qwen2.5-coder): one JSON call `{"name", "arguments"}` (or "parameters"), several on
+ * their own lines or an array, bare, in a ```json fence or in <tool_call> tags; the whole
+ * answer, or its end after a few words of plan. Only calls to tools offered; anything else
+ * (prose, a call followed by more prose, a tool not offered, other JSON) is null: an answer.
+ */
+export function toolCallsInText(text: string, offered: readonly string[]): OllamaToolCall[] | null {
+  if (!offered.length || text.length > 20_000) return null;
+  // Where a call may begin: the start, or a line that opens a fence, a tag or JSON.
+  for (const m of text.matchAll(/(^|\n)[ \t]*(?=```|<tool_call>|[{[])/g)) {
+    const calls = callsOf(text.slice(m.index + m[1].length), offered);
+    if (calls) return calls;
+  }
+  return null;
+}
+
+/**
  * The pieces of a streamed /api/chat answer (NDJSON: one object a line, the last one
  * `done`): its text, and the tool calls when the model asks for tools. Lines and
  * characters may be split anywhere across chunks. An `error` line, a line that isn't

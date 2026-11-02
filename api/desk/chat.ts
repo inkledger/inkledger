@@ -22,8 +22,8 @@ import { getDb } from "../queries/connection";
 import { ownConnection } from "../providers/connections";
 import { fromMarkdown } from "../providers/core/richtext";
 import { agentCopy } from "../issues/agentCopy";
-import { chatModelTools, ollamaRefusal, OllamaError, streamChatPieces, type OllamaToolCall, type OllamaWireMessage } from "../ai/ollama";
-import { deskChatSystem, deskChatTools, NO_STEPS_LEFT, type DeskChatCode } from "../ai/prompts/deskChat";
+import { chatModelTools, ollamaRefusal, OllamaError, streamChatPieces, toolCallsInText, withoutThinking, type OllamaToolCall, type OllamaWireMessage } from "../ai/ollama";
+import { deskChatSystem, deskChatTools, languageReminder, NO_STEPS_LEFT, type DeskChatCode } from "../ai/prompts/deskChat";
 import { pathsOf } from "../routers/projectPaths";
 import { createRateLimiter } from "../lib/security";
 import { isShuttingDown } from "../lib/shutdown";
@@ -298,7 +298,7 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const stepsLeft = rounds(current) < MAX_TOOL_ROUNDS;
     const offered: CodeToolName[] = stepsLeft && body.repos?.length ? [...new Set(body.tools ?? [])] : [];
     const code: DeskChatCode = offered.length
-      ? { mode: "tools", tools: offered, repos: body.repos ?? [] }
+      ? { mode: "tools", tools: offered, repos: body.repos ?? [], extracts: body.extracts }
       : body.extracts?.trim()
         ? { mode: "extracts", extracts: body.extracts }
         : rounds(current) > 0
@@ -309,6 +309,7 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
       { role: "system", content: deskChatSystem(context.markdown, context.issues.map(i => i.key), code, locale) },
       ...messages.map(toOllama),
       ...(stepsLeft ? [] : [{ role: "system" as const, content: NO_STEPS_LEFT }]),
+      { role: "system", content: languageReminder(locale) },
     ];
     const question = current[0]?.role === "user" ? current[0].content : "";
     return streamSSE(c, async stream => {
@@ -326,24 +327,39 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
           tools: offered.length ? deskChatTools(offered) : undefined,
           simulated: simulatedCode(context.issues, current, code) ?? simulatedAnswer(context.issues, question),
         });
+        // Only the tools offered, a few a round: anything else the model invents is dropped.
+        const take = (asked: readonly OllamaToolCall[]) => {
+          for (const call of asked) {
+            const name = offered.find(n => n === call.name);
+            if (name && calls.length < CALLS_PER_ROUND && JSON.stringify(call.arguments).length <= CALL_CHARS) calls.push({ name, arguments: call.arguments });
+          }
+        };
+        // With tools offered, an answer that opens like JSON may be a call written as text
+        // (toolCallsInText): it is held back until the end instead of shown as it comes.
+        let held = false;
         for await (const piece of pieces) {
           if (stream.aborted) break;
           if ("toolCalls" in piece) {
-            // Only the tools offered, a few a round: anything else the model invents is dropped.
-            for (const call of piece.toolCalls) {
-              const name = offered.find(n => n === call.name);
-              if (name && calls.length < CALLS_PER_ROUND && JSON.stringify(call.arguments).length <= CALL_CHARS) calls.push({ name, arguments: call.arguments });
-            }
+            take(piece.toolCalls);
             continue;
           }
+          const first = !answer.trim();
           answer += piece.text;
-          await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: piece.text }) });
+          if (first && offered.length && /^\s*([{[`<])/.test(answer)) held = true;
+          if (held || !answer.trim()) continue;
+          await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: first ? answer : piece.text }) });
           if (Date.now() - drawnAt >= DRAFT_MS) {
             drawnAt = Date.now();
             await stream.writeSSE({ event: "draft", data: JSON.stringify({ doc: fromMarkdown(answer, "gfm") }) });
           }
         }
         if (stream.aborted || upstream.signal.aborted) return;
+        answer = withoutThinking(answer);
+        // A call written as text, alone or after a few words of plan (shown so far: the page
+        // clears it when the calls come).
+        const written = calls.length ? null : toolCallsInText(answer, offered);
+        if (written) take(written);
+        else if (held) await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: answer }) });
         if (calls.length) {
           await stream.writeSSE({ event: "tool_calls", data: JSON.stringify({ calls }) });
           return;

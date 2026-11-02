@@ -24,6 +24,11 @@ function server(rounds: (body: DeskChatRequest, n: number) => DeskChatEvent[]) {
   };
 }
 
+/** A conversation already under way: no evidence is gathered first (that has its own tests). */
+const earlier = [
+  { role: "user" as const, content: "Which one first?" },
+  { role: "assistant" as const, content: "MAGA-400." },
+];
 const base = { history: [], question: "Is MAGA-400 solved?", panes: [], tools: ["grep", "read", "git_log"] as const, repos: ["app"], issues: [{ key: "MAGA-400", title: "Stock goes below zero" }] };
 
 describe("runAgent", () => {
@@ -32,7 +37,7 @@ describe("runAgent", () => {
     const ran: DeskChatToolCall[] = [];
     const events: AgentEvent[] = [];
     const end = await runAgent(
-      { ...base, tools: [...base.tools], mode: "tools" },
+      { ...base, history: earlier, tools: [...base.tools], mode: "tools" },
       {
         post: body => s.post(body),
         runTool: async call => {
@@ -44,8 +49,8 @@ describe("runAgent", () => {
     );
     expect(end).toBe("done");
     expect(ran).toEqual([{ name: "grep", arguments: { repo: "app", query: "MAGA-400" } }]);
-    expect(s.posted[1].messages.map(m => m.role)).toEqual(["user", "assistant", "tool"]);
-    expect(s.posted[1].messages[2]).toEqual({ role: "tool", name: "grep", content: "src/Stock.kt:12: // MAGA-400" });
+    expect(s.posted[1].messages.map(m => m.role)).toEqual(["user", "assistant", "user", "assistant", "tool"]);
+    expect(s.posted[1].messages[4]).toEqual({ role: "tool", name: "grep", content: "src/Stock.kt:12: // MAGA-400" });
     expect(s.posted[0].tools).toEqual(["grep", "read", "git_log"]);
     expect(events.filter(e => e.type === "step").map(e => e.type === "step" && e.step.status)).toEqual(["running", "done"]);
     expect(events.at(-1)).toMatchObject({ type: "done", markdown: "Solved in **MAGA-400**." });
@@ -71,7 +76,7 @@ describe("runAgent", () => {
     const stop = new AbortController();
     const s = server(() => calls({ name: "grep", arguments: { repo: "app", query: "x" } }));
     const end = await runAgent(
-      { ...base, tools: [...base.tools], mode: "tools" },
+      { ...base, history: earlier, tools: [...base.tools], mode: "tools" },
       {
         post: body => s.post(body),
         runTool: async () => {
@@ -114,6 +119,43 @@ describe("runAgent", () => {
     expect(s.posted).toHaveLength(1);
     expect(s.posted[0].tools).toEqual([]);
     expect(s.posted[0].extracts).toContain("src/Stock.kt:12: // MAGA-400 stock");
+  });
+});
+
+describe("runAgent: evidence first, also for a model with tools", () => {
+  it("before the first round the loop itself searches the key and the title's words (code and commits), and sends the hits with the tools", async () => {
+    const s = server(() => answer("Solved by 1a2b."));
+    const asked: string[] = [];
+    await runAgent(
+      { ...base, tools: [...base.tools], mode: "tools" },
+      {
+        post: body => s.post(body),
+        runTool: async call => {
+          asked.push(`${call.name}:${JSON.stringify(call.arguments)}`);
+          return call.name === "git_log" && call.arguments.grep === "stock"
+            ? { ok: true, text: "1a2b 2026-11-02 fix(stock): never below zero", brief: "1 commit" }
+            : { ok: true, text: "(no match)", brief: "no match", empty: true };
+        },
+      },
+      () => {},
+    );
+    expect(asked).toContain('grep:{"repo":"app","query":"MAGA-400"}');
+    expect(asked).toContain('git_log:{"repo":"app","grep":"MAGA-400","limit":5}');
+    // The title's words are looked for in commit messages too: a fix seldom names the key.
+    expect(asked.some(a => a.startsWith('git_log:{"repo":"app","grep":"stock"'))).toBe(true);
+    expect(s.posted[0].tools).toEqual(["grep", "read", "git_log"]);
+    expect(s.posted[0].extracts).toContain("fix(stock): never below zero");
+  });
+
+  it("a follow-up question doesn't search again", async () => {
+    const s = server(() => answer("ok"));
+    const asked: string[] = [];
+    await runAgent(
+      { ...base, history: [{ role: "user", content: "Is MAGA-400 solved?" }, { role: "assistant", content: "Yes." }], tools: [...base.tools], mode: "tools" },
+      { post: body => s.post(body), runTool: async call => (asked.push(call.name), { ok: true, text: "x", brief: "x" }) },
+      () => {},
+    );
+    expect(asked).toEqual([]);
   });
 });
 

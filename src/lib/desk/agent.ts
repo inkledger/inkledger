@@ -166,7 +166,10 @@ export async function runAgent(input: AgentInput, deps: AgentDeps, emit: (e: Age
 
   try {
     let extracts: string | undefined;
-    if (input.mode === "extracts") {
+    // Evidence first: the loop searches before the model does, for a model without tools
+    // and, on a conversation's first question, for one with tools too (small models start
+    // from facts instead of guessing, seen with real ones).
+    if (input.mode === "extracts" || (input.mode === "tools" && input.history.length === 0)) {
       const found: { label: string; text: string }[] = [];
       const queries = extractQueries(input.issues);
       for (const repo of input.repos.slice(0, EXTRACT_REPOS)) {
@@ -175,11 +178,17 @@ export async function runAgent(input: AgentInput, deps: AgentDeps, emit: (e: Age
           const run = await step({ name: "grep", arguments: { repo, query } });
           if (run.ok && !run.empty) found.push({ label: `grep "${query}" in ${repo}`, text: run.text });
         }
-        if (input.tools.includes("git_log"))
+        if (input.tools.includes("git_log")) {
           for (const issue of input.issues) {
             const run = await step({ name: "git_log", arguments: { repo, grep: issue.key, limit: 5 } });
             if (run.ok && !run.empty) found.push({ label: `commits mentioning ${issue.key} in ${repo}`, text: run.text });
           }
+          // A fix seldom names the key: the title's words in commit messages too.
+          for (const word of queries.filter(q => !input.issues.some(i => i.key === q))) {
+            const run = await step({ name: "git_log", arguments: { repo, grep: word, limit: 5 } });
+            if (run.ok && !run.empty) found.push({ label: `commits with "${word}" in ${repo}`, text: run.text });
+          }
+        }
       }
       extracts = formatExtracts(found);
     }

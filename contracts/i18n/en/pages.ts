@@ -1091,6 +1091,7 @@ export const pages = {
     send: "Send",
     stop: "Stop",
     stopped: "Stopped.",
+    noSteps: "Answered without reading the code: ask it to check the code.",
     failed: "The answer didn't come: try again.",
     copyAnswer: "Copy answer",
     saveNote: "Save as note",

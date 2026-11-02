@@ -1109,6 +1109,7 @@ export const pages: Shape<typeof en> = {
     send: "Invia",
     stop: "Ferma",
     stopped: "Fermata.",
+    noSteps: "Risposta data senza leggere il codice: chiedi di controllare il codice.",
     failed: "La risposta non è arrivata: riprova.",
     copyAnswer: "Copia risposta",
     saveNote: "Salva come nota",

@@ -153,7 +153,7 @@ describe("the desk's chat", () => {
       }
       expect(got).toContain("event: context");
       expect(sent?.stream).toBe(true);
-      expect(sent?.messages.map(m => m.role)).toEqual(["system", "user", "assistant", "user"]);
+      expect(sent?.messages.map(m => m.role)).toEqual(["system", "user", "assistant", "user", "system"]);
       expect(sent?.messages[0].content).toContain("APP-1: Login fails on Safari");
       expect(upstream?.aborted).toBe(false);
       await reader.cancel();
@@ -169,6 +169,15 @@ describe("the desk's chat", () => {
     const call = { role: "assistant", content: "", tool_calls: [{ name: "grep", arguments: { repo: "app", query: "APP-1" } }] };
     const result = { role: "tool", name: "grep", content: "src/Login.kt:12: // APP-1 fixed" };
     const body = (messages: unknown[], extra: Record<string, unknown> = {}) => ({ panes: [pane("APP-1")], messages, tools: ["grep", "read"], repos: ["app"], ...extra });
+    /** A fresh minute for the rate limits (12 questions a minute): only Date moves, timers stay real. */
+    let later = 0;
+    const freshMinute = () => {
+      later += 1;
+      vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + later * 10 * 60_000 });
+    };
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
     it("validates tool turns: known tools, a result only after a call, sizes capped", async () => {
       env.ollamaSimulator = "1";
@@ -200,7 +209,9 @@ describe("the desk's chat", () => {
       expect(sent?.tools?.map(t => t.function.name)).toEqual(["grep", "read"]);
       // The repositories are context, not part of the tools' schemas.
       expect(JSON.stringify(sent?.tools)).not.toContain('"app"');
-      expect(sent?.messages.map(m => m.role)).toEqual(["system", "user", "assistant", "tool"]);
+      // The language is the last word: small models follow the end more than the start.
+      expect(sent?.messages.map(m => m.role)).toEqual(["system", "user", "assistant", "tool", "system"]);
+      expect(String(sent?.messages.at(-1)?.content)).toMatch(/^Reply in (English|Italian), unless/);
       expect(sent?.messages[2]).toMatchObject({ tool_calls: [{ function: { name: "grep", arguments: { repo: "app", query: "APP-1" } } }] });
       expect(sent?.messages[3]).toEqual({ role: "tool", tool_name: "grep", content: "src/Login.kt:12: // APP-1 fixed" });
       expect(String(sent?.messages[0].content)).toContain("app");
@@ -208,6 +219,56 @@ describe("the desk's chat", () => {
       const tc = events(text).find(e => e.event === "tool_calls");
       expect(tc?.data).toEqual({ calls: [{ name: "read", arguments: { repo: "app", path: "src/Login.kt" } }] });
       expect(text).not.toContain("event: done");
+    });
+
+    it("a model that writes its tool call as text (qwen2.5-coder) gets it run: no delta, a tool_calls event", async () => {
+      freshMinute();
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      const piece = (content: string, done = false) => `${JSON.stringify({ message: { role: "assistant", content }, done })}\n`;
+      ollama = () => new Response(piece('{"name": "grep", ') + piece('"arguments": {"repo": "app", "query": "APP-1"}}') + piece("", true));
+      const text = await readAll(await ask(body([question])));
+      expect(events(text).find(e => e.event === "tool_calls")?.data).toEqual({ calls: [{ name: "grep", arguments: { repo: "app", query: "APP-1" } }] });
+      expect(text).not.toContain("event: delta");
+      expect(text).not.toContain("event: done");
+      // Prose still streams as it is written.
+      ollama = () => new Response(piece("APP-1 ") + piece("is solved.") + piece("", true));
+      const prose = await readAll(await ask(body([question])));
+      expect(events(prose).filter(e => e.event === "delta").map(e => e.data.text)).toEqual(["APP-1 ", "is solved."]);
+      expect(events(prose).find(e => e.event === "done")?.data.markdown).toBe("APP-1 is solved.");
+      // JSON that is no call is an answer after all, sent whole.
+      ollama = () => new Response(piece('{"status": ') + piece('"done"}') + piece("", true));
+      const json = await readAll(await ask(body([question])));
+      expect(events(json).find(e => e.event === "done")?.data.markdown).toBe('{"status": "done"}');
+    });
+
+    it("tools and evidence together: the extracts gathered first go to the model with the tools", async () => {
+      freshMinute();
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      let sent: { tools?: unknown[]; messages: { role: string; content: string }[] } | undefined;
+      ollama = init => {
+        sent = JSON.parse(String(init?.body)) as typeof sent;
+        return new Response(`${JSON.stringify({ message: { content: "Solved by 1a2b." }, done: true })}\n`);
+      };
+      await readAll(await ask(body([question], { extracts: "### commits with \"login\" in app\n1a2b fix(login): APP-1" })));
+      expect(sent?.tools).toHaveLength(2);
+      expect(sent?.messages[0].content).toContain("1a2b fix(login): APP-1");
+      expect(sent?.messages[0].content).toContain("grep:");
+    });
+
+    it("a model's thinking never reaches the answer: <think> blocks and what comes before a lone </think>", async () => {
+      freshMinute();
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      const piece = (content: string, done = false) => `${JSON.stringify({ message: { role: "assistant", content }, done })}\n`;
+      ollama = () => new Response(piece("<think>The user wants ") + piece("to know.</think>\n\n") + piece("APP-1 is solved.") + piece("", true));
+      const tagged = events(await readAll(await ask(body([question]))));
+      expect(tagged.find(e => e.event === "done")?.data.markdown).toBe("APP-1 is solved.");
+      expect(tagged.filter(e => e.event === "delta").map(e => e.data.text).join("")).not.toContain("think");
+      ollama = () => new Response(piece("Wait, the user asks in Italian.\n") + piece("</think>\n\nAPP-1 è risolta.") + piece("", true));
+      const lone = events(await readAll(await ask(body([question]))));
+      expect(lone.find(e => e.event === "done")?.data.markdown).toBe("APP-1 è risolta.");
     });
 
     it("the chat model is OLLAMA_CHAT_MODEL; a model without tools gets none", async () => {
@@ -237,7 +298,7 @@ describe("the desk's chat", () => {
       const rounds = (n: number) => Array.from({ length: n }, () => [call, result]).flat();
       await readAll(await ask(body([question, ...rounds(12)])));
       expect(sent?.tools).toBeUndefined();
-      expect(sent?.messages.at(-1)?.content).toMatch(/answer now/i);
+      expect(sent?.messages.at(-2)?.content).toMatch(/answer now/i);
       expect((await ask(body([question, ...rounds(13)]))).status).toBe(400);
     });
 

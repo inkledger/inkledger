@@ -25,6 +25,8 @@ export type ChatMessage = {
   status: "streaming" | "done" | "stopped" | "error";
   /** The tool steps taken for this answer, in order. */
   steps: AgentStep[];
+  /** How the answer could reach the code: with tools and no step, it read none. */
+  mode?: ChatCode["mode"];
 };
 
 export type ChatState = {
@@ -120,7 +122,7 @@ export async function ask(question: string, panes: readonly DeskSlot[], code: Ch
   if (!text || running) return;
   const history = turns(state.messages);
   const asked: ChatMessage = { id: randomUUID(), role: "user", text, doc: null, status: "done", steps: [] };
-  const answer: ChatMessage = { id: randomUUID(), role: "assistant", text: "", doc: null, status: "streaming", steps: [] };
+  const answer: ChatMessage = { id: randomUUID(), role: "assistant", text: "", doc: null, status: "streaming", steps: [], mode: code.mode };
   set(s => ({ ...s, messages: [...s.messages, asked, answer], finished: null }));
   const controller = new AbortController();
   running = controller;

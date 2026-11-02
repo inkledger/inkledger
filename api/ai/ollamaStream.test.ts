@@ -1,7 +1,7 @@
 // The streamed answer of Ollama's /api/chat (NDJSON: one JSON object a line,
 // the last one `done`), read as the text the model writes.
 import { describe, expect, it } from "vitest";
-import { OllamaError, readOllamaPieces, readOllamaStream } from "./ollama";
+import { OllamaError, readOllamaPieces, readOllamaStream, toolCallsInText } from "./ollama";
 
 const encode = (s: string) => new TextEncoder().encode(s);
 async function* chunks(...parts: (string | Uint8Array)[]) {
@@ -57,5 +57,39 @@ describe("readOllamaPieces", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("toolCallsInText", () => {
+  const tools = ["grep", "read", "find"];
+  it("a call some models write as text instead of tool_calls (qwen2.5-coder): bare, fenced, tagged, several, an array", () => {
+    expect(toolCallsInText('{"name": "find", "arguments": {"pattern": "*Desk*", "repo": "ikl"}}', tools)).toEqual([{ name: "find", arguments: { pattern: "*Desk*", repo: "ikl" } }]);
+    expect(toolCallsInText('```json\n{"name": "grep", "arguments": {"repo": "0", "query": "MAGA-400"}}\n```', tools)).toEqual([{ name: "grep", arguments: { repo: "0", query: "MAGA-400" } }]);
+    expect(toolCallsInText('<tool_call>\n{"name": "read", "arguments": {"repo": "app", "path": "a.kt"}}\n</tool_call>', tools)).toEqual([{ name: "read", arguments: { repo: "app", path: "a.kt" } }]);
+    expect(toolCallsInText('{"name": "grep", "arguments": {"query": "a"}}\n{"name": "grep", "arguments": {"query": "b"}}', tools)).toHaveLength(2);
+    expect(toolCallsInText('[{"name": "grep", "arguments": {"query": "a"}}]', tools)).toEqual([{ name: "grep", arguments: { query: "a" } }]);
+    // Arguments as JSON text, or under "parameters".
+    expect(toolCallsInText('{"name": "grep", "arguments": "{\\"query\\": \\"a\\"}"}', tools)).toEqual([{ name: "grep", arguments: { query: "a" } }]);
+    expect(toolCallsInText('{"name": "grep", "parameters": {"query": "a"}}', tools)).toEqual([{ name: "grep", arguments: { query: "a" } }]);
+  });
+
+  it("a call at the end of what the model wrote (qwen2.5-coder:14b says its plan, then calls)", () => {
+    const plan = 'Non ho trovato commit. Cercherò per parole del titolo:\n\n```json\n{\n  "name": "grep",\n  "arguments": {"query": "slot", "repo": "0"}\n}\n```';
+    expect(toolCallsInText(plan, tools)).toEqual([{ name: "grep", arguments: { query: "slot", repo: "0" } }]);
+    expect(toolCallsInText('I will search:\n{"name": "grep", "arguments": {"query": "a"}}', tools)).toEqual([{ name: "grep", arguments: { query: "a" } }]);
+  });
+
+  it("anything else stays an answer: prose, a call followed by more prose, a tool not offered, other JSON", () => {
+    for (const text of [
+      "MAGA-400 looks solved: the commit changed the stock check.",
+      'For example {"name": "grep", "arguments": {"query": "a"}} would search, but I already know.',
+      'I will run:\n{"name": "bash", "arguments": {"cmd": "ls"}}',
+      '{"name": "bash", "arguments": {"cmd": "ls"}}',
+      '{"name": "grep", "arguments": {"query": "a"}}\n{"name": "bash", "arguments": {}}',
+      '{"status": "done"}',
+      "```json\n{\"key\": \"MAGA-400\"}\n```",
+      "",
+    ])
+      expect(toolCallsInText(text, tools), text).toBeNull();
   });
 });

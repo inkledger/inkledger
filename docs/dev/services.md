@@ -18,6 +18,11 @@ The Desk's chat uses `OLLAMA_CHAT_MODEL` when set (else `OLLAMA_MODEL`). A model
 with read-only tools; any other model gets automatic extracts instead (docs/work/desk.md, batch 4d).
 `gemma3:4b` has no tool support.
 
+Tried on 2 Nov 2026 with a fixed issue of this repository ("is it really solved?"):
+`qwen3:4b` answered right and in the person's language, citing the fixing commit and its files;
+`qwen2.5-coder:14b` and `:7b` write their tool calls as text (handled) and stop early or claim
+checks they didn't run, so the chat gathers evidence first. Prefer `qwen3` (4b or larger).
+
 Both use port 11434: run one at a time. `pnpm dev:down` stops the containers (models stay in the
 `ollama-models` volume).
 

@@ -404,7 +404,7 @@ function Steps({ steps }: { steps: AgentStep[] }) {
 
 /** An answer; the last one also offers to save the whole conversation as a note. */
 function Answer({ message, save }: { message: ChatMessage; save: { run: () => void; busy: boolean } | null }) {
-  const { text, doc, status, steps } = message;
+  const { text, doc, status, steps, mode } = message;
   const working = status === "streaming" && steps.some(s => s.status === "running");
   return (
     <article className="min-w-0" data-chat-answer={status} aria-busy={status === "streaming"}>
@@ -421,6 +421,12 @@ function Answer({ message, save }: { message: ChatMessage; save: { run: () => vo
         </p>
       )}
       {status === "stopped" && <p className="mt-1 text-caption text-muted-foreground">{t("pages.deskChat.stopped")}</p>}
+      {/* A model may claim it checked without calling a tool (seen with small models): said plainly. */}
+      {status === "done" && mode === "tools" && steps.length === 0 && (
+        <p className="mt-1 text-caption text-muted-foreground" data-chat-no-steps>
+          {t("pages.deskChat.noSteps")}
+        </p>
+      )}
       {(status === "done" || status === "stopped") && text.trim() && (
         <div className="mt-2 flex flex-wrap gap-2">
           <CopyButton text={text} label={t("pages.deskChat.copyAnswer")} />

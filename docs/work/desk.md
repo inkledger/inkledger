@@ -52,6 +52,13 @@ Done criteria:
   - *Elsewhere* (Safari, phones): the chat works as before and says in one line that code is not in reach and how to bring it in.
   - *Panel:* a "Code" row under the issues: the repositories in reach as chips, "Allow <repo>" (app) or "Connect folder" (browser) where needed, then the mode line. Each tool step is a compact line above its answer ("Searching “inventario” in app: 3 hits", "Reading src/…/InventoryService.kt", "Commits mentioning MAGA-400"), which opens to show what the model read.
 
+- **Real models (4e, 2 Nov):** a script ran the chat's prompt, tools, stream reading and loop against a real Ollama, with this repository as the code and a fixed issue ("empty slot overflows", fixed by 2e06039). What it showed, and what the harness now does:
+  - `qwen2.5-coder` (7b, 14b) writes its tool call as JSON text, alone or after a sentence of plan, instead of `tool_calls`: `toolCallsInText` turns a whole answer, or its end, into calls to the tools offered (fenced, `<tool_call>` tags, several, an array, `parameters`); an answer that opens like JSON is held back until it is known not to be a call.
+  - Models stopped after one empty search, or said "I would check" without checking, or claimed a commit they never saw (`qwen3:4b`, `qwen2.5-coder:7b`): on a conversation's first question the loop gathers evidence before the model's first round, also for a model with tools (the key and two title words in the code, and in commit messages: a fix seldom names the key), sent as extracts with the tools; the prompt says to start from it, to look by the title's words when no commit names the key, never to cite what it didn't see, and to call a tool instead of saying it would. An answer in tools mode with no step at all is marked "Answered without reading the code".
+  - `qwen3` writes its thinking even with `think: false`: `withoutThinking` drops `<think>` blocks and what comes before a lone `</think>`.
+  - `qwen3:4b` answered an Italian question in English: the language is now the conversation's last word (`languageReminder`, a system message after the turns, from the UI language unless the person writes in another).
+  - After these, `qwen3:4b` answered right twice out of two, in Italian, citing the commit and the files it changed; `qwen2.5-coder:14b` and `7b` found the commit from the evidence. Recommended: `OLLAMA_CHAT_MODEL=qwen3:4b` or larger.
+
 ## Batches and progress
 - [x] 0. Layout model (`contracts/desk.ts`, tests)
 - [x] 1. `IssueBody` as page or pane; the issue page is unchanged (byte-identical screenshots)
@@ -61,6 +68,7 @@ Done criteria:
 - [x] 4b. Up to six panes and more arrangements (presets, fit, snap edges, picker, Move to, keys, toasts, tabs)
 - [x] 4c. Ask AI: a chat with the local model about the issues shown (`api/desk/chat.ts`, `DeskChat`)
 - [x] 4d. The chat reads the code on the user's machine: tools, agent loop, Rust commands, browser folders, extracts fallback
+- [x] 4e. The chat on real models: calls written as text, evidence first, thinking dropped, the language last
 - [ ] 5. Compare view, and its phone table
 - [ ] 6. Copy all for model (`issues.copyForAgentMany`)
 - [ ] 7. Decision note (`markdown_note_issues`, migration 0039)
@@ -101,7 +109,7 @@ Done criteria:
 - An issue dragged from the board or a list can reach the Desk only through the sidebar entry (another page); dropping on the Desk itself needs the Desk beside the list (a second window).
 - The chat's answers were tried with the simulator only, never with a real model in this batch: the prompt's behaviour (citing keys, staying on topic, the language) is unverified on a real Ollama.
 - While an answer is written, what came after the last `draft` (up to 150 ms) shows a moment later; a stopped answer keeps the last draft's drawing.
-- 4d was tried with the simulator, a stubbed native bridge and an in-memory folder only: no real Ollama (tool calling, the prompt's effect on "APP-400"), no real app window (the NSAlert and Windows dialogs), no real `showDirectoryPicker`. The Windows build was not checked: `cargo check --target x86_64-pc-windows-gnu` stops at `ring`'s C code (no mingw here), before our code.
+- 4d was first tried with the simulator only; see "Real models" below for what a real Ollama showed. Still untried: a real app window (the NSAlert and Windows dialogs), no real `showDirectoryPicker`. The Windows build was not checked: `cargo check --target x86_64-pc-windows-gnu` stops at `ring`'s C code (no mingw here), before our code.
 - Ollama's tool-call streaming varies by version and model (calls may come in one line or several); the reader accepts calls on any line, arguments as an object or JSON text.
 - The browser can't tell whether a connected folder holds links that lead out; it only exposes what is inside the picked folder.
 - **Next:** batches 5–9.

@@ -46,7 +46,7 @@ export function deskChatTools(names: readonly CodeToolName[]): OllamaToolDef[] {
 
 export type DeskChatCode =
   /** The model explores the code with these tools. */
-  | { mode: "tools"; tools: readonly CodeToolName[]; repos: readonly string[] }
+  | { mode: "tools"; tools: readonly CodeToolName[]; repos: readonly string[]; extracts?: string }
   /** The page searched the code itself (a model without tools). */
   | { mode: "extracts"; extracts: string }
   | { mode: "none" };
@@ -66,8 +66,10 @@ export function deskChatSystem(issuesMarkdown: string, keys: readonly string[], 
       ...code.tools.map(t => `- ${t}: ${TOOL_LINES[t]}`),
       `Repositories (the repo argument): ${code.repos.map((r, i) => `${i} = ${r}`).join(", ")}.`,
       git
-        ? "Check the code before claiming something is solved: look for commits mentioning the key (git_log with grep), then the code they changed. Say what you checked, with paths."
+        ? "Check the code before claiming something is solved: look for commits mentioning the key (git_log with grep); when none do, look for commits and code with the distinctive words of the title; then read the code they changed. Say what you checked, with paths."
         : "Check the code before claiming something is solved: grep for the key and the words of the title, then read the code around the hits. Say what you checked, with paths.",
+      ...(code.extracts?.trim() ? ["What was found before you started follows the issues: start from it, then look further with the tools. Never cite a commit or a file you didn't see there or in a tool's result."] : []),
+      "When you need the code, call a tool now: never answer that you would have to check.",
       "Take a few steps at most, then answer.",
     );
   } else if (code.mode === "extracts") {
@@ -81,8 +83,18 @@ export function deskChatSystem(issuesMarkdown: string, keys: readonly string[], 
     "Be concise; use Markdown lists and short headings when they help.",
     `Reply in the language the person writes in; when unsure, in ${LANGUAGE[locale] ?? "English"}.`,
   );
-  const extracts = code.mode === "extracts" ? `\n\n---\n\n## Extracts from the code\n\n${code.extracts}` : "";
+  const found = code.mode === "extracts" || code.mode === "tools" ? code.extracts?.trim() : "";
+  const extracts = found ? `\n\n---\n\n## Extracts from the code\n\n${found}` : "";
   return `${rules.join("\n")}\n\n---\n\n${issuesMarkdown}${extracts}`;
+}
+
+/**
+ * The last word before the model answers: the language. Small models follow the end of
+ * the conversation more than its start (qwen3 answered an Italian question in English).
+ */
+export function languageReminder(locale: string): string {
+  const language = LANGUAGE[locale] ?? "English";
+  return `Reply in ${language}, unless the person's last message is written in another language: then in that one.`;
 }
 
 /** Said when the tool rounds are used up: the model gets no tools and this. */
