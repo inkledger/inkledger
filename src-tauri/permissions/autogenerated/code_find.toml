@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-code-find"
+description = "Enables the code_find command without any pre-configured scope."
+commands.allow = ["code_find"]
+
+[[permission]]
+identifier = "deny-code-find"
+description = "Denies the code_find command without any pre-configured scope."
+commands.deny = ["code_find"]

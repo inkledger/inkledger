@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+#[cfg(desktop)]
+mod code;
 mod i18n;
 #[cfg(desktop)]
 mod idle;
@@ -573,6 +575,22 @@ pub fn run() {
             tailscale::tailscale_info,
             #[cfg(desktop)]
             tailscale::tailscale_serve,
+            #[cfg(desktop)]
+            code::code_roots,
+            #[cfg(desktop)]
+            code::code_allow_root,
+            #[cfg(desktop)]
+            code::code_ls,
+            #[cfg(desktop)]
+            code::code_find,
+            #[cfg(desktop)]
+            code::code_grep,
+            #[cfg(desktop)]
+            code::code_read,
+            #[cfg(desktop)]
+            code::code_git_log,
+            #[cfg(desktop)]
+            code::code_git_show,
         ]);
 
     // Desktop: one instance (opens maximized, tauri.conf.json), launch at login,

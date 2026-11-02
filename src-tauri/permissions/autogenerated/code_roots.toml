@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-code-roots"
+description = "Enables the code_roots command without any pre-configured scope."
+commands.allow = ["code_roots"]
+
+[[permission]]
+identifier = "deny-code-roots"
+description = "Denies the code_roots command without any pre-configured scope."
+commands.deny = ["code_roots"]

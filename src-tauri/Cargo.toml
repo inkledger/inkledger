@@ -19,6 +19,17 @@ tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# The Desk chat's code tools (src/code.rs): grep patterns and globs.
+regex = "1"
+
+# The native "allow this repository" dialog (src/code.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAlert", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

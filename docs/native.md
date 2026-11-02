@@ -112,6 +112,25 @@ pass, CI attaches both installers and their SHA-256 checksums to the GitHub Rele
   (`capabilities/remote.json`, only `*.ts.net` and loopback) can call the commands listed
   there. Every new command called from the page must be added to `build.rs` and to
   `remote.json` (`pnpm test:e2e` checks this).
+- **Code for the Desk chat** (`src-tauri/src/code.rs`, macOS and Windows): the chat's local
+  model reads the repositories attached to a project (Settings → Repositories) through
+  read-only commands: `code_ls`, `code_find`, `code_grep`, `code_read`, `code_git_log`,
+  `code_git_show`. The server never reads them; the page runs each tool the model asks for
+  and sends back only the result.
+  - **Allow once:** a remote page could name any folder, so each repository root must first
+    be allowed in a native dialog (`code_allow_root`: NSAlert on macOS, a message box on
+    Windows; "Don't allow" is the default). The allowance is kept in the app's data
+    (`code-access.json`), per server origin. `code_roots` tells the page which roots are
+    allowed, and looks at nothing on disk for the others. The other commands refuse a root
+    that isn't allowed.
+  - **Confined:** paths are relative to the root (Windows separators accepted); absolute
+    paths, drive letters, `~`, `..`, `:` and links that resolve outside the root are refused.
+    Walks never follow links and skip `.git`, `node_modules` and build output; binary and
+    files over 1 MB are not read. CRLF files read as lines.
+  - **Git** runs as the `git` program with fixed argument lists and no shell (`-C <root>`,
+    `--no-pager`, literal pathspecs, `--no-ext-diff --no-textconv`); commit ids are hex only;
+    output is capped and a call stops after 20 s. Without git the git tools are off.
+  - `~/` is the home folder (`HOME`, or `USERPROFILE` on Windows).
 
 ## 3. Phones (Android and iPhone)
 

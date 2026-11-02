@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-code-read"
+description = "Enables the code_read command without any pre-configured scope."
+commands.allow = ["code_read"]
+
+[[permission]]
+identifier = "deny-code-read"
+description = "Denies the code_read command without any pre-configured scope."
+commands.deny = ["code_read"]

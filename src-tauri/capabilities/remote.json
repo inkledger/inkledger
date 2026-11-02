@@ -38,6 +38,14 @@
     "allow-lan-start",
     "allow-lan-stop",
     "allow-tailscale-info",
-    "allow-tailscale-serve"
+    "allow-tailscale-serve",
+    "allow-code-roots",
+    "allow-code-allow-root",
+    "allow-code-ls",
+    "allow-code-find",
+    "allow-code-grep",
+    "allow-code-read",
+    "allow-code-git-log",
+    "allow-code-git-show"
   ]
 }

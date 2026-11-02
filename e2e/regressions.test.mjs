@@ -882,8 +882,11 @@ test("native shell config: HTML drag and drop reaches the page; the page may cal
   const used = [...bridge.matchAll(/invokeNative(?:<[^>]+>)?\("([a-z_]+)"/g)].map(m => m[1]);
   const remote = JSON.parse(readFileSync(`${APP}src-tauri/capabilities/remote.json`, "utf8"));
   assert.ok(used.length >= 5);
+  // build.rs declares the app's commands (each gets its allow- permission there).
+  const declared = readFileSync(`${APP}src-tauri/build.rs`, "utf8");
   for (const cmd of used) {
     assert.ok(remote.permissions.includes(`allow-${cmd.replaceAll("_", "-")}`), `remote may call ${cmd}`);
+    if (!cmd.startsWith("plugin:")) assert.ok(declared.includes(`"${cmd}"`), `build.rs declares ${cmd}`);
   }
   // The bundled profiles page: what it invokes, its capability grants.
   const page = readFileSync(`${APP}src-tauri/ui/index.html`, "utf8");

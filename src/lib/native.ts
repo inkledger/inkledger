@@ -1,3 +1,4 @@
+import type { FindResult, GitLogResult, GitShowResult, GrepResult, LsResult, ReadResult } from "@contracts/codeTools";
 import { t } from "@/i18n";
 
 /**
@@ -197,6 +198,46 @@ export type SettingsPane = "notifications" | "login-items" | "keyboard" | "focus
 
 export async function openSystemSettings(pane: SettingsPane): Promise<void> {
   await invokeNative("open_system_settings", { pane });
+}
+
+/**
+ * The Desk chat's code tools (src-tauri/src/code.rs, docs/work/desk.md batch 4d): read-only,
+ * on a repository root this server's page was allowed to read (a native dialog, once).
+ */
+export type CodeRootStatus = { root: string; allowed: boolean; git: boolean };
+
+/** Which roots this server may read (nothing is looked at for the others). */
+export async function codeRoots(roots: string[]): Promise<CodeRootStatus[] | undefined> {
+  return invokeNative<CodeRootStatus[]>("code_roots", { roots });
+}
+
+/** Asks the user in a native dialog to let the chat read this root; true when allowed. */
+export async function codeAllowRoot(root: string): Promise<boolean | undefined> {
+  return invokeNative<boolean>("code_allow_root", { root });
+}
+
+export async function codeLs(root: string, path: string): Promise<LsResult | undefined> {
+  return invokeNative<LsResult>("code_ls", { root, path });
+}
+
+export async function codeFind(root: string, pattern: string, path: string): Promise<FindResult | undefined> {
+  return invokeNative<FindResult>("code_find", { root, pattern, path });
+}
+
+export async function codeGrep(root: string, query: string, regex: boolean, glob: string | null): Promise<GrepResult | undefined> {
+  return invokeNative<GrepResult>("code_grep", { root, query, regex, glob });
+}
+
+export async function codeRead(root: string, path: string, from: number | null, to: number | null): Promise<ReadResult | undefined> {
+  return invokeNative<ReadResult>("code_read", { root, path, from, to });
+}
+
+export async function codeGitLog(root: string, grep: string | null, path: string | null, limit: number): Promise<GitLogResult | undefined> {
+  return invokeNative<GitLogResult>("code_git_log", { root, grep, path, limit });
+}
+
+export async function codeGitShow(root: string, commit: string, path: string | null): Promise<GitShowResult | undefined> {
+  return invokeNative<GitShowResult>("code_git_show", { root, commit, path });
 }
 
 /** A link that leaves the app: another origin over http(s), or mailto. */
