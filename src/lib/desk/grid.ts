@@ -32,6 +32,18 @@ const LABEL_KEY = {
   "main-top": "mainTop",
   "main-bottom": "mainBottom",
   quad: "quad",
+  "rows-3": "rows3",
+  "rows-4": "rows4",
+  "main-left-3": "mainLeft3",
+  "main-right-3": "mainRight3",
+  "main-top-3": "mainTop3",
+  "main-bottom-3": "mainBottom3",
+  "main-left-4": "mainLeft4",
+  "main-right-4": "mainRight4",
+  "top-3-bottom-2": "top3Bottom2",
+  "top-2-bottom-3": "top2Bottom3",
+  "grid-3x2": "grid3x2",
+  "grid-2x3": "grid2x3",
 } as const satisfies Record<PresetId, string>;
 
 /** An arrangement's name, in the user's words. */

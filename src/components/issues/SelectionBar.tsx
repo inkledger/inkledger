@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 
 /**
- * Issues picked in the list (x, the checkboxes): how many, "Open on desk" (at most four fit:
+ * Issues picked in the list (x, the checkboxes): how many, "Open on desk" (at most six fit:
  * above that the button says why it can't) and Clear. Stays at the bottom of the list while it
  * scrolls, above a phone's tab bar.
  */

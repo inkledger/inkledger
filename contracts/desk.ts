@@ -1,35 +1,77 @@
 import { z } from "zod";
 
 /**
- * The Desk: up to four issues side by side, laid out like windows snapped on a desktop. A layout is
- * one of a few fixed arrangements (halves, thirds, one big and two, quarters) with the size of each
- * of its columns and rows; slot i of the arrangement holds pane i, an issue or an empty slot (a
- * place kept free to open an issue in). Pure: shared by the page and the server, which stores the desk.
+ * The Desk: up to six issues side by side, laid out like windows snapped on a desktop. A layout is
+ * one of a few fixed arrangements (halves, thirds, rows, one big and the others beside it, quarters,
+ * two rows of different counts, grids of six) with the size of each of its columns and rows; slot i
+ * of the arrangement holds pane i, an issue or an empty slot (a place kept free to open an issue in).
+ * Pure: shared by the page and the server, which stores the desk.
  */
 
-export const DESK_MAX_PANES = 4;
+export const DESK_MAX_PANES = 6;
 export const DESK_MAX_PARKED = 8;
 export const DESK_SAVED_MAX = 50;
-/** The smallest share of the desk a column or row may take. */
+/** The smallest share of the desk a pane may take across (or down). */
 export const MIN_TRACK = 0.15;
 
-export const PRESET_IDS = ["single", "cols-2", "rows-2", "cols-3", "cols-4", "main-left", "main-right", "main-top", "main-bottom", "quad"] as const;
+/** By pane count, in the order they are offered; a stored id stays valid forever (old desks keep theirs). */
+export const PRESET_IDS = [
+  "single",
+  "cols-2",
+  "rows-2",
+  "cols-3",
+  "rows-3",
+  "main-left",
+  "main-right",
+  "main-top",
+  "main-bottom",
+  "cols-4",
+  "rows-4",
+  "quad",
+  "main-left-3",
+  "main-right-3",
+  "main-top-3",
+  "main-bottom-3",
+  "main-left-4",
+  "main-right-4",
+  "top-3-bottom-2",
+  "top-2-bottom-3",
+  "grid-3x2",
+  "grid-2x3",
+] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
 
-/** Each cell of the grid names the slot (0-based) that covers it. */
+/**
+ * Each cell of the grid names the slot (0-based) that covers it. A slot may span cells: two rows
+ * of different counts ("three above two") lie on six columns, each pane over two or three of them.
+ */
 export type Preset = { id: PresetId; slots: number; areas: readonly (readonly number[])[] };
 
+const preset = (id: PresetId, areas: readonly (readonly number[])[]): Preset => ({ id, slots: new Set(areas.flat()).size, areas });
+
 export const PRESETS: Record<PresetId, Preset> = {
-  single: { id: "single", slots: 1, areas: [[0]] },
-  "cols-2": { id: "cols-2", slots: 2, areas: [[0, 1]] },
-  "rows-2": { id: "rows-2", slots: 2, areas: [[0], [1]] },
-  "cols-3": { id: "cols-3", slots: 3, areas: [[0, 1, 2]] },
-  "cols-4": { id: "cols-4", slots: 4, areas: [[0, 1, 2, 3]] },
-  "main-left": { id: "main-left", slots: 3, areas: [[0, 1], [0, 2]] },
-  "main-right": { id: "main-right", slots: 3, areas: [[1, 0], [2, 0]] },
-  "main-top": { id: "main-top", slots: 3, areas: [[0, 0], [1, 2]] },
-  "main-bottom": { id: "main-bottom", slots: 3, areas: [[1, 2], [0, 0]] },
-  quad: { id: "quad", slots: 4, areas: [[0, 1], [2, 3]] },
+  single: preset("single", [[0]]),
+  "cols-2": preset("cols-2", [[0, 1]]),
+  "rows-2": preset("rows-2", [[0], [1]]),
+  "cols-3": preset("cols-3", [[0, 1, 2]]),
+  "rows-3": preset("rows-3", [[0], [1], [2]]),
+  "main-left": preset("main-left", [[0, 1], [0, 2]]),
+  "main-right": preset("main-right", [[1, 0], [2, 0]]),
+  "main-top": preset("main-top", [[0, 0], [1, 2]]),
+  "main-bottom": preset("main-bottom", [[1, 2], [0, 0]]),
+  "cols-4": preset("cols-4", [[0, 1, 2, 3]]),
+  "rows-4": preset("rows-4", [[0], [1], [2], [3]]),
+  quad: preset("quad", [[0, 1], [2, 3]]),
+  "main-left-3": preset("main-left-3", [[0, 1], [0, 2], [0, 3]]),
+  "main-right-3": preset("main-right-3", [[1, 0], [2, 0], [3, 0]]),
+  "main-top-3": preset("main-top-3", [[0, 0, 0], [1, 2, 3]]),
+  "main-bottom-3": preset("main-bottom-3", [[1, 2, 3], [0, 0, 0]]),
+  "main-left-4": preset("main-left-4", [[0, 1, 2], [0, 3, 4]]),
+  "main-right-4": preset("main-right-4", [[1, 2, 0], [3, 4, 0]]),
+  "top-3-bottom-2": preset("top-3-bottom-2", [[0, 0, 1, 1, 2, 2], [3, 3, 3, 4, 4, 4]]),
+  "top-2-bottom-3": preset("top-2-bottom-3", [[0, 0, 0, 1, 1, 1], [2, 2, 3, 3, 4, 4]]),
+  "grid-3x2": preset("grid-3x2", [[0, 1, 2], [3, 4, 5]]),
+  "grid-2x3": preset("grid-2x3", [[0, 1], [2, 3], [4, 5]]),
 };
 
 /** The arrangements for a number of panes, in the order they are offered. */
@@ -37,7 +79,9 @@ export function presetsFor(n: number): PresetId[] {
   return PRESET_IDS.filter(id => PRESETS[id].slots === n);
 }
 
-const DEFAULT_FOR: Record<number, PresetId> = { 0: "single", 1: "single", 2: "cols-2", 3: "main-left", 4: "quad" };
+const isPresetId = (id: string): id is PresetId => (PRESET_IDS as readonly string[]).includes(id);
+
+const DEFAULT_FOR: Record<number, PresetId> = { 0: "single", 1: "single", 2: "cols-2", 3: "main-left", 4: "quad", 5: "main-left-4", 6: "grid-3x2" };
 export const defaultPreset = (n: number): PresetId => DEFAULT_FOR[Math.min(Math.max(n, 0), DESK_MAX_PANES)];
 
 export type Tracks = { cols: number[]; rows: number[] };
@@ -71,11 +115,12 @@ export function emptySlot(slots: readonly DeskSlot[]): EmptySlot {
   return { empty: true, id: String(n) };
 }
 
-const tracksSchema = z.object({ cols: z.array(z.number()).max(4), rows: z.array(z.number()).max(4) });
+const tracksSchema = z.object({ cols: z.array(z.number()).max(6), rows: z.array(z.number()).max(6) });
 
 export const deskLayoutSchema = z.object({
   v: z.literal(1),
-  preset: z.enum(PRESET_IDS),
+  // Any name: one this version doesn't know (a later one's) is read as the default for the count.
+  preset: z.string().max(40),
   tracks: z.record(z.string(), tracksSchema),
   panes: z.array(z.union([deskPaneSchema, emptySlotSchema])).max(20),
   parked: z.array(deskPaneSchema).max(40),
@@ -84,34 +129,51 @@ export const deskLayoutSchema = z.object({
   onlyDifferences: z.boolean(),
   noteId: z.uuid().nullable(),
 });
-export type DeskLayout = Omit<z.infer<typeof deskLayoutSchema>, "tracks"> & { tracks: Partial<Record<PresetId, Tracks>> };
+export type DeskLayout = Omit<z.infer<typeof deskLayoutSchema>, "preset" | "tracks"> & { preset: PresetId; tracks: Partial<Record<PresetId, Tracks>> };
 
 /** A slot's id on the desk: the issue's connection and key, or "empty-N". */
 export const paneId = (slot: Pick<DeskPane, "connectionId" | "key"> | EmptySlot) => ("empty" in slot ? `empty-${slot.id}` : `${slot.connectionId}:${slot.key}`);
 
 export const emptyDesk = (): DeskLayout => ({ v: 1, preset: "single", tracks: {}, panes: [], parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null });
 
-/** Shares that add up to 1, none under MIN_TRACK; null when they can't be read as such. */
-function cleanTracks(values: readonly number[], count: number): number[] | null {
+/**
+ * The smallest share a column (or row) of an arrangement may take: MIN_TRACK, or less where every
+ * pane spans several of them (three above two: each pane covers two or three of six columns), so
+ * that no pane is ever thinner than MIN_TRACK.
+ */
+export function minTrackOf(id: PresetId, axis: keyof Tracks): number {
+  const { areas, slots } = PRESETS[id];
+  const lines = axis === "cols" ? areas : areas[0].map((_, c) => areas.map(row => row[c]));
+  // The fewest tracks any pane covers along this axis, in any line across it.
+  let span = Infinity;
+  for (let slot = 0; slot < slots; slot++) for (const line of lines) {
+    const count = line.filter(cell => cell === slot).length;
+    if (count) span = Math.min(span, count);
+  }
+  return MIN_TRACK / (Number.isFinite(span) ? span : 1);
+}
+
+/** Shares that add up to 1, none under `min`; null when they can't be read as such. */
+function cleanTracks(values: readonly number[], count: number, min: number): number[] | null {
   if (values.length !== count || values.some(value => !Number.isFinite(value) || value <= 0)) return null;
   const total = values.reduce((sum, value) => sum + value, 0);
   let shares = values.map(value => value / total);
-  // Raising the small ones takes from the others in proportion: at most a few rounds for four tracks.
-  for (let round = 0; round < count && shares.some(share => share < MIN_TRACK - 1e-9); round++) {
-    const low = shares.map(share => share < MIN_TRACK);
-    const needed = shares.reduce((sum, share, i) => sum + (low[i] ? MIN_TRACK - share : 0), 0);
-    const spare = shares.reduce((sum, share, i) => sum + (low[i] ? 0 : share - MIN_TRACK), 0);
+  // Raising the small ones takes from the others in proportion: at most a few rounds for six tracks.
+  for (let round = 0; round < count && shares.some(share => share < min - 1e-9); round++) {
+    const low = shares.map(share => share < min);
+    const needed = shares.reduce((sum, share, i) => sum + (low[i] ? min - share : 0), 0);
+    const spare = shares.reduce((sum, share, i) => sum + (low[i] ? 0 : share - min), 0);
     if (spare <= 0) return even(count);
-    shares = shares.map((share, i) => (low[i] ? MIN_TRACK : share - (needed * (share - MIN_TRACK)) / spare));
+    shares = shares.map((share, i) => (low[i] ? min : share - (needed * (share - min)) / spare));
   }
   return shares;
 }
 
 /**
  * Any stored or sent desk made safe to draw: unknown fields and arrangements dropped, the same issue
- * (or empty slot) never twice, at most four slots (the issues beyond parked) and eight parked, an
- * arrangement that has as many slots as panes, sizes that add up and none too thin. Empty slots stay
- * only beside an issue: a desk of empty slots alone is an empty desk.
+ * (or empty slot) never twice, at most six slots (the issues beyond parked) and eight parked, an
+ * arrangement known to this version that has as many slots as panes, sizes that add up and none too
+ * thin. Empty slots stay only beside an issue: a desk of empty slots alone is an empty desk.
  */
 export function normalizeDesk(raw: unknown): DeskLayout {
   const parsed = deskLayoutSchema.safeParse(raw);
@@ -122,13 +184,13 @@ export function normalizeDesk(raw: unknown): DeskLayout {
   const shown = unique(value.panes);
   const panes = shown.slice(0, DESK_MAX_PANES).some(isIssue) ? shown.slice(0, DESK_MAX_PANES) : [];
   const parked = [...shown.slice(DESK_MAX_PANES).filter(isIssue), ...unique(value.parked)].slice(0, DESK_MAX_PARKED);
-  const preset = PRESETS[value.preset].slots === Math.max(panes.length, 1) ? value.preset : defaultPreset(panes.length);
+  const preset = isPresetId(value.preset) && PRESETS[value.preset].slots === Math.max(panes.length, 1) ? value.preset : defaultPreset(panes.length);
   const tracks: Partial<Record<PresetId, Tracks>> = {};
   for (const id of PRESET_IDS) {
     const stored = value.tracks[id];
     if (!stored) continue;
-    const cols = cleanTracks(stored.cols, PRESETS[id].areas[0].length);
-    const rows = cleanTracks(stored.rows, PRESETS[id].areas.length);
+    const cols = cleanTracks(stored.cols, PRESETS[id].areas[0].length, minTrackOf(id, "cols"));
+    const rows = cleanTracks(stored.rows, PRESETS[id].areas.length, minTrackOf(id, "rows"));
     if (cols && rows) tracks[id] = { cols, rows };
   }
   const maximized = value.maximized && panes.some(pane => isIssue(pane) && paneId(pane) === value.maximized) ? value.maximized : null;
@@ -194,7 +256,7 @@ export function resizeTracks(shares: readonly number[], index: number, delta: nu
 /** Sets the size of one line of the current arrangement. */
 export function resizeDivider(desk: DeskLayout, axis: Divider["axis"], index: number, delta: number): DeskLayout {
   const current = tracksOf(desk);
-  return { ...desk, tracks: { ...desk.tracks, [desk.preset]: { ...current, [axis]: resizeTracks(current[axis], index, delta) } } };
+  return { ...desk, tracks: { ...desk.tracks, [desk.preset]: { ...current, [axis]: resizeTracks(current[axis], index, delta, minTrackOf(desk.preset, axis)) } } };
 }
 
 export function resetTracks(desk: DeskLayout): DeskLayout {
@@ -314,7 +376,29 @@ export function openTogether(desk: DeskLayout, panes: readonly DeskPane[]): Desk
   return shown.length ? arrange(desk, shown, defaultPreset(shown.length)) : desk;
 }
 
-const PAGE_ORDER: PresetId[] = ["cols-2", "rows-2", "main-left", "main-right", "cols-3", "quad", "cols-4", "main-top", "main-bottom"];
+const PAGE_ORDER: PresetId[] = [
+  "cols-2",
+  "rows-2",
+  "main-left",
+  "main-right",
+  "cols-3",
+  "quad",
+  "main-left-3",
+  "main-right-3",
+  "cols-4",
+  "main-left-4",
+  "main-right-4",
+  "grid-3x2",
+  "top-3-bottom-2",
+  "top-2-bottom-3",
+  "grid-2x3",
+  "main-top",
+  "main-bottom",
+  "rows-3",
+  "main-top-3",
+  "main-bottom-3",
+  "rows-4",
+];
 /** The arrangements an issue's page offers to send it to, `n` the issues the desk would hold with it: those with room for them all, at most six. */
 export const pagePresets = (n: number): PresetId[] => PAGE_ORDER.filter(id => PRESETS[id].slots >= Math.min(Math.max(n, 2), DESK_MAX_PANES)).slice(0, 6);
 
@@ -354,7 +438,11 @@ export function applySnap(desk: DeskLayout, index: number, target: SnapTarget): 
 
 export type Edge = "left" | "right" | "top" | "bottom" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
-/** What each edge and corner of the desk means for n panes (null: nothing there). Corners need 3 or 4. */
+/**
+ * What each edge and corner of the desk means for n panes (null: nothing there). From three panes an
+ * edge makes the pane the big one on that side and a corner one of the small ones opposite it (four:
+ * a quarter); six have no big one: corners are the grid's corners, edges the middle of a side.
+ */
 export function edgeTarget(edge: Edge, n: number): SnapTarget | null {
   const slot = (preset: PresetId, at: number): SnapTarget => ({ kind: "slot", preset, slot: at });
   if (n === 2) {
@@ -371,7 +459,21 @@ export function edgeTarget(edge: Edge, n: number): SnapTarget | null {
   if (n === 4) {
     const map: Record<Edge, SnapTarget> = {
       "top-left": slot("quad", 0), "top-right": slot("quad", 1), "bottom-left": slot("quad", 2), "bottom-right": slot("quad", 3),
-      left: slot("cols-4", 0), right: slot("cols-4", 3), top: slot("quad", 0), bottom: slot("quad", 2),
+      left: slot("main-left-3", 0), right: slot("main-right-3", 0), top: slot("main-top-3", 0), bottom: slot("main-bottom-3", 0),
+    };
+    return map[edge];
+  }
+  if (n === 5) {
+    const map: Record<Edge, SnapTarget> = {
+      left: slot("main-left-4", 0), right: slot("main-right-4", 0), top: slot("top-2-bottom-3", 0), bottom: slot("top-3-bottom-2", 3),
+      "top-left": slot("main-right-4", 1), "bottom-left": slot("main-right-4", 3), "top-right": slot("main-left-4", 2), "bottom-right": slot("main-left-4", 4),
+    };
+    return map[edge];
+  }
+  if (n === 6) {
+    const map: Record<Edge, SnapTarget> = {
+      "top-left": slot("grid-3x2", 0), "top-right": slot("grid-3x2", 2), "bottom-left": slot("grid-3x2", 3), "bottom-right": slot("grid-3x2", 5),
+      left: slot("grid-2x3", 2), right: slot("grid-2x3", 3), top: slot("grid-3x2", 1), bottom: slot("grid-3x2", 4),
     };
     return map[edge];
   }
@@ -423,24 +525,43 @@ export function zoneAt(point: { x: number; y: number }, n: number, paneRects: re
   return inner >= 0 ? { kind: "swap", index: inner } : null;
 }
 
+/** The arrangements to draw instead of each one when it doesn't fit, closest first (as many slots). */
+const FALLBACKS: Record<PresetId, PresetId[]> = {
+  single: [],
+  "cols-2": ["rows-2"],
+  "rows-2": ["cols-2"],
+  "cols-3": ["main-left", "main-top", "rows-3"],
+  "rows-3": ["main-top", "main-left", "cols-3"],
+  "main-left": ["main-top", "cols-3"],
+  "main-right": ["main-top", "cols-3"],
+  "main-top": ["main-left", "cols-3"],
+  "main-bottom": ["main-left", "cols-3"],
+  "cols-4": ["quad", "main-top-3"],
+  "rows-4": ["quad", "main-left-3"],
+  quad: ["cols-4", "rows-4"],
+  "main-left-3": ["main-top-3", "quad"],
+  "main-right-3": ["main-top-3", "quad"],
+  "main-top-3": ["main-left-3", "quad"],
+  "main-bottom-3": ["main-left-3", "quad"],
+  "main-left-4": ["top-2-bottom-3", "top-3-bottom-2"],
+  "main-right-4": ["top-2-bottom-3", "top-3-bottom-2"],
+  "top-3-bottom-2": ["top-2-bottom-3", "main-left-4"],
+  "top-2-bottom-3": ["top-3-bottom-2", "main-left-4"],
+  "grid-3x2": ["grid-2x3"],
+  "grid-2x3": ["grid-3x2"],
+};
+
 /**
- * The arrangement drawn on a desk too small for the chosen one (columns or rows under the minimum):
- * the closest one with as many slots that fits. The chosen one stays saved.
+ * The arrangement drawn on a desk too small for the chosen one (a pane, at even sizes, under
+ * `minWidth`×`minHeight`): the closest one with as many slots that fits; when none does, the one
+ * that comes nearest (its tightest pane the least short), the chosen one on a tie. The chosen one
+ * stays saved.
  */
 export function fitPreset(id: PresetId, width: number, height: number, minWidth: number, minHeight: number): PresetId {
-  const fits = (candidate: PresetId) => PRESETS[candidate].areas[0].length * minWidth <= width && PRESETS[candidate].areas.length * minHeight <= height;
-  if (fits(id)) return id;
-  const fallbacks: Record<PresetId, PresetId[]> = {
-    single: [],
-    "cols-2": ["rows-2"],
-    "rows-2": ["cols-2"],
-    "cols-3": ["main-left", "main-top"],
-    "cols-4": ["quad"],
-    "main-left": ["main-top", "cols-3"],
-    "main-right": ["main-top", "cols-3"],
-    "main-top": ["main-left", "cols-3"],
-    "main-bottom": ["main-left", "cols-3"],
-    quad: ["cols-4"],
-  };
-  return fallbacks[id].find(fits) ?? id;
+  /** How far the tightest pane is from the minimum: 1 or more fits. */
+  const room = (candidate: PresetId) => Math.min(...slotRects(candidate).map(rect => Math.min((rect.w * width) / minWidth, (rect.h * height) / minHeight)));
+  if (room(id) >= 1) return id;
+  const fitting = FALLBACKS[id].find(candidate => room(candidate) >= 1);
+  if (fitting) return fitting;
+  return FALLBACKS[id].reduce((best, candidate) => (room(candidate) > room(best) ? candidate : best), id);
 }

@@ -3,7 +3,7 @@
 // first load (the shell's Shift-click and drop hooks import it on demand).
 import { toast } from "sonner";
 import type { NavigateFunction } from "react-router";
-import { deskIssues, sideBySide, type DeskLayout, type DeskPane } from "@contracts/desk";
+import { deskIssues, DESK_MAX_PANES, sideBySide, type DeskLayout, type DeskPane } from "@contracts/desk";
 import { parseIssuePath, type IssueLinkRef } from "@/lib/issues";
 import { toastError } from "@/lib/errorText";
 import type { trpc } from "@/lib/trpc";
@@ -35,7 +35,7 @@ export async function sendToDesk({ utils, navigate }: Context, fn: (desk: DeskLa
   }
 }
 
-/** An issue put on the desk from a page that isn't the desk: said in a toast ("2/4"), with the way to the desk. */
+/** An issue put on the desk from a page that isn't the desk: said in a toast ("2/6"), with the way to the desk. */
 export async function addToDesk({ utils, navigate }: Context, ref: IssueLinkRef) {
   try {
     const r = await utils.client.desks.add.mutate(ref);
@@ -44,7 +44,7 @@ export async function addToDesk({ utils, navigate }: Context, ref: IssueLinkRef)
       ? t("pages.desk.already", { key: r.key })
       : r.parked
         ? t("pages.desk.addedParked", { key: r.key, parked: r.parked })
-        : t("pages.desk.added", { key: r.key, count: deskIssues(r.layout).length });
+        : t("pages.desk.added", { key: r.key, count: deskIssues(r.layout).length, max: DESK_MAX_PANES });
     toast(message, { action: { label: t("ui.palette.openDesk"), onClick: () => void navigate("/issues/desk") } });
   } catch (e) {
     toastError(e);

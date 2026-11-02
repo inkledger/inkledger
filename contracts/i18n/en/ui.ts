@@ -371,7 +371,7 @@ export const ui = {
     clearSelection: "Clear the selection",
     issue: "Issue",
     desk: "Desk",
-    focusPane: "Focus pane 1 to 4",
+    focusPane: "Focus pane 1 to 6",
     closePane: "Close the focused pane",
     restorePane: "Restore the maximized pane",
     snapPane: "Snap the focused pane to an edge",

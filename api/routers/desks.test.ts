@@ -31,7 +31,7 @@ describe("the current desk", () => {
       );
     conn = (await connection(a.id))[0].id;
     bobConn = (await connection(b.id))[0].id;
-    for (let n = 1; n <= 6; n++)
+    for (let n = 1; n <= 7; n++)
       await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 'S', 'To Do', 'APP', 'App', 'u', 1)", a.id, conn, `${100 + n}`, `APP-${n}`);
     await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, '900', 'BOB-1', 'S', 'To Do', 'BOB', 'Bob', 'u', 1)", b.id, bobConn);
     const { appRouter } = await import("../router");
@@ -59,6 +59,11 @@ describe("the current desk", () => {
     await ann.desks.setCurrent({ layout: { ...saved, preset: "rows-2" } });
     expect((await ann.desks.current()).preset).toBe("rows-2");
     expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 1 }]);
+    // Six panes in an arrangement of six are kept; an arrangement this version doesn't know is read as the default.
+    const six = await ann.desks.setCurrent({ layout: { ...saved, preset: "grid-2x3", panes: [1, 2, 3, 4, 5, 6].map(pane) } });
+    expect(six.preset).toBe("grid-2x3");
+    expect(six.panes).toHaveLength(6);
+    expect((await ann.desks.setCurrent({ layout: { ...six, preset: "from-the-future" } })).preset).toBe("grid-3x2");
     // Garbage is an empty desk, not an error.
     expect((await ann.desks.setCurrent({ layout: "junk" })).panes).toEqual([]);
   });
@@ -68,12 +73,12 @@ describe("the current desk", () => {
     const first = await ann.desks.add({ connectionId: conn, key: "app-1" });
     expect(first.layout.panes).toEqual([{ connectionId: conn, key: "APP-1", remoteId: "101" }]);
     expect(await ann.desks.add({ connectionId: conn, key: "APP-1" })).toMatchObject({ already: true, full: false, layout: { panes: [{ key: "APP-1" }] } });
-    for (const n of [2, 3, 4]) expect((await ann.desks.add({ key: `APP-${n}` })).full).toBe(false);
-    const fifth = await ann.desks.add({ connectionId: conn, key: "APP-5" });
-    expect(fifth).toMatchObject({ full: true, parked: "APP-4" });
-    expect(fifth.layout.panes.map(slotKey)).toEqual(["APP-1", "APP-2", "APP-3", "APP-5"]);
-    expect(fifth.layout.parked.map(p => p.key)).toEqual(["APP-4"]);
-    expect(fifth.layout.preset).toBe("quad");
+    for (const n of [2, 3, 4, 5, 6]) expect((await ann.desks.add({ key: `APP-${n}` })).full).toBe(false);
+    const seventh = await ann.desks.add({ connectionId: conn, key: "APP-7" });
+    expect(seventh).toMatchObject({ full: true, parked: "APP-6", count: 6 });
+    expect(seventh.layout.panes.map(slotKey)).toEqual(["APP-1", "APP-2", "APP-3", "APP-4", "APP-5", "APP-7"]);
+    expect(seventh.layout.parked.map(p => p.key)).toEqual(["APP-6"]);
+    expect(seventh.layout.preset).toBe("grid-3x2");
   });
 
   it("follows an issue renamed since (by its identity), stored and old keys alike", async () => {
@@ -97,7 +102,8 @@ describe("the current desk", () => {
     expect(added.layout.panes.map(slotKey)).toEqual(["APP-1", "APP-2", "NEW-6", "_"]);
     expect(added.layout.preset).toBe("quad");
     expect((await ann.desks.add({ connectionId: conn, key: "APP-3" })).full).toBe(false);
-    expect((await ann.desks.add({ connectionId: conn, key: "APP-4" })).full).toBe(true);
+    for (const key of ["APP-4", "APP-5"]) expect((await ann.desks.add({ connectionId: conn, key })).full).toBe(false);
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-7" })).full).toBe(true);
     await expect(ann.desks.add({ connectionId: conn, remoteId: "999" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(ann.desks.add({ connectionId: bobConn, remoteId: "900" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await ann.desks.setCurrent({ layout: null });

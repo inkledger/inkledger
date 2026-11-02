@@ -38,7 +38,7 @@ const snapPane = (desk: DeskLayout, id: string, target: SnapTarget) => {
 };
 
 /**
- * The Desk (/issues/desk): up to four issues side by side. Wide screens draw them on a
+ * The Desk (/issues/desk): up to six issues side by side. Wide screens draw them on a
  * grid of the chosen arrangement, with dividers between them; phones show one at a
  * time under a row of tabs (the arrangement saved is left as it is).
  */
@@ -96,7 +96,7 @@ export default function DeskPage() {
     change(how);
   };
 
-  // The desk's own keys: 1–4 focus a pane, x closes the focused one, Esc restores a maximized one,
+  // The desk's own keys: 1–6 focus a pane, x closes the focused one, Esc restores a maximized one,
   // Alt+Shift+arrows send the focused one to that side.
   const keys = useRef({ ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk });
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function DeskPage() {
         if (!target || !k.focused || !k.grid || k.maximized) return;
         e.preventDefault();
         k.moveTo(k.focused, target);
-      } else if (/^[1-4]$/.test(e.key)) {
+      } else if (/^[1-6]$/.test(e.key)) {
         const id = k.ids[Number(e.key) - 1];
         if (!id) return;
         e.preventDefault();
@@ -264,7 +264,7 @@ function PhoneDesk({ ids, keys, focused, onSelect, add, children }: { ids: strin
   return (
     <>
       <div className="flex items-center gap-1 border-b pl-1 pr-2 md:pl-3">
-        {/* Four keys may not fit a phone's width: they scroll sideways, the "+" stays. */}
+        {/* Six keys may not fit a phone's width: they scroll sideways, the "+" stays. */}
         <div role="tablist" aria-label={t("pages.desk.tabs")} onKeyDown={onKeyDown} className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
           {ids.map((id, i) => (
             <button

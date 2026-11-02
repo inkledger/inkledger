@@ -372,7 +372,7 @@ export const ui: Shape<typeof en> = {
     clearSelection: "Togli la selezione",
     issue: "Issue",
     desk: "Scrivania",
-    focusPane: "Vai al riquadro da 1 a 4",
+    focusPane: "Vai al riquadro da 1 a 6",
     closePane: "Chiudi il riquadro attivo",
     restorePane: "Riduci il riquadro ingrandito",
     snapPane: "Aggancia il riquadro attivo a un bordo",

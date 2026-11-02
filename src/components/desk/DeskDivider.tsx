@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
-import { MIN_TRACK, resizeTracks, type Divider } from "@contracts/desk";
+import { resizeTracks, type Divider } from "@contracts/desk";
 import { cn } from "@/lib/utils";
 import { lineAt, lineVars, template } from "@/lib/desk/grid";
 import { t } from "@/i18n";
@@ -16,6 +16,7 @@ const BIG_STEP = 0.1;
 export function DeskDivider({
   divider: { axis, index, from, to },
   shares,
+  min,
   other,
   grid,
   between,
@@ -25,6 +26,8 @@ export function DeskDivider({
   divider: Divider;
   /** The tracks it sits between (columns for a vertical line), as now. */
   shares: readonly number[];
+  /** The smallest share a track of this axis may take (`minTrackOf`). */
+  min: number;
   /** The tracks of the other axis (to write the grid while dragging). */
   other: readonly number[];
   grid: RefObject<HTMLElement | null>;
@@ -37,9 +40,9 @@ export function DeskDivider({
   const [dragging, setDragging] = useState(false);
   const live = useRef<number[] | null>(null);
   const at = Math.round(shares[index] * 100);
-  const max = Math.round((shares[index] + shares[index + 1] - MIN_TRACK) * 100);
+  const max = Math.round((shares[index] + shares[index + 1] - min) * 100);
 
-  const nudge = (delta: number) => onResize(resizeTracks(shares, index, delta), false);
+  const nudge = (delta: number) => onResize(resizeTracks(shares, index, delta, min), false);
   const onKeyDown = (e: KeyboardEvent) => {
     const step = e.shiftKey ? BIG_STEP : STEP;
     const back = vertical ? "ArrowLeft" : "ArrowUp";
@@ -70,7 +73,7 @@ export function DeskDivider({
     if (!live.current || !el) return;
     const rect = el.getBoundingClientRect();
     const point = vertical ? (e.clientX - rect.left) / rect.width : (e.clientY - rect.top) / rect.height;
-    live.current = resizeTracks(shares, index, point - lineAt(shares, index));
+    live.current = resizeTracks(shares, index, point - lineAt(shares, index), min);
     write(live.current);
   };
   const onPointerUp = () => {
@@ -91,7 +94,7 @@ export function DeskDivider({
       tabIndex={0}
       aria-orientation={vertical ? "vertical" : "horizontal"}
       aria-valuenow={at}
-      aria-valuemin={Math.round(MIN_TRACK * 100)}
+      aria-valuemin={Math.round(min * 100)}
       aria-valuemax={max}
       aria-label={t("pages.desk.resizeBetween", { first: between[0], second: between[1] })}
       onKeyDown={onKeyDown}

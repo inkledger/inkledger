@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { LayoutMiniature } from "@/components/desk/LayoutPicker";
 import { useSnapState, type SnapHandle } from "@/lib/desk/useSnapDrag";
+import { layoutLabel } from "@/lib/desk/grid";
+import { placeOf, placeShortName } from "@/lib/desk/targetName";
 import { IssueActions } from "@/components/issue/IssueActions";
 import type { PaneHeaderProps } from "@/components/issue/IssueBody";
 import { t } from "@/i18n";
@@ -38,6 +40,26 @@ export type PaneControls = {
   swaps: { index: number; key: string }[];
   onMove: (target: SnapTarget) => void;
 };
+
+/** Up to this many places, "Move to" lists them all; beyond, it groups them by arrangement. */
+const FLAT_MOVES = 8;
+
+/** The places in their arrangements, in the order given. */
+const groupMoves = (moves: readonly PaneMove[]) =>
+  moves.reduce<{ preset: PresetId; moves: PaneMove[] }[]>((groups, move) => {
+    const last = groups[groups.length - 1];
+    return last?.preset === move.preset ? [...groups.slice(0, -1), { ...last, moves: [...last.moves, move] }] : [...groups, { preset: move.preset, moves: [move] }];
+  }, []);
+
+/** One place of "Move to", drawn where it lies; `short` under its arrangement's name (the corner alone). */
+function MoveItem({ move: { preset, slot, name }, short = false, onMove }: { move: PaneMove; short?: boolean; onMove: (target: SnapTarget) => void }) {
+  return (
+    <DropdownMenuItem onSelect={() => onMove({ kind: "slot", preset, slot })}>
+      <LayoutMiniature preset={preset} active={slot} className="h-4 w-6" />
+      <span className="first-letter:uppercase">{short ? placeShortName(placeOf(preset, slot)) : name}</span>
+    </DropdownMenuItem>
+  );
+}
 
 /** The handle a pane is moved by: dragged, or Space then the arrows. Pressed-looking while it moves. */
 function PaneGrip({ id, issueKey, snap }: { id: string; issueKey: string; snap: SnapHandle }) {
@@ -81,12 +103,26 @@ export function PaneHeader({ issue: i, data, act, connectionId, onLogTime, contr
             <Move className="h-4 w-4" aria-hidden /> {t("pages.desk.moveTo")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto">
-            {c.moves.map(({ preset, slot, name }) => (
-              <DropdownMenuItem key={`${preset}-${slot}`} onSelect={() => c.onMove({ kind: "slot", preset, slot })}>
-                <LayoutMiniature preset={preset} active={slot} className="h-4 w-6" />
-                <span className="first-letter:uppercase">{name}</span>
-              </DropdownMenuItem>
-            ))}
+            {c.moves.length <= FLAT_MOVES
+              ? c.moves.map(move => <MoveItem key={`${move.preset}-${move.slot}`} move={move} onMove={c.onMove} />)
+              : groupMoves(c.moves).map(({ preset, moves }) =>
+                  // An arrangement with one place left is that place; one with more opens its places.
+                  moves.length === 1 ? (
+                    <MoveItem key={preset} move={moves[0]} onMove={c.onMove} />
+                  ) : (
+                    <DropdownMenuSub key={preset}>
+                      <DropdownMenuSubTrigger>
+                        <LayoutMiniature preset={preset} className="h-4 w-6" />
+                        <span>{layoutLabel(preset)}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto">
+                        {moves.map(move => (
+                          <MoveItem key={move.slot} move={move} short onMove={c.onMove} />
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )
+                )}
             {c.swaps.length > 0 && <DropdownMenuSeparator />}
             {c.swaps.map(({ index, key: other }) => (
               <DropdownMenuItem key={other} onSelect={() => c.onMove({ kind: "swap", index })}>

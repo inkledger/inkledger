@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type CSSProperties, type DragEvent } from "react";
-import { DESK_MAX_PANES, dividersOf, isEmptySlot, paneId, PRESETS, removePane, sameTarget, slotRects, tracksOf, type DeskLayout, type DeskPane as Pane, type PresetId, type SnapTarget, type Tracks } from "@contracts/desk";
+import { DESK_MAX_PANES, dividersOf, isEmptySlot, minTrackOf, paneId, PRESETS, removePane, sameTarget, slotRects, tracksOf, type DeskLayout, type DeskPane as Pane, type PresetId, type SnapTarget, type Tracks } from "@contracts/desk";
 import { DeskDivider } from "@/components/desk/DeskDivider";
 import { lineVars, template } from "@/lib/desk/grid";
 import { DeskPane } from "@/components/desk/DeskPane";
@@ -157,6 +157,7 @@ export function Desk({
               key={`${divider.axis}-${divider.index}-${divider.from}`}
               divider={divider}
               shares={tracks[divider.axis]}
+              min={minTrackOf(drawn, divider.axis)}
               other={vertical ? tracks.rows : tracks.cols}
               grid={gridRef}
               between={between}

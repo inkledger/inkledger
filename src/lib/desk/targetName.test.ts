@@ -24,12 +24,18 @@ describe("target names", () => {
     expect(targetName({ kind: "swap", index: 2 }, keys)).toBe("in place of DEMO-103");
     expect(placeShortName(placeOf("main-bottom", 2))).toBe("top right corner");
     expect(targetName({ kind: "slot", preset: "single", slot: 0 }, keys)).toBe("the whole desk");
+    expect(targetName({ kind: "slot", preset: "rows-3", slot: 1 }, keys)).toBe("second row");
+    expect(targetName({ kind: "slot", preset: "main-left-3", slot: 2 }, keys)).toBe("middle right, with the big one on the left");
+    expect(targetName({ kind: "slot", preset: "main-left-4", slot: 1 }, keys)).toBe("top middle, with the big one on the left");
+    expect(targetName({ kind: "slot", preset: "top-3-bottom-2", slot: 4 }, keys)).toBe("bottom right corner, three above two");
+    expect(targetName({ kind: "slot", preset: "grid-2x3", slot: 2 }, keys)).toBe("middle left, in two columns");
+    expect(placeShortName(placeOf("grid-3x2", 1))).toBe("top middle");
   });
 
   it("names every place for a pane count differently, in English and Italian", async () => {
     for (const locale of ["en", "it"] as const) {
       await speak(locale);
-      for (const n of [2, 3, 4]) {
+      for (const n of [2, 3, 4, 5, 6]) {
         const names = snapTargets(n).map(target => targetName(target, []));
         expect(new Set(names).size, `${locale}, ${n} panes: ${names.join(" | ")}`).toBe(names.length);
         expect(names.every(name => name.length > 0 && !name.includes("pages.desk"))).toBe(true);
@@ -39,10 +45,10 @@ describe("target names", () => {
   });
 
   it("places the big one first and its small ones on the other side", () => {
-    for (const preset of presetsFor(3)) {
+    for (const n of [3, 4, 5]) for (const preset of presetsFor(n).filter(id => id.startsWith("main-"))) {
       const places = Array.from({ length: PRESETS[preset].slots }, (_, slot) => placeOf(preset, slot));
-      if (preset === "cols-3") expect(places.map(place => place.kind)).toEqual(["column", "column", "column"]);
-      else expect(places.map(place => place.kind)).toEqual(["big", "beside", "beside"]);
+      expect(places.map(place => place.kind)).toEqual(["big", ...Array(n - 1).fill("beside")]);
     }
+    expect(placeOf("rows-3", 0).kind).toBe("row");
   });
 });

@@ -78,7 +78,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
     {
       group: t("ui.shortcuts.desk"),
       items: [
-        { keys: ["1–4"], label: t("ui.shortcuts.focusPane") },
+        { keys: ["1–6"], label: t("ui.shortcuts.focusPane") },
         { keys: ["x"], label: t("ui.shortcuts.closePane") },
         { keys: ["Esc"], label: t("ui.shortcuts.restorePane") },
         { keys: [...ALT_SHIFT, "← ↑ → ↓"], label: t("ui.shortcuts.snapPane") },
