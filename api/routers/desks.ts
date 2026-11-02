@@ -98,16 +98,17 @@ export const desksRouter = createRouter({
 
   /**
    * Puts an issue on the desk: already there, nothing changes; a full desk parks
-   * its last pane (`parked` names it).
+   * its last pane (`parked` names it). `key`: the issue's key today.
    */
   add: protectedProcedure
     .input(z.object({ connectionId: z.number().int().positive().optional(), key: issueKeyInput }))
     .mutation(async ({ ctx, input }) => {
       const pane = await paneFor(ctx.user.id, input.key, input.connectionId);
       const before = await readCurrent(ctx.user.id);
-      const full = before.panes.length >= DESK_MAX_PANES && !before.panes.some(item => paneId(item) === paneId(pane));
+      const already = before.panes.some(item => paneId(item) === paneId(pane));
+      const full = before.panes.length >= DESK_MAX_PANES && !already;
       const out = full ? before.panes[before.panes.length - 1] : undefined;
-      const layout = await writeCurrent(ctx.user.id, addPane(before, pane));
-      return { layout, full, parked: out?.key };
+      const layout = already ? before : await writeCurrent(ctx.user.id, addPane(before, pane));
+      return { layout, key: pane.key, already, full, parked: out?.key };
     }),
 });

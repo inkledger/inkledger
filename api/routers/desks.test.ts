@@ -64,7 +64,7 @@ describe("the current desk", () => {
     await ann.desks.setCurrent({ layout: null });
     const first = await ann.desks.add({ connectionId: conn, key: "app-1" });
     expect(first.layout.panes).toEqual([{ connectionId: conn, key: "APP-1", remoteId: "101" }]);
-    expect((await ann.desks.add({ connectionId: conn, key: "APP-1" })).layout.panes).toHaveLength(1);
+    expect(await ann.desks.add({ connectionId: conn, key: "APP-1" })).toMatchObject({ already: true, full: false, layout: { panes: [{ key: "APP-1" }] } });
     for (const n of [2, 3, 4]) expect((await ann.desks.add({ key: `APP-${n}` })).full).toBe(false);
     const fifth = await ann.desks.add({ connectionId: conn, key: "APP-5" });
     expect(fifth).toMatchObject({ full: true, parked: "APP-4" });
