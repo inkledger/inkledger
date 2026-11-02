@@ -319,6 +319,9 @@ test("A layout saved under older rules still shows: what the rules now refuse is
 test("The Studio draws the Dashboard as it is laid out: the rail beside the timeline, the summary beside My issues", () =>
   withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
+    // Measure the settled canvas, not a frame from while the editor is still loading.
+    await page.locator('[data-anchor="dashboard.recap"]').waitFor();
+    await quiet(page);
     const box = async anchorId => page.locator(`[data-anchor="${anchorId}"]`).boundingBox();
     const [timeline, stats, summary, tasks, activity, recap] = await Promise.all(["dashboard.timeline", "dashboard.stats", "dashboard.summary", "dashboard.tasks", "dashboard.activity", "dashboard.recap"].map(box));
     assert.ok(Math.abs(stats.y - timeline.y) < 40 && stats.x > timeline.x + timeline.width, "Quick numbers beside the timeline");
