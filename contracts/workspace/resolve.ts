@@ -409,6 +409,27 @@ export function resolve(input: ResolveInput): ResolveResult {
     }
     if (!changed) break;
   }
+  // An area the user's own choices filled, which a release's block no longer fits in (its migration, if
+  // any, found no room either): the block waits hidden, said so and still in Discovery, and the rest of
+  // the layout resolves as saved (T-05, §13.6). Never a reset, never the user's choice moved.
+  for (const area of catalog.areas) {
+    const inArea = placements.filter(placement => placement.areaId === area.id && placement.visible);
+    if (inArea.length <= area.capacity || !inArea.some(placement => placement.origin === "user")) continue;
+    let used = inArea.length;
+    // What this release brought goes first: what the user already had on screen stays the longest.
+    const isNew = (placement: ResolvedPlacement) => compareWorkspaceVersions(catalog.anchors.find(anchor => anchor.id === placement.anchorId)?.introducedIn ?? "", activeRevision.catalogVersion) === 1;
+    const candidates = inArea
+      .filter(placement => placement.origin !== "user" && !catalog.anchors.find(anchor => anchor.id === placement.anchorId)?.critical)
+      .sort((a, b) => Number(isNew(b)) - Number(isNew(a)) || b.order - a.order || byId(b.anchorId, a.anchorId));
+    for (const candidate of candidates) {
+      if (used <= area.capacity) break;
+      candidate.visible = false;
+      candidate.origin = "fallback";
+      const migrationId = migrationByAnchor.get(candidate.anchorId)?.id;
+      fallbacks.push({ anchorId: candidate.anchorId, reason: "isolated", fromAreaId: area.id, ...(migrationId ? { migrationId } : {}) });
+      used--;
+    }
+  }
 
   for (const placement of placements) {
     const area = areaFor(placement.areaId);
