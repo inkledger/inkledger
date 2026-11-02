@@ -29,7 +29,7 @@ import { createHmac } from "node:crypto";
 import { simRequest } from "../core/simulator";
 import type { TrelloAction, TrelloBoard, TrelloCard, TrelloLabel, TrelloList, TrelloMember } from "./client";
 
-export type SimMember = TrelloMember;
+type SimMember = TrelloMember;
 type SimList = TrelloList;
 type SimBoard = { id: string; name: string; shortLink: string; closed: boolean; members: Set<string>; nextShort: number; pos: number };
 type SimCard = {

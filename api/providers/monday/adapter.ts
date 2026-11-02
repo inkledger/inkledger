@@ -148,7 +148,7 @@ export const statusColumn = (cols: MondayColumn[]): MondayColumn | undefined => 
   return all.find((c) => c.id === "status") ?? all.find((c) => !c.id.startsWith("priority")) ?? all[0];
 };
 /** The people column the user's items are found by: "person" by id, else the first. */
-export const peopleColumn = (cols: MondayColumn[]): MondayColumn | undefined => {
+const peopleColumn = (cols: MondayColumn[]): MondayColumn | undefined => {
   const all = cols.filter(isPeople);
   return all.find((c) => c.id === "person") ?? all[0];
 };

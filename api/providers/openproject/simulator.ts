@@ -34,7 +34,7 @@ type SimStatus = { id: number; name: string; isClosed: boolean; position: number
 type SimProject = { id: number; identifier: string; name: string; hidden: boolean; timeTracking: boolean; logTime: boolean; disabledActivities: Set<number> };
 type SimDetail = { html: string };
 type SimActivityItem = { id: number; kind: "comment" | "revision"; comment: string; details: SimDetail[]; createdAt: number; userId: number };
-export type SimWorkPackage = {
+type SimWorkPackage = {
   id: number;
   lockVersion: number;
   project: SimProject;
@@ -54,7 +54,7 @@ export type SimWorkPackage = {
   watchers: Set<number>;
   activities: SimActivityItem[];
 };
-export type SimTimeEntry = { id: number; wpId: number | null; projectId: number; userId: number; spentOn: string; seconds: number; comment: string; activityId: number; createdAt: number; updatedAt: number; lockVersion: number };
+type SimTimeEntry = { id: number; wpId: number | null; projectId: number; userId: number; spentOn: string; seconds: number; comment: string; activityId: number; createdAt: number; updatedAt: number; lockVersion: number };
 
 const DAY = 86_400_000;
 const ISSUE_TYPES: Record<string, number> = { Task: 1, Milestone: 2, Phase: 3, Feature: 4, Epic: 5, "User story": 6, Bug: 7 };

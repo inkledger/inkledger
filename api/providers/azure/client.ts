@@ -29,7 +29,7 @@ export type AzureIdentity = {
 /** An identity field: an object on current versions, "Name <unique name>" on older servers. */
 export type AzureIdentityField = AzureIdentity | string;
 
-export type AzureFields = {
+type AzureFields = {
   "System.WorkItemType"?: string;
   "System.State"?: string;
   "System.Reason"?: string;
@@ -125,7 +125,7 @@ async function refused(res: Response): Promise<ProviderError> {
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
 }
 
-export type AzCall = RequestInit & {
+type AzCall = RequestInit & {
   /** 404 as null */
   missingIsNull?: boolean;
   /** Query parameters (api-version is added) */
@@ -181,12 +181,12 @@ export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Pro
 export const azOk = <T>(c: AzureCreds, path: string, init: AzCall = {}): Promise<T> => mustAnswer(az<T>(c, path, init), "Azure DevOps", path);
 
 /** A JSON-patch call to a work item (the test op on /rev is how a revision is held). */
-export type PatchOp = { op: "add" | "replace" | "test" | "remove"; path: string; value?: unknown };
+type PatchOp = { op: "add" | "replace" | "test" | "remove"; path: string; value?: unknown };
 export const patchItem = (c: AzureCreds, id: number | string, ops: PatchOp[]) =>
   azOk<AzureWorkItem>(c, `/_apis/wit/workitems/${id}`, { method: "PATCH", body: JSON.stringify(ops), headers: { "Content-Type": "application/json-patch+json" } });
 
 /** Up to 200 work items by id in one call; ids that don't exist (deleted, no access) are left out. */
-export const BATCH_MAX = 200;
+const BATCH_MAX = 200;
 export async function itemsByIds(c: AzureCreds, ids: number[], fields: string[] = ITEM_FIELDS): Promise<AzureWorkItem[]> {
   const out: AzureWorkItem[] = [];
   for (let i = 0; i < ids.length; i += BATCH_MAX) {

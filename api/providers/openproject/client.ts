@@ -45,9 +45,9 @@ export type Formatted = { format?: string; raw?: string | null; html?: string | 
 
 export type OpUser = { _type?: string; id: number; name?: string; login?: string | null; email?: string | null; avatar?: string | null; status?: string };
 export type OpStatus = { id: number; name: string; isClosed?: boolean; isDefault?: boolean; isReadonly?: boolean; position?: number; color?: string };
-export type OpProject = { id: number; identifier?: string; name?: string };
-export type OpType = { id: number; name: string; isMilestone?: boolean };
-export type OpPriority = { id: number; name: string; position?: number };
+type OpProject = { id: number; identifier?: string; name?: string };
+type OpType = { id: number; name: string; isMilestone?: boolean };
+type OpPriority = { id: number; name: string; position?: number };
 export type OpWorkPackage = {
   id: number;
   lockVersion: number;

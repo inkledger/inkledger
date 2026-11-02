@@ -13,7 +13,7 @@ const PASTED = /https:\/\/(?:github\.com\/user-attachments\/(?:assets|files)\/|(
 /** Where a pasted file's bytes may come from. */
 const FILE_HOSTS = new Set(["github.com", "private-user-images.githubusercontent.com", "user-images.githubusercontent.com", "objects.githubusercontent.com"]);
 
-export type GitHubPasted = { url: string; name: string };
+type GitHubPasted = { url: string; name: string };
 
 /** The id GitHub gives a paste: its UUID or numbered path, the same in body and body_html. */
 const assetId = (url: string): string => {

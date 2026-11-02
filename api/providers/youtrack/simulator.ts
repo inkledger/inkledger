@@ -36,7 +36,7 @@ type SimProject = {
   seq: number;
 };
 type SimComment = { id: string; text: string; created: number; updated: number; deleted: boolean; author: string };
-export type SimWorkItem = { id: string; issueId: string; date: number; minutes: number; text: string; author: string; created: number; updated: number; type: { id: string; name: string } | null };
+type SimWorkItem = { id: string; issueId: string; date: number; minutes: number; text: string; author: string; created: number; updated: number; type: { id: string; name: string } | null };
 type SimActivity = { id: string; timestamp: number; category: string; field: { id: string; name: string; customField?: { fieldType: { id: string } } }; author: string; added: unknown[]; removed: unknown[] };
 export type SimIssue = {
   id: string;

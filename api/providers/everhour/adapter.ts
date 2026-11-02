@@ -35,7 +35,7 @@ export const everhourSinkTraits: TimeSinkTraits = { invoices: true, rates: true 
 
 // The account is the API key's: nothing else to say.
 const optionsSchema = z.strictObject({});
-export type EverhourOptions = z.infer<typeof optionsSchema>;
+type EverhourOptions = z.infer<typeof optionsSchema>;
 
 /**
  * Everhour's task ids: the integration's two-letter prefix and the tracker's

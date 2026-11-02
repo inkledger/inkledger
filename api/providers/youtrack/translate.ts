@@ -9,7 +9,7 @@ import { ProviderError } from "../core/errors";
 import { utcDayOf } from "../core/time";
 
 /** The widest offset of a time zone from UTC, plus a day: a query date this far back covers the user's midnight wherever they live. */
-export const QUERY_DATE_MARGIN_MS = 36 * 3_600_000;
+const QUERY_DATE_MARGIN_MS = 36 * 3_600_000;
 
 /** A date as a query writes it (yyyy-MM-dd), from an instant. */
 

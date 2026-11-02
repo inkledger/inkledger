@@ -121,7 +121,7 @@ async function credsOf(x: X): Promise<TrelloCreds> {
 // ---------- Keys and links ----------
 
 /** The shortLink: 8 letters and digits. */
-export const SHORT_LINK = /^[A-Za-z0-9]{8}$/;
+const SHORT_LINK = /^[A-Za-z0-9]{8}$/;
 const normalizeKey = (raw: string) => (SHORT_LINK.test(raw.trim()) ? raw.trim() : null);
 
 // ---------- Shapes ----------

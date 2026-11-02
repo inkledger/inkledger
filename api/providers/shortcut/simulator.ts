@@ -22,8 +22,8 @@ import { hmacHex } from "../core/webhooks";
 import type { ShortcutChanges, ShortcutComment, ShortcutHistory, ShortcutMe, ShortcutMember, ShortcutRef, ShortcutState, ShortcutStory, ShortcutWorkflow } from "./client";
 import { simRequest } from "../core/simulator";
 
-export const PER_MINUTE = 200;
-export const SEARCH_MAX = 25;
+const PER_MINUTE = 200;
+const SEARCH_MAX = 25;
 
 type SimState = ShortcutState & { position: number };
 type SimWorkflow = { id: number; name: string; states: SimState[] };

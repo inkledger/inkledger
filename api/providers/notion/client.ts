@@ -9,7 +9,7 @@ import { safeFetch, trimTrailingSlash } from "../core/http";
 import { collectPages } from "../core/paging";
 
 /** The version of the API the adapter is written against; a newer one changes databases into data sources. */
-export const NOTION_VERSION = "2022-06-28";
+const NOTION_VERSION = "2022-06-28";
 
 export type NotionCreds = {
   /** https://api.notion.com/v1 */

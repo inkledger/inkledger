@@ -69,7 +69,7 @@ export const defaultStatuses = (): SimStatus[] => [
 ];
 
 /** The instant a wall-clock time in a zone is (04:00 local is where ClickUp puts a date without a time). */
-export const localInstant = (day: string, hour: number, zone: string): number => instantAtLocal(localDate(day), hour, timeZone(zone));
+const localInstant = (day: string, hour: number, zone: string): number => instantAtLocal(localDate(day), hour, timeZone(zone));
 
 export function clickupSimulator(apiBase = "https://api.clickup.com/api/v2") {
   const token = "pk_1234567_SIMULATEDPERSONALTOKEN";

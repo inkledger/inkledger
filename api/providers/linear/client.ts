@@ -17,7 +17,7 @@ export type LinearCreds = {
 };
 
 /** Where a pass or list is in a Relay connection. */
-export type PageInfo = { hasNextPage: boolean; endCursor: string | null };
+type PageInfo = { hasNextPage: boolean; endCursor: string | null };
 export type Connection<T> = { nodes: T[]; pageInfo: PageInfo };
 
 export type LinearUser = { id: string; name: string; displayName?: string | null; email?: string | null; avatarUrl?: string | null };

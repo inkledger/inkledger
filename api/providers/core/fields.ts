@@ -4,7 +4,7 @@ import { ProviderError } from "./errors";
 import type { FieldReq, FieldValue, Transition } from "../types";
 
 /** inkledger can fill them: no required field of a type it doesn't know. */
-export const fillable = (requirements: readonly FieldReq[]) => !requirements.some((r) => r.required && r.type === "unknown");
+const fillable = (requirements: readonly FieldReq[]) => !requirements.some((r) => r.required && r.type === "unknown");
 
 /** inkledger can carry it out: no required field of a type it doesn't know. */
 export const executable = (t: Transition) => fillable(t.requirements);

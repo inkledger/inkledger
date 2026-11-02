@@ -25,9 +25,9 @@ const b64 = (s: string) => Buffer.from(s).toString("base64url");
 const unb64 = (s: string) => Buffer.from(s, "base64url").toString("utf8");
 
 /** What a query may weigh, per node of a connection, and in all. */
-export const NODE_COST = 45;
+const NODE_COST = 45;
 export const COMPLEXITY_LIMIT = 10_000;
-export const MAX_PAGE = 250;
+const MAX_PAGE = 250;
 
 type SimState = LinearState & { position: number };
 type SimTeam = LinearTeam & { states: SimState[]; next: number; member: boolean; triage: boolean };

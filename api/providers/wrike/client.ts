@@ -66,7 +66,7 @@ export type WrikeContact = {
 
 export type WrikeFolder = { id: string; title: string; scope?: string; project?: Record<string, unknown> | null };
 
-export type WrikeCustomStatus = { id: string; name: string; group: WrikeGroup; hidden?: boolean; standard?: boolean; color?: string };
+type WrikeCustomStatus = { id: string; name: string; group: WrikeGroup; hidden?: boolean; standard?: boolean; color?: string };
 export type WrikeWorkflow = { id: string; name: string; hidden?: boolean; customStatuses: WrikeCustomStatus[] };
 
 export type WrikeComment = { id: string; authorId: string; text: string; createdDate: string; updatedDate?: string; taskId?: string };

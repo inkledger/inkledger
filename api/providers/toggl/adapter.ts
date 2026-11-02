@@ -44,7 +44,7 @@ const optionsSchema = z.object({
   /** The workspace entries are filed in (its id, as in the URL of Track) */
   workspaceId: z.coerce.number().int().positive(),
 });
-export type TogglOptions = z.infer<typeof optionsSchema>;
+type TogglOptions = z.infer<typeof optionsSchema>;
 
 type X = CallContext<"toggl", TogglOptions>;
 
@@ -57,9 +57,9 @@ const LOOKBACK_MS = 7 * DAY_MS;
 /** Overlap read again at each pass: an entry may land after the clock that stamps it. */
 const OVERLAP_MS = 60_000;
 /** /me/time_entries answers at most this many entries, with no sign of more. */
-export const ENTRIES_CAP = 1000;
+const ENTRIES_CAP = 1000;
 /** A date range wider than this is refused by /me/time_entries: ranges are read in pieces. */
-export const MAX_RANGE_DAYS = 90;
+const MAX_RANGE_DAYS = 90;
 /** Projects come this many a page (the maximum). */
 const PROJECTS_PER_PAGE = 200;
 const MAX_PROJECT_PAGES = 5;

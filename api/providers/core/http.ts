@@ -46,7 +46,7 @@ function guardedAgent(network: Network): Agent {
 }
 const agents: Record<Network, Agent> = { public: guardedAgent("public"), private: guardedAgent("private") };
 
-export type SafeFetch = {
+type SafeFetch = {
   /** The tracker's site: same-origin redirects keep the Authorization header. */
   site: string;
   url: string;
@@ -139,7 +139,7 @@ export function pathUnderSite(text: string, webBase: string): string | null {
 /** 404 and 410: a record that is not there, or was deleted. */
 export const GONE: readonly number[] = [404, 410];
 
-export type JsonCall = {
+type JsonCall = {
   site: string;
   url: string;
   /** Method, body and headers of this call; a body is sent as JSON unless these headers say otherwise. */

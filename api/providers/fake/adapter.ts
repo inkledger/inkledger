@@ -40,7 +40,7 @@ const STATUSES = [
   status("dropped", "Dropped", "cancelled", 4),
 ];
 
-export type FakeOptions = { region: string };
+type FakeOptions = { region: string };
 
 export function fakeTrackerCapabilities(o: { entryUpdate?: boolean; comments?: boolean } = {}): TrackerCapabilities {
   return {
@@ -79,7 +79,7 @@ export function fakeTrackerCapabilities(o: { entryUpdate?: boolean; comments?: b
   };
 }
 
-export const fakeTrackerTraits: TrackerTraits = { create: false, inbox: false, relations: false, devLinks: false, attachments: { read: false, upload: false }, timeboxes: [], fields: ["labels"] };
+const fakeTrackerTraits: TrackerTraits = { create: false, inbox: false, relations: false, devLinks: false, attachments: { read: false, upload: false }, timeboxes: [], fields: ["labels"] };
 
 const V = 1;
 type Stamped<T> = T & { at: number };
@@ -314,7 +314,7 @@ export function fakeTracker(
   return Object.assign(tracker, { outside });
 }
 
-export const fakeSinkCapabilities: TimeSinkCapabilities = {
+const fakeSinkCapabilities: TimeSinkCapabilities = {
   entries: {
     model: "entries",
     shape: "date",
@@ -333,7 +333,7 @@ export const fakeSinkCapabilities: TimeSinkCapabilities = {
   target: { use: "required", lookup: "search" },
   typicalRateLimit: { perHour: 3600 },
 };
-export const fakeSinkTraits: TimeSinkTraits = { invoices: true, rates: true };
+const fakeSinkTraits: TimeSinkTraits = { invoices: true, rates: true };
 
 const ACTIVITIES = [
   { id: "dev", name: "Development" },

@@ -24,7 +24,7 @@ const trimmed = (apiBase: string) => apiBase.trim().replace(/\/+$/, "");
 /** limit tops out at 1000; a bigger one is refused. */
 export const PER_PAGE = 1000;
 
-export type TempoAttributeValue = { key: string; value: string };
+type TempoAttributeValue = { key: string; value: string };
 
 /** A worklog as Tempo answers it. */
 export type TempoWorklog = {

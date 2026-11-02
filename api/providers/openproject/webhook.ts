@@ -8,7 +8,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { headerOf, sameSecret } from "../core/webhooks";
 
-export const WEBHOOK_SIGNATURE_HEADER = "x-op-signature";
+const WEBHOOK_SIGNATURE_HEADER = "x-op-signature";
 
 /** `sha1=<hex>` of the body with the secret: what the header carries. */
 export const signWebhook = (secret: string, body: string) => `sha1=${createHmac("sha1", secret).update(body, "utf8").digest("hex")}`;

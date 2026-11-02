@@ -28,10 +28,10 @@ import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 type Group = "Active" | "Completed" | "Deferred" | "Cancelled";
-export type SimContact = { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null };
+type SimContact = { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null };
 export type SimStatus = { id: string; name: string; group: Group; hidden: boolean };
 export type SimWorkflow = { id: string; name: string; statuses: SimStatus[] };
-export type SimFolder = { id: string; title: string; workflow: string; project: boolean; access: boolean };
+type SimFolder = { id: string; title: string; workflow: string; project: boolean; access: boolean };
 type SimComment = { id: string; author: string; text: string; created: number };
 export type SimTask = {
   id: string;

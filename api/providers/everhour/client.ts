@@ -6,7 +6,7 @@ import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } fr
 import { jsonCall, trimTrailingSlash } from "../core/http";
 import { collectPages } from "../core/paging";
 
-export type EverhourCreds = {
+type EverhourCreds = {
   /** The API root: https://api.everhour.com */
   apiBase: string;
   token: string;

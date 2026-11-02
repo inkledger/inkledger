@@ -137,7 +137,7 @@ async function credsOf(x: X): Promise<JiraCredentials> {
 }
 
 /** Jira's status category key, the same in every language. */
-export function jiraCategory(key: string | undefined): StatusCategory {
+function jiraCategory(key: string | undefined): StatusCategory {
   return key === "done" ? "done" : key === "indeterminate" ? "doing" : "todo";
 }
 

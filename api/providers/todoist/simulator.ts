@@ -43,7 +43,7 @@ export const BUDGET = 450;
 export const WINDOW_MS = 15 * 60_000;
 
 /** Characters a filter reads as operators: bare ones in a search are refused. */
-export const FILTER_SPECIALS = "&|!(),";
+const FILTER_SPECIALS = "&|!(),";
 
 type DueInput = string | ({ date: string } & Partial<Omit<TodoistDue, "date">>);
 

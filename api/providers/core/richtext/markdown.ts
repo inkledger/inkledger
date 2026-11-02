@@ -3,7 +3,7 @@
 
 import { emptyDoc, plainText, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
 
-export type MarkdownFlavor = "commonmark" | "gfm" | "glfm";
+type MarkdownFlavor = "commonmark" | "gfm" | "glfm";
 
 type Image = Extract<Block, { t: "image" }>;
 type Seg = Inline | Image;

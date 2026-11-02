@@ -63,7 +63,7 @@ export function spendDuration(seconds: number): string {
 
 // ---------- Notes ----------
 
-export type SpendNote =
+type SpendNote =
   | { kind: "added" | "subtracted"; seconds: number; date: string | null }
   | { kind: "reset" };
 

@@ -81,7 +81,7 @@ export type TodoistActivity = {
     destination_project_id?: string | null;
   } | null;
 };
-export type SyncAnswer = { sync_token: string; full_sync: boolean; items?: TodoistTask[] };
+type SyncAnswer = { sync_token: string; full_sync: boolean; items?: TodoistTask[] };
 
 const DEFAULT_WAIT_MS = 60_000;
 

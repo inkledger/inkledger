@@ -86,7 +86,7 @@ const OVERLAP_MS = 5 * 60_000;
 const PER_HOUR = 200 * 60;
 
 /** sc-123: the prefix and the story's public id. */
-export const STORY_KEY = /^sc-(\d{1,12})$/i;
+const STORY_KEY = /^sc-(\d{1,12})$/i;
 const normalizeKey = (raw: string) => {
   const m = STORY_KEY.exec(raw.trim());
   return m ? `sc-${Number(m[1])}` : null;

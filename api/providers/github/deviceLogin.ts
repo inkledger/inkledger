@@ -14,7 +14,7 @@ import {
 
 const WEB = "https://github.com";
 /** What inkledger asks for: the user's repositories' issues, their projects, their notifications. */
-export const GITHUB_SCOPES =
+const GITHUB_SCOPES =
   "repo read:project project notifications offline_access";
 
 type Flow = {
@@ -88,7 +88,7 @@ export async function startDeviceLogin(userId: number, label: string) {
   };
 }
 
-export type PollResult =
+type PollResult =
   | { state: "pending"; retryInSeconds: number }
   | { state: "failed"; reason: "denied" | "expired" }
   | { state: "authorized"; tokens: GitHubTokenSet; label: string };

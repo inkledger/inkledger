@@ -22,8 +22,8 @@ import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 export type SimUser = { id: string; displayName: string; mail: string; userPrincipalName: string };
-export type SimBucket = { id: string; name: string };
-export type SimPlan = { id: string; title: string; owner: string; access: boolean; buckets: SimBucket[]; categories: Record<string, string> };
+type SimBucket = { id: string; name: string };
+type SimPlan = { id: string; title: string; owner: string; access: boolean; buckets: SimBucket[]; categories: Record<string, string> };
 export type SimTask = {
   id: string;
   planId: string;

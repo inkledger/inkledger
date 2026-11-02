@@ -20,8 +20,8 @@ export const webBaseOf = (apiBase: string) => trimTrailingSlash(apiBase.replace(
 export const apiRootOf = (address: string) => `${webBaseOf(address)}/api/v1`;
 
 export type GiteaUser = { id: number; login: string; login_name?: string; full_name?: string | null; email?: string; avatar_url?: string | null };
-export type GiteaLabel = { id?: number; name: string; color?: string; exclusive?: boolean };
-export type GiteaRepoMeta = { id: number; name: string; owner: string; full_name: string };
+type GiteaLabel = { id?: number; name: string; color?: string; exclusive?: boolean };
+type GiteaRepoMeta = { id: number; name: string; owner: string; full_name: string };
 export type GiteaIssue = {
   /** Global id; `number` is the index inside the repository (the one paths and keys use) */
   id: number;
@@ -84,7 +84,7 @@ async function refused(res: Response): Promise<ProviderError> {
  * they name another host (localhost:3000). Only the part after /api/v1 is
  * kept, and put back on the API root the connection was made with.
  */
-export function rebase(apiBase: string, link: string | null): string | null {
+function rebase(apiBase: string, link: string | null): string | null {
   if (!link) return null;
   try {
     const u = new URL(link);
@@ -96,7 +96,7 @@ export function rebase(apiBase: string, link: string | null): string | null {
   }
 }
 
-export type GiteaResult<T> = { data: T; next: string | null; total: number | null };
+type GiteaResult<T> = { data: T; next: string | null; total: number | null };
 
 /** gitea.com and Codeberg is on the internet and never reaches private addresses; a self-hosted server may be on the user's own network. */
 const networkOf = (base: string) => {

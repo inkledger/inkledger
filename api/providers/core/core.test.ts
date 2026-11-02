@@ -3,7 +3,7 @@ import { instant } from "@contracts/values";
 import { fakeTrackerCapabilities } from "../fake/adapter";
 import { executable, assertTransitionFields } from "./fields";
 import { checkActiveSources, checkEntryPage, checkFind } from "./results";
-import { assertRevision, assertSeconds } from "./time";
+import { assertSeconds } from "./time";
 import { trackerProbeExceeds } from "./validate";
 import { readPass } from "../conformance/suite";
 import { ProviderError, readRefusal, retryAfterMs } from "./errors";
@@ -27,12 +27,6 @@ describe("durations and amounts", () => {
     expect(kindOf(() => assertSeconds(1.5))).toBe("invalid");
     expect(kindOf(() => assertSeconds(0))).toBe("invalid");
     expect(kindOf(() => assertSeconds(0, true))).toBe("ok");
-  });
-
-  it("a service with revisions takes changes only at a known one", () => {
-    expect(kindOf(() => assertRevision("revision", undefined))).toBe("invalid");
-    expect(kindOf(() => assertRevision("revision", "3"))).toBe("ok");
-    expect(kindOf(() => assertRevision("none", undefined))).toBe("ok");
   });
 });
 

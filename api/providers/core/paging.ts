@@ -12,7 +12,7 @@ export function nextLink(link: string | null): string | null {
 }
 
 /** More pages than any real pass has: past it, the adapter is looping. */
-export const MAX_PAGES = 1000;
+const MAX_PAGES = 1000;
 
 export async function eachPage<T, G>(
   read: (q: PageQuery) => Promise<Page<T, G>>,

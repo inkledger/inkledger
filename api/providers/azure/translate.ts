@@ -10,7 +10,7 @@ import { dayBounds, translateWith, type Dialect, type Translated } from "../core
 export const wiqlString = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /** A date-time literal: UTC with its Z (without it the service reads the profile's time zone). */
-export const wiqlInstant = (ms: number) => `'${new Date(ms).toISOString()}'`;
+const wiqlInstant = (ms: number) => `'${new Date(ms).toISOString()}'`;
 
 /**
  * The user's items (assigned to @Me, any state, Removed included) changed

@@ -65,7 +65,7 @@ export type SimItem = {
   deletedAt: string | null;
 };
 
-export type AddOptions = {
+type AddOptions = {
   type?: string;
   state?: string;
   /** "me" (default), "other", or nobody */

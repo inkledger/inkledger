@@ -10,7 +10,7 @@ import { fromJiraWiki } from "./wiki";
 export { fromAdf, fromHtml, fromJiraWiki, fromMarkdown };
 
 /** Paragraphs on blank lines, a break on a single newline */
-export function fromPlain(text: string): RichDoc {
+function fromPlain(text: string): RichDoc {
   const blocks: Block[] = [];
   let group: string[] = [];
   const flush = () => {

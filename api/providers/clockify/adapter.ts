@@ -34,7 +34,7 @@ const optionsSchema = z.object({
     .regex(/^[0-9a-fA-F]{24}$/, "a Clockify workspace id is 24 hex characters")
     .optional(),
 });
-export type ClockifyOptions = z.infer<typeof optionsSchema>;
+type ClockifyOptions = z.infer<typeof optionsSchema>;
 
 // Exactly the catalogue's entry (registry test): sessions, native update, delete, no feed,
 // billable and on-behalf read and written, approvals read, no key honoured by the service.

@@ -19,26 +19,26 @@ const header = (h: Headers, name: string): string | null => {
 const signatureOf = (h: Headers) => header(h, "x-gitea-signature") ?? header(h, "x-forgejo-signature");
 
 /** Whether the body (as received, byte for byte) was signed with the hook's secret. */
-export function verifyWebhook(secret: string, rawBody: string | Uint8Array, headers: Headers): boolean {
+function verifyWebhook(secret: string, rawBody: string | Uint8Array, headers: Headers): boolean {
   const given = signatureOf(headers)?.trim().toLowerCase();
   return !!given && !!secret && sameSecret(given, hmacHex(secret, rawBody));
 }
 
 /** The delivery's id (a UUID, the same on a redelivery): what makes handling it idempotent. */
-export const webhookDeliveryId = (headers: Headers): string | null => header(headers, "x-gitea-delivery") ?? header(headers, "x-forgejo-delivery");
+const webhookDeliveryId = (headers: Headers): string | null => header(headers, "x-gitea-delivery") ?? header(headers, "x-forgejo-delivery");
 
 /** The event name ("issues", "issue_comment"…). */
 export const webhookEvent = (headers: Headers): string | null => header(headers, "x-gitea-event") ?? header(headers, "x-forgejo-event");
 
 /** The canonical event an event name stands for (a signal: the issue is read again), or null for what the layer doesn't follow. */
-export function canonicalWebhookEvent(event: string | null): "issueChanged" | "commentAdded" | null {
+function canonicalWebhookEvent(event: string | null): "issueChanged" | "commentAdded" | null {
   if (event === "issues" || event === "issue_label" || event === "issue_assign" || event === "issue_milestone") return "issueChanged";
   if (event === "issue_comment") return "commentAdded";
   return null;
 }
 
 /** When the delivery says it was sent: deliveries carry no timestamp, so the change it reports is the best answer (null when unreadable). */
-export function webhookSentAt(rawBody: string): Instant | null {
+function webhookSentAt(rawBody: string): Instant | null {
   try {
     const p = JSON.parse(rawBody) as { comment?: { updated_at?: string }; issue?: { updated_at?: string } };
     return instantFrom(p.comment?.updated_at ?? p.issue?.updated_at ?? null);

@@ -27,22 +27,22 @@ import { createHmac } from "node:crypto";
 import { API_VERSION, type MondayBoardType, type MondayUser } from "./client";
 
 export const SINGLE_QUERY_LIMIT = 5_000_000;
-export const MINUTE_BUDGET = 10_000_000;
+const MINUTE_BUDGET = 10_000_000;
 /** What an item weighs in a query: its columns, its board's columns, its people. */
-export const ITEM_COST = 2_000;
-export const MAX_ITEMS_PAGE = 500;
-export const MAX_BOARDS_PAGE = 100;
+const ITEM_COST = 2_000;
+const MAX_ITEMS_PAGE = 500;
+const MAX_BOARDS_PAGE = 100;
 export const CURSOR_LIFE_MS = 60 * 60_000;
-export const VERSIONS = ["2025-04", "2025-07", "2025-10", "2026-01"];
+const VERSIONS = ["2025-04", "2025-07", "2025-10", "2026-01"];
 
-export type ColSpec = { id: string; title: string; type: string; labels?: Record<number, string>; done?: number[] };
+type ColSpec = { id: string; title: string; type: string; labels?: Record<number, string>; done?: number[] };
 type SimColumn = { id: string; title: string; type: string; settings_str: string | null };
 type SimBoard = { id: string; name: string; type: MondayBoardType; workspace: { id: string; name: string } | null; columns: SimColumn[]; groups: { id: string; title: string }[]; access: boolean; readOnly: boolean; state: "active" | "archived"; seq: number; parentOf?: string };
 type SimUpdate = { id: string; itemId: string; replyTo: string | null; body: string; creatorId: string | null; createdAt: string; updatedAt: string };
 export type SimItem = { id: string; boardId: string; name: string; state: "active" | "archived" | "deleted"; groupId: string; createdAt: string; updatedAt: string; creatorId: string; parentId: string | null; cells: Record<string, unknown> };
 type Log = { id: string; boardId: string; itemId: string; event: string; data: Record<string, unknown>; at: number; userId: string };
 
-export const DEFAULT_LABELS: Record<number, string> = { 0: "Working on it", 1: "Done", 2: "Stuck", 5: "" };
+const DEFAULT_LABELS: Record<number, string> = { 0: "Working on it", 1: "Done", 2: "Stuck", 5: "" };
 
 const statusSettings = (labels: Record<number, string>, done: number[]) =>
   JSON.stringify({

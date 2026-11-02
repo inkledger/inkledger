@@ -33,7 +33,7 @@ export class NoConnectionError extends Error {
  * The user's Jira connection while there is one per user: the one made from
  * their login first (legacy), then the oldest.
  */
-export async function jiraConnection(
+async function jiraConnection(
   userId: number
 ): Promise<Connection | null> {
   const [row] = await getDb()
@@ -204,7 +204,7 @@ async function gitHubSecretOf(
 }
 
 /** The credentials a Jira connection opens (its secret in clear). */
-export function credentialsOf(conn: Connection): JiraCredentials {
+function credentialsOf(conn: Connection): JiraCredentials {
   const o = jiraOptions(conn.options);
   const secret = secretOf(conn);
   return originate(

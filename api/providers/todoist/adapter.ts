@@ -149,7 +149,7 @@ const shapeOf = (x: X): Shape => ({ connId: x.conn.id, zone: x.conn.timeZone, ca
 const OPEN: RemoteStatus = { id: "open", name: "Open", category: "todo", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 const COMPLETED: RemoteStatus = { id: "completed", name: "Completed", category: "done", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 
-export function sectionStatus(s: Shape, section: TodoistSection): RemoteStatus {
+function sectionStatus(s: Shape, section: TodoistSection): RemoteStatus {
   return {
     id: section.id,
     name: section.name,

@@ -16,7 +16,7 @@ export type GitHubCreds = {
 export const webBaseOf = (apiBase: string) => (/^https:\/\/api\.github\.com\/?$/.test(apiBase) ? "https://github.com" : apiBase.replace(/\/api\/v3\/?$/, ""));
 
 export type GitHubUser = { id: number; login: string; name?: string | null; avatar_url?: string | null };
-export type GitHubLabel = string | { name?: string };
+type GitHubLabel = string | { name?: string };
 export type GitHubIssue = {
   id: number;
   node_id: string;

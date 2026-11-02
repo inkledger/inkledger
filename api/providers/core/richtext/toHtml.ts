@@ -8,7 +8,7 @@ import type { ConversionWarning } from "../../types";
 export const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** A service's tags for the inline marks; no `code`: a code span is written as its text. */
-export type InlineTags = { strong: string; em: string; strike: string; code?: string };
+type InlineTags = { strong: string; em: string; strike: string; code?: string };
 
 const link = (label: string, url: string) => `<a href="${url.replace(/"/g, "&quot;")}">${label || url}</a>`;
 const LINK = /\[([^\]]*)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g;

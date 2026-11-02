@@ -121,7 +121,7 @@ export type PlaneWorklog = {
 export type PlaneSearchHit = { id: string; name: string; sequence_id: number; project__identifier: string; project_id: string; workspace__slug?: string };
 
 /** A paginated list: the cursor is always present, whether there is a next page is `next_page_results`. */
-export type PlanePage<T> = { results: T[]; next_cursor?: string | null; next_page_results?: boolean; total_results?: number };
+type PlanePage<T> = { results: T[]; next_cursor?: string | null; next_page_results?: boolean; total_results?: number };
 
 // ---------- Calls ----------
 
@@ -205,7 +205,7 @@ export const withQuery = (path: string, params: Record<string, string | number |
 };
 
 /** Plane never gives more than this many per page, whatever per_page asks. */
-export const MAX_PER_PAGE = 100;
+const MAX_PER_PAGE = 100;
 
 /** One page of a list (an old server may answer a bare array: one page). */
 export async function planePage<T>(c: PlaneCreds, path: string, cursor: string | null, perPage = MAX_PER_PAGE): Promise<{ results: T[]; next: string | null }> {

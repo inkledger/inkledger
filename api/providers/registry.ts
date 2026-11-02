@@ -34,7 +34,7 @@ import type { TimeSinkProvider, TrackerProvider } from "./types";
 
 /** Planned: no adapter yet. Built, experimental or disabled: an adapter (a disabled one kept, not offered). */
 /** A built tracker adapter, its type telling its options. */
-export type AnyTracker =
+type AnyTracker =
   | TrackerProvider<"jira", JiraOptions>
   | TrackerProvider<"github", GitHubOptions>
   | TrackerProvider<"clickup", ClickUpOptions>

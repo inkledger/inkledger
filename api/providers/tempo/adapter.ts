@@ -53,7 +53,7 @@ const optionsSchema = z.strictObject({
   /** The work attribute (a static list) that is the activity; the first static list when absent */
   workAttributeKey: z.string().min(1).nullish(),
 });
-export type TempoOptions = { jiraConnectionId: number | null; accountId: string | null; workAttributeKey: string | null };
+type TempoOptions = { jiraConnectionId: number | null; accountId: string | null; workAttributeKey: string | null };
 
 type X = CallContext<"tempo", TempoOptions>;
 

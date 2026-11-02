@@ -193,7 +193,7 @@ function sayReadOnly(e: ProviderError, type: ProviderType): ProviderError {
 }
 
 /** How long one connection's verdict (verify accepted or refused) stands for the 401s that follow. */
-export const REFUSAL_VERDICT_MS = 60_000;
+const REFUSAL_VERDICT_MS = 60_000;
 
 /** One verify per connection at a time, its verdict kept a minute: a burst of 401s asks the service once, not once each. */
 const verdicts = new LruCache<number, "accepted" | "refused">({

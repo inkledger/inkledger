@@ -33,7 +33,7 @@ export type MondayBoard = {
   workspace?: { id: string | null; name: string | null } | null;
   columns: MondayColumn[];
 };
-export type MondayColumnValue = {
+type MondayColumnValue = {
   id: string;
   type: string;
   /** What the cell shows, as text */

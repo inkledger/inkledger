@@ -535,8 +535,10 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
       const [issue] = await issuesOf(x, creds, [w]);
       const project = w.fields["System.TeamProject"] ?? "";
       const type = w.fields["System.WorkItemType"] ?? "";
-      const states = await statesOf(x, creds, project, type);
-      const def = await azOk<{ transitions?: Record<string, { to: string }[]> }>(creds, `/${encodeURIComponent(project)}/_apis/wit/workitemtypes/${encodeURIComponent(type)}`);
+      const [states, def] = await Promise.all([
+        statesOf(x, creds, project, type),
+        azOk<{ transitions?: Record<string, { to: string }[]> }>(creds, `/${encodeURIComponent(project)}/_apis/wit/workitemtypes/${encodeURIComponent(type)}`),
+      ]);
       const matrix = def.transitions ?? {};
       // A type that lists no transitions at all (an inherited process) lets an item go to any other state.
       const to = Object.keys(matrix).length > 0 ? (matrix[issue.status.name] ?? []).map((t) => t.to) : states.map((s) => s.name);

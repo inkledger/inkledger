@@ -19,7 +19,7 @@ import { simRequest } from "../core/simulator";
 
 export type SimStatus = { id: number; name: string; closed: boolean };
 export type SimProject = { id: number; identifier: string; name: string; parent: number | null; access: boolean; activities: number[] | null };
-export type SimJournal = { id: number; user: number; notes: string; created: number; private: boolean; details: RmJournalDetail[] };
+type SimJournal = { id: number; user: number; notes: string; created: number; private: boolean; details: RmJournalDetail[] };
 export type SimIssue = {
   id: number;
   projectId: number;

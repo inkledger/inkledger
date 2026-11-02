@@ -52,7 +52,7 @@ const optionsSchema = z.strictObject({
   /** The Harvest account the token is used on (shown in Harvest's developer page beside the token) */
   accountId: z.coerce.string().regex(/^\d{1,12}$/, "the Harvest account id is a number"),
 });
-export type HarvestOptions = z.infer<typeof optionsSchema>;
+type HarvestOptions = z.infer<typeof optionsSchema>;
 
 type X = CallContext<"harvest", HarvestOptions>;
 

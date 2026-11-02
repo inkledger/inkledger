@@ -249,10 +249,10 @@ export function toRemoteIssue(t: WrikeTask, l: Lookups): RemoteIssue {
 }
 
 /** A page of tasks as issues: the workflows once, the people and folders they name by id, a hundred to a call. */
-async function shapeAll(c: WrikeCreds, x: X, tasks: WrikeTask[]): Promise<RemoteIssue[]> {
+async function shapeAll(c: WrikeCreds, x: X, tasks: WrikeTask[], known?: Flow): Promise<RemoteIssue[]> {
   if (tasks.length === 0) return [];
   const [flow, contacts, folders] = await Promise.all([
-    flowOf(c),
+    known ?? flowOf(c),
     wrikeByIds<WrikeContact>(c, "/contacts", tasks.flatMap((t) => [...(t.responsibleIds ?? []), ...(t.authorIds ?? [])])),
     wrikeByIds<WrikeFolder>(c, "/folders", tasks.flatMap((t) => (t.parentIds ?? []).slice(0, 1))),
   ]);
@@ -571,8 +571,7 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
   transitions: {
     async list(x, ref) {
       const c = await tokenCreds(x);
-      const t = await mustLocate(c, ref);
-      const flow = await flowOf(c);
+      const [t, flow] = await Promise.all([mustLocate(c, ref), flowOf(c)]);
       // The ways out are the other statuses of the workflow the task's status belongs to; hidden ones can't be set.
       const here = t.customStatusId ? flow.byStatus.get(t.customStatusId) : undefined;
       if (!here) return [];
@@ -582,12 +581,11 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
     },
     async apply(x, ref, transitionId) {
       const c = await tokenCreds(x);
-      const t = await mustLocate(c, ref);
-      const flow = await flowOf(c);
+      const [t, flow] = await Promise.all([mustLocate(c, ref), flowOf(c)]);
       const here = t.customStatusId ? flow.byStatus.get(t.customStatusId) : undefined;
       if (!here?.workflow.customStatuses.some((s) => s.id === transitionId && !s.hidden)) throw new ProviderError("invalid", `Wrike: no transition ${transitionId}`);
       const moved = await wrikeOne<WrikeTask>(c, taskPath(t.id), { method: "PUT", form: { customStatus: transitionId }, query: { fields: TASK_FIELDS } });
-      return (await shapeAll(c, x, [moved]))[0];
+      return (await shapeAll(c, x, [moved], flow))[0];
     },
   },
 

@@ -1,15 +1,10 @@
 // Time on its way to a service: amounts in its units, changes held to what
-// it accepts (whole seconds, a known revision).
+// it accepts (whole seconds, UTC to the second, plain days).
 import { DAY_MS } from "@contracts/time";
 import { ProviderError } from "./errors";
 
 /** Seconds as whole minutes, for services that keep minutes: the nearest, at least one (a short entry is not lost). */
 export const wholeMinutes = (seconds: number): number => Math.max(1, Math.round(seconds / 60));
-
-/** Throws "invalid" unless a change carries the revision a service with revisions needs. */
-export function assertRevision(concurrency: "revision" | "none", expectedVersion: string | undefined): void {
-  if (concurrency === "revision" && !expectedVersion) throw new ProviderError("invalid", "This service changes entries only at a known revision");
-}
 
 /** An instant in UTC to the second ("2026-10-14T08:30:00Z"): the milliseconds cut off, as services that refuse them want it. */
 export const isoSecondsUtc = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");

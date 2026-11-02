@@ -19,7 +19,7 @@ const meta = (signal = new AbortController().signal): CallMeta => ({ signal, cor
 export { readPass };
 
 /** A span of the shape a service keeps. */
-export function timeFor(shape: "session" | "date", seconds: number): TimeInput {
+function timeFor(shape: "session" | "date", seconds: number): TimeInput {
   return shape === "session" ? { kind: "session", start: instant(Date.UTC(2026, 9, 14, 8, 30)), seconds } : { kind: "date", date: localDate("2026-10-14"), seconds };
 }
 
@@ -34,7 +34,7 @@ const kindOf = async (p: Promise<unknown>) => {
   }
 };
 
-export type TrackerSetup<T extends TrackerType, O> = {
+type TrackerSetup<T extends TrackerType, O> = {
   provider: TrackerProvider<T, O>;
   conn: StoredConn<T>;
   /** An issue of the user's, present on the service */
@@ -197,7 +197,7 @@ export function trackerConformance<T extends TrackerType, O>(name: string, setup
   });
 }
 
-export type SinkSetup<T extends TimeSinkType, O> = {
+type SinkSetup<T extends TimeSinkType, O> = {
   provider: TimeSinkProvider<T, O>;
   conn: StoredSinkConn<T>;
   ref: ExternalRef;
@@ -244,7 +244,7 @@ export function sinkConformance<T extends TimeSinkType, O>(name: string, setup: 
   });
 }
 
-export type StatusHistorySetup = {
+type StatusHistorySetup = {
   b: BoundTracker;
   /** An issue of the user's on the service */
   ref: IssueRef;

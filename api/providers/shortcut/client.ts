@@ -15,7 +15,7 @@ export type ShortcutCreds = {
 
 const trimmed = (apiBase: string) => trimTrailingSlash(apiBase).replace(/\/api\/v3$/, "");
 /** Where every v3 path starts. */
-export const rootOf = (apiBase: string) => `${trimmed(apiBase)}/api/v3`;
+const rootOf = (apiBase: string) => `${trimmed(apiBase)}/api/v3`;
 
 /** A search returns at most this many results a page. */
 export const SEARCH_PAGE_MAX = 25;
@@ -32,7 +32,7 @@ export type ShortcutMember = {
 /** type: backlog, unstarted, started or done; there is no "cancelled" */
 export type ShortcutState = { id: number; name: string; type: string; position?: number; color?: string | null };
 export type ShortcutWorkflow = { id: number; name: string; states: ShortcutState[]; default_state_id?: number };
-export type ShortcutLabel = { id: number; name: string };
+type ShortcutLabel = { id: number; name: string };
 export type ShortcutStory = {
   id: number;
   name: string;
@@ -72,7 +72,7 @@ export type ShortcutComment = {
   deleted?: boolean;
   external_id?: string | null;
 };
-export type ShortcutSearch = { total: number; data: ShortcutStory[]; next: string | null };
+type ShortcutSearch = { total: number; data: ShortcutStory[]; next: string | null };
 export type ShortcutRef = { id: number | string; entity_type: string; name?: string };
 export type ShortcutChanges = Record<string, { old?: unknown; new?: unknown; adds?: unknown[]; removes?: unknown[] }>;
 export type ShortcutHistory = {
