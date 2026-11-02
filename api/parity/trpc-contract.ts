@@ -281,7 +281,8 @@ export interface FrozenIn {
   "store.requestLicense": { email: string; locale?: "en" | "it" | undefined; message?: string | undefined; product: string };
   "store.restoreLicense": { text: string };
   "team.day": { day: string; userId: number };
-  "team.overview": { from: string; to: string };
+  "team.overview": { compare?: false | true | undefined; from: string; to: string };
+  "team.person": { from: string; to: string; userId: number };
   "timers.discard": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.heartbeat": void;
   "timers.list": void;
@@ -623,7 +624,8 @@ export interface FrozenOut {
   "store.requestLicense": { ok: true };
   "store.restoreLicense": { activation: string; product: string };
   "team.day": { away: { endsAt: Date; startsAt: Date }[]; entries: { connectionId: number; id: string; issueKey: string; remoteId: string | undefined; seconds: number; start: Date; summary: string | undefined }[]; schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[] };
-  "team.overview": { loggedSeconds: number; people: { avatarUrl: null | string; coverage: null | number; days: { day: string; loggedSeconds: number; targetSeconds: number }[]; displayName: string; freshness: { at: null | number; state: "local" | "never" | "ok" | "reconnect" | "stale" }; loggedSeconds: number; targetSeconds: number; userId: number }[]; targetSeconds: number };
+  "team.overview": { coverage: null | number; elapsedDays: number; loggedSeconds: number; people: { avatarUrl: null | string; coverage: null | number; days: { absentSeconds: number; day: string; loggedSeconds: number; targetSeconds: number }[]; displayName: string; freshness: { at: null | number; state: "local" | "never" | "ok" | "reconnect" | "stale" }; loggedSeconds: number; previous: null | { coverage: null | number; loggedSeconds: number; targetSeconds: number }; targetSeconds: number; userId: number }[]; previous: null | { coverage: null | number; loggedSeconds: number; targetSeconds: number }; targetSeconds: number };
+  "team.person": { issues: { key: string; seconds: number; summary: string }[]; projects: { key: string; name: string; seconds: number }[] };
   "timers.discard": { epoch: number; ok: boolean };
   "timers.heartbeat": { epoch: number; owned: boolean };
   "timers.list": { connectionId: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string }[];

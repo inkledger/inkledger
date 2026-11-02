@@ -168,6 +168,13 @@ export function startOfWeek(date: Date): Date {
   return addDays(d, -((d.getDay() + 6) % 7));
 }
 
+/** ISO 8601 week number of `date` (weeks start on Monday; week 1 holds the year's first Thursday). */
+export function isoWeek(date: Date): number {
+  const thursday = addDays(startOfWeek(date), 3);
+  const jan1 = new Date(thursday.getFullYear(), 0, 1);
+  return Math.floor(Math.round((startOfDay(thursday).getTime() - jan1.getTime()) / 86_400_000) / 7) + 1;
+}
+
 /** Monday (local time) of the week containing `date`, as "YYYY-MM-DD". */
 export function weekStartKey(date: Date): string {
   return dayKey(startOfWeek(date));

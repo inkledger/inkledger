@@ -153,6 +153,40 @@ describe("team report", () => {
     expect(Object.keys(wed.away[0]).sort()).toEqual(["endsAt", "startsAt"]);
   });
 
+  it("a day still to come is nobody's shortfall; vacation shows as time away", async () => {
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const today = new Date();
+    const range = { from: key(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2)), to: key(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 4)) };
+    const r = await ann.team.overview(range);
+    expect(r.elapsedDays).toBe(3);
+    for (const p of r.people) {
+      expect(p.days).toHaveLength(7);
+      expect(p.targetSeconds).toBe(p.days.slice(0, 3).reduce((a, d) => a + d.targetSeconds, 0));
+    }
+    const wed = (await ann.team.overview(week)).people.find((p) => p.displayName === "Cy")?.days[2];
+    expect(wed).toMatchObject({ targetSeconds: 0, absentSeconds: 8 * HOUR });
+  });
+
+  it("compared with the range of equal length just before", async () => {
+    const r = await ann.team.overview({ from: "2026-10-12", to: "2026-10-18", compare: true });
+    const annRow = r.people.find((p) => p.displayName === "Ann");
+    expect(annRow?.loggedSeconds).toBe(5 * HOUR);
+    expect(annRow?.previous).toEqual({ loggedSeconds: 8 * HOUR, targetSeconds: 40 * HOUR, coverage: 0.2 });
+    expect(r.previous?.loggedSeconds).toBe(8 * HOUR + 10 * HOUR + 3 * HOUR);
+    expect((await ann.team.overview(week)).previous).toBeNull();
+  });
+
+  it("one account's period: its projects and issues, most hours first", async () => {
+    await expect(bob.team.person({ userId: id.ann, ...week })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(ann.team.person({ userId: id.eve, ...week })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", id.ann);
+    await worklog(id.ann, conn.id, at(7, 9), 1 * HOUR);
+    await q("UPDATE worklogs SET issue_key = 'WEB-9' WHERE user_id = ? AND started = ?", id.ann, at(7, 9));
+    const r = await ann.team.person({ userId: id.ann, ...week });
+    expect(r.issues.map((i) => [i.key, i.seconds])).toEqual([["APP-1", 8 * HOUR], ["WEB-9", 1 * HOUR]]);
+    expect(r.projects.map((p) => [p.key, p.seconds])).toEqual([["APP", 8 * HOUR], ["WEB", 1 * HOUR]]);
+  });
+
   it("no day for an account turned off or missing", async () => {
     await expect(ann.team.day({ userId: id.eve, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(ann.team.day({ userId: 99_999, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });

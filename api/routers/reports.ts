@@ -24,7 +24,7 @@ export const worklogProjectKey = sql<string>`coalesce(${issues.projectKey}, ${ke
 export { issueOfWorklog };
 
 /** One issue, whoever's key: its catalogue row, else its connection and key. */
-const issueIdentity = sql<string>`coalesce(${issues.id}::text, 'k:' || ${worklogs.connectionId} || ':' || ${worklogs.issueKey})`;
+export const issueIdentity = sql<string>`coalesce(${issues.id}::text, 'k:' || ${worklogs.connectionId} || ':' || ${worklogs.issueKey})`;
 
 /** A worklog's project: its issue's container, else the issue-key prefix. */
 export const projectGroup = sql<string>`coalesce(${containers.id}::text, 'k:' || ${keyProject})`;

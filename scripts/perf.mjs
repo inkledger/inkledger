@@ -101,7 +101,7 @@ async function seed(db) {
 }
 
 // ── Page metrics ─────────────────────────────────────────────────────────────
-const ROUTES = ["/", "/issues", "/issues/PERF-1", "/timesheet", "/board", "/reports", "/settings"];
+const ROUTES = ["/", "/issues", "/issues/PERF-1", "/timesheet", "/board", "/reports", "/team", "/settings"];
 const observe = () => {
   window.__perf = { lcp: 0, longTasks: 0, longTaskMs: 0 };
   new PerformanceObserver((l) => {

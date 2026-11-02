@@ -1,109 +1,169 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useNavigate } from "react-router";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Lock } from "lucide-react";
+import { Lock, Search } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { errorText } from "@/lib/errorText";
 import { useAuth } from "@/hooks/useAuth";
 import { useToday } from "@/hooks/useToday";
 import { useUrlFields } from "@/hooks/useUrlState";
-import { oneOf, text, type Fields } from "@/lib/urlCodecs";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { int, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { activePreset, presetRange, type PresetId } from "@/lib/reportLabel";
-import { initials, relativeTime } from "@/lib/initials";
+import { autoGranularity, BELOW, bucketsOf, coverageDelta, type Bucket, type Granularity } from "@contracts/team";
 import { addDays, dayKey, formatDurationLong, parseDayKey } from "@contracts/time";
 import { PageHeader } from "@/components/app/PageHeader";
-import { PanelRow, PanelSection } from "@/components/app/Panel";
+import { PanelSection } from "@/components/app/Panel";
+import { PeriodNav } from "@/components/app/PeriodNav";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
-import { Chip } from "@/components/app/Chip";
-import { Meter } from "@/components/app/Meter";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { lazyPart } from "@/components/app/lazyPart";
-import { surface, surfaceFace } from "@/components/app/surface";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
-import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
-import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Delta, TeamMatrix, type MatrixRow } from "@/components/team/TeamMatrix";
+import { cellsOf, freshnessNote, percent, STEP_CLASS, teamDays, type Person } from "@/components/team/model";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { dateFormat, t } from "@/i18n";
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "../../api/router";
 
 const TeamDayBody = lazyPart(() => import("@/components/team/TeamDayBody").then(m => m.TeamDayBody));
+const TeamPersonPanel = lazyPart(() => import("@/components/team/TeamPersonPanel").then(m => m.TeamPersonPanel));
 
-type Person = inferRouterOutputs<AppRouter>["team"]["overview"]["people"][number];
-type Sort = "hours" | "coverage";
+type Sort = "hours" | "coverage" | "name" | "change";
+type Show = "all" | "below" | "check";
+type Cols = "auto" | Granularity;
 
 /** Same cap as the server (team.overview reads a report's range). */
 const REPORT_MAX_DAYS = 366;
 
-const CHART_COLOR = () => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" });
-
-const percent = (share: number) => `${Math.round(share * 100)}%`;
-
-/** What to warn about an account's time, or null when it can be trusted. */
-function freshnessNote(p: Person, now: number): string | null {
-  const { state, at } = p.freshness;
-  if (state === "reconnect") return t("pages.team.freshReconnect");
-  if (state === "never") return t("pages.team.freshNever");
-  if (state === "stale" && at !== null) return t("pages.team.freshStale", { date: relativeTime(new Date(at), now) });
-  return null;
+/** The one line saying what the pointer or the focus is on: its own store, so a hover re-renders nothing else. */
+function createReadout() {
+  let current: string | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    set: (next: string | null) => {
+      if (next === current) return;
+      current = next;
+      for (const l of listeners) l();
+    },
+    subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
+    get: () => current,
+  };
 }
 
-function PersonName({ person, now }: { person: Person; now: number }) {
-  const note = freshnessNote(person, now);
+function ReadoutLine({ store }: { store: ReturnType<typeof createReadout> }) {
+  const said = useSyncExternalStore(store.subscribe, store.get, store.get);
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
-      <span {...surface("picture", { role: "wrap" })} className="shrink-0 rounded-full">
-        <Avatar {...surfaceFace()} className="h-8 w-8">
-          <AvatarFallback className="bg-primary-soft text-caption font-semibold text-primary-strong">
-            {initials(person.displayName)}
-          </AvatarFallback>
-        </Avatar>
+    <p aria-live="polite" className={cn("min-h-5 truncate text-body-sm tabular", said ? "text-foreground" : "text-muted-foreground")}>
+      {said ?? t("pages.team.readoutHint")}
+    </p>
+  );
+}
+
+/** A KPI: label, value, and what it adds; a filter when `onClick` is given. */
+function Kpi({ label, value, extra, hint, onClick, pressed }: { label: string; value: string; extra?: React.ReactNode; hint?: string; onClick?: () => void; pressed?: boolean }) {
+  const body = (
+    <>
+      <span className="text-caption text-muted-foreground">{label}</span>
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        <span className="font-display text-heading tabular">{value}</span>
+        {extra}
       </span>
-      <div className="min-w-0">
-        <p className="truncate text-body-sm font-medium">{person.displayName}</p>
-        {note && (
-          <span title={t("pages.team.freshHint")}>
-            <Chip tone="warning">{note}</Chip>
-          </span>
-        )}
-      </div>
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      title={hint}
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn("grid min-w-0 content-start gap-0.5 px-5 py-3 text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", pressed && "bg-primary-soft/60")}
+    >
+      {body}
+    </button>
+  ) : (
+    <div title={hint} className="grid min-w-0 content-start gap-0.5 px-5 py-3">
+      {body}
     </div>
   );
 }
 
+/** Legend swatches, in the cells' own fills. */
+function Legend() {
+  const items: [string, string][] = [
+    [STEP_CLASS.full, t("pages.team.legendFull")],
+    [STEP_CLASS.high, t("pages.team.legendHigh")],
+    [STEP_CLASS.mid, t("pages.team.legendMid")],
+    [STEP_CLASS.low, t("pages.team.legendLow")],
+    [STEP_CLASS.none, t("pages.team.legendNone")],
+    [STEP_CLASS.absent, t("pages.team.legendAbsent")],
+    ["border border-border", t("pages.team.legendOff")],
+    [STEP_CLASS.future, t("pages.team.legendFuture")],
+  ];
+
+  return (
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-caption text-muted-foreground">
+      {items.map(([fill, label]) => (
+        <li key={label} className="flex items-center gap-1.5 whitespace-nowrap">
+          {/* surface: none — a legend swatch mirrors a flat heat cell */}
+          <span aria-hidden className={cn("h-3 w-3 rounded-sm", fill)} />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
 /**
- * The team report (viewTeamTime): everyone's logged hours over a period,
- * ranked, against each one's own schedule, and day by day; a day opens
- * that person's timeline, read only.
+ * The team report (viewTeamTime): a heat map of everyone's logged hours
+ * against their own schedule, a row per person and a column per day, week
+ * or month; numbers stay secondary (KPIs, the totals column, the readout
+ * line). A cell opens that day (or zooms into its days), a name opens the
+ * person's period.
  */
 export default function Team() {
   const today = useToday();
+  const todayKey = dayKey(today);
   const now = today.getTime();
   const { user } = useAuth();
   const allowed = user?.permissions.includes("viewTeamTime") ?? false;
   const utils = trpc.useUtils();
+  const [readout] = useState(createReadout);
 
-  // Period and order live in the URL (Back finds them).
+  // The whole view lives in the URL: Back from a day or a person finds it as it was.
   const fields = useMemo(
-    (): Fields<{ from: string; to: string; sort: Sort }> => ({
+    (): Fields<{ from: string; to: string; sort: Sort; show: Show; q: string; cols: Cols; person: number }> => ({
       from: { key: "from", fallback: dayKey(presetRange("month", today).from), codec: text },
       to: { key: "to", fallback: dayKey(presetRange("month", today).to), codec: text },
-      sort: { key: "sort", fallback: "hours", codec: oneOf(["hours", "coverage"] as const) },
+      sort: { key: "sort", fallback: "hours", codec: oneOf(["hours", "coverage", "name", "change"] as const) },
+      show: { key: "show", fallback: "all", codec: oneOf(["all", "below", "check"] as const) },
+      q: { key: "q", fallback: "", codec: text },
+      cols: { key: "cols", fallback: "auto", codec: oneOf(["auto", "day", "week", "month"] as const) },
+      person: { key: "person", fallback: 0, codec: int },
     }),
     [today]
   );
   const [shown, setShown] = useUrlFields(fields);
-  const { from, to, sort } = shown;
-  const fromDate = parseDayKey(from);
-  const toDate = parseDayKey(to);
+  const { from, to, sort, show, cols } = shown;
+  const search = useDebouncedValue(shown.q.trim(), 200);
+  const fromDate = useMemo(() => parseDayKey(from), [from]);
+  const toDate = useMemo(() => parseDayKey(to), [to]);
   const ordered = fromDate !== null && toDate !== null && from <= to;
   const tooLong = ordered && addDays(fromDate, REPORT_MAX_DAYS) <= toDate;
   const rangeValid = ordered && !tooLong;
 
   const overview = trpc.team.overview.useQuery(
-    { from, to },
+    { from, to, compare: true },
     { enabled: allowed && rangeValid, placeholderData: keepPreviousData }
   );
   // Taken away meanwhile: the menu learns it too.
@@ -112,16 +172,83 @@ export default function Team() {
     if (forbidden) void utils.auth.me.invalidate();
   }, [forbidden, utils]);
 
-  const [open, setOpen] = useState<{ person: Person; day: Date } | null>(null);
+  const [day, setDay] = useState<{ person: Person; day: Date } | null>(null);
 
-  const people = useMemo(() => {
-    const list = [...(overview.data?.people ?? [])];
-    if (sort === "coverage") {
+  const kind: Granularity = useMemo(() => {
+    if (cols !== "auto") return cols;
+    if (!fromDate || !toDate) return "day";
+    return autoGranularity(Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1);
+  }, [cols, fromDate, toDate]);
+  const buckets: Bucket[] = useMemo(
+    () => (rangeValid && fromDate && toDate ? bucketsOf(fromDate, toDate, kind) : []),
+    [rangeValid, fromDate, toDate, kind]
+  );
+
+  const data = overview.data;
+  const all: MatrixRow[] = useMemo(
+    () =>
+      (data?.people ?? []).map(p => ({
+        person: p,
+        cells: cellsOf(p.days, buckets, todayKey),
+        delta: coverageDelta(p.coverage, p.previous?.coverage ?? null),
+        note: freshnessNote(p, now),
+      })),
+    [data, buckets, todayKey, now]
+  );
+  const below = useMemo(() => all.filter(r => r.person.coverage !== null && r.person.coverage < BELOW), [all]);
+  const check = useMemo(() => all.filter(r => r.note !== null), [all]);
+  const rows = useMemo(() => {
+    const wanted = fold(search);
+    const list = (show === "below" ? below : show === "check" ? check : all).filter(r => !wanted || fold(r.person.displayName).includes(wanted));
+    const by: Record<Sort, (a: MatrixRow, b: MatrixRow) => number> = {
+      hours: () => 0,
       // Nothing expected goes last: no share to rank by.
-      list.sort((a, b) => (b.coverage ?? -1) - (a.coverage ?? -1) || b.loggedSeconds - a.loggedSeconds);
+      coverage: (a, b) => (b.person.coverage ?? -1) - (a.person.coverage ?? -1),
+      name: (a, b) => a.person.displayName.localeCompare(b.person.displayName),
+      // The biggest drops first: what to look at.
+      change: (a, b) => (a.delta ?? Infinity) - (b.delta ?? Infinity),
+    };
+    return [...list].sort((a, b) => by[sort](a, b) || b.person.loggedSeconds - a.person.loggedSeconds);
+  }, [all, below, check, show, search, sort]);
+  const team = useMemo(() => cellsOf(teamDays(data?.people ?? []), buckets, todayKey), [data, buckets, todayKey]);
+
+  const onCell = useCallback(
+    (row: MatrixRow, b: Bucket) => {
+      if (b.kind === "day") return setDay({ person: row.person, day: b.from });
+      setShown({ from: dayKey(b.from), to: dayKey(b.to), cols: "auto" });
+    },
+    [setShown]
+  );
+  // A person's panel is a step in history: Back closes it, and so does its own close (one step back).
+  const navigate = useNavigate();
+  const pushedPerson = useRef(false);
+  const onPerson = useCallback(
+    (row: MatrixRow) => {
+      pushedPerson.current = true;
+      setShown({ person: row.person.userId }, { push: true });
+    },
+    [setShown]
+  );
+  const closePerson = () => {
+    if (pushedPerson.current) {
+      pushedPerson.current = false;
+      void navigate(-1);
+    } else setShown({ person: 0 });
+  };
+  const onRead = useCallback((said: string | null) => readout.set(said), [readout]);
+
+  // ‹ ›: a whole month moves by a month, any other range by its own length.
+  const wholeMonth = !!fromDate && !!toDate && fromDate.getDate() === 1 && addDays(toDate, 1).getDate() === 1 && fromDate.getMonth() === toDate.getMonth();
+  const shift = (dir: 1 | -1) => {
+    if (!fromDate || !toDate) return;
+    if (wholeMonth) {
+      const y = fromDate.getFullYear();
+      const m = fromDate.getMonth() + dir;
+      return setShown({ from: dayKey(new Date(y, m, 1)), to: dayKey(new Date(y, m + 1, 0)) });
     }
-    return list;
-  }, [overview.data, sort]);
+    const length = Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+    setShown({ from: dayKey(addDays(fromDate, dir * length)), to: dayKey(addDays(toDate, dir * length)) });
+  };
 
   const preset = activePreset(from, to, today);
   const header = (
@@ -131,18 +258,29 @@ export default function Team() {
       description={t("pages.team.description")}
       actions={
         allowed ? (
-          <PeriodPicker
-            from={from}
-            to={to}
-            preset={preset}
-            valid={rangeValid}
-            onPreset={(id: PresetId) => {
-              const r = presetRange(id, today);
-              setShown({ from: dayKey(r.from), to: dayKey(r.to) });
-            }}
-            onFrom={v => setShown({ from: v })}
-            onTo={v => setShown({ to: v })}
-          />
+          <>
+            <PeriodNav
+              onPrev={() => shift(-1)}
+              onNext={() => shift(1)}
+              onToday={() => {
+                const r = presetRange("month", today);
+                setShown({ from: dayKey(r.from), to: dayKey(r.to) });
+              }}
+              isCurrent={from <= todayKey && todayKey <= to}
+            />
+            <PeriodPicker
+              from={from}
+              to={to}
+              preset={preset}
+              valid={rangeValid}
+              onPreset={(id: PresetId) => {
+                const r = presetRange(id, today);
+                setShown({ from: dayKey(r.from), to: dayKey(r.to) });
+              }}
+              onFrom={v => setShown({ from: v })}
+              onTo={v => setShown({ to: v })}
+            />
+          </>
         ) : undefined
       }
     />
@@ -158,7 +296,6 @@ export default function Team() {
       </>
     );
   }
-
   if (!rangeValid) {
     return (
       <>
@@ -171,7 +308,6 @@ export default function Team() {
       </>
     );
   }
-
   if (overview.error) {
     return (
       <>
@@ -182,9 +318,7 @@ export default function Team() {
       </>
     );
   }
-
-  const data = overview.data;
-  if (data && data.loggedSeconds === 0) {
+  if (data && data.loggedSeconds === 0 && data.targetSeconds === 0) {
     return (
       <>
         {header}
@@ -195,146 +329,158 @@ export default function Team() {
     );
   }
 
-  const best = Math.max(1, ...people.map(p => (sort === "coverage" ? p.coverage ?? 0 : p.loggedSeconds)));
-  const toCheck = people.filter(p => freshnessNote(p, now) !== null).length;
-  const stacksOf = (p: Person): DayStack[] =>
-    p.days.map(d => ({ day: parseDayKey(d.day) ?? today, parts: [{ project: "_", seconds: d.loggedSeconds }] }));
-  const targetsOf = (p: Person) => {
-    const byDay = new Map(p.days.map(d => [d.day, d.targetSeconds]));
-    return (day: Date) => byDay.get(dayKey(day)) ?? 0;
-  };
-  const dense = (data?.people[0]?.days.length ?? 0) > 10;
+  const selected = all.find(r => r.person.userId === shown.person) ?? null;
+  const dayRow = day ? day.person.days.find(d => d.day === dayKey(day.day)) : undefined;
 
   return (
     <>
       {header}
-      <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
-        <PanelSection
-          title={t("pages.team.leaderboard")}
-          actions={
-            <SegmentedControl
-              label={t("pages.team.sortLabel")}
-              value={sort}
-              onChange={v => setShown({ sort: v })}
-              options={[
-                { value: "hours", label: t("pages.team.sortHours") },
-                { value: "coverage", label: t("pages.team.sortCoverage") },
-              ]}
-            />
-          }
-        >
-          {!data ? (
-            <Skeleton className="h-48 rounded-xl" />
-          ) : (
-            <ol aria-label={t("pages.team.leaderboard")} aria-busy={overview.isPlaceholderData} className={cn("grid gap-1 transition-opacity", overview.isPlaceholderData && "opacity-60")}>
-              {people.map((p, i) => (
-                <li
-                  key={p.userId}
-                  className="grid min-h-touch grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b py-2 last:border-b-0 sm:grid-cols-[1.5rem_minmax(0,14rem)_minmax(0,1fr)_auto]"
-                >
-                  <span className="text-body-sm font-semibold text-muted-foreground tabular">{i + 1}</span>
-                  <PersonName person={p} now={now} />
-                  <Meter
-                    className="max-sm:hidden"
-                    value={sort === "coverage" ? p.coverage ?? 0 : p.loggedSeconds}
-                    max={best}
-                    tone="bg-chart-focus"
-                    size="md"
-                  />
-                  <div className="text-right">
-                    <p className="text-body-sm font-semibold tabular">
-                      {sort === "coverage" && p.coverage !== null ? percent(p.coverage) : formatDurationLong(p.loggedSeconds)}
-                    </p>
-                    <p className="text-caption text-muted-foreground tabular">
-                      {p.targetSeconds > 0
-                        ? sort === "coverage"
-                          ? formatDurationLong(p.loggedSeconds)
-                          : t("pages.team.ofTarget", { logged: percent(p.coverage ?? 0), target: formatDurationLong(p.targetSeconds) })
-                        : t("pages.team.noTarget")}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-          <p className="mt-3 text-caption text-muted-foreground">{t("pages.team.limits")}</p>
-        </PanelSection>
-        <div className="min-w-0 p-5 md:p-6 xl:pl-0">
-          {!data ? (
-            <Skeleton className="h-64 rounded-xl" />
-          ) : (
-            <QuickStatsCard
-              title={t("pages.team.title")}
-              stats={[
-                { label: t("pages.team.logged"), value: formatDurationLong(data.loggedSeconds) },
-                { label: t("pages.team.target"), value: formatDurationLong(data.targetSeconds) },
-              ]}
-              extra={[
-                { label: t("pages.team.coverage"), value: data.targetSeconds > 0 ? percent(data.loggedSeconds / data.targetSeconds) : "—" },
-                { label: t("pages.team.people"), value: String(people.length) },
-                ...(toCheck > 0 ? [{ label: t("pages.team.toCheck"), value: String(toCheck), tone: "danger" as const }] : []),
-              ]}
-            />
-          )}
-        </div>
-      </PanelRow>
-      <PanelSection title={t("pages.team.timelines")}>
+      {/* KPIs: one row divided by hairlines (2×2 on a phone); the two counts are filters. */}
+      <div className="grid grid-cols-2 divide-border border-b lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l">
         {!data ? (
-          <Skeleton className="h-64 rounded-xl" />
+          Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="px-5 py-3">
+              <Skeleton className="h-10 rounded-md" />
+            </div>
+          ))
         ) : (
-          <ul aria-label={t("pages.team.timelines")} className="grid gap-5">
-            {people.map(p => (
-              <li key={p.userId} className="grid min-w-0 gap-2">
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <PersonName person={p} now={now} />
-                  <p className="shrink-0 text-body-sm tabular">
-                    <span className="font-semibold">{formatDurationLong(p.loggedSeconds)}</span>
-                    {p.coverage !== null && <span className="text-muted-foreground"> · {percent(p.coverage)}</span>}
-                  </p>
-                </div>
-                {/* A long range scrolls inside its own strip, never the page. */}
-                <div className="overflow-x-auto">
-                  <div className={cn(dense && "min-w-[36rem]")}>
-                    <PeriodBars
-                      stacks={stacksOf(p)}
-                      colorOf={CHART_COLOR}
-                      targetFor={targetsOf(p)}
-                      dense={dense}
-                      compact
-                      onDay={day => setOpen({ person: p, day })}
-                    />
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <Kpi
+              label={t("pages.team.kpiCoverage")}
+              value={data.coverage === null ? "—" : percent(data.coverage)}
+              extra={<Delta value={coverageDelta(data.coverage, data.previous?.coverage ?? null)} />}
+            />
+            <Kpi
+              label={t("pages.team.kpiLogged")}
+              value={formatDurationLong(data.loggedSeconds)}
+              extra={<span className="text-caption text-muted-foreground tabular">{t("pages.team.kpiLoggedOf", { target: formatDurationLong(data.targetSeconds) })}</span>}
+            />
+            <Kpi
+              label={t("pages.team.kpiBelow")}
+              value={String(below.length)}
+              hint={t("pages.team.kpiBelowHint", { percent: percent(BELOW) })}
+              pressed={show === "below"}
+              onClick={() => setShown({ show: show === "below" ? "all" : "below" })}
+            />
+            <Kpi
+              label={t("pages.team.kpiCheck")}
+              value={String(check.length)}
+              hint={t("pages.team.kpiCheckHint")}
+              pressed={show === "check"}
+              onClick={() => setShown({ show: show === "check" ? "all" : "check" })}
+            />
+          </>
         )}
+      </div>
+      <PanelSection variant="compact" className="grid gap-3 px-5 md:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-0 flex-1 basis-48 sm:max-w-64">
+            <span className="sr-only">{t("pages.team.search")}</span>
+            <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input type="search" value={shown.q} onChange={e => setShown({ q: e.target.value })} placeholder={t("pages.team.search")} className="pl-8" />
+          </label>
+          <SegmentedControl
+            label={t("pages.team.show")}
+            value={show}
+            onChange={v => setShown({ show: v })}
+            options={[
+              { value: "all", label: t("pages.team.showAll") },
+              { value: "below", label: t("pages.team.showBelow", { count: below.length }) },
+              { value: "check", label: t("pages.team.showCheck", { count: check.length }) },
+            ]}
+          />
+          <SegmentedControl
+            label={t("pages.team.sort")}
+            value={sort}
+            onChange={v => setShown({ sort: v })}
+            options={[
+              { value: "hours", label: t("pages.team.sortHours") },
+              { value: "coverage", label: t("pages.team.sortCoverage") },
+              { value: "name", label: t("pages.team.sortName") },
+              { value: "change", label: t("pages.team.sortChange") },
+            ]}
+          />
+          <SegmentedControl
+            label={t("pages.team.cols")}
+            value={cols}
+            onChange={v => setShown({ cols: v })}
+            options={[
+              { value: "auto", label: t("pages.team.colsAuto") },
+              { value: "day", label: t("pages.team.colsDay") },
+              { value: "week", label: t("pages.team.colsWeek") },
+              { value: "month", label: t("pages.team.colsMonth") },
+            ]}
+          />
+        </div>
+        <ReadoutLine store={readout} />
+        {!data ? (
+          <Skeleton className="h-96 rounded-xl" />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            title={t("pages.team.nobody")}
+            message={t("pages.team.nobodyMessage")}
+            action={
+              <Button variant="outline" onClick={() => setShown({ show: "all", q: "" })}>
+                {t("pages.team.showEveryone")}
+              </Button>
+            }
+          />
+        ) : (
+          <div aria-busy={overview.isPlaceholderData} className={cn("min-w-0 transition-opacity", overview.isPlaceholderData && "opacity-60")}>
+            <TeamMatrix
+              rows={rows}
+              team={team}
+              buckets={buckets}
+              kind={kind}
+              today={todayKey}
+              compare={data.previous !== null}
+              onCell={onCell}
+              onPerson={onPerson}
+              onRead={onRead}
+            />
+          </div>
+        )}
+        <Legend />
+        <p className="text-caption text-muted-foreground">{t("pages.team.limits")}</p>
       </PanelSection>
-      <Dialog open={open !== null} onOpenChange={o => !o && setOpen(null)}>
+
+      <Sheet open={selected !== null} onOpenChange={o => !o && closePerson()}>
+        <SheetContent className="w-full gap-0 p-0 sm:max-w-md">
+          {selected && (
+            <TeamPersonPanel
+              person={selected.person}
+              from={from}
+              to={to}
+              today={todayKey}
+              note={selected.note}
+              delta={selected.delta}
+              onDay={d => setDay({ person: selected.person, day: d })}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={day !== null} onOpenChange={o => !o && setDay(null)}>
         <DialogContent className="sm:max-w-3xl">
-          {open && (() => {
-            const key = dayKey(open.day);
-            const d = open.person.days.find(x => x.day === key);
-            return (
-              <>
-                <DialogHeader>
-                  <DialogTitle>
-                    {t("pages.team.dayTitle", {
-                      name: open.person.displayName,
-                      date: dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(open.day),
-                    })}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {t("pages.team.dayDescription", {
-                      logged: formatDurationLong(d?.loggedSeconds ?? 0),
-                      target: formatDurationLong(d?.targetSeconds ?? 0),
-                    })}
-                  </DialogDescription>
-                </DialogHeader>
-                <TeamDayBody userId={open.person.userId} day={open.day} dayKey={key} />
-              </>
-            );
-          })()}
+          {day && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {t("pages.team.dayTitle", {
+                    name: day.person.displayName,
+                    date: dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(day.day),
+                  })}
+                </DialogTitle>
+                <DialogDescription>
+                  {t("pages.team.dayDescription", {
+                    logged: formatDurationLong(dayRow?.loggedSeconds ?? 0),
+                    target: formatDurationLong(dayRow?.targetSeconds ?? 0),
+                  })}
+                </DialogDescription>
+              </DialogHeader>
+              <TeamDayBody userId={day.person.userId} day={day.day} dayKey={dayKey(day.day)} />
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

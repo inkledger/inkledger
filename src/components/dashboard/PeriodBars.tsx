@@ -27,7 +27,6 @@ export function PeriodBars({
   compact = false,
   pending,
   parallel,
-  onDay,
 }: {
   stacks: DayStack[];
   colorOf: (project: string) => ProjectColor;
@@ -45,8 +44,6 @@ export function PeriodBars({
    * it. Solid: worked with an issue timer; dashed: with none (no issue covers it).
    */
   parallel?: Map<string, { linked: number; gap: number }>;
-  /** Each bar opens its day (the team report): a button named by its day and hours. */
-  onDay?: (day: Date) => void;
 }) {
   const today = dayKey(useToday());
   const live = usePendingSeconds(pending === true);
@@ -84,19 +81,15 @@ export function PeriodBars({
               beside && beside.linked + beside.gap >= 60
                 ? t("views.dashboard.bars.todoTime", { duration: formatDurationLong(beside.linked + beside.gap), gap: formatDurationLong(beside.gap) })
                 : "";
-            const Bar = onDay ? "button" : "div";
-            const named = `${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}${besideText}`;
             return (
-              <Bar
+              <div
                 key={dayKey(s.day)}
-                title={named}
-                {...(onDay ? { type: "button" as const, "aria-label": named, onClick: () => onDay(s.day) } : {})}
+                title={`${dateFormat({ weekday: "long", day: "numeric", month: "long" }).format(s.day)}: ${formatDurationLong(total)}${isToday && pendingSeconds >= 60 ? t("views.dashboard.bars.toLog", { duration: formatDurationLong(pendingSeconds) }) : ""}${besideText}`}
                 // A day with no goal is see-through: glass, no shadow.
                 {...(target > 0 ? surface("bar") : surface("glass"))}
                 className={cn(
                   "relative h-full flex-1 rounded-md",
-                  target > 0 ? "bg-muted" : "bg-muted/60",
-                  onDay && "min-w-0 outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring"
+                  target > 0 ? "bg-muted" : "bg-muted/60"
                 )}
               >
                 <div className="absolute inset-0 flex flex-col-reverse overflow-hidden rounded-md">
@@ -137,7 +130,7 @@ export function PeriodBars({
                     {beside.gap > 0 && <span className="w-full rounded-sm border border-dashed border-primary-strong/70" style={{ height: `${(beside.gap / max) * 100}%` }} />}
                   </span>
                 )}
-              </Bar>
+              </div>
             );
           })}
         </div>
