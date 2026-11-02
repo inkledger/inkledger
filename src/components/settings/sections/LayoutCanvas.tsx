@@ -1,4 +1,4 @@
-import { Fragment, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Eye, EyeOff, GripVertical, Lock, MoreHorizontal, Pin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +96,30 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
     announce: describe,
   });
 
+  // A block's buttons are disabled while its change is saved, and a disabled button drops the keyboard's
+  // focus to the page: once saved, it goes back to the button the user pressed (or its block), never lost.
+  const focused = useRef<{ anchorId: string; label: string | null } | null>(null);
+  const remember = (event: React.FocusEvent<HTMLDivElement>) => {
+    const anchorId = event.target.closest("[data-anchor]")?.getAttribute("data-anchor");
+    focused.current = anchorId ? { anchorId, label: event.target.getAttribute("aria-label") } : null;
+  };
+  // Leaving for elsewhere on the page forgets it; a block's own menu (drawn outside) is still the block.
+  const forget = (event: React.FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Element && !root.current?.contains(next) && !next.closest("[role='menu']")) focused.current = null;
+  };
+  const wasBusy = useRef(busy);
+  useEffect(() => {
+    const saved = wasBusy.current && !busy;
+    wasBusy.current = busy;
+    const last = focused.current;
+    const active = document.activeElement;
+    if (!saved || !last || (active && active !== document.body)) return;
+    const block = [...(root.current?.querySelectorAll("[data-anchor]") ?? [])].find(element => element.getAttribute("data-anchor") === last.anchorId);
+    const buttons = [...(block?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? [])];
+    (buttons.find(button => button.getAttribute("aria-label") === last.label) ?? buttons[0])?.focus({ preventScroll: true });
+  }, [busy]);
+
   // Up, down, first and last count the blocks on screen: a hidden one is never a step.
   const reorderIndex = (placement: ResolvedPlacement, areaId: string, to: Reorder): number | null => {
     const rest = others(areaId, placement.anchorId);
@@ -190,7 +214,7 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
   };
 
   return (
-    <div ref={root} data-layout-canvas>
+    <div ref={root} data-layout-canvas onFocus={remember} onBlur={forget}>
       <PageSketch sketch={sketch} renderArea={renderArea} />
     </div>
   );
