@@ -88,8 +88,10 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
       proposedConstraints: [{ id: `constraint_${crypto.randomUUID()}`, kind: "expectHere", status: "explicit", author: "user", scope, anchorId: anchor.id, areaId: area.id }],
     }));
   };
+  // A gap by what it says, destination included: two gaps from one area never read the same.
+  const gapLabel = (gap: ExpectationGap) => `${t(key(`patterns.${gap.pattern}`), { area: areaLabel(gap.areaId) })}${gap.destinationControlId ? ` → ${controlLabel(gap.destinationControlId)}` : ""}`;
   // Controls and areas by their names, counts in words: never a catalogue id on screen.
-  const rows = (evidence: EvidenceSet) => view === "heat"
+  const rows =(evidence: EvidenceSet) => view === "heat"
     ? evidence.heat.map(point => ({ id: point.controlId, label: controlLabel(point.controlId), detail: t(key("heatDetail"), { count: point.activations, exposures: point.exposures, failures: point.failures }) }))
     : view === "flow"
       ? evidence.flows.map(edge => ({ id: `${edge.fromControlId}>${edge.toControlId}`, label: `${controlLabel(edge.fromControlId)} → ${controlLabel(edge.toControlId)}`, detail: String(edge.count) }))
@@ -97,7 +99,7 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
         ? evidence.friction.map(point => ({ id: point.controlId, label: controlLabel(point.controlId), detail: t(key("frictionDetail"), { abandoned: point.abandoned, failures: point.failures, backtracks: point.backtracks }) }))
         : evidence.expectations.map(gap => ({
           id: gap.id,
-          label: `${t(key(`patterns.${gap.pattern}`), { area: areaLabel(gap.areaId) })}${gap.destinationControlId ? ` → ${controlLabel(gap.destinationControlId)}` : ""}`,
+          label: gapLabel(gap),
           detail: t(key("expectationDetail"), { count: gap.occurrences, confidence: Math.round(gap.confidence * 100), state: t(key(`expectationStates.${gap.state}`)) }),
         }));
   // Nothing used yet: no dates to show (an empty set has none), only that it is empty.
@@ -134,8 +136,8 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
           </table>
           {view === "expectation" && evidence.expectations.length > 0 && <p className="text-caption text-muted-foreground">{t(key("expectationHint"))}</p>}
           {view === "expectation" && evidence.expectations.map(gap => <div key={gap.id} className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={busy} aria-label={`${t(key("confirmExpectation"))}: ${areaLabel(gap.areaId)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "confirmed" }); await refresh(); })}>{t(key("confirmExpectation"))}</Button>
-            <Button size="sm" variant="ghost" disabled={busy} aria-label={`${t(key("rejectExpectation"))}: ${areaLabel(gap.areaId)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "rejected" }); await refresh(); })}>{t(key("rejectExpectation"))}</Button>
+            <Button size="sm" variant="outline" disabled={busy} aria-label={`${t(key("confirmExpectation"))}: ${gapLabel(gap)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "confirmed" }); await refresh(); })}>{t(key("confirmExpectation"))}</Button>
+            <Button size="sm" variant="ghost" disabled={busy} aria-label={`${t(key("rejectExpectation"))}: ${gapLabel(gap)}`} onClick={() => void run(async () => { await feedback.mutateAsync({ scope, expectationId: gap.id, status: "rejected" }); await refresh(); })}>{t(key("rejectExpectation"))}</Button>
             {gap.state === "confirmed" && expectationTarget(gap) && <Button size="sm" disabled={busy} onClick={() => void previewExpectation(evidence, gap)}>{t(key("useExpectation"))}</Button>}
           </div>)}
           <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => void prepare(evidence.evidenceId)}>{t(key("previewFile"))}</Button>
