@@ -5,6 +5,7 @@
 // and deleted (never changed: a new one replaces it), read back through the
 // user's times over a window. Built on a simulator (docs/dev/spikes.md).
 import { giteaWebhook } from "./webhook";
+import { isoSecondsUtc } from "../core/time";
 import { z } from "zod";
 import type { TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
@@ -171,7 +172,7 @@ async function issueByKey(creds: GiteaCreds, key: string): Promise<GiteaIssue | 
 }
 
 /** A RFC 3339 instant, always in UTC ("Z"): a "+02:00" in a query string turns into a space and is refused. */
-const rfc3339 = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const rfc3339 = isoSecondsUtc;
 
 /**
  * Issues matching the words that the user created, is assigned to or is mentioned in: without

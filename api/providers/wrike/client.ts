@@ -9,6 +9,7 @@
 // are form-encoded; ids are long strings, and the number in a task's link is
 // another id (the "API v2" one) that /ids converts.
 import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { isoSecondsUtc } from "../core/time";
 import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
 
 export type WrikeCreds = {
@@ -148,7 +149,7 @@ export async function wrikeOne<T>(c: WrikeCreds, path: string, init: Call = {}):
 }
 
 /** A date-time as Wrike's filters take it: UTC, whole seconds (milliseconds are refused). */
-export const wrikeInstant = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+export const wrikeInstant = isoSecondsUtc;
 
 /** Records by id, at most a hundred ids to a call; the ones Wrike doesn't give back are absent. */
 export async function wrikeByIds<T>(c: WrikeCreds, path: string, ids: string[], query: Record<string, unknown> = {}): Promise<T[]> {

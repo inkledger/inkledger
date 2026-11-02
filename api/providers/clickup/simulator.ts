@@ -26,6 +26,7 @@
 // - webhooks: X-Signature = hex HMAC-SHA256 of the raw body with the webhook's secret, no
 //   delivery id of their own (the history items have ids).
 import { createHmac } from "node:crypto";
+import { instantAtLocal, localDate, timeZone } from "@contracts/values";
 
 type Rec = Record<string, unknown>;
 export type SimUser = { id: number; username: string; email: string; color: string; profilePicture: string | null };
@@ -67,16 +68,7 @@ export const defaultStatuses = (): SimStatus[] => [
 ];
 
 /** The instant a wall-clock time in a zone is (04:00 local is where ClickUp puts a date without a time). */
-export function localInstant(day: string, hour: number, zone: string): number {
-  const [y, m, d] = day.split("-").map(Number);
-  const offsetAt = (t: number) => {
-    const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(t)).map((x) => [x.type, Number(x.value)]));
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(t / 1000) * 1000;
-  };
-  const guess = Date.UTC(y, m - 1, d, hour);
-  const first = guess - offsetAt(guess);
-  return guess - offsetAt(first);
-}
+export const localInstant = (day: string, hour: number, zone: string): number => instantAtLocal(localDate(day), hour, timeZone(zone));
 
 export function clickupSimulator(apiBase = "https://api.clickup.com/api/v2") {
   const token = "pk_1234567_SIMULATEDPERSONALTOKEN";

@@ -1,5 +1,6 @@
 // Time on its way to a service: amounts in its units, changes held to what
 // it accepts (whole seconds, a known revision).
+import { DAY_MS } from "@contracts/time";
 import { ProviderError } from "./errors";
 
 /** Seconds as whole minutes, for services that keep minutes: the nearest, at least one (a short entry is not lost). */
@@ -9,6 +10,15 @@ export const wholeMinutes = (seconds: number): number => Math.max(1, Math.round(
 export function assertRevision(concurrency: "revision" | "none", expectedVersion: string | undefined): void {
   if (concurrency === "revision" && !expectedVersion) throw new ProviderError("invalid", "This service changes entries only at a known revision");
 }
+
+/** An instant in UTC to the second ("2026-10-14T08:30:00Z"): the milliseconds cut off, as services that refuse them want it. */
+export const isoSecondsUtc = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/** The day an instant falls on in UTC ("2026-10-14"). */
+export const utcDayOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+/** The day `n` days after a plain day (before it, when negative). */
+export const addLocalDays = (day: string, n: number): string => utcDayOf(Date.parse(`${day}T00:00:00Z`) + n * DAY_MS);
 
 /** Throws "invalid" unless a counter amount (or a day total, which may be 0) is whole seconds in range. */
 export function assertSeconds(seconds: number, allowZero = false): void {

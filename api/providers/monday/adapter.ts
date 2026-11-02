@@ -14,6 +14,7 @@ import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonVa
 import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { utcDayOf } from "../core/time";
 import { approximations, escapeHtml, listHtml, listItemOf, withoutBlockMarks, type HtmlList } from "../core/richtext/toHtml";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -378,7 +379,6 @@ async function mustItem(c: MondayCreds, ref: IssueRef): Promise<MondayItem> {
 }
 
 /** UTC day of a moment (YYYY-MM-DD): the finest a last-updated filter takes. */
-const dayText = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 const ACTIVITY = `query Activity($board: ID!, $from: ISO8601DateTime, $to: ISO8601DateTime, $items: [ID!], $limit: Int, $page: Int) {
   boards(ids: [$board]) { activity_logs(from: $from, to: $to, item_ids: $items, limit: $limit, page: $page) { id event data created_at user_id } }
@@ -553,7 +553,7 @@ export const mondayProvider: TrackerProvider<"monday", MondayOptions> = {
           else {
             const rules: unknown[] = [{ column_id: peopleColumn(board.columns)!.id, compare_value: [`person-${x.conn.remoteAccountId}`], operator: "any_of" }];
             // The last-updated filter takes a day, not a moment, and counts days in its own zone: a day early, then the exact cut here.
-            if (since !== null) rules.push({ column_id: "__last_updated__", compare_value: ["EXACT", dayText(since - 86_400_000)], operator: "greater_than_or_equals" });
+            if (since !== null) rules.push({ column_id: "__last_updated__", compare_value: ["EXACT", utcDayOf(since - 86_400_000)], operator: "greater_than_or_equals" });
             got = (await gql<{ boards: { items_page: Items }[] }>(c, "BoardItems", FIRST_ITEMS, { board: board.id, limit: PER_PAGE, rules })).boards[0]?.items_page ?? { cursor: null, items: [] };
           }
         } catch (e) {

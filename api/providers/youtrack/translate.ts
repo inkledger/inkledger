@@ -6,12 +6,12 @@ import type { QueryExpr, QueryTerm } from "@contracts/query";
 import { DAY_MS } from "@contracts/time";
 import { dayBounds, translateWith, type Dialect, type Translated } from "../core/translate";
 import { ProviderError } from "../core/errors";
+import { utcDayOf } from "../core/time";
 
 /** The widest offset of a time zone from UTC, plus a day: a query date this far back covers the user's midnight wherever they live. */
 export const QUERY_DATE_MARGIN_MS = 36 * 3_600_000;
 
 /** A date as a query writes it (yyyy-MM-dd), from an instant. */
-export const queryDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /**
  * "Mine, changed since" for a pass. The start date is moved back by
@@ -19,7 +19,7 @@ export const queryDate = (ms: number) => new Date(ms).toISOString().slice(0, 10)
  * `sinceMs`: the exact cut is made on the issues' `updated` timestamps.
  */
 export function assignedQuery(sinceMs: number | null): string {
-  const changed = sinceMs === null ? "" : ` updated: ${queryDate(sinceMs - QUERY_DATE_MARGIN_MS)} .. *`;
+  const changed = sinceMs === null ? "" : ` updated: ${utcDayOf(sinceMs - QUERY_DATE_MARGIN_MS)} .. *`;
   return `for: me${changed} sort by: updated asc`;
 }
 
@@ -85,7 +85,7 @@ function sayTerm(t: QueryTerm, now: Date): string | null {
           const b = dayBounds(t, now);
           if (!b) return null;
           // Inclusive day ranges; "*" for an open end.
-          const last = b.to ? queryDate(Date.parse(`${b.to}T00:00:00Z`) - DAY_MS) : "*";
+          const last = b.to ? utcDayOf(Date.parse(`${b.to}T00:00:00Z`) - DAY_MS) : "*";
           return `${t.field}: ${b.from ?? "*"} .. ${last}`;
         }
         case "is":

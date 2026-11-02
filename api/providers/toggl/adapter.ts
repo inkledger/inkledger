@@ -5,9 +5,10 @@
 // back from there. Written from the API v9 documentation and tested on a
 // simulator; its traps are in simulator.ts, its open questions in SPIKES.md.
 import { z } from "zod";
+import { addLocalDays, isoSecondsUtc } from "../core/time";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
-import { instant, instantFrom, type LocalDate, type TimeZone } from "@contracts/values";
+import { instant, instantFrom, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ExternalRef, IssueHandle, Limited, RemoteWorklog, SinkTarget, TimeSinkProvider, WorklogInput } from "../types";
@@ -75,7 +76,6 @@ async function credsOf(x: X): Promise<TogglCreds> {
 
 // ---------- Days and instants ----------
 
-const nextDay = (date: LocalDate): string => new Date(Date.parse(`${date}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
 
 /** The first instant of a calendar day in a zone (the day's start, whatever the offset or a clock change that day). */
 export function dayStart(date: string, zone: TimeZone): number {
@@ -90,7 +90,7 @@ export function dayStart(date: string, zone: TimeZone): number {
 }
 
 /** RFC 3339 in UTC, whole seconds (the form Toggl documents). */
-const rfc3339 = (ms: number) => new Date(Math.floor(ms / 1000) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+const rfc3339 = isoSecondsUtc;
 
 // ---------- The note: which issue an entry is for ----------
 
@@ -222,7 +222,7 @@ export const togglSink: TimeSinkProvider<"toggl", TogglOptions> = {
     async list(x, range) {
       const c = await credsOf(x);
       const from = dayStart(range.from, x.conn.timeZone);
-      const to = dayStart(nextDay(range.to), x.conn.timeZone);
+      const to = dayStart(addLocalDays(range.to, 1), x.conn.timeZone);
       const all = new Map<number, TogglEntry>();
       await readSpan(c, from, to, all);
       // /me/time_entries spans every workspace of the user.

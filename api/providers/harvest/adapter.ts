@@ -11,7 +11,7 @@
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
-import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
+import { instant, instantAtLocal, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
 import { secretOf } from "../core/context";
 import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
@@ -76,20 +76,8 @@ function minutesOfDay(at: Instant, zone: TimeZone): number {
   return get("hour") * 60 + get("minute");
 }
 
-/** The zone's offset from UTC at an instant, in ms. */
-function offsetAt(ms: number, zone: TimeZone): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(ms));
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second")) - Math.floor(ms / 1000) * 1000;
-}
-
 /** The instant a wall-clock time (minutes into the day) is, on a date, in a zone. */
-function wallToInstant(date: LocalDate, minutes: number, zone: TimeZone): Instant {
-  const [y, m, d] = date.split("-").map(Number);
-  const naive = Date.UTC(y, m - 1, d, 0, minutes);
-  const first = naive - offsetAt(naive, zone);
-  return instant(naive - offsetAt(first, zone));
-}
+const wallToInstant = (date: LocalDate, minutes: number, zone: TimeZone): Instant => instantAtLocal(date, 0, zone, minutes);
 
 /** "8:30am", as Harvest writes a time of day. */
 function clock(minutes: number): string {

@@ -12,6 +12,7 @@ import { instant, instantFrom, localDate, type LocalDate } from "@contracts/valu
 import { tokenCreds } from "../core/context";
 import { categoryByName } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { utcDayOf } from "../core/time";
 import { markdownWarnings } from "../core/richtext/toHtml";
 import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
@@ -588,8 +589,8 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
         ((now: number): EntriesAt => ({
           offset: 0,
           // Whole days a day wider than the window at the far end: spent_on is the user's day, not UTC's.
-          from: new Date(now - WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10),
-          to: new Date(now + DAY_MS).toISOString().slice(0, 10),
+          from: utcDayOf(now - WINDOW_DAYS * DAY_MS),
+          to: utcDayOf(now + DAY_MS),
           at: now,
         }))(Date.now());
       const me = meId(x);

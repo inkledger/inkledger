@@ -13,7 +13,7 @@
 // - approved, submitted and period-locked entries answer 400 on any change; approval requests are listed for managers only;
 // - nothing honours an idempotency key: a retried create makes a second entry.
 import type { ClockifyApproval, ClockifyEntry, ClockifyProject, ClockifyTask, ClockifyUser } from "./client";
-import { isoDuration } from "../core/time";
+import { isoDuration, isoSecondsUtc } from "../core/time";
 
 type SimEntry = {
   id: string;
@@ -88,14 +88,14 @@ export function clockifySimulator(o: { apiBase?: string; forceProjects?: boolean
     taskId: e.taskId,
     workspaceId,
     tagIds: e.tagIds,
-    timeInterval: { start: new Date(e.start).toISOString().replace(/\.\d{3}Z$/, "Z"), end: e.end === null ? null : new Date(e.end).toISOString().replace(/\.\d{3}Z$/, "Z"), duration: e.end === null ? null : isoDuration(Math.round((e.end - e.start) / 1000)) },
+    timeInterval: { start: isoSecondsUtc(e.start), end: e.end === null ? null : isoSecondsUtc(e.end), duration: e.end === null ? null : isoDuration(Math.round((e.end - e.start) / 1000)) },
     isLocked: e.locked || e.start < state.lockedBefore,
   });
   const approvalShown = (a: SimApproval): ClockifyApproval => ({
     id: a.id,
     owner: { userId: a.userId },
     status: { state: a.state },
-    dateRange: { start: new Date(a.from).toISOString().replace(/\.\d{3}Z$/, "Z"), end: new Date(a.to).toISOString().replace(/\.\d{3}Z$/, "Z") },
+    dateRange: { start: isoSecondsUtc(a.from), end: isoSecondsUtc(a.to) },
   });
 
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>

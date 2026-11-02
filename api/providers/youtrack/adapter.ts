@@ -9,7 +9,7 @@ import { tokenCreds } from "../core/context";
 import { categoryByName } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { pathUnderSite } from "../core/http";
-import { wholeMinutes } from "../core/time";
+import { utcDayOf, wholeMinutes } from "../core/time";
 import { toYouTrackQuery } from "./translate";
 import { verifyYouTrackWebhook } from "./webhook";
 import { z } from "zod";
@@ -160,7 +160,7 @@ const issueId = (ref: { remoteId: string; key: string }) => enc(ref.remoteId || 
 const at = (ms: unknown): Instant | null => (typeof ms === "number" && Number.isFinite(ms) && ms >= 0 ? instant(Math.trunc(ms)) : null);
 
 /** A work date: a timestamp at 00:00 UTC of the day. */
-const dateOfMs = (ms: number): LocalDate => localDate(new Date(ms).toISOString().slice(0, 10));
+const dateOfMs = (ms: number): LocalDate => localDate(utcDayOf(ms));
 const msOfDate = (d: LocalDate) => Date.parse(`${d}T00:00:00Z`);
 
 /** Relative avatar paths (/hub/api/rest/avatar/...) are made absolute on the site. */

@@ -11,12 +11,11 @@ import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, type HtmlList } from "../core/richtext/toHtml";
-import { wholeMinutes } from "../core/time";
+import { addLocalDays, wholeMinutes } from "../core/time";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { LruCache } from "../../lib/lruCache";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
-import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -419,7 +418,6 @@ function entryBody(w: WorklogInput) {
   return { date: w.time.date, hours: hoursOfSeconds(w.time.seconds), description: w.comment, ...(w.onBehalfOfRemoteId ? { person_id: Number(w.onBehalfOfRemoteId) } : {}) };
 }
 
-const shiftDay = (d: LocalDate, n: number): string => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
 
 const entryPath = (bucket: string, id: string) => `/buckets/${bucket}/timesheet/entries/${encodeURIComponent(id)}.json`;
 
@@ -726,7 +724,7 @@ export const basecampProvider: TrackerProvider<"basecamp", BasecampOptions> = {
       const today = localDateOf(instant(now), x.conn.timeZone);
       const at =
         decodePageToken<EntriesAt>(x.conn, "worklogs", V, q.since, q.page) ??
-        ({ next: null, from: shiftDay(today, -WINDOW_DAYS), to: shiftDay(today, 1), at: now } satisfies EntriesAt);
+        ({ next: null, from: addLocalDays(today, -WINDOW_DAYS), to: addLocalDays(today, 1), at: now } satisfies EntriesAt);
       const r = await bc<BcEntry[]>(c, at.next ?? joined("/reports/timesheet.json", { from: at.from, to: at.to, person_id: x.conn.remoteAccountId }));
       // Time logged on a project itself (no to-do or card) has nowhere to go here.
       const items = (r?.data ?? []).map((e) => toRemoteWorklog(e, x.conn.remoteAccountId)).filter((w) => w.issue !== null);

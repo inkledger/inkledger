@@ -9,6 +9,7 @@
 // with jiraWorklogIdOf. Built from Tempo's documentation on a simulator, not
 // yet on a real account: SPIKES.md.
 import { z } from "zod";
+import { isoSecondsUtc } from "../core/time";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, type TimeZone } from "@contracts/values";
@@ -214,7 +215,7 @@ const issueIdOf = (ref: ExternalRef): number => {
 type FeedPass = { offset: number; at: number };
 type FeedSince = { at: number };
 
-const isoSeconds = (ms: number) => new Date(Math.floor(ms / 1000) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+const isoSeconds = isoSecondsUtc;
 
 export const tempoSink: TimeSinkProvider<"tempo", TempoOptions> = {
   role: "timeSink",

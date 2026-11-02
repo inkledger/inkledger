@@ -16,6 +16,7 @@
 // - the service may keep whole minutes only (roundsToMinutes): the answer says what was kept.
 import type { TempoApproval, TempoWorkAttribute, TempoWorklog } from "./client";
 import { wallOf } from "./client";
+import { isoSecondsUtc } from "../core/time";
 import { timeZone } from "@contracts/values";
 
 export type SimWorklog = {
@@ -34,7 +35,7 @@ export type SimWorklog = {
 };
 type SimPeriod = { from: string; to: string; status: "OPEN" | "IN_REVIEW" | "APPROVED" };
 
-const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const iso = isoSecondsUtc;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;
 

@@ -14,6 +14,7 @@ import { instant, instantFrom, localDate, type Instant } from "@contracts/values
 import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { utcDayOf } from "../core/time";
 import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -359,7 +360,6 @@ function toRemoteWorklog(t: GitLabTimelog): RemoteWorklog {
 }
 
 /** The UTC day an instant falls on (GraphQL's startDate/endDate snap to UTC days, not the user's). */
-const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /** A call that only a newer server answers: one that answers it isn't there reads the server's schema again next time. */
 async function modern<T>(c: GitLabCreds, call: () => Promise<T>): Promise<T> {
@@ -603,8 +603,8 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
         ((now: number): TimelogPageAt => ({
           after: null,
           // Whole UTC days, a day wider at both ends than the window: startDate and endDate are days in UTC, not the user's.
-          from: utcDay(now - (WINDOW_DAYS + 1) * DAY_MS),
-          to: utcDay(now + DAY_MS),
+          from: utcDayOf(now - (WINDOW_DAYS + 1) * DAY_MS),
+          to: utcDayOf(now + DAY_MS),
           username: "",
           at: now,
         }))(Date.now());

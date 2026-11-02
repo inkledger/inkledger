@@ -9,6 +9,7 @@ import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contra
 import { instant, instantFrom, localDate, type JsonValue } from "@contracts/values";
 import { tokenCreds } from "../core/context";
 import { optionsParser } from "../core/options";
+import { utcDayOf } from "../core/time";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { headerOf, hmacHex, sameSecret } from "../core/webhooks";
@@ -212,11 +213,10 @@ const word = (t: string) => {
 const textQuery = (text: string) => text.split(/\s+/).map(word).filter((w): w is string => w !== null).join(" ");
 
 /** `updated:` takes days, counted in UTC. */
-const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 function feedQuery(phase: PageAt["phase"], mention: string, since: number | null): string {
   const who = /^[\w.-]+$/.test(mention) ? mention : quote(mention);
-  return `owner:${who}${phase === "archived" ? " is:archived" : ""}${since === null ? "" : ` updated:${utcDay(since)}..*`}`;
+  return `owner:${who}${phase === "archived" ? " is:archived" : ""}${since === null ? "" : ` updated:${utcDayOf(since)}..*`}`;
 }
 
 

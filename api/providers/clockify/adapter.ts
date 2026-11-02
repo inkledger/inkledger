@@ -7,8 +7,9 @@
 // read first and sent again. Running timers are not entries of ours and are
 // left alone. Built on a simulator, not verified on a real account: SPIKES.md.
 import { z } from "zod";
+import { isoSecondsUtc } from "../core/time";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
-import { instant, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
+import { instant, instantAtLocal, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
 import { tokenCreds } from "../core/context";
 import { optionsParser } from "../core/options";
 import { ProviderError } from "../core/errors";
@@ -82,22 +83,10 @@ function workspaceOf(x: X, c: ClockifyCreds): Promise<string> {
 // ---------- Time ----------
 
 /** Clockify prints and takes instants to the second ("2026-10-14T08:30:00Z"), never with milliseconds. */
-const isoOf = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
-
-/** The offset of a zone at an instant, in ms (east positive). */
-function zoneOffset(ms: number, zone: TimeZone): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(ms));
-  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  return Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second")) - Math.floor(ms / 1000) * 1000;
-}
+const isoOf = isoSecondsUtc;
 
 /** The instant a local day starts in a zone (a day may be 23 or 25 hours long). */
-export function dayStart(date: LocalDate, zone: TimeZone): number {
-  const [y, m, d] = date.split("-").map(Number);
-  const guess = Date.UTC(y, m - 1, d);
-  const first = guess - zoneOffset(guess, zone);
-  return guess - zoneOffset(first, zone);
-}
+export const dayStart = (date: LocalDate, zone: TimeZone): number => instantAtLocal(date, 0, zone);
 
 const nextDay = (date: LocalDate): LocalDate => {
   const [y, m, d] = date.split("-").map(Number);

@@ -80,13 +80,13 @@ function zoneOffsetMs(at: number, zone: TimeZone): number {
 }
 
 /**
- * The instant a wall-clock hour of a day has in a zone (09:00 in Rome that
+ * The instant a wall-clock hour (and minute) of a day has in a zone (09:00 in Rome that
  * day), the same whatever zone this process runs in. An hour a clock change
  * skips lands an hour later; one it repeats is its second (winter) occurrence.
  */
-export function instantAtLocal(day: LocalDate, hour: number, zone: TimeZone): Instant {
+export function instantAtLocal(day: LocalDate, hour: number, zone: TimeZone, minute = 0): Instant {
   const [y, m, d] = day.split("-").map(Number);
-  const wall = Date.UTC(y, m - 1, d) + hour * 3_600_000;
+  const wall = Date.UTC(y, m - 1, d) + hour * 3_600_000 + minute * 60_000;
   // The offset where the wall time falls, read twice: once at a guess, then at the answer (DST).
   const guess = wall - zoneOffsetMs(wall, zone);
   return instant(wall - zoneOffsetMs(guess, zone));

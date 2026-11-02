@@ -23,6 +23,7 @@
 // - timelogs: decimal hours (at most 24, kept to two decimals), a tracked day, billable or not, a
 //   category; an approved or pending one is locked (403), other people's are read-only.
 import { createHmac } from "node:crypto";
+import { isoSecondsUtc } from "../core/time";
 
 type Rec = Record<string, unknown>;
 type Group = "Active" | "Completed" | "Deferred" | "Cancelled";
@@ -93,7 +94,7 @@ export function wrikeSimulator(apiBase = "https://www.wrike.com/api/v4") {
   let past = Date.now() - 3 * 3_600_000;
   const earlier = () => (past += 1000);
   /** UTC to the second, as Wrike prints it */
-  const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+  const iso = isoSecondsUtc;
   const sec = (ms: number) => Math.floor(ms / 1000) * 1000;
   const state = { exhausted: false, calls: 0, revoked: false, epoch: 0 };
 
