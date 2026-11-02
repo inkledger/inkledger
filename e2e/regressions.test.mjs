@@ -1090,6 +1090,19 @@ test("navigation: Issues filters and scroll come back with Alt+←", () =>
     await page.waitForFunction(() => document.querySelector("main")?.scrollTop > 350, null, { timeout: 3000 });
   }));
 
+test("navigation: Alt+Shift+← stays on the page (the Desk's own keys)", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.goto(base + "/issues");
+    await page.locator('aside a[href="/board"]').click();
+    await page.waitForURL(u => u.pathname === "/board");
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Alt+Shift+ArrowLeft");
+    await page.waitForTimeout(400);
+    assert.equal(new URL(page.url()).pathname, "/board");
+    await page.keyboard.press("Alt+ArrowLeft");
+    await page.waitForURL(u => u.pathname === "/issues");
+  }));
+
 test("navigation: the Timesheet keeps its week when you come back", () =>
   withApp({}, async ({ page, base }) => {
     await page.goto(base + "/timesheet");

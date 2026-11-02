@@ -27,15 +27,16 @@ export function useHotkeys() {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return; // handled by a page (e.g. list keys)
       // Back / forward: ⌘[ ⌘] (by physical key: Italian layouts) or Alt+← →
-      // outside text fields. The native window has no browser buttons.
+      // outside text fields. The native window has no browser buttons. Alt+Shift+arrows
+      // are the page's own (the Desk moves panes with them), never history.
       const step =
         (e.metaKey || e.ctrlKey) && !e.altKey && e.code === "BracketLeft"
           ? -1
           : (e.metaKey || e.ctrlKey) && !e.altKey && e.code === "BracketRight"
             ? 1
-            : e.altKey && !e.metaKey && !isTyping(e.target) && e.key === "ArrowLeft"
+            : e.altKey && !e.metaKey && !e.shiftKey && !isTyping(e.target) && e.key === "ArrowLeft"
               ? -1
-              : e.altKey && !e.metaKey && !isTyping(e.target) && e.key === "ArrowRight"
+              : e.altKey && !e.metaKey && !e.shiftKey && !isTyping(e.target) && e.key === "ArrowRight"
                 ? 1
                 : 0;
       if (step) {
