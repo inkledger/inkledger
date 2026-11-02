@@ -32,6 +32,12 @@ Done criteria:
 - **Dragging issues in:** rows (their key link; pinned rows as a whole) and board cards add `application/x-inkledger-issue` beside their own types (`setIssueDragData`). The Desk takes it on an empty slot, on its snap places with one more slot (a full desk: the pane under the pointer is parked), and on the sidebar's Desk entry.
 - **Picking in Issues:** `x` and checkboxes (shown on hover, all once one is picked; a card's menu has "Pick for the desk"), then the bar's "Open on desk" (`openTogether`, the default arrangement for the count; disabled above six, saying why).
 - **Six panes (4b):** `DESK_MAX_PANES` is 6 (empty slots count). New arrangements: `rows-3`, `rows-4`, `main-{left,right,top,bottom}-3`, `main-left-4`/`main-right-4` (big beside a 2×2), `top-3-bottom-2`/`top-2-bottom-3` (on six columns, each pane spanning two or three), `grid-3x2`, `grid-2x3`; defaults 5 → `main-left-4`, 6 → `grid-3x2`. Old ids stay; a stored desk with an id this version doesn't know keeps its issues in the default (the schema reads `preset` as any string). Spanning panes: `minTrackOf` lets a column go to MIN_TRACK/2 where every pane covers two or more, so no pane is ever under MIN_TRACK; dividers and `normalizeDesk` use it. `fitPreset` measures each pane at even sizes (20×14 rem minimum) and falls back along `FALLBACKS`; when nothing fits, the candidate whose tightest pane comes nearest. Edges with 4–5 panes make the pane the big one on that side, corners a small one opposite (4: quarters); with 6, corners are the grid's corners and edges the middle of a side. The Layout picker groups arrangements by pane count (two columns); "Move to" lists places flat up to 8, beyond that one submenu per arrangement. Keys `1`–`6`; toasts "n/6".
+- **Ask AI (4c):** a chat with the local model (Ollama at OLLAMA_URL only, the same refusal rules as the other AI features) about the issues shown, never the parked ones.
+  - *Context:* built on the server (`api/desk/chat.ts`) from each issue's agent copy (`agentCopy`), header alone when the tracker can't give the description; any issue that isn't the user's refuses the whole question (404). The page sends the desk's slots with every question, so the context follows the desk; the panel shows the issues as chips and says when the desk changed under the conversation.
+  - *Transport:* `POST /api/desk/chat` answers as server-sent events (`context`, `delta`, `draft` a few times a second with the answer so far as a document, `done`, `error`, or a single `off`); 12 questions a minute per user; the client gone, the request to Ollama is aborted. `streamChat` / `readOllamaStream` in `api/ai/ollama.ts`; the simulator streams a fixed answer word by word.
+  - *Conversation:* in the browser only (`src/lib/desk/chat.ts`), kept while the panel is closed and across pages until a reload; "New chat", or a desk whose issues all changed, clears it. Markdown is drawn by `RichText` from the server's parse, never as HTML.
+  - *Panel:* docked beside the desk on wide screens (an in-page column, not a modal sheet, so the desk stays usable and refits), a full sheet on phones; lazy. `a` opens it.
+  - *Save as note:* one note with every key in its body, linked to the focused pane's issue (or the first): linking it to every issue waits for batch 7 (`markdown_note_issues`).
 
 ## Batches and progress
 - [x] 0. Layout model (`contracts/desk.ts`, tests)
@@ -40,6 +46,7 @@ Done criteria:
 - [x] 3. Snapping by drag, keys or menu ("Move to", "Swap with"); live region announcements
 - [x] 4. Entry points and the Desk in the workflow: empty slots, sending an issue from its page (grip to an edge, Layout button, Alt+Shift+arrows, long press on a phone), Shift-click on issue links, "Open beside", dragging from lists and the board, picking in Issues
 - [x] 4b. Up to six panes and more arrangements (presets, fit, snap edges, picker, Move to, keys, toasts, tabs)
+- [x] 4c. Ask AI: a chat with the local model about the issues shown (`api/desk/chat.ts`, `DeskChat`)
 - [ ] 5. Compare view, and its phone table
 - [ ] 6. Copy all for model (`issues.copyForAgentMany`)
 - [ ] 7. Decision note (`markdown_note_issues`, migration 0039)
@@ -60,6 +67,9 @@ Done criteria:
 | `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && pnpm test:smoke && pnpm db:check` | batch 4b | pass; 2909 unit tests; first load 868.0/276.1 KiB |
 | `desk` + `desk-snap` + `desk-flow` + `desk-six` (new) | batch 4b | 19/19, ×3 |
 | issue-copy, issue-hotkeys, issue-links, manage-issue, create-issue, keyboard-list, layout-overflow, a11y | batch 4b | 25/25 |
+| `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && PROVIDERS_READ_ONLY=1 pnpm test:smoke && pnpm db:check` | batch 4c | pass; 2905 unit tests; first load 868.9/276.5 KiB |
+| `e2e/desk-chat.test.mjs` (new) | batch 4c | 4/4, ×3 |
+| `desk`, `desk-snap`, `desk-flow` | batch 4c | 15/15 |
 
 ## Open issues and next action
 - At 320 px three of six tabs show; the others are reached by scrolling the tab row (or the arrows).
@@ -71,4 +81,6 @@ Done criteria:
 - On a phone the title can't be selected (a long press opens the Desk's places).
 - The palette's "Desk" group (saved desks) waits for batch 9.
 - An issue dragged from the board or a list can reach the Desk only through the sidebar entry (another page); dropping on the Desk itself needs the Desk beside the list (a second window).
+- The chat's answers were tried with the simulator only, never with a real model in this batch: the prompt's behaviour (citing keys, staying on topic, the language) is unverified on a real Ollama.
+- While an answer is written, what came after the last `draft` (up to 150 ms) shows a moment later; a stopped answer keeps the last draft's drawing.
 - **Next:** batches 5–9.
