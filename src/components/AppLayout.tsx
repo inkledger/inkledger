@@ -120,6 +120,7 @@ function ActiveTimerFocusButton() {
       aria-label={t("ui.layout.focusMode")}
       title={t("ui.layout.focusMode")}
       onClick={() => focusMode.set(true)}
+      {...flowControlProps("shell.timer.focus")}
     >
       <Maximize2 className="h-4 w-4" />
     </Button>
@@ -397,7 +398,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         </button>
       </RailTip>
     );
-    else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} />;
+    else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} controls={{ open: flowControlProps("shell.account.open"), logout: flowControlProps("shell.account.logout") }} />;
     else if (anchorId === "shell.sidebar") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
         <button type="button" onClick={sidebar.toggle} {...flowControlProps("shell.sidebar.toggle")} aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")} className={cn(row, "font-normal")}>

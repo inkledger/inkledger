@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
+import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 
 /** Pill segmented control (radio group semantics, arrow-key navigable). */
 export function SegmentedControl<T extends string>({
@@ -15,6 +16,8 @@ export function SegmentedControl<T extends string>({
     value: T;
     label: string;
     icon?: React.ComponentType<{ className?: string }>;
+    /** Counted by FlowMap where the caller says so (flowControlProps). */
+    control?: FlowControlAttributes;
   }[];
   /** Accessible name of the group */
   label: string;
@@ -52,7 +55,7 @@ export function SegmentedControl<T extends string>({
         }
       }}
     >
-      {options.map(({ value: v, label: l, icon: Icon }, i) => {
+      {options.map(({ value: v, label: l, icon: Icon, control }, i) => {
         const active = v === value;
         return (
           <button
@@ -61,6 +64,7 @@ export function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={active}
             {...surface("control", { on: active })}
+            {...control}
             // With no selection the first option keeps the group reachable.
             tabIndex={active || (!hasValue && i === 0) ? 0 : -1}
             onClick={() => onChange(v)}

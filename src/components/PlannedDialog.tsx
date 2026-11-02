@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { IssuePicker, type IssueRef } from "@/components/app/IssuePicker";
 import { t } from "@/i18n";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 
 const kindOptions = () => [
   { value: "work" as const, label: t("ui.planned.work"), icon: BriefcaseBusiness },
@@ -159,7 +160,7 @@ function PlannedForm({ day, entry, onClose, onLogActual }: { day: Date; entry?: 
             {t("ui.planned.logActual")}
           </Button>
         )}
-        <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+        <Button type="button" variant="outline" onClick={onClose} {...flowControlProps("dashboard.planned.cancel")}>{t("common.cancel")}</Button>
         <Button type="submit" disabled={!canSubmit} data-workspace-control="dashboard.planned.save" data-workspace-anchor="dashboard.planned-dialog">{pending ? t("common.saving") : t(entry ? "ui.planned.update" : "ui.planned.create")}</Button>
       </DialogFooter>
     </form>

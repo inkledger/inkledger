@@ -8,6 +8,9 @@ export function flowControlProps(controlId: string) {
   return { "data-workspace-control": control.id, "data-workspace-anchor": control.anchorId } as const;
 }
 
+/** What a shared component spreads on an element when its caller has it counted (flowControlProps). */
+export type FlowControlAttributes = ReturnType<typeof flowControlProps>;
+
 /** The block a shared control is drawn in (the sidebar timer, the Dashboard header's): elsewhere it is not counted. */
 export const FlowControlHost = createContext<string | null>(null);
 
@@ -27,5 +30,7 @@ export function workspaceMutationPath(controlId: string): readonly string[] | un
   if (controlId === "dashboard.timer.resume" || controlId === "shell.timer.resume" || controlId === "shell.timer.start" || controlId === "mobile.timer.start") return ["timers.start"];
   if (controlId === "dashboard.timer.stop" || controlId === "shell.timer.stop") return ["timers.stop"];
   if (controlId === "shell.sync.start") return ["issues.sync"];
+  // A gap cut logs its pieces as new worklogs, or grows a neighbouring one into the gap.
+  if (controlId === "dashboard.gapCutter.save") return ["worklogs.create", "worklogs.update"];
   return undefined;
 }

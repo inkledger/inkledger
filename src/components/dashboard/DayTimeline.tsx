@@ -18,6 +18,7 @@ import { issuePath } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { Play } from "lucide-react";
 import { quickStart } from "@/lib/quickStart";
 import type { PlannedEntry } from "@contracts/planned";
@@ -215,6 +216,7 @@ export function DayTimeline({
             {...surface("glass")}
             disabled={!onGap}
             onClick={() => onGap?.(g)}
+            {...flowControlProps("dashboard.timeline.gap")}
             title={t("views.dashboard.timeline.holeTitle", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             aria-label={t("views.dashboard.timeline.holeLabel", { from: timeOfDay(g.start), to: timeOfDay(endOf(g)), duration: formatDurationLong(g.seconds) })}
             className="absolute bottom-6 top-3 z-10 flex min-w-target items-start justify-center overflow-hidden rounded-md border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 outline-none transition-colors hover:border-primary-strong/70 hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none"
@@ -239,6 +241,7 @@ export function DayTimeline({
               {...surface("glass")}
               disabled={!onEditPlanned}
               onClick={() => onEditPlanned?.(p.entry)}
+              {...flowControlProps("dashboard.timeline.plannedEdit")}
               title={label}
               aria-label={label}
               className={cn(
@@ -352,6 +355,7 @@ export function DayTimeline({
               title={title}
               aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: timeOfDay(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
               {...surface("bar")}
+              {...flowControlProps("dashboard.timeline.issueOpen")}
               className={cn(
                 "absolute z-10 flex rounded-md outline-none transition-[filter] hover:brightness-[0.96] focus-visible:ring-2 focus-visible:ring-ring",
                 b.lanes === 1 && "bottom-6 top-3",
@@ -460,6 +464,7 @@ export function DayTimeline({
                 type="button"
                 {...surface("glass")}
                 onClick={() => onGap(g)}
+                {...flowControlProps("dashboard.timeline.gap")}
                 className="flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed border-primary-strong/35 bg-primary-soft/50 px-3 text-body-sm outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {/* Named in words; the short form shown is for the eye (a label must contain what is shown). */}
@@ -501,7 +506,7 @@ export function DayTimeline({
         <ul className="mt-3 grid gap-2" aria-label={t("views.dashboard.timeline.plannedList")}>
           {planned.map(p => (
             <li key={p.entry.id}>
-              <PlannedEntryRow entry={p.entry} seconds={p.seconds} onEdit={onEditPlanned} />
+              <PlannedEntryRow entry={p.entry} seconds={p.seconds} onEdit={onEditPlanned} editControl={flowControlProps("dashboard.timeline.plannedEdit")} />
             </li>
           ))}
         </ul>

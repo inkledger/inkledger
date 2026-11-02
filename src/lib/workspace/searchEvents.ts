@@ -1,4 +1,4 @@
-const routes: Record<string, string> = {
+export const ROUTE_CONTROLS: Readonly<Record<string, string>> = {
   "/": "shell.nav.home",
   "/board": "shell.nav.board",
   "/pinboard": "shell.nav.pinboard",
@@ -15,7 +15,7 @@ const routes: Record<string, string> = {
 export function routeControlId(path: string): string | undefined {
   if (path.startsWith("/issues")) return "shell.nav.issues";
   if (path.startsWith("/notes")) return "shell.nav.notes";
-  return routes[path];
+  return ROUTE_CONTROLS[path];
 }
 
 export function emitWorkspaceSearch(kind: "search.opened" | "search.selected" | "search.abandoned", path?: string): void {

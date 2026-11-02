@@ -313,3 +313,16 @@ test("With FlowMap off the editor says how to see use, and takes you to its swit
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_flow_settings WHERE enabled"))[0].n, 0, "never turned on for the user");
   });
 });
+
+test("Clicks across the Dashboard count: the period, the quick actions and their dialogs", { timeout: 120_000 }, () =>
+  withApp({ seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()) }, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    await page.getByRole("radio", { name: "Week" }).click();
+    await page.getByRole("radio", { name: "Day" }).click();
+    await page.getByRole("button", { name: "Log time", exact: true }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await page.goto(`${base}/settings/workspace`);
+    const counted = async () => (await db.q("SELECT DISTINCT payload::json->>'controlId' AS id FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'")).map(row => row.id).sort();
+    for (let i = 0; i < 80 && (await counted()).length < 4; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.deepEqual(await counted(), ["dashboard.logTime", "dashboard.period.day", "dashboard.period.week", "dashboard.quickLog.cancel"]);
+  }));

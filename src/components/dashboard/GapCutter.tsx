@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { surface } from "@/components/app/surface";
 import { t } from "@/i18n";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 
 
 type Piece = {
@@ -90,6 +91,7 @@ export function GapCutter({
       <SheetContent
         side="right"
         className="flex w-full flex-col gap-0 bg-canvas p-0 sm:max-w-lg"
+        closeProps={flowControlProps("dashboard.gapCutter.cancel")}
       >
         {gap && (
           <GapCutterBody
@@ -730,6 +732,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
                 key={side}
                 variant="outline"
                 title={extendLabel(side)}
+                {...flowControlProps("dashboard.gapCutter.save")}
                 onClick={() => {
                   // In one click: the whole hole goes to that neighbour.
                   const next = [{ ...lanes[0], pieces: [{ ...lanes[0].pieces[0], extend: side }] }];
@@ -747,6 +750,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
           className="ml-auto"
           disabled={ready.length === 0 || saving}
           onClick={() => void logAll()}
+          {...flowControlProps("dashboard.gapCutter.save")}
         >
           {saving && <Loader2 className="h-4 w-4 motion-safe:animate-spin" />}
           {ready.length <= 1

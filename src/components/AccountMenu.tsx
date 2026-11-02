@@ -19,14 +19,18 @@ import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { BucketMenu } from "@/components/BucketMenu";
 import { surface, surfaceFace } from "@/components/app/surface";
+import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 
 /** The signed-in user: avatar, name and email, opening server and sign-out. */
 export function AccountMenu({
   collapsed = false,
   side = "top",
+  controls,
 }: {
   collapsed?: boolean;
   side?: "top" | "right";
+  /** Counted by FlowMap where the caller says so (the desktop sidebar's account). */
+  controls?: { open: FlowControlAttributes; logout: FlowControlAttributes };
 }) {
   const { user } = useAuth();
   const sites = useTrackerSites();
@@ -45,6 +49,7 @@ export function AccountMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          {...controls?.open}
           // The same open and closed in the sidebar: the avatar keeps its place, the name shows open.
           className="flex h-11 w-full shrink-0 items-center gap-3 rounded-md pl-3 pr-2 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -81,7 +86,7 @@ export function AccountMenu({
         <DropdownMenuSeparator />
         <BucketMenu />
         <NativeServerMenu />
-        <DropdownMenuItem onClick={() => logout.mutate()}>
+        <DropdownMenuItem onClick={() => logout.mutate()} {...controls?.logout}>
           <LogOut className="mr-2 h-4 w-4" />
           {t("ui.layout.logout")}
         </DropdownMenuItem>

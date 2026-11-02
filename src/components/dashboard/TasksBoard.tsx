@@ -13,6 +13,7 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { surface } from "@/components/app/surface";
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 
 export type TaskIssue = {
   /** Its connection (a key may be on two) */
@@ -50,6 +51,7 @@ function TaskCard({
     <Link
       to={issuePath(issue)}
       {...surface("card")}
+      {...flowControlProps("dashboard.tasks.issueOpen")}
       className="block rounded-xl border bg-card p-2.5 transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm"
     >
       <p className="line-clamp-2 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
@@ -97,6 +99,7 @@ export function TasksBoard({
             type="button"
             onClick={() => onToggle(col.title)}
             aria-expanded={false}
+            {...flowControlProps("dashboard.tasks.collapse")}
             aria-label={t("views.dashboard.tasks.expandColumn", { title: col.title, total: col.total })}
             title={t("views.dashboard.tasks.expand", { title: col.title })}
             {...surface("control")}
@@ -123,6 +126,7 @@ export function TasksBoard({
                   type="button"
                   onClick={() => onToggle(col.title)}
                   aria-expanded
+                  {...flowControlProps("dashboard.tasks.collapse")}
                   aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
                   title={t("views.dashboard.tasks.collapse", { title: col.title })}
                   className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -132,6 +136,7 @@ export function TasksBoard({
                 <Link
                   to="/board"
                   aria-label={t("views.dashboard.tasks.openBoard", { title: col.title })}
+                  {...flowControlProps("dashboard.tasks.openBoard")}
                   className="inline-flex size-target items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
                   <Plus className="h-4 w-4" />

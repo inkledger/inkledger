@@ -51,9 +51,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   cast = true,
+  closeProps,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  /** Data attributes for the close button (a caller counting its clicks: flowControlProps). */
+  closeProps?: Readonly<Record<`data-${string}`, string>>;
   /** Off for a dialog that is not a floating box (full screen, see-through): it casts nothing. */
   cast?: boolean;
 }) {
@@ -73,6 +76,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            {...closeProps}
             className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-[''] transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />

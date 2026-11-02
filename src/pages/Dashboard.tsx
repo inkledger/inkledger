@@ -34,7 +34,7 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { placementsFor, useWorkspaceDeviceClass } from "@/lib/workspace/utils";
 import type { ResolvedPlacement } from "@contracts/workspace/model";
 import { dashboardSegments } from "@/lib/workspace/sketch";
-import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentation";
+import { FlowControlHost, flowControlProps, type FlowControlAttributes } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { setSectionVisibility, type CustomizeTarget } from "@/lib/workspace/customize";
 import { useWorkspaceActions } from "@/lib/workspace/actions";
@@ -98,10 +98,10 @@ import { placePendingTimers } from "@/lib/pendingTimers";
 import { timerLog } from "@/lib/timerLog";
 import { topIssueTotals } from "@/lib/issueTotals";
 
-const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }[] => [
-  { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun },
-  { value: "week", label: t("pages.dashboard.periodWeek"), icon: CalendarRange },
-  { value: "month", label: t("pages.dashboard.periodMonth"), icon: CalendarDays },
+const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun; control: FlowControlAttributes }[] => [
+  { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun, control: flowControlProps("dashboard.period.day") },
+  { value: "week", label: t("pages.dashboard.periodWeek"), icon: CalendarRange, control: flowControlProps("dashboard.period.week") },
+  { value: "month", label: t("pages.dashboard.periodMonth"), icon: CalendarDays, control: flowControlProps("dashboard.period.month") },
 ];
 
 const longDay = () =>
@@ -182,6 +182,7 @@ function HeaderTimer() {
           size="sm"
           title={t("pages.dashboard.toLogTitle")}
           className="text-warning"
+          {...flowControlProps("dashboard.timer.logStopped")}
           onClick={() => {
             const [oldest] = toLog;
             if (oldest.pausedAt)
@@ -211,7 +212,13 @@ function DashboardHeaderActions({ range, setKind, prev, next, reset, openAdd, fu
     "dashboard.period": (
       <>
         <SegmentedControl label={t("pages.dashboard.period")} value={range.kind} onChange={setKind} options={periodOptions()} />
-        <PeriodNav onPrev={prev} onNext={next} onToday={reset} isCurrent={range.isCurrent} />
+        <PeriodNav
+          onPrev={prev}
+          onNext={next}
+          onToday={reset}
+          isCurrent={range.isCurrent}
+          controls={{ prev: flowControlProps("dashboard.period.previous"), today: flowControlProps("dashboard.period.today"), next: flowControlProps("dashboard.period.next") }}
+        />
       </>
     ),
     "dashboard.headerTimer": <FlowControlHost.Provider value="dashboard.headerTimer"><HeaderTimer /></FlowControlHost.Provider>,
@@ -237,7 +244,7 @@ function DashboardHeaderActions({ range, setKind, prev, next, reset, openAdd, fu
               return (
                 <li key={l.id}>
                   <label className="flex items-center gap-2 text-body-sm">
-                    <Checkbox checked={l.visible} onCheckedChange={() => toggle(l.id)} />
+                    <Checkbox checked={l.visible} onCheckedChange={() => toggle(l.id)} {...flowControlProps("dashboard.customize.toggle")} />
                     {label}
                   </label>
                 </li>
@@ -806,7 +813,7 @@ function DashboardContent() {
           <PanelSection
             title={t("pages.dashboard.myIssues")}
             className="border-b"
-            actions={<Button asChild variant="outline" size="sm"><Link to="/board">{t("pages.dashboard.openBoard")}</Link></Button>}
+            actions={<Button asChild variant="outline" size="sm"><Link to="/board" {...flowControlProps("dashboard.tasks.openBoard")}>{t("pages.dashboard.openBoard")}</Link></Button>}
           >
             {issues.isPending ? (
               <Skeleton className="h-72" />
@@ -864,7 +871,7 @@ function DashboardContent() {
         onLogActual={() => setLogOpen(true)}
       />
       <Dialog open={logOpen} onOpenChange={setLogOpen}>
-        <DialogContent>
+        <DialogContent closeProps={flowControlProps("dashboard.quickLog.cancel")}>
           <DialogHeader>
             <DialogTitle>{t("pages.dashboard.logTime")}</DialogTitle>
             <DialogDescription>
@@ -876,7 +883,7 @@ function DashboardContent() {
                 : t("pages.dashboard.logPick", { provider })}
             </DialogDescription>
           </DialogHeader>
-          <QuickLog day={logDay} onLogged={() => setLogOpen(false)} />
+          <QuickLog day={logDay} onLogged={() => setLogOpen(false)} saveControl={flowControlProps("dashboard.quickLog.save")} />
         </DialogContent>
       </Dialog>
       <GapCutter

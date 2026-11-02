@@ -49,11 +49,14 @@ function SheetContent({
   children,
   side = "right",
   hideClose = false,
+  closeProps,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
   /** The content has its own close button. */
   hideClose?: boolean;
+  /** Data attributes for the close button (a caller counting its clicks: flowControlProps). */
+  closeProps?: Readonly<Record<`data-${string}`, string>>;
 }) {
   return (
     <SheetPortal>
@@ -78,7 +81,7 @@ function SheetContent({
       >
         {children}
         {!hideClose && (
-          <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-[''] transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none">
+          <SheetPrimitive.Close {...closeProps} className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-[''] transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none">
             <XIcon className="size-4" />
             <span className="sr-only">{t("common.close")}</span>
           </SheetPrimitive.Close>

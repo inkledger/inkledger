@@ -14,12 +14,13 @@ import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 
-export function PlannedEntryRow({ entry, seconds, onEdit, className }: { entry: PlannedEntry; seconds?: number; onEdit: (entry: PlannedEntry) => void; className?: string }) {
+export function PlannedEntryRow({ entry, seconds, onEdit, className, editControl }: { entry: PlannedEntry; seconds?: number; onEdit: (entry: PlannedEntry) => void; className?: string; /** The edit button counted by FlowMap where the caller says so. */ editControl?: FlowControlAttributes }) {
   return (
     <ActionRow
       className={cn("rounded-lg border border-dashed bg-card/60 p-2.5", entry.kind === "vacation" && "border-primary-strong/30 bg-primary-soft/50", className)}
-      actions={<PlannedActions entry={entry} onEdit={onEdit} />}
+      actions={<PlannedActions entry={entry} onEdit={onEdit} editControl={editControl} />}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <Chip tone={entry.kind === "vacation" ? "success" : "neutral"}>{plannedKindLabel(entry.kind)}</Chip>
@@ -36,7 +37,7 @@ export function PlannedEntryRow({ entry, seconds, onEdit, className }: { entry: 
   );
 }
 
-function PlannedActions({ entry, onEdit }: { entry: PlannedEntry; onEdit: (entry: PlannedEntry) => void }) {
+function PlannedActions({ entry, onEdit, editControl }: { entry: PlannedEntry; onEdit: (entry: PlannedEntry) => void; editControl?: FlowControlAttributes }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const utils = trpc.useUtils();
   const invalidateWorklogs = useInvalidateWorklogs();
@@ -67,7 +68,7 @@ function PlannedActions({ entry, onEdit }: { entry: PlannedEntry; onEdit: (entry
           <span className="max-lg:sr-only">{convert.isPending ? t("ui.planned.converting") : t("ui.planned.convert")}</span>
         </Button>
       )}
-      <Button variant="ghost" size="icon-sm" disabled={busy} onClick={() => onEdit(entry)} aria-label={t("ui.planned.edit")} title={t("ui.planned.edit")}>
+      <Button variant="ghost" size="icon-sm" disabled={busy} onClick={() => onEdit(entry)} aria-label={t("ui.planned.edit")} title={t("ui.planned.edit")} {...editControl}>
         <Pencil className="h-4 w-4" />
       </Button>
       <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-danger" disabled={busy} onClick={() => setConfirmDelete(true)} aria-label={t("ui.planned.delete")} title={t("ui.planned.delete")}>

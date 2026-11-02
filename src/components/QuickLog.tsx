@@ -16,6 +16,7 @@ import { useBlockPlacement } from "@/hooks/useBlockPlacement";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 
 
 /**
@@ -25,10 +26,13 @@ import { t } from "@/i18n";
 export function QuickLog({
   onLogged,
   day,
+  saveControl,
 }: {
   onLogged?: () => void;
   /** Another day than today: the block goes after that day's last one. */
   day?: Date;
+  /** FlowMap's mark for the save button, from the host that counts it (the Dashboard). */
+  saveControl?: FlowControlAttributes;
 } = {}) {
   const id = useId();
   const invalidate = useInvalidateWorklogs();
@@ -168,7 +172,7 @@ export function QuickLog({
           value={comment}
           onChange={e => setComment(e.target.value)}
         />
-        <Button type="submit" disabled={!canSubmit} data-workspace-control="dashboard.quickLog.save" data-workspace-anchor="dashboard.quick-log">
+        <Button type="submit" disabled={!canSubmit} {...saveControl}>
           {create.isPending
             ? t("common.saving")
             : parsed && !placement.ready
