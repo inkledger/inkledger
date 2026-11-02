@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FlowEvent } from "@contracts/workspace/flowMap";
 import { startFlowCollection, type FlowCollectionOptions } from "./collector";
+import { flowClickOf } from "./flowClick";
 
 class EventTargetMock {
   private listeners = new Map<string, Set<(event: never) => void>>();
@@ -42,12 +43,13 @@ class ElementMock {
   }
 }
 
-function setup(send: FlowCollectionOptions["send"]) {
+function setup(send: FlowCollectionOptions["send"], early?: FlowCollectionOptions["early"]) {
   const document = Object.assign(new EventTargetMock(), { hidden: false, body: {}, querySelectorAll: () => [] });
   const window = new EventTargetMock();
   vi.stubGlobal("document", document);
   vi.stubGlobal("window", window);
   vi.stubGlobal("Element", ElementMock);
+  vi.stubGlobal("location", { pathname: "/" });
   vi.stubGlobal("IntersectionObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("MutationObserver", class { observe() {} disconnect() {} });
   const stop = startFlowCollection({
@@ -56,6 +58,7 @@ function setup(send: FlowCollectionOptions["send"]) {
     clientInstanceId: "tab-a",
     presentationEpoch: 1,
     send,
+    early,
   });
   return { document, window, stop };
 }
@@ -160,6 +163,39 @@ describe("FlowMap collection delivery", () => {
     return new Promise<void>(resolve => setTimeout(resolve, 0)).then(() => {
       expect(sends.flat().filter(event => event.kind === "action.succeeded")).toHaveLength(1);
     });
+  });
+});
+
+describe("clicks before the collection has started", () => {
+  it("counts a click made while its code was still loading, with where it landed in the block", () => {
+    let beaconBody: Blob | undefined;
+    vi.stubGlobal("navigator", { sendBeacon: (_: string, body: Blob) => { beaconBody = body; return true; } });
+    const early = [{ controlId: "dashboard.logTime", clientX: 75, clientY: 25, block: { left: 0, top: 0, width: 100, height: 100 }, modality: "pointer" as const, path: "/" }];
+    const sent: FlowEvent[] = [];
+    const { stop } = setup(async events => { sent.push(...events); }, early);
+    stop();
+    expect(beaconBody).toBeDefined();
+    return beaconBody?.text().then(text => {
+      const events = (JSON.parse(text) as { json: { events: FlowEvent[] } }).json.events;
+      expect(events.filter(event => event.kind === "control.activate").map(event => [event.controlId, event.cell])).toEqual([["dashboard.logTime", { x: 6, y: 2 }]]);
+    });
+  });
+});
+
+describe("where a click lands", () => {
+  it("is measured on the block, not on the button that carries the block's name too", () => {
+    const block = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }) };
+    const button = {
+      getAttribute: (name: string) => (name === "data-workspace-control" ? "dashboard.logTime" : "dashboard.quickActions"),
+      closest: () => button,
+      parentElement: { closest: () => block },
+      getBoundingClientRect: () => ({ left: 150, top: 0, width: 50, height: 20 }),
+    };
+    vi.stubGlobal("Element", Object);
+    vi.stubGlobal("location", { pathname: "/" });
+    const click = flowClickOf({ target: button, clientX: 160, clientY: 10, detail: 1, pointerType: "mouse" } as unknown as MouseEvent);
+    expect(click?.block).toEqual({ left: 0, top: 0, width: 200, height: 100 });
+    expect(click?.modality).toBe("pointer");
   });
 });
 

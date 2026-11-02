@@ -80,7 +80,9 @@ test("C-02: app keyboard shortcuts on the Dashboard and in the Studio never chan
       await page.locator("main").first().waitFor();
       await quiet(page);
       for (const key of keys) {
-        if (new URL(page.url()).pathname !== path) await page.goto(base + path);
+        // Alt+arrows go back and forward on their own: going back to the page may race the browser getting there first.
+        if (new URL(page.url()).pathname !== path) await page.goto(base + path).catch(error => { if (!/interrupted by another navigation/.test(String(error))) throw error; });
+        await page.waitForURL(url => new URL(url).pathname === path);
         await page.locator("body").focus().catch(() => {});
         await page.keyboard.press(key);
         await page.keyboard.press("Escape");

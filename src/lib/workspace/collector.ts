@@ -3,6 +3,7 @@ import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import type { FlowEvent, FlowModality } from "@contracts/workspace/flowMap";
 import type { PresentationDescriptor, Scope } from "@contracts/workspace/model";
 import { workspaceMutationPath } from "./instrumentation";
+import { flowClickOf, type FlowClick } from "./flowClick";
 
 export type FlowCollectionOptions = {
   scope: Scope;
@@ -11,9 +12,11 @@ export type FlowCollectionOptions = {
   presentationEpoch: number;
   activationId?: string;
   send: (events: FlowEvent[]) => Promise<unknown>;
+  /** Clicks made before this started (its code loads after the page): counted first. */
+  early?: readonly FlowClick[];
 };
 
-function flowCell(clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } | undefined {
+function flowCell(clientX: number, clientY: number, rect: FlowClick["block"]): { x: number; y: number } | undefined {
   if (rect.width <= 0 || rect.height <= 0) return undefined;
   return {
     x: Math.max(0, Math.min(7, Math.floor((clientX - rect.left) / rect.width * 8))),
@@ -22,7 +25,7 @@ function flowCell(clientX: number, clientY: number, rect: DOMRect): { x: number;
 }
 
 export function startFlowCollection(options: FlowCollectionOptions): (stop?: { optedOut?: boolean }) => void {
-  const { scope, descriptor, clientInstanceId, presentationEpoch, activationId, send } = options;
+  const { scope, descriptor, clientInstanceId, presentationEpoch, activationId, send, early = [] } = options;
   let queue: FlowEvent[] = [];
   let sequence = 0;
   let dropped = 0;
@@ -124,23 +127,24 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   const keyboard = (event: KeyboardEvent) => {
     if (event.key === "Enter" || event.key === " ") modality = "keyboard";
   };
-  const click = (event: MouseEvent) => {
-    if (!(event.target instanceof Element)) return;
-    const element = event.target.closest("[data-workspace-control]");
-    const controlId = element?.getAttribute("data-workspace-control");
-    const control = controlId ? controls.get(controlId) : undefined;
-    if (!element || !control) return;
-    if (event.detail === 0) modality = "keyboard";
-    const anchor = element.closest("[data-workspace-anchor]") ?? element;
-    const cell = modality === "pointer" ? flowCell(event.clientX, event.clientY, anchor.getBoundingClientRect()) : undefined;
+  const activate = (read: FlowClick, late = false) => {
+    const control = controls.get(read.controlId);
+    if (!control) return;
+    if (read.modality !== "unknown") modality = read.modality;
+    const cell = modality === "pointer" ? flowCell(read.clientX, read.clientY, read.block) : undefined;
     push("control.activate", control.id, control.anchorId, control.semanticRevision, cell);
     lastAction = control.kind === "mutation" ? { controlId: control.id, semanticRevision: control.semanticRevision, at: Date.now() } : undefined;
-    if (control.kind === "navigation") {
-      const from = location.pathname;
-      requestAnimationFrame(() => {
-        if (location.pathname !== from) push("navigation.completed", control.id, control.anchorId, control.semanticRevision);
-      });
-    }
+    if (control.kind !== "navigation") return;
+    const completed = () => {
+      if (location.pathname !== read.path) push("navigation.completed", control.id, control.anchorId, control.semanticRevision);
+    };
+    // A click counted late already knows where it led.
+    if (late) completed();
+    else requestAnimationFrame(completed);
+  };
+  const click = (event: MouseEvent) => {
+    const read = flowClickOf(event);
+    if (read) activate(read);
   };
   const mutationResult = (event: Event) => {
     const detail = (event as CustomEvent<{ path: string; succeeded: boolean }>).detail;
@@ -207,6 +211,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   window.addEventListener("workspace:search", search);
   window.addEventListener("workspace:mutation-result", mutationResult);
   window.addEventListener("pagehide", pageHide);
+  for (const read of early) activate(read, true);
   observeAnchors();
   const mutations = new MutationObserver(observeAnchors);
   mutations.observe(document.body, { childList: true, subtree: true });

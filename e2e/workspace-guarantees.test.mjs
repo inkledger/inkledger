@@ -368,7 +368,9 @@ test("A tab left on an older layout moves to the one saved since when it loads, 
     assert.equal(presented.source, "saved-elsewhere");
     await page.getByRole("button", { name: "Log time", exact: true }).first().click();
     await page.keyboard.press("Escape");
-    await page.goto(`${base}/settings/workspace`);
+    // On within the app, as a user goes: leaving the Dashboard sends what it collected.
+    await page.locator('a[href="/settings"]').first().click();
+    await page.waitForURL(/\/settings/);
     await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'"))[0].n > 0, "the click to arrive");
     const sources = await db.q("SELECT DISTINCT payload::json->'descriptor'->>'sourceActiveRevision' AS source FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'");
     assert.deepEqual(sources.map(row => row.source), ["saved-elsewhere"], "counted on the layout on screen, which the maps of the saved layout read");
