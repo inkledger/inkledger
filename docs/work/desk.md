@@ -26,13 +26,18 @@ Done criteria:
 - **Storage:** the current desk is stored server-side in `desks` (`name` null). The page applies changes at once and saves after 300 ms of quiet, and on pagehide.
 - **Snapping:** `useSnapDrag` does pointer and keyboard dragging with a small store, so panes never re-render while the pointer moves. A pane's scroll position is restored after a move. `snapTargetAt` can be reused for drops from outside the desk with n+1 panes.
 - **Hotkeys:** Alt+Shift+arrows snap a pane; `useHotkeys` no longer treats Alt+Shift+←/→ as back/forward.
+- **Empty slots:** a slot of the arrangement may hold `{ empty: true, id }` (id "1"–"99", the first free one, so the model stays pure and deterministic). They count towards the four, are stored, and survive `normalizeDesk`, which dedupes issues and drops a desk of empty slots alone. `addPane` (and the server's `desks.add`) fills the first one; `setPreset` adds or drops them; they are never parked. Phones show the issues alone.
+- **Sending from an issue page** (`placeIssue`): this issue in the chosen slot, the desk's other issues in the other slots in their order while they fit (the rest parked), empty slots for what is left. The page offers `pagePresets(n)`, at most six arrangements with room for the desk's issues plus this one (n at least 2: an issue sent alone keeps an empty slot beside it). Alt+Shift+arrows use the halves, so the desk's first other issue takes the other half.
+- **Shift-click** (`useOpenBeside`, capture phase in the shell; Shift alone): on the Desk it fills the first empty slot (an event the Desk page handles); on an issue page the Desk opens with the two side by side (`sideBySide`, others parked); elsewhere `desks.add` (which now also takes `{ connectionId, remoteId }`) and a toast "n/4" with "Open desk". The work lives in `src/lib/desk/send.ts`, loaded on first use.
+- **Dragging issues in:** rows (their key link; pinned rows as a whole) and board cards add `application/x-inkledger-issue` beside their own types (`setIssueDragData`). The Desk takes it on an empty slot, on its snap places with one more slot (a full desk: the pane under the pointer is parked), and on the sidebar's Desk entry.
+- **Picking in Issues:** `x` and checkboxes (shown on hover, all once one is picked; a card's menu has "Pick for the desk"), then the bar's "Open on desk" (`openTogether`, the default arrangement for the count; disabled above four, saying why).
 
 ## Batches and progress
 - [x] 0. Layout model (`contracts/desk.ts`, tests)
 - [x] 1. `IssueBody` as page or pane; the issue page is unchanged (byte-identical screenshots)
 - [x] 2. Desk page: current desk, layouts, dividers, parking tray, maximize, phone tabs, `g e` / `1`–`4` / `x`
 - [x] 3. Snapping by drag, keys or menu ("Move to", "Swap with"); live region announcements
-- [ ] 4. Entry points: Shift-click on issue links, "Open beside", dragging from lists and the board, multi-select in Issues
+- [x] 4. Entry points and the Desk in the workflow: empty slots, sending an issue from its page (grip to an edge, Layout button, Alt+Shift+arrows, long press on a phone), Shift-click on issue links, "Open beside", dragging from lists and the board, picking in Issues
 - [ ] 5. Compare view, and its phone table
 - [ ] 6. Copy all for model (`issues.copyForAgentMany`)
 - [ ] 7. Decision note (`markdown_note_issues`, migration 0039)
@@ -46,11 +51,18 @@ Done criteria:
 | `OLLAMA_URL= pnpm test` | all unit tests | 2872 pass (before batch 3); 2869 in the batch 3 worktree |
 | issue e2e (renders, a11y, layout-overflow, issue-links, transitions, worklogs, keyboard-list, issue-copy, …) | batch 1 | 45/45 |
 | `e2e/desk.test.mjs` + `e2e/desk-snap.test.mjs` | batches 2–3 | 8/8, ×3 |
-| `PROVIDERS_READ_ONLY=1 pnpm test:smoke` | first load | 859.2/273.3 KiB (batch 2) |
+| `PROVIDERS_READ_ONLY=1 pnpm test:smoke` | first load | 859.2/273.3 KiB (batch 2); 867.2/275.9 KiB (batch 4) |
+| `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && pnpm db:check` | batch 4 | pass; 2891 unit tests |
+| `e2e/desk-flow.test.mjs` (new) + `desk` + `desk-snap` | batch 4 | 15/15, ×3 |
+| a11y, board, issue-*, keyboard-list, layout-overflow, manage-issue, create-issue, regressions, desk* | batch 4 | 123/123 |
 
 ## Open issues and next action
 - The "Move to" menu lists 14 places plus 2 swaps with three panes; grouping them by layout could make it shorter.
 - At 320 px the fourth tab is reached only by scrolling the tab row.
 - With no tracker in e2e, seeded descriptions show "Could not load the data".
 - Two Dashboard e2e tests sometimes fail when run repeatedly: "Two quick ticks in Customize" and FlowMap #14.
-- **Next:** batch 4 (entry points), then batches 5–9.
+- The title's grip is for the pointer only (keyboard: the Layout button and Alt+Shift+arrows), and only on wide screens.
+- On a phone the title can't be selected (a long press opens the Desk's places).
+- The palette's "Desk" group (saved desks) waits for batch 9.
+- An issue dragged from the board or a list can reach the Desk only through the sidebar entry (another page); dropping on the Desk itself needs the Desk beside the list (a second window).
+- **Next:** batches 5–9.
