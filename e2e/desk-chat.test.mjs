@@ -31,7 +31,11 @@ async function axeBothThemes(page, where) {
 }
 
 const chat = page => page.locator("[data-desk-chat]");
-const chips = async page => (await chat(page).locator("[data-chat-context] li").allTextContents()).map(s => s.trim());
+// The chips come once the panel knows the model is on (a query): wait for them, not just the panel.
+const chips = async page => {
+  await chat(page).locator("[data-chat-context] li").first().waitFor();
+  return (await chat(page).locator("[data-chat-context] li").allTextContents()).map(s => s.trim());
+};
 
 test("desk chat: opened beside the desk with its issues as chips; a suggestion streams a markdown answer; Save as note", () =>
   withApp({ viewport: { width: 1280, height: 800 }, env: simulator, seed: seedDesk(["DEMO-101", "DEMO-102"], ["DEMO-103"]) }, async ({ page, base, db }) => {
@@ -156,4 +160,168 @@ test("desk chat on a phone: a full sheet, no sideways scroll, an answer streams"
     assert.deepEqual(past, [], "nothing past the sheet's edge");
     await page.getByRole("button", { name: "Close the chat" }).click();
     await sheet.waitFor({ state: "detached" });
+  }));
+
+// Batch 4d: the chat reads the user's code on their machine; the server never does.
+
+/** The desk's issues in a project with a repository path attached (Settings → Repositories). */
+const seedCode = (keys, paths = [{ label: "shop", path: "~/code/shop" }]) => async db => {
+  await seedDesk(keys)(db);
+  await db.q("INSERT INTO containers (connection_id, remote_id, key, name, created_at) VALUES (1, 'shop', 'SHOP', 'Shop', 1) ON CONFLICT DO NOTHING");
+  const [c] = await db.q("SELECT id FROM containers WHERE remote_id = 'shop'");
+  await db.q(`UPDATE issues SET container_id = ? WHERE key IN (${keys.map(() => "?").join(", ")})`, c.id, ...keys);
+  for (const [i, p] of paths.entries()) await db.q("INSERT INTO container_paths (user_id, container_id, label, path, position) VALUES (1, ?, ?, ?, ?)", c.id, p.label, p.path, i);
+};
+
+/** Screenshots for review (DESK_CHAT_SHOTS=<folder>), light and dark. */
+async function shots(page, name) {
+  const dir = process.env.DESK_CHAT_SHOTS;
+  if (!dir) return;
+  for (const colorScheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme });
+    await page.waitForTimeout(500);
+    await page.locator("[data-desk-chat]").screenshot({ path: `${dir}/${name}-${colorScheme}.png` });
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+}
+
+/** A browser folder (File System Access) held in memory: what showDirectoryPicker gives the page. */
+async function fakeFolderPicker(context) {
+  await context.addInitScript(() => {
+    const tree = {
+      "README.md": "# Shop\r\nInventory service\r\n",
+      src: { "Stock.kt": "package shop\n// DEMO-101 stock never goes below zero\nfun stock() = 0\n" },
+      node_modules: { "x.js": "DEMO-101 in a dependency" },
+    };
+    const folder = (name, t) => ({
+      kind: "directory",
+      name,
+      async *entries() {
+        for (const [n, v] of Object.entries(t)) yield [n, typeof v === "string" ? { kind: "file", name: n } : { kind: "directory", name: n }];
+      },
+      async getDirectoryHandle(n) {
+        if (!t[n] || typeof t[n] === "string") throw new DOMException("not found", "NotFoundError");
+        return folder(n, t[n]);
+      },
+      async getFileHandle(n) {
+        if (typeof t[n] !== "string") throw new DOMException("not found", "NotFoundError");
+        return { kind: "file", name: n, getFile: async () => new File([t[n]], n) };
+      },
+      async queryPermission() {
+        return "granted";
+      },
+    });
+    window.__picked = 0;
+    window.showDirectoryPicker = async () => {
+      window.__picked++;
+      return folder("shop", tree);
+    };
+  });
+}
+
+test("desk chat with code in a browser: Connect folder, the model greps it, the step opens to what it read", () =>
+  withApp({ viewport: { width: 1280, height: 800 }, env: simulator, seed: seedCode(["DEMO-101", "DEMO-102"]) }, async ({ page, base, context }) => {
+    await fakeFolderPicker(context);
+    const sent = [];
+    page.on("request", req => req.url().endsWith("/api/desk/chat") && sent.push(req.postDataJSON()));
+    await page.goto(base + "/issues/desk");
+    await page.locator('[data-desk-pane="1:DEMO-102"]').waitFor();
+    await page.getByRole("button", { name: "Ask AI" }).click();
+    const panel = chat(page);
+    await panel.getByText("Connect a project's folder to let the model read it, read-only.").waitFor();
+    await shots(page, "connect-folder");
+    await axeBothThemes(page, "with Connect folder");
+
+    await panel.getByRole("button", { name: "Connect folder" }).click();
+    await panel.locator("[data-chat-repos] li", { hasText: "shop" }).waitFor();
+    await panel.getByText("The model reads the code itself, read-only: files and text.").waitFor();
+
+    await panel.getByRole("textbox", { name: "Your question" }).fill("Is DEMO-101 really solved? Look at the code");
+    await page.keyboard.press("Enter");
+    const step = panel.locator('[data-chat-step="done"]').first();
+    await step.waitFor({ timeout: 20_000 });
+    assert.equal((await step.locator("summary").textContent()).trim(), "Searching “DEMO-101” in shop: 1 hit");
+    const answer = panel.locator('[data-chat-answer="done"]');
+    await answer.waitFor({ timeout: 20_000 });
+    // The answer cites what the step found, read here and never by the server.
+    assert.match(await answer.textContent(), /src\/Stock\.kt:2: \/\/ DEMO-101 stock never goes below zero/);
+    assert.equal(sent.length, 2, "one tool round, then the answer");
+    assert.deepEqual(sent[0].tools, ["ls", "find", "grep", "read"]);
+    assert.deepEqual(sent[0].repos, ["shop"]);
+    assert.deepEqual(sent[1].messages.at(-1), { role: "tool", name: "grep", content: "src/Stock.kt:2: // DEMO-101 stock never goes below zero" });
+    // Nothing of the folder went to the server but that result.
+    assert.ok(!JSON.stringify(sent).includes("dependency"));
+
+    await shots(page, "tool-steps");
+    await step.locator("summary").click();
+    await step.locator("[data-chat-step-text]").getByText("src/Stock.kt:2").waitFor();
+    await shots(page, "step-expanded");
+    await axeBothThemes(page, "with a tool step open");
+  }));
+
+test("desk chat in the app: a repository is allowed once, then the model reads it through the native commands", () =>
+  withApp({ viewport: { width: 1280, height: 800 }, env: simulator, seed: seedCode(["DEMO-101"]) }, async ({ page, base, context }) => {
+    await context.addInitScript(() => {
+      let allowed = false;
+      window.__codeCalls = [];
+      window.__TAURI__ = {
+        core: {
+          invoke: async (cmd, args) => {
+            if (cmd.startsWith("code_")) window.__codeCalls.push([cmd, args]);
+            if (cmd === "native_info") return { version: "1.0.0", platform: "macos", desktop: true, autostart: false, shortcuts: [] };
+            if (cmd === "code_roots") return args.roots.map(root => ({ root, allowed, git: allowed }));
+            if (cmd === "code_allow_root") return (allowed = true);
+            if (cmd === "code_grep") return { hits: [{ path: "src/Stock.kt", line: 2, text: "// DEMO-101 stock never goes below zero" }], truncated: false, files: 3 };
+            return undefined;
+          },
+        },
+        event: { listen: async () => () => {} },
+      };
+    });
+    await page.goto(base + "/issues/desk");
+    await page.locator('[data-desk-pane="1:DEMO-101"]').waitFor();
+    await page.getByRole("button", { name: "Ask AI" }).click();
+    const panel = chat(page);
+    await panel.getByText("Allow a repository to let the model read it, read-only.").waitFor();
+    await panel.getByRole("button", { name: "Allow shop" }).click();
+    await panel.locator("[data-chat-repos] li", { hasText: "shop" }).waitFor();
+    await panel.getByText("The model reads the code itself, read-only: files, text and commits.").waitFor();
+    await panel.getByRole("button", { name: "What should I do first?" }).click();
+    await panel.locator('[data-chat-answer="done"]').waitFor({ timeout: 20_000 });
+    const calls = await page.evaluate(() => window.__codeCalls);
+    assert.deepEqual(calls.find(([c]) => c === "code_allow_root"), ["code_allow_root", { root: "~/code/shop" }]);
+    assert.deepEqual(calls.find(([c]) => c === "code_grep"), ["code_grep", { root: "~/code/shop", query: "DEMO-101", regex: false, glob: null }]);
+    assert.match(await panel.locator('[data-chat-answer="done"]').textContent(), /src\/Stock\.kt:2/);
+  }));
+
+test("desk chat with a model that can't call tools: the page searches first and sends the extracts", () =>
+  withApp({ viewport: { width: 1280, height: 800 }, env: { OLLAMA_SIMULATOR: "notools" }, seed: seedCode(["DEMO-101"]) }, async ({ page, base, context }) => {
+    await fakeFolderPicker(context);
+    await page.goto(base + "/issues/desk");
+    await page.locator('[data-desk-pane="1:DEMO-101"]').waitFor();
+    await page.getByRole("button", { name: "Ask AI" }).click();
+    const panel = chat(page);
+    await panel.getByRole("button", { name: "Connect folder" }).click();
+    await panel.getByText(/This model can't use tools/).waitFor();
+    await panel.getByRole("button", { name: "What should I do first?" }).click();
+    await panel.locator('[data-chat-answer="done"]').waitFor({ timeout: 20_000 });
+    assert.ok((await panel.locator("[data-chat-step]").count()) >= 1);
+    assert.match(await panel.locator('[data-chat-answer="done"]').textContent(), /DEMO-101 stock never goes below zero/);
+  }));
+
+test("desk chat where code can't be reached (no folder access): it still answers, and says how to bring code in", () =>
+  withApp({ viewport: { width: 1280, height: 800 }, env: simulator, seed: seedCode(["DEMO-101", "DEMO-102"]) }, async ({ page, base, context }) => {
+    await context.addInitScript(() => {
+      delete window.showDirectoryPicker;
+    });
+    await page.goto(base + "/issues/desk");
+    await page.locator('[data-desk-pane="1:DEMO-102"]').waitFor();
+    await page.getByRole("button", { name: "Ask AI" }).click();
+    const panel = chat(page);
+    await panel.getByText("Code isn't in reach here: open the desktop app, or Chrome or Edge, to bring it in.").waitFor();
+    assert.equal(await panel.getByRole("button", { name: /Connect/ }).count(), 0);
+    await shots(page, "no-code");
+    await panel.getByRole("button", { name: "Compare these issues" }).click();
+    await panel.locator('[data-chat-answer="done"]').waitFor({ timeout: 20_000 });
+    assert.equal(await panel.locator("[data-chat-step]").count(), 0);
   }));

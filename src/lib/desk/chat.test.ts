@@ -27,7 +27,7 @@ describe("the desk chat's events", () => {
   });
 
   it("a note of the conversation names every issue; failed answers left out", () => {
-    const m = (role: ChatMessage["role"], text: string, status: ChatMessage["status"] = "done"): ChatMessage => ({ id: text, role, text, doc: null, status });
+    const m = (role: ChatMessage["role"], text: string, status: ChatMessage["status"] = "done"): ChatMessage => ({ id: text, role, text, doc: null, status, steps: [] });
     const md = chatMarkdown([m("user", "Which first?"), m("assistant", "APP-1"), m("user", "Why?"), m("assistant", "unreachable", "error")], [
       { connectionId: 1, key: "APP-1", title: "Login" },
       { connectionId: 1, key: "APP-2", title: "Search" },
