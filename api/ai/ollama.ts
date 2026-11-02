@@ -11,6 +11,8 @@ import { env } from "../lib/env";
 import { isPrivateAddress } from "../lib/security";
 
 export type OllamaMessage = { role: "system" | "user"; content: string };
+/** A turn of a conversation (the Desk's chat): the model's own answers sent back as `assistant`. */
+export type OllamaChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 /** Why the model isn't offered, or null when it is. */
 export type OllamaRefusal = "unset" | "public" | "unresolved";
@@ -140,5 +142,111 @@ export async function askModel<T>(ask: () => Promise<T>): Promise<T> {
     if (e.kind === "slow") throw new TRPCError({ code: "TIMEOUT", message: t("server.ideas.llmSlow") });
     if (e.kind === "bad") throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmBad") });
     throw new TRPCError({ code: "BAD_GATEWAY", message: t("server.ideas.llmUnreachable") });
+  }
+}
+
+/**
+ * The text of a streamed /api/chat answer (NDJSON: one object a line, the last one
+ * `done`), piece by piece. Lines and characters may be split anywhere across chunks.
+ * An `error` line, a line that isn't JSON or an end before `done` is an error.
+ */
+export async function* readOllamaStream(body: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
+  let pending = "";
+  const parse = (line: string): { content: string; done: boolean } => {
+    let value: { message?: { content?: unknown }; done?: unknown; error?: unknown };
+    try {
+      value = JSON.parse(line) as typeof value;
+    } catch {
+      throw new OllamaError("bad", "a line of the answer is not JSON");
+    }
+    if (typeof value.error === "string") throw new OllamaError("unreachable", value.error);
+    return { content: typeof value.message?.content === "string" ? value.message.content : "", done: value.done === true };
+  };
+  for await (const chunk of "getReader" in body ? chunksOf(body) : body) {
+    pending += decoder.decode(chunk, { stream: true });
+    let at: number;
+    while ((at = pending.indexOf("\n")) >= 0) {
+      const line = pending.slice(0, at).trim();
+      pending = pending.slice(at + 1);
+      if (!line) continue;
+      const { content, done } = parse(line);
+      if (content) yield content;
+      if (done) return;
+    }
+  }
+  const last = (pending + decoder.decode()).trim();
+  if (last) {
+    const { content, done } = parse(last);
+    if (content) yield content;
+    if (done) return;
+  }
+  throw new OllamaError("unreachable", "the answer ended before the end");
+}
+
+/** A web stream's chunks; leaving early cancels it (the request to Ollama ends). */
+async function* chunksOf(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
+  const reader = stream.getReader();
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      yield value;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
+
+/** The simulator's pace: a piece every few ms, so Stop can be tried (OLLAMA_SIMULATOR). */
+const SIMULATED_PIECE_MS = 40;
+
+/**
+ * A plain-text answer to a conversation, streamed as the model writes it (the Desk's
+ * chat). `timeoutMs` bounds the whole answer; `signal` stops it (the client went away).
+ * With OLLAMA_SIMULATOR the `simulated` text comes back word by word.
+ */
+export async function* streamChat(
+  messages: OllamaChatMessage[],
+  o: { timeoutMs?: number; signal?: AbortSignal; numCtx?: number; numPredict?: number; simulated?: string } = {},
+): AsyncGenerator<string> {
+  const timeout = AbortSignal.timeout(o.timeoutMs ?? 180_000);
+  const signal = o.signal ? AbortSignal.any([timeout, o.signal]) : timeout;
+  if (env.ollamaSimulator) {
+    for (const piece of (o.simulated ?? "").match(/\S+\s*|\s+/g) ?? []) {
+      await new Promise(resolve => setTimeout(resolve, SIMULATED_PIECE_MS));
+      if (signal.aborted) return;
+      yield piece;
+    }
+    return;
+  }
+  if (!env.ollamaUrl) throw new OllamaError("unreachable", "OLLAMA_URL is not set");
+  let res: Response;
+  try {
+    res = await fetch(`${env.ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: env.ollamaModel,
+        messages,
+        stream: true,
+        think: false,
+        keep_alive: "5m",
+        options: { temperature: 0.3, ...(o.numCtx ? { num_ctx: o.numCtx } : {}), ...(o.numPredict ? { num_predict: o.numPredict } : {}) },
+      }),
+      redirect: "error",
+      signal,
+    });
+  } catch (e) {
+    if (timeout.aborted) throw new OllamaError("slow", "the model took too long");
+    throw new OllamaError("unreachable", String(e));
+  }
+  if (!res.ok || !res.body) throw new OllamaError("unreachable", `Ollama answered ${res.status}`);
+  try {
+    yield* readOllamaStream(res.body);
+  } catch (e) {
+    if (timeout.aborted) throw new OllamaError("slow", "the model took too long");
+    if (signal.aborted) return;
+    throw e instanceof OllamaError ? e : new OllamaError("unreachable", String(e));
   }
 }
