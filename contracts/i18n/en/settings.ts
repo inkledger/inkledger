@@ -140,6 +140,7 @@ export const settings = {
       dismiss: "Dismiss",
       conflict: "This layout clashes with a rule you confirmed. Review it before applying.",
       deferred: "You're in the middle of something (a timer or a field being typed). Your changes are kept: apply again when you're done.",
+      renderersMissing: "The code that draws this page didn't load, so the layout wasn't applied. Your changes are kept: reload the page and apply again.",
       applying: "Applying the layout…",
       recover: "Show the saved layout",
       keepOthers: { one: "Keep my other change (1)", other: "Keep my other changes ({count})" },

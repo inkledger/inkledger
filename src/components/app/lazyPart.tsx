@@ -11,6 +11,11 @@ const partFailures = new WeakSet<object>();
  */
 export const isPartFailure = (e: unknown): boolean => typeof e === "object" && e !== null && partFailures.has(e);
 
+/** Claims a failed import as a part's: shown where it was needed, never a reload of the whole page. */
+export function claimPartFailure(e: unknown): void {
+  if (typeof e === "object" && e !== null) partFailures.add(e);
+}
+
 /** How long after the page's load the parts are fetched: never competing with the page's own content. */
 const AFTER_LOAD_MS = 1500;
 
@@ -42,7 +47,7 @@ export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>
     (pending ??= load().then(
       c => ((loaded = c), { default: c }),
       (e: unknown) => {
-        if (typeof e === "object" && e !== null) partFailures.add(e);
+        claimPartFailure(e);
         throw e;
       },
     ));

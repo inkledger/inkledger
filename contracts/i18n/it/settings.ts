@@ -141,6 +141,7 @@ export const settings: Shape<typeof en> = {
       dismiss: "Ignora",
       conflict: "Questo layout si scontra con una regola che hai confermato. Rivedilo prima di applicarlo.",
       deferred: "Stai facendo altro (un timer o un campo in compilazione). Le modifiche restano: applica di nuovo quando hai finito.",
+      renderersMissing: "Il codice che disegna questa pagina non si è caricato, quindi il layout non è stato applicato. Le modifiche restano: ricarica la pagina e applica di nuovo.",
       applying: "Applicazione del layout…",
       recover: "Mostra il layout salvato",
       keepOthers: { one: "Tieni la mia altra modifica (1)", other: "Tieni le mie altre modifiche ({count})" },
