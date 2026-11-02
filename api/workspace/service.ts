@@ -6,6 +6,7 @@ import {
   commit,
   deferActivation,
   expire,
+  pageLoadPresentation,
   reconcilePresentation,
   renewActivationLease,
   rollbackPreview,
@@ -206,6 +207,21 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
     draftWorkspace,
     constraints: resolved.input.activeRevision.constraints,
   };
+}
+
+/**
+ * The first look of a page load at a scope: a tab still presenting a layout older than the saved one
+ * (saved in another tab, or one that could not resolve back then) moves to it, as a new tab would.
+ */
+export async function openWorkspacePage(userId: number, scope: Scope, clientInstanceId: string): Promise<PresentationState | null> {
+  const { stored, state } = await currentState(userId, scope);
+  if (!state.presentations[clientInstanceId]) return null;
+  const target = await resolvedFor(userId, scope, null);
+  const next = pageLoadPresentation(state, clientInstanceId, target.descriptor);
+  if (!next) return null;
+  await writePresentation(userId, scope, stored.presentations[clientInstanceId] ?? null, next, target.descriptor);
+  await recordWorkspacePresented(userId, scope, next).catch(() => {});
+  return next;
 }
 
 /** An imported document with content this version cannot read stays read-only: never prepared nor committed (§19.4). */

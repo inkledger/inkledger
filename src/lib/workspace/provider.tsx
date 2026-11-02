@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
@@ -40,6 +40,9 @@ function fallbackDescriptor(workspace: ResolvedWorkspace): PresentationDescripto
   };
 }
 
+/** Scopes this page load has already looked at: a tab moves to the saved layout only when it loads. */
+const openedScopes = new Set<string>();
+
 /**
  * The layout of one scope. Who never committed a layout there and has FlowMap off gets the
  * bundled ProductDefault with no request at all; `live` (the Studio) always asks the server.
@@ -61,6 +64,17 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
     refetchOnWindowFocus: false,
     retry: false,
   });
+  const openPage = trpc.workspace.openPage.useMutation({ onSuccess: moved => { if (moved) void utils.workspace.get.invalidate({ scope }); } });
+  const behind = query.data?.presentation?.status === "stable" && !!query.data.committedRevision
+    && query.data.presentation.presented?.descriptor.sourceActiveRevision !== query.data.committedRevision;
+  const openKey = `${scope.surfaceId}:${scope.deviceClass}`;
+  const opened = query.isFetchedAfterMount && clientInstanceId !== "ssr";
+  useEffect(() => {
+    if (!opened || openedScopes.has(openKey)) return;
+    openedScopes.add(openKey);
+    // A tab left on an older layout (saved in another tab, or unreadable back then) moves to the saved one as it loads.
+    if (behind) openPage.mutate({ scope, clientInstanceId });
+  }, [opened, openKey, behind, openPage, scope, clientInstanceId]);
   const descriptor = query.data?.descriptor;
   const presentation = query.data?.presentation?.presented;
   useWorkspaceMutationGuard();

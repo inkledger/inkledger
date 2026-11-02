@@ -1308,6 +1308,10 @@
     "type": "query"
   },
   {
+    "path": "workspace.openPage",
+    "type": "mutation"
+  },
+  {
     "path": "workspace.prepare",
     "type": "mutation"
   },

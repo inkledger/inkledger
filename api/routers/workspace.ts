@@ -10,6 +10,7 @@ import {
   deferWorkspace,
   discardWorkspaceDraft,
   getWorkspace,
+  openWorkspacePage,
   prepareWorkspace,
   reconcileWorkspace,
   renewWorkspaceActivationLease,
@@ -61,6 +62,11 @@ export const workspaceRouter = createRouter({
   get: protectedProcedure
     .input(z.strictObject({ scope, clientInstanceId: clientInstanceId.optional() }))
     .query(({ ctx, input }) => guard(() => getWorkspace(ctx.user.id, input.scope, input.clientInstanceId))),
+
+  // A page load's first look at a scope: moves a tab still on an older layout to the saved one.
+  openPage: protectedProcedure
+    .input(z.strictObject({ scope, clientInstanceId }))
+    .mutation(({ ctx, input }) => guard(() => openWorkspacePage(ctx.user.id, input.scope, input.clientInstanceId))),
 
   discovery: protectedProcedure
     .input(discoveryInput)

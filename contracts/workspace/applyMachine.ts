@@ -387,6 +387,18 @@ export function ssrDecision(state: ApplyState, clientInstanceId: string): SsrDec
   return { kind: "reconcile", reason: current.status };
 }
 
+/**
+ * A page load keeps no React state, like a new tab (§15.6): a stable presentation behind the layout
+ * the user saved moves to it, with a new epoch. Pending or uncertain ones keep their reconcile path.
+ */
+export function pageLoadPresentation(state: ApplyState, clientInstanceId: string, target: PresentationDescriptor): PresentationState | null {
+  const current = state.presentations[clientInstanceId];
+  if (!current || current.status !== "stable" || !current.presented) return null;
+  if (current.presented.descriptor.effectiveRevision === target.effectiveRevision) return null;
+  const epoch = current.lastIssuedEpoch + 1;
+  return { clientInstanceId, status: "stable", lastIssuedEpoch: epoch, presented: { descriptor: target, presentationEpoch: epoch } };
+}
+
 export function rollbackPreview(state: ApplyState, clientInstanceId: string, targetRevision: string): {
   targetRevision: string;
   presentedRevision: string | null;

@@ -8,6 +8,7 @@ import {
   deferActivation,
   expire,
   initialApplyState,
+  pageLoadPresentation,
   prepare,
   reconcilePresentation,
   renewActivationLease,
@@ -423,6 +424,27 @@ describe("timeouts, reconnection and independent tabs", () => {
       workspaceFingerprint: rev1.workspaceFingerprint,
       presentationEpoch: 1,
     })).toMatchObject({ kind: "attributed", descriptor: rev1 });
+  });
+});
+
+describe("page load", () => {
+  it("moves a stable tab that fell behind to the committed layout, with a new epoch", () => {
+    const behind = withPresented(initialApplyState(scope, rev1), "tab-a", rev0, 1);
+    expect(pageLoadPresentation(behind, "tab-a", rev1)).toEqual({
+      clientInstanceId: "tab-a",
+      status: "stable",
+      lastIssuedEpoch: 2,
+      presented: { descriptor: rev1, presentationEpoch: 2 },
+    });
+  });
+
+  it("leaves a current, unknown, pending or uncertain tab to the existing paths", () => {
+    expect(pageLoadPresentation(setup(), "tab-a", rev0)).toBeNull();
+    expect(pageLoadPresentation(setup(), "tab-b", rev1)).toBeNull();
+    const pending = commitNext(prepareNext(setup()));
+    expect(pageLoadPresentation(pending, "tab-a", rev1)).toBeNull();
+    const uncertain = expire(beginNext(pending), NOW + APPLY_POLICY_V1.pendingActivationTtlMs);
+    expect(pageLoadPresentation(uncertain, "tab-a", rev1)).toBeNull();
   });
 });
 

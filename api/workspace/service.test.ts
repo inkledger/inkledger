@@ -9,6 +9,7 @@ import {
   discardWorkspaceDraft,
   getWorkspace,
   markWorkspaceDiscovery,
+  openWorkspacePage,
   prepareWorkspace,
   rollbackWorkspace,
   saveWorkspaceDraft,
@@ -338,6 +339,38 @@ describe("workspace application service", () => {
     await markWorkspaceDiscovery(userId, scope, { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [], seenAreaIds: [], placedAreaIds: ["dashboard.primary"], dismissedAreaIds: [] });
     expect(await getDiscoveryState(userId, scope)).toEqual({ seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [], seenAreaIds: ["dashboard.primary", "dashboard.secondary"], placedAreaIds: ["dashboard.primary"], dismissedAreaIds: ["dashboard.secondary"] });
     await expect(markWorkspaceDiscovery(userId, scope, { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [], seenAreaIds: ["shell.navigation"], placedAreaIds: [], dismissedAreaIds: [] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("a page load", () => {
+  let userId: number;
+
+  beforeEach(async () => {
+    await resetDbForTests();
+    userId = await user();
+  });
+
+  it("moves a tab still showing an older layout to the one saved since, and only once", async () => {
+    expect((await getWorkspace(userId, scope, "tab-a")).presentation?.presented?.descriptor.sourceActiveRevision).toBe("default");
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "prepare-b", clientInstanceId: "tab-b", draftRevision: 1, interactionEpoch: 1 });
+    const committed = await commitWorkspace({ userId, scope, prepareId: "prepare-b", operationId: "operation-b", clientInstanceId: "tab-b", draftRevision: 1, interactionEpoch: 1 });
+    const revisionId = committed.revision!.revisionId;
+    // Reading alone never moves it: the tab may be in the middle of something.
+    const read = await getWorkspace(userId, scope, "tab-a");
+    expect(read.descriptor.sourceActiveRevision).toBe("default");
+    expect(read.workspace.placements.find(placement => placement.anchorId === "dashboard.stats")?.visible).toBe(true);
+
+    const opened = await openWorkspacePage(userId, scope, "tab-a");
+    expect(opened).toMatchObject({ status: "stable", lastIssuedEpoch: 2, presented: { presentationEpoch: 2 } });
+    expect(opened?.presented?.descriptor.sourceActiveRevision).toBe(revisionId);
+    const after = await getWorkspace(userId, scope, "tab-a");
+    expect(after.descriptor.sourceActiveRevision).toBe(revisionId);
+    expect(after.workspace.placements.find(placement => placement.anchorId === "dashboard.stats")?.visible).toBe(false);
+    expect(await openWorkspacePage(userId, scope, "tab-a")).toBeNull();
+    // The tab that applied keeps its own activation path.
+    expect(await openWorkspacePage(userId, scope, "tab-b")).toBeNull();
+    expect((await getWorkspace(userId, scope, "tab-b")).presentation?.status).toBe("pendingActivation");
   });
 });
 

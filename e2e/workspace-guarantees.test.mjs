@@ -316,6 +316,32 @@ test("A layout saved under older rules still shows: what the rules now refuse is
     assert.equal((await db.q("SELECT revision_number FROM workspace_revisions WHERE status = 'committed'"))[0].revision_number, 2);
   }));
 
+test("A tab left on an older layout moves to the one saved since when it loads, and its use counts there", () =>
+  withApp({
+    viewport: { width: 1280, height: 1000 },
+    seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
+  }, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    await page.getByRole("button", { name: "Customize dashboard" }).waitFor();
+    await quiet(page);
+    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_presentations WHERE surface_id = 'dashboard'"))[0].n, 1, "this tab presents the default layout");
+    // Saved meanwhile somewhere else (or saved earlier and unreadable when this tab first looked): Customize hidden.
+    const operations = [{ operation: { type: "visibility", operationId: "hide-customize", anchorId: "dashboard.customize", visible: false }, origin: "user", acceptedByUser: true }];
+    await db.q("INSERT INTO workspace_revisions (id, user_id, surface_id, device_class, revision_number, catalog_version, product_default_version, committed_at, operations, constraints) VALUES ('saved-elsewhere', 1, 'dashboard', 'desktop', 1, '1.0.0', 'product-1', ?, ?, '[]')", Date.now(), JSON.stringify(operations));
+    await page.reload();
+    await page.getByRole("button", { name: "Log time", exact: true }).first().waitFor();
+    await quiet(page);
+    assert.equal(await page.getByRole("button", { name: "Customize dashboard" }).count(), 0, "the saved layout shows after a reload of the same tab");
+    const [presented] = await db.q("SELECT presented_descriptor::json->>'sourceActiveRevision' AS source FROM workspace_presentations WHERE surface_id = 'dashboard'");
+    assert.equal(presented.source, "saved-elsewhere");
+    await page.getByRole("button", { name: "Log time", exact: true }).first().click();
+    await page.keyboard.press("Escape");
+    await page.goto(`${base}/settings/workspace`);
+    await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'"))[0].n > 0, "the click to arrive");
+    const sources = await db.q("SELECT DISTINCT payload::json->'descriptor'->>'sourceActiveRevision' AS source FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'");
+    assert.deepEqual(sources.map(row => row.source), ["saved-elsewhere"], "counted on the layout on screen, which the maps of the saved layout read");
+  }));
+
 test("The Studio draws the Dashboard as it is laid out: the rail beside the timeline, the summary beside My issues", () =>
   withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
