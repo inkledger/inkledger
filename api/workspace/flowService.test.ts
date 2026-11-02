@@ -90,6 +90,8 @@ describe("FlowMap service", () => {
     expect(overview.imports).toHaveLength(1);
     expect(overview.evidence.every(item => item.origin === "local")).toBe(true);
     expect(overview.evidence.find(item => item.evidenceId === evidence.evidenceId)?.expectations[0].state).toBe("confirmed");
+    // This week so far says the same: a thing looked for, once judged, reads judged wherever it shows.
+    expect(overview.live?.expectations.find(gap => gap.id === evidence.expectations[0].id)?.state).toBe("confirmed");
     expect(JSON.parse(exported.contents).evidence.expectations[0].state).toBe("confirmed");
     const document = JSON.parse(exported.contents) as Record<string, unknown>;
     document.svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";

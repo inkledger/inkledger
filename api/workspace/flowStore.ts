@@ -128,7 +128,8 @@ export async function saveEvidence(userId: number, evidence: EvidenceSet): Promi
   });
 }
 
-function withExpectationFeedback(evidence: EvidenceSet, feedback: Record<string, "unconfirmed" | "confirmed" | "rejected">): EvidenceSet {
+/** A period's things looked for, each with the user's judgement of it (by its id, whatever the period). */
+export function withExpectationFeedback(evidence: EvidenceSet, feedback: Record<string, "unconfirmed" | "confirmed" | "rejected">): EvidenceSet {
   return { ...evidence, expectations: evidence.expectations.map(gap => ({ ...gap, state: feedback[gap.id] ?? gap.state })) };
 }
 

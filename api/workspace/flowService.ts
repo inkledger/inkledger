@@ -26,6 +26,7 @@ import {
   saveFlowEvents,
   saveFlowImport,
   setExpectationFeedback,
+  withExpectationFeedback,
 } from "./flowStore";
 
 export function flowMapChecksum(document: unknown): string {
@@ -144,7 +145,8 @@ export async function flowMapOverview(userId: number, scope: Scope) {
     const events = await loadFlowEvents(userId, scope, current.descriptor.effectiveRevision, Date.now() - 7 * DAY_MS);
     if (events.length > 0) {
       const areasByAnchor = Object.fromEntries(current.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
-      live = aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor, SEMANTIC_REVISIONS);
+      // With the user's judgements of what was looked for, as the stored periods carry them.
+      live = withExpectationFeedback(aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor, SEMANTIC_REVISIONS), await feedbackById(userId));
       layouts[current.descriptor.effectiveRevision] ??= current.workspace.placements.map(({ anchorId, areaId, order, visible }) => ({ anchorId, areaId, order, visible }));
     }
   }
