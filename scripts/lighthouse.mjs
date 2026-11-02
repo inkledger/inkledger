@@ -7,9 +7,8 @@
 // Nothing is chosen after seeing scores: the scenarios below are the whole matrix (LH-1).
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash, generateKeyPairSync } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { start } from "../e2e/harness.mjs";
 import { chromiumPath } from "./chromium.mjs";
@@ -46,48 +45,25 @@ const SCENARIOS = [
 ].filter(s => !only || only.includes(s.id));
 
 /** Modules (optional): the unsigned build, signed here with a throwaway key and fixture licences. */
-function moduleEnv() {
+async function moduleEnv() {
   if (!modsBuild) return { env: {}, seed: async () => undefined, ids: [] };
-  const KEY = generateKeyPairSync("ed25519");
-  const { signEnvelope } = awaitImport("../api/vendor/seal/envelope.ts");
-  const { sha256hex, signManifest } = awaitImport("../api/vendor/seal/package.ts");
-  const ids = readdirSync(modsBuild).filter(id => existsSync(join(modsBuild, id, "manifest.unsigned.json")));
-  const dir = join(mkdtempSync(join(tmpdir(), "ikl-lh-mods-")), "modules");
-  for (const id of ids) {
-    const meta = JSON.parse(readFileSync(join(modsBuild, "..", "packages", id, "meta.json"), "utf8"));
-    const out = join(dir, id);
-    mkdirSync(out, { recursive: true });
-    const files = {};
-    for (const f of readdirSync(join(modsBuild, id)).filter(f => f !== "manifest.unsigned.json")) {
-      const bytes = readFileSync(join(modsBuild, id, f));
-      writeFileSync(join(out, f), bytes);
-      files[f] = sha256hex(bytes);
-    }
-    const manifest = { ...meta, files };
-    writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest));
-    writeFileSync(join(out, "manifest.sig"), signManifest(manifest, "inkledger-package-v1\n", KEY.privateKey));
-  }
-  const license = id => signEnvelope(Buffer.from(JSON.stringify({ id: `L-${id}`, email_hash: "h", product: `inkledger.${id}`, issued: 1, v: 1 })), "inkledger-license-v1\n", KEY.privateKey);
+  // Loaded only when asked for: the seal helpers are TypeScript (node strips types, as in the e2e tests).
+  const { signedMods, unsignedIds } = await import("../e2e/unsigned-mods.mjs");
+  const ids = unsignedIds(modsBuild);
+  const { env, licenses } = signedMods(modsBuild, ids, "ikl-lh-mods-");
   return {
     ids,
-    env: { MODULES_DIR: dir, MODULES_TRUST_EXTRA_KEY: KEY.publicKey.export({ type: "spki", format: "pem" }).toString(), MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" },
-    seed: db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify(ids.map(license)), Date.now()),
+    env,
+    seed: db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify(licenses), Date.now()),
   };
 }
-// The seal helpers are TypeScript, loaded the same way the e2e tests load them (node strips types).
-const loaded = {};
-function awaitImport(p) {
-  if (!loaded[p]) throw new Error(`${p} not preloaded`);
-  return loaded[p];
-}
-if (modsBuild) for (const p of ["../api/vendor/seal/envelope.ts", "../api/vendor/seal/package.ts"]) loaded[p] = await import(p);
 
 const sha = execFileSync("git", ["rev-parse", "--short", "HEAD"]).toString().trim();
 const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
 const OUT = join(new URL("..", import.meta.url).pathname, "perf/lighthouse", `${stamp}-${sha}`);
 mkdirSync(OUT, { recursive: true });
 
-const mods = moduleEnv();
+const mods = await moduleEnv();
 const INVITE = "lighthouse-invite-token";
 const app = await start({
   seed: async db => {

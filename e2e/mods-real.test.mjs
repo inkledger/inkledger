@@ -4,46 +4,21 @@
 //   MODS_BUILD=../inkledger-modules/build-unsigned PROVIDERS_READ_ONLY=1 node --test e2e/mods-real.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { AXE, start } from "./harness.mjs";
-import { signEnvelope } from "../api/vendor/seal/envelope.ts";
-import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
+import { signedMods, unsignedIds } from "./unsigned-mods.mjs";
 
 const BUILD = process.env.MODS_BUILD ?? new URL("../../inkledger-modules/build-unsigned/", import.meta.url).pathname;
-const SRC = join(BUILD, "..", "packages");
-const IDS = existsSync(BUILD) ? readdirSync(BUILD).filter(id => existsSync(join(BUILD, id, "manifest.unsigned.json"))).sort() : [];
+const IDS = existsSync(BUILD) ? unsignedIds(BUILD).sort() : [];
 const skip = IDS.length === 0 ? "no unsigned modules build (MODS_BUILD)" : false;
-const KEY = generateKeyPairSync("ed25519");
-const PEM = KEY.publicKey.export({ type: "spki", format: "pem" }).toString();
-
-const license = id =>
-  signEnvelope(Buffer.from(JSON.stringify({ id: `L-${id}`, email_hash: "h", product: `inkledger.${id}`, issued: 1, v: 1 })), "inkledger-license-v1\n", KEY.privateKey);
-
-function install(dir, id) {
-  const meta = JSON.parse(readFileSync(join(SRC, id, "meta.json"), "utf8"));
-  const out = join(dir, id);
-  mkdirSync(out, { recursive: true });
-  const files = {};
-  for (const f of readdirSync(join(BUILD, id)).filter(f => f !== "manifest.unsigned.json")) {
-    const bytes = readFileSync(join(BUILD, id, f));
-    writeFileSync(join(out, f), bytes);
-    files[f] = sha256hex(bytes);
-  }
-  const manifest = { ...meta, files };
-  writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest));
-  writeFileSync(join(out, "manifest.sig"), signManifest(manifest, "inkledger-package-v1\n", KEY.privateKey));
-}
 
 async function withAll(o, body) {
-  const dir = join(mkdtempSync(join(tmpdir(), "ikl-e2e-mods-")), "modules");
-  for (const id of IDS) install(dir, id);
+  const { dir, env, licenses } = signedMods(BUILD, IDS, "ikl-e2e-mods-");
   const app = await start({
     viewport: o.viewport,
-    seed: db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify(IDS.map(license)), Date.now()),
-    env: { MODULES_DIR: dir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1", STORE_URL: "off", WEATHER: "off" },
+    seed: db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify(licenses), Date.now()),
+    env: { ...env, STORE_URL: "off", WEATHER: "off" },
   });
   try {
     await body(app);
