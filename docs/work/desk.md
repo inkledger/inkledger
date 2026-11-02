@@ -38,6 +38,19 @@ Done criteria:
   - *Conversation:* in the browser only (`src/lib/desk/chat.ts`), kept while the panel is closed and across pages until a reload; "New chat", or a desk whose issues all changed, clears it. Markdown is drawn by `RichText` from the server's parse, never as HTML.
   - *Panel:* docked beside the desk on wide screens (an in-page column, not a modal sheet, so the desk stays usable and refits), a full sheet on phones; lazy. `a` opens it.
   - *Save as note:* one note with every key in its body, linked to the focused pane's issue (or the first): linking it to every issue waits for batch 7 (`markdown_note_issues`).
+- **The chat reads the code (4d): a Pi-style native harness.** Asked whether issues are "really solved looking at the codebase", the chat used to say it had no access to the code. Now the model explores the user's repositories by itself, over several steps, with a small read-only tool set; the **server never reads repositories**, the user's machine does.
+  - *Pi considered and rejected:* Pi (pi.dev) would have given a ready harness, but it needs Node 22 and would add a 60–100 MB sidecar to the app. We keep our own harness in Pi's style instead: no sidecar, no new runtime, the app stays lean.
+  - *Tools* (`contracts/codeTools.ts`, Pi's read/grep/find/ls plus git): `ls`, `find` (a glob over paths), `grep` (text or regex, line numbers, at most 40 hits), `read` (at most 400 lines a call), `git_log` (by message or path, with the files changed), `git_show` (a patch, truncated). Never bash, write or edit. `repo` is a repository's label or number; paths are relative to it, and absolute paths, drive letters, `~`, `..`, `:` and links out of it are refused. Walks skip `.git`, `node_modules` and build output, binaries and files over 1 MB. A result the model reads is capped at 12 KB.
+  - *One loop* (`src/lib/desk/agent.ts`): a small state machine shared by the browser and the app, tested on its own; only the executors differ (`src/lib/desk/code.ts`: the app's Rust commands or a connected folder). The page posts, the server streams text or ends with a `tool_calls` event, the page runs each call, appends `assistant` (with `tool_calls`) and `tool` messages and posts again. At most 12 rounds a question; then no tools are offered and the server tells the model to answer now (it refuses a 13th round). A tool has 30 s; Stop aborts between and during steps.
+  - *Context compaction* (`compactWire`): when the current question's rounds pass 40 000 characters, the oldest tool results become their one line ("read src/x.kt lines 1–200 (elided)"); the last three stay whole. Earlier questions are sent as question and answer only, never their tool rounds.
+  - *Steady prompt* (`api/ai/prompts/deskChat.ts`): short; it lists the tools with one line each and the repositories by label (labels are context, never part of the tool schemas, and never paths). It names the issue keys and requires them quoted exactly: the "APP-400" for MAGA-400 came from the old prompt's example key "APP-12", not from the context, which carried the right key. It says to check the code before claiming something solved (commits mentioning the key, then the changed code), and to answer in the user's language.
+  - *Route* (`POST /api/desk/chat`): stateless; with no tools offered it behaves as before. New optional fields `tools`, `repos` (labels), `extracts`; messages may be `assistant` with `tool_calls` and `tool`; all validated with zod (known tools only, each call answered by exactly one result right after it, arguments ≤ 2 KB, results ≤ 12 KB, 160 000 characters in all, 12 rounds). A tool round reuses its question's issue context for 2 minutes (the trackers are asked once a question). Rate limits: 12 questions a minute, and tool rounds counted apart (144 a minute). A unit test spies on `fs` during a tool round and checks the route's modules import no file system or process API.
+  - *Reach* (`POST /api/desk/chat/reach`): the projects of the issues shown with their repository paths (Settings → Repositories), the issues' titles, and whether the model is on and can call tools.
+  - *Model:* `OLLAMA_CHAT_MODEL` (falls back to `OLLAMA_MODEL`). Tool support is read from Ollama's `/api/show` (`capabilities` includes `tools`), cached 10 minutes (30 s when Ollama didn't answer). Without it the page builds *extracts*: it greps the repositories in reach for each key and two distinctive title words (and, in the app, `git_log` by key) and sends the hits with the question (at most 16 KB). The panel says the mode in plain words.
+  - *In the app (macOS, Windows):* Rust commands in `src-tauri/src/code.rs` (docs/native.md), registered in `build.rs` and `capabilities/remote.json` (the native-shell e2e checks both now). Each root is allowed once in a native dialog, kept per server in `code-access.json`; the commands refuse roots that aren't allowed. Git through the `git` program, fixed arguments, hex commit ids; no git, no git tools.
+  - *In a browser (Chromium):* "Connect folder" per project (`showDirectoryPicker`, read mode); the handle is kept in IndexedDB (every access in try/catch; a handle that can't be stored lasts until a reload) and permission is asked again when needed. `ls`, `find`, `grep`, `read` in TS (`browserCode.ts`), on the main thread with a turn given back every 100 files: a worker can't receive a stubbed handle, and the walk is capped (20 000 files).
+  - *Elsewhere* (Safari, phones): the chat works as before and says in one line that code is not in reach and how to bring it in.
+  - *Panel:* a "Code" row under the issues: the repositories in reach as chips, "Allow <repo>" (app) or "Connect folder" (browser) where needed, then the mode line. Each tool step is a compact line above its answer ("Searching “inventario” in app: 3 hits", "Reading src/…/InventoryService.kt", "Commits mentioning MAGA-400"), which opens to show what the model read.
 
 ## Batches and progress
 - [x] 0. Layout model (`contracts/desk.ts`, tests)
@@ -47,6 +60,7 @@ Done criteria:
 - [x] 4. Entry points and the Desk in the workflow: empty slots, sending an issue from its page (grip to an edge, Layout button, Alt+Shift+arrows, long press on a phone), Shift-click on issue links, "Open beside", dragging from lists and the board, picking in Issues
 - [x] 4b. Up to six panes and more arrangements (presets, fit, snap edges, picker, Move to, keys, toasts, tabs)
 - [x] 4c. Ask AI: a chat with the local model about the issues shown (`api/desk/chat.ts`, `DeskChat`)
+- [x] 4d. The chat reads the code on the user's machine: tools, agent loop, Rust commands, browser folders, extracts fallback
 - [ ] 5. Compare view, and its phone table
 - [ ] 6. Copy all for model (`issues.copyForAgentMany`)
 - [ ] 7. Decision note (`markdown_note_issues`, migration 0039)
@@ -70,6 +84,10 @@ Done criteria:
 | `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && PROVIDERS_READ_ONLY=1 pnpm test:smoke && pnpm db:check` | batch 4c | pass; 2905 unit tests; first load 868.9/276.5 KiB |
 | `e2e/desk-chat.test.mjs` (new) | batch 4c | 4/4, ×3 |
 | `desk`, `desk-snap`, `desk-flow` | batch 4c | 15/15 |
+| `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && PROVIDERS_READ_ONLY=1 pnpm test:smoke && pnpm db:check` | batch 4d | pass; 2969 unit tests; first load 873.6/278.0 KiB |
+| `cargo test` in `src-tauri` (offline) | batch 4d | 28/28 (8 new in `code.rs`) |
+| `e2e/desk*.test.mjs` (4 new chat tests) | batch 4d | 27/27 in 3 of 4 runs; one run had the snap test "with three, the left edge…" fail (passes alone, 5/5) |
+| native shell config (`regressions`, now also `build.rs`) | batch 4d | 1/1 |
 
 ## Open issues and next action
 - At 320 px three of six tabs show; the others are reached by scrolling the tab row (or the arrows).
@@ -83,4 +101,7 @@ Done criteria:
 - An issue dragged from the board or a list can reach the Desk only through the sidebar entry (another page); dropping on the Desk itself needs the Desk beside the list (a second window).
 - The chat's answers were tried with the simulator only, never with a real model in this batch: the prompt's behaviour (citing keys, staying on topic, the language) is unverified on a real Ollama.
 - While an answer is written, what came after the last `draft` (up to 150 ms) shows a moment later; a stopped answer keeps the last draft's drawing.
+- 4d was tried with the simulator, a stubbed native bridge and an in-memory folder only: no real Ollama (tool calling, the prompt's effect on "APP-400"), no real app window (the NSAlert and Windows dialogs), no real `showDirectoryPicker`. The Windows build was not checked: `cargo check --target x86_64-pc-windows-gnu` stops at `ring`'s C code (no mingw here), before our code.
+- Ollama's tool-call streaming varies by version and model (calls may come in one line or several); the reader accepts calls on any line, arguments as an object or JSON text.
+- The browser can't tell whether a connected folder holds links that lead out; it only exposes what is inside the picked folder.
 - **Next:** batches 5–9.
