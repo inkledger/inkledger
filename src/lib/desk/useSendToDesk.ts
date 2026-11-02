@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type PointerEvent } from "react";
 import { useNavigate } from "react-router";
 import { deskIssues, DESK_MAX_PANES, pagePresets, paneId, placeIssue, type DeskPane, type PresetId } from "@contracts/desk";
 import { trpc } from "@/lib/trpc";
@@ -80,7 +80,8 @@ export function useDeskKeys(pane: DeskPane | null) {
   const utils = trpc.useUtils();
   const navigate = useNavigate();
   const latest = useRef({ pane, utils, navigate });
-  useEffect(() => {
+  // Kept as the page is drawn (not after it): a key pressed as soon as the title shows finds its issue.
+  useLayoutEffect(() => {
     latest.current = { pane, utils, navigate };
   });
   useEffect(() => {
