@@ -15,8 +15,15 @@ function scopeWhere(scope: Scope) {
 }
 
 export async function getFlowSettings(userId: number) {
-  const rows = await getDb().select().from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
+  const { userId: owner, enabled, rawRetentionDays, aggregateRetentionDays, updatedAt } = workspaceFlowSettings;
+  const rows = await getDb().select({ userId: owner, enabled, rawRetentionDays, aggregateRetentionDays, updatedAt }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
   return rows[0] ?? { enabled: false, rawRetentionDays: 30, aggregateRetentionDays: 365 };
+}
+
+/** When the user last deleted their FlowMap data (null: never): the server's own bookkeeping, not a setting shown. */
+export async function flowDeletedAt(userId: number): Promise<number | null> {
+  const rows = await getDb().select({ deletedAt: workspaceFlowSettings.deletedAt }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
+  return rows[0]?.deletedAt ?? null;
 }
 
 export async function setFlowConsent(userId: number, enabled: boolean) {
@@ -64,9 +71,13 @@ export async function saveFlowEvents(userId: number, events: readonly FlowEvent[
   if (events.length === 0) return 0;
   return getDb().transaction(async tx => {
     await xactLock(tx, `flow:${userId}`);
-    const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
+    const settings = await tx.select({ enabled: workspaceFlowSettings.enabled, deletedAt: workspaceFlowSettings.deletedAt }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) return 0;
-    const inserted = await tx.insert(workspaceFlowEvents).values(events.map(event => ({
+    // A batch queued before a Delete (a tab that sends it later) never brings deleted use back.
+    const deletedAt = settings[0].deletedAt;
+    const kept = deletedAt === null ? events : events.filter(event => event.occurredAt >= deletedAt);
+    if (kept.length === 0) return 0;
+    const inserted = await tx.insert(workspaceFlowEvents).values(kept.map(event => ({
       userId,
       id: event.id,
       surfaceId: event.scope.surfaceId,
@@ -182,7 +193,8 @@ export async function deleteFlowData(userId: number): Promise<void> {
       await tx.update(workspaceDrafts).set({ patches: JSON.stringify(patches) })
         .where(and(eq(workspaceDrafts.userId, userId), eq(workspaceDrafts.surfaceId, draft.surfaceId), eq(workspaceDrafts.deviceClass, draft.deviceClass), eq(workspaceDrafts.id, draft.id)));
     }
-    await tx.insert(workspaceFlowSettings).values({ userId, enabled: false, updatedAt: Date.now() }).onConflictDoUpdate({ target: workspaceFlowSettings.userId, set: { enabled: false, updatedAt: Date.now() } });
+    const now = Date.now();
+    await tx.insert(workspaceFlowSettings).values({ userId, enabled: false, updatedAt: now, deletedAt: now }).onConflictDoUpdate({ target: workspaceFlowSettings.userId, set: { enabled: false, updatedAt: now, deletedAt: now } });
   });
 }
 

@@ -1845,6 +1845,8 @@ export const workspaceFlowSettings = pgTable("workspace_flow_settings", {
   rawRetentionDays: integer("raw_retention_days").notNull().default(30),
   aggregateRetentionDays: integer("aggregate_retention_days").notNull().default(365),
   updatedAt: epochMs("updated_at").notNull().$defaultFn(() => Date.now()),
+  // The last Delete FlowMap data: anything that happened before it is never stored again (§16.5).
+  deletedAt: epochMs("deleted_at"),
 });
 
 export const workspaceFlowEvents = pgTable("workspace_flow_events", {

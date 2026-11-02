@@ -158,6 +158,16 @@ describe("FlowMap service", () => {
     expect(await ingestFlowEvents(userId, [event({ id: "after-delete" })])).toEqual({ received: 0, isolated: 1 });
   });
 
+  it("never stores again what happened before a Delete, even once consent is given again", async () => {
+    await setFlowConsent(userId, true);
+    // A batch another tab queued before the Delete and sends only after FlowMap is back on.
+    const queued = event({ id: "queued-before-delete", occurredAt: Date.now() - 1_000 });
+    await deleteFlowData(userId);
+    await setFlowConsent(userId, true);
+    expect(await ingestFlowEvents(userId, [queued, event({ id: "after-consent", occurredAt: Date.now() + 1 })])).toEqual({ received: 1, stored: 1, isolated: 1 });
+    expect((await q<{ id: string }>("SELECT id FROM workspace_flow_events WHERE user_id = ?", userId)).map(row => row.id)).toEqual(["after-consent"]);
+  });
+
   it("trusts nothing a .flowmap says about itself, and takes none without consent", async () => {
     await setFlowConsent(userId, true);
     await ingestFlowEvents(userId, [event()]);

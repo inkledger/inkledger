@@ -15,6 +15,7 @@ import { renderFlowMapSvg } from "./flowSvg";
 import {
   evidenceById,
   feedbackById,
+  flowDeletedAt,
   flowSnapshotCandidates,
   getFlowSettings,
   listEvidence,
@@ -68,6 +69,7 @@ export async function ingestFlowEvents(userId: number, events: readonly FlowEven
   if (!settings.enabled) return { received: 0, isolated: events.length };
   await pruneFlowData(userId);
   const now = Date.now();
+  const deletedAt = await flowDeletedAt(userId);
   const accepted: FlowEvent[] = [];
   let isolated = 0;
   const states = new Map<string, Awaited<ReturnType<typeof loadApplyState>>>();
@@ -82,7 +84,8 @@ export async function ingestFlowEvents(userId: number, events: readonly FlowEven
       presentationEpoch: event.presentationEpoch,
       ...(event.activationId ? { activationId: event.activationId } : {}),
     });
-    const fresh = event.occurredAt <= now + 300_000 && event.occurredAt >= now - settings.rawRetentionDays * 86_400_000;
+    // Nor from before the last Delete FlowMap data: what was deleted stays deleted, consent given again or not.
+    const fresh = event.occurredAt <= now + 300_000 && event.occurredAt >= now - settings.rawRetentionDays * 86_400_000 && event.occurredAt >= (deletedAt ?? 0);
     if (!fresh || attribution.kind !== "attributed" || !checkEventCatalog(event)) {
       isolated++;
       continue;

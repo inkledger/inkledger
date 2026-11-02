@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_flow_settings" ADD COLUMN "deleted_at" bigint;
