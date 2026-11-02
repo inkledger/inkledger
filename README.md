@@ -196,6 +196,7 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Dev server with HMR (port 3000) |
+| `pnpm dev:https` / `pnpm https` | Fresh build for other people on the network: :4173, with HTTPS on :3443 in front; local CA and proxy (see [docs/https.md](docs/https.md)) |
 | `pnpm dev:build` / `pnpm preview` | Optimized build and SSR served by the development backend, with working login, APIs and `.env` database |
 | `pnpm build` / `pnpm start` | Production build (`dist/`) and server |
 | `pnpm lint` | ESLint and the design-token check |

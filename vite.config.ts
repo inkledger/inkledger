@@ -2,7 +2,7 @@ import devServer from "@hono/vite-dev-server"
 import path from "path"
 const __dirname = import.meta.dirname
 import react from "@vitejs/plugin-react"
-import { defineConfig, type Plugin } from "vite"
+import { defineConfig, loadEnv, type Plugin } from "vite"
 
 /** The build's id in the page (contracts/appBuild.ts): only on a real build, so dev never asks to reload. */
 function appBuild(): Plugin {
@@ -60,6 +60,10 @@ function clientI18n(): Plugin {
   }
 }
 
+/** The dev server on the local network, from .env (.env.example): DEV_HOST, DEV_ALLOWED_HOSTS. */
+const devEnv = loadEnv("development", __dirname, "DEV_")
+const csv = (raw: string | undefined) => (raw ?? "").split(",").map(s => s.trim()).filter(Boolean)
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -70,10 +74,11 @@ export default defineConfig({
     migrateOnNewMigration()],
   server: {
     port: 3000,
-    // IPv4 loopback: what `tailscale serve` and the native app point at.
-    host: "127.0.0.1",
+    // IPv4 loopback: what `tailscale serve` and the native app point at
+    // (DEV_HOST=0.0.0.0 keeps it and adds the local network).
+    host: devEnv.DEV_HOST || "127.0.0.1",
     // Reached over the tailnet or the LAN too (the server checks hosts itself).
-    allowedHosts: [".ts.net", ".local"],
+    allowedHosts: [".ts.net", ".local", ...csv(devEnv.DEV_ALLOWED_HOSTS)],
   },
   resolve: {
     alias: {

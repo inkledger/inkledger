@@ -49,26 +49,15 @@ The pane also says where the mail is pinned already, with a check on those issue
 
 **Pin the pane** with the pin at its top. Unpinned, Outlook closes it when you select another mail. Pinned, it stays open and follows the mail you select; until it has done so once, the pane shows a reminder.
 
-Outlook loads add-ins only over HTTPS with a trusted certificate. `scripts/outlook-https.mjs` provides that on this machine, so the tailnet is not needed:
+Outlook loads add-ins only over HTTPS with a trusted certificate. `scripts/https.mjs` provides that on this machine, so the tailnet is not needed (details and options in [https.md](https.md)):
 
 ```sh
-node scripts/outlook-https.mjs cert            # once: a local CA and a certificate (data/outlook-https)
+pnpm https cert            # once: a local CA and a certificate (data/https)
 sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain data/outlook-https/ca.crt   # once, by hand
-node scripts/outlook-https.mjs serve           # https://localhost:3443 → dev :3000
+  -k /Library/Keychains/System.keychain data/https/ca.crt   # once, by hand
+pnpm https serve           # https://localhost:3443 → dev :3000
+pnpm https agent           # or: started at every login, kept running
 ```
-
-To have HTTPS start by itself at every login, and come back if it stops, run this once:
-
-```sh
-node scripts/outlook-https.mjs agent           # a macOS LaunchAgent running `serve`
-node scripts/outlook-https.mjs agent-remove    # to stop that
-```
-
-`serve` (and `agent`) take a few options:
-- `--target http://127.0.0.1:47823` points the proxy at another server.
-- `--port` changes its port.
-- `--lan` listens on the local network, as `https://<this-mac>.local:3443`. Other machines must trust the CA too.
 
 Then:
 

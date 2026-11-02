@@ -1034,7 +1034,7 @@ export const settings = {
     addinTitle: "Outlook add-in",
     addinText: "A “Pin to inkledger” button in Outlook (new Outlook for Mac, Windows, the web): open a mail, press it, choose the issue.",
     addinKeywords: "add-in button manifest key https",
-    step1: "On this Mac, start HTTPS for Outlook: run “node scripts/outlook-https.mjs cert” once (then trust the CA as it says), and “node scripts/outlook-https.mjs serve” while you use it.",
+    step1: "On this Mac, start HTTPS for Outlook: run “pnpm https cert” once (then trust the CA as it says), and “pnpm https serve” while you use it.",
     step2: "In Outlook on the web: Settings → Get add-ins → My add-ins → Add a custom add-in → Add from URL and paste the address below, or Add from file with the downloaded manifest:",
     step3: "Open a mail, press “Pin to inkledger” and paste the key below the first time.",
     manifest: "Manifest address",

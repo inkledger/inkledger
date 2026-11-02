@@ -661,7 +661,7 @@ export const ui = {
     loading: "Loading…",
     noOffice: "Office.js did not load (no internet, or blocked): close and reopen the pane.",
     noAnswer: "Outlook did not answer: close and reopen the pane.",
-    offline: "inkledger is not answering: are the server and “node scripts/outlook-https.mjs serve” running?",
+    offline: "inkledger is not answering: are the server and “pnpm https serve” running?",
     failed: "Not done: {reason}",
     keyTitle: "Connect to inkledger",
     keyText: "Paste the add-in key from inkledger, Settings → Outlook. It is asked once.",

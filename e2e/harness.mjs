@@ -123,6 +123,9 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       ...process.env,
       NODE_ENV: devBuild || viteDev ? "development" : "production",
       SERVE_BUILD: devBuild && !viteDev ? "1" : "0",
+      // The dev server on this machine only, whatever the developer's .env says (docs/https.md).
+      DEV_HOST: "127.0.0.1",
+      DEV_ALLOWED_HOSTS: "",
       PORT: String(port),
       DATABASE_URL: dbUrl.toString(),
       SESSION_SECRET: SECRET,

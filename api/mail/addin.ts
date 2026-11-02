@@ -2,7 +2,7 @@
 // mail reading pane opens a small task pane served from here, which reads the
 // open mail's headers through Office.js (ReadItem: no Graph, no admin) and pins
 // it to an issue, a new TODO or the pinboard. Outlook loads add-ins only over
-// HTTPS (scripts/outlook-https.mjs on the local network). The pane runs inside
+// HTTPS (scripts/https.mjs on the local network). The pane runs inside
 // Outlook, where inkledger's session cookie is not sent: it calls these routes
 // with the add-in key (Settings → Outlook), which opens them and nothing else.
 import type { Context, Hono, MiddlewareHandler } from "hono";

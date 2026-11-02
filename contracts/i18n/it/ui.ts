@@ -662,7 +662,7 @@ export const ui: Shape<typeof en> = {
     loading: "Caricamento…",
     noOffice: "Office.js non si è caricato (niente internet, o bloccato): chiudi e riapri il pannello.",
     noAnswer: "Outlook non ha risposto: chiudi e riapri il pannello.",
-    offline: "inkledger non risponde: sono avviati il server e “node scripts/outlook-https.mjs serve”?",
+    offline: "inkledger non risponde: sono avviati il server e “pnpm https serve”?",
     failed: "Non fatto: {reason}",
     keyTitle: "Collega inkledger",
     keyText: "Incolla la chiave dell'add-in da inkledger, Impostazioni → Outlook. Viene chiesta una volta sola.",

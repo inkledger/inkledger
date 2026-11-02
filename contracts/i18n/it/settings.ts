@@ -1035,7 +1035,7 @@ export const settings: Shape<typeof en> = {
     addinTitle: "Add-in di Outlook",
     addinText: "Un pulsante “Fissa in inkledger” in Outlook (nuovo Outlook per Mac, Windows, web): apri una mail, premilo, scegli la issue.",
     addinKeywords: "add-in pulsante manifest chiave https",
-    step1: "Su questo Mac avvia l'HTTPS per Outlook: esegui una volta “node scripts/outlook-https.mjs cert” (poi rendi attendibile la CA come indicato) e “node scripts/outlook-https.mjs serve” mentre lo usi.",
+    step1: "Su questo Mac avvia l'HTTPS per Outlook: esegui una volta “pnpm https cert” (poi rendi attendibile la CA come indicato) e “pnpm https serve” mentre lo usi.",
     step2: "In Outlook sul web: Impostazioni → Ottieni componenti aggiuntivi → I miei componenti aggiuntivi → Aggiungi un componente personalizzato → Aggiungi da URL e incolla l'indirizzo qui sotto, oppure Aggiungi da file con il manifest scaricato:",
     step3: "Apri una mail, premi “Fissa in inkledger” e la prima volta incolla la chiave qui sotto.",
     manifest: "Indirizzo del manifest",

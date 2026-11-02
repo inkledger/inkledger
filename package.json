@@ -10,6 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:https": "node scripts/https.mjs dev",
+    "https": "node scripts/https.mjs",
     "dev:build": "pnpm build && SERVE_BUILD=1 tsx api/boot.ts",
     "build": "vite build && vite build --config vite.ssr.config.ts && node scripts/precompress.mjs && esbuild api/boot.ts api/cli.ts --platform=node --bundle --format=esm --packages=external --outdir=dist --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
     "lint": "eslint . && node scripts/check-design.mjs",
