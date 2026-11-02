@@ -2,24 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { readStored, writeStored } from "@/lib/storage";
 
 /** The note kept on this device after a failed save, unless the server already has it. */
 function readDraft(key: string, note: string): string | null {
-  try {
-    const d = localStorage.getItem(key);
-    return d !== null && d.trim() !== note ? d : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft(key: string, text: string | null) {
-  try {
-    if (text === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, text);
-  } catch {
-    // no storage (private window): the note stays in the field only
-  }
+  const d = readStored(key);
+  return d !== null && d.trim() !== note ? d : null;
 }
 
 /**
@@ -62,13 +50,13 @@ export function TimerNote({
         {
           onSuccess: () => {
             if (unsaved.current === text) unsaved.current = null;
-            writeDraft(draftKey, null);
+            writeStored(draftKey, null);
             setFailed(false);
             void utils.timers.list.invalidate();
           },
           // Kept (never lost): said, and sent again with the next change or blur.
           onError: () => {
-            writeDraft(draftKey, unsaved.current ?? text);
+            writeStored(draftKey, unsaved.current ?? text);
             setFailed(true);
           },
           onSettled: () => {

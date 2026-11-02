@@ -5,6 +5,7 @@ import { mediumDate } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
+import { downloadBlob } from "@/lib/download";
 
 /**
  * A licence's timestamp on Bitcoin (docs/work/ideas/onchain-licences.md R-4.6), as this
@@ -30,11 +31,7 @@ export function LicenceProof({ id, compact = false }: { id: string; compact?: bo
   const download = async () => {
     try {
       const file = await utils.modules.licenceProofFile.fetch({ id });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([Uint8Array.from(atob(file.base64), c => c.charCodeAt(0))], { type: "application/octet-stream" }));
-      a.download = file.filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      downloadBlob(file.filename, new Blob([Uint8Array.from(atob(file.base64), c => c.charCodeAt(0))], { type: "application/octet-stream" }));
     } catch (e) {
       toastError(e);
     }

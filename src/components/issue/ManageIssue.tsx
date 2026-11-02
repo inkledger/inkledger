@@ -17,20 +17,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { t } from "@/i18n";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 type Target = { issueKey: string; connectionId?: number | null };
 
 /** After a change: the issue page, lists and description read again. */
 function useAfterChange(done: () => void) {
   const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   return () => {
     toast.success(t("views.issue.manage.saved"));
-    void Promise.all([
-      utils.issues.get.invalidate(),
-      utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-      utils.issues.description.invalidate(),
-    ]);
+    void Promise.all([utils.issues.get.invalidate(), invalidateIssues(), utils.issues.description.invalidate()]);
     done();
   };
 }

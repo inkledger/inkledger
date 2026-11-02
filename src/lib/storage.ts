@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "@/lib/store";
 
 /**
  * This device's localStorage, for conveniences only (a layout, a folded section, a choice
@@ -45,19 +45,13 @@ export function readStoredJson(key: string): unknown {
  * Another tab's change applies here on the next load, not live.
  */
 export function deviceSetting<T>(key: string, parse: (raw: string | null) => T, format: (value: T) => string | null = String) {
-  let value = parse(readStored(key));
-  const listeners = new Set<() => void>();
-  const subscribe = (l: () => void) => {
-    listeners.add(l);
-    return () => listeners.delete(l);
-  };
+  const { get, set, use } = createStore(parse(readStored(key)));
   return {
-    get: (): T => value,
+    get,
     set(next: T) {
-      value = next;
       writeStored(key, format(next));
-      listeners.forEach(l => l());
+      set(next);
     },
-    use: (): T => useSyncExternalStore(subscribe, () => value, () => value),
+    use,
   };
 }

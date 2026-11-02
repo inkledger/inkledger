@@ -106,6 +106,7 @@ import {
   TransitionDialog,
   type TransitionTarget,
 } from "@/components/issue/TransitionDialog";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 const dateTime = () =>
   dateFormat({
@@ -188,12 +189,11 @@ export default function IssueDetail({
 
   // Opening the issue reads its news (unread dot, sidebar counter).
   const seenUtils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const seen = trpc.issues.markSeen.useMutation({
     onSuccess: () => {
-      void seenUtils.issues.all.invalidate();
-      void seenUtils.issues.favorites.invalidate();
+      void invalidateIssues();
       void seenUtils.issues.unreadCount.invalidate();
-      void seenUtils.issues.list.invalidate();
     },
   });
   const markSeen = seen.mutate;
@@ -242,11 +242,7 @@ export default function IssueDetail({
     toast.success(`${r.moved} → ${r.to}`);
     // The old list belongs to the previous status: drop it.
     void utils.issues.transitions.reset({ key });
-    await Promise.all([
-      utils.issues.get.invalidate(),
-      utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-    ]);
+    await Promise.all([utils.issues.get.invalidate(), invalidateIssues()]);
   };
   const transition = trpc.issues.transition.useMutation({
     onSuccess: transitionDone,
@@ -256,12 +252,7 @@ export default function IssueDetail({
   const importIssue = trpc.issues.import.useMutation({
     onSuccess: async r => {
       toast.success(t("pages.issueDetail.imported", { key: r.imported }));
-      await Promise.all([
-        utils.issues.get.invalidate({ key }),
-        utils.issues.list.invalidate(),
-        utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-        utils.issues.search.invalidate(),
-      ]);
+      await Promise.all([utils.issues.get.invalidate({ key }), invalidateIssues(), utils.issues.search.invalidate()]);
     },
     onError: e => toastError(e),
   });

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useConnections, useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 type SearchResult = inferRouterOutputs<AppRouter>["issues"]["searchOn"]["results"][number];
 
@@ -28,6 +29,7 @@ export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: strin
   // The connection is named on each result only when there is more than one.
   const several = (useConnections().data ?? []).filter(c => c.role === "tracker").length > 1;
   const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   // What the local search already holds: the trackers are asked the same at once, no typing it again.
   const [input, setInput] = useState(initialQuery);
   const query = useDebouncedValue(input.trim(), 300);
@@ -44,7 +46,7 @@ export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: strin
   const unsupported = [...new Set(answers.flatMap(a => a.data?.unsupported ?? []))];
   const refresh = () =>
     // The trackers' answers too: imported and watching are read afresh with them.
-    Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate(), utils.issues.favorites.invalidate(), utils.issues.search.invalidate(), utils.issues.searchOn.invalidate()]);
+    Promise.all([invalidateIssues(), utils.issues.search.invalidate(), utils.issues.searchOn.invalidate()]);
   const importIssue = trpc.issues.import.useMutation({
     onSuccess: async r => {
       toast.success(t("views.issues.search.imported", { key: r.imported }));

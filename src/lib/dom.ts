@@ -25,6 +25,10 @@ export function inFloat(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("[data-pinboard-float], [data-todo-float]") !== null;
 }
 
+/** The user asks for less motion: no smooth scrolls, no counting numbers. */
+export const prefersReducedMotion = (): boolean =>
+  typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const APPLE = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** The platform's command key, as shortcuts are written: ⌘ on Apple devices, Ctrl elsewhere. */

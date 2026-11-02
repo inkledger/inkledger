@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 export function FavoriteStar({
   issueKey,
@@ -17,13 +18,9 @@ export function FavoriteStar({
   className?: string;
 }) {
   const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const toggle = trpc.issues.toggleFavorite.useMutation({
-    onSuccess: () =>
-      Promise.all([
-        utils.issues.list.invalidate(),
-        utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-        utils.issues.get.invalidate(),
-      ]),
+    onSuccess: () => Promise.all([invalidateIssues(), utils.issues.get.invalidate()]),
     onError: e => toastError(e),
   });
   const label = t(favorite ? "ui.favorite.remove" : "ui.favorite.add", {

@@ -16,6 +16,7 @@ import type {
   TimerState,
   TodayState,
 } from "./types";
+import { prefersReducedMotion } from "@/lib/dom";
 
 /**
  * The page side of the host API: one hub per app, fed by the React Query cache
@@ -97,7 +98,7 @@ function readTheme(night = true): ThemeState {
   ) as ThemeState["tokens"];
   return {
     mode: root.classList.contains("dark") ? "dark" : "light",
-    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    reducedMotion: prefersReducedMotion(),
     tokens,
     night,
   };

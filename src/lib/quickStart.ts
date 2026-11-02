@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "@/lib/store";
 
 /** An issue chosen in the picker: its connection is known unless a key was typed. */
 export type PickedIssue = { key: string; connectionId?: number };
@@ -10,39 +10,24 @@ type State = {
   placeholder?: string;
 };
 
-let state: State = { open: false };
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach(l => l());
+const state = createStore<State>({ open: false });
 
 /** Open/close the "start a timer" picker (key "t") from anywhere. */
 export const quickStart = {
   set(open: boolean) {
-    state = { open };
-    emit();
+    state.set({ open });
   },
   /** Reuse the picker to choose an issue for something else. */
   pick(onPick: (pick: PickedIssue) => void, placeholder: string) {
-    state = { open: true, onPick, placeholder };
-    emit();
+    state.set({ open: true, onPick, placeholder });
   },
 };
 
-function useQuickStartState(): State {
-  return useSyncExternalStore(
-    l => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => state,
-    () => state
-  );
-}
-
 export function useQuickStartOpen(): boolean {
-  return useQuickStartState().open;
+  return state.use().open;
 }
 
 export function useQuickStartPick(): Pick<State, "onPick" | "placeholder"> {
-  const { onPick, placeholder } = useQuickStartState();
+  const { onPick, placeholder } = state.use();
   return { onPick, placeholder };
 }

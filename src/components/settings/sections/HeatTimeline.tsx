@@ -9,6 +9,7 @@ import { anchorLabel, areaLabel, periodLabel } from "@/lib/workspace/labels";
 import { heatClass, sketchFor, usesByAnchor, type SketchArea } from "@/lib/workspace/sketch";
 import { t, type MessageKey } from "@/i18n";
 import { AreaBlocks, PageSketch } from "./PageSketch";
+import { prefersReducedMotion } from "@/lib/dom";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
@@ -96,8 +97,7 @@ export function HeatTimeline({ evidence, live = null, layouts, scope }: {
     if (!element || !card) return;
     // One card (and its gap) at a time, whatever the density makes them measure.
     const step = card.getBoundingClientRect().width + parseFloat(getComputedStyle(element).columnGap || "0");
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    element.scrollBy({ left: direction * step, behavior: reduced ? "auto" : "smooth" });
+    element.scrollBy({ left: direction * step, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
   return (
     <section aria-labelledby="workspace-heat-timeline" className="mt-4 grid gap-2">

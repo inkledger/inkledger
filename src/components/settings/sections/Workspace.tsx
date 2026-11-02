@@ -19,6 +19,7 @@ import { failureText } from "@/lib/errorText";
 import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
 import { LayoutCanvas, type BlockRules, type CanvasActions } from "./LayoutCanvas";
+import { prefersReducedMotion } from "@/lib/dom";
 
 const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
 const PlannerPanel = lazy(() => import("./PlannerPanel"));
@@ -309,7 +310,7 @@ function WorkspaceEditor() {
   // FlowMap is off: take the user to its switch (with its explanation), never turn it on from here.
   const showFlowMap = () => {
     const section = document.getElementById("workspace-flowmap");
-    section?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    section?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     section?.querySelector<HTMLElement>("[role='checkbox']")?.focus({ preventScroll: true });
   };
 

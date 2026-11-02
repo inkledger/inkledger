@@ -19,6 +19,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { attachToIssue, ideaImagesForIssue } from "@/lib/ideaImages";
+import { readStored, writeStored } from "@/lib/storage";
 
 type View = "columns" | "list";
 const VIEW_KEY = "ikl-ideas-view";
@@ -27,12 +28,8 @@ const TERMINAL: readonly IdeaState[] = ["promoted", "discarded"];
 
 /** Columns on wide screens, a list on narrow ones, unless the user chose (a per-browser convenience). */
 function initialView(): View {
-  try {
-    const saved = localStorage.getItem(VIEW_KEY);
-    if (saved === "columns" || saved === "list") return saved;
-  } catch {
-    // storage unavailable: the default
-  }
+  const saved = readStored(VIEW_KEY);
+  if (saved === "columns" || saved === "list") return saved;
   return typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches ? "columns" : "list";
 }
 
@@ -114,11 +111,8 @@ export default function IdeasPage() {
   };
   const chooseView = (v: View) => {
     setView(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // not kept: still applied
-    }
+    // Not kept (no storage): still applied.
+    writeStored(VIEW_KEY, v);
   };
   /** A terminal column is shown when opened; the others unless closed (one setting, two senses). */
   const isOpen = (s: IdeaState) => (TERMINAL.includes(s) ? collapsed.has(`open-${s}`) : !collapsed.has(s));

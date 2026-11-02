@@ -55,6 +55,7 @@ import { columnOf, dropTargets, reachable, type BoardColumn, type Way } from "@/
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 const DONE_LIMIT = 20;
 /** Cards a column draws at first, and how many more each "Show more" adds (500 cards made 11k nodes). */
@@ -135,6 +136,7 @@ type Dragging = { card: Row; ways: Way[] | null };
 export default function Board() {
   const provider = useProviderName();
   const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const query = trpc.issues.all.useQuery(BUCKET_SCOPE);
   // A catalogue past what the board holds is said, never cut silently.
   const size = trpc.issues.allSize.useQuery(BUCKET_SCOPE, { staleTime: 60_000 });
@@ -652,9 +654,7 @@ export default function Board() {
           setAsking(null);
           toast.success(`${r.moved} → ${r.to}`);
           void utils.issues.transitions.reset();
-          void utils.issues.list.invalidate();
-          void utils.issues.all.invalidate();
-          void utils.issues.favorites.invalidate();
+          void invalidateIssues();
         }}
       />
       <Dialog open={choosing !== null} onOpenChange={o => !o && setChoosing(null)}>

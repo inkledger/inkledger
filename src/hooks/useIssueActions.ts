@@ -5,6 +5,7 @@ import { branchName, commitMessage, copyLater, copyText } from "@/lib/issues";
 import { dayAndTime } from "@/lib/dates";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 /**
  * Favorite / watch / hide / restore an issue, refreshing every list that shows it.
@@ -13,14 +14,9 @@ import { t } from "@/i18n";
  */
 export function useIssueActions() {
   const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const [pending, setPending] = useState(false);
-  const refresh = () =>
-    Promise.all([
-      utils.issues.list.invalidate(),
-      utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-      utils.issues.get.invalidate(),
-      utils.stats.invalidate(),
-    ]);
+  const refresh = () => Promise.all([invalidateIssues(), utils.issues.get.invalidate(), utils.stats.invalidate()]);
   const run = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
     setPending(true);
     try {

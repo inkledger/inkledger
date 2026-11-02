@@ -18,6 +18,7 @@ import { t } from "@/i18n";
 import type { Idea } from "@/components/ideas/IdeaCard";
 import { IdeaBody } from "@/components/ideas/IdeaBody";
 import type { RichDoc } from "@contracts/richtext";
+import { downloadBlob } from "@/lib/download";
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 type RouteChoice = IdeaRoute | "none";
@@ -111,11 +112,7 @@ function IdeaFields({ idea, doc, onPromote, onDiscard, onDelete, markDirty }: { 
   const downloadPrompt = async () => {
     try {
       const h = await utils.ideas.handoff.fetch({ id: idea.id });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([h.markdown], { type: "text/markdown" }));
-      a.download = h.filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      downloadBlob(h.filename, new Blob([h.markdown], { type: "text/markdown" }));
     } catch (e) {
       toastError(e);
     }

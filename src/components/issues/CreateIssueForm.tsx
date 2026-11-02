@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 const LAST_TARGET = "ikl-create-issue-target";
 
@@ -54,7 +55,7 @@ function lastTarget(): string {
 export function CreateIssueForm({ onClose }: { onClose: () => void }) {
   const id = useId();
   const navigate = useNavigate();
-  const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const provider = useProviderName();
   const [picked, setPicked] = useState(lastTarget);
   const [typeId, setTypeId] = useState("");
@@ -105,7 +106,7 @@ export function CreateIssueForm({ onClose }: { onClose: () => void }) {
     onSuccess: async ({ key, connectionId, remoteId }) => {
       toast.success(t("views.issues.create.createdIn", { key }));
       prefill?.onCreated?.(key, connectionId);
-      await Promise.all([utils.issues.list.invalidate(), utils.issues.all.invalidate(), utils.issues.favorites.invalidate()]);
+      await invalidateIssues();
       onClose();
       void navigate(issuePath({ key, connectionId, remoteId: remoteId }));
     },

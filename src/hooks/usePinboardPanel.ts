@@ -1,8 +1,9 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { deviceSetting } from "@/lib/storage";
 import { pinboardFloat, pinboardFloatFocus, pinboardSheet } from "@/lib/flag";
 import { trpc } from "@/lib/trpc";
+import { createStore } from "@/lib/store";
 
 export type PinboardPanel = "closed" | "open" | "wide";
 const panel = deviceSetting<PinboardPanel>("ikl-pinboard-panel", raw => (raw === "open" || raw === "wide" ? raw : "closed"));
@@ -16,12 +17,7 @@ export const pinboardPanel = {
 export type PinboardSurfaces = { board: boolean; menu: boolean; widget: boolean };
 const ALL: PinboardSurfaces = { board: true, menu: true, widget: true };
 
-let surfaces = ALL;
-const listeners = new Set<() => void>();
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
+const surfaces = createStore(ALL);
 
 /** The user's surfaces, as their settings say (all of them until read). */
 export function usePinboardSurfaces(): PinboardSurfaces {
@@ -31,9 +27,9 @@ export function usePinboardSurfaces(): PinboardSurfaces {
 
 /** Kept by the layout, so "p", the palette and the sidebar follow the settings outside React. */
 export function setPinboardSurfaces(next: PinboardSurfaces) {
-  if (next.board === surfaces.board && next.menu === surfaces.menu && next.widget === surfaces.widget) return;
-  surfaces = next;
-  listeners.forEach(l => l());
+  const now = surfaces.get();
+  if (next.board === now.board && next.menu === now.menu && next.widget === now.widget) return;
+  surfaces.set(next);
 }
 
 let go: ((to: string) => void) | null = null;
@@ -75,7 +71,7 @@ export function pinboardTarget(pathname: string, wide: boolean, s: PinboardSurfa
 export const floatHidden = (pathname: string) => pathname === "/pinboard";
 
 /** The surfaces as the layout last gave them (setPinboardSurfaces). */
-export const usePinboardSurfacesNow = (): PinboardSurfaces => useSyncExternalStore(subscribe, () => surfaces, () => surfaces);
+export const usePinboardSurfacesNow: () => PinboardSurfaces = surfaces.use;
 
 /** Opens the Board with its pinboard (panel, or sheet on small screens). */
 function openOnBoard() {
@@ -93,7 +89,7 @@ export function usePinboardTarget(pathname: string, panelFirst = false): Pinboar
 
 /** Sidebar button, "p", palette, toasts: show or hide the pinboard where it lives (pinboardTarget). */
 export function togglePinboard(pathname = window.location.pathname, panelFirst = false) {
-  switch (pinboardTarget(pathname, isWide(), surfaces, panelFirst)) {
+  switch (pinboardTarget(pathname, isWide(), surfaces.get(), panelFirst)) {
     case "panel":
       pinboardPanel.set(panel.get() === "closed" ? "open" : "closed");
       return;
@@ -115,11 +111,11 @@ export function togglePinboard(pathname = window.location.pathname, panelFirst =
 }
 
 /** Whether "Open" after a pin has somewhere to open the pinboard (not where it already is, not when every place is off). */
-export const canShowPinboard = (pathname = window.location.pathname) => pinboardTarget(pathname, isWide(), surfaces) !== null;
+export const canShowPinboard = (pathname = window.location.pathname) => pinboardTarget(pathname, isWide(), surfaces.get()) !== null;
 
 /** Show the pinboard where it lives (opening, never closing it): after a pin, "Open". */
 export function showPinboard(pathname = window.location.pathname) {
-  const target = pinboardTarget(pathname, isWide(), surfaces);
+  const target = pinboardTarget(pathname, isWide(), surfaces.get());
   if (target === "panel") pinboardPanel.set(panel.get() === "closed" ? "open" : panel.get());
   else if (target === "sheet") pinboardSheet.set(true);
   else if (target === "float") {

@@ -1,26 +1,9 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "@/lib/store";
 
 /** A global open/closed flag (dialogs opened from anywhere: keys, palette, toasts). */
 export function createFlag() {
-  let value = false;
-  const listeners = new Set<() => void>();
-  const subscribe = (l: () => void) => {
-    listeners.add(l);
-    return () => {
-      listeners.delete(l);
-    };
-  };
-  return {
-    set: (next: boolean) => {
-      value = next;
-      listeners.forEach(l => l());
-    },
-    useValue: (): boolean => {
-      return useSyncExternalStore(subscribe, () => value, () => value);
-    },
-    get: () => value,
-    subscribe,
-  };
+  const { get, set, use, subscribe } = createStore(false);
+  return { set, useValue: use, get, toggle: () => set(!get()), subscribe };
 }
 
 /** "Close the day" sheet. */

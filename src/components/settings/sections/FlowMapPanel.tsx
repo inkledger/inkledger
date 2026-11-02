@@ -16,6 +16,7 @@ import type { SuggestionPatch } from "@contracts/workspace/model";
 import { t, type MessageKey } from "@/i18n";
 import { areaLabel, controlLabel, periodLabel } from "@/lib/workspace/labels";
 import { HeatTimeline } from "./HeatTimeline";
+import { downloadBlob } from "@/lib/download";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
@@ -57,12 +58,7 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
   };
   const download = () => {
     if (!preview) return;
-    const url = URL.createObjectURL(new Blob([preview.contents], { type: "application/json" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = preview.filename;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadBlob(preview.filename, new Blob([preview.contents], { type: "application/json" }));
   };
   const expectationTarget = (gap: ExpectationGap) => {
     const control = gap.destinationControlId && CATALOG_V1.controls.find(item => item.id === gap.destinationControlId);

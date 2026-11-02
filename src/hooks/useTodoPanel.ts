@@ -1,18 +1,14 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { todoFloat, todoFloatFocus } from "@/lib/flag";
 import { trpc } from "@/lib/trpc";
+import { createStore } from "@/lib/store";
 
 /** Where the TODO list lives (Settings → TODO): its page in the menu, the floating widget ("d"), the bottom-right hot corner. */
 export type TodoSurfaces = { menu: boolean; widget: boolean; corner: boolean };
 const ALL: TodoSurfaces = { menu: true, widget: true, corner: true };
 
-let surfaces = ALL;
-const listeners = new Set<() => void>();
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
+const surfaces = createStore(ALL);
 
 /** The user's surfaces, as their settings say (all of them until read). */
 export function useTodoSurfaces(): TodoSurfaces {
@@ -21,7 +17,7 @@ export function useTodoSurfaces(): TodoSurfaces {
 }
 
 /** The surfaces as the layout last gave them: for "d", the palette and the buttons outside React. */
-export const useTodoSurfacesNow = (): TodoSurfaces => useSyncExternalStore(subscribe, () => surfaces, () => surfaces);
+export const useTodoSurfacesNow: () => TodoSurfaces = surfaces.use;
 
 let go: ((to: string) => void) | null = null;
 
@@ -30,9 +26,9 @@ export function useTodoWiring() {
   const s = useTodoSurfaces();
   const navigate = useNavigate();
   useEffect(() => {
-    if (s.menu === surfaces.menu && s.widget === surfaces.widget && s.corner === surfaces.corner) return;
-    surfaces = s;
-    listeners.forEach(l => l());
+    const now = surfaces.get();
+    if (s.menu === now.menu && s.widget === now.widget && s.corner === now.corner) return;
+    surfaces.set(s);
   }, [s.menu, s.widget, s.corner]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     go = to => void navigate(to);
@@ -55,7 +51,7 @@ export const todoFloatHidden = (pathname: string) => pathname === "/todos";
 
 /** "d", the palette, the buttons: show or hide the list where it lives. */
 export function toggleTodos(pathname = window.location.pathname) {
-  const target = todoTarget(pathname, surfaces);
+  const target = todoTarget(pathname, surfaces.get());
   if (target === "float") {
     const opening = !todoFloat.get();
     todoFloatFocus.set(opening);
@@ -65,7 +61,7 @@ export function toggleTodos(pathname = window.location.pathname) {
 
 /** Show the list (never closing it): the hot corner, "Open" in a reminder. */
 export function showTodos(pathname = window.location.pathname) {
-  const target = todoTarget(pathname, surfaces);
+  const target = todoTarget(pathname, surfaces.get());
   if (target === "float") {
     // Already open: nothing to focus (a flag left set would take the focus later).
     if (todoFloat.get()) return;
@@ -75,7 +71,7 @@ export function showTodos(pathname = window.location.pathname) {
 }
 
 /** Whether "d" or a button has somewhere to open the list from here. */
-export const canShowTodos = (pathname = window.location.pathname) => todoTarget(pathname, surfaces) !== null;
+export const canShowTodos = (pathname = window.location.pathname) => todoTarget(pathname, surfaces.get()) !== null;
 
 /** The same, as a hook (re-rendered when the settings change). */
 export function useTodoTarget(pathname: string) {

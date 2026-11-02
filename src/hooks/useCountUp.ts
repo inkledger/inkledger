@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { prefersReducedMotion } from "@/lib/dom";
 
-const reduced = () =>
-  typeof matchMedia === "function" &&
-  matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
  * Animates a number towards `value` when it changes (easeOutCubic). The first
@@ -15,7 +13,7 @@ export function useCountUp(value: number, duration = 600): number {
 
   useEffect(() => {
     const start = current.current;
-    if (start === value || reduced()) {
+    if (start === value || prefersReducedMotion()) {
       current.current = value;
       setShown(value);
       return;

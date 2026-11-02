@@ -5,13 +5,14 @@ import { issueId } from "@/lib/issues";
 import type { IssueItem, PinProps } from "@/components/issues/IssueRow";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { useInvalidateIssues } from "@/hooks/useInvalidateIssues";
 
 /**
  * Manual order of the pinned favorites: live reordering while dragging,
  * saved on drop (or on "Move up/down"), rolled back if the save fails.
  */
 export function usePinnedOrder(items: IssueItem[]) {
-  const utils = trpc.useUtils();
+  const invalidateIssues = useInvalidateIssues();
   const [draft, setDraft] = useState<string[] | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
@@ -43,10 +44,7 @@ export function usePinnedOrder(items: IssueItem[]) {
       {
         onSettled: () => {
           if (mine !== seq.current) return;
-          void Promise.all([
-            utils.issues.list.invalidate(),
-            utils.issues.all.invalidate(), utils.issues.favorites.invalidate(),
-          ]).then(() => {
+          void invalidateIssues().then(() => {
             if (mine === seq.current) setDraft(null);
           });
         },

@@ -15,6 +15,7 @@ import type { WorkspaceDocument } from "@contracts/workspace/portability";
 import { dateFormat, numberFormat, t, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { anchorLabel, areaLabel } from "@/lib/workspace/labels";
+import { downloadBlob } from "@/lib/download";
 
 type Candidate = { patch: SuggestionPatch; preview: ResolvedWorkspace; reason: string; ranking: Ranking; adaptationWindowDays: number };
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
@@ -142,12 +143,7 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
   };
   const download = () => {
     if (!exported) return;
-    const url = URL.createObjectURL(new Blob([exported.contents], { type: "application/json" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `workspace-${scope.surfaceId}.workspace`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadBlob(`workspace-${scope.surfaceId}.workspace`, new Blob([exported.contents], { type: "application/json" }));
   };
   return (
     <SettingsGroup id="workspace-planner" title={t(key("plannerTitle"))} description={t(key("plannerDescription"))}>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useLocation } from "react-router";
 import { X } from "lucide-react";
 import { todoFloat, todoFloatFocus } from "@/lib/flag";
@@ -24,14 +24,7 @@ export function TodoWidget() {
   const open = todoFloat.useValue();
   const { pathname } = useLocation();
   const surfaces = useTodoSurfacesNow();
-  const [wide, setWide] = useState(true);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const on = () => setWide(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
+  const wide = useMediaQuery("(min-width: 1024px)", true);
   // On a phone the sheet is the way in (More, the header button) whatever the widget setting says.
   const shown = open && (surfaces.widget || !wide) && !todoFloatHidden(pathname);
   const close = () => todoFloat.set(false);

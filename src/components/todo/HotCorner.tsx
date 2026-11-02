@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { todoFloat } from "@/lib/flag";
 import { isDialogOpen } from "@/lib/dom";
 import { showTodos, useTodoSurfacesNow } from "@/hooks/useTodoPanel";
@@ -16,7 +17,7 @@ const DWELL_MS = 300;
  */
 export function HotCorner() {
   const { corner, widget, menu } = useTodoSurfacesNow();
-  const [fine, setFine] = useState(false);
+  const fine = useMediaQuery("(hover: hover) and (pointer: fine)", false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Switched off during the rest: the waiting timer opens nothing.
   const on = corner && (widget || menu);
@@ -26,13 +27,6 @@ export function HotCorner() {
       timer.current = null;
     }
   }, [on]);
-  useEffect(() => {
-    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const on = () => setFine(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);

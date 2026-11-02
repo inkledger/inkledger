@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 import { Lightbox } from "./Lightbox";
 import { StoreImage } from "./StoreImage";
 import { surface, surfaceFace } from "@/components/app/surface";
+import { prefersReducedMotion } from "@/lib/dom";
 
 export type Slide = { src?: string; caption: string };
 
-const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
  * Product pictures: a large slide that cross-fades to the next every few
@@ -21,7 +21,7 @@ export function Gallery({ slides }: { slides: Slide[] }) {
   const [focus, setFocus] = useState(false);
   const [full, setFull] = useState(false);
   const current = useRef<HTMLButtonElement>(null);
-  const [reduced] = useState(reducedMotion);
+  const [reduced] = useState(prefersReducedMotion);
   if (slides.length === 0) return null;
   const i = Math.min(index, slides.length - 1);
   const go = (d: number) => setIndex((i + d + slides.length) % slides.length);

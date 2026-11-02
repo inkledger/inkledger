@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useLocation } from "react-router";
 import { pinboardFloat, pinboardFloatFocus } from "@/lib/flag";
 import { floatHidden, usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
@@ -22,14 +22,7 @@ export function PinboardWidget() {
   const open = pinboardFloat.useValue();
   const { pathname } = useLocation();
   const surfaces = usePinboardSurfacesNow();
-  const [wide, setWide] = useState(true);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const on = () => setWide(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
+  const wide = useMediaQuery("(min-width: 1024px)", true);
   const shown = open && surfaces.widget && !floatHidden(pathname);
   const close = () => pinboardFloat.set(false);
 

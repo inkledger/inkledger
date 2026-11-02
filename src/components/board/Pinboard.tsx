@@ -87,13 +87,10 @@ import { useProviderName } from "@/hooks/useConnections";
 import { surface } from "@/components/app/surface";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
-import { isTyping } from "@/lib/dom";
+import { isTyping, prefersReducedMotion } from "@/lib/dom";
 import { PinSearch } from "@/components/board/PinSearch";
 import { FollowTagDialog } from "@/components/board/FollowTagDialog";
 
-const reducedMotion = () =>
-  typeof matchMedia === "function" &&
-  matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const EDGE_ICON = { up: ArrowUp, down: ArrowDown, left: ArrowLeft, right: ArrowRight };
 const edgeLabel = (edge: Edge) =>
@@ -433,7 +430,7 @@ export function Pinboard({
     scroller.current?.scrollTo({
       left: x * zoom,
       top: y * zoom,
-      behavior: reducedMotion() ? "auto" : "smooth",
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
     });
   const reveal = (n: PostItData) => {
     const el = scroller.current;

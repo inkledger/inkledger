@@ -1,30 +1,14 @@
-import { useSyncExternalStore } from "react";
+import { createStore } from "@/lib/store";
 
 /** An issue: its key on its tracker (the same key may be on another one). */
 export type IssueHistoryTarget = { key: string; connectionId?: number };
 
-let target: IssueHistoryTarget | null = null;
-const listeners = new Set<() => void>();
+const target = createStore<IssueHistoryTarget | null>(null);
 
 /** The issue whose history dialog is open (one at a time, app-wide). */
 export const issueHistory = {
-  open: (key: string, connectionId?: number) => {
-    target = { key, connectionId };
-    listeners.forEach(l => l());
-  },
-  close: () => {
-    target = null;
-    listeners.forEach(l => l());
-  },
+  open: (key: string, connectionId?: number) => target.set({ key, connectionId }),
+  close: () => target.set(null),
 };
 
-export function useIssueHistoryTarget(): IssueHistoryTarget | null {
-  return useSyncExternalStore(
-    l => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => target,
-    () => target
-  );
-}
+export const useIssueHistoryTarget = target.use;

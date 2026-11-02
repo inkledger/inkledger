@@ -18,6 +18,7 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { placementsFor } from "@/lib/workspace/utils";
+import { prefersReducedMotion } from "@/lib/dom";
 
 const CELL =
   "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -43,7 +44,7 @@ function Tab({ to, controlId }: { to: string; controlId: string }) {
         // Tapping the page you are on takes you back to its top.
         if (pathname !== to) return;
         e.preventDefault();
-        window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
       }}
       className={({ isActive }) => cn(CELL, isActive && ACTIVE)}
       // Stands out only while it is the current page (aria-current, set by NavLink).

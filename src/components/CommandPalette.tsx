@@ -41,7 +41,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { commandPalette, useCommandPaletteOpen } from "@/lib/commandPalette";
+import { commandPalette } from "@/lib/commandPalette";
 import { shortcutsHelp } from "@/lib/shortcuts";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
@@ -65,7 +65,7 @@ import { emitWorkspaceSearch } from "@/lib/workspace/searchEvents";
  * Its shortcut lives in the first load (useCommandPaletteShortcut); this body follows.
  */
 export function CommandPalette() {
-  const open = useCommandPaletteOpen();
+  const open = commandPalette.useValue();
   const searchSelected = useRef(false);
   const searchWasOpen = useRef(false);
   useEffect(() => {
