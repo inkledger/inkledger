@@ -340,6 +340,10 @@ export const server = {
     noTransition: 'No transition available to "{status}" for {key}',
     summaryRequired: "The title is required",
   },
+  deskChat: {
+    tooMany: "Too many questions: try again in {count} s.",
+    invalid: "That conversation can't be sent: start a new chat.",
+  },
   links: {
     invalidDomain: "Invalid domain: {domain}",
   },

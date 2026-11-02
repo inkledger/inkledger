@@ -341,6 +341,10 @@ export const server: Shape<typeof en> = {
     noTransition: 'Nessuna transizione disponibile verso "{status}" per {key}',
     summaryRequired: "Il titolo è obbligatorio",
   },
+  deskChat: {
+    tooMany: "Troppe domande: riprova tra {count} s.",
+    invalid: "Questa conversazione non si può inviare: inizia una nuova chat.",
+  },
   links: {
     invalidDomain: "Dominio non valido: {domain}",
   },

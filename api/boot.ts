@@ -35,6 +35,7 @@ import { inMaintenance } from "./lib/maintenance";
 import { allowedHostsNow } from "./lib/serverHosts";
 import { beginShutdown } from "./lib/shutdown";
 import { registerEventRoutes } from "./events";
+import { registerDeskChatRoutes } from "./desk/chat";
 import { closeAllStreams } from "./lib/userEvents";
 import { purgeTimerOps } from "./routers/timers";
 import { purgeIdeas } from "./routers/ideas";
@@ -158,6 +159,7 @@ registerOutlookRoutes(app);
 registerCopyRoutes(app);
 registerIdeaFileRoutes(app);
 registerEventRoutes(app);
+registerDeskChatRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
