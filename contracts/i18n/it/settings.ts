@@ -212,7 +212,7 @@ export const settings: Shape<typeof en> = {
       expectationDetail: { one: "{count} volta · sicuro al {confidence}% · {state}", other: "{count} volte · sicuro al {confidence}% · {state}" },
       expectationStates: { unconfirmed: "da rivedere", confirmed: "confermata", rejected: "non rilevante" },
       patterns: { placement: "Cercato vicino a {area}", discoverability: "Difficile da trovare da {area}", "missing-capability": "Qualcosa di cercato potrebbe mancare ({area})" },
-      operationText: { move: "Sposta {anchor} in {area}", reorder: "Nuovo ordine in {area}", variant: "{anchor}: {variant}", show: "Mostra {anchor}", hide: "Nascondi {anchor}", pin: "Fissa {anchor}", unpin: "Non fissare più {anchor}" },
+      operationText: { move: "Sposta {anchor} in {area}", reorder: "Nuovo ordine in {area}: {order}", variant: "{anchor}: {variant}", show: "Mostra {anchor}", hide: "Nascondi {anchor}", pin: "Fissa {anchor}", unpin: "Non fissare più {anchor}" },
       ruleText: { pin: "Tieni {anchor} al suo posto", hide: "Nascondi sempre {anchor}", keepVisible: "Mostra sempre {anchor}", expectHere: "Tieni {anchor} in {area}", doNotSuggest: "Non suggerire mai modifiche a {anchor}" },
       changeText: "{anchor}: {area} · {variant} · {visibility}",
       watchDays: { one: "Valutalo dopo {count} giorno d'uso", other: "Valutalo dopo {count} giorni d'uso" },

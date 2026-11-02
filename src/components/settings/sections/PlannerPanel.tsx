@@ -28,7 +28,8 @@ const rate = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigit
 function operationText(operation: SuggestionPatch["operations"][number]): string {
   const anchor = operation.type === "reorder" ? "" : anchorLabel(operation.anchorId);
   if (operation.type === "move") return t(key("operationText.move"), { anchor, area: areaLabel(operation.toAreaId) });
-  if (operation.type === "reorder") return t(key("operationText.reorder"), { area: areaLabel(operation.areaId) });
+  // The order itself: two reorders of one area are two different proposals, and must read so.
+  if (operation.type === "reorder") return t(key("operationText.reorder"), { area: areaLabel(operation.areaId), order: operation.anchorIds.map(id => anchorLabel(id)).join(", ") });
   if (operation.type === "variant") return t(key("operationText.variant"), { anchor, variant: t(key(`variants.${operation.variant}`)) });
   if (operation.type === "visibility") return t(key(operation.visible ? "operationText.show" : "operationText.hide"), { anchor });
   return t(key(operation.pinned ? "operationText.pin" : "operationText.unpin"), { anchor });

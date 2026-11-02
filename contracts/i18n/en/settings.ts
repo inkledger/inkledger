@@ -211,7 +211,7 @@ export const settings = {
       expectationDetail: { one: "{count} time · {confidence}% sure · {state}", other: "{count} times · {confidence}% sure · {state}" },
       expectationStates: { unconfirmed: "not reviewed", confirmed: "confirmed", rejected: "not relevant" },
       patterns: { placement: "Wanted near {area}", discoverability: "Hard to find from {area}", "missing-capability": "Something looked for may be missing ({area})" },
-      operationText: { move: "Move {anchor} to {area}", reorder: "New order in {area}", variant: "{anchor}: {variant}", show: "Show {anchor}", hide: "Hide {anchor}", pin: "Pin {anchor}", unpin: "Unpin {anchor}" },
+      operationText: { move: "Move {anchor} to {area}", reorder: "New order in {area}: {order}", variant: "{anchor}: {variant}", show: "Show {anchor}", hide: "Hide {anchor}", pin: "Pin {anchor}", unpin: "Unpin {anchor}" },
       ruleText: { pin: "Keep {anchor} in place", hide: "Always hide {anchor}", keepVisible: "Always show {anchor}", expectHere: "Keep {anchor} in {area}", doNotSuggest: "Never suggest changes to {anchor}" },
       changeText: "{anchor}: {area} · {variant} · {visibility}",
       watchDays: { one: "Judge it after {count} day of use", other: "Judge it after {count} days of use" },
