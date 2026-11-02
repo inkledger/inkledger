@@ -546,7 +546,11 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
   const newItems: NewItem[] = [
     ...workspace.discoveryAreaIds.map(id => ({ kind: "area" as const, id, name: areaLabel(id) })),
     ...workspace.discoveryAnchorIds.map(id => ({ kind: "anchor" as const, id, name: label(id) })),
-  ];
+  ].map((item, _, all) => {
+    // Two blocks can share a name (a button and its pop-up): their area tells them apart.
+    const areaId = item.kind === "anchor" ? workspace.placements.find(placement => placement.anchorId === item.id)?.areaId : undefined;
+    return areaId && all.some(other => other !== item && other.name === item.name) ? { ...item, name: `${item.name} · ${areaLabel(areaId)}` } : item;
+  });
   const table: TableData = {
     use: evidence ? [...new Set(evidence.heat.map(point => point.anchorId))].map(id => ({ id, name: label(id), ...blockUse(evidence.heat, id) })).filter(row => row.clicks > 0).sort((a, b) => b.clicks - a.clicks) : [],
     paths: allPaths.map(path => ({ id: `${path.from}>${path.to ?? path.toControlId}`, from: label(path.from), to: destination(path), count: path.count })),
@@ -768,7 +772,7 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
       >
         <div className="flex items-center gap-0.5">
           <Button id="workspace-reset" variant="ghost" size="sm" aria-label={t(key("reset"))} disabled={busy || placements.length === 0} onClick={reset}>
-            <RotateCcw className="h-4 w-4" /><span className="max-sm:sr-only">{t(key("resetShort"))}</span>
+            <RotateCcw className="h-4 w-4" /><span>{t(key("resetShort"))}</span>
           </Button>
           <WorkspaceMore
             busy={busy || applying}

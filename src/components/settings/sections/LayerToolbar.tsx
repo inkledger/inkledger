@@ -37,7 +37,7 @@ export function LayerToolbar({ on, states, news, periods, period, onToggle, onPe
       <div
         role="toolbar"
         aria-label={t(key("layersLabel"))}
-        className="flex min-w-0 flex-wrap items-center gap-1.5"
+        className="flex min-w-48 flex-1 basis-0 flex-wrap items-center gap-1.5"
         onKeyDown={event => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button[aria-pressed]:not([disabled])")];

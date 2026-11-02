@@ -43,3 +43,10 @@ export async function closeOverlay(page) {
 
 /** A layer's chip on the Layout toolbar ("Edit", "Use", "Paths", "Friction"). */
 export const layerChip = (page, name) => page.getByRole("toolbar", { name: "Layers" }).getByRole("button", { name, exact: true });
+
+/** The page summary shows the first few new blocks: opens the rest, when there is more. */
+export async function showAllNew(page) {
+  await page.locator("#workspace-discovery").waitFor();
+  const more = page.locator("#workspace-discovery ~ button[aria-expanded='false']");
+  if (await more.count()) await more.click();
+}

@@ -224,6 +224,8 @@ export const settings = {
       footerIdle: "Changes show on the layout as a preview: the page itself changes only when you apply them.",
       useFailed: "Couldn't load how this page is used.",
       newsLegend: "Dot: new in this version",
+      newsAll: "Show all {count}",
+      newsFewer: "Show fewer",
       howToMove: "How to move a block",
       pathsLegend: "Arrows: what you use next (thicker: more often)",
       frictionLegend: "Outline: left halfway, failed or back and forth",

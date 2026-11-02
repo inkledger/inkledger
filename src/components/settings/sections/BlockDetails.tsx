@@ -207,6 +207,8 @@ export type TableData = {
  * where they were not (each to judge, or to use), what is new, and how to see one block. The numbers
  * behind the layers are one disclosure away, as tables.
  */
+const NEWS_SHOWN = 3;
+
 export function PageSummary({ data, period, top, gaps, news, table, busy, onGap, onUseGap, onDiscovery }: {
   data: DataState;
   period: string | null;
@@ -220,6 +222,9 @@ export function PageSummary({ data, period, top, gaps, news, table, busy, onGap,
   onDiscovery: (item: NewItem, placed: boolean) => void;
 }) {
   const [tableOpen, setTableOpen] = useState(false);
+  const [allNews, setAllNews] = useState(false);
+  // A new release can add many blocks: the first few stand for the rest, one click away.
+  const shownNews = allNews ? news : news.slice(0, NEWS_SHOWN);
   return (
     <div className="grid">
       <p className="pb-3 text-body-sm text-muted-foreground">{t(key("selectHint"))}</p>
@@ -260,7 +265,7 @@ export function PageSummary({ data, period, top, gaps, news, table, busy, onGap,
       {news.length > 0 && (
         <Part title={t(key("layers.news"))}>
           <ul id="workspace-discovery" className="grid gap-1">
-            {news.map(item => (
+            {shownNews.map(item => (
               <li key={`${item.kind}:${item.id}`} {...(item.kind === "area" ? { "data-discovery-area": item.id } : { "data-discovery-anchor": item.id })} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
                 <span className="flex min-w-0 items-center gap-2 text-body-sm">
                   <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-info" />
@@ -274,6 +279,11 @@ export function PageSummary({ data, period, top, gaps, news, table, busy, onGap,
               </li>
             ))}
           </ul>
+          {news.length > NEWS_SHOWN && (
+            <Button variant="ghost" size="sm" aria-expanded={allNews} aria-controls="workspace-discovery" className="-ml-2 justify-self-start" onClick={() => setAllNews(open => !open)}>
+              <ChevronRight className={cn("h-4 w-4 transition-transform", allNews && "rotate-90")} />{allNews ? t(key("newsFewer")) : t(key("newsAll"), { count: news.length })}
+            </Button>
+          )}
         </Part>
       )}
 

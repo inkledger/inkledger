@@ -80,12 +80,12 @@ export function WorkspaceMore({ busy, shown, collectionOpen, onCollectionOpen, d
   return (
     <>
       <Button variant="ghost" size="sm" aria-label={t(key("historyTitle"))} onClick={() => setSheet("history")}>
-        <History className="h-4 w-4" /><span className="max-sm:sr-only">{t(key("historyTitle"))}</span>
+        <History className="h-4 w-4" /><span>{t(key("historyTitle"))}</span>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" aria-label={t(key("moreOptions"))}>
-            <MoreHorizontal className="h-4 w-4" /><span className="max-sm:sr-only">{t(key("moreShort"))}</span>
+            <MoreHorizontal className="h-4 w-4" /><span>{t(key("moreShort"))}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="top" className="w-64">

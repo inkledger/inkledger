@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { holdRoute, withApp } from "./harness.mjs";
-import { openHistory } from "./workspace-helpers.mjs";
+import { openHistory, showAllNew } from "./workspace-helpers.mjs";
 
 const NOW = Date.now();
 
@@ -107,6 +107,7 @@ test("Discovery survives editing and rollback on an older catalog until explicit
     await page.goto(`${base}/settings/workspace`);
     const discovery = page.locator("#workspace-discovery");
     await discovery.getByText("New", { exact: true }).first().waitFor();
+    await showAllNew(page);
     const before = await discovery.getByRole("button", { name: "Dismiss" }).count();
     assert.ok(before > 0);
     const stats = page.locator('[data-anchor="dashboard.stats"]');
@@ -117,6 +118,7 @@ test("Discovery survives editing and rollback on an older catalog until explicit
     await stats.getByRole("button", { name: /^Show /, pressed: false }).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 2);
     assert.equal((await db.q("SELECT catalog_version FROM workspace_revisions WHERE revision_number = 2"))[0].catalog_version, "0.9.0");
+    await showAllNew(page);
     assert.equal(await discovery.getByRole("button", { name: "Dismiss" }).count(), before);
     // The history lists the original layout, then "old" (seeded), then the one in use: back to "old".
     await (await openHistory(page)).getByRole("button", { name: /^Go back to this: / }).nth(1).click();
@@ -125,6 +127,7 @@ test("Discovery survives editing and rollback on an older catalog until explicit
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
     await stats.getByRole("button", { name: /^Show /, pressed: true }).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 3);
+    await showAllNew(page);
     assert.equal(await discovery.getByRole("button", { name: "Dismiss" }).count(), before);
     await discovery.locator("[data-discovery-anchor]").first().getByRole("button", { name: "Dismiss", exact: true }).click();
     await page.waitForFunction(count => [...document.querySelectorAll("#workspace-discovery button")].filter(button => button.textContent === "Dismiss").length === count, before - 1);
@@ -142,6 +145,7 @@ test("Area discovery is placed with attributed telemetry and without an implicit
   }, async ({ page, base, db }) => {
     await page.goto(`${base}/settings/workspace`);
     const area = page.locator('[data-discovery-area="dashboard.primary"]');
+    await showAllNew(page);
     await area.waitFor();
     await area.getByRole("button", { name: "Place", exact: true }).click();
     await area.waitFor({ state: "detached" });

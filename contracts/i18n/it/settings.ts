@@ -225,6 +225,8 @@ export const settings: Shape<typeof en> = {
       footerIdle: "Le modifiche compaiono sul layout come anteprima: la pagina vera cambia solo quando le applichi.",
       useFailed: "Non è stato possibile caricare l'uso di questa pagina.",
       newsLegend: "Punto: nuovo in questa versione",
+      newsAll: "Mostra tutti ({count})",
+      newsFewer: "Mostra meno",
       howToMove: "Come spostare un blocco",
       pathsLegend: "Frecce: cosa usi dopo (più spesse: più spesso)",
       frictionLegend: "Contorno: lasciato a metà, fallito o andirivieni",

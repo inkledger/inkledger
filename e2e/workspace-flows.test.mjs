@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { AXE, withApp } from "./harness.mjs";
-import { closeOverlay, collectionSwitch, layerChip, openHistory, openPlanner, updatePeriods, workspaceMore } from "./workspace-helpers.mjs";
+import { closeOverlay, collectionSwitch, layerChip, openHistory, openPlanner, showAllNew, updatePeriods, workspaceMore } from "./workspace-helpers.mjs";
 
 const DAY = 86_400_000;
 const DASHBOARD = { surfaceId: "dashboard", deviceClass: "desktop" };
@@ -275,6 +275,7 @@ test("#6 after a release: own choices kept, the rest on the new default, Discove
 
     // Discovery: what this release added to the old layout, areas and blocks, each with Place and Dismiss.
     const discovery = page.locator("#workspace-discovery");
+    await showAllNew(page);
     await discovery.locator('[data-discovery-area="dashboard.primary"]').waitFor();
     const newBlocks = await discovery.locator("[data-discovery-anchor]").evaluateAll(items => items.map(item => item.getAttribute("data-discovery-anchor")));
     assert.ok(newBlocks.includes("dashboard.stats"), "a block of the new release is announced");
