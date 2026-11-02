@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { Archive, ExternalLink, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowLeftRight, Archive, ExternalLink, GripVertical, Maximize2, Minimize2, Move, X } from "lucide-react";
+import type { PresetId, SnapTarget } from "@contracts/desk";
 import { issuePath } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
@@ -8,12 +9,19 @@ import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { priorityLabel, priorityTone } from "@/lib/jira";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenuItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
+import { LayoutMiniature } from "@/components/desk/LayoutPicker";
+import { useSnapState, type SnapHandle } from "@/lib/desk/useSnapDrag";
 import { IssueActions } from "@/components/issue/IssueActions";
 import type { PaneHeaderProps } from "@/components/issue/IssueBody";
 import { t } from "@/i18n";
 
+/** A place the pane menu's "Move to" offers: a slot of an arrangement, named. */
+export type PaneMove = { preset: PresetId; slot: number; name: string };
+
 export type PaneControls = {
+  /** The pane's id on the desk (connection and key). */
+  id: string;
   /** The key it was put on the desk with (shown until the issue is loaded). */
   issueKey: string;
   connectionId: number;
@@ -24,7 +32,32 @@ export type PaneControls = {
   onMaximize: () => void;
   onPark: () => void;
   onClose: () => void;
+  /** Moving it (several panes, none maximized): the grip, the menu's places and the panes to swap with. */
+  snap: SnapHandle | null;
+  moves: PaneMove[];
+  swaps: { index: number; key: string }[];
+  onMove: (target: SnapTarget) => void;
 };
+
+/** The handle a pane is moved by: dragged, or Space then the arrows. Pressed-looking while it moves. */
+function PaneGrip({ id, issueKey, snap }: { id: string; issueKey: string; snap: SnapHandle }) {
+  const moving = useSnapState(snap.store)?.id === id;
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      data-snap-grip={id}
+      aria-label={t("pages.desk.move", { key: issueKey })}
+      title={t("pages.desk.moveTitle")}
+      onPointerDown={e => snap.onPointerDown(e, id)}
+      onKeyDown={e => snap.onKeyDown(e, id)}
+      onBlur={() => snap.onBlur(id)}
+      className={cn("-ml-1.5 shrink-0 touch-none text-muted-foreground", moving ? "cursor-grabbing bg-primary-soft text-primary-strong hover:bg-primary-soft" : "cursor-grab")}
+    >
+      <GripVertical className="h-4 w-4" aria-hidden />
+    </Button>
+  );
+}
 
 /**
  * A pane's title: its picture, key (to the full page) and title, then its one status and
@@ -42,6 +75,27 @@ export function PaneHeader({ issue: i, data, act, connectionId, onLogTime, contr
           <ExternalLink className="h-4 w-4" aria-hidden /> {t("pages.desk.openFull")}
         </Link>
       </DropdownMenuItem>
+      {c.moves.length > 0 && (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Move className="h-4 w-4" aria-hidden /> {t("pages.desk.moveTo")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto">
+            {c.moves.map(({ preset, slot, name }) => (
+              <DropdownMenuItem key={`${preset}-${slot}`} onSelect={() => c.onMove({ kind: "slot", preset, slot })}>
+                <LayoutMiniature preset={preset} active={slot} className="h-4 w-6" />
+                <span className="first-letter:uppercase">{name}</span>
+              </DropdownMenuItem>
+            ))}
+            {c.swaps.length > 0 && <DropdownMenuSeparator />}
+            {c.swaps.map(({ index, key: other }) => (
+              <DropdownMenuItem key={other} onSelect={() => c.onMove({ kind: "swap", index })}>
+                <ArrowLeftRight className="h-4 w-4" aria-hidden /> {t("pages.desk.swapWith", { key: other })}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      )}
       {c.several && (
         <DropdownMenuItem onSelect={c.onMaximize}>
           {c.maximized ? <Minimize2 className="h-4 w-4" aria-hidden /> : <Maximize2 className="h-4 w-4" aria-hidden />}
@@ -66,6 +120,7 @@ export function PaneHeader({ issue: i, data, act, connectionId, onLogTime, contr
       )}
     >
       <div className="flex min-w-0 items-center gap-2">
+        {c.snap && <PaneGrip id={c.id} issueKey={key} snap={c.snap} />}
         <ProjectAvatar project={i?.projectKey || key} connectionId={i?.connectionId ?? c.connectionId} size="xs" />
         <Link
           to={href}
@@ -112,6 +167,10 @@ export function PaneHeader({ issue: i, data, act, connectionId, onLogTime, contr
           <IssueActions issue={i} data={data} connectionId={connectionId} act={act} onLogTime={onLogTime} compact menuTop={paneItems} />
         </div>
       )}
+      {/* The pane's name ("KEY · title"), read by its region. */}
+      <span id={`desk-pane-label-${c.id}`} hidden>
+        {i ? t("pages.desk.paneLabel", { key, summary: i.summary }) : key}
+      </span>
     </header>
   );
 }

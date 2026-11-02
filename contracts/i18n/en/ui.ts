@@ -141,6 +141,7 @@ export const ui = {
   },
   keys: {
     enter: "Enter",
+    space: "Space",
   },
   logTime: {
     placementFailed: "The day's time couldn't be read: nothing is placed on guesses.",
@@ -371,6 +372,8 @@ export const ui = {
     focusPane: "Focus pane 1 to 4",
     closePane: "Close the focused pane",
     restorePane: "Restore the maximized pane",
+    snapPane: "Snap the focused pane to an edge",
+    movePane: "Move a pane from its grip: arrows choose, Enter drops",
     logTime: "Log time (issue detail)",
     toggleFav: "Add to or remove from favorites (detail)",
     toggleHide: "Hide or restore (detail)",

@@ -142,6 +142,7 @@ export const ui: Shape<typeof en> = {
   },
   keys: {
     enter: "Invio",
+    space: "Spazio",
   },
   logTime: {
     placementFailed: "Non è stato possibile leggere il tempo del giorno: niente viene collocato a caso.",
@@ -372,6 +373,8 @@ export const ui: Shape<typeof en> = {
     focusPane: "Vai al riquadro da 1 a 4",
     closePane: "Chiudi il riquadro attivo",
     restorePane: "Riduci il riquadro ingrandito",
+    snapPane: "Aggancia il riquadro attivo a un bordo",
+    movePane: "Sposta un riquadro dalla sua maniglia: le frecce scelgono, Invio lascia",
     logTime: "Registra tempo (dettaglio issue)",
     toggleFav: "Aggiungi o togli dalle preferite (dettaglio)",
     toggleHide: "Nascondi o ripristina (dettaglio)",

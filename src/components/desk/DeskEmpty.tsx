@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/app/States";
 import { LayoutMiniature } from "@/components/desk/LayoutPicker";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { t } from "@/i18n";
 
 /** The arrangements a desk can take, as the empty desk's picture. */
@@ -15,8 +16,12 @@ function Arrangements() {
   );
 }
 
+/** A phone or a touch screen: no keyboard shortcut to point at. */
+const TOUCH = "(pointer: coarse), (max-width: 1023px)";
+
 /** Nothing on the desk yet: what it is for, "Add issue", and the other ways in. */
 export function DeskEmpty({ add }: { add: ReactNode }) {
+  const touch = useMediaQuery(TOUCH, typeof window !== "undefined" && window.matchMedia(TOUCH).matches);
   return (
     <EmptyState
       icon={Arrangements}
@@ -25,7 +30,7 @@ export function DeskEmpty({ add }: { add: ReactNode }) {
         <>
           {t("pages.desk.emptyMessage")}
           <br />
-          {t("pages.desk.emptyWays", { shortcut: PALETTE_SHORTCUT })}
+          {touch ? t("pages.desk.emptyWaysTouch") : t("pages.desk.emptyWays", { shortcut: PALETTE_SHORTCUT })}
         </>
       }
       action={add}

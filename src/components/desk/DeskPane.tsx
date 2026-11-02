@@ -27,6 +27,8 @@ export function DeskPane({
     <section
       id={`desk-pane-${id}`}
       data-desk-pane={id}
+      // "KEY · title" from the header once the issue is read; the key until then.
+      aria-labelledby={`desk-pane-label-${id}`}
       aria-label={controls.issueKey}
       aria-current={controls.active && controls.several ? "true" : undefined}
       tabIndex={-1}
@@ -34,7 +36,8 @@ export function DeskPane({
       style={style}
       onPointerDownCapture={() => onFocusPane(id)}
       onFocusCapture={() => onFocusPane(id)}
-      className={cn("min-h-0 min-w-0 bg-card outline-none", className)}
+      // Being moved: faded under the highlight of where it goes.
+      className={cn("min-h-0 min-w-0 bg-card outline-none data-[snap-dragging]:opacity-60", className)}
     >
       <IssueBody
         variant="pane"

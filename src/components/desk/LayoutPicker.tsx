@@ -6,15 +6,20 @@ import { cn } from "@/lib/utils";
 import { layoutLabel } from "@/lib/desk/grid";
 import { t } from "@/i18n";
 
-/** A small drawing of an arrangement: one block per slot, where it sits. */
-export function LayoutMiniature({ preset, className }: { preset: PresetId; className?: string }) {
+/**
+ * A small drawing of an arrangement: one block per slot, where it sits; `active` fills one
+ * slot in the accent, and `targets` makes each slot a drop target of the snap bar.
+ */
+export function LayoutMiniature({ preset, active = null, targets = false, className }: { preset: PresetId; active?: number | null; targets?: boolean; className?: string }) {
   return (
     <span aria-hidden className={cn("relative block h-7 w-10 shrink-0", className)}>
       {slotRects(preset).map((rect, slot) => (
         // surface: none — a block of a drawing, not a box on the page.
         <span
           key={slot}
-          className="absolute rounded-sm border border-muted-foreground/40 bg-muted"
+          data-snap-preset={targets ? preset : undefined}
+          data-snap-slot={targets ? slot : undefined}
+          className={cn("absolute rounded-sm border", slot === active ? "border-primary-strong bg-primary" : "border-muted-foreground/40 bg-muted")}
           style={{
             left: `calc(${rect.x * 100}% + 1px)`,
             top: `calc(${rect.y * 100}% + 1px)`,

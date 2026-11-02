@@ -282,6 +282,28 @@ export function snapTargets(n: number): SnapTarget[] {
   return presetsFor(n).flatMap(preset => Array.from({ length: n }, (_, slot): SnapTarget => ({ kind: "slot", preset, slot })));
 }
 
+/** Two targets that name the same place. */
+export const sameTarget = (a: SnapTarget | null, b: SnapTarget | null): boolean =>
+  a === b || (!!a && !!b && (a.kind === "swap" ? b.kind === "swap" && a.index === b.index : b.kind === "slot" && a.preset === b.preset && a.slot === b.slot));
+
+/**
+ * Every place pane `index` can be moved to, for the keyboard: the slots of every arrangement in
+ * reading order (where it is now among them), then the other panes' places; a place that would
+ * give the same desk as an earlier one is left out.
+ */
+export function moveTargets(desk: DeskLayout, index: number): SnapTarget[] {
+  if (!desk.panes[index]) return [];
+  const swaps = desk.panes.flatMap((_, other): SnapTarget[] => (other === index ? [] : [{ kind: "swap", index: other }]));
+  const seen = new Set<string>();
+  return [...snapTargets(desk.panes.length), ...swaps].filter(target => {
+    const after = applySnap(desk, index, target);
+    const result = `${after.preset} ${after.panes.map(paneId).join(" ")}`;
+    if (seen.has(result)) return false;
+    seen.add(result);
+    return true;
+  });
+}
+
 /**
  * What lies under the pointer while a pane is dragged (point and rects on a 1×1 desk): an edge band
  * (`band` of the desk; a corner where two meet) snaps there; the middle of another pane swaps with it.

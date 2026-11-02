@@ -14,11 +14,13 @@ import {
   emptyDesk,
   fitPreset,
   maximize,
+  moveTargets,
   normalizeDesk,
   park,
   paneId,
   presetsFor,
   removePane,
+  sameTarget,
   resizeDivider,
   resizeTracks,
   setPreset,
@@ -173,6 +175,18 @@ describe("snapping", () => {
     expect(snapTargets(2)).toHaveLength(4);
     expect(snapTargets(4)).toHaveLength(8);
     expect(snapTargets(1)).toEqual([{ kind: "slot", preset: "single", slot: 0 }]);
+  });
+
+  it("lets the keyboard reach each different desk once, where the pane is now among its arrangement's slots", () => {
+    // Swapping two side by side is the right half: said once.
+    expect(moveTargets(deskWith("A", "B"), 0)).toEqual(snapTargets(2));
+    const three = moveTargets(deskWith("A", "B", "C"), 0);
+    expect(three.slice(0, snapTargets(3).length)).toEqual(snapTargets(3));
+    expect(three.filter(target => target.kind === "swap")).toEqual([{ kind: "swap", index: 2 }]);
+    expect(moveTargets(deskWith("A"), 3)).toEqual([]);
+    expect(sameTarget({ kind: "slot", preset: "quad", slot: 1 }, { kind: "slot", preset: "quad", slot: 1 })).toBe(true);
+    expect(sameTarget({ kind: "swap", index: 1 }, { kind: "slot", preset: "quad", slot: 1 })).toBe(false);
+    expect(sameTarget(null, null)).toBe(true);
   });
 });
 

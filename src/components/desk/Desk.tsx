@@ -1,9 +1,11 @@
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { dividersOf, paneId, PRESETS, tracksOf, type DeskLayout, type PresetId, type Tracks } from "@contracts/desk";
 import { DeskDivider } from "@/components/desk/DeskDivider";
 import { lineVars, template } from "@/lib/desk/grid";
 import { DeskPane } from "@/components/desk/DeskPane";
 import type { PaneControls } from "@/components/desk/PaneHeader";
+import { SnapOverlay } from "@/components/desk/SnapOverlay";
+import type { SnapStore } from "@/lib/desk/useSnapDrag";
 import type { DeskChange } from "@/lib/desk/useDesk";
 
 /** Sets the sizes of one axis of an arrangement (the one drawn, which may not be the chosen one). */
@@ -14,7 +16,8 @@ const withTracks = (desk: DeskLayout, preset: PresetId, axis: keyof Tracks, shar
 
 /**
  * The panes on a grid of the arrangement drawn: named areas, columns and rows by their
- * shares, a hairline between panes (the grid's gap over the border colour), a divider on
+ * shares, a hairline between panes (the grid's gap over the field-border colour: a shade firmer
+ * than the hairlines inside a pane, so two panes never read as one), a divider on
  * each line between two panes. Maximized, one pane fills it and the others hide.
  */
 export function Desk({
@@ -24,6 +27,7 @@ export function Desk({
   controlsFor,
   onFocusPane,
   change,
+  snap,
 }: {
   desk: DeskLayout;
   drawn: PresetId;
@@ -31,10 +35,22 @@ export function Desk({
   controlsFor: (index: number) => PaneControls;
   onFocusPane: (id: string) => void;
   change: (fn: DeskChange, options?: { saveNow?: boolean }) => void;
+  /** A pane being moved: its overlay draws over the grid. */
+  snap: SnapStore;
 }) {
   const preset = PRESETS[drawn];
   const tracks = tracksOf(desk, drawn);
   const maximized = desk.maximized;
+  // A pane moved to another slot is an element moved in the page, which forgets where it was
+  // scrolled: each scroller's place is noted as it scrolls and put back after a move.
+  const scrolls = useRef(new WeakMap<Element, number>());
+  const order = desk.panes.map(paneId).join(" ");
+  useLayoutEffect(() => {
+    gridRef.current?.querySelectorAll("[data-pane-size]").forEach(el => {
+      const top = scrolls.current.get(el);
+      if (top !== undefined && el.scrollTop !== top) el.scrollTop = top;
+    });
+  }, [order, gridRef]);
   const keyAt = (row: number, col: number) => desk.panes[preset.areas[row][col]]?.key ?? "";
   const style = (
     maximized
@@ -48,7 +64,14 @@ export function Desk({
   ) as CSSProperties;
 
   return (
-    <div ref={gridRef} style={style} className="relative grid h-full min-h-0 gap-px bg-border">
+    <div
+      ref={gridRef}
+      style={style}
+      onScrollCapture={e => {
+        if (e.target instanceof Element) scrolls.current.set(e.target, e.target.scrollTop);
+      }}
+      className="relative grid h-full min-h-0 gap-px bg-input"
+    >
       {desk.panes.map((pane, index) => {
         const id = paneId(pane);
         const hidden = maximized !== null && maximized !== id;
@@ -82,6 +105,7 @@ export function Desk({
             />
           );
         })}
+      {!maximized && <SnapOverlay store={snap} desk={desk} drawn={drawn} />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { PALETTE_SHORTCUT } from "@/lib/dom";
+import { MOD_KEY, PALETTE_SHORTCUT } from "@/lib/dom";
 import { t } from "@/i18n";
 
 /** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere, "d" the TODO list. */
@@ -76,6 +76,8 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["1–4"], label: t("ui.shortcuts.focusPane") },
         { keys: ["x"], label: t("ui.shortcuts.closePane") },
         { keys: ["Esc"], label: t("ui.shortcuts.restorePane") },
+        { keys: [...(MOD_KEY === "⌘" ? ["⌥", "⇧"] : ["Alt", "Shift"]), "← ↑ → ↓"], label: t("ui.shortcuts.snapPane") },
+        { keys: [t("ui.keys.space")], label: t("ui.shortcuts.movePane") },
       ],
     },
   ];
