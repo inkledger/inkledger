@@ -24,6 +24,7 @@ const load = {
   ideas: () => import("@/pages/IdeasPage"),
   notes: () => import("@/pages/NotesPage"),
   reports: () => import("@/pages/Reports"),
+  team: () => import("@/pages/Team"),
   settings: () => import("@/pages/Settings"),
   notFound: () => import("@/pages/NotFound"),
   info: () => import("@/pages/Info"),
@@ -46,6 +47,7 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/ideas/, "ideas"],
   [/^\/notes/, "notes"],
   [/^\/reports/, "reports"],
+  [/^\/team/, "team"],
   [/^\/settings/, "settings"],
   [/^\/info/, "info"],
 ];
@@ -68,6 +70,7 @@ const TodosPage = lazy(load.todos);
 const IdeasPage = lazy(load.ideas);
 const NotesPage = lazy(load.notes);
 const Reports = lazy(load.reports);
+const Team = lazy(load.team);
 const Settings = lazy(load.settings);
 const NotFound = lazy(load.notFound);
 const Info = lazy(load.info);
@@ -166,6 +169,7 @@ export default function App() {
               <Route path="/notes/diary" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NotesPage />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/team" element={<Team />} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />
               <Route path="*" element={<NotFound />} />

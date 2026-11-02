@@ -15,6 +15,7 @@ export const ui = {
     notes: "Notes",
     timesheet: "Timesheet",
     reports: "Reports",
+    team: "Team time",
     settings: "Settings",
     info: "About",
     back: "Back",

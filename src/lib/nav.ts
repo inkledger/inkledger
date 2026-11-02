@@ -10,10 +10,13 @@ import {
   Lightbulb,
   Pin,
   Settings as SettingsIcon,
+  Users,
 } from "lucide-react";
+import type { Permission } from "@contracts/accounts";
 import { t } from "@/i18n";
 import { usePinboardSurfacesNow } from "@/hooks/usePinboardPanel";
 import { useTodoSurfacesNow } from "@/hooks/useTodoPanel";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Sidebar navigation; also the source of page breadcrumbs. A function: the
@@ -39,7 +42,10 @@ export function navItems() {
     {
       group: "analysis",
       title: t("ui.nav.analysis"),
-      items: [{ to: "/reports", label: t("ui.nav.reports"), icon: BarChart3 }],
+      items: [
+        { to: "/reports", label: t("ui.nav.reports"), icon: BarChart3 },
+        { to: "/team", label: t("ui.nav.team"), icon: Users, permission: "viewTeamTime" as Permission },
+      ],
     },
     {
       group: "other",
@@ -52,11 +58,16 @@ export function navItems() {
   ];
 }
 
-/** The sections the menu shows: the pinboard's and the TODO list's pages only while they live there (Settings). */
+/**
+ * The sections the menu shows: the pinboard's and the TODO list's pages only
+ * while they live there (Settings); a page behind a permission only to whoever holds it.
+ */
 export function useNavItems() {
   const { menu } = usePinboardSurfacesNow();
   const todos = useTodoSurfacesNow();
-  return navItems().map(g => ({ ...g, items: g.items.filter(i => (i.to !== "/pinboard" || menu) && (i.to !== "/todos" || todos.menu)) }));
+  const held = useAuth().user?.permissions ?? [];
+  const allowed = (i: { permission?: Permission }) => !i.permission || held.includes(i.permission);
+  return navItems().map(g => ({ ...g, items: g.items.filter(i => (i.to !== "/pinboard" || menu) && (i.to !== "/todos" || todos.menu) && allowed(i)) }));
 }
 
 /** Phones: the sections in the tab bar; the others are under "More". */

@@ -44,7 +44,7 @@ const rangeInput = z.object({
 });
 
 /** Inclusive day-key range → [from, to) dates, or BAD_REQUEST. */
-function rangeOf(input: { from: string; to: string }): { from: Date; to: Date } {
+export function rangeOf(input: { from: string; to: string }): { from: Date; to: Date } {
   const from = parseDayKey(input.from);
   const lastDay = parseDayKey(input.to);
   const to = lastDay ? addDays(lastDay, 1) : null;

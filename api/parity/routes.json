@@ -76,6 +76,10 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/team",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/timesheet",
     "guard": "RequireAuth"
   },

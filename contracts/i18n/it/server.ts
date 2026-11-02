@@ -130,6 +130,9 @@ export const server: Shape<typeof en> = {
       other: "Intervallo troppo lungo (max {count} giorni)",
     },
   },
+  team: {
+    notFound: "Questo account non è nel resoconto del team",
+  },
   weeks: {
     invalidDate: "Data settimana non valida",
     closed: "Settimana chiusa: riaprila per modificare le registrazioni.",

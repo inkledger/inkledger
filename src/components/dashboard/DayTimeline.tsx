@@ -68,6 +68,7 @@ export function DayTimeline({
   plannedEntries = [],
   onEditPlanned,
   onPending,
+  readOnly = false,
 }: {
   day: Date;
   entries: TimelineEntry[];
@@ -93,6 +94,8 @@ export function DayTimeline({
   onEditPlanned?: (entry: PlannedEntry) => void;
   /** A stopped timer's block: log it (the same dialog as at its stop). */
   onPending?: (entry: TimelineEntry) => void;
+  /** Someone else's day (team report): its blocks open nothing (their issues aren't the viewer's). */
+  readOnly?: boolean;
 }) {
   const dayStart = day.getTime();
   const sorted = [...entries].sort(
@@ -347,6 +350,20 @@ export function DayTimeline({
               </button>
             );
           }
+          if (readOnly)
+            return (
+              <div
+                key={b.id}
+                role="img"
+                title={title}
+                aria-label={`${t("views.dashboard.timeline.entry", { key: b.issueKey, time: timeOfDay(b.start), duration: formatDurationLong(b.seconds) })}${b.summary ? ` · ${b.summary}` : ""}`}
+                {...surface("bar")}
+                className={cn("absolute z-10 flex rounded-md", b.lanes === 1 && "bottom-6 top-3", b.color.solid)}
+                style={style}
+              >
+                {body}
+              </div>
+            );
           // A logged slice opens its issue.
           return (
             <Link

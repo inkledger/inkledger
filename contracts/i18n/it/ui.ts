@@ -16,6 +16,7 @@ export const ui: Shape<typeof en> = {
     notes: "Appunti",
     timesheet: "Timesheet",
     reports: "Report",
+    team: "Tempo del team",
     settings: "Impostazioni",
     info: "Info",
     back: "Indietro",

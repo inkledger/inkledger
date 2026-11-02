@@ -81,6 +81,7 @@ export function AccountSection() {
             </p>
           </div>
         </div>
+        <p className="text-body-sm text-muted-foreground">{t("settings.account.teamVisible")}</p>
         <SettingsRow
           label={t("settings.account.changePassword")}
           hint={t("settings.account.changePasswordHint")}

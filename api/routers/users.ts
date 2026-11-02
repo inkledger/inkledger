@@ -1,6 +1,7 @@
 // Accounts on this server, for whoever may manage them: invite people with
 // what they may do, reset a password, turn an account off. Nobody sees
-// anyone else's connections or time from here.
+// anyone else's connections or time from here (everyone's logged hours are
+// the team report's, routers/team.ts, behind viewTeamTime).
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";

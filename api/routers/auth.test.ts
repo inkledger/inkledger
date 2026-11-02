@@ -296,6 +296,8 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(k.users.invite({ username: "x3", displayName: "X", role: "member", permissions: ["manageServer"] })).rejects.toMatchObject(forbidden);
       await expect(k.users.setAccess({ id: plain.id, role: "admin", permissions: [] })).rejects.toMatchObject(forbidden);
       await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageBackups"] })).rejects.toMatchObject(forbidden);
+      // Nor sight of everyone's time.
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["viewTeamTime"] })).rejects.toMatchObject(forbidden);
       // An admin, or an account with a power it lacks: no password reset, no new link, no change, no turning off.
       for (const id of [boss.id, ops.id]) {
         await expect(k.users.resetPassword({ id })).rejects.toMatchObject(forbidden);

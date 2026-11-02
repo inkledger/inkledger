@@ -34,6 +34,7 @@ import { projectPathsRouter } from "./routers/projectPaths";
 import { workspaceRouter } from "./routers/workspace";
 import { flowMapRouter } from "./routers/flowMap";
 import { plannerRouter } from "./routers/planner";
+import { teamRouter } from "./routers/team";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -72,6 +73,7 @@ export const appRouter = createRouter({
   workspace: workspaceRouter,
   flowMap: flowMapRouter,
   planner: plannerRouter,
+  team: teamRouter,
 });
 
 export type AppRouter = typeof appRouter;

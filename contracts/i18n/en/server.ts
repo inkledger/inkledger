@@ -129,6 +129,9 @@ export const server = {
       other: "Range too long (max {count} days)",
     },
   },
+  team: {
+    notFound: "This account is not on the team report",
+  },
   weeks: {
     invalidDate: "Invalid week date",
     closed: "Week closed: reopen it to edit the worklogs.",

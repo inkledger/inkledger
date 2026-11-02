@@ -164,4 +164,10 @@ describe("nobody reaches another user's things by id", () => {
     await expect(ann.buckets.save({ name: "sneaky", sources: [{ connectionId: bob.conn, containerId: null }] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(await q("SELECT name FROM buckets")).toEqual([{ name: "Bob" }]);
   });
+
+  it("the team report: nobody without viewTeamTime reads someone else's time", async () => {
+    const [b] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'bob'");
+    await expect(ann.team.day({ userId: b.id, day: "2025-10-09" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(ann.team.overview({ from: "2025-10-01", to: "2025-10-31" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
