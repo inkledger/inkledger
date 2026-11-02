@@ -119,6 +119,7 @@ export function IssueActions({
   onLogTime,
   compact = false,
   menuTop,
+  deskButton,
 }: {
   issue: Issue;
   data: IssueData;
@@ -127,6 +128,8 @@ export function IssueActions({
   onLogTime: () => void;
   compact?: boolean;
   menuTop?: ReactNode;
+  /** The page: "Layout", to open the issue on the Desk (beside Log time). */
+  deskButton?: ReactNode;
 }) {
   const { provider, offers } = data;
   const logTime = (
@@ -279,6 +282,7 @@ export function IssueActions({
           <ExternalLink className="h-4 w-4" />
         </a>
       </Button>
+      {deskButton}
       {logTime}
     </>
   );

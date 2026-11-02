@@ -2,6 +2,9 @@ import { useSyncExternalStore } from "react";
 import { MOD_KEY, PALETTE_SHORTCUT } from "@/lib/dom";
 import { t } from "@/i18n";
 
+/** Alt+Shift as the platform writes it. */
+const ALT_SHIFT = MOD_KEY === "⌘" ? ["⌥", "⇧"] : ["Alt", "Shift"];
+
 /** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere, "d" the TODO list. */
 export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolean; todos?: boolean } = {}): {
   group: string;
@@ -52,6 +55,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: [t("ui.keys.enter")], label: t("ui.shortcuts.openIssue") },
         { keys: ["t"], label: t("ui.shortcuts.startRow") },
         { keys: ["s", "h"], label: t("ui.shortcuts.favHide") },
+        { keys: ["x"], label: t("ui.shortcuts.pickRow") },
         { keys: ["Esc"], label: t("ui.shortcuts.clearSelection") },
       ],
     },
@@ -64,6 +68,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["c"], label: t("ui.shortcuts.copyKey") },
         { keys: ["b"], label: t("ui.shortcuts.copyBranch") },
         { keys: ["m"], label: t("ui.shortcuts.copyCommit") },
+        { keys: [...ALT_SHIFT, "← ↑ → ↓"], label: t("ui.shortcuts.sendToDesk") },
         {
           keys: [PALETTE_SHORTCUT.startsWith("⌘") ? "⌘" : "Ctrl", t("ui.keys.enter")],
           label: t("ui.shortcuts.postComment"),
@@ -76,8 +81,9 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["1–4"], label: t("ui.shortcuts.focusPane") },
         { keys: ["x"], label: t("ui.shortcuts.closePane") },
         { keys: ["Esc"], label: t("ui.shortcuts.restorePane") },
-        { keys: [...(MOD_KEY === "⌘" ? ["⌥", "⇧"] : ["Alt", "Shift"]), "← ↑ → ↓"], label: t("ui.shortcuts.snapPane") },
+        { keys: [...ALT_SHIFT, "← ↑ → ↓"], label: t("ui.shortcuts.snapPane") },
         { keys: [t("ui.keys.space")], label: t("ui.shortcuts.movePane") },
+        { keys: ["⇧", t("ui.keys.click")], label: t("ui.shortcuts.openBeside") },
       ],
     },
   ];

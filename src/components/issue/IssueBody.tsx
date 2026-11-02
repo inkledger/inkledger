@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import type { DeskPane } from "@contracts/desk";
 import { Link } from "react-router";
 import { errorText } from "@/lib/errorText";
 import { issueId } from "@/lib/issues";
@@ -21,6 +22,8 @@ import { descriptionSnippet } from "@/components/issue/issueFormat";
 import { usePaneSize, type PaneSize } from "@/components/issue/paneSize";
 import { useIssueData, type Issue, type IssueData } from "@/components/issue/useIssueData";
 import { useIssueHotkeys } from "@/components/issue/useIssueHotkeys";
+import { SendToDeskButton, TitleGrip } from "@/components/desk/SendToDesk";
+import { useDeskKeys, useLongPress } from "@/lib/desk/useSendToDesk";
 import { t } from "@/i18n";
 
 type Variant = "page" | "pane";
@@ -107,6 +110,12 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
   const body = useBody({ issueKey: key, connectionId, variant: "page", markSeen: true, hotkeys: true });
   const { data, act } = body;
   const { issue, description, ownConnection } = data;
+  // To the Desk: the grip by the title (dragged to an edge), the Layout button, Alt+Shift+arrows, a long press on a phone.
+  const [sendOpen, setSendOpen] = useState(false);
+  const onConnection = issue.data?.connectionId ?? connectionId;
+  const deskPane: DeskPane | null = issue.data && onConnection ? { connectionId: onConnection, key: issue.data.key, remoteId: issue.data.remoteId ?? null } : null;
+  useDeskKeys(deskPane);
+  const longPress = useLongPress(() => setSendOpen(true));
 
   if (issue.isPending)
     return (
@@ -149,8 +158,21 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
         documentTitle={i.key}
         breadcrumbCurrent={i.key}
         back
+        titleLead={deskPane && <TitleGrip pane={deskPane} />}
+        titleProps={deskPane ? longPress : undefined}
+        // A long press on a phone opens the desk's layouts, not the text's own menu.
+        titleClassName="coarse:select-none coarse:[-webkit-touch-callout:none]"
         titleAddon={<IssueTitleAddon issue={i} data={data} connectionId={connectionId} act={act} />}
-        actions={<IssueActions issue={i} data={data} connectionId={connectionId} act={act} onLogTime={body.openLog} />}
+        actions={
+          <IssueActions
+            issue={i}
+            data={data}
+            connectionId={connectionId}
+            act={act}
+            onLogTime={body.openLog}
+            deskButton={deskPane && <SendToDeskButton pane={deskPane} open={sendOpen} onOpenChange={setSendOpen} />}
+          />
+        }
       />
       <Columns issue={i} body={body} scrollKeys={{ columns: "issue-page", left: "issue-left", right: "issue-right" }} />
       {body.logDialog}

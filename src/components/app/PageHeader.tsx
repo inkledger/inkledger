@@ -14,6 +14,8 @@ export function PageHeader({
   documentTitle,
   description,
   titleAddon,
+  titleLead,
+  titleProps,
   titleClassName,
   breadcrumbCurrent,
   breadcrumbTrail,
@@ -27,6 +29,10 @@ export function PageHeader({
   documentTitle?: string;
   description?: React.ReactNode;
   titleAddon?: React.ReactNode;
+  /** Before the title (an issue's grip, to drag it to the desk). */
+  titleLead?: React.ReactNode;
+  /** The title's own handlers (an issue's long press). */
+  titleProps?: React.HTMLAttributes<HTMLHeadingElement>;
   titleClassName?: string;
   /** Extra breadcrumb level (e.g. the issue key on a detail page) */
   breadcrumbCurrent?: string;
@@ -78,7 +84,9 @@ export function PageHeader({
           <Breadcrumb current={breadcrumbCurrent} trail={breadcrumbTrail} />
         )}
         <div className="flex min-w-0 items-center gap-2">
+          {titleLead}
           <h1
+            {...titleProps}
             className={cn(
               "line-clamp-2 min-w-0 [overflow-wrap:anywhere] font-display text-heading sm:text-title",
               titleClassName
