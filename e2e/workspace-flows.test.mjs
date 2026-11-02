@@ -496,7 +496,7 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 320, height: 760 
       await page.route("**/api/trpc/workspace.acknowledge*", route => route.abort());
       await press(page.getByRole("button", { name: "Apply layout", exact: true }));
       await page.waitForFunction(() => document.querySelector('[role="alert"]')?.textContent);
-      // Focus after a failed apply is the separate todo test below (Workspace.tsx drops it on its error path).
+      await focusKept("an apply whose acknowledgement was lost");
       await page.unroute("**/api/trpc/workspace.acknowledge*");
       await page.reload();
       const saved = page.getByText("Layout saved. It shows as soon as it's safe.", { exact: true });
@@ -532,7 +532,7 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 320, height: 760 
       await accessible("conflict");
       await press(page.getByRole("button", { name: "Discard draft", exact: true }));
       await page.getByRole("button", { name: "Apply layout", exact: true }).waitFor({ state: "detached" });
-      // Focus after the discard is the separate todo test below (Workspace.tsx focuses a still disabled button).
+      await focusKept("discarding the draft");
       assert.equal((await db.q("SELECT status FROM workspace_drafts WHERE id = 'keyboard-conflict'"))[0].status, "discarded");
       await accessible("conflict resolved");
 
