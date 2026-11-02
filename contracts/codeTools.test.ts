@@ -1,7 +1,16 @@
 // The code tools of the Desk's chat (docs/work/desk.md, batch 4d): paths confined to a
 // repository, globs, the arguments a model sends, and what each result reads like.
 import { describe, expect, it } from "vitest";
-import { TOOL_RESULT_CHARS, formatToolResult, globMatch, parseToolArgs, repoPathParts } from "./codeTools";
+import { TOOL_RESULT_CHARS, formatToolResult, globMatch, isPrivateName, parseToolArgs, repoPathParts } from "./codeTools";
+
+describe("isPrivateName", () => {
+  it("secrets and version-control folders are private; examples and ordinary files are not", () => {
+    for (const name of [".git", ".hg", ".svn", ".ssh", ".env", ".env.local", ".env.production", "server.pem", "app.key", "cert.p12", "store.pfx", "release.jks", "app.keystore", "id_rsa", "id_ed25519", ".npmrc", ".netrc", ".pypirc", ".git-credentials", "ID_RSA"])
+      expect(isPrivateName(name), name).toBe(true);
+    for (const name of [".env.example", ".env.sample", ".env.template", "id_rsa.pub", "keys.ts", "monkey.kt", ".gitignore", "env.ts", "README.md"])
+      expect(isPrivateName(name), name).toBe(false);
+  });
+});
 
 describe("repoPathParts", () => {
   it("a path inside the repository, in its segments", () => {

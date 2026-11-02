@@ -36,6 +36,23 @@ export const SKIPPED_DIRS: readonly string[] = [".git", ".hg", ".svn", "node_mod
  * leave it: absolute, a drive letter, home, `..`, control characters or `:` (Windows
  * streams). Backslashes are separators, as on Windows.
  */
+const PRIVATE_DIRS = [".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws"];
+const PRIVATE_FILES = [".npmrc", ".netrc", ".pypirc", ".git-credentials", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
+const PRIVATE_EXTENSIONS = [".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"];
+const ENV_EXAMPLES = [".env.example", ".env.sample", ".env.template"];
+
+/**
+ * A file or folder the model never sees: version control (the git tools read history),
+ * and what usually holds secrets (.env files, keys, credentials). Examples stay readable.
+ * The same rules as `is_private` in src-tauri/src/code.rs.
+ */
+export function isPrivateName(name: string): boolean {
+  const n = name.toLowerCase();
+  if (PRIVATE_DIRS.includes(n) || PRIVATE_FILES.includes(n)) return true;
+  if ((n === ".env" || n.startsWith(".env.")) && !ENV_EXAMPLES.includes(n)) return true;
+  return PRIVATE_EXTENSIONS.some(ext => n.endsWith(ext));
+}
+
 export function repoPathParts(path: string): string[] | null {
   const p = path.trim().replace(/\\/g, "/");
   if (p.startsWith("/") || /^[a-zA-Z]:/.test(p)) return null;

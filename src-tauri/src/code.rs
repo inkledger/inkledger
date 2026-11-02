@@ -92,7 +92,32 @@ fn resolve_root(raw: &str, home: Option<&Path>) -> Result<PathBuf, String> {
     if !real.is_dir() {
         return Err(trf("code.no_root", &[("path", raw)]));
     }
-    Ok(plain(real))
+    let real = plain(real);
+    // A whole disk or the home folder would put every file of this computer in reach.
+    let home = home.and_then(|h| std::fs::canonicalize(h).ok()).map(plain);
+    if real.parent().is_none() || home.as_deref() == Some(real.as_path()) {
+        return Err(trf("code.broad_root", &[("path", raw)]));
+    }
+    Ok(real)
+}
+
+const PRIVATE_DIRS: &[&str] = &[".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws"];
+const PRIVATE_FILES: &[&str] = &[".npmrc", ".netrc", ".pypirc", ".git-credentials", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
+const PRIVATE_EXTENSIONS: &[&str] = &[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"];
+const ENV_EXAMPLES: &[&str] = &[".env.example", ".env.sample", ".env.template"];
+
+/// A file or folder the model never sees: version control (the git tools read history)
+/// and what usually holds secrets (.env files, keys, credentials); examples stay readable.
+/// The same rules as `isPrivateName` in contracts/codeTools.ts.
+fn is_private(name: &str) -> bool {
+    let n = name.to_lowercase();
+    if PRIVATE_DIRS.contains(&n.as_str()) || PRIVATE_FILES.contains(&n.as_str()) {
+        return true;
+    }
+    if (n == ".env" || n.starts_with(".env.")) && !ENV_EXAMPLES.contains(&n.as_str()) {
+        return true;
+    }
+    PRIVATE_EXTENSIONS.iter().any(|ext| n.ends_with(ext))
 }
 
 /// A path relative to a repository as its segments, or why it could leave it: absolute,
@@ -117,10 +142,17 @@ fn rel_parts(rel: &str) -> Result<Vec<String>, String> {
 /// followed, still be inside the root.
 fn confine(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let parts = rel_parts(rel)?;
+    if parts.iter().any(|p| is_private(p)) {
+        return Err(trf("code.private", &[("path", rel)]));
+    }
     let joined = parts.iter().fold(root.to_path_buf(), |p, s| p.join(s));
     let real = plain(std::fs::canonicalize(&joined).map_err(|_| trf("code.not_found", &[("path", rel)]))?);
     if !real.starts_with(root) {
         return Err(trf("code.leaves", &[("path", rel)]));
+    }
+    // A link inside the repository may still lead to one of its private files.
+    if real.strip_prefix(root).is_ok_and(|r| r.components().any(|c| is_private(&c.as_os_str().to_string_lossy()))) {
+        return Err(trf("code.private", &[("path", rel)]));
     }
     Ok(real)
 }
@@ -222,7 +254,8 @@ fn walk(start: &Path, mut visit: impl FnMut(&Path) -> bool) -> bool {
             .filter_map(Result::ok)
             .filter_map(|e| {
                 let kind = e.file_type().ok()?;
-                (!kind.is_symlink()).then(|| (e.file_name().to_string_lossy().into_owned(), kind.is_dir(), e.path()))
+                let name = e.file_name().to_string_lossy().into_owned();
+                (!kind.is_symlink() && !is_private(&name)).then(|| (name, kind.is_dir(), e.path()))
             })
             .collect();
         entries.sort_by(|a, b| a.0.cmp(&b.0));
@@ -312,6 +345,7 @@ fn ls(root: &Path, path: &str) -> Result<LsResult, String> {
         .map_err(fault)?
         .filter_map(Result::ok)
         .map(|e| Entry { name: e.file_name().to_string_lossy().into_owned(), dir: e.file_type().is_ok_and(|k| k.is_dir()) })
+        .filter(|e| !is_private(&e.name))
         .collect();
     entries.sort_by(|a, b| b.dir.cmp(&a.dir).then_with(|| a.name.cmp(&b.name)));
     let truncated = entries.len() > LS_ENTRIES;
@@ -836,8 +870,57 @@ mod tests {
         assert_eq!(find(&t.0, "*inventory*", "").unwrap().paths, vec!["src/Inventory.kt"]);
         assert_eq!(find(&t.0, "src/**/*.kt", "").unwrap().paths, vec!["src/Inventory.kt"]);
         let listed = ls(&t.0, "").unwrap();
-        assert_eq!(listed.entries.first(), Some(&Entry { name: ".git".into(), dir: true }));
+        assert!(listed.entries.iter().all(|e| e.name != ".git"), "version control is never listed");
         assert_eq!(listed.entries.last(), Some(&Entry { name: "README.md".into(), dir: false }));
+    }
+
+    #[test]
+    fn secrets_are_never_shown() {
+        for name in [
+            ".git",
+            ".ssh",
+            ".env",
+            ".env.local",
+            "server.pem",
+            "app.key",
+            "release.jks",
+            "id_rsa",
+            "ID_ED25519",
+            ".npmrc",
+            ".git-credentials",
+        ] {
+            assert!(is_private(name), "{name}");
+        }
+        for name in [".env.example", ".env.sample", "id_rsa.pub", "keys.rs", "monkey.kt", ".gitignore", "env.ts"] {
+            assert!(!is_private(name), "{name}");
+        }
+        let t = Temp::new("private");
+        t.file(".git/config", b"url = https://token@example.com/shop.git");
+        t.file(".env", b"TOKEN=MAGA-400-secret");
+        t.file(".env.example", b"TOKEN=");
+        t.file("deploy/server.pem", b"PRIVATE KEY MAGA-400");
+        t.file("src/a.kt", b"MAGA-400");
+        for path in [".git/config", ".git", ".env", "deploy/server.pem", r"deploy\SERVER.PEM"] {
+            assert!(read(&t.0, path, None, None).is_err(), "{path}");
+        }
+        assert!(ls(&t.0, ".git").is_err());
+        let names: Vec<String> = ls(&t.0, "").unwrap().entries.into_iter().map(|e| e.name).collect();
+        assert!(!names.iter().any(|n| n == ".env" || n == ".git"), "{names:?}");
+        assert!(names.iter().any(|n| n == ".env.example"));
+        let hits: Vec<String> = grep(&t.0, "MAGA-400|token@", true, None).unwrap().hits.into_iter().map(|h| h.path).collect();
+        assert_eq!(hits, vec!["src/a.kt"]);
+        assert!(find(&t.0, "*", "").unwrap().paths.iter().all(|p| !p.ends_with(".env") && !p.ends_with(".pem")));
+        assert!(read(&t.0, ".env.example", None, None).is_ok());
+    }
+
+    #[test]
+    fn a_root_is_a_project_not_a_disk_or_home() {
+        let home = Temp::new("home");
+        std::fs::create_dir_all(home.0.join("projects/shop")).unwrap();
+        assert!(resolve_root("~", Some(&home.0)).is_err());
+        assert!(resolve_root(home.0.to_str().unwrap(), Some(&home.0)).is_err());
+        assert!(resolve_root("/", Some(&home.0)).is_err());
+        assert!(resolve_root("~/projects/shop", Some(&home.0)).is_ok());
     }
 
     #[test]

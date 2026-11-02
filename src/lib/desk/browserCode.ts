@@ -9,6 +9,7 @@ import {
   WALK_FILES_MAX,
   globMatch,
   parseToolArgs,
+  isPrivateName,
   repoPathParts,
   type CodeToolName,
   type ToolResults,
@@ -44,13 +45,15 @@ const stopped = (signal?: AbortSignal) => {
 
 async function children(dir: DirHandle): Promise<{ name: string; dir: boolean }[]> {
   const out: { name: string; dir: boolean }[] = [];
-  for await (const [name, handle] of dir.entries()) out.push({ name, dir: handle.kind === "directory" });
+  for await (const [name, handle] of dir.entries()) if (!isPrivateName(name)) out.push({ name, dir: handle.kind === "directory" });
   // Folders first, then by name: the same order every time.
   return out.sort((a, b) => Number(b.dir) - Number(a.dir) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 function partsOf(path: string): string[] {
-  return repoPathParts(path) ?? fail(`"${path}" leaves the repository: use a path relative to its root, without ..`);
+  const parts = repoPathParts(path) ?? fail(`"${path}" leaves the repository: use a path relative to its root, without ..`);
+  if (parts.some(isPrivateName)) fail(`"${path}" is private (version control or secrets): it is never read`);
+  return parts;
 }
 
 async function dirAt(root: DirHandle, parts: readonly string[]): Promise<DirHandle> {

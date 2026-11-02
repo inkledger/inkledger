@@ -31,7 +31,10 @@ function folder(name: string, tree: Tree): DirHandle {
 }
 
 const root = folder("shop", {
-  ".git": { HEAD: "ref: refs/heads/main MAGA-400" },
+  ".git": { HEAD: "ref: refs/heads/main MAGA-400", config: "url = https://token@example.com/shop.git" },
+  ".env": "TOKEN=MAGA-400-secret",
+  ".env.example": "TOKEN=",
+  deploy: { "server.pem": "-----BEGIN PRIVATE KEY----- MAGA-400" },
   node_modules: { lib: { "x.js": "MAGA-400 inside a dependency" } },
   dist: { "app.js": "MAGA-400 built" },
   "README.md": "# Shop\r\nMAGA-400 notes\r\n",
@@ -44,7 +47,7 @@ const root = folder("shop", {
 describe("browserTool", () => {
   it("ls: a folder's entries, folders first, marked with a slash", async () => {
     const out = await browserTool(root, "ls", { repo: "shop", path: "" });
-    expect(out).toEqual({ ok: true, result: { path: "", entries: [{ name: ".git", dir: true }, { name: "dist", dir: true }, { name: "node_modules", dir: true }, { name: "src", dir: true }, { name: "README.md", dir: false }], truncated: false } });
+    expect(out).toEqual({ ok: true, result: { path: "", entries: [{ name: "deploy", dir: true }, { name: "dist", dir: true }, { name: "node_modules", dir: true }, { name: "src", dir: true }, { name: ".env.example", dir: false }, { name: "README.md", dir: false }], truncated: false } });
   });
 
   it("grep: hits with line numbers, never in .git, node_modules, build output or binaries; CRLF read as lines", async () => {
@@ -55,7 +58,8 @@ describe("browserTool", () => {
         { path: "src/InventoryService.kt", line: 42, text: "// MAGA-400: stock below zero" },
       ],
       truncated: false,
-      files: 2,
+      // README, the Kotlin file and .env.example: the binary and the private files aren't read.
+      files: 3,
     });
     const regex = await browserTool(root, "grep", { repo: "shop", query: "stock\\s+below", regex: true, glob: "*.kt" });
     expect(regex.ok && "hits" in regex.result && regex.result.hits.map(h => h.line)).toEqual([42]);
@@ -84,6 +88,20 @@ describe("browserTool", () => {
     }
     expect((await browserTool(root, "read", { repo: "shop", path: "src/missing.kt" })).ok).toBe(false);
     expect((await browserTool(root, "git_log", { repo: "shop", limit: 5 })).ok).toBe(false);
+  });
+
+  it("never shows the repository's secrets: .git, .env files, keys", async () => {
+    for (const path of [".git/config", ".git", ".env", "deploy/server.pem"]) {
+      const out = await browserTool(root, "read", { repo: "shop", path });
+      expect(out.ok, path).toBe(false);
+      expect(!out.ok && out.error, path).toMatch(/private/);
+    }
+    expect((await browserTool(root, "ls", { repo: "shop", path: ".git" })).ok).toBe(false);
+    const grep = await browserTool(root, "grep", { repo: "shop", query: "secret|PRIVATE KEY|token@", regex: true });
+    expect(grep.ok && "hits" in grep.result && grep.result.hits).toEqual([]);
+    const find = await browserTool(root, "find", { repo: "shop", pattern: "*", path: "" });
+    expect(find.ok && "paths" in find.result && find.result.paths.filter(p => /\.env$|\.pem$/.test(p))).toEqual([]);
+    expect((await browserTool(root, "read", { repo: "shop", path: ".env.example" })).ok).toBe(true);
   });
 
   it("stops when asked", async () => {

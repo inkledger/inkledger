@@ -121,8 +121,15 @@ pass, CI attaches both installers and their SHA-256 checksums to the GitHub Rele
     be allowed in a native dialog (`code_allow_root`: NSAlert on macOS, a message box on
     Windows; "Don't allow" is the default). The allowance is kept in the app's data
     (`code-access.json`), per server origin. `code_roots` tells the page which roots are
-    allowed, and looks at nothing on disk for the others. The other commands refuse a root
-    that isn't allowed.
+    allowed, and answers the same for every other folder, existing or not. The other
+    commands refuse a root that isn't allowed. A whole disk or the home folder itself can't
+    be allowed: only a project's folder.
+  - **Private files:** version control (`.git`, `.hg`, `.svn`) and what usually holds
+    secrets (`.env` files except `.env.example`/`.sample`/`.template`, `.pem`, `.key`,
+    `.p12`, `.pfx`, `.jks`, `.keystore`, `id_rsa` and the other SSH keys, `.npmrc`, `.netrc`,
+    `.pypirc`, `.git-credentials`, `.ssh`, `.aws`, `.gnupg`) are never listed, searched or
+    read, even through a link (`is_private`; the browser has the same rule, `isPrivateName`).
+    History comes from the git tools only.
   - **Confined:** paths are relative to the root (Windows separators accepted); absolute
     paths, drive letters, `~`, `..`, `:` and links that resolve outside the root are refused.
     Walks never follow links and skip `.git`, `node_modules` and build output; binary and

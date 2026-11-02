@@ -191,6 +191,8 @@ const TABLE: &[(&str, &str, &str)] = &[
     ("code.no_root", "No folder at {path} on this computer", "Nessuna cartella {path} su questo computer"),
     ("code.not_allowed", "{path} isn't allowed yet: allow it from the chat first", "{path} non è ancora permesso: permettilo prima dalla chat"),
     ("code.leaves", "{path} leaves the repository: use a path relative to its root, without ..", "{path} esce dal repository: usa un percorso relativo alla radice, senza .."),
+    ("code.private", "{path} is private (version control or secrets): it is never read", "{path} è privato (controllo versione o segreti): non viene mai letto"),
+    ("code.broad_root", "{path} is a whole disk or your home folder: choose a project's folder", "{path} è un disco intero o la tua cartella home: scegli la cartella di un progetto"),
     ("code.not_found", "No such file or folder: {path}", "File o cartella inesistente: {path}"),
     ("code.not_a_folder", "{path} is not a folder", "{path} non è una cartella"),
     ("code.not_a_file", "{path} is not a file", "{path} non è un file"),
