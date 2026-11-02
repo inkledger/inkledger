@@ -267,6 +267,13 @@
       "when": 1793629117773,
       "tag": "0037_module_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793636088487,
+      "tag": "0038_desks",
+      "breakpoints": true
     }
   ]
 }

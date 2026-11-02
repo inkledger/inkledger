@@ -176,6 +176,18 @@
     "type": "query"
   },
   {
+    "path": "desks.add",
+    "type": "mutation"
+  },
+  {
+    "path": "desks.current",
+    "type": "query"
+  },
+  {
+    "path": "desks.setCurrent",
+    "type": "mutation"
+  },
+  {
     "path": "egress.list",
     "type": "query"
   },

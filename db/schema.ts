@@ -1497,6 +1497,34 @@ export const savedQueries = pgTable(
   (t) => [uniqueIndex("uq_saved_queries_user_name").on(t.userId, sql`lower(${t.name})`)],
 );
 
+/**
+ * Desks (contracts/desk.ts): issues side by side. The one without a name is the
+ * user's current desk (one each); named ones are kept to reopen.
+ */
+export const desks = pgTable(
+  "desks",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** null: the current desk */
+    name: text("name"),
+    /** JSON DeskLayout, normalized before it is stored */
+    layout: text("layout").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("uq_desks_user_current").on(t.userId).where(sql`${t.name} IS NULL`),
+    uniqueIndex("uq_desks_user_name").on(t.userId, sql`lower(${t.name})`).where(sql`${t.name} IS NOT NULL`),
+  ],
+);
+
 export const recentQueries = pgTable(
   "recent_queries",
   {

@@ -25,6 +25,7 @@ import { connectionsRouter } from "./routers/connections";
 import { bucketsRouter } from "./routers/buckets";
 import { clientsRouter } from "./routers/clients";
 import { queriesRouter } from "./routers/queries";
+import { desksRouter } from "./routers/desks";
 import { sinksRouter } from "./routers/sinks";
 import { notesRouter } from "./routers/notes";
 import { mailsRouter } from "./routers/mails";
@@ -64,6 +65,7 @@ export const appRouter = createRouter({
   buckets: bucketsRouter,
   clients: clientsRouter,
   queries: queriesRouter,
+  desks: desksRouter,
   sinks: sinksRouter,
   notes: notesRouter,
   mails: mailsRouter,

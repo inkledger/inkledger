@@ -84,10 +84,12 @@ describe("nobody reaches another user's things by id", () => {
       () => ann.issues.import(on),
       () => ann.issues.createTypes({ connectionId: bob.conn, container: "BOB" }),
       () => ann.issues.createIn({ connectionId: bob.conn, container: "BOB", title: "x" }),
+      () => ann.desks.add(on),
     ]) {
       await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
     }
     expect(await q("SELECT favorite, hidden, watching FROM issues WHERE key = 'BOB-1'")).toEqual([{ favorite: 0, hidden: 0, watching: 0 }]);
+    expect((await ann.desks.current()).panes).toEqual([]);
   });
 
   it("time: worklogs by id or on someone else's connection, the trash, timers and notes", async () => {

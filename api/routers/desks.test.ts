@@ -1,0 +1,94 @@
+import { describe, it, expect, beforeAll, vi } from "vitest";
+
+process.env.DATABASE_URL = ":memory:";
+
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]),
+}));
+// Nothing here asks a tracker.
+vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errorMessages: ["unexpected call"] }), { status: 500 }));
+
+describe("the current desk", () => {
+  type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
+  let ann: Caller;
+  let bob: Caller;
+  let conn = 0;
+  let bobConn = 0;
+  const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
+
+  beforeAll(async () => {
+    await (await import("../queries/connection")).resetDbForTests();
+    const [a] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('ann', 'Ann', 1) RETURNING id");
+    const [b] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('bob', 'Bob', 1) RETURNING id");
+    const connection = (user: number) =>
+      q<{ id: number }>(
+        "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'jira', 'https://x.atlassian.net', 'me', ?, 'x', 1) RETURNING id",
+        user,
+        JSON.stringify({ deployment: "cloud", authType: "basic", username: "me@x.it" }),
+      );
+    conn = (await connection(a.id))[0].id;
+    bobConn = (await connection(b.id))[0].id;
+    for (let n = 1; n <= 6; n++)
+      await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 'S', 'To Do', 'APP', 'App', 'u', 1)", a.id, conn, `${100 + n}`, `APP-${n}`);
+    await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) VALUES (?, ?, '900', 'BOB-1', 'S', 'To Do', 'BOB', 'Bob', 'u', 1)", b.id, bobConn);
+    const { appRouter } = await import("../router");
+    const { getDb } = await import("../queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const as = async (id: number) => {
+      const [user] = await getDb().select().from(users).where(eq(users.id, id));
+      return appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null });
+    };
+    ann = await as(a.id);
+    bob = await as(b.id);
+  });
+
+  it("starts empty and stores what it is sent made safe, one row per user", async () => {
+    expect((await ann.desks.current()).panes).toEqual([]);
+    const pane = (n: number) => ({ connectionId: conn, key: `APP-${n}`, remoteId: `${100 + n}` });
+    const saved = await ann.desks.setCurrent({
+      layout: { v: 1, preset: "quad", tracks: { "cols-2": { cols: [0.99, 0.01], rows: [1] } }, panes: [pane(1), pane(1), pane(2)], parked: [], maximized: "nope", compare: false, onlyDifferences: false, noteId: null },
+    });
+    expect(saved.panes.map(p => p.key)).toEqual(["APP-1", "APP-2"]);
+    expect(saved.preset).toBe("cols-2");
+    expect(saved.tracks["cols-2"]?.cols[1]).toBeCloseTo(0.15);
+    expect(saved.maximized).toBeNull();
+    await ann.desks.setCurrent({ layout: { ...saved, preset: "rows-2" } });
+    expect((await ann.desks.current()).preset).toBe("rows-2");
+    expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 1 }]);
+    // Garbage is an empty desk, not an error.
+    expect((await ann.desks.setCurrent({ layout: "junk" })).panes).toEqual([]);
+  });
+
+  it("adds an issue once; a full desk parks its last pane", async () => {
+    await ann.desks.setCurrent({ layout: null });
+    const first = await ann.desks.add({ connectionId: conn, key: "app-1" });
+    expect(first.layout.panes).toEqual([{ connectionId: conn, key: "APP-1", remoteId: "101" }]);
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-1" })).layout.panes).toHaveLength(1);
+    for (const n of [2, 3, 4]) expect((await ann.desks.add({ key: `APP-${n}` })).full).toBe(false);
+    const fifth = await ann.desks.add({ connectionId: conn, key: "APP-5" });
+    expect(fifth).toMatchObject({ full: true, parked: "APP-4" });
+    expect(fifth.layout.panes.map(p => p.key)).toEqual(["APP-1", "APP-2", "APP-3", "APP-5"]);
+    expect(fifth.layout.parked.map(p => p.key)).toEqual(["APP-4"]);
+    expect(fifth.layout.preset).toBe("quad");
+  });
+
+  it("follows an issue renamed since (by its identity), stored and old keys alike", async () => {
+    await ann.desks.setCurrent({ layout: null });
+    await ann.desks.add({ connectionId: conn, key: "APP-6" });
+    await q("UPDATE issues SET key = 'NEW-6' WHERE jira_id = '106'");
+    // (A trigger keeps the old key as an alias.)
+    expect(await q("SELECT a.key FROM item_aliases a JOIN issues i ON i.id = a.item_id WHERE i.jira_id = '106'")).toEqual([{ key: "APP-6" }]);
+    expect((await ann.desks.current()).panes.map(p => p.key)).toEqual(["NEW-6"]);
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-6" })).layout.panes.map(p => p.key)).toEqual(["NEW-6"]);
+  });
+
+  it("is private: nobody else reads it, or puts their issue on someone's connection", async () => {
+    expect((await bob.desks.current()).panes).toEqual([]);
+    await bob.desks.setCurrent({ layout: { v: 1, preset: "single", tracks: {}, panes: [{ connectionId: bobConn, key: "BOB-1", remoteId: "900" }], parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null } });
+    expect((await ann.desks.current()).panes.map(p => p.key)).toEqual(["NEW-6"]);
+    await expect(ann.desks.add({ connectionId: bobConn, key: "BOB-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(bob.desks.add({ connectionId: conn, key: "APP-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 2 }]);
+  });
+});
