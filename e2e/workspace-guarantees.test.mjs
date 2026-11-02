@@ -8,6 +8,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { withApp, trpcProcs } from "./harness.mjs";
+import { closeOverlay, collectionSwitch, updatePeriods, workspaceMore } from "./workspace-helpers.mjs";
 
 const WORKSPACE_PROCS = /^(workspace|flowMap|planner)\./;
 
@@ -259,9 +260,10 @@ test("A forged .flowmap is kept apart, redrawn and never turns into a layout", (
     const file = join(tmpdir(), `forged-${Date.now()}.flowmap`);
     writeFileSync(file, JSON.stringify({ ...body, checksum }));
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("checkbox", { name: "Collect interaction maps", checked: true }).waitFor();
+    await (await collectionSwitch(page)).and(page.getByRole("checkbox", { checked: true })).waitFor();
+    await closeOverlay(page);
     await page.locator('input[type="file"][accept*="flowmap"]').setInputFiles(file);
-    await page.getByText("Imported · kept apart").waitFor();
+    await page.getByText(/^Usage map imported and kept apart/).waitFor();
     const imports = await db.q("SELECT document FROM workspace_flow_imports");
     assert.equal(imports.length, 1, "a well-formed file is accepted, then distrusted");
     for (const row of imports) {
@@ -293,19 +295,17 @@ test("Searches that find nothing say something may be missing, without naming it
     }
     await page.goto(`${base}/settings/workspace`);
     await page.getByRole("radio", { name: "Sidebar", exact: true }).click();
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("radio", { name: "Expectation", exact: true }).click();
-    const gap = page.getByRole("rowheader", { name: /^Something looked for may be missing/ });
+    await updatePeriods(page);
+    const gap = page.getByRole("listitem", { name: /^Something looked for may be missing/ });
     await gap.first().waitFor();
-    assert.deepEqual((await gap.allTextContents()).filter(text => text.includes("→")), [], "no destination is invented, on any row");
+    assert.deepEqual((await gap.evaluateAll(items => items.map(item => item.getAttribute("aria-label")))).filter(text => text.includes("→")), [], "no destination is invented, on any card");
   }));
 
 test("An imported layout from a newer version stays read-only", () =>
   withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Preview .workspace", exact: true }).click();
     const downloaded = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download .workspace", exact: true }).click();
+    await workspaceMore(page, "Export layout (.workspace)");
     const exported = JSON.parse(await (await (await downloaded).createReadStream()).toArray().then(chunks => Buffer.concat(chunks).toString("utf8")));
     // As a newer version would write it: an entry this one cannot read, with its digest and a fresh checksum.
     const payload = Buffer.from('{"future":true}');

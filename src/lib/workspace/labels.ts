@@ -2,6 +2,11 @@ import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { t, type MessageKey } from "@/i18n";
 import type { EvidenceSet } from "@contracts/workspace/flowMap";
 import { dayMonth } from "@/lib/dates";
+import type { BlockFriction } from "@/lib/workspace/layers";
+
+/** Where a block's use went wrong, in words: left halfway, failed, back and forth. */
+export const frictionText = (friction: BlockFriction): string =>
+  t("settings.categories.workspace.frictionDetail", { abandoned: friction.abandoned, failures: friction.failures, backtracks: friction.backtracks });
 
 /** An area by its name in the user's language, never its catalogue id. */
 export const areaLabel = (areaId: string): string =>

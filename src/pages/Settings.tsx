@@ -102,7 +102,12 @@ export default function Settings() {
         </nav>
 
         {/* The category: on a phone only once chosen. Another one starts at its top. */}
-        <div key={active.id} data-scroll-key="settings-category" className={cn("min-w-0 lg:min-h-0 lg:overflow-y-auto", !chosen && "max-lg:hidden")}>
+        <div key={active.id} data-scroll-key="settings-category" className={cn(
+            "min-w-0 lg:min-h-0 lg:overflow-y-auto",
+            // A category that is a pane of its own (Workspace: a footer always in view) scrolls inside itself.
+            "lg:has-[[data-settings-pane]]:flex lg:has-[[data-settings-pane]]:flex-col lg:has-[[data-settings-pane]]:overflow-hidden",
+            !chosen && "max-lg:hidden",
+          )}>
           <div className="border-b px-5 py-4 md:px-6">
             <Link
               to="/settings"

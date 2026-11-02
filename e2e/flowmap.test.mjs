@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { withApp } from "./harness.mjs";
+import { closeOverlay, collectionSwitch, layerChip, openPlanner, updatePeriods, workspaceMore } from "./workspace-helpers.mjs";
 
 /** At least `expected` rows (exactly 0 when expected is 0), or the test fails: a timeout is never an answer. */
 async function waitForCount(db, table, expected) {
@@ -17,8 +18,7 @@ async function waitForCount(db, table, expected) {
 test("FlowMap is opt-in, exports only aggregates and deletes all derived data", { timeout: 120_000 }, async () => {
   await withApp({}, async ({ page, base, db }) => {
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("checkbox", { name: "Collect interaction maps" }).click();
-    await page.getByRole("checkbox", { name: "Collect interaction maps" }).waitFor();
+    await (await collectionSwitch(page)).click();
     await page.waitForFunction(() => document.querySelector('[role="checkbox"][aria-label="Collect interaction maps"]')?.getAttribute("aria-checked") === "true");
     await page.goto(base + "/");
     await page.getByRole("button", { name: "Customize dashboard", exact: true }).click();
@@ -27,24 +27,23 @@ test("FlowMap is opt-in, exports only aggregates and deletes all derived data", 
     await page.waitForTimeout(1_300);
     await page.goto(`${base}/settings/workspace`);
     assert.ok(await waitForCount(db, "workspace_flow_events", 1) > 0, "the real collector recorded an allowlisted interaction");
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
-    await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().click();
-    await page.getByRole("img", { name: "FlowMap picture drawn on this server" }).waitFor();
+    await updatePeriods(page);
+    // The usage map of the period shown: downloaded at once, no picture put on the page.
     const downloaded = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download .flowmap", exact: true }).click();
+    await workspaceMore(page, "Export usage map (.flowmap)");
     const download = await downloaded;
+    assert.equal(await page.locator("img[alt*='FlowMap'], img[src^='blob:']").count(), 0, "no picture on the page");
     const contents = readFileSync(await download.path(), "utf8");
     const document = JSON.parse(contents);
     assert.equal(document.format, "flowmap");
     assert.equal(document.svg.includes("<script"), false);
     assert.equal("events" in document, false);
     assert.equal("userId" in document, false);
-    await page.getByLabel("Import .flowmap", { exact: true }).setInputFiles({ name: "shared.flowmap", mimeType: "application/json", buffer: Buffer.from(contents) });
-    await page.getByText("Imported · kept apart", { exact: true }).waitFor();
+    await page.getByLabel("Import usage map (.flowmap)", { exact: true }).setInputFiles({ name: "shared.flowmap", mimeType: "application/json", buffer: Buffer.from(contents) });
+    await page.locator("[data-status-slot]").getByText(/^Usage map imported and kept apart/).waitFor();
     assert.equal(await waitForCount(db, "workspace_flow_imports", 1), 1);
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0);
-    await page.getByRole("button", { name: "Delete FlowMap data", exact: true }).click();
+    await workspaceMore(page, "Delete usage data");
     const deleting = page.waitForResponse(response => response.url().includes("flowMap.delete"));
     await page.getByRole("button", { name: "Delete data", exact: true }).click();
     const deleted = await deleting;
@@ -85,11 +84,10 @@ test("An Expectation becomes an explicit constraint only through preview and app
   await withApp({}, async ({ page, base, db }) => {
     await seedPlannerEvidence(db, page, base);
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
-    await page.getByRole("radio", { name: "Expectation", exact: true }).click();
+    await updatePeriods(page);
+    // Things looked for are on the page summary, beside the drawing.
     await page.getByRole("button", { name: /^Relevant: / }).first().click();
-    await page.getByText(/\d+ times? · \d+% sure · confirmed/).waitFor();
+    await page.getByText(/\d+ times? · confirmed/).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0, "relevance feedback cannot apply a constraint");
     await page.getByRole("button", { name: "Use in layout", exact: true }).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
@@ -116,30 +114,31 @@ test("Planner suggestions require acceptance and workspace imports remain quaran
   await withApp({}, async ({ page, base, db }) => {
     await seedPlannerEvidence(db, page, base, PLANNER_STEPS);
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
-    await page.getByRole("button", { name: "Suggest improvements", exact: true }).click();
+    await updatePeriods(page);
+    const planner = await openPlanner(page);
+    await planner.getByRole("button", { name: "Suggest improvements", exact: true }).click();
     await page.getByRole("button", { name: "Add selected changes to the draft", exact: true }).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0, "generation never applies a candidate");
     await page.getByRole("button", { name: "Add selected changes to the draft", exact: true }).click();
+    await page.getByText(/Preview, not applied yet/).waitFor();
+    await closeOverlay(page);
     await page.getByRole("button", { name: "Apply layout", exact: true }).click();
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 1);
     // What was suggested and accepted: My issues brought next to the timeline, nothing else moved.
     const [applied] = await db.q("SELECT operations FROM workspace_revisions WHERE revision_number = 1");
     assert.deepEqual(JSON.parse(applied.operations).map(item => item.operation.type === "reorder" ? [item.operation.areaId, item.operation.anchorIds] : item.operation.type), [["dashboard.primary", ["dashboard.summary", "dashboard.tasks", "dashboard.timeline", "dashboard.activity", "dashboard.recap"]]]);
-    await page.getByRole("button", { name: "Preview .workspace", exact: true }).click();
     const downloaded = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download .workspace", exact: true }).click();
+    await workspaceMore(page, "Export layout (.workspace)");
     const contents = readFileSync(await (await downloaded).path(), "utf8");
     const document = JSON.parse(contents);
     assert.equal(document.format, "workspace");
     assert.equal("evidence" in document, false);
     assert.equal("originalText" in document, false);
-    await page.getByLabel("Import .workspace", { exact: true }).setInputFiles({ name: "layout.workspace", mimeType: "application/json", buffer: Buffer.from(contents) });
+    await page.getByLabel("Import layout (.workspace)", { exact: true }).setInputFiles({ name: "layout.workspace", mimeType: "application/json", buffer: Buffer.from(contents) });
     await Promise.race([
       page.getByText("Imported as a draft to review before applying.", { exact: true }).waitFor(),
-      page.locator("#workspace-planner [role='alert']").waitFor().then(async () => { throw new Error(await page.locator("#workspace-planner [role='alert']").textContent()); }),
+      page.locator("[data-status-slot] [role='alert']").waitFor().then(async () => { throw new Error(await page.locator("[data-status-slot] [role='alert']").textContent()); }),
     ]);
     const [imported] = await db.q("SELECT patches FROM workspace_drafts ORDER BY updated_at DESC LIMIT 1");
     const patch = JSON.parse(imported.patches)[0];
@@ -174,6 +173,7 @@ test("A private request is clarified, previewed and applied only after separate 
   try {
     await withApp({ env: { OLLAMA_URL: `http://127.0.0.1:${address.port}`, OLLAMA_MODEL: "fixture-model", OLLAMA_SIMULATOR: "" } }, async ({ page, base, db }) => {
       await page.goto(`${base}/settings/workspace`);
+      await openPlanner(page);
       const request = page.getByLabel("What would you like to change?", { exact: true });
       await request.fill("Make it better");
       await page.getByRole("button", { name: "Preview with local AI", exact: true }).click();
@@ -196,6 +196,7 @@ test("A private request is clarified, previewed and applied only after separate 
       await page.getByRole("button", { name: /^Confirm rule: / }).click();
       await page.getByRole("button", { name: /^Confirm rule: / }).waitFor({ state: "detached" });
       assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0);
+      await closeOverlay(page);
       await page.getByRole("button", { name: "Apply layout", exact: true }).click();
       await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
       assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 1);
@@ -240,6 +241,7 @@ test("Adaptation review compares successful outcomes without claiming causality"
       await db.q("INSERT INTO workspace_flow_aggregates (user_id, id, surface_id, device_class, effective_revision, origin, payload, created_at) VALUES (1, ?, 'dashboard', 'desktop', ?, 'local', ?, ?)", item.evidenceId, item.descriptor.effectiveRevision, JSON.stringify(item), Date.now());
     }
     await page.goto(`${base}/settings/workspace`);
+    await openPlanner(page, "Compare two periods");
     // Evidence is named by when it was collected: pick each by its first day, as a user would.
     const pick = async (name, item) => {
       const first = await page.evaluate(at => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(at), item.coverage.firstAt);
@@ -256,7 +258,7 @@ test("Adaptation review compares successful outcomes without claiming causality"
   });
 });
 
-test("Each page's use over time shows at once, one map per period, oldest first", async () => {
+test("Each page's use over time: one period per choice of the Use layer, the newest first", async () => {
   await withApp({
     viewport: { width: 1280, height: 1400 },
     seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
@@ -277,18 +279,19 @@ test("Each page's use over time shows at once, one map per period, oldest first"
       await db.q("INSERT INTO workspace_flow_aggregates (user_id, id, surface_id, device_class, effective_revision, origin, payload, created_at) VALUES (1, ?, 'dashboard', 'desktop', ?, 'local', ?, ?)", item.evidenceId, descriptor.effectiveRevision, JSON.stringify(item), item.coverage.lastAt);
     }
     await page.goto(`${base}/settings/workspace`);
-    // No click needed: the section is there, the periods in time order, each drawing the page's blocks.
-    const timeline = page.getByRole("list", { name: "Use over time" });
-    await timeline.waitFor();
-    assert.deepEqual(await timeline.locator("figure").evaluateAll(figures => figures.map(figure => figure.getAttribute("data-period"))), ["evidence_earlier", "evidence_later"]);
-    await timeline.locator('[data-period="evidence_later"]').getByText("Customize dashboard: 40 uses").waitFor({ state: "attached" });
-    await timeline.locator('[data-period="evidence_later"]').getByText("40 uses", { exact: true }).waitFor();
-    // The newest period is the one in view.
-    assert.equal(await timeline.evaluate(list => list.scrollLeft + list.clientWidth >= list.scrollWidth - 2), true);
+    // Use on: every period is a choice, the newest the one drawn, each drawn on the page's blocks.
+    await layerChip(page, "Use").click();
+    const customize = page.locator('[data-layout-canvas] [data-anchor="dashboard.customize"]');
+    await customize.getByText("Customize dashboard: 40 uses", { exact: true }).waitFor({ state: "attached" });
+    await customize.locator("[data-use-badge]").getByText("40", { exact: true }).waitFor();
+    await page.getByRole("combobox", { name: "Period of use" }).click();
+    assert.equal(await page.getByRole("option").count(), 2, "one choice per period");
+    await page.getByRole("option").nth(1).click();
+    await customize.getByText("Customize dashboard: 4 uses", { exact: true }).waitFor({ state: "attached" });
   });
 });
 
-test("Show use lays the chosen period over the editor's blocks: tint, dots where clicked, counts on the most used", async () => {
+test("The Use layer lays the chosen period over the editor's blocks: tint, dots where clicked, counts on the most used", async () => {
   await withApp({
     viewport: { width: 1280, height: 1400 },
     seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
@@ -325,7 +328,7 @@ test("Show use lays the chosen period over the editor's blocks: tint, dots where
     const canvas = page.locator("[data-layout-canvas]");
     await canvas.waitFor();
     assert.equal(await canvas.locator("[data-heat]").count(), 0, "use is not laid over until asked");
-    const show = page.getByRole("button", { name: "Show use", exact: true });
+    const show = layerChip(page, "Use");
     await show.click();
     assert.equal(await show.getAttribute("aria-pressed"), "true");
     // The newest period by default: the block says its use, the dots sit where the clicks landed, nowhere else.
@@ -359,7 +362,7 @@ test("With FlowMap on and nothing used yet, the editor's page stays flat and say
   }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
     await page.getByText("No clicks yet in this period", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Show use", exact: true }).isDisabled(), true);
+    assert.equal(await layerChip(page, "Use").isDisabled(), true);
     const canvas = page.locator("[data-layout-canvas]");
     assert.ok(await canvas.locator("[data-anchor]").count() >= 5, "the page's blocks are drawn");
     assert.equal(await canvas.locator("[data-heat]").count(), 0, "flat: no use over any block");
@@ -370,12 +373,11 @@ test("Use shows at once: on the editor's blocks and as this week so far, with no
   await withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
     await seedPlannerEvidence(db, page, base, PLANNER_STEPS);
     await page.goto(`${base}/settings/workspace`);
-    // No "Update evidence", no daily period yet: this week's use is there already.
-    const timeline = page.getByRole("list", { name: "Use over time" });
-    await timeline.getByRole("figure", { name: "This week so far" }).waitFor();
-    const show = page.getByRole("button", { name: "Show use", exact: true });
+    // No "Update usage periods", no daily period yet: this week's use is there already.
+    const show = layerChip(page, "Use");
     await show.click();
     assert.equal(await show.getAttribute("aria-pressed"), "true");
+    await page.getByRole("combobox", { name: "Period of use" }).getByText("This week so far", { exact: true }).waitFor();
     const tasks = page.locator('[data-layout-canvas] [data-anchor="dashboard.tasks"]');
     await tasks.getByText(/^My issues: \d+ uses?$/).waitFor({ state: "attached" });
     assert.ok(Number((await tasks.locator("[data-use-badge]").textContent()).trim()) > 0, "the block used shows its count");
@@ -386,7 +388,7 @@ test("Use shows at once: on the editor's blocks and as this week so far, with no
 test("With FlowMap off the editor says how to see use, and takes you to its switch", async () => {
   await withApp({ viewport: { width: 1280, height: 1000 } }, async ({ page, base, db }) => {
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Go to FlowMap", exact: true }).click();
+    await page.getByRole("button", { name: "Turn on usage collection", exact: true }).click();
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Collect interaction maps");
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_flow_settings WHERE enabled"))[0].n, 0, "never turned on for the user");
   });

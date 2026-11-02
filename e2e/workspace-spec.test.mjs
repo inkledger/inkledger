@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { holdRoute, start, startTimer, trpcProcs, withApp } from "./harness.mjs";
+import { layerChip } from "./workspace-helpers.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -202,7 +203,7 @@ async function dragBlock(page, source, target) {
   await page.mouse.up();
 }
 
-test("X-01: with reduced motion nothing animates: a Studio drag, paging Use over time, an activation", { timeout: 180_000 }, () =>
+test("X-01: with reduced motion nothing animates: a Studio drag, switching the periods of use, an activation", { timeout: 180_000 }, () =>
   withApp({
     viewport: STUDIO_VIEWPORT,
     seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
@@ -214,7 +215,7 @@ test("X-01: with reduced motion nothing animates: a Studio drag, paging Use over
     const descriptor = JSON.parse(stored.descriptor);
     const scope = { surfaceId: "dashboard", deviceClass: "desktop" };
     const day = 86_400_000;
-    // Enough periods that Use over time pages.
+    // Several periods to switch between.
     for (let index = 0; index < 8; index++) {
       const lastAt = Date.now() - (8 - index) * 7 * day;
       const period = {
@@ -226,17 +227,18 @@ test("X-01: with reduced motion nothing animates: a Studio drag, paging Use over
       await db.q("INSERT INTO workspace_flow_aggregates (user_id, id, surface_id, device_class, effective_revision, origin, payload, created_at) VALUES (1, ?, 'dashboard', 'desktop', ?, 'local', ?, ?)", period.evidenceId, descriptor.effectiveRevision, JSON.stringify(period), lastAt);
     }
     await page.goto(`${base}/settings/workspace`);
-    const timeline = page.getByRole("list", { name: "Use over time" });
-    await timeline.locator("figure").first().waitFor();
+    await page.locator("[data-layout-canvas]").waitFor();
     await quiet(page);
     await watchMotion(page);
-    // Paging the periods jumps: the strip is where it goes in the very next frame, and stays.
-    const before = await timeline.evaluate(list => list.scrollLeft);
-    await page.getByRole("button", { name: "Older periods", exact: true }).click();
-    const next = await timeline.evaluate(list => new Promise(resolve => requestAnimationFrame(() => resolve(list.scrollLeft))));
-    assert.notEqual(next, before, "the strip moved");
+    // Use on, another period, the pop-ups unfolded: each change is there at once, nothing slides or fades.
+    await layerChip(page, "Use").click();
+    const customize = page.locator('[data-layout-canvas] [data-anchor="dashboard.customize"]');
+    await customize.getByText("Customize dashboard: 10 uses", { exact: true }).waitFor({ state: "attached" });
+    await page.getByRole("combobox", { name: "Period of use" }).click();
+    await page.getByRole("option").last().click();
+    await customize.getByText("Customize dashboard: 3 uses", { exact: true }).waitFor({ state: "attached" });
+    await page.getByRole("button", { name: "Pop-ups (open over the page)", exact: true }).click();
     await page.waitForTimeout(400);
-    assert.equal(await timeline.evaluate(list => list.scrollLeft), next, "no smooth scroll after the jump");
     // A drag, its drop, and the activation of what it changed.
     await dragBlock(page, page.locator('[data-anchor="dashboard.activity"]'), page.locator('[data-drop-area="dashboard.secondary"]'));
     await page.getByText(/Preview, not applied yet/).waitFor();

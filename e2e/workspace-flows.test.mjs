@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { AXE, withApp } from "./harness.mjs";
+import { closeOverlay, collectionSwitch, layerChip, openHistory, openPlanner, updatePeriods, workspaceMore } from "./workspace-helpers.mjs";
 
 const DAY = 86_400_000;
 const DASHBOARD = { surfaceId: "dashboard", deviceClass: "desktop" };
@@ -71,6 +72,8 @@ function trpc(page, path, input, method = "POST") {
 
 const preview = page => page.getByText(/Preview, not applied yet/);
 async function applyLayout(page) {
+  // Apply sits in the page's footer: a sheet still open (suggestions, history) is closed first.
+  if (await page.getByRole("dialog").count() > 0) await closeOverlay(page);
   await page.getByRole("button", { name: "Apply layout", exact: true }).click();
   await preview(page).waitFor({ state: "detached" });
 }
@@ -95,8 +98,7 @@ test("#1 manual edit, complementary suggestions, partial acceptance, another edi
       ["control.activate", "dashboard.tasks.openBoard", "dashboard.tasks"],
     ]);
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
+    await updatePeriods(page);
 
     // 1. A manual edit: Quick numbers hidden.
     const stats = page.locator('[data-anchor="dashboard.stats"]');
@@ -105,8 +107,8 @@ test("#1 manual edit, complementary suggestions, partial acceptance, another edi
     await page.locator('[data-anchor="dashboard.stats"][data-visible="false"]').waitFor();
 
     // 2. Suggestions asked for on top of it: separate cards, the manual choice left alone.
-    await page.getByRole("button", { name: "Suggest improvements", exact: true }).click();
-    const planner = page.locator("#workspace-planner");
+    const planner = await openPlanner(page);
+    await planner.getByRole("button", { name: "Suggest improvements", exact: true }).click();
     const cards = planner.locator("article").filter({ has: page.getByRole("button", { name: "Add selected changes to the draft", exact: true }) });
     await cards.first().waitFor();
     assert.ok(await cards.count() >= 2, "at least two complementary candidates");
@@ -142,6 +144,7 @@ test("#1 manual edit, complementary suggestions, partial acceptance, another edi
     const acceptedOrder = suggestion.operations[0].anchorIds;
 
     // 4. Another edit after the suggestion: Summary made compact from its menu.
+    await closeOverlay(page);
     const summary = page.locator('[data-anchor="dashboard.summary"]');
     await summary.getByRole("button", { name: "More for Summary", exact: true }).click();
     await page.getByRole("menuitemradio", { name: "Compact", exact: true }).click();
@@ -169,7 +172,7 @@ test("#1 manual edit, complementary suggestions, partial acceptance, another edi
     assert.deepEqual(order.filter(id => acceptedOrder.includes(id)), acceptedOrder, "the editor shows the applied order");
 
     // 7. Undo: back to the original layout, through a preview and a new step in the history.
-    await page.getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
+    await (await openHistory(page)).getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
     await preview(page).waitFor();
     assert.equal(await count(db, "workspace_revisions"), 1, "undo is a preview first");
     await applyLayout(page);
@@ -201,12 +204,12 @@ test("#3 entering a page, searching for another: the gap shows, a rejection chan
     }
     await page.goto(`${base}/settings/workspace`);
     await page.getByRole("radio", { name: "Sidebar", exact: true }).click();
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await page.getByRole("radio", { name: "Expectation", exact: true }).click();
+    await updatePeriods(page);
+    // Things looked for: a card each on the page summary, beside the drawing.
     const board = "Hard to find from Sidebar sections → Board";
     const reports = "Hard to find from Sidebar sections → Reports";
-    for (const name of [board, reports]) await page.getByRole("rowheader", { name, exact: true }).waitFor();
-    const row = name => page.getByRole("row").filter({ has: page.getByRole("rowheader", { name, exact: true }) });
+    for (const name of [board, reports]) await page.getByRole("listitem", { name, exact: true }).waitFor();
+    const row = name => page.getByRole("listitem", { name, exact: true });
     await row(board).getByText(/not reviewed$/).waitFor();
 
     // Rejected: marked, and nothing else — no rule, no draft, no layout.
@@ -297,14 +300,14 @@ test("#6 after a release: own choices kept, the rest on the new default, Discove
     await page.locator('[data-anchor="dashboard.activity"][data-visible="false"]').waitFor();
 
     // Rollback to the old release's layout: resolved on today's catalogue (the removed block still set aside).
-    await page.locator("#workspace-history").getByRole("button", { name: /^Go back to this: / }).nth(1).click();
+    await (await openHistory(page)).getByRole("button", { name: /^Go back to this: / }).nth(1).click();
     await preview(page).waitFor();
     await applyLayout(page);
     await page.locator('[data-anchor="dashboard.summary"][data-variant="default"]').waitFor();
     await page.locator('[data-anchor="dashboard.activity"][data-visible="false"]').waitFor();
     assert.equal(await page.locator('[data-anchor="dashboard.legacyChart"]').count(), 0, "rollback does not bring back code that no longer exists");
     // And to the original layout: today's ProductDefault, the activity shown again.
-    await page.getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
+    await (await openHistory(page)).getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
     await preview(page).waitFor();
     await applyLayout(page);
     await page.locator('[data-anchor="dashboard.activity"][data-visible="true"]').waitFor();
@@ -320,9 +323,8 @@ test("#6 after a release: own choices kept, the rest on the new default, Discove
 test("#10 a .workspace claiming to be the user's own choices is quarantined, inherits no precedence, and its rules wait for an explicit OK", { timeout: 180_000 }, async () => {
   await withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Preview .workspace", exact: true }).click();
     const downloaded = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download .workspace", exact: true }).click();
+    await workspaceMore(page, "Export layout (.workspace)");
     const exported = JSON.parse(readFileSync(await (await downloaded).path(), "utf8"));
     // Forged as the user's own: committed operations "by the user", rules "explicit" and "by the user",
     // a draft patch "by the user" with an explicit intent — with a correct checksum, as anyone can compute it.
@@ -335,10 +337,10 @@ test("#10 a .workspace claiming to be the user's own choices is quarantined, inh
     };
     delete exported.checksum;
     exported.checksum = workspaceChecksum(exported);
-    await page.getByLabel("Import .workspace", { exact: true }).setInputFiles({ name: "mine.workspace", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)) });
+    await page.getByLabel("Import layout (.workspace)", { exact: true }).setInputFiles({ name: "mine.workspace", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)) });
     await Promise.race([
       page.getByText("Imported as a draft to review before applying.", { exact: true }).waitFor(),
-      page.locator("#workspace-planner [role='alert']").waitFor().then(async () => { throw new Error(await page.locator("#workspace-planner [role='alert']").textContent()); }),
+      page.locator("[data-status-slot] [role='alert']").waitFor().then(async () => { throw new Error(await page.locator("[data-status-slot] [role='alert']").textContent()); }),
     ]);
 
     // Quarantined: kept as sent, and a draft whose every patch and rule is the import's, proposed.
@@ -356,7 +358,8 @@ test("#10 a .workspace claiming to be the user's own choices is quarantined, inh
     await page.locator('[data-anchor="dashboard.summary"][data-variant="compact"]').waitFor();
     await page.locator('[data-anchor="dashboard.activity"][data-visible="true"]').waitFor();
     assert.equal(await page.locator('[data-anchor="dashboard.tasks"]').getByRole("button", { name: "Pin My issues", exact: true }).getAttribute("aria-pressed"), "false", "a forged pin is not a pin");
-    const planner = page.locator("#workspace-planner");
+    // The rules it proposes wait in Suggestions, each for its own OK.
+    const planner = await openPlanner(page);
     await planner.getByText("The rules it proposes need your separate OK.", { exact: true }).first().waitFor();
     const rule = text => planner.locator("div").filter({ has: page.getByText(text, { exact: true }) }).filter({ has: page.getByRole("button", { name: /^Confirm rule: / }) }).last();
     await rule("Always hide Recent activity").waitFor();
@@ -386,7 +389,7 @@ test("#12 use on two layouts is mapped per layout: each period on its own page, 
     const before = await presentedDescriptor(db, page, base);
     await seedSessions(db, DASHBOARD, before, [["control.activate", "dashboard.customize.open", "dashboard.customize"]], { sessions: 7, prefix: "before", daysAgo: 6 });
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
+    await updatePeriods(page);
     await waitUntil(async () => (await count(db, "workspace_flow_aggregates")) === 1, "the first period");
 
     // A new layout (Recent activity hidden), then used differently: My issues, never Customize.
@@ -399,34 +402,35 @@ test("#12 use on two layouts is mapped per layout: each period on its own page, 
     const after = JSON.parse(stored.descriptor);
     assert.notEqual(after.effectiveRevision, before.effectiveRevision);
     await seedSessions(db, DASHBOARD, after, [["control.activate", "dashboard.tasks.openBoard", "dashboard.tasks"]], { sessions: 5, prefix: "after" });
-    await page.getByRole("button", { name: "Update evidence", exact: true }).click();
+    await updatePeriods(page);
     await waitUntil(async () => (await count(db, "workspace_flow_aggregates")) === 2, "the second period");
     const periods = await db.q("SELECT id, effective_revision FROM workspace_flow_aggregates ORDER BY created_at");
     assert.deepEqual(periods.map(row => row.effective_revision), [before.effectiveRevision, after.effectiveRevision], "one period per effective revision");
 
     await page.reload();
-    const timeline = page.getByRole("list", { name: "Use over time" });
-    await timeline.locator("figure").nth(1).waitFor();
-    assert.deepEqual(await timeline.locator("figure").evaluateAll(figures => figures.map(figure => figure.getAttribute("data-period"))), periods.map(row => row.id), "two maps, oldest first, no third one merging them");
-    const [old, now] = [timeline.locator(`[data-period="${periods[0].id}"]`), timeline.locator(`[data-period="${periods[1].id}"]`)];
-    // Each map draws its own layout with its own use.
-    await old.getByText("Customize dashboard: 7 uses", { exact: true }).waitFor({ state: "attached" });
-    await old.getByText("My issues: 0 uses", { exact: true }).waitFor({ state: "attached" });
-    await old.getByText("Recent activity: 0 uses", { exact: true }).waitFor({ state: "attached" });
-    await old.getByText("7 uses", { exact: true }).waitFor();
-    await now.getByText("My issues: 5 uses", { exact: true }).waitFor({ state: "attached" });
-    await now.getByText("Customize dashboard: 0 uses", { exact: true }).waitFor({ state: "attached" });
-    assert.equal(await now.getByText(/^Recent activity: /).count(), 0, "the hidden block is not drawn on the layout that hid it");
-    await now.getByText("5 uses", { exact: true }).waitFor();
-
-    // The editor's "Show use" reads the layout on screen alone: the earlier layout's use is not laid over it.
-    const show = page.getByRole("button", { name: "Show use", exact: true });
+    // Each period is one choice of the Use layer, never merged with another: two periods, two choices.
+    const show = layerChip(page, "Use");
     await show.click();
     assert.equal(await show.getAttribute("aria-pressed"), "true");
+    const choose = page.getByRole("combobox", { name: "Period of use" });
+    await choose.click();
+    assert.equal(await page.getByRole("option").count(), 2, "two periods, no third one merging them");
+    await page.keyboard.press("Escape");
+    // The newest, on the layout on screen: its own use alone, the earlier layout's not laid over it.
     await page.locator('[data-anchor="dashboard.tasks"]').getByText("My issues: 5 uses", { exact: true }).waitFor({ state: "attached" });
     assert.equal(await page.locator('[data-anchor="dashboard.tasks"] [data-use-badge]').textContent(), "5");
     assert.equal(await page.locator('[data-anchor="dashboard.customize"] [data-heat]').count(), 0, "Customize's use belongs to the earlier layout");
     assert.equal(await page.locator('[data-anchor="dashboard.customize"]').getByText(/^Customize dashboard: [1-9]\d* uses?$/).count(), 0, "no use of the earlier layout said on it");
+    // The page as it shows (Edit off): the hidden block is not drawn on the layout that hid it.
+    await layerChip(page, "Edit").click();
+    assert.equal(await page.locator('[data-layout-canvas] [data-anchor="dashboard.activity"]').count(), 0, "the hidden block is not drawn on the layout that hid it");
+    // The earlier period, chosen: its own use, said to be drawn on today's layout, the later use gone.
+    await choose.click();
+    await page.getByRole("option").nth(1).click();
+    await page.locator('[data-anchor="dashboard.customize"]').getByText("Customize dashboard: 7 uses", { exact: true }).waitFor({ state: "attached" });
+    await page.locator('[data-anchor="dashboard.tasks"]').getByText("My issues: 0 uses", { exact: true }).waitFor({ state: "attached" });
+    await page.getByText("Drawn on today's layout: blocks matched by name.", { exact: true }).waitFor();
+    assert.equal(await page.locator('[data-anchor="dashboard.tasks"] [data-heat]').count(), 0, "My issues' use belongs to the later layout");
   });
 });
 
@@ -512,8 +516,9 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 320, height: 760 
       await accessible("activated");
       assert.equal(await count(db, "workspace_revisions"), 1);
 
-      // Rollback: back to the original layout, previewed, then applied.
-      await press(page.getByRole("button", { name: "Go back to this: The original layout", exact: true }));
+      // Rollback: back to the original layout, from the History sheet, previewed, then applied.
+      await press(page.getByRole("button", { name: "History", exact: true }));
+      await press(page.locator("#workspace-history").getByRole("button", { name: "Go back to this: The original layout", exact: true }));
       await preview(page).waitFor();
       await focusKept("rollback preview");
       await accessible("rollback preview");
@@ -600,17 +605,17 @@ test("#14 after Delete FlowMap data nothing derived is delivered again: no late 
     assert.equal(beacons.length, 0, "the batch is still queued");
 
     await studio.goto(`${base}/settings/workspace`);
-    await studio.getByRole("button", { name: "Update evidence", exact: true }).click();
-    await studio.getByRole("button", { name: "Preview .flowmap", exact: true }).first().waitFor();
+    await updatePeriods(studio);
     const [evidence] = await db.q("SELECT id FROM workspace_flow_aggregates");
-    await studio.getByRole("button", { name: "Suggest improvements", exact: true }).click();
+    await (await openPlanner(studio)).getByRole("button", { name: "Suggest improvements", exact: true }).click();
     const add = studio.getByRole("button", { name: "Add selected changes to the draft", exact: true });
     await add.first().click();
     await preview(studio).waitFor();
     const [accepted] = await db.q("SELECT patches FROM workspace_drafts WHERE status NOT IN ('applied','discarded','aborted')");
     assert.equal(JSON.parse(accepted.patches)[0].evidence[0].evidenceId, evidence.id, "the draft points at the evidence before the deletion");
 
-    await studio.getByRole("button", { name: "Delete FlowMap data", exact: true }).click();
+    await closeOverlay(studio);
+    await workspaceMore(studio, "Delete usage data");
     const deleting = studio.waitForResponse(response => response.url().includes("flowMap.delete"));
     await studio.getByRole("button", { name: "Delete data", exact: true }).click();
     assert.equal((await deleting).status(), 200);
@@ -631,8 +636,9 @@ test("#14 after Delete FlowMap data nothing derived is delivered again: no late 
     assert.equal(replayOff.body.result.data.json.received, 0, "refused while FlowMap is off");
 
     // Even once FlowMap is turned on again, what was collected before the deletion never comes back.
-    await studio.getByRole("checkbox", { name: "Collect interaction maps" }).click();
+    await (await collectionSwitch(studio)).click();
     await studio.waitForFunction(() => document.querySelector('[role="checkbox"][aria-label="Collect interaction maps"]')?.getAttribute("aria-checked") === "true");
+    await closeOverlay(studio);
     const replayOn = await trpc(studio, "flowMap.ingest", batch);
     assert.equal(replayOn.status, 200);
     assert.equal(replayOn.body.result.data.json.received, 0, "a batch from before the deletion is refused after consent is given again");
@@ -643,25 +649,24 @@ test("#14 after Delete FlowMap data nothing derived is delivered again: no late 
     assert.deepEqual([overview.evidence, overview.live, overview.imports], [[], null, []], "flowMap.get is empty");
     const gone = await trpc(studio, "flowMap.export", { scope: DASHBOARD, evidenceId: evidence.id, view: "heat" });
     assert.equal(gone.body.error?.json?.data?.code, "NOT_FOUND", "the deleted period cannot be exported");
-    await studio.getByRole("button", { name: "Update evidence", exact: true }).click();
+    await updatePeriods(studio);
     await waitUntil(async () => (await count(db, "workspace_flow_aggregates")) === 1, "a fresh aggregate");
     const [fresh] = await db.q("SELECT payload FROM workspace_flow_aggregates");
     const aggregate = JSON.parse(fresh.payload);
     assert.deepEqual([aggregate.heat, aggregate.flows, aggregate.friction, aggregate.expectations, aggregate.coverage.activeDays], [[], [], [], [], 0], "the aggregate has no rows");
-    await studio.getByRole("button", { name: "Preview .flowmap", exact: true }).first().click();
     const flowmapDownload = studio.waitForEvent("download");
-    await studio.getByRole("button", { name: "Download .flowmap", exact: true }).click();
+    await workspaceMore(studio, "Export usage map (.flowmap)");
     const exportedMap = JSON.parse(readFileSync(await (await flowmapDownload).path(), "utf8"));
     assert.deepEqual([exportedMap.evidence.heat, exportedMap.evidence.flows, exportedMap.evidence.expectations], [[], [], []], "the export is empty");
-    await studio.getByRole("button", { name: "Suggest improvements", exact: true }).click();
+    await (await openPlanner(studio)).getByRole("button", { name: "Suggest improvements", exact: true }).click();
     await studio.getByText(/^Not enough use yet: 0\/5 active days and 0\/30 actions\./).waitFor();
     assert.equal(await add.count(), 0, "no suggestion survives the deletion");
     const [draft] = await db.q("SELECT patches FROM workspace_drafts WHERE status NOT IN ('applied','discarded','aborted')");
     const patch = JSON.parse(draft.patches)[0];
     assert.deepEqual([patch.evidence, patch.suggestionSignature, patch.operations.length], [[], undefined, 1], "the accepted change stays, its link to deleted evidence does not");
-    await studio.getByRole("button", { name: "Preview .workspace", exact: true }).click();
+    await closeOverlay(studio);
     const workspaceDownload = studio.waitForEvent("download");
-    await studio.getByRole("button", { name: "Download .workspace", exact: true }).click();
+    await workspaceMore(studio, "Export layout (.workspace)");
     const exportedWorkspace = readFileSync(await (await workspaceDownload).path(), "utf8");
     assert.equal(exportedWorkspace.includes(evidence.id), false, "the .workspace names no deleted evidence");
     await dashboard.close();
@@ -687,6 +692,7 @@ test("#15 a private request becomes a confirmed structured intent, and its text 
       const sent = [];
       page.on("request", request => sent.push({ url: request.url(), body: request.postDataBuffer()?.toString("utf8") ?? "" }));
       await page.goto(`${base}/settings/workspace`);
+      await openPlanner(page);
       const request = page.getByLabel("What would you like to change?", { exact: true });
       await request.fill(secret);
       await page.getByRole("button", { name: "Preview with local AI", exact: true }).click();
@@ -706,9 +712,9 @@ test("#15 a private request becomes a confirmed structured intent, and its text 
       assert.equal("originalText" in patch, false);
       assert.equal(draft.patches.includes(secret), false, "not in the draft's patches");
 
-      await page.getByRole("button", { name: "Preview .workspace", exact: true }).click();
+      await closeOverlay(page);
       const downloaded = page.waitForEvent("download");
-      await page.getByRole("button", { name: "Download .workspace", exact: true }).click();
+      await workspaceMore(page, "Export layout (.workspace)");
       const exported = readFileSync(await (await downloaded).path(), "utf8");
       assert.equal(JSON.parse(exported).draft.patches.at(-1).intent.kind, "prioritize", "the export carries the intent");
       assert.equal(exported.includes(secret), false, "not in the .workspace export");

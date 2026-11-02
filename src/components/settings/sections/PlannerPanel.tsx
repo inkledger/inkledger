@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { Download, FileUp, Sparkles } from "lucide-react";
-import { SettingsGroup } from "@/components/settings/SettingsGroup";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
@@ -11,11 +9,8 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { failureText } from "@/lib/errorText";
 import type { Ranking } from "@contracts/workspace/planner";
 import type { Draft, ResolvedWorkspace, SuggestionPatch } from "@contracts/workspace/model";
-import type { WorkspaceDocument } from "@contracts/workspace/portability";
-import { dateFormat, numberFormat, t, type MessageKey } from "@/i18n";
-import { cn } from "@/lib/utils";
+import { numberFormat, t, type MessageKey } from "@/i18n";
 import { anchorLabel, areaLabel } from "@/lib/workspace/labels";
-import { downloadBlob } from "@/lib/download";
 import { dayMonth } from "@/lib/dates";
 import { randomUUID } from "@/lib/randomId";
 
@@ -55,17 +50,20 @@ function EvidencePicker({ label, value, evidence, disabled, onChange }: { label:
   );
 }
 
-export default function PlannerPanel({ draft, onPatch, onRestore }: {
+/**
+ * Suggestions (`suggest`: asked for, or a request in words, with the rules they propose) or the
+ * before-and-after of two periods (`compare`), each in its own sheet of the Layout view.
+ */
+export default function PlannerPanel({ part, draft, onPatch, onRestore }: {
+  part: "suggest" | "compare";
   draft: Draft | null;
   onPatch: (patch: SuggestionPatch) => Promise<void>;
-  onRestore: (draft: Draft, descriptor: string, workspace: ResolvedWorkspace) => void;
+  onRestore: (draft: Draft, workspace: ResolvedWorkspace) => void;
 }) {
   const { scope, workspace } = useWorkspace();
   const suggest = trpc.planner.suggest.useMutation();
   const interpret = trpc.planner.interpret.useMutation();
   const suppress = trpc.planner.suppress.useMutation();
-  const exportDocument = trpc.planner.export.useMutation();
-  const importDocument = trpc.planner.import.useMutation();
   const confirmConstraint = trpc.planner.confirmConstraint.useMutation();
   const evidenceQuery = trpc.flowMap.get.useQuery({ scope });
   const [suggestions, setSuggestions] = useState<Candidate[]>([]);
@@ -82,10 +80,9 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
   const afterId = !hasPair ? "" : evidenceList.some(item => item.evidenceId === picked.after) ? picked.after : evidenceList[0].evidenceId;
   const review = reviewed?.pair === `${beforeId}|${afterId}` ? reviewed : null;
   const evaluate = trpc.planner.evaluate.useQuery({ scope, beforeEvidenceId: beforeId, afterEvidenceId: afterId }, { enabled: false });
-  const [exported, setExported] = useState<{ contents: string; document: WorkspaceDocument } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const busy = suggest.isPending || interpret.isPending || suppress.isPending || exportDocument.isPending || importDocument.isPending || confirmConstraint.isPending || evaluate.isFetching;
+  const busy = suggest.isPending || interpret.isPending || suppress.isPending || confirmConstraint.isPending || evaluate.isFetching;
   const run = async (action: () => Promise<void>) => {
     setError(null);
     try { await action(); } catch (cause) { setError(failureText(cause)); }
@@ -143,14 +140,37 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
     await accept(requestCandidate);
     setRequestCandidate(null);
   };
-  const download = () => {
-    if (!exported) return;
-    downloadBlob(`workspace-${scope.surfaceId}.workspace`, new Blob([exported.contents], { type: "application/json" }));
-  };
-  return (
-    <SettingsGroup id="workspace-planner" title={t(key("plannerTitle"))} description={t(key("plannerDescription"))}>
-      {error && <p role="alert" className="mb-3 text-body-sm text-danger">{error}</p>}
+  const messages = (
+    <>
+      {error && <p role="alert" className="mb-3 rounded-md bg-danger-soft px-3 py-2 text-body-sm text-danger [overflow-wrap:anywhere]">{error}</p>}
       {notice && <p role="status" className="mb-3 text-body-sm text-muted-foreground">{notice}</p>}
+    </>
+  );
+  if (part === "compare") return (
+    <div>
+      {messages}
+      <section id="workspace-adaptation" aria-label={t(key("adaptationTitle"))}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-body-sm">{t(key("beforeEvidence"))}
+            <EvidencePicker label={t(key("beforeEvidence"))} value={beforeId} evidence={evidenceList} disabled={busy || !hasPair} onChange={before => setPicked(current => ({ ...current, before }))} />
+          </label>
+          <label className="grid gap-1 text-body-sm">{t(key("afterEvidence"))}
+            <EvidencePicker label={t(key("afterEvidence"))} value={afterId} evidence={evidenceList} disabled={busy || !hasPair} onChange={after => setPicked(current => ({ ...current, after }))} />
+          </label>
+        </div>
+        <Button className="mt-3" size="sm" variant="outline" disabled={busy || !beforeId || !afterId || beforeId === afterId} onClick={compare}>{t(key("compareAdaptations"))}</Button>
+        {(evidenceQuery.data?.evidence.length ?? 0) < 2 && <p className="mt-2 text-caption text-muted-foreground">{t(key("insufficientComparison"))}</p>}
+        {review && <div role="status" className="mt-3 grid gap-1 border-t pt-3">
+          <p className="text-body-sm font-medium">{t(key(`outcomes.${review.outcome}`))}</p>
+          {review.beforeRate !== undefined && review.afterRate !== undefined && <p className="text-caption">{t(key("stepsPerSuccess"), { before: rate().format(review.beforeRate), after: rate().format(review.afterRate) })}</p>}
+          <ul className="mt-1 grid gap-1 text-caption text-muted-foreground">{review.confounds.map(confound => <li key={confound}>{t(key(`confounds.${confound}`))}</li>)}</ul>
+        </div>}
+      </section>
+    </div>
+  );
+  return (
+    <div>
+      {messages}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" disabled={busy} onClick={() => generate(false)}>{t(key("suggest"))}</Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => generate(true)}><Sparkles className="h-4 w-4" />{t(key("suggestAI"))}</Button>
@@ -210,51 +230,11 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
           <span className="text-body-sm">{rule}</span>
           <Button size="sm" variant="outline" disabled={busy} aria-label={`${t(key("confirmConstraint"))}: ${rule}`} onClick={() => void run(async () => {
             const result = await confirmConstraint.mutateAsync({ scope, patchId: patch.patchId, constraintId: constraint.id });
-            onRestore(result.draft, result.preview.descriptor.effectiveRevision, result.preview.workspace);
+            onRestore(result.draft, result.preview.workspace);
           })}>{t(key("confirmConstraint"))}</Button>
         </div>;
         }))}
       </section>}
-      <section id="workspace-adaptation" className="mt-5 border-t pt-4" aria-label={t(key("adaptationTitle"))}>
-        <h4 className="text-body-sm font-medium">{t(key("adaptationTitle"))}</h4>
-        <p className="mt-1 text-caption text-muted-foreground">{t(key("adaptationDescription"))}</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-body-sm">{t(key("beforeEvidence"))}
-            <EvidencePicker label={t(key("beforeEvidence"))} value={beforeId} evidence={evidenceList} disabled={busy || !hasPair} onChange={before => setPicked(current => ({ ...current, before }))} />
-          </label>
-          <label className="grid gap-1 text-body-sm">{t(key("afterEvidence"))}
-            <EvidencePicker label={t(key("afterEvidence"))} value={afterId} evidence={evidenceList} disabled={busy || !hasPair} onChange={after => setPicked(current => ({ ...current, after }))} />
-          </label>
-        </div>
-        <Button className="mt-3" size="sm" variant="outline" disabled={busy || !beforeId || !afterId || beforeId === afterId} onClick={compare}>{t(key("compareAdaptations"))}</Button>
-        {(evidenceQuery.data?.evidence.length ?? 0) < 2 && <p className="mt-2 text-caption text-muted-foreground">{t(key("insufficientComparison"))}</p>}
-        {review && <div role="status" className="mt-3 rounded-md border p-3">
-          <p className="text-body-sm font-medium">{t(key(`outcomes.${review.outcome}`))}</p>
-          {review.beforeRate !== undefined && review.afterRate !== undefined && <p className="mt-1 text-caption">{t(key("stepsPerSuccess"), { before: rate().format(review.beforeRate), after: rate().format(review.afterRate) })}</p>}
-          <ul className="mt-2 grid gap-1 text-caption text-muted-foreground">{review.confounds.map(confound => <li key={confound}>{t(key(`confounds.${confound}`))}</li>)}</ul>
-        </div>}
-      </section>
-      <div className="mt-5 flex flex-wrap gap-2 border-t pt-4">
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
-          const result = await exportDocument.mutateAsync({ scope });
-          setExported({ contents: result.contents, document: JSON.parse(result.contents) as WorkspaceDocument });
-        })}>{t(key("exportWorkspace"))}</Button>
-        <Button size="sm" variant="ghost" asChild><label className={cn("cursor-pointer focus-within:ring-2 focus-within:ring-ring", busy && "pointer-events-none opacity-50")}><FileUp className="h-4 w-4" />{t(key("importWorkspace"))}<Input className="sr-only" type="file" accept=".workspace,application/json" aria-label={t(key("importWorkspace"))} disabled={busy} onChange={event => {
-          const file = event.target.files?.[0];
-          event.target.value = "";
-          if (file) void run(async () => {
-            const result = await importDocument.mutateAsync({ scope, contents: await file.text() });
-            if (result.preview) onRestore(result.preview.draft, result.preview.preview.descriptor.effectiveRevision, result.preview.preview.workspace);
-            setNotice(result.unknownContent ? t(key("unknownContent")) : t(key("importQuarantined")));
-          });
-        }} /></label></Button>
-      </div>
-      <p className="mt-2 text-caption text-muted-foreground">{t(key("workspaceImportHint"))}</p>
-      {exported && <section className="mt-3">
-        <Textarea readOnly aria-label={t(key("exportWorkspace"))} value={exported.contents} className="min-h-32 text-caption" />
-        <p className="mt-1 text-caption text-muted-foreground">{t(key("exportSummary"), { when: dateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(exported.document.exportedAt), count: exported.document.draft?.patches.length ?? 0 })}</p>
-        <Button className="mt-2" size="sm" onClick={download}><Download className="h-4 w-4" />{t(key("downloadWorkspace"))}</Button>
-      </section>}
-    </SettingsGroup>
+    </div>
   );
 }

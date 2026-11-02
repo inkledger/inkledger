@@ -1,34 +1,41 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw } from "lucide-react";
-import { SettingsGroup } from "@/components/settings/SettingsGroup";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Info, RotateCcw, TriangleAlert } from "lucide-react";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
-import { ActionRow } from "@/components/app/ActionRow";
-import { Chip } from "@/components/app/Chip";
+import { surface } from "@/components/app/surface";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
 import { staleDraftOf, useWorkspaceActions } from "@/lib/workspace/actions";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
-import { areaLabel, anchorLabel, inPageOrder, periodLabel } from "@/lib/workspace/labels";
-import { applyLocally, blocksIn, heatLayerOf, sketchFor, type LocalChange } from "@/lib/workspace/sketch";
+import { areaLabel, anchorLabel, controlLabel, inPageOrder, periodLabel } from "@/lib/workspace/labels";
+import { applyLocally, blocksIn, heatLayerOf, reorderIndexOf, SKETCHES, sketchFor, type LocalChange } from "@/lib/workspace/sketch";
+import { blockUse, formatLayerView, frictionByAnchor, layerStates, parseLayerView, pathsAround, pathsOf, shownLayers, toggleLayer, type BlockFriction, type BlockPath, type Layer } from "@/lib/workspace/layers";
+import { deviceSetting } from "@/lib/storage";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { Draft, ResolvedPlacement, ResolvedWorkspace, Scope, SuggestionPatch, Variant } from "@contracts/workspace/model";
+import type { EvidenceSet, ExpectationGap, FlowMapDocument } from "@contracts/workspace/flowMap";
 import type { ReproposalDrop } from "@contracts/workspace/repropose";
 import { failureText } from "@/lib/errorText";
 import { useProviderName } from "@/hooks/useConnections";
-import { dateFormat, t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import { LayoutCanvas, type BlockRules, type CanvasActions } from "./LayoutCanvas";
 import { HeatLegend } from "./HeatOverlay";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { prefersReducedMotion } from "@/lib/dom";
+import { LayerToolbar } from "./LayerToolbar";
+import { PathsOverlay } from "./PathsOverlay";
+import { BlockDetails, PageSummary, type BlockActions, type BlockInfo, type DataState, type Gap, type NewItem, type TableData } from "./BlockDetails";
+import { ScopePicker, type ScopeOption } from "./ScopePicker";
+import { WorkspaceMore, type ShownPeriod } from "./WorkspaceMore";
 import { placementsFor } from "@/lib/workspace/utils";
 import { randomUUID } from "@/lib/randomId";
 
-const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
-const PlannerPanel = lazy(() => import("./PlannerPanel"));
+const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
 /** The pages a layout is made for, each with its own: the Dashboard has one per device class. */
 const SCOPES = {
@@ -39,41 +46,58 @@ const SCOPES = {
 } as const satisfies Record<string, Scope>;
 type ScopeKey = keyof typeof SCOPES;
 // Labels read when drawn, never at import: they follow the language the page is in.
-const scopeOptions = (): { value: ScopeKey; label: string }[] => [
-  { value: "dashboard:desktop", label: t("settings.categories.workspace.dashboardDesktop") },
-  { value: "dashboard:mobile", label: t("settings.categories.workspace.dashboardPhone") },
-  { value: "shell-desktop:desktop", label: t("settings.categories.workspace.shell") },
-  { value: "mobile-tabs:mobile", label: t("settings.categories.workspace.mobile") },
+const scopeOptions = (): ScopeOption<ScopeKey>[] => [
+  { value: "dashboard:desktop", label: t(key("dashboardDesktop")), frame: SKETCHES["dashboard:desktop"].frame },
+  { value: "dashboard:mobile", label: t(key("dashboardPhone")), frame: SKETCHES["dashboard:mobile"].frame },
+  { value: "shell-desktop:desktop", label: t(key("shell")), frame: SKETCHES["shell-desktop:desktop"].frame },
+  { value: "mobile-tabs:mobile", label: t(key("mobile")), frame: SKETCHES["mobile-tabs:mobile"].frame },
 ];
 
-type Pending = { draft: Draft; workspace: ResolvedWorkspace | null };
+/** The layers and periods chosen on this device. */
+const layerView = deviceSetting("ikl-workspace-layers", parseLayerView, formatLayerView);
+/** How many arrows the Paths layer draws: the busiest ones. */
+const PATHS_DRAWN = 6;
+const DESKTOP = "(min-width: 1024px)";
 
-const savedAt = () => dateFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+type Pending = { draft: Draft; workspace: ResolvedWorkspace | null };
+/** A period the data layers can show: this week so far, a stored one, or one imported (kept apart). */
+type Period = { id: string; label: string; evidence: EvidenceSet; shown: Exclude<ShownPeriod, null>; imported: boolean };
+
+const isChanged = (placement: ResolvedPlacement, applied: readonly ResolvedPlacement[]) => {
+  const before = applied.find(item => item.anchorId === placement.anchorId);
+  return !before || before.areaId !== placement.areaId || before.order !== placement.order || before.visible !== placement.visible || before.variant !== placement.variant || before.pinned !== placement.pinned;
+};
 
 export function WorkspaceSection() {
   const [scopeKey, setScopeKey] = useState<ScopeKey>("dashboard:desktop");
   return (
-    <div className="contents">
-      <SettingsGroup id="workspace-scope" title={t("settings.categories.workspace.scope")} description={t("settings.categories.workspace.scopeHint")}>
-        <SegmentedControl label={t("settings.categories.workspace.scope")} value={scopeKey} onChange={setScopeKey} options={scopeOptions()} />
-      </SettingsGroup>
+    // On desktop a pane: the part of the app on top, the layout scrolling in the middle, the footer always in
+    // view under it (never laid over the page, so nothing hides behind it). On a phone, one page that scrolls.
+    <div data-settings-pane className="flex flex-col lg:min-h-0 lg:flex-1">
+      <div className="shrink-0 border-b px-5 py-3 md:px-6">
+        <ScopePicker label={t(key("scope"))} value={scopeKey} options={scopeOptions()} onChange={setScopeKey} />
+      </div>
       <WorkspaceScopeProvider key={scopeKey} scope={SCOPES[scopeKey]} live>
-        <WorkspaceEditor />
+        <WorkspaceEditor scopeKey={scopeKey} />
       </WorkspaceScopeProvider>
     </div>
   );
 }
 
-function WorkspaceEditor() {
+function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
   const provider = useProviderName();
-  const { scope, clientInstanceId, workspace, descriptor, revisions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
+  const { scope, clientInstanceId, workspace, descriptor, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
   const actions = useWorkspaceActions(scope, clientInstanceId);
+  const utils = trpc.useUtils();
+  const feedback = trpc.flowMap.feedback.useMutation();
   const [localPending, setLocalPending] = useState<Pending | null>(null);
   const [completedDraftId, setCompletedDraftId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // "Applying" only while a layout is being applied; a preview being saved says so instead.
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // What an action elsewhere on the page wants said (an import kept apart, periods updated).
+  const [notice, setNotice] = useState<string | null>(null);
   // A draft refused for being made on an older layout (another tab applied since): what of it can be kept.
   const [stale, setStale] = useState<{ draft: Draft; keepable: number } | null>(null);
   // The changes of such a draft left out when the rest was proposed again, and why.
@@ -82,26 +106,18 @@ function WorkspaceEditor() {
   const [optimistic, setOptimistic] = useState<ResolvedPlacement[] | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [showApplied, setShowApplied] = useState(false);
-  const [showUse, setShowUse] = useState(false);
-  // The periods of use (FlowMap) the canvas can lay over its blocks: this week so far first, then the
-  // saved ones newest first; only this device's own, only with some use.
-  const flow = trpc.flowMap.get.useQuery({ scope: workspace.scope });
-  const [usePeriod, setUsePeriod] = useState<string | null>(null);
-  const usePeriods = useMemo(() => {
-    const used = (item: { heat: readonly { activations: number }[] }) => item.heat.some(point => point.activations > 0);
-    const live = flow.data?.live && used(flow.data.live) ? [flow.data.live] : [];
-    const stored = (flow.data?.evidence ?? []).filter(item => item.origin === "local" && item.coverage.lastAt > 0 && used(item)).sort((a, b) => b.coverage.lastAt - a.coverage.lastAt);
-    return [...live, ...stored];
-  }, [flow.data]);
-  const shownPeriod = usePeriods.find(item => item.evidenceId === usePeriod) ?? usePeriods[0] ?? null;
-  const usage = useMemo(() => shownPeriod ? heatLayerOf(shownPeriod.heat) : null, [shownPeriod]);
-  const periodName = (item: { evidenceId: string; coverage: Parameters<typeof periodLabel>[0] }) => item.evidenceId === flow.data?.live?.evidenceId ? t("settings.categories.workspace.timelineLive") : periodLabel(item.coverage);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const isDesktop = useMediaQuery(DESKTOP, typeof window !== "undefined" && window.matchMedia(DESKTOP).matches);
+  const view = layerView.use();
+  const detailsTitleId = useId();
   const lastActionAnchor = useRef<string | undefined>(undefined);
   const restoreFocus = useRef<string | null | undefined>(undefined);
   const previewQueue = useRef<Promise<void>>(Promise.resolve());
   const latestDraft = useRef<Draft | null>(null);
   const queuedPreviews = useRef(0);
   const anchors = useMemo(() => new Map(CATALOG_V1.anchors.map(anchor => [anchor.id, anchor] as const)), []);
+  const anchorOfControl = useMemo(() => new Map(CATALOG_V1.controls.map(control => [control.id, control.anchorId] as const)), []);
   const areas = useMemo(() => inPageOrder(CATALOG_V1.areas.filter(area => area.surfaceId === workspace.scope.surfaceId)), [workspace.scope.surfaceId]);
   const restoredPending = restoredDraft && restoredDraft.draftId !== completedDraftId ? { draft: restoredDraft, workspace: draftWorkspace } : null;
   const pending = restoredPending && (!localPending || restoredPending.draft.draftRevision > localPending.draft.draftRevision) ? restoredPending : localPending;
@@ -110,7 +126,44 @@ function WorkspaceEditor() {
   const shownPlacements = showApplied && pending ? workspace.placements : optimistic ?? placements;
   const sketch = sketchFor(workspace.scope);
   const setPending = setLocalPending;
-  const visibleError = error ?? (restoredDraft && !draftDescriptor ? t("settings.categories.workspace.conflict") : null);
+  const visibleError = error ?? (restoredDraft && !draftDescriptor ? t(key("conflict")) : null);
+  const label = (anchorId: string) => anchorLabel(anchorId, { provider });
+  const changes = pending ? editingWorkspace.placements.filter(placement => isChanged(placement, workspace.placements)).length : 0;
+
+  // What the data layers can show: this week so far first, then the saved periods newest first (this
+  // device's own, with some use), then the imported ones, kept apart.
+  const flow = trpc.flowMap.get.useQuery({ scope: workspace.scope });
+  const collecting = flow.data?.settings.enabled ?? false;
+  const periods = useMemo((): Period[] => {
+    const used = (item: EvidenceSet) => item.heat.some(point => point.activations > 0);
+    const own = (flow.data?.evidence ?? []).filter(item => item.origin === "local" && item.coverage.lastAt > 0 && used(item)).sort((a, b) => b.coverage.lastAt - a.coverage.lastAt);
+    // This week so far, unless a saved period of the same layout already holds all of it.
+    const current = flow.data?.live && used(flow.data.live) ? flow.data.live : null;
+    const covered = current && own.some(item => item.descriptor.effectiveRevision === current.descriptor.effectiveRevision && item.coverage.lastAt >= current.coverage.lastAt);
+    const live = current && !covered ? [{ id: current.evidenceId, label: t(key("timelineLive")), evidence: current, shown: { kind: "live" as const }, imported: false }] : [];
+    const stored = own.map(item => ({ id: item.evidenceId, label: periodLabel(item.coverage), evidence: item, shown: { kind: "stored" as const, evidenceId: item.evidenceId }, imported: false }));
+    const imported = (flow.data?.imports ?? [])
+      .filter(item => used(item.document.evidence))
+      .map(({ importId, document }: { importId: string; document: FlowMapDocument }) => ({ id: `import:${importId}`, label: periodLabel(document.evidence.coverage), evidence: document.evidence, shown: { kind: "imported" as const, importId, document }, imported: true }));
+    return [...live, ...stored, ...imported];
+  }, [flow.data]);
+  const period = periods.find(item => item.id === view.periods[scopeKey]) ?? periods.find(item => !item.imported) ?? null;
+  const evidence = collecting || period?.imported ? period?.evidence ?? null : null;
+  const usage = useMemo(() => evidence ? heatLayerOf(evidence.heat) : null, [evidence]);
+  const onPage = (anchorId: string) => anchors.get(anchorId)?.surfaceId === workspace.scope.surfaceId && shownPlacements.some(placement => placement.anchorId === anchorId);
+  const anchorOf = (controlId: string) => anchorOfControl.get(controlId);
+  const allPaths = evidence ? pathsOf(evidence.flows, anchorOf, onPage) : [];
+  const friction = useMemo((): ReadonlyMap<string, BlockFriction> => evidence ? frictionByAnchor(evidence.friction, controlId => anchorOfControl.get(controlId)) : new Map<string, BlockFriction>(), [evidence, anchorOfControl]);
+  const news = workspace.discoveryAnchorIds.length + workspace.discoveryAreaIds.length;
+  const loading = flow.isPending;
+  const states = layerStates({ collecting: loading || collecting || period?.imported === true, hasUse: loading || (usage?.total ?? 0) > 0, hasPaths: loading || allPaths.length > 0, hasFriction: loading || friction.size > 0, news });
+  const on = shownLayers(view.layers, states);
+  const dataState: DataState = loading ? "ok" : !collecting && !period?.imported ? "off" : evidence ? "ok" : "none";
+  const destination = (path: BlockPath) => path.to ? label(path.to) : controlLabel(path.toControlId);
+  const toggle = (layer: Layer) => layerView.set(toggleLayer(layerView.get(), layer));
+  const choosePeriod = (id: string) => layerView.set({ ...layerView.get(), periods: { ...layerView.get().periods, [scopeKey]: id } });
+  // A block no longer drawn has no details to show.
+  const selectedPlacement = selected ? shownPlacements.find(placement => placement.anchorId === selected) ?? null : null;
 
   useEffect(() => {
     if (busy || restoreFocus.current === undefined) return;
@@ -136,6 +189,7 @@ function WorkspaceEditor() {
     queuedPreviews.current++;
     setBusy(true);
     setError(null);
+    setNotice(null);
     setStale(null);
     setNotKept([]);
     const save = async () => {
@@ -361,13 +415,6 @@ function WorkspaceEditor() {
     void preview(where.kind === "reorder" ? reorderPatch(workspace, areaId, where.ordered) : movePatch(workspace, anchorId, areaId, where.order), local);
   };
 
-  // FlowMap is off: take the user to its switch (with its explanation), never turn it on from here.
-  const showFlowMap = () => {
-    const section = document.getElementById("workspace-flowmap");
-    section?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
-    section?.querySelector<HTMLElement>("[role='checkbox']")?.focus({ preventScroll: true });
-  };
-
   const canvasActions: CanvasActions = {
     visible: (anchorId, visible) => void preview(visibilityPatch(workspace, anchorId, visible), { kind: "visible", anchorId, visible }),
     pinned: (anchorId, pinned) => void preview(pinPatch(workspace, anchorId, pinned), { kind: "pinned", anchorId, pinned }),
@@ -430,140 +477,358 @@ function WorkspaceEditor() {
     }
   };
 
+  const restore = (draft: Draft, previewWorkspace: ResolvedWorkspace) => {
+    latestDraft.current = draft;
+    setPending({ draft, workspace: previewWorkspace });
+  };
+
+  /** A patch from the details or the page summary: a rule taken off, a looked-for thing used. */
+  const userPatch = (operations: SuggestionPatch["operations"], extra: Partial<SuggestionPatch>): SuggestionPatch => ({
+    patchId: `patch_${randomUUID()}`,
+    patchSchemaVersion: 1,
+    scope: workspace.scope,
+    baseRevision: workspace.sourceActiveRevision,
+    catalogVersion: workspace.catalogVersion,
+    author: "user",
+    provenance: {},
+    intent: { kind: "custom", status: "explicit" },
+    operations,
+    evidence: [],
+    proposedConstraints: [],
+    ...extra,
+  });
+
+  // A thing looked for, as a change: where it was wanted, if this layout can put it there.
+  const expectationTarget = (gap: ExpectationGap) => {
+    const control = gap.destinationControlId ? CATALOG_V1.controls.find(item => item.id === gap.destinationControlId) : undefined;
+    const anchor = control ? anchors.get(control.anchorId) : undefined;
+    if (!anchor || anchor.surfaceId !== workspace.scope.surfaceId) return null;
+    const placement = workspace.placements.find(item => item.anchorId === anchor.id);
+    const area = CATALOG_V1.areas.find(item => item.id === gap.areaId && item.surfaceId === workspace.scope.surfaceId);
+    if (!placement || !area || !area.allowedAnchorIds.includes(anchor.id)) return null;
+    if (placement.areaId !== area.id && (anchor.statePolicy === "local" || !anchor.studio.operations.includes("move"))) return null;
+    return { anchorId: anchor.id, placement, areaId: area.id };
+  };
+  // A gap by what it says, destination included: two gaps from one area never read the same.
+  const gapLabel = (gap: ExpectationGap) => `${t(key(`patterns.${gap.pattern}`), { area: areaLabel(gap.areaId) })}${gap.destinationControlId ? ` → ${controlLabel(gap.destinationControlId)}` : ""}`;
+  // Someone else's map (imported) is there to look at: nothing in it to judge or use.
+  const gaps: Gap[] = evidence && !period?.imported ? evidence.expectations.map(gap => ({
+    id: gap.id,
+    label: gapLabel(gap),
+    detail: t(key("expectationDetail"), { count: gap.occurrences, state: t(key(`expectationStates.${gap.state}`)) }),
+    state: gap.state,
+    usable: expectationTarget(gap) !== null,
+  })) : [];
+  const judge = async (gap: Gap, status: "confirmed" | "rejected") => {
+    setError(null);
+    try {
+      await feedback.mutateAsync({ scope: workspace.scope, expectationId: gap.id, status });
+      await utils.flowMap.get.invalidate({ scope: workspace.scope });
+    } catch (e) {
+      setError(failureText(e));
+    }
+  };
+  const useGap = (item: Gap) => {
+    const gap = evidence?.expectations.find(entry => entry.id === item.id);
+    const target = gap ? expectationTarget(gap) : null;
+    if (!gap || !target || gap.state !== "confirmed" || !evidence) return;
+    void preview(userPatch(
+      target.placement.areaId === target.areaId ? [] : [{ type: "move", operationId: `op_${randomUUID()}`, anchorId: target.anchorId, toAreaId: target.areaId }],
+      {
+        intent: { kind: "expectHere", status: "explicit", anchorId: target.anchorId, areaId: target.areaId },
+        evidence: [{ evidenceId: evidence.evidenceId, effectiveRevision: evidence.descriptor.effectiveRevision }],
+        proposedConstraints: [{ id: `constraint_${randomUUID()}`, kind: "expectHere", status: "explicit", author: "user", scope: workspace.scope, anchorId: target.anchorId, areaId: target.areaId }],
+      },
+    ));
+  };
+
+  const top = usage ? [...usage.uses].filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 3).map(([id, count]) => ({ id, name: label(id), count })) : [];
+  const newItems: NewItem[] = [
+    ...workspace.discoveryAreaIds.map(id => ({ kind: "area" as const, id, name: areaLabel(id) })),
+    ...workspace.discoveryAnchorIds.map(id => ({ kind: "anchor" as const, id, name: label(id) })),
+  ];
+  const table: TableData = {
+    use: evidence ? [...new Set(evidence.heat.map(point => point.anchorId))].map(id => ({ id, name: label(id), ...blockUse(evidence.heat, id) })).filter(row => row.clicks > 0).sort((a, b) => b.clicks - a.clicks) : [],
+    paths: allPaths.map(path => ({ id: `${path.from}>${path.to ?? path.toControlId}`, from: label(path.from), to: destination(path), count: path.count })),
+    friction: [...friction].map(([id, value]) => ({ id, name: label(id), detail: t(key("frictionDetail"), { abandoned: value.abandoned, failures: value.failures, backtracks: value.backtracks }) })),
+    gaps,
+  };
+
+  const blockInfo = (placement: ResolvedPlacement): BlockInfo => {
+    const anchorId = placement.anchorId;
+    const blockRules = rules(anchorId);
+    const overlay = sketch?.areas.find(area => area.areaId === placement.areaId)?.region === "tray";
+    const around = pathsAround(allPaths, anchorId);
+    return {
+      anchorId,
+      name: label(anchorId),
+      area: areaLabel(placement.areaId),
+      visible: placement.visible,
+      pinned: placement.pinned,
+      variant: placement.variant,
+      overlay,
+      canHide: blockRules.canHide,
+      canPin: blockRules.canPin,
+      variants: blockRules.variants,
+      locked: blockRules.locked,
+      canUp: blockRules.canReorder && reorderIndexOf(placements, anchorId, "up") !== null,
+      canDown: blockRules.canReorder && reorderIndexOf(placements, anchorId, "down") !== null,
+      moveTargets: blockRules.canMove ? areas.filter(area => area.id !== placement.areaId && check(anchorId, area.id, Number.MAX_SAFE_INTEGER).allowed).map(area => ({ id: area.id, name: areaLabel(area.id) })) : [],
+      rules: constraints.filter(constraint => constraint.anchorId === anchorId && constraint.status === "explicit").map(constraint => ({ id: constraint.id, text: t(key(`ruleText.${constraint.kind}`), { anchor: label(anchorId), area: constraint.areaId ? areaLabel(constraint.areaId) : "" }) })),
+      isNew: workspace.discoveryAnchorIds.includes(anchorId),
+      use: evidence ? blockUse(evidence.heat, anchorId) : null,
+      out: around.out.map(path => ({ id: path.to ?? path.toControlId, name: path.to ? label(path.to) : t(key("pathElsewhere"), { name: controlLabel(path.toControlId) }), count: path.count })),
+      in: around.in.map(path => ({ id: path.from, name: label(path.from), count: path.count })),
+      friction: friction.get(anchorId) ?? null,
+    };
+  };
+  // The selected block's changes, from the details: the same as on the block and in its menu.
+  const blockActions: BlockActions = {
+    visible: visible => { if (selectedPlacement) canvasActions.visible(selectedPlacement.anchorId, visible); },
+    pinned: pinned => { if (selectedPlacement) canvasActions.pinned(selectedPlacement.anchorId, pinned); },
+    variant: (variant: Variant) => { if (selectedPlacement) canvasActions.variant(selectedPlacement.anchorId, variant); },
+    reorder: to => {
+      const index = selectedPlacement ? reorderIndexOf(placements, selectedPlacement.anchorId, to) : null;
+      if (selectedPlacement && index !== null) place(selectedPlacement.anchorId, selectedPlacement.areaId, index);
+    },
+    moveTo: areaId => { if (selectedPlacement) place(selectedPlacement.anchorId, areaId, Number.MAX_SAFE_INTEGER); },
+    removeRule: constraintId => void preview(userPatch([], { revokedConstraintIds: [constraintId] })),
+    discovery: placed => { if (selectedPlacement) void markDiscovery(selectedPlacement.anchorId, placed); },
+  };
+  // Back from the details to the block they were about, so the keyboard stays where it was.
+  const closeDetails = () => {
+    const anchorId = selected;
+    setSelected(null);
+    if (anchorId) requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>("[data-layout-canvas] [data-anchor]")].find(element => element.getAttribute("data-anchor") === anchorId)?.querySelector<HTMLElement>("[data-select]")?.focus({ preventScroll: true }));
+  };
+  const details = selectedPlacement ? (
+    <BlockDetails
+      block={blockInfo(selectedPlacement)}
+      data={dataState}
+      period={period?.label ?? null}
+      busy={busy || applying}
+      actions={blockActions}
+      onClose={closeDetails}
+      titleId={detailsTitleId}
+    />
+  ) : (
+    <PageSummary
+      data={dataState}
+      period={period?.label ?? null}
+      top={top}
+      gaps={gaps}
+      news={newItems}
+      table={table}
+      busy={busy || applying || feedback.isPending}
+      onGap={(gap, status) => void judge(gap, status)}
+      onUseGap={useGap}
+      onDiscovery={(item, placed) => void markDiscovery(item.id, placed, item.kind)}
+    />
+  );
+
+  const legend = [
+    on.has("use") && <HeatLegend key="use" />,
+    on.has("paths") && <span key="paths" className="flex items-center gap-1.5"><span aria-hidden className="h-0.5 w-4 rounded-full bg-primary-strong" />{t(key("pathsLegend"))}</span>,
+    on.has("friction") && <span key="friction" className="flex items-center gap-1.5"><TriangleAlert aria-hidden className="h-3.5 w-3.5 text-warning" />{t(key("frictionLegend"))}</span>,
+    on.has("news") && <span key="news" className="flex items-center gap-1.5"><span aria-hidden className="h-2 w-2 rounded-full bg-info" />{t(key("newsLegend"))}</span>,
+  ].filter(Boolean);
+  const otherLayout = (on.has("use") || on.has("paths") || on.has("friction")) && evidence && evidence.descriptor.effectiveRevision !== descriptor.effectiveRevision;
+
   return (
     <>
-      {visibleError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-danger-soft px-3 py-2 text-body-sm text-danger">
-        <p className="min-w-0 [overflow-wrap:anywhere]">{visibleError}</p>
-        {error && stale && stale.keepable > 0 && <Button size="sm" variant="outline" disabled={busy} onClick={() => void keepOthers()}>{t("settings.categories.workspace.keepOthers", { count: stale.keepable })}</Button>}
-      </div>}
-      {busy && <p role="status" className="mb-4 text-body-sm text-muted-foreground">{t(applying ? "settings.categories.workspace.applying" : "settings.categories.workspace.saving")}</p>}
-      {presentationStatus !== "stable" && <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p role="status" className="text-body-sm text-muted-foreground">{t(`settings.categories.workspace.states.${presentationStatus}`)}</p>
-        {pendingActivation && <Button size="sm" variant="outline" disabled={busy} onClick={() => void recover()}>{t("settings.categories.workspace.recover")}</Button>}
-      </div>}
-      <SettingsGroup id="workspace-layout" title={t("settings.categories.workspace.layoutTitle")} description={t("settings.categories.workspace.layoutDescription")}>
-        <p id="workspace-canvas-hint" className="text-caption text-muted-foreground">{t("settings.categories.workspace.canvasHint")}</p>
-        {flow.data && !flow.data.settings.enabled && (
-          <ActionRow actions={<Button variant="outline" size="sm" onClick={showFlowMap}>{t("settings.categories.workspace.useOff")}</Button>}>
-            <span className="text-caption text-muted-foreground">{t("settings.categories.workspace.useOffHint")}</span>
-          </ActionRow>
-        )}
-        {flow.data?.settings.enabled && (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            {showUse && usage ? (
-              <span className="grid min-w-0 gap-1">
-                <HeatLegend />
-                {shownPeriod && shownPeriod.descriptor.effectiveRevision !== descriptor.effectiveRevision && <span className="text-caption text-muted-foreground">{t("settings.categories.workspace.useOtherLayout")}</span>}
-              </span>
-            ) : (
-              <span className="min-w-0 flex-1 text-caption text-muted-foreground">{usage ? t("settings.categories.workspace.showUseHint") : t("settings.categories.workspace.useNone")}</span>
-            )}
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {showUse && usePeriods.length > 1 && shownPeriod && (
-                <Select value={shownPeriod.evidenceId} onValueChange={setUsePeriod}>
-                  <SelectTrigger size="sm" aria-label={t("settings.categories.workspace.usePeriod")} className="w-auto min-w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {usePeriods.map(item => <SelectItem key={item.evidenceId} value={item.evidenceId}>{periodName(item)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-              <Button variant="outline" size="sm" aria-pressed={showUse && usage !== null} disabled={!usage} onClick={() => setShowUse(value => !value)}>{t("settings.categories.workspace.showUse")}</Button>
-            </div>
-          </div>
-        )}
-        {pending && (
-          <SegmentedControl
-            label={t("settings.categories.workspace.compare")}
-            value={showApplied ? "applied" : "preview"}
-            onChange={value => setShowApplied(value === "applied")}
-            options={[
-              { value: "preview", label: t("settings.categories.workspace.comparePreview") },
-              { value: "applied", label: t("settings.categories.workspace.compareApplied") },
-            ]}
-          />
-        )}
-        {sketch && (
-          <div inert={showApplied && pending ? true : undefined}>
-            <LayoutCanvas
-              sketch={sketch}
-              placements={shownPlacements}
-              applied={workspace.placements}
-              areas={areas}
-              anchors={anchors}
-              rules={rules}
-              busy={busy || applying}
-              actions={canvasActions}
-              label={anchorId => anchorLabel(anchorId, { provider })}
-              usage={showUse ? usage : null}
-              onAnnounce={setAnnouncement}
-            />
-          </div>
-        )}
-        <p aria-live="polite" className="sr-only">{announcement}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button id="workspace-reset" variant="outline" size="sm" disabled={busy || placements.length === 0} onClick={reset}>
-            <RotateCcw className="h-4 w-4" /> {t("settings.categories.workspace.reset")}
-          </Button>
-          {pending && <Button size="sm" disabled={busy} onClick={apply}>{t("settings.categories.workspace.apply")}</Button>}
-          {pending && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void discard()}>{t("settings.categories.workspace.discard")}</Button>}
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <section id="workspace-layout" aria-label={t(key("layoutTitle"))} className="grid gap-3 px-5 pb-6 pt-4 md:px-6">
+        <LayerToolbar
+          on={on}
+          states={states}
+          news={news}
+          periods={periods.filter(item => collecting || item.imported).map(item => ({ id: item.id, label: item.label, imported: item.imported }))}
+          period={period?.id ?? null}
+          onToggle={toggle}
+          onPeriod={choosePeriod}
+          extra={on.has("edit") && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={t(key("howToMove"))}><Info className="h-4 w-4" /></Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 text-body-sm">{t(key("canvasHint"))}</PopoverContent>
+            </Popover>
+          )}
+        />
+        {/* The handles' description, read with them; the same words are behind the help button. */}
+        <p id="workspace-canvas-hint" className="sr-only">{t(key("canvasHint"))}</p>
+        {/* One line under the layers, always there: why the data layers are off, or the key of those on. */}
+        <div data-layer-line className="flex min-h-target flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted-foreground">
+          {loading ? null : flow.isError ? (
+            <>
+              <span className="text-danger">{t(key("useFailed"))}</span>
+              <Button variant="link" size="sm" className="h-auto min-h-target p-0 text-caption" onClick={() => void flow.refetch()}>{t("common.retry")}</Button>
+            </>
+          ) : dataState === "off" ? (
+            <>
+              {/* On a phone the link says it alone: the line never wraps, so nothing under it moves once loaded. */}
+              <span className="max-sm:sr-only">{t(key("layersOff"))}</span>
+              <Button variant="link" size="sm" className="h-auto min-h-target p-0 text-caption" onClick={() => setCollectionOpen(true)}>{t(key("useOff"))}</Button>
+            </>
+          ) : dataState === "none" ? <span>{t(key("useNone"))}</span>
+            : legend.length > 0 ? (
+              <>
+                {legend}
+                {otherLayout && <span>{t(key("useOtherLayout"))}</span>}
+              </>
+            ) : <span>{t(key("dataHint"))}</span>}
         </div>
-        {pending && <p className="mt-2 text-caption text-muted-foreground">{t("settings.categories.workspace.preview")}</p>}
-        {(["overlap", "refused"] as const).map(reason => {
-          const names = [...new Set(notKept.filter(drop => drop.reason === reason).map(drop => drop.anchorId ? anchorLabel(drop.anchorId, { provider }) : drop.areaId ? areaLabel(drop.areaId) : null).filter(name => name !== null))];
-          return names.length > 0 && <p key={reason} data-not-kept={reason} className="mt-2 text-caption text-muted-foreground [overflow-wrap:anywhere]">
-            {t(reason === "overlap" ? "settings.categories.workspace.notKeptOverlap" : "settings.categories.workspace.notKeptRefused", { blocks: names.join(", ") })}
-          </p>;
-        })}
-      </SettingsGroup>
 
-      <SettingsGroup id="workspace-history" title={t("settings.categories.workspace.historyTitle")} description={t("settings.categories.workspace.historyDescription")}>
-        {revisions.length === 0 ? <p className="text-body-sm text-muted-foreground">{t("settings.categories.workspace.noHistory")}</p> : (
-          <ul className="grid gap-1">
-            {[{ revisionId: "default", committedAt: 0, changes: 0 }, ...revisions].map((revision, index, all) => {
-              const current = index === all.length - 1;
-              const name = revision.revisionId === "default"
-                ? t("settings.categories.workspace.historyDefault")
-                : t("settings.categories.workspace.historyEntry", { when: savedAt().format(revision.committedAt), count: revision.changes });
-              return (
-                <li key={revision.revisionId}>
-                  <ActionRow
-                    actions={current
-                      ? <Chip tone="neutral">{t("settings.categories.workspace.historyCurrent")}</Chip>
-                      : <Button variant="ghost" size="sm" disabled={busy} aria-label={`${t("settings.categories.workspace.rollback")}: ${name}`} onClick={() => void rollback(revision.revisionId)}>{t("settings.categories.workspace.rollback")}</Button>}
-                  >
-                    <span className="min-w-0 truncate tabular-nums">{name}</span>
-                  </ActionRow>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </SettingsGroup>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] lg:gap-6">
+          <div className="grid min-w-0 gap-2">
+            {sketch && (
+              <div className="relative" inert={showApplied && pending ? true : undefined}>
+                <LayoutCanvas
+                  sketch={sketch}
+                  placements={shownPlacements}
+                  applied={workspace.placements}
+                  areas={areas}
+                  anchors={anchors}
+                  rules={rules}
+                  busy={busy || applying}
+                  actions={canvasActions}
+                  label={label}
+                  usage={on.has("use") ? usage : null}
+                  layers={{
+                    edit: on.has("edit"),
+                    friction: on.has("friction") ? friction : null,
+                    news: on.has("news") ? { anchors: new Set(workspace.discoveryAnchorIds), areas: new Set(workspace.discoveryAreaIds) } : null,
+                  }}
+                  selected={selected}
+                  onSelect={anchorId => setSelected(current => current === anchorId && isDesktop ? null : anchorId)}
+                  onAnnounce={setAnnouncement}
+                />
+                {on.has("paths") && <PathsOverlay paths={allPaths.slice(0, PATHS_DRAWN)} destination={destination} version={`${shownPlacements.map(item => `${item.anchorId}:${item.areaId}:${item.order}:${item.visible}:${item.variant}`).join("|")}|${[...on].join(",")}`} />}
+              </div>
+            )}
+          </div>
+          {isDesktop ? (
+            <aside
+              aria-label={t(key("detailsTitle"))}
+              className="min-w-0 lg:border-l lg:pl-6"
+              onKeyDown={event => {
+                if (event.key === "Escape" && selected) {
+                  event.stopPropagation();
+                  closeDetails();
+                }
+              }}
+            >
+              {details}
+            </aside>
+          ) : (
+            <div className="border-t pt-4">
+              <PageSummary
+                data={dataState}
+                period={period?.label ?? null}
+                top={top}
+                gaps={gaps}
+                news={newItems}
+                table={table}
+                busy={busy || applying || feedback.isPending}
+                onGap={(gap, status) => void judge(gap, status)}
+                onUseGap={useGap}
+                onDiscovery={(item, placed) => void markDiscovery(item.id, placed, item.kind)}
+              />
+            </div>
+          )}
+        </div>
+        <p aria-live="polite" className="sr-only">{announcement}</p>
+      </section>
+      </div>
 
-      {(workspace.discoveryAnchorIds.length > 0 || workspace.discoveryAreaIds.length > 0) && (
-        <SettingsGroup id="workspace-discovery" title={t("settings.categories.workspace.discoveryTitle")} description={t("settings.categories.workspace.discoveryDescription")}>
-          <ul className="grid gap-2">
-            {workspace.discoveryAreaIds.map(areaId => <li key={areaId} data-discovery-area={areaId} className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <span className="min-w-0">{areaLabel(areaId)}</span>
-              <span className="flex flex-wrap items-center gap-2">
-                <Chip tone="info">{t("settings.categories.workspace.new")}</Chip>
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void markDiscovery(areaId, true, "area")}>{t("settings.categories.workspace.place")}</Button>
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void markDiscovery(areaId, false, "area")}>{t("settings.categories.workspace.dismiss")}</Button>
-              </span>
-            </li>)}
-            {workspace.discoveryAnchorIds.map(anchorId => <li key={anchorId} data-discovery-anchor={anchorId} className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-              <span className="min-w-0">{anchorLabel(anchorId, { provider })}</span>
-              <span className="flex flex-wrap items-center gap-2">
-                <Chip tone="info">{t("settings.categories.workspace.new")}</Chip>
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void markDiscovery(anchorId, true)}>{t("settings.categories.workspace.place")}</Button>
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void markDiscovery(anchorId, false)}>{t("settings.categories.workspace.dismiss")}</Button>
-              </span>
-            </li>)}
-          </ul>
-        </SettingsGroup>
+      {!isDesktop && (
+        <Sheet open={selectedPlacement !== null} onOpenChange={open => { if (!open) closeDetails(); }}>
+          <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+            {selectedPlacement && (
+              <BlockDetails
+                block={blockInfo(selectedPlacement)}
+                data={dataState}
+                period={period?.label ?? null}
+                busy={busy || applying}
+                actions={blockActions}
+                onClose={closeDetails}
+                titleId={detailsTitleId}
+                closable={false}
+                Title={SheetTitleTag}
+              />
+            )}
+          </SheetContent>
+        </Sheet>
       )}
-      <Suspense fallback={null}><FlowMapPanel onPatch={preview} /></Suspense>
-      <Suspense fallback={null}><PlannerPanel draft={pending?.draft ?? null} onPatch={preview} onRestore={(draft, _descriptor, previewWorkspace) => { latestDraft.current = draft; setPending({ draft, workspace: previewWorkspace }); }} /></Suspense>
+
+      <footer
+        data-workspace-footer
+        {...surface("ground")}
+        className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t bg-card px-5 py-2 md:px-6"
+      >
+        <div className="flex items-center gap-0.5">
+          <Button id="workspace-reset" variant="ghost" size="sm" aria-label={t(key("reset"))} disabled={busy || placements.length === 0} onClick={reset}>
+            <RotateCcw className="h-4 w-4" /><span className="max-sm:sr-only">{t(key("resetShort"))}</span>
+          </Button>
+          <WorkspaceMore
+            busy={busy || applying}
+            shown={period?.shown ?? null}
+            collectionOpen={collectionOpen}
+            onCollectionOpen={setCollectionOpen}
+            draft={pending?.draft ?? null}
+            onPatch={preview}
+            onRestore={restore}
+            onRollback={rollback}
+            onError={e => setError(failureText(e))}
+            onNotice={setNotice}
+          />
+        </div>
+        {/* One place for every status, at a fixed height: the page above never moves for it. */}
+        <div data-status-slot aria-live="polite" className="order-first flex min-h-10 min-w-0 basis-full flex-col justify-center gap-0.5 text-caption">
+          {visibleError && (
+            <div role="alert" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-danger">
+              <span className="min-w-0 [overflow-wrap:anywhere]">{visibleError}</span>
+              {error && stale && stale.keepable > 0 && <Button size="sm" variant="outline" disabled={busy} onClick={() => void keepOthers()}>{t(key("keepOthers"), { count: stale.keepable })}</Button>}
+            </div>
+          )}
+          {presentationStatus !== "stable" && (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <p role="status" className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]">{t(key(`states.${presentationStatus}`))}</p>
+              {pendingActivation && <Button size="sm" variant="outline" disabled={busy} onClick={() => void recover()}>{t(key("recover"))}</Button>}
+            </div>
+          )}
+          {busy && <p role="status" className="text-muted-foreground">{t(key(applying ? "applying" : "saving"))}</p>}
+          {notice && !busy && <p role="status" className="text-muted-foreground [overflow-wrap:anywhere]">{notice}</p>}
+          {(["overlap", "refused"] as const).map(reason => {
+            const names = [...new Set(notKept.filter(drop => drop.reason === reason).map(drop => drop.anchorId ? label(drop.anchorId) : drop.areaId ? areaLabel(drop.areaId) : null).filter(name => name !== null))];
+            return names.length > 0 && <p key={reason} data-not-kept={reason} className="text-muted-foreground [overflow-wrap:anywhere]">
+              {t(reason === "overlap" ? key("notKeptOverlap") : key("notKeptRefused"), { blocks: names.join(", ") })}
+            </p>;
+          })}
+          {pending && <p className={cn("font-medium text-foreground", busy && "sr-only")}>{changes > 0 ? t(key("draftState"), { count: changes }) : t(key("preview"))}</p>}
+          {!pending && !busy && !notice && !visibleError && presentationStatus === "stable" && notKept.length === 0 && <p className="text-muted-foreground">{t(key("footerIdle"))}</p>}
+        </div>
+        {pending && (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <SegmentedControl
+              label={t(key("compare"))}
+              value={showApplied ? "applied" : "preview"}
+              onChange={value => setShowApplied(value === "applied")}
+              options={[
+                { value: "preview", label: t(key("comparePreview")) },
+                { value: "applied", label: t(key("compareApplied")) },
+              ]}
+            />
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => void discard()}>{t(key("discard"))}</Button>
+            <Button size="sm" disabled={busy} onClick={apply}>{t(key("apply"))}</Button>
+          </div>
+        )}
+      </footer>
     </>
   );
+}
+
+/** The phone sheet's title: the block's name names the sheet. */
+function SheetTitleTag({ className, children }: { id: string; className: string; children: React.ReactNode }) {
+  return <SheetTitle className={className}>{children}</SheetTitle>;
 }

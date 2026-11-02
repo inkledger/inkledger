@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { surface } from "@/components/app/surface";
 import { cn } from "@/lib/utils";
 import { dashboardSegments, sidebarActionSegments, type Sketch, type SketchArea, type SketchAxis, type SketchRegion } from "@/lib/workspace/sketch";
@@ -11,20 +12,14 @@ const key = (name: string) => `settings.categories.workspace.${name}` as Message
  * and rail, the sidebar beside the page, a phone with its More sheet over the tab bar. What goes in an
  * area is the caller's (blocks to edit, or how much each block was used).
  */
-export function PageSketch({ sketch, renderArea, dense = false }: { sketch: Sketch; renderArea: (area: SketchArea) => ReactNode; dense?: boolean }) {
+export function PageSketch({ sketch, renderArea }: { sketch: Sketch; renderArea: (area: SketchArea) => ReactNode }) {
   // An area the caller draws nothing for takes no room (a map of use has no pop-ups to show).
   const at = (region: SketchRegion) => sketch.areas.filter(area => area.region === region).flatMap(area => {
     const node = renderArea(area);
     return node === null || node === undefined || node === false ? [] : [<div key={area.areaId} className="min-w-0">{node}</div>];
   });
-  const gap = dense ? "gap-1" : "gap-2";
-  const tray = at("tray");
-  const trayNode = tray.length > 0 && (
-    <div className={cn("grid", gap)} data-sketch-region="tray">
-      <p className="text-caption text-muted-foreground">{t(key("popups"))}</p>
-      {tray}
-    </div>
-  );
+  const gap = "gap-2";
+  const trayNode = <Tray areas={sketch.areas.filter(area => area.region === "tray")} draw={at} />;
   if (sketch.frame === "sidebar") {
     return (
       <div className={cn("grid", gap)}>
@@ -62,12 +57,10 @@ export function PageSketch({ sketch, renderArea, dense = false }: { sketch: Sket
     <div className={cn("grid", gap)}>
       <div {...surface("card")} className={cn("grid rounded-lg border bg-canvas p-2", gap, phone && "mx-auto w-full max-w-xs rounded-2xl")}>
         {/* The page's title on the left, only for orientation; the header's controls stand beside it, as on the page. */}
-        {dense ? at("top") : (
-          <div className={cn("grid items-start", gap, !phone && "sm:grid-cols-[minmax(0,0.5fr)_minmax(0,1.5fr)]")}>
-            <span aria-hidden className={cn("p-1.5 text-caption text-muted-foreground", !phone && "hidden sm:block")}>{t(key("pageTitle"))}</span>
-            {at("top")}
-          </div>
-        )}
+        <div className={cn("grid items-start", gap, !phone && "sm:grid-cols-[minmax(0,0.5fr)_minmax(0,1.5fr)]")}>
+          <span aria-hidden className={cn("p-1.5 text-caption text-muted-foreground", !phone && "hidden sm:block")}>{t(key("pageTitle"))}</span>
+          {at("top")}
+        </div>
         {at("main")}
         {at("bottom")}
       </div>
@@ -76,8 +69,33 @@ export function PageSketch({ sketch, renderArea, dense = false }: { sketch: Sket
   );
 }
 
-function list(axis: SketchAxis, dense: boolean): string {
-  const gap = dense ? "gap-0.5" : "gap-1.5";
+/**
+ * What opens over the page (dialogs, pop-ups): out of the page's own drawing, folded under it by default,
+ * so the page reads first. Drawn only while open.
+ */
+function Tray({ areas, draw }: { areas: readonly SketchArea[]; draw: (region: SketchRegion) => ReactNode[] }) {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  if (areas.length === 0) return null;
+  return (
+    <div className="grid gap-2" data-sketch-region="tray">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        onClick={() => setOpen(value => !value)}
+        className="flex min-h-target w-fit items-center gap-1 rounded-sm text-caption text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
+      >
+        <ChevronRight aria-hidden className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+        {t(key("popups"))}
+      </button>
+      {open && <div id={bodyId} className="grid gap-2">{draw("tray")}</div>}
+    </div>
+  );
+}
+
+function list(axis: SketchAxis): string {
+  const gap = "gap-1.5";
   if (axis === "row") return cn("flex flex-wrap", gap);
   if (axis === "tiles") return cn("grid grid-cols-[repeat(auto-fill,minmax(min(7rem,100%),1fr))]", gap);
   return cn("grid", gap);
@@ -89,15 +107,14 @@ function list(axis: SketchAxis, dense: boolean): string {
  * actions around the running timer, else a plain row, column or grid of tiles. `nested` draws an area that
  * sits inside this one.
  */
-export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested, dense = false }: {
+export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested }: {
   area: SketchArea;
   sketch: Sketch;
   anchorIds: readonly string[];
   tileFor: (anchorId: string) => ReactNode;
   nested: (areaId: string) => ReactNode;
-  dense?: boolean;
 }) {
-  const gap = dense ? "gap-0.5" : "gap-1.5";
+  const gap = "gap-1.5";
   if (area.axis === "flow") {
     const wide = sketch.frame === "page";
     const { lead, segments } = dashboardSegments(anchorIds);
@@ -105,7 +122,7 @@ export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested, dense = f
     return (
       <div className={cn("grid", gap)}>
         {(lead || rail) && (
-          <div className={cn("grid", gap, lead && rail && wide && (dense ? "grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]" : "sm:grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]"))}>
+          <div className={cn("grid", gap, lead && rail && wide && "sm:grid-cols-[minmax(0,1fr)_minmax(0,0.42fr)]")}>
             {lead && <div className="grid min-w-0 content-start">{tileFor(lead)}</div>}
             {rail}
           </div>
@@ -113,7 +130,7 @@ export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested, dense = f
         {segments.map(segment => segment.kind === "band"
           ? <Fragment key={segment.anchorId}>{tileFor(segment.anchorId)}</Fragment>
           : (
-            <div key={String(segment.items[0])} className={cn("grid", gap, wide && segment.items.includes("dashboard.summary") && segment.items.some(item => typeof item !== "string") && (dense ? "grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]" : "sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]"))}>
+            <div key={String(segment.items[0])} className={cn("grid", gap, wide && segment.items.includes("dashboard.summary") && segment.items.some(item => typeof item !== "string") && "sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>
               {segment.items.map(item => typeof item === "string"
                 ? <div key={item} className="grid min-w-0 content-start">{tileFor(item)}</div>
                 : <div key={item.join("+")} className={cn("grid min-w-0 content-start", gap)}>{item.map(anchorId => tileFor(anchorId))}</div>)}
@@ -126,5 +143,5 @@ export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested, dense = f
     const { before, after } = sidebarActionSegments(anchorIds, anchorIds.indexOf("shell.quick-start"));
     return <div className={cn("grid", gap)}>{before.map(tileFor)}{nested("shell.timer")}{after.map(tileFor)}</div>;
   }
-  return <div className={list(area.axis, dense)}>{anchorIds.map(tileFor)}</div>;
+  return <div className={list(area.axis)}>{anchorIds.map(tileFor)}</div>;
 }

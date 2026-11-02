@@ -12,13 +12,13 @@ const key = (name: string) => `settings.categories.workspace.${name}` as Message
  * block must be `relative isolate`), so the drawing reads as "the page, with heat over it", names and
  * buttons as readable as ever. Nothing is laid over a block nobody used: the page stays flat there.
  */
-export function HeatOverlay({ anchorId, layer, dense = false }: { anchorId: string; layer: HeatLayer; dense?: boolean }) {
+export function HeatOverlay({ anchorId, layer }: { anchorId: string; layer: HeatLayer }) {
   const count = layer.uses.get(anchorId) ?? 0;
   if (count <= 0) return null;
   const cells = layer.grids.get(anchorId);
   return (
-    <span aria-hidden data-heat className={cn("pointer-events-none absolute inset-0 -z-10 rounded-md", heatClass(count, layer.most), dense ? "p-0.5" : "p-1.5")}>
-      {cells && <HitGrid cells={cells} most={layer.hitMost} dense={dense} />}
+    <span aria-hidden data-heat className={cn("pointer-events-none absolute inset-0 -z-10 rounded-md", heatClass(count, layer.most), "p-1.5")}>
+      {cells && <HitGrid cells={cells} most={layer.hitMost} />}
     </span>
   );
 }
@@ -41,7 +41,7 @@ export function HeatLegend() {
         {t(key("heatMany"))}
       </span>
       <span className="flex items-center gap-1.5 whitespace-nowrap">
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary-foreground dark:bg-foreground" />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary-strong opacity-70" />
         {t(key("heatDots"))}
       </span>
     </span>

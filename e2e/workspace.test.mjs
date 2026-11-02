@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { holdRoute, withApp } from "./harness.mjs";
+import { openHistory } from "./workspace-helpers.mjs";
 
 const NOW = Date.now();
 
@@ -53,7 +54,7 @@ test("Workspace Studio previews, applies and rolls back a scoped layout without 
     await page.getByRole("heading", { name: "Recent activity" }).waitFor({ state: "detached" });
     assert.equal(await page.getByRole("heading", { name: "Recent activity" }).count(), 0);
     await page.goto(`${base}/settings/workspace`);
-    await page.getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
+    await (await openHistory(page)).getByRole("button", { name: "Go back to this: The original layout", exact: true }).click();
     await page.getByRole("button", { name: "Apply layout" }).click();
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
     await page.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show /, pressed: true }).waitFor();
@@ -118,7 +119,7 @@ test("Discovery survives editing and rollback on an older catalog until explicit
     assert.equal((await db.q("SELECT catalog_version FROM workspace_revisions WHERE revision_number = 2"))[0].catalog_version, "0.9.0");
     assert.equal(await discovery.getByRole("button", { name: "Dismiss" }).count(), before);
     // The history lists the original layout, then "old" (seeded), then the one in use: back to "old".
-    await page.locator("#workspace-history").getByRole("button", { name: /^Go back to this: / }).nth(1).click();
+    await (await openHistory(page)).getByRole("button", { name: /^Go back to this: / }).nth(1).click();
     await page.getByText(/Preview, not applied yet/).waitFor();
     await page.getByRole("button", { name: "Apply layout", exact: true }).click();
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
