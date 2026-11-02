@@ -36,6 +36,8 @@ export function IdleDialog() {
   });
   const schedule = useWorkSchedule();
   const { save: saveHours } = useSaveDayHours();
+  // A closed week's hours can't change: no "my break" there (nor while that's unknown).
+  const week = trpc.weeks.status.useQuery({ week: dayKey(away?.since ?? new Date()) }, { enabled: !!away });
   if (!away) return null;
 
   const minutes = Math.round(away.seconds / 60) * 60;
@@ -44,7 +46,7 @@ export function IdleDialog() {
   const awayDay = startOfDay(away.since);
   const awayEnd = new Date(away.since.getTime() + away.seconds * 1000);
   const sameDay = dayKey(awayEnd) === dayKey(away.since);
-  const asBreak = sameDay && !schedule.isPending
+  const asBreak = sameDay && !schedule.isPending && week.isSuccess && week.data === null
     ? breakAt(
         schedule.forDay(awayDay)[weekdayIndex(awayDay)],
         away.since.getHours() * 60 + away.since.getMinutes(),
@@ -52,14 +54,11 @@ export function IdleDialog() {
       )
     : null;
   const moved = asBreak?.breaks.find(b => !schedule.forDay(awayDay)[weekdayIndex(awayDay)].breaks.some(x => x.start === b.start && x.end === b.end));
-  const remove = (then?: () => void) =>
+  const remove = () =>
     trim.mutate(
       { issueKey: away.issueKey, connectionId: away.connectionId, seconds: away.seconds },
       {
-        onSuccess: () => {
-          dismiss();
-          then?.();
-        },
+        onSuccess: () => dismiss(),
       }
     );
 
@@ -128,9 +127,10 @@ export function IdleDialog() {
                 disabled={trim.isPending}
                 title={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
                 onClick={() =>
-                  remove(() =>
-                    void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end }))
-                  )
+                  // The break first: when it can't be saved, the timer keeps its time.
+                  void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end })).then(ok => {
+                    if (ok) remove();
+                  })
                 }
               >
                 {t("ui.idle.myBreak")}

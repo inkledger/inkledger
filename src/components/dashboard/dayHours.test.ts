@@ -62,7 +62,10 @@ describe("that was my break", () => {
   });
   it("within the day's hours only", () => {
     expect(breakAt(day, m(18, 10), m(19))).toBeNull();
-    expect(breakAt(day, m(8), m(9, 30))?.breaks).toEqual([{ start: "09:00", end: "09:30" }]);
+    // Over the day's start or end: arrived late or went home, not a break (lunch stays).
+    expect(breakAt(day, m(8), m(9, 30))).toBeNull();
+    expect(breakAt(day, m(17, 30), m(19, 30))).toBeNull();
+    expect(breakAt(day, m(17), m(18))).toBeNull();
     expect(breakAt({ ...day, enabled: false }, m(12), m(13))).toBeNull();
   });
 });

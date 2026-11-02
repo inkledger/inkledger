@@ -45,3 +45,14 @@
 - Done: rebased onto main after the team heat map (fa15879), then merged into main on 2026-11-02.
 - Checks after the rebase: lint, check, test (2971), build and smoke all passed. Full e2e: 393 of 394 passed; desk-snap failed once under load and passes when rerun alone.
 - A stopped timer across the break: e2e checks the dialog's preview and the one `create` with both parts (the server is read-only toward Jira there; the split write is in the router tests). `e2e/day-hours.test.mjs`: 5 of 5 pass.
+
+## Review pass (2026-11-02, after the merge)
+Two independent reviews of 006f898 (server and frontend). Fixed, each with a test that failed before:
+- Placement: a free stretch starting inside a break was chained to the one before it, so a split could jump over another worklog (`workPieces` links only work just before the break in the same stretch).
+- Placement: a piece under a minute (durations not in whole minutes) made the server refuse the whole log: `foldShort` runs it into its neighbour, within the sub-minute tolerance.
+- "It was my break": offered in a closed week, and the timer was trimmed before the break was saved (time lost when the save failed). Now hidden in a closed week (or while unknown) and saved first.
+- `breakAt`: an absence reaching the day's start or end (arrived late, left early) clamped into a break and could drop lunch; now not a break.
+- Editor: handles clamped to the drawn axis; the axis of a day off follows the draft; one Undo toast per day (Undo always one step back); Enter ignored while saving; edge grips 44 px on touch screens and fields `h-touch` there; Escape in a text field no longer drops the draft.
+- Left as is: the hours button is enabled while the week's status loads (the server refuses a closed week's save); a short break (≲10 min) is covered by its edge grips on touch, so it is moved by its edges, keys or fields.
+- New e2e: past day with its own break (2 h after it), "It was my break" (saved + timer trimmed), closed week (no button). `e2e/day-hours.test.mjs`: 8 of 8.
+- Unrelated: `api/modules/modules.test.ts` "no private key is ever committed" failed on main at a954351 (a desk fixture); fixed on main by 12e4a80.

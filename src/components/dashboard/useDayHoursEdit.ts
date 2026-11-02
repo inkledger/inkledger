@@ -43,6 +43,9 @@ export function useSaveDayHours() {
       toast.success(
         message ?? (hours ? t("views.dashboard.timeline.hours.saved", { day: dayMonth(day) }) : t("views.dashboard.timeline.hours.restored", { day: dayMonth(day) })),
         {
+          // One toast per day: a second save replaces the first, so Undo always
+          // goes back one step (never to hours older than the last save).
+          id: `day-hours-${key}`,
           action: {
             label: t("views.dashboard.timeline.hours.undo"),
             onClick: () => void write(key, before).catch(e => toastError(e)),
@@ -78,10 +81,12 @@ export function useDayHoursEdit(day: Date) {
   const live = draftDay === dayKey(day) ? draft : null;
 
   const start = useCallback(() => {
-    const from = current.enabled ? minutesOf(current.start) / 60 : 9;
-    const to = current.enabled ? minutesOf(current.end) / 60 : 18;
+    // The axis around the hours the draft starts from (a day off starts from the week's, or 9–18).
+    const first = current.enabled ? current : { ...base, enabled: true };
+    const from = minutesOf(first.start) / 60;
+    const to = minutesOf(first.end) / 60;
     setAxis({ first: Math.max(0, Math.floor(from) - 2), last: Math.min(24, Math.ceil(to) + 2) });
-    setDraft(current.enabled ? current : { ...base, enabled: true });
+    setDraft(first);
     setDraftDay(dayKey(day));
   }, [current, base, day]);
 
@@ -104,8 +109,8 @@ export function useDayHoursEdit(day: Date) {
 
   /** Enter: save the draft at once when nothing has to be chosen (else the bar shows the choice). */
   const submit = useCallback(() => {
-    if (live && !sameWorkDay(live, current) && !saveChoice(current, base, live)) void commit(live);
-  }, [live, current, base, commit]);
+    if (!pending && live && !sameWorkDay(live, current) && !saveChoice(current, base, live)) void commit(live);
+  }, [pending, live, current, base, commit]);
 
   const reset = useCallback(async () => {
     if (await save(day, null)) cancel();

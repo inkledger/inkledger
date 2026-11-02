@@ -167,6 +167,43 @@ test("a timer stopped across the break is logged as two worklogs, either side of
   );
 });
 
+test("on a past day with its break moved, new time goes after the day's own break, never into it", () => {
+  const at = (h, m = 0) => new Date(lastWorkday()).setHours(h, m, 0, 0);
+  return withApp(
+    {
+      viewport: { width: 1280, height: 900 },
+      // Lunch at 15:00 that day, worked 9:00–15:00 straight: the next 2 h start at 16:00.
+      seed: async db => {
+        await db.q("INSERT INTO work_day_overrides (user_id, day, work_day, created_at) VALUES (1, ?, ?, 1)", day(), JSON.stringify({ enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "15:00", end: "16:00" }] }));
+        await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'DEMO-101', 'w-a', ?, 21600, '', 1)", at(9));
+      },
+    },
+    async ({ page, base }) => {
+      const sent = [];
+      await page.route(/\/api\/trpc\/worklogs\.create/, async route => {
+        const body = JSON.parse(route.request().postData() ?? "{}");
+        const input = body[0]?.json ?? body.json;
+        sent.push(input);
+        const made = { id: 900, issueKey: input.issueKey, remoteId: "wl-1", timeSpentSeconds: input.seconds, comment: "" };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
+      });
+      await page.goto(`${base}/?period=day&from=${day()}`);
+      await page.getByRole("button", { name: /^Log missing time from 16:00 to 18:00/ }).waitFor();
+      await page.getByRole("button", { name: "Log time", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Log time" });
+      await dialog.getByRole("combobox", { name: "Issue" }).click();
+      await page.getByRole("option", { name: /DEMO-101/ }).first().click();
+      await dialog.getByLabel("Duration", { exact: true }).fill("2h");
+      await dialog.getByText("From 16:00 to 18:00").waitFor();
+      await dialog.getByRole("button", { name: "Log", exact: true }).click();
+      await dialog.waitFor({ state: "detached" });
+      assert.equal(sent.length, 1);
+      assert.equal(new Date(sent[0].started).getTime(), at(16), "after the day's own break (the week's would say 15:00)");
+      assert.equal(sent[0].parts ?? null, null, "one piece (superjson sends undefined as null + meta)");
+    },
+  );
+});
+
 test("on a phone the hours are fields, at 320 px, and a refused draft can't be saved", () =>
   withApp({ viewport: { width: 320, height: 720 } }, async ({ page, base, db }) => {
     const key = day();
@@ -187,3 +224,58 @@ test("on a phone the hours are fields, at 320 px, and a refused draft can't be s
     await page.getByText(/^Hours of .* saved\.$/).waitFor();
     assert.deepEqual((await own(db, key))?.breaks, [{ start: "12:00", end: "13:00" }]);
   }));
+
+/** Away 15:00–16:00 on the last working day, a timer running (the page's clock, not the server's). */
+const awayAtThree = async ({ page, base }) => {
+  await page.clock.install({ time: new Date(lastWorkday()).setHours(15, 0, 0, 0) });
+  await page.goto(`${base}/?period=day&from=${day()}`);
+  await editButton(page).waitFor();
+  await page.clock.fastForward("01:00:00");
+  const dialog = page.getByRole("dialog", { name: /^You were away/ });
+  await dialog.waitFor();
+  return dialog;
+};
+const awaySeed = now => async db => {
+  await db.q(
+    "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'running', ?, 0, NULL, '', ?, ?)",
+    now - 3 * 3_600_000, now, now,
+  );
+  await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 5) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 5");
+};
+
+test("away in the afternoon: \"It was my break\" makes it the day's break and takes it off the timer; never in a closed week", () => {
+  const now = Date.now();
+  return withApp({ viewport: { width: 1280, height: 900 }, seed: awaySeed(now) }, async app => {
+    const { page, db } = app;
+    const dialog = await awayAtThree(app);
+    await dialog.getByRole("button", { name: "It was my break" }).click();
+    await dialog.waitFor({ state: "detached" });
+    for (let i = 0; i < 50 && !(await own(db, day())); i++) await page.waitForTimeout(100);
+    assert.deepEqual((await own(db, day()))?.breaks, [{ start: "15:00", end: "16:00" }], "lunch moved to the time away");
+    const [timer] = await db.q("SELECT started_at FROM timers WHERE issue_key = 'DEMO-101'");
+    assert.ok(Number(timer.started_at) >= now - 2 * 3_600_000 - 60_000, "the hour away left the timer");
+  });
+});
+
+test("a closed week: no \"It was my break\", the timer keeps its time", () => {
+  const now = Date.now();
+  const past = lastWorkday();
+  const monday = new Date(past);
+  monday.setDate(past.getDate() - ((past.getDay() + 6) % 7));
+  return withApp(
+    {
+      viewport: { width: 1280, height: 900 },
+      seed: async db => {
+        await awaySeed(now)(db);
+        await db.q("INSERT INTO week_locks (user_id, week_start, closed_at) VALUES (1, ?, 1)", dayKey(monday));
+      },
+    },
+    async app => {
+      const dialog = await awayAtThree(app);
+      await dialog.getByRole("button", { name: /^Remove / }).waitFor();
+      assert.equal(await dialog.getByRole("button", { name: "It was my break" }).count(), 0);
+      await app.page.keyboard.press("Escape");
+      assert.equal(await own(app.db, day()), null);
+    },
+  );
+});

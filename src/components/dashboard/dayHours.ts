@@ -113,9 +113,10 @@ export function breakAt(d: WorkDay, from: number, to: number): WorkDay | null {
   if (!d.enabled) return null;
   const start = minutesOf(d.start);
   const end = minutesOf(d.end);
-  const a = Math.max(start, Math.floor(from / STEP) * STEP);
-  const b = Math.min(end, Math.ceil(to / STEP) * STEP);
-  if (b - a < MIN_BREAK) return null;
+  const a = Math.floor(from / STEP) * STEP;
+  const b = Math.ceil(to / STEP) * STEP;
+  // Reaching the day's start or end is arriving late or leaving early: work on both sides only.
+  if (a <= start || b >= end || b - a < MIN_BREAK) return null;
   const breaks = d.breaks.map((x) => ({ start: minutesOf(x.start), end: minutesOf(x.end) }));
   const overlaps = (x: { start: number; end: number }) => x.start < b && x.end > a;
   let rest = breaks.filter((x) => !overlaps(x));

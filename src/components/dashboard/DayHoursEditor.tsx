@@ -43,6 +43,8 @@ export function DayHoursHandles({
 }) {
   const layer = useRef<HTMLDivElement>(null);
   const span = (axis.last - axis.first) * 60;
+  // Never off the drawn axis: what can't be seen can't be dragged to.
+  const onAxis = (min: number) => Math.min(axis.last * 60, Math.max(axis.first * 60, min));
   const pct = (min: number) => ((min - axis.first * 60) / span) * 100;
   const drag = useRef<{ handle: Handle; x: number; from: WorkDay; at: number; moved: boolean; pointer: number } | null>(null);
   const [active, setActive] = useState<Handle | null>(null);
@@ -60,7 +62,7 @@ export function DayHoursHandles({
     d.moved = true;
     setActive(d.handle);
     const width = layer.current?.getBoundingClientRect().width || 1;
-    onChange(moveHandle(d.from, d.handle, snapTo(d.at + (dx / width) * span, stepOf(e))));
+    onChange(moveHandle(d.from, d.handle, onAxis(snapTo(d.at + (dx / width) * span, stepOf(e)))));
   };
   const up = (e: PointerEvent<HTMLElement>) => {
     if (drag.current?.pointer !== e.pointerId) return;
@@ -91,7 +93,7 @@ export function DayHoursHandles({
     if (!dir) return;
     e.preventDefault();
     const step = stepOf(e);
-    onChange(moveHandle(draft, handle, snapTo(handleAt(draft, handle) + dir * step, step)));
+    onChange(moveHandle(draft, handle, onAxis(snapTo(handleAt(draft, handle) + dir * step, step))));
   };
 
   const slider = (handle: Handle, label: string, value: number) => ({
@@ -122,7 +124,7 @@ export function DayHoursHandles({
           key={kind}
           {...slider({ kind }, label, at)}
           title={label}
-          className={cn("absolute inset-y-0 flex w-6 -translate-x-1/2 cursor-ew-resize justify-center rounded-md", ring)}
+          className={cn("absolute inset-y-0 flex w-6 -translate-x-1/2 cursor-ew-resize justify-center rounded-md coarse:w-touch", ring)}
           style={{ left: `${pct(at)}%` }}
         >
           <span aria-hidden className={cn("h-full w-1 rounded-full bg-primary-strong", sameHandle(active, { kind }) && "w-1.5")} />
@@ -152,11 +154,11 @@ export function DayHoursHandles({
             {/* The edges stick out by half their grip: a short break keeps both reachable. */}
             <div
               {...slider({ kind: "breakStart", i }, t("views.dashboard.timeline.hours.breakStart", { time: b.start }), from)}
-              className={cn("absolute inset-y-0 -left-2 w-4 cursor-ew-resize rounded-md", ring)}
+              className={cn("absolute inset-y-0 left-0 w-4 -translate-x-1/2 cursor-ew-resize rounded-md coarse:w-touch", ring)}
             />
             <div
               {...slider({ kind: "breakEnd", i }, t("views.dashboard.timeline.hours.breakEnd", { time: b.end }), to)}
-              className={cn("absolute inset-y-0 -right-2 w-4 cursor-ew-resize rounded-md", ring)}
+              className={cn("absolute inset-y-0 left-full w-4 -translate-x-1/2 cursor-ew-resize rounded-md coarse:w-touch", ring)}
             />
             {moving && <TimeTag>{b.start}–{b.end}</TimeTag>}
           </div>
@@ -233,7 +235,9 @@ export const DayHoursBar = memo(function DayHoursBar({
     if (!draft) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       // A dialog or sheet open over the page takes its own Escape.
-      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("[role=dialog], [role=alertdialog]")) edit.cancel();
+      // Escape in a field on the page clears or leaves the field, not the draft.
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
+      if (e.key === "Escape" && !e.defaultPrevented && !typing && !document.querySelector("[role=dialog], [role=alertdialog]")) edit.cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -384,11 +388,11 @@ function DayHoursForm({ day, edit, onDirty, onDone }: { day: Date; edit: DayHour
             <div className="flex flex-wrap items-center gap-2">
               <Label className="grid gap-1 text-body-sm">
                 {t("views.dashboard.timeline.hours.startField")}
-                <TimeInput label={t("views.dashboard.timeline.hours.startField")} value={form.start} onChange={v => set({ ...form, start: v })} className="h-touch sm:h-8" />
+                <TimeInput label={t("views.dashboard.timeline.hours.startField")} value={form.start} onChange={v => set({ ...form, start: v })} className="h-touch sm:h-8 sm:coarse:h-touch" />
               </Label>
               <Label className="grid gap-1 text-body-sm">
                 {t("views.dashboard.timeline.hours.endField")}
-                <TimeInput label={t("views.dashboard.timeline.hours.endField")} value={form.end} onChange={v => set({ ...form, end: v })} className="h-touch sm:h-8" />
+                <TimeInput label={t("views.dashboard.timeline.hours.endField")} value={form.end} onChange={v => set({ ...form, end: v })} className="h-touch sm:h-8 sm:coarse:h-touch" />
               </Label>
             </div>
             <ul className="grid gap-2">
@@ -398,9 +402,9 @@ function DayHoursForm({ day, edit, onDirty, onDone }: { day: Date; edit: DayHour
                 return (
                   <li key={i} className="flex flex-wrap items-center gap-2 text-body-sm">
                     <span>{label}</span>
-                    <TimeInput label={label} value={b.start} onChange={v => patch({ start: v })} className="h-touch sm:h-8" />
+                    <TimeInput label={label} value={b.start} onChange={v => patch({ start: v })} className="h-touch sm:h-8 sm:coarse:h-touch" />
                     <span>{t("views.dashboard.timeline.hours.breakTo")}</span>
-                    <TimeInput label={`${label} ${t("views.dashboard.timeline.hours.breakTo")}`} value={b.end} onChange={v => patch({ end: v })} className="h-touch sm:h-8" />
+                    <TimeInput label={`${label} ${t("views.dashboard.timeline.hours.breakTo")}`} value={b.end} onChange={v => patch({ end: v })} className="h-touch sm:h-8 sm:coarse:h-touch" />
                     <Button
                       variant="ghost"
                       size="icon-sm"
