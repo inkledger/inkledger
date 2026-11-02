@@ -14,9 +14,10 @@ import type { StatusCategory, TrackerCapabilities, TrackerTraits, WEBHOOK_EVENTS
 import { instant, instantFrom, localDateOf, type JsonValue } from "@contracts/values";
 import { tokenCreds } from "../core/context";
 import { optionsParser } from "../core/options";
+import { htmlParagraphs, markdownWarnings } from "../core/richtext/toHtml";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import type { CallContext, ConversionWarning, Instant, IssueRef, Limited, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, ReportedIssueGone, TrackerProvider, Transition } from "../types";
+import type { CallContext, Instant, IssueRef, Limited, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, ReportedIssueGone, TrackerProvider, Transition } from "../types";
 import {
   COMMENTS_API_VERSION,
   CONNECTION_API_VERSION,
@@ -308,26 +309,9 @@ async function inProject<T>(creds: AzureCreds, ref: IssueRef, run: (project: str
 
 // ---------- Comments (HTML) ----------
 
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 /** Markdown the service won't show as written: it gets the text, as paragraphs, until the RichText layer converts it. */
-const MARKS: [ConversionWarning["feature"], RegExp][] = [
-  ["strong", /\*\*[^*]+\*\*/],
-  ["emphasis", /(^|[^*])\*[^*\s][^*]*\*/],
-  ["code", /`[^`]+`/],
-  ["codeBlock", /^```/m],
-  ["link", /\[[^\]]+\]\([^)]+\)/],
-  ["heading", /^#{1,6} /m],
-  ["list", /^\s*([-*+]|\d+\.) /m],
-  ["quote", /^> /m],
-  ["table", /^\|.*\|$/m],
-  ["image", /!\[[^\]]*\]\([^)]+\)/],
-];
-const warningsFor = (md: string): ConversionWarning[] => MARKS.filter(([, re]) => re.test(md)).map(([feature]) => ({ code: "approximated" as const, feature, serverDetail: `markdown ${feature} sent to Azure DevOps as plain paragraphs` }));
-const paragraphs = (md: string) =>
-  md
-    .split(/\n{2,}/)
-    .map((p) => `<div>${escapeHtml(p.trim()).replace(/\n/g, "<br>")}</div>`)
-    .join("");
+const warningsFor = (md: string) => markdownWarnings(md, "Azure DevOps as plain paragraphs");
+const paragraphs = (md: string) => htmlParagraphs(md, "div", true);
 
 function toRemoteComment(c: AzureComment): RemoteComment {
   return {

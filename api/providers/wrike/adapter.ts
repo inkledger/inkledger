@@ -12,6 +12,7 @@ import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate } from "@contracts/values";
 import { tokenCreds } from "../core/context";
 import { optionsParser } from "../core/options";
+import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, withoutBlockMarks, type HtmlList } from "../core/richtext/toHtml";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { hmacHex, sameSecret } from "../core/webhooks";
@@ -347,22 +348,8 @@ function logForm(w: WorklogInput) {
 
 // ---------- Comments ----------
 
-const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /** Inline Markdown as the few tags Wrike keeps in a comment (b, i, strike, code, a); code spans are left alone. */
-function inline(text: string): string {
-  return text
-    .split(/(`[^`\n]+`)/)
-    .map((part, n) => {
-      if (n % 2 === 1) return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
-      return escapeHtml(part)
-        .replace(/!?\[([^\]]*)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, (_m, label: string, url: string) => `<a href="${url.replace(/"/g, "&quot;")}">${label || url}</a>`)
-        .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__/g, (_m, a: string | undefined, b: string | undefined) => `<b>${a ?? b}</b>`)
-        .replace(/~~([^~\n]+)~~/g, "<strike>$1</strike>")
-        .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*(?!\w)|(^|[^_\w])_([^_\s][^_\n]*)_(?!\w)/g, (_m, p1: string | undefined, a: string | undefined, p2: string | undefined, b: string | undefined) => `${p1 ?? p2 ?? ""}<i>${a ?? b}</i>`);
-    })
-    .join("");
-}
+const inline = (text: string) => inlineHtml(text, { strong: "b", em: "i", strike: "strike", code: "code" });
 
 /**
  * Markdown as a Wrike comment: HTML in which a newline is not a break (so
@@ -372,13 +359,12 @@ function inline(text: string): string {
  * and said so.
  */
 export function toWrikeHtml(md: string): { html: string; warnings: ConversionWarning[] } {
-  const warnings = new Map<string, ConversionWarning>();
-  const approximate = (feature: NonNullable<ConversionWarning["feature"]>) => warnings.set(feature, { code: "approximated", feature, serverDetail: `markdown ${feature} sent to Wrike as plain text` });
+  const { approximate, warnings } = approximations("Wrike as plain text");
   let html = "";
   let started = false;
   let afterList = false;
   let blank = false;
-  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
+  let list: HtmlList | null = null;
   let fenced = false;
   const line = (s: string) => {
     html += `${started && !afterList ? "<br />" : ""}${s}`;
@@ -387,7 +373,7 @@ export function toWrikeHtml(md: string): { html: string; warnings: ConversionWar
   };
   const flush = () => {
     if (!list) return;
-    html += `<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`;
+    html += listHtml(list);
     started = true;
     afterList = true;
     list = null;
@@ -403,12 +389,11 @@ export function toWrikeHtml(md: string): { html: string; warnings: ConversionWar
       line(escapeHtml(raw));
       continue;
     }
-    const item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(raw);
+    const item = listItemOf(raw);
     if (item) {
-      const tag = /\d/.test(item[1]) ? "ol" : "ul";
-      if (list && list.tag !== tag) flush();
-      list ??= { tag, items: [] };
-      list.items.push(inline(item[2]));
+      if (list && list.tag !== item.tag) flush();
+      list ??= { tag: item.tag, items: [] };
+      list.items.push(inline(item.text));
       blank = false;
       continue;
     }
@@ -420,21 +405,10 @@ export function toWrikeHtml(md: string): { html: string; warnings: ConversionWar
       continue;
     }
     blank = false;
-    let text = raw;
-    if (/^#{1,6}\s/.test(text)) {
-      approximate("heading");
-      text = text.replace(/^#{1,6}\s+/, "");
-    }
-    if (/^>\s?/.test(text)) {
-      approximate("quote");
-      text = text.replace(/^>\s?/, "");
-    }
-    if (/^\|.*\|\s*$/.test(text)) approximate("table");
-    if (/!\[[^\]]*\]\([^)]+\)/.test(text)) approximate("image");
-    line(inline(text));
+    line(inline(withoutBlockMarks(raw, approximate)));
   }
   flush();
-  return { html: html.replace(/(<br \/>)+$/, ""), warnings: [...warnings.values()] };
+  return { html: html.replace(/(<br \/>)+$/, ""), warnings: warnings() };
 }
 
 async function commentsOf(c: WrikeCreds, list: WrikeComment[]): Promise<RemoteComment[]> {

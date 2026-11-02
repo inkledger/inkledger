@@ -10,6 +10,7 @@
 import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, type HtmlList } from "../core/richtext/toHtml";
 import { wholeMinutes } from "../core/time";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -430,8 +431,6 @@ function bucketOfRef(ref: IssueRef): string {
 
 // ---------- Comments ----------
 
-const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 const toRemoteComment = (cm: BcComment): RemoteComment => ({
   id: String(cm.id),
   author: cm.creator ? person(cm.creator) : { remoteId: "", name: "" },
@@ -441,26 +440,7 @@ const toRemoteComment = (cm: BcComment): RemoteComment => ({
 });
 
 /** Inline Markdown as the tags Basecamp's editor keeps (strong, em, strike, a); code spans are plain text there. */
-function inline(text: string, approximate: (f: "code" | "image") => void): string {
-  return text
-    .split(/(`[^`\n]+`)/)
-    .map((part, n) => {
-      if (n % 2 === 1) {
-        approximate("code");
-        return escapeHtml(part.slice(1, -1));
-      }
-      return escapeHtml(part)
-        .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (_m, alt: string, url: string) => {
-          approximate("image");
-          return `<a href="${url.replace(/"/g, "&quot;")}">${alt || url}</a>`;
-        })
-        .replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, (_m, label: string, url: string) => `<a href="${url.replace(/"/g, "&quot;")}">${label || url}</a>`)
-        .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__/g, (_m, a: string | undefined, b: string | undefined) => `<strong>${a ?? b}</strong>`)
-        .replace(/~~([^~\n]+)~~/g, "<strike>$1</strike>")
-        .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*(?!\w)|(^|[^_\w])_([^_\s][^_\n]*)_(?!\w)/g, (_m, p1: string | undefined, a: string | undefined, p2: string | undefined, b: string | undefined) => `${p1 ?? p2 ?? ""}<em>${a ?? b}</em>`);
-    })
-    .join("");
-}
+const inline = (text: string, approximate: (f: "code" | "image") => void) => inlineHtml(text, { strong: "strong", em: "em", strike: "strike" }, approximate);
 
 /**
  * Markdown as Basecamp's rich text: <div> paragraphs with <br> line breaks, a
@@ -469,16 +449,15 @@ function inline(text: string, approximate: (f: "code" | "image") => void): strin
  * (heading levels, inline code, tables, images) is written as plain text and said so.
  */
 export function toBasecampHtml(md: string): { html: string; warnings: ConversionWarning[] } {
-  const warnings = new Map<string, ConversionWarning>();
-  const approximate = (feature: NonNullable<ConversionWarning["feature"]>) => warnings.set(feature, { code: "approximated", feature });
+  const { approximate, warnings } = approximations();
   const out: string[] = [];
   let para: string[] = [];
-  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
+  let list: HtmlList | null = null;
   let code: string[] | null = null;
   const flush = () => {
     if (para.length) out.push(`<div>${para.join("<br>")}</div>`);
     para = [];
-    if (list) out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
+    if (list) out.push(listHtml(list));
     list = null;
   };
   for (const line of md.replace(/\r\n?/g, "\n").split("\n")) {
@@ -500,12 +479,11 @@ export function toBasecampHtml(md: string): { html: string; warnings: Conversion
       flush();
       continue;
     }
-    const item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(line);
+    const item = listItemOf(line);
     if (item) {
-      const tag = /\d/.test(item[1]) ? "ol" : "ul";
-      if (para.length || (list && list.tag !== tag)) flush();
-      list ??= { tag, items: [] };
-      list.items.push(inline(item[2], approximate));
+      if (para.length || (list && list.tag !== item.tag)) flush();
+      list ??= { tag: item.tag, items: [] };
+      list.items.push(inline(item.text, approximate));
       continue;
     }
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
@@ -527,7 +505,7 @@ export function toBasecampHtml(md: string): { html: string; warnings: Conversion
   }
   if (code) out.push(`<pre>${code.map(escapeHtml).join("\n")}</pre>`);
   flush();
-  return { html: out.join(""), warnings: [...warnings.values()] };
+  return { html: out.join(""), warnings: warnings() };
 }
 
 // ---------- Webhooks ----------

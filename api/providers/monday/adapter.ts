@@ -14,6 +14,7 @@ import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonVa
 import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { approximations, escapeHtml, listHtml, listItemOf, withoutBlockMarks, type HtmlList } from "../core/richtext/toHtml";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { ActiveWorkflowSource, CallContext, ChangeValue, ConversionWarning, IssueHandle, IssueRef, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
@@ -397,7 +398,6 @@ const activityPage = async (c: MondayCreds, board: string, page: number, o: { fr
 
 // ---------- Markdown to monday's HTML ----------
 
-const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
 
 /** Inline Markdown as the HTML an update keeps: strong, emphasis, links; code is written as text. */
@@ -427,13 +427,12 @@ function inline(text: string, note: (f: NonNullable<ConversionWarning["feature"]
  * images) is written as plain paragraphs and said so.
  */
 export function toMondayHtml(md: string): { html: string; warnings: ConversionWarning[] } {
-  const warnings = new Map<string, ConversionWarning>();
-  const approximate = (feature: NonNullable<ConversionWarning["feature"]>) => warnings.set(feature, { code: "approximated", feature, serverDetail: `markdown ${feature} sent to monday as plain text` });
+  const { approximate, warnings } = approximations("monday as plain text");
   const out: string[] = [];
-  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
+  let list: HtmlList | null = null;
   let fenced = false;
   const flush = () => {
-    if (list) out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
+    if (list) out.push(listHtml(list));
     list = null;
   };
   for (const line of md.replace(/\r\n?/g, "\n").split("\n")) {
@@ -447,31 +446,19 @@ export function toMondayHtml(md: string): { html: string; warnings: ConversionWa
       out.push(`<p>${escapeHtml(line)}</p>`);
       continue;
     }
-    const item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(line);
+    const item = listItemOf(line);
     if (item) {
-      const tag = /\d/.test(item[1]) ? "ol" : "ul";
-      if (list && list.tag !== tag) flush();
-      list ??= { tag, items: [] };
-      list.items.push(inline(item[2], approximate));
+      if (list && list.tag !== item.tag) flush();
+      list ??= { tag: item.tag, items: [] };
+      list.items.push(inline(item.text, approximate));
       continue;
     }
     flush();
     if (line.trim() === "") continue;
-    let text = line;
-    if (/^#{1,6}\s/.test(text)) {
-      approximate("heading");
-      text = text.replace(/^#{1,6}\s+/, "");
-    }
-    if (/^>\s?/.test(text)) {
-      approximate("quote");
-      text = text.replace(/^>\s?/, "");
-    }
-    if (/^\|.*\|\s*$/.test(text)) approximate("table");
-    if (/!\[[^\]]*\]\([^)]+\)/.test(text)) approximate("image");
-    out.push(`<p>${inline(text, approximate)}</p>`);
+    out.push(`<p>${inline(withoutBlockMarks(line, approximate), approximate)}</p>`);
   }
   flush();
-  return { html: out.join(""), warnings: [...warnings.values()] };
+  return { html: out.join(""), warnings: warnings() };
 }
 
 const toRemoteComment = (u: MondayUpdate): RemoteComment => ({

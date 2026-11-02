@@ -12,6 +12,7 @@ import { instant, instantFrom, localDate, type LocalDate } from "@contracts/valu
 import { tokenCreds } from "../core/context";
 import { categoryByName } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { markdownWarnings } from "../core/richtext/toHtml";
 import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -20,7 +21,6 @@ import type {
   CallContext,
   CatalogItem,
   ChangeValue,
-  ConversionWarning,
   IssueHandle,
   IssueRef,
   RemoteChange,
@@ -363,20 +363,7 @@ async function readEntry(c: RedmineCreds, id: string): Promise<RmTimeEntry | nul
 // ---------- Comments (journals) ----------
 
 /** Markdown the server's textile won't show as written; the text goes as paragraphs, and what was lost is said. */
-const MARKS: [ConversionWarning["feature"], RegExp][] = [
-  ["strong", /\*\*[^*]+\*\*/],
-  ["emphasis", /(^|[^*])\*[^*\s][^*]*\*/],
-  ["code", /`[^`]+`/],
-  ["codeBlock", /^```/m],
-  ["link", /\[[^\]]+\]\([^)]+\)/],
-  ["heading", /^#{1,6} /m],
-  ["list", /^\s*([-*+]|\d+\.) /m],
-  ["quote", /^> /m],
-  ["table", /^\|.*\|$/m],
-  ["image", /!\[[^\]]*\]\([^)]+\)/],
-];
-const warningsFor = (md: string): ConversionWarning[] =>
-  MARKS.filter(([, re]) => re.test(md)).map(([feature]) => ({ code: "approximated" as const, feature, serverDetail: `markdown ${feature} sent to Redmine as plain paragraphs` }));
+const warningsFor = (md: string) => markdownWarnings(md, "Redmine as plain paragraphs");
 
 /** A journal with no notes is only history. */
 const toRemoteComment = (j: RmJournal): RemoteComment => ({

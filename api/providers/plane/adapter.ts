@@ -8,6 +8,7 @@
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { secretOf } from "../core/context";
 import { optionsParser } from "../core/options";
+import { htmlParagraphs, markdownWarnings } from "../core/richtext/toHtml";
 import { wholeMinutes } from "../core/time";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
@@ -19,7 +20,6 @@ import { hmacHex, sameSecret } from "../core/webhooks";
 import type {
   ActiveWorkflowSource,
   CallContext,
-  ConversionWarning,
   IssueHandle,
   IssueRef,
   RemoteChange,
@@ -362,28 +362,9 @@ async function walk(k: Ctx, w: Walk, stopBefore: number | null): Promise<{ issue
 
 // ---------- Texts ----------
 
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /** Markdown the service won't show as written: it gets the text, as paragraphs, until the RichText layer converts it. */
-const MARKS: [ConversionWarning["feature"], RegExp][] = [
-  ["strong", /\*\*[^*]+\*\*/],
-  ["emphasis", /(^|[^*])\*[^*\s][^*]*\*/],
-  ["code", /`[^`]+`/],
-  ["codeBlock", /^```/m],
-  ["link", /\[[^\]]+\]\([^)]+\)/],
-  ["heading", /^#{1,6} /m],
-  ["list", /^\s*([-*+]|\d+\.) /m],
-  ["quote", /^> /m],
-  ["table", /^\|.*\|$/m],
-  ["image", /!\[[^\]]*\]\([^)]+\)/],
-];
-const warningsFor = (md: string): ConversionWarning[] => MARKS.filter(([, re]) => re.test(md)).map(([feature]) => ({ code: "approximated" as const, feature, serverDetail: `markdown ${feature} sent to Plane as plain paragraphs` }));
-const paragraphs = (md: string) =>
-  md
-    .split(/\n{2,}/)
-    .filter((p) => p.trim())
-    .map((p) => `<p>${escapeHtml(p.trim()).replace(/\n/g, "<br>")}</p>`)
-    .join("");
+const warningsFor = (md: string) => markdownWarnings(md, "Plane as plain paragraphs");
+const paragraphs = (md: string) => htmlParagraphs(md, "p", false);
 
 /** "<p></p>" is what an item with no description has. */
 const hasContent = (html: string | null | undefined): html is string => !!html && (/<(img|hr|video|iframe|table)\b/i.test(html) || html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() !== "");

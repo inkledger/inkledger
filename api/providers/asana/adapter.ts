@@ -9,6 +9,7 @@
 import { tokenCreds } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
+import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, withoutBlockMarks, type HtmlList } from "../core/richtext/toHtml";
 import { wholeMinutes } from "../core/time";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
@@ -398,22 +399,8 @@ const toRemoteComment = (s: AsanaStory): RemoteComment => ({
   updatedAt: null,
 });
 
-const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 /** Inline Markdown as the few tags Asana takes in a comment (strong, em, s, code, a); code spans are left alone. */
-function inline(text: string): string {
-  return text
-    .split(/(`[^`\n]+`)/)
-    .map((part, n) => {
-      if (n % 2 === 1) return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
-      return escapeHtml(part)
-        .replace(/!?\[([^\]]*)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, (_m, label: string, url: string) => `<a href="${url.replace(/"/g, "&quot;")}">${label || url}</a>`)
-        .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__/g, (_m, a: string | undefined, b: string | undefined) => `<strong>${a ?? b}</strong>`)
-        .replace(/~~([^~\n]+)~~/g, "<s>$1</s>")
-        .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*(?!\w)|(^|[^_\w])_([^_\s][^_\n]*)_(?!\w)/g, (_m, p1: string | undefined, a: string | undefined, p2: string | undefined, b: string | undefined) => `${p1 ?? p2 ?? ""}<em>${a ?? b}</em>`);
-    })
-    .join("");
-}
+const inline = (text: string) => inlineHtml(text, { strong: "strong", em: "em", strike: "s", code: "code" });
 
 /**
  * Markdown as an Asana html_text: a <body> of text with line breaks as newlines
@@ -422,13 +409,12 @@ function inline(text: string): string {
  * plain text and said so.
  */
 export function toAsanaHtml(md: string): { html: string; warnings: ConversionWarning[] } {
-  const warnings = new Map<string, ConversionWarning>();
-  const approximate = (feature: NonNullable<ConversionWarning["feature"]>) => warnings.set(feature, { code: "approximated", feature, serverDetail: `markdown ${feature} sent to Asana as plain text` });
+  const { approximate, warnings } = approximations("Asana as plain text");
   const out: string[] = [];
-  let list: { tag: "ul" | "ol"; items: string[] } | null = null;
+  let list: HtmlList | null = null;
   let fenced = false;
   const flush = () => {
-    if (list) out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
+    if (list) out.push(listHtml(list));
     list = null;
   };
   for (const line of md.replace(/\r\n?/g, "\n").split("\n")) {
@@ -442,30 +428,18 @@ export function toAsanaHtml(md: string): { html: string; warnings: ConversionWar
       out.push(escapeHtml(line));
       continue;
     }
-    const item = /^\s*([-*+]|\d+[.)])\s+(.*)$/.exec(line);
+    const item = listItemOf(line);
     if (item) {
-      const tag = /\d/.test(item[1]) ? "ol" : "ul";
-      if (list && list.tag !== tag) flush();
-      list ??= { tag, items: [] };
-      list.items.push(inline(item[2]));
+      if (list && list.tag !== item.tag) flush();
+      list ??= { tag: item.tag, items: [] };
+      list.items.push(inline(item.text));
       continue;
     }
     flush();
-    let text = line;
-    if (/^#{1,6}\s/.test(text)) {
-      approximate("heading");
-      text = text.replace(/^#{1,6}\s+/, "");
-    }
-    if (/^>\s?/.test(text)) {
-      approximate("quote");
-      text = text.replace(/^>\s?/, "");
-    }
-    if (/^\|.*\|\s*$/.test(text)) approximate("table");
-    if (/!\[[^\]]*\]\([^)]+\)/.test(text)) approximate("image");
-    out.push(inline(text));
+    out.push(inline(withoutBlockMarks(line, approximate)));
   }
   flush();
-  return { html: `<body>${out.join("\n").replace(/(<\/[uo]l>)\n/g, "$1").replace(/\n(<[uo]l>)/g, "$1")}</body>`, warnings: [...warnings.values()] };
+  return { html: `<body>${out.join("\n").replace(/(<\/[uo]l>)\n/g, "$1").replace(/\n(<[uo]l>)/g, "$1")}</body>`, warnings: warnings() };
 }
 
 // ---------- History ----------

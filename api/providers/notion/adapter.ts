@@ -18,10 +18,10 @@ import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } 
 import { connectionMapping } from "../core/categories";
 import { ProviderError } from "../core/errors";
 import { headerOf, verifySha256Header } from "../core/webhooks";
+import { markdownWarnings } from "../core/richtext/toHtml";
 import {
   type ActiveWorkflowSource,
   type CallContext,
-  type ConversionWarning,
   type IssueHandle,
   type RemoteBody,
   type RemoteComment,
@@ -198,16 +198,7 @@ export function markdownToRichText(md: string): RichOut[] {
 }
 
 /** What markdown the comment keeps only as text: block features of the text (Notion's comments have none of them). */
-const BLOCKS: [ConversionWarning["feature"], RegExp][] = [
-  ["codeBlock", /^```/m],
-  ["heading", /^#{1,6} /m],
-  ["list", /^\s*([-*+]|\d+\.) /m],
-  ["quote", /^> /m],
-  ["table", /^\|.*\|$/m],
-  ["image", /!\[[^\]]*\]\([^)]+\)/],
-];
-const warningsFor = (md: string): ConversionWarning[] =>
-  BLOCKS.filter(([, re]) => re.test(md)).map(([feature]) => ({ code: "approximated" as const, feature, serverDetail: `markdown ${String(feature)} sent to Notion as text` }));
+const warningsFor = (md: string) => markdownWarnings(md, "Notion as text", ["codeBlock", "heading", "list", "quote", "table", "image"]);
 
 const asJson = (v: unknown, max = 1 << 20): JsonValue => jsonPayload(v, max) ?? [];
 

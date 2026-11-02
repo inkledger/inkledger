@@ -4,7 +4,7 @@
 import { verifySha256Header } from "../core/webhooks";
 import { toJql } from "./translate";
 import { z } from "zod";
-import type { MarkdownFeature, StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
+import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import type { JiraCredentials } from "@contracts/types";
 import { toJiraStarted } from "@contracts/time";
 import { instant, instantFrom, jsonPayload } from "@contracts/values";
@@ -45,7 +45,8 @@ import {
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { trimTrailingSlash } from "../core/http";
-import type { CallContext, ConversionWarning, FieldReq, FieldValue, RemoteBody, RemoteComment, RemoteIssue, RemoteStatus, RemoteWorklog, TrackerProvider, WorklogInput } from "../types";
+import { markdownWarnings } from "../core/richtext/toHtml";
+import type { CallContext, FieldReq, FieldValue, RemoteBody, RemoteComment, RemoteIssue, RemoteStatus, RemoteWorklog, TrackerProvider, WorklogInput } from "../types";
 import type { JiraTransitionField } from "../../jira/client";
 
 export const jiraCapabilities: TrackerCapabilities = {
@@ -213,20 +214,7 @@ function toRemoteComment(c: JiraComment): RemoteComment {
 }
 
 /** Markdown features Jira won't show as written (it gets the text as is until the RichText layer converts it). */
-const MARKS: [MarkdownFeature, RegExp][] = [
-  ["strong", /\*\*[^*]+\*\*/],
-  ["emphasis", /(^|[^*])\*[^*\s][^*]*\*/],
-  ["code", /`[^`]+`/],
-  ["codeBlock", /^```/m],
-  ["link", /\[[^\]]+\]\([^)]+\)/],
-  ["heading", /^#{1,6} /m],
-  ["list", /^\s*([-*+]|\d+\.) /m],
-  ["quote", /^> /m],
-  ["table", /^\|.*\|$/m],
-  ["image", /!\[[^\]]*\]\([^)]+\)/],
-];
-const warningsFor = (md: string): ConversionWarning[] =>
-  MARKS.filter(([, re]) => re.test(md)).map(([feature]) => ({ code: "approximated" as const, feature, serverDetail: `markdown ${feature} sent to Jira as plain text` }));
+const warningsFor = (md: string) => markdownWarnings(md, "Jira as plain text");
 
 /** Jira keeps sessions: a start time and seconds. */
 function jiraEntry(w: WorklogInput) {
