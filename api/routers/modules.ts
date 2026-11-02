@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, gte, not, like, sql } from "drizzle-orm";
+import { and, count, eq, gte, not, like } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can } from "../queries/accounts";
@@ -29,6 +29,7 @@ import {
   validLicenses,
   verifyLicense,
 } from "../modules/registry";
+import { xactLockIn } from "../queries/locks";
 
 /** A licence held on this server, by its id (NOT_FOUND otherwise). */
 async function heldLicence(id: string): Promise<string> {
@@ -65,8 +66,7 @@ type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /** One writer at a time per user and module (caps and revisions hold under parallel writes). */
-const lockStorage = (tx: Tx, userId: number, moduleId: string) =>
-  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`module-storage:${moduleId}`}), ${userId})`);
+const lockStorage = (tx: Tx, userId: number, moduleId: string) => xactLockIn(tx, `module-storage:${moduleId}`, userId);
 
 /**
  * One write of a module's key: under the user+module lock, within the key cap; with `ifRevision`

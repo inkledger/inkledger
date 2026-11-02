@@ -2,8 +2,18 @@
 // those still there (gone: deleted, out of reach, or in a repository the user
 // left out). An archived connection's issues leave every list; time stays
 // where time is counted (worklogs, reports, totals).
-import { sql, type SQL } from "drizzle-orm";
-import { connections, issues, notifications } from "@db/schema";
+import { and, asc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { connections, issues, notifications, type Connection } from "@db/schema";
+import { getDb } from "./connection";
+
+/** The user's live (not archived) connections, in the order they were added; `okOnly`: only those working now. */
+export function liveConnections(userId: number, opts: { okOnly?: boolean } = {}): Promise<Connection[]> {
+  return getDb()
+    .select()
+    .from(connections)
+    .where(and(eq(connections.userId, userId), isNull(connections.archivedAt), opts.okOnly ? eq(connections.status, "ok") : undefined))
+    .orderBy(asc(connections.id));
+}
 
 /**
  * The issue is still there, on a live (not archived) connection, and shown

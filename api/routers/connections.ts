@@ -39,6 +39,7 @@ import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { liveConnections } from "../queries/liveConnections";
 import {
   confirmJiraLogin,
   jiraLoginInput,
@@ -217,13 +218,7 @@ function assertMayAddSelfHosted(user: Pick<User, "role">) {
 export const connectionsRouter = createRouter({
   /** The user's connections, with their service's name and what it can do: the app decides by capability, never by type. */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await getDb()
-      .select()
-      .from(connections)
-      .where(
-        and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt))
-      )
-      .orderBy(asc(connections.id));
+    const rows = await liveConnections(ctx.user.id);
     return Promise.all(rows.map(shown));
   }),
 

@@ -1,8 +1,7 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
-import { getDb } from "../queries/connection";
+import { liveConnections } from "../queries/liveConnections";
 import { pendingReplays } from "../routers/outbox";
-import { connections, type Connection, type User } from "@db/schema";
+import type { Connection, User } from "@db/schema";
 import { syncConnectionEntries, syncConnectionIssues, syncInbox, withStream } from "./engine";
 import { replayContract } from "./timeWrites";
 import { t } from "@contracts/i18n";
@@ -65,11 +64,7 @@ async function inPool<T>(items: T[], size: number, run: (item: T) => Promise<voi
 }
 
 async function syncConnections(user: User, full: boolean, background: boolean): Promise<SyncResult> {
-  const conns = await getDb()
-    .select()
-    .from(connections)
-    .where(and(eq(connections.userId, user.id), isNull(connections.archivedAt)))
-    .orderBy(asc(connections.id));
+  const conns = await liveConnections(user.id);
   let result: Omit<SyncResult, "failed"> | undefined;
   const failed: SyncResult["failed"] = [];
   let tried = 0;

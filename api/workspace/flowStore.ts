@@ -7,6 +7,7 @@ import { getDb, q } from "../queries/connection";
 import type { EvidenceSet, FlowEvent, FlowMapDocument } from "@contracts/workspace/flowMap";
 import type { Scope } from "@contracts/workspace/model";
 import { flowEvidenceSchema, flowEventSchema, flowMapDocumentSchema } from "./flowValidation";
+import { xactLock } from "../queries/locks";
 
 function scopeWhere(scope: Scope) {
   return (table: { surfaceId: AnyPgColumn; deviceClass: AnyPgColumn }) =>
@@ -20,7 +21,7 @@ export async function getFlowSettings(userId: number) {
 
 export async function setFlowConsent(userId: number, enabled: boolean) {
   await getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     await tx.insert(workspaceFlowSettings).values({ userId, enabled, updatedAt: Date.now() }).onConflictDoUpdate({
       target: workspaceFlowSettings.userId,
       set: { enabled, updatedAt: Date.now() },
@@ -62,7 +63,7 @@ export async function purgeFlowRetention(now = Date.now()): Promise<void> {
 export async function saveFlowEvents(userId: number, events: readonly FlowEvent[]): Promise<number> {
   if (events.length === 0) return 0;
   return getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) return 0;
     const inserted = await tx.insert(workspaceFlowEvents).values(events.map(event => ({
@@ -101,7 +102,7 @@ export async function loadFlowEvents(userId: number, scope: Scope, effectiveRevi
 export async function saveEvidence(userId: number, evidence: EvidenceSet): Promise<void> {
   const validated = flowEvidenceSchema.parse(evidence);
   await getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) return;
     await tx.insert(workspaceFlowAggregates).values({
@@ -135,7 +136,7 @@ export async function evidenceById(userId: number, id: string, scope: Scope): Pr
 export async function saveFlowImport(userId: number, document: FlowMapDocument, id: string): Promise<void> {
   const validated = flowMapDocumentSchema.parse(document);
   await getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     // As every other FlowMap write: only with consent, checked under the lock a Delete takes too (D-37).
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.flowOff") });
@@ -156,7 +157,7 @@ export async function feedbackById(userId: number): Promise<Record<string, "unco
 /** False when collection is off: nothing is stored then, and the caller must not say it was. */
 export async function setExpectationFeedback(userId: number, id: string, status: "unconfirmed" | "confirmed" | "rejected"): Promise<boolean> {
   return getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) return false;
     await tx.insert(workspaceFlowFeedback).values({ userId, id, status, updatedAt: Date.now() }).onConflictDoUpdate({ target: [workspaceFlowFeedback.userId, workspaceFlowFeedback.id], set: { status, updatedAt: Date.now() } });
@@ -166,7 +167,7 @@ export async function setExpectationFeedback(userId: number, id: string, status:
 
 export async function deleteFlowData(userId: number): Promise<void> {
   await getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`flow:${userId}`}, 0))`);
+    await xactLock(tx, `flow:${userId}`);
     await tx.delete(workspaceFlowEvents).where(eq(workspaceFlowEvents.userId, userId));
     await tx.delete(workspaceFlowAggregates).where(eq(workspaceFlowAggregates.userId, userId));
     await tx.delete(workspaceFlowImports).where(eq(workspaceFlowImports.userId, userId));

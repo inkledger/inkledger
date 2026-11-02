@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ownIssueNote, ownMail, ownTodo } from "../queries/owned";
 import { issueNotes, issues, mails, notifications, timers, todoSessions, todos, type Todo } from "@db/schema";
 import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
@@ -61,25 +62,6 @@ const MAX_SUGGESTIONS = 12;
 const DONE_DAYS = 14;
 const DONE_MAX = 200;
 
-async function own(userId: number, id: number) {
-  const [row] = await getDb()
-    .select()
-    .from(todos)
-    .where(and(eq(todos.id, id), eq(todos.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.todos.notFound") });
-  return row;
-}
-
-/** A private note of the user, or NOT_FOUND. */
-async function ownNote(userId: number, id: number) {
-  const [row] = await getDb()
-    .select()
-    .from(issueNotes)
-    .where(and(eq(issueNotes.id, id), eq(issueNotes.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issueNotes.notFound") });
-  return row;
-}
-
 type Link = { connectionId: number | null; issueKey: string | null; commentId: string | null; commentExcerpt: string | null; issueNoteId: number | null };
 
 /**
@@ -91,7 +73,7 @@ async function linkOf(
   input: { issueKey?: string | null; connectionId?: number; commentId?: string; commentExcerpt?: string; issueNoteId?: number },
 ): Promise<Link> {
   if (input.issueNoteId !== undefined) {
-    const n = await ownNote(userId, input.issueNoteId);
+    const n = await ownIssueNote(userId, input.issueNoteId);
     if (input.issueKey && (input.issueKey !== n.issueKey || (input.connectionId !== undefined && input.connectionId !== n.connectionId))) {
       throw new TRPCError({ code: "BAD_REQUEST", message: t("server.todos.noteElsewhere") });
     }
@@ -113,10 +95,7 @@ const open = isNull(todos.doneAt);
 
 /** A mail of the user's, for a TODO to be about (null: about none). */
 async function mailOf(userId: number, mailId: number | null): Promise<number | null> {
-  if (mailId === null) return null;
-  const [m] = await getDb().select({ id: mails.id }).from(mails).where(and(eq(mails.id, mailId), eq(mails.userId, userId)));
-  if (!m) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
-  return m.id;
+  return mailId === null ? null : (await ownMail(userId, mailId)).id;
 }
 
 /** Seconds worked on a TODO, its open stretch counted to now. */
@@ -262,7 +241,7 @@ export const todosRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const row = await own(ctx.user.id, input.id);
+      const row = await ownTodo(ctx.user.id, input.id);
       const mail = input.mailId !== undefined ? { mailId: await mailOf(ctx.user.id, input.mailId) } : {};
       // Another issue (or none): what hung on the old one (its comment, its note) lets go.
       const relink = input.issueKey !== undefined ? await linkOf(ctx.user.id, { issueKey: input.issueKey, connectionId: input.connectionId }) : null;
@@ -336,7 +315,7 @@ export const todosRouter = createRouter({
 
   /** Delete. Returns the TODO so "Undo" can put it back as it was. */
   remove: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
-    const row = await own(ctx.user.id, input.id);
+    const row = await ownTodo(ctx.user.id, input.id);
     await getDb().delete(todos).where(eq(todos.id, row.id));
     return row;
   }),
@@ -437,7 +416,7 @@ export const todosRouter = createRouter({
   startWork: protectedProcedure
     .input(z.object({ id: idInput, force: z.boolean().optional(), opId: z.string().min(8).max(64).optional(), device: z.string().max(60).optional() }))
     .mutation(async ({ ctx, input }) => {
-      const row = await own(ctx.user.id, input.id);
+      const row = await ownTodo(ctx.user.id, input.id);
       if (row.doneAt) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.todos.workDone") });
       const now = new Date();
       const w = whoOf(ctx, input.device);
@@ -593,7 +572,7 @@ export const todosRouter = createRouter({
 
   /** Put a reminder away until tomorrow (it comes back while the TODO stays open and late). */
   dismissReminder: protectedProcedure.input(z.object({ id: idInput, today: day })).mutation(async ({ ctx, input }) => {
-    const row = await own(ctx.user.id, input.id);
+    const row = await ownTodo(ctx.user.id, input.id);
     await getDb().update(todos).set({ reminderSeenOn: input.today }).where(eq(todos.id, row.id));
     return { ok: true };
   }),

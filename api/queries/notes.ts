@@ -24,6 +24,7 @@ import { getDb, type Db } from "./connection";
 import { noteDerived } from "./noteSearch";
 import { t } from "@contracts/i18n";
 import { dayKey } from "@contracts/time";
+import { xactLockIn } from "./locks";
 
 export type NoteTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Store = Db | NoteTx;
@@ -90,9 +91,7 @@ export async function ownNote(
 }
 
 export async function lockNoteTree(tx: NoteTx, userId: number): Promise<void> {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('markdown-notes-tree'), ${userId})`
-  );
+  await xactLockIn(tx, "markdown-notes-tree", userId);
 }
 
 async function activeParent(

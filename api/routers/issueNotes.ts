@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ownIssueNote } from "../queries/owned";
 import { issueNotes, pinboardNotes, pinboards } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
@@ -14,15 +14,6 @@ const body = z.string().trim().min(1, { error: () => t("server.issueNotes.empty"
 const idInput = z.number().int().positive();
 /** The issue's connection, when a key lives on two. */
 const connectionInput = z.number().int().positive().optional();
-
-async function own(userId: number, id: number) {
-  const [row] = await getDb()
-    .select()
-    .from(issueNotes)
-    .where(and(eq(issueNotes.id, id), eq(issueNotes.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issueNotes.notFound") });
-  return row;
-}
 
 export const issueNotesRouter = createRouter({
   /** The notes on an issue, newest first, with the boards each one hangs on. */
@@ -58,14 +49,14 @@ export const issueNotesRouter = createRouter({
   }),
 
   update: protectedProcedure.input(z.object({ id: idInput, body })).mutation(async ({ ctx, input }) => {
-    const row = await own(ctx.user.id, input.id);
+    const row = await ownIssueNote(ctx.user.id, input.id);
     await getDb().update(issueNotes).set({ body: input.body, updatedAt: new Date() }).where(eq(issueNotes.id, row.id));
     return { ok: true };
   }),
 
   /** Delete a note (its post-its go with it). Returns it so "Undo" can put the text back. */
   remove: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
-    const row = await own(ctx.user.id, input.id);
+    const row = await ownIssueNote(ctx.user.id, input.id);
     await getDb().delete(issueNotes).where(eq(issueNotes.id, row.id));
     return row;
   }),

@@ -325,10 +325,11 @@ export function contextFor(
   };
 }
 
-/** One of the user's live connections, by id (never someone else's). */
+/** One of the user's live connections, by id (never someone else's); `notFound` says why when it isn't. */
 export async function ownConnection(
   userId: number,
-  connectionId: number
+  connectionId: number,
+  notFound = t("server.connections.notFound")
 ): Promise<Connection> {
   const [row] = await getDb()
     .select()
@@ -341,11 +342,7 @@ export async function ownConnection(
       )
     )
     .limit(1);
-  if (!row)
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: t("server.connections.notFound"),
-    });
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: notFound });
   return row;
 }
 

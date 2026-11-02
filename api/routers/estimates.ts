@@ -2,8 +2,8 @@
 // takes, from my closed issues, and which statuses count as work.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull, sql } from "drizzle-orm";
-import { connections, workStatuses } from "@db/schema";
+import { and, eq, sql } from "drizzle-orm";
+import { workStatuses } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { countsAsWork } from "@contracts/estimate";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -14,19 +14,12 @@ import { statusesOf, storedStatuses, type Known } from "../estimates/history";
 import { boundTracker } from "../sync/engine";
 import { providerCall } from "../providers/trpc";
 import { callMeta } from "../lib/callMeta";
+import { ownConnection as baseOwnConnection } from "../providers/connections";
 
 const id = z.number().int().positive();
 
 /** The user's own connection, else NOT_FOUND (never another's: R-0.8). */
-async function ownConnection(userId: number, connectionId: number) {
-  const [conn] = await getDb()
-    .select()
-    .from(connections)
-    .where(and(eq(connections.id, connectionId), eq(connections.userId, userId), isNull(connections.archivedAt)))
-    .limit(1);
-  if (!conn) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
-  return conn;
-}
+const ownConnection = (userId: number, connectionId: number) => baseOwnConnection(userId, connectionId, t("server.issues.notFound"));
 
 /** A connection's statuses, each with whether it counts as work and whether that is the default (R-3.14). */
 async function listWorkStatuses(userId: number, connectionId: number) {

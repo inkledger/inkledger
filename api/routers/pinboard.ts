@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ownBucket, ownIssueNote, ownMail, ownTodo } from "../queries/owned";
 import { buckets, connections, issueNotes, issues, mails, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
@@ -22,6 +23,7 @@ import {
 } from "@contracts/pinboard";
 import { t } from "@contracts/i18n";
 import { mailCopyColumns } from "../mail/copies";
+import { xactLockIn } from "../queries/locks";
 
 const color = z.enum(NOTE_COLORS);
 const coord = z.number().finite();
@@ -94,13 +96,7 @@ async function shownBoard(userId: number, deviceId: string | undefined, boardId?
 }
 
 /** A bucket of the user (a board's scope), or NOT_FOUND. */
-async function ownBucket(userId: number, bucketId: number) {
-  const [row] = await getDb()
-    .select({ id: buckets.id })
-    .from(buckets)
-    .where(and(eq(buckets.id, bucketId), eq(buckets.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.bucketNotFound") });
-}
+const ownBoardBucket = (userId: number, bucketId: number) => ownBucket(userId, bucketId, t("server.pinboard.bucketNotFound"));
 
 /** A board of the user: the asked one, else the first. */
 async function resolveBoard(userId: number, boardId?: number) {
@@ -231,7 +227,7 @@ async function place(userId: number, deviceId: string | undefined, boardId: numb
     input.x === undefined || input.y === undefined ? (await followedNotes(userId, deviceId, board, followOf(board)!)).find((n) => n.id === -issueId) : undefined;
   await getDb().transaction(async (tx) => {
     // One placement per issue and board, whatever the requests racing.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('pinboard-place'), ${board.id})`);
+    await xactLockIn(tx, "pinboard-place", board.id);
     const [had] = await tx
       .select()
       .from(pinboardNotes)
@@ -250,16 +246,6 @@ async function place(userId: number, deviceId: string | undefined, boardId: numb
         .values({ userId, boardId: board.id, issueKey: issue.key, connectionId: issue.connectionId, note: "", color: input.color ?? "yellow", ...pos, rotation: 0, z: raised ? z : (shown?.z ?? 0) });
     }
   });
-}
-
-/** A private note of the user (issue_notes). */
-async function ownIssueNote(userId: number, id: number) {
-  const [row] = await getDb()
-    .select()
-    .from(issueNotes)
-    .where(and(eq(issueNotes.id, id), eq(issueNotes.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issueNotes.notFound") });
-  return row;
 }
 
 async function own(userId: number, id: number) {
@@ -330,7 +316,7 @@ export const pinboardRouter = createRouter({
     .input(z.object({ id: boardIdInput, bucketId: z.number().int().positive().nullable() }))
     .mutation(async ({ ctx, input }) => {
       const b = await resolveBoard(ctx.user.id, input.id);
-      if (input.bucketId !== null) await ownBucket(ctx.user.id, input.bucketId);
+      if (input.bucketId !== null) await ownBoardBucket(ctx.user.id, input.bucketId);
       await getDb().update(pinboards).set({ bucketId: input.bucketId }).where(eq(pinboards.id, b.id));
       return { ok: true };
     }),
@@ -357,7 +343,7 @@ export const pinboardRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
     const boards = await boardsOf(ctx.user.id);
     const bucketId = input.bucketId === undefined ? await activeBucket(ctx.user.id, ctx.deviceId) : input.bucketId;
-    if (bucketId !== null) await ownBucket(ctx.user.id, bucketId);
+    if (bucketId !== null) await ownBoardBucket(ctx.user.id, bucketId);
     if (input.follow?.connectionId) {
       const [own] = await getDb()
         .select({ id: connections.id })
@@ -395,7 +381,7 @@ export const pinboardRouter = createRouter({
     // Checked and deleted under the user's board lock: two deletes at once can't both
     // see another board pinned by hand and leave none.
     await getDb().transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('pinboards'), ${ctx.user.id})`);
+      await xactLockIn(tx, "pinboards", ctx.user.id);
       const boards = await tx.select().from(pinboards).where(eq(pinboards.userId, ctx.user.id));
       if (!boards.some((b) => b.id === input.id)) {
         throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.boardNotFound") });
@@ -589,8 +575,7 @@ export const pinboardRouter = createRouter({
     .input(z.object({ todoId: z.number().int().positive(), boardId: boardIdInput.optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const [todo] = await db.select().from(todos).where(and(eq(todos.id, input.todoId), eq(todos.userId, ctx.user.id)));
-      if (!todo) throw new TRPCError({ code: "NOT_FOUND", message: t("server.todos.notFound") });
+      const todo = await ownTodo(ctx.user.id, input.todoId);
       const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
       const mine = await db.select({ id: pinboardNotes.id, todoId: pinboardNotes.todoId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
       const already = mine.find((m) => m.todoId === todo.id);
@@ -611,8 +596,7 @@ export const pinboardRouter = createRouter({
     .input(z.object({ mailId: z.number().int().positive(), boardId: boardIdInput.optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const [mail] = await db.select({ id: mails.id }).from(mails).where(and(eq(mails.id, input.mailId), eq(mails.userId, ctx.user.id)));
-      if (!mail) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
+      const mail = await ownMail(ctx.user.id, input.mailId);
       const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
       const mine = await db.select({ id: pinboardNotes.id, mailId: pinboardNotes.mailId, x: pinboardNotes.x, y: pinboardNotes.y }).from(pinboardNotes).where(eq(pinboardNotes.boardId, board.id));
       const already = mine.find((m) => m.mailId === mail.id);

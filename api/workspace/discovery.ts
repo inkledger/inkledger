@@ -1,7 +1,8 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { workspaceDiscovery } from "@db/schema";
 import { getDb } from "../queries/connection";
 import type { DiscoveryState, Scope } from "@contracts/workspace/model";
+import { xactLock } from "../queries/locks";
 
 const empty: DiscoveryState = { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [], seenAreaIds: [], placedAreaIds: [], dismissedAreaIds: [] };
 
@@ -65,7 +66,7 @@ export async function saveDiscoveryState(userId: number, scope: Scope, state: Di
 /** Read, merge and write under one lock: two tabs marking at once both keep their marks. */
 export async function updateDiscoveryState(userId: number, scope: Scope, merge: (previous: DiscoveryState) => DiscoveryState): Promise<{ previous: DiscoveryState; next: DiscoveryState }> {
   return getDb().transaction(async tx => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`discovery:${userId}:${scope.surfaceId}:${scope.deviceClass}`}, 0))`);
+    await xactLock(tx, `discovery:${userId}:${scope.surfaceId}:${scope.deviceClass}`);
     const previous = await getDiscoveryState(userId, scope, tx);
     const next = merge(previous);
     await saveDiscoveryState(userId, scope, next, tx);

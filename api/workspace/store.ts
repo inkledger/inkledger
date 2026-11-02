@@ -27,6 +27,7 @@ import {
   type ValidatedPresentation,
   type ValidatedPrepared,
 } from "./validation";
+import { xactLock } from "../queries/locks";
 
 /** The scopes the user ever committed a layout for ("surface:device"): only those run the workspace runtime. */
 export async function customizedScopes(userId: number): Promise<string[]> {
@@ -121,7 +122,7 @@ export async function latestDraft(userId: number, scope: Scope): Promise<Draft |
 }
 
 /** The stored patches are the expected ones: compared by content, so how the JSON text is spaced never matters. */
-export function samePatches(stored: string, expected: Draft["patches"]): boolean {
+function samePatches(stored: string, expected: Draft["patches"]): boolean {
   try {
     return canonicalJSON(JSON.parse(stored)) === canonicalJSON(expected);
   } catch {
@@ -129,21 +130,34 @@ export function samePatches(stored: string, expected: Draft["patches"]): boolean
   }
 }
 
+/** The scope's newest draft row, read under the scope's draft lock (held until the transaction ends). */
+export async function lockedDraft(tx: Tx, userId: number, scope: Scope): Promise<RowDraft | undefined> {
+  await xactLock(tx, `draft:${userId}:${scope.surfaceId}:${scope.deviceClass}`);
+  const rows = await tx.select().from(workspaceDrafts)
+    .where(and(eq(workspaceDrafts.userId, userId), scopeWhere(scope)(workspaceDrafts)))
+    .orderBy(desc(workspaceDrafts.updatedAt)).limit(1);
+  return rows[0];
+}
+
+/** The stored draft is still the one the writer expected (none expected: none stored). */
+export function isExpectedDraft(current: RowDraft | undefined, expected: Draft | null): boolean {
+  if (expected === null) return !current;
+  return !!current && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && samePatches(current.patches, expected.patches);
+}
+
+/** Another draft still open that `draft` does not supersede (an older or equal revision of a different draft). */
+export function supersededBy(current: RowDraft | undefined, draft: Pick<Draft, "draftId" | "draftRevision">): boolean {
+  return !!current && !["applied", "discarded", "aborted"].includes(current.status) && current.id !== draft.draftId && draft.draftRevision <= current.draftRevision;
+}
+
 export async function upsertDraft(userId: number, draft: Draft, expected?: Draft | null): Promise<void> {
   const validated = draftSchema.parse(draft);
   await getDb().transaction(async tx => {
     const scope = validated.scope;
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`draft:${userId}:${scope.surfaceId}:${scope.deviceClass}`}, 0))`);
-    const rows = await tx.select().from(workspaceDrafts)
-      .where(and(eq(workspaceDrafts.userId, userId), scopeWhere(scope)(workspaceDrafts)))
-      .orderBy(desc(workspaceDrafts.updatedAt)).limit(1);
-    const current = rows[0];
+    const current = await lockedDraft(tx, userId, scope);
     if (expected !== undefined) {
-      const matches = current && expected && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && samePatches(current.patches, expected.patches);
-      if ((expected === null && current) || (expected !== null && !matches)) throw new WorkspaceApplyError("draft-concurrent-modification");
-      if (current && !["applied", "discarded", "aborted"].includes(current.status) && current.id !== validated.draftId && validated.draftRevision <= current.draftRevision) {
-        throw new WorkspaceApplyError("draft-revision-conflict");
-      }
+      if (!isExpectedDraft(current, expected)) throw new WorkspaceApplyError("draft-concurrent-modification");
+      if (supersededBy(current, validated)) throw new WorkspaceApplyError("draft-revision-conflict");
     }
     const updatedAt = Math.max(Date.now(), (current?.updatedAt ?? 0) + 1);
     await tx.insert(workspaceDrafts).values({
@@ -190,7 +204,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 /** The lock every apply transition of one user's scope takes, commit included. */
 async function lockApply(tx: Tx, userId: number, scope: Scope): Promise<void> {
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${userId}:${scope.surfaceId}:${scope.deviceClass}`}, 0))`);
+  await xactLock(tx, `${userId}:${scope.surfaceId}:${scope.deviceClass}`);
 }
 
 const samePresentation = (a: PresentationState | null, b: PresentationState | null) =>

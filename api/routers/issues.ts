@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { activity, connections, containers, issues, itemAliases, type Connection, syncState, timers, worklogs, type User, type Issue } from "@db/schema";
+import { activity, containers, issues, itemAliases, type Connection, syncState, timers, worklogs, type User, type Issue } from "@db/schema";
 import { boundTracker, syncConnectionEntries, syncConnectionIssues, withStream } from "../sync/engine";
 import { toRichDoc } from "../providers/core/richtext";
 import { replayContract } from "../sync/timeWrites";
@@ -11,7 +11,7 @@ import { fieldsOf, upsertRemote } from "../sync/issues";
 import { CLOSED, compileIssueQuery, escapeLike, mentions, UNREAD_SQL } from "../queries/issueQuery";
 import { parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
-import { onLiveConnection } from "../queries/liveConnections";
+import { liveConnections, onLiveConnection } from "../queries/liveConnections";
 import { issuesInBucket } from "../queries/buckets";
 import { isClosed } from "@contracts/categories";
 
@@ -90,15 +90,6 @@ function orderFor(sort: "activity" | "updated" | "priority" | "key" | "due") {
     default:
       return BY_UPDATED;
   }
-}
-
-/** The user's live trackers, in the order they were added. */
-async function liveTrackers(userId: number): Promise<Connection[]> {
-  return getDb()
-    .select()
-    .from(connections)
-    .where(and(eq(connections.userId, userId), isNull(connections.archivedAt), eq(connections.status, "ok")))
-    .orderBy(asc(connections.id));
 }
 
 /** A catalogue row as lists read it: everything but the raw fields (T8: never in lists). */
@@ -304,7 +295,7 @@ export const issuesRouter = createRouter({
   search: protectedProcedure
     .input(z.object({ query: z.string().trim().min(2).max(200) }))
     .query(async ({ ctx, input }) => {
-      const conns = await liveTrackers(ctx.user.id);
+      const conns = await liveConnections(ctx.user.id, { okOnly: true });
       const each = await Promise.all(conns.map((conn) => searchConnection(ctx.user, conn, input.query)));
       const exact = input.query.toLowerCase();
       return {
@@ -322,7 +313,7 @@ export const issuesRouter = createRouter({
   open: protectedProcedure
     .input(z.object({ text: z.string().trim().min(2).max(500) }))
     .query(async ({ ctx, input }) => {
-      const conns = await liveTrackers(ctx.user.id);
+      const conns = await liveConnections(ctx.user.id, { okOnly: true });
       const named = conns.flatMap((conn) => {
         const b = boundTracker(conn);
         const handle = b?.parseRef(input.text) ?? null;
@@ -764,11 +755,7 @@ export const issuesRouter = createRouter({
    * the tracker asks for an issue type.
    */
   createTargets: protectedProcedure.query(async ({ ctx }) => {
-    const conns = await getDb()
-      .select()
-      .from(connections)
-      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
-      .orderBy(asc(connections.id));
+    const conns = await liveConnections(ctx.user.id);
     const able = conns.flatMap((c) => {
       const b = boundTracker(c);
       return b?.manage?.create ? [{ c, b }] : [];

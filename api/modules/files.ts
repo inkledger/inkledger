@@ -2,6 +2,7 @@ import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { moduleFiles } from "@db/schema";
 import { FILES_MAX_COUNT, FILES_MAX_IDLE_MS, FILES_MAX_TOTAL_BYTES } from "@contracts/modules";
 import { getDb } from "../queries/connection";
+import { xactLockIn } from "../queries/locks";
 
 /**
  * Module files: a per-user cache of what a module made (the Bonsai's renders,
@@ -27,7 +28,7 @@ export async function putModuleFile(userId: number, moduleId: string, key: strin
   const now = new Date();
   // Write and trim as one step per user and module: parallel writes never leave more than the caps.
   await getDb().transaction(async tx => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`module-files:${moduleId}`}), ${userId})`);
+    await xactLockIn(tx, `module-files:${moduleId}`, userId);
     await tx
       .insert(moduleFiles)
       .values({ userId, moduleId, key, contentType, data, size: data.length, updatedAt: now, usedAt: now })

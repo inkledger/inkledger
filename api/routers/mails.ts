@@ -6,11 +6,12 @@ import { sha256Hex } from "../lib/hash";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { escapeLike } from "../queries/issueQuery";
+import { ownMail } from "../queries/owned";
 import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail, type User } from "@db/schema";
 import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
-import { captureFromGraph, copyInfo, mailCopyColumns, ownMailRow } from "../mail/copies";
+import { captureFromGraph, copyInfo, mailCopyColumns } from "../mail/copies";
 import { checkMail } from "../mail/goneCheck";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
 import { todosRouter } from "./todos";
@@ -84,12 +85,6 @@ const pick = (m: Mail): MailRow => ({
   internetMessageId: m.internetMessageId,
   source: m.source,
 });
-
-async function ownMail(userId: number, id: number): Promise<Mail> {
-  const [row] = await getDb().select().from(mails).where(and(eq(mails.id, id), eq(mails.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
-  return row;
-}
 
 /** The note, the user's and not in the trash. */
 async function liveNote(userId: number, id: string): Promise<void> {
@@ -210,14 +205,14 @@ export const mailsRouter = createRouter({
 
   /** One mail's copy gone; the pin stays (R-1.12). */
   deleteCopy: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
-    await ownMailRow(ctx.user.id, input.id);
+    await ownMail(ctx.user.id, input.id);
     await getDb().delete(mailCopies).where(and(eq(mailCopies.mailId, input.id), eq(mailCopies.userId, ctx.user.id)));
     return { ok: true as const };
   }),
 
   /** Ask the mailbox again for a copy that failed (E-1.6 when not signed in). */
   retryCopy: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
-    const mail = await ownMailRow(ctx.user.id, input.id);
+    const mail = await ownMail(ctx.user.id, input.id);
     if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
     await captureFromGraph(ctx.user.id, mail);
     return copyInfo(ctx.user.id, input.id);
@@ -225,7 +220,7 @@ export const mailsRouter = createRouter({
 
   /** Is it still in my mailbox? Looked for now (R-1.11); E-1.6 when not signed in. */
   checkGone: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
-    const mail = await ownMailRow(ctx.user.id, input.id);
+    const mail = await ownMail(ctx.user.id, input.id);
     if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
     if (!mail.internetMessageId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.notInMailbox") });
     const goneAt = await providerCall(() => checkMail(ctx.user.id, { id: mail.id, internetMessageId: mail.internetMessageId!, goneAt: mail.goneAt }, Date.now()));
@@ -249,7 +244,7 @@ export const mailsRouter = createRouter({
     const mail: MailRow = "id" in input.mail ? pick(await ownMail(ctx.user.id, input.mail.id)) : await saveMail(ctx.user.id, input.mail);
     const pinned = await pinMailTo(ctx, mail, input.to);
     // Its copy, when the user keeps them: a failure stays on the mail, never on the pin (R-1.6).
-    await captureFromGraph(ctx.user.id, await ownMailRow(ctx.user.id, mail.id));
+    await captureFromGraph(ctx.user.id, await ownMail(ctx.user.id, mail.id));
     return pinned;
   }),
 
@@ -319,7 +314,7 @@ export const mailsRouter = createRouter({
     const to = await targetOf(userId, input.to);
     await getDb().insert(mailLinks).values({ userId, mailId: input.mailId, ...to }).onConflictDoNothing();
     await getDb().update(mails).set({ updatedAt: new Date() }).where(eq(mails.id, input.mailId));
-    await captureFromGraph(userId, await ownMailRow(userId, input.mailId));
+    await captureFromGraph(userId, await ownMail(userId, input.mailId));
     return { ok: true as const };
   }),
 

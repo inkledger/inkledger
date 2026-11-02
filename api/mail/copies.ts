@@ -4,7 +4,6 @@
 import { sha256Hex } from "../lib/hash";
 import PostalMime from "postal-mime";
 import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
-import { TRPCError } from "@trpc/server";
 import type { Context, Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { mailCopies, mailCopyReads, mailLinks, mails, pinboardNotes, settings, todos } from "@db/schema";
@@ -15,6 +14,7 @@ import { t } from "@contracts/i18n";
 import { dateFormat } from "@contracts/i18n/core";
 import { MAIL_COPY_MODES, type MailCopyBody, type MailCopyMode } from "@contracts/mail";
 import { getDb } from "../queries/connection";
+import { ownMail } from "../queries/owned";
 import { restUser } from "../context";
 import { env } from "../lib/env";
 import { sealBytesFor } from "../lib/crypto";
@@ -147,19 +147,9 @@ export async function captureFromGraph(userId: number, mail: { id: number; inter
   }
 }
 
-/** A mail of the user's, or NOT_FOUND (never whether it exists: R-0.8). */
-export async function ownMailRow(userId: number, mailId: number) {
-  const [row] = await getDb()
-    .select({ id: mails.id, internetMessageId: mails.internetMessageId, exchangeId: mails.exchangeId, goneAt: mails.goneAt, copyError: mails.copyError })
-    .from(mails)
-    .where(and(eq(mails.id, mailId), eq(mails.userId, userId)));
-  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.mails.notFound") });
-  return row;
-}
-
 /** What is known of a mail's copy (never its content). */
 export async function copyInfo(userId: number, mailId: number) {
-  const mail = await ownMailRow(userId, mailId);
+  const mail = await ownMail(userId, mailId);
   const [c] = await getDb()
     .select({ mode: mailCopies.mode, bytes: mailCopies.plainBytes, capturedAt: mailCopies.capturedAt, attachments: mailCopies.attachments })
     .from(mailCopies)
@@ -347,7 +337,7 @@ export function registerCopyRoutes(app: App) {
     const id = Number(c.req.param("id"));
     if (!Number.isInteger(id) || id <= 0) return c.json({ error: t("server.mails.notFound") }, 404);
     try {
-      await ownMailRow(who.user.id, id);
+      await ownMail(who.user.id, id);
     } catch {
       return c.json({ error: t("server.mails.notFound") }, 404);
     }

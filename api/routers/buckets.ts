@@ -7,19 +7,13 @@ import { formatQuery, parseQuery } from "@contracts/query";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ownBucket } from "../queries/owned";
 import { activeBucket } from "../queries/buckets";
 import { publish } from "../lib/userEvents";
 
 const source = z.object({ connectionId: z.number().int().positive(), containerId: z.number().int().positive().nullable().default(null) });
 const boardMode = z.enum(["lanes", "category", "custom"]);
 const column = z.object({ name: z.string().trim().min(1).max(40), statuses: z.record(z.string().regex(/^\d+$/), z.array(z.string().min(1).max(100)).max(50)) });
-
-/** A bucket of the user's, or NOT_FOUND. */
-async function ownBucket(userId: number, id: number) {
-  const [own] = await getDb().select({ id: buckets.id }).from(buckets).where(and(eq(buckets.id, id), eq(buckets.userId, userId))).limit(1);
-  if (!own) throw new TRPCError({ code: "NOT_FOUND" });
-  return own;
-}
 
 const parseStatuses = (raw: string): Record<string, string[]> => {
   try {
