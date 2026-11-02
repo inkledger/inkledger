@@ -1,7 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Constraint, Draft, PresentationDescriptor, ResolvedWorkspace, Scope } from "@contracts/workspace/model";
 import type { PendingActivation } from "@contracts/workspace/applyMachine";
-import type { WorkspaceActions } from "./actions";
 
 export type WorkspaceContextValue = {
   scope: Scope;
@@ -16,7 +15,8 @@ export type WorkspaceContextValue = {
   presentationStatus: "stable" | "pendingActivation" | "activationUncertain" | "unknown";
   pendingActivation: PendingActivation | null;
   constraints: readonly Constraint[];
-  actions: WorkspaceActions;
+  /** This tab's id for the layout's requests: what changes it (useWorkspaceActions) asks with the same. */
+  clientInstanceId: string;
 };
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);

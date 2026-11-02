@@ -5,7 +5,6 @@ import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1"
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { PresentationDescriptor, ResolvedWorkspace, Scope } from "@contracts/workspace/model";
 import { workspaceClientInstanceId } from "./client";
-import { useWorkspaceActions } from "./actions";
 import { WorkspaceContext, type WorkspaceContextValue } from "./context";
 import { useWorkspaceTelemetry } from "./telemetry";
 import { useWorkspaceMutationGuard } from "./mutationGuard";
@@ -44,6 +43,7 @@ function fallbackDescriptor(workspace: ResolvedWorkspace): PresentationDescripto
 /**
  * The layout of one scope. Who never committed a layout there and has FlowMap off gets the
  * bundled ProductDefault with no request at all; `live` (the Studio) always asks the server.
+ * Only what changes the layout (the Studio, Customize) holds its mutations: useWorkspaceActions.
  */
 export function WorkspaceScopeProvider({ scope: requestedScope, children, telemetry = true, live = false }: { scope: Scope; children: ReactNode; telemetry?: boolean; live?: boolean }) {
   const scope = useMemo(() => ({ surfaceId: requestedScope.surfaceId, deviceClass: requestedScope.deviceClass }), [requestedScope.surfaceId, requestedScope.deviceClass]);
@@ -61,7 +61,6 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const actions = useWorkspaceActions(scope, clientInstanceId);
   const descriptor = query.data?.descriptor;
   const presentation = query.data?.presentation?.presented;
   useWorkspaceMutationGuard();
@@ -80,8 +79,8 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
       presentationStatus: query.data?.presentation?.status ?? "stable",
       pendingActivation: query.data?.presentation?.pending ?? null,
       constraints: query.data?.constraints ?? [],
-      actions,
+      clientInstanceId,
     };
-  }, [actions, query.data, scope]);
+  }, [clientInstanceId, query.data, scope]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

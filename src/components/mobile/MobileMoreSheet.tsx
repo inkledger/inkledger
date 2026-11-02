@@ -26,6 +26,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 import { screensaver } from "@/lib/flag";
+import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 
 const TILE =
   "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-1 text-caption font-medium text-muted-foreground transition-colors active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -48,10 +49,10 @@ export function MobileMoreSheet({
   const { hint, error } = useSyncHint();
   const { workspace } = useWorkspace();
   const inbox = useNotificationCount();
-  const morePlacements = workspace.placements.filter(placement => placement.areaId === "mobile.more" && placement.visible).sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
+  const morePlacements = placementsFor(workspace, "mobile.more");
   // The module dock where it was (the tab bar's edge): its More modules keep their own section below, as before.
   // Placed among the More tiles instead, those modules show as that tile, never twice.
-  const dockOnBar = workspace.placements.some(placement => placement.anchorId === "mobile.dock" && placement.areaId === "mobile.dock" && placement.visible);
+  const dockOnBar = isPlaced(workspace, "mobile.dock", "mobile.dock");
   const sections = useNavItems()
     .flatMap(g => g.items)
     .filter(i => !TAB_ROUTES.includes(i.to));

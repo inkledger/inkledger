@@ -38,7 +38,6 @@ import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentati
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { setSectionVisibility, type CustomizeTarget } from "@/lib/workspace/customize";
 import { useWorkspaceActions } from "@/lib/workspace/actions";
-import { workspaceClientInstanceId } from "@/lib/workspace/client";
 import { usePeriod, type PeriodKind } from "@/hooks/usePeriod";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { effectiveTargetSeconds, effectiveTargetSecondsBetween, effectiveWorkSpans, openGap } from "@contracts/workSchedule";
@@ -111,9 +110,9 @@ const monthYear = () => dateFormat({ month: "long", year: "numeric" });
 
 /** The Customize popover's six sections (as before the workspace): shown or hidden, saved as a layout. */
 function useDashboardLayout() {
-  const { workspace, scope, actions } = useWorkspace();
+  const { workspace, scope, clientInstanceId } = useWorkspace();
+  const actions = useWorkspaceActions(scope, clientInstanceId);
   const utils = trpc.useUtils();
-  const clientInstanceId = useMemo(() => workspaceClientInstanceId(), []);
   const otherScope = useMemo(() => ({ surfaceId: "dashboard" as const, deviceClass: scope.deviceClass === "desktop" ? "mobile" as const : "desktop" as const }), [scope.deviceClass]);
   const otherActions = useWorkspaceActions(otherScope, clientInstanceId);
   // One tick after the other: each starts from the layout the previous one left.

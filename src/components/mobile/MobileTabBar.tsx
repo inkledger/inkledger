@@ -17,7 +17,7 @@ import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
-import { placementsFor } from "@/lib/workspace/utils";
+import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 import { prefersReducedMotion } from "@/lib/dom";
 
 const CELL =
@@ -138,7 +138,6 @@ function MobileTabBarContent() {
   const inMore =
     entry !== null && !TAB_ROUTES.includes(entry.to);
   const visibleTabs = placementsFor(workspace, "mobile.tabs");
-  const isVisible = (anchorId: string, areaId: string) => workspace.placements.some(placement => placement.anchorId === anchorId && placement.areaId === areaId && placement.visible);
   const density = visibleTabs.some(placement => placement.variant === "expanded") ? "expanded" : visibleTabs.every(placement => placement.variant === "compact") ? "compact" : "default";
   // The bar's height feeds --bottom-nav-h through CSS, so wide screens and the soft keyboard still zero it.
   useEffect(() => {
@@ -162,7 +161,7 @@ function MobileTabBarContent() {
         )}
       >
         {/* Add-ons' anchor on the bar's top-right edge (e.g. a player while music plays). */}
-        {isVisible("mobile.dock", "mobile.dock") && (
+        {isPlaced(workspace, "mobile.dock", "mobile.dock") && (
           <div data-workspace-area="mobile.dock" data-workspace-anchor="mobile.dock" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] top-0 h-0 w-0">
             <ModuleSlot id="mobile-dock" />
           </div>

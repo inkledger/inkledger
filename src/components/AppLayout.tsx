@@ -91,6 +91,7 @@ import { BrandMark } from "@/components/app/BrandMark";
 import { BRAND_SHORT } from "@/lib/brand";
 import { pageQueriesOf } from "@/lib/pageQueries";
 import { surface, surfaceFace } from "@/components/app/surface";
+import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 
 // Dialogs and hosts opened on demand: out of the first load (each fetched right after it).
 const QuickStart = lazyPart(() => import("@/components/QuickStart").then(m => m.QuickStart));
@@ -252,9 +253,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         : null;
   const pinboard = usePinboardPanel();
   const { workspace } = useWorkspace();
-  const placementsIn = (areaId: string) => workspace.placements.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
+  const placementsIn = (areaId: string) => placementsFor(workspace, areaId);
   const navigationPlacements = placementsIn("shell.navigation");
-  const isVisible = (anchorId: string, areaId: string) => workspace.placements.some(placement => placement.anchorId === anchorId && placement.areaId === areaId && placement.visible);
+  const isVisible = (anchorId: string, areaId: string) => isPlaced(workspace, anchorId, areaId);
   const navItems = useNavItems();
   // The Board's pin button opens the Board's own panel there; "p" the widget first.
   const pinTarget = usePinboardTarget(pathname, true);
@@ -462,8 +463,7 @@ function MobileTodos() {
   const { pathname } = useLocation();
   const s = useTodoSurfacesNow();
   const { workspace } = useWorkspace();
-  const visible = workspace.placements.some(placement => placement.anchorId === "mobile.todos" && placement.areaId === "mobile.more" && placement.visible);
-  if (!visible || !(s.menu || s.widget) || pathname === "/todos") return null;
+  if (!isPlaced(workspace, "mobile.todos", "mobile.more") || !(s.menu || s.widget) || pathname === "/todos") return null;
   return (
     <Button
       variant="ghost"
@@ -486,7 +486,7 @@ function MobileTodos() {
 function MobileBell() {
   const inbox = useNotificationCount();
   const { workspace } = useWorkspace();
-  if (!workspace.placements.some(placement => placement.anchorId === "mobile.notifications" && placement.areaId === "mobile.more" && placement.visible)) return null;
+  if (!isPlaced(workspace, "mobile.notifications", "mobile.more")) return null;
   return (
     <Button
       variant="ghost"

@@ -7,6 +7,7 @@ import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
+import { useWorkspaceActions } from "@/lib/workspace/actions";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
 import { areaLabel, anchorLabel, inPageOrder } from "@/lib/workspace/labels";
@@ -20,6 +21,7 @@ import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
 import { LayoutCanvas, type BlockRules, type CanvasActions } from "./LayoutCanvas";
 import { prefersReducedMotion } from "@/lib/dom";
+import { placementsFor } from "@/lib/workspace/utils";
 
 const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
 const PlannerPanel = lazy(() => import("./PlannerPanel"));
@@ -60,7 +62,8 @@ export function WorkspaceSection() {
 
 function WorkspaceEditor() {
   const provider = useProviderName();
-  const { workspace, descriptor, revisions, actions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
+  const { scope, clientInstanceId, workspace, descriptor, revisions, draft: restoredDraft, draftDescriptor, draftWorkspace, presentationStatus, pendingActivation, constraints } = useWorkspace();
+  const actions = useWorkspaceActions(scope, clientInstanceId);
   const [localPending, setLocalPending] = useState<Pending | null>(null);
   const [completedDraftId, setCompletedDraftId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -220,7 +223,7 @@ function WorkspaceEditor() {
     }
     for (const areaId of new Set(defaults.map(placement => placement.areaId))) {
       const wantedIds = defaults.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order).map(placement => placement.anchorId);
-      const currentIds = editingWorkspace.placements.filter(placement => placement.areaId === areaId && placement.visible).sort((a, b) => a.order - b.order).map(placement => placement.anchorId);
+      const currentIds = placementsFor(editingWorkspace, areaId).map(placement => placement.anchorId);
       if (wantedIds.join("\n") !== currentIds.join("\n")) patches.push(reorderPatch(workspace, areaId, wantedIds));
     }
     if (patches.length > 0 || constraints.length > 0) void preview({
