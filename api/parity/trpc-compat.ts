@@ -341,6 +341,7 @@ export type InputsStillAccepted = [
   Fits<FrozenIn["workspace.prepare"], In["workspace"]["prepare"]>,
   Fits<FrozenIn["workspace.reconcile"], In["workspace"]["reconcile"]>,
   Fits<FrozenIn["workspace.renew"], In["workspace"]["renew"]>,
+  Fits<FrozenIn["workspace.reproposeDraft"], In["workspace"]["reproposeDraft"]>,
   Fits<FrozenIn["workspace.rollback"], In["workspace"]["rollback"]>,
   Fits<FrozenIn["workspace.saveDraft"], In["workspace"]["saveDraft"]>,
 ];
@@ -677,6 +678,7 @@ export type OutputsStillRead = [
   Fits<Out["workspace"]["prepare"], FrozenOut["workspace.prepare"]>,
   Fits<Out["workspace"]["reconcile"], FrozenOut["workspace.reconcile"]>,
   Fits<Out["workspace"]["renew"], FrozenOut["workspace.renew"]>,
+  Fits<Out["workspace"]["reproposeDraft"], FrozenOut["workspace.reproposeDraft"]>,
   Fits<Out["workspace"]["rollback"], FrozenOut["workspace.rollback"]>,
   Fits<Out["workspace"]["saveDraft"], FrozenOut["workspace.saveDraft"]>,
 ];

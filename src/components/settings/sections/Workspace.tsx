@@ -7,7 +7,7 @@ import { Chip } from "@/components/app/Chip";
 import { Button } from "@/components/ui/button";
 import { WorkspaceScopeProvider } from "@/lib/workspace/provider";
 import { useWorkspace } from "@/lib/workspace/context";
-import { useWorkspaceActions } from "@/lib/workspace/actions";
+import { staleDraftOf, useWorkspaceActions } from "@/lib/workspace/actions";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
 import { areaLabel, anchorLabel, inPageOrder } from "@/lib/workspace/labels";
@@ -16,6 +16,7 @@ import { trpc } from "@/lib/trpc";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { Draft, ResolvedPlacement, ResolvedWorkspace, Scope, SuggestionPatch, Variant } from "@contracts/workspace/model";
+import type { ReproposalDrop } from "@contracts/workspace/repropose";
 import { failureText } from "@/lib/errorText";
 import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
@@ -70,6 +71,10 @@ function WorkspaceEditor() {
   // "Applying" only while a layout is being applied; a preview being saved says so instead.
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A draft refused for being made on an older layout (another tab applied since): what of it can be kept.
+  const [stale, setStale] = useState<{ draft: Draft; keepable: number } | null>(null);
+  // The changes of such a draft left out when the rest was proposed again, and why.
+  const [notKept, setNotKept] = useState<readonly ReproposalDrop[]>([]);
   // The change drawn at once, before the server's preview of it comes back (or refuses it).
   const [optimistic, setOptimistic] = useState<ResolvedPlacement[] | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -121,6 +126,8 @@ function WorkspaceEditor() {
     queuedPreviews.current++;
     setBusy(true);
     setError(null);
+    setStale(null);
+    setNotKept([]);
     const save = async () => {
       try {
         const result = await actions.saveDraft(draft);
@@ -129,7 +136,7 @@ function WorkspaceEditor() {
           setPending({ draft: result.draft, workspace: result.preview.workspace });
         }
       } catch (e) {
-        if (latestDraft.current === draft) setError(failureText(e));
+        if (latestDraft.current === draft) refused(e, draft);
       } finally {
         queuedPreviews.current--;
         // Once every queued change has its answer, the server's preview is what is drawn.
@@ -143,11 +150,41 @@ function WorkspaceEditor() {
     return previewQueue.current;
   };
 
+  /** A save refused: its words, and for a draft made on an older layout, what of it could be kept. */
+  const refused = (e: unknown, draft: Draft) => {
+    setError(failureText(e));
+    const info = staleDraftOf(e);
+    setStale(info ? { draft, keepable: info.keepable } : null);
+  };
+
+  // The stale draft's other changes, proposed again on the current layout: a preview, applied only by Apply.
+  const keepOthers = async () => {
+    if (!stale) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await actions.reproposeDraft(stale.draft);
+      setStale(null);
+      setNotKept(result.dropped);
+      if (result.draft && result.preview) {
+        restoreFocus.current = null;
+        latestDraft.current = result.draft;
+        setPending({ draft: result.draft, workspace: result.preview.workspace });
+      }
+    } catch (e) {
+      setStale(null);
+      setError(failureText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const apply = async () => {
     if (!pending) return;
     setBusy(true);
     setApplying(true);
     setError(null);
+    setStale(null);
     try {
       const result = await actions.applyDraft(pending.draft);
       if (result.status === "applied") {
@@ -155,10 +192,11 @@ function WorkspaceEditor() {
         latestDraft.current = null;
         setCompletedDraftId(pending.draft.draftId);
         setPending(null);
+        setNotKept([]);
       } else if (result.status === "conflict") setError(t("settings.categories.workspace.conflict"));
       else if (result.status === "deferred") setError(t("settings.categories.workspace.deferred"));
     } catch (e) {
-      setError(failureText(e));
+      refused(e, pending.draft);
     } finally {
       setBusy(false);
       setApplying(false);
@@ -197,6 +235,7 @@ function WorkspaceEditor() {
     try {
       await actions.discardDraft(pending.draft.draftId);
       latestDraft.current = null;
+      setNotKept([]);
       setCompletedDraftId(pending.draft.draftId);
       setPending(null);
       document.getElementById("workspace-reset")?.focus({ preventScroll: true });
@@ -381,7 +420,10 @@ function WorkspaceEditor() {
 
   return (
     <>
-      {visibleError && <p role="alert" className="mb-4 rounded-md bg-danger-soft px-3 py-2 text-body-sm text-danger">{visibleError}</p>}
+      {visibleError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-danger-soft px-3 py-2 text-body-sm text-danger">
+        <p className="min-w-0 [overflow-wrap:anywhere]">{visibleError}</p>
+        {error && stale && stale.keepable > 0 && <Button size="sm" variant="outline" disabled={busy} onClick={() => void keepOthers()}>{t("settings.categories.workspace.keepOthers", { count: stale.keepable })}</Button>}
+      </div>}
       {busy && <p role="status" className="mb-4 text-body-sm text-muted-foreground">{t(applying ? "settings.categories.workspace.applying" : "settings.categories.workspace.saving")}</p>}
       {presentationStatus !== "stable" && <div className="mb-4 flex flex-wrap items-center gap-3">
         <p role="status" className="text-body-sm text-muted-foreground">{t(`settings.categories.workspace.states.${presentationStatus}`)}</p>
@@ -436,6 +478,12 @@ function WorkspaceEditor() {
           {pending && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void discard()}>{t("settings.categories.workspace.discard")}</Button>}
         </div>
         {pending && <p className="mt-2 text-caption text-muted-foreground">{t("settings.categories.workspace.preview")}</p>}
+        {(["overlap", "refused"] as const).map(reason => {
+          const names = [...new Set(notKept.filter(drop => drop.reason === reason).map(drop => drop.anchorId ? anchorLabel(drop.anchorId, { provider }) : drop.areaId ? areaLabel(drop.areaId) : null).filter(name => name !== null))];
+          return names.length > 0 && <p key={reason} data-not-kept={reason} className="mt-2 text-caption text-muted-foreground [overflow-wrap:anywhere]">
+            {t(reason === "overlap" ? "settings.categories.workspace.notKeptOverlap" : "settings.categories.workspace.notKeptRefused", { blocks: names.join(", ") })}
+          </p>;
+        })}
       </SettingsGroup>
 
       <SettingsGroup id="workspace-history" title={t("settings.categories.workspace.historyTitle")} description={t("settings.categories.workspace.historyDescription")}>

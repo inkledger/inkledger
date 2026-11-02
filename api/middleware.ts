@@ -9,6 +9,7 @@ import { JiraApiError } from "./jira/client";
 import { ProviderError } from "./providers/core/errors";
 import { providerTrpcError } from "./providers/trpc";
 import { TimerConflictError } from "./lib/timerConflict";
+import { StaleDraftError } from "./workspace/staleDraft";
 import { t as tr } from "@contracts/i18n";
 import type { Permission } from "@contracts/accounts";
 import { can } from "./queries/accounts";
@@ -25,6 +26,8 @@ const t = initTRPC.context<TrpcContext>().create({
     if (fields) return { ...shape, data: { ...shape.data, fields } };
     // A timer held by another device, or changed meanwhile: who, since when, to say it and offer a take-over.
     if (error.cause instanceof TimerConflictError) return { ...shape, data: { ...shape.data, timer: error.cause.info } };
+    // A layout draft made on an older layout: how many of its changes can be proposed again.
+    if (error.cause instanceof StaleDraftError) return { ...shape, data: { ...shape.data, staleDraft: error.cause.info } };
     // Input the server refused: words for people, never the validator's JSON;
     // the fields it named go along for the form to mark.
     if (error.cause instanceof ZodError) {

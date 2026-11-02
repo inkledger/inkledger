@@ -1324,6 +1324,10 @@
     "type": "mutation"
   },
   {
+    "path": "workspace.reproposeDraft",
+    "type": "mutation"
+  },
+  {
     "path": "workspace.rollback",
     "type": "mutation"
   },

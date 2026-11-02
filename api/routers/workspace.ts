@@ -14,6 +14,7 @@ import {
   prepareWorkspace,
   reconcileWorkspace,
   renewWorkspaceActivationLease,
+  reproposeWorkspaceDraft,
   rollbackWorkspace,
   markWorkspaceDiscovery,
   saveWorkspaceDraft,
@@ -75,6 +76,11 @@ export const workspaceRouter = createRouter({
   saveDraft: protectedProcedure
     .input(z.strictObject({ scope, draft: draftSchema }))
     .mutation(({ ctx, input }) => guard(() => saveWorkspaceDraft(ctx.user.id, input.scope, input.draft))),
+
+  // A draft made on an older layout: its changes disjoint from what was applied since, proposed again as a preview.
+  reproposeDraft: protectedProcedure
+    .input(z.strictObject({ scope, draft: draftSchema }))
+    .mutation(({ ctx, input }) => guard(() => reproposeWorkspaceDraft(ctx.user.id, input.scope, input.draft))),
 
   completeDraft: protectedProcedure
     .input(z.strictObject({ scope, draftId: z.string().min(1).max(128), draftRevision: z.number().int().positive().optional() }))

@@ -143,6 +143,9 @@ export const settings: Shape<typeof en> = {
       deferred: "Stai facendo altro (un timer o un campo in compilazione). Le modifiche restano: applica di nuovo quando hai finito.",
       applying: "Applicazione del layout…",
       recover: "Mostra il layout salvato",
+      keepOthers: { one: "Tieni la mia altra modifica (1)", other: "Tieni le mie altre modifiche ({count})" },
+      notKeptOverlap: "Non tenute, cambiate altrove nel frattempo: {blocks}.",
+      notKeptRefused: "Non tenute, non più consentite qui: {blocks}.",
       states: {
         pendingActivation: "Layout salvato. Compare appena è sicuro.",
         activationUncertain: "Non è stato possibile confermare che il nuovo layout sia visibile. Il lavoro resta: mostra il layout salvato prima di applicare di nuovo.",

@@ -142,6 +142,9 @@ export const settings = {
       deferred: "You're in the middle of something (a timer or a field being typed). Your changes are kept: apply again when you're done.",
       applying: "Applying the layout…",
       recover: "Show the saved layout",
+      keepOthers: { one: "Keep my other change (1)", other: "Keep my other changes ({count})" },
+      notKeptOverlap: "Not kept, changed elsewhere meanwhile: {blocks}.",
+      notKeptRefused: "Not kept, no longer allowed here: {blocks}.",
       states: {
         pendingActivation: "Layout saved. It shows as soon as it's safe.",
         activationUncertain: "Couldn't confirm the new layout is showing. Your work is kept: show the saved layout before applying again.",

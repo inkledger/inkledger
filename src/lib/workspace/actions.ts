@@ -1,15 +1,27 @@
 import { useCallback, useMemo } from "react";
+import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import type { DiscoveryState, Draft, Scope } from "@contracts/workspace/model";
+import type { StaleDraftInfo } from "@contracts/workspace/repropose";
 import { workspaceInteractionEpoch, workspaceTaskActive } from "./client";
 
 export type WorkspaceActions = ReturnType<typeof useWorkspaceActions>;
+
+/** A draft refused because it was made on an older layout: how many of its changes can be kept, else null. */
+export function staleDraftOf(error: unknown): StaleDraftInfo | null {
+  if (!(error instanceof TRPCClientError)) return null;
+  const data: unknown = error.data;
+  if (typeof data !== "object" || data === null || !("staleDraft" in data)) return null;
+  const info = data.staleDraft;
+  return typeof info === "object" && info !== null && "keepable" in info && typeof info.keepable === "number" ? { keepable: info.keepable } : null;
+}
 
 export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
   const utils = trpc.useUtils();
   const saveDraft = trpc.workspace.saveDraft.useMutation().mutateAsync;
   const completeDraft = trpc.workspace.completeDraft.useMutation().mutateAsync;
   const discardDraft = trpc.workspace.discardDraft.useMutation().mutateAsync;
+  const reproposeDraft = trpc.workspace.reproposeDraft.useMutation().mutateAsync;
   const prepare = trpc.workspace.prepare.useMutation().mutateAsync;
   const commit = trpc.workspace.commit.useMutation().mutateAsync;
   const activate = trpc.workspace.activate.useMutation().mutateAsync;
@@ -30,6 +42,12 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
     },
     saveDraft: async (draft: Draft) => {
       const result = await saveDraft({ scope, draft });
+      await invalidate();
+      return result;
+    },
+    /** The stale draft's changes nobody touched since, as a new preview on the current layout: never applied here. */
+    reproposeDraft: async (draft: Draft) => {
+      const result = await reproposeDraft({ scope, draft });
       await invalidate();
       return result;
     },
@@ -121,5 +139,5 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
       await invalidate();
       return result;
     },
-  }), [invalidate, scope, clientInstanceId, saveDraft, completeDraft, discardDraft, prepare, commit, activate, acknowledge, defer, reconcile, renew, rollback, discovery]);
+  }), [invalidate, scope, clientInstanceId, saveDraft, reproposeDraft, completeDraft, discardDraft, prepare, commit, activate, acknowledge, defer, reconcile, renew, rollback, discovery]);
 }

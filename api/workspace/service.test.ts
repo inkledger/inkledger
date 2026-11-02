@@ -11,6 +11,7 @@ import {
   markWorkspaceDiscovery,
   openWorkspacePage,
   prepareWorkspace,
+  reproposeWorkspaceDraft,
   rollbackWorkspace,
   saveWorkspaceDraft,
 } from "./service";
@@ -506,5 +507,79 @@ describe("undo after a constraint", () => {
     const undo = await rollbackWorkspace(userId, scope, "tab-a", "default");
     expect(undo.draft.patches[0].revokedConstraintIds).toEqual(["pin-stats"]);
     expect(undo.candidate.workspace.placements.find(placement => placement.anchorId === "dashboard.stats")).toMatchObject({ variant: "default", pinned: false });
+  });
+});
+
+describe("a draft made on an older layout (§21 #16)", () => {
+  let userId: number;
+  const pinStats = { type: "pin" as const, operationId: "op-b-pin-stats", anchorId: "dashboard.stats", pinned: true };
+  const hideActivity = { type: "visibility" as const, operationId: "op-b-hide-activity", anchorId: "dashboard.activity", visible: false };
+  /** Tab B's draft, still on the ProductDefault: pins stats (hidden meanwhile by tab A) and hides activity. */
+  const staleDraft = (): Draft => {
+    const base = draft(false);
+    return {
+      ...base,
+      draftId: "draft-b",
+      draftRevision: 2,
+      patches: [
+        { ...base.patches[0], patchId: "patch-b1", operations: [pinStats] },
+        { ...base.patches[0], patchId: "patch-b2", operations: [hideActivity] },
+      ],
+    };
+  };
+  const counts = async () => (await q<{ revisions: number; operations: number }>(
+    "SELECT (SELECT count(*)::int FROM workspace_revisions WHERE user_id = ?) AS revisions, (SELECT count(*)::int FROM workspace_operations WHERE user_id = ?) AS operations",
+    userId, userId,
+  ))[0];
+
+  beforeEach(async () => {
+    await resetDbForTests();
+    userId = await user();
+    // Tab A hides stats and applies it.
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    await prepareWorkspace({ userId, scope, prepareId: "prepare-a", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await commitWorkspace({ userId, scope, prepareId: "prepare-a", operationId: "operation-a", clientInstanceId: "tab-a", draftRevision: 1, interactionEpoch: 1 });
+    await completeWorkspaceDraft(userId, scope, "draft-1", 1);
+  });
+
+  it("is refused as changed, saying how many of its changes can be kept", async () => {
+    await expect(saveWorkspaceDraft(userId, scope, staleDraft())).rejects.toMatchObject({ code: "CONFLICT", cause: { info: { keepable: 1 } } });
+  });
+
+  it("re-proposes only its changes disjoint from the commit, as an unsaved preview on the current revision", async () => {
+    const before = await getWorkspace(userId, scope, "tab-b");
+    const stored = await counts();
+    const result = await reproposeWorkspaceDraft(userId, scope, staleDraft());
+    expect(await counts()).toEqual(stored);
+    const after = await getWorkspace(userId, scope, "tab-b");
+    expect(after.history).toEqual(before.history);
+    expect(after.committedRevision).toBe(before.committedRevision);
+    expect(result.draft).toMatchObject({ baseRevision: before.committedRevision, status: "ready" });
+    expect(result.draft?.draftRevision).toBeGreaterThan(2);
+    expect(result.draft?.patches.flatMap(patch => patch.operations.map(item => item.operationId))).toEqual(["op-b-hide-activity"]);
+    expect(result.draft?.patches.every(patch => patch.baseRevision === before.committedRevision)).toBe(true);
+    expect(result.dropped).toEqual([{ operationId: "op-b-pin-stats", anchorId: "dashboard.stats", reason: "overlap" }]);
+    const placement = (anchorId: string) => result.preview?.workspace.placements.find(item => item.anchorId === anchorId);
+    expect(placement("dashboard.activity")).toMatchObject({ visible: false });
+    expect(placement("dashboard.stats")).toMatchObject({ visible: false, pinned: false });
+    // The live layout is still tab A's: the proposal is only a draft until the user applies it.
+    expect(after.workspace.placements.find(item => item.anchorId === "dashboard.activity")).toMatchObject({ visible: true });
+    expect(after.draft?.draftId).toBe(result.draft?.draftId);
+  });
+
+  it("writes nothing when none of its changes can be kept", async () => {
+    const onlyOverlap: Draft = { ...staleDraft(), patches: [staleDraft().patches[0]] };
+    const result = await reproposeWorkspaceDraft(userId, scope, onlyOverlap);
+    expect(result.draft).toBeNull();
+    expect(result.dropped).toHaveLength(1);
+    expect((await getWorkspace(userId, scope)).draft).toBeNull();
+  });
+
+  it("never replaces another tab's open draft", async () => {
+    const committed = (await getWorkspace(userId, scope)).committedRevision ?? "default";
+    const base = draft(true);
+    await saveWorkspaceDraft(userId, scope, { ...base, draftId: "draft-c", baseRevision: committed, patches: [{ ...base.patches[0], baseRevision: committed }] });
+    await expect(reproposeWorkspaceDraft(userId, scope, staleDraft())).rejects.toMatchObject({ code: "CONFLICT" });
+    expect((await getWorkspace(userId, scope)).draft?.draftId).toBe("draft-c");
   });
 });

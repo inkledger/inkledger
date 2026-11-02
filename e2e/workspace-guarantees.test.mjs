@@ -212,6 +212,38 @@ test("Two tabs editing the layout: the second is told it changed, nothing is ove
     }, "both intents in one draft once the second tab is up to date");
   }));
 
+test("A tab left on an older layout keeps its changes nobody touched since, as a preview it applies itself", () =>
+  withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db, context }) => {
+    const other = await context.newPage();
+    const revisions = async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n;
+    await page.goto(`${base}/settings/workspace`);
+    await other.goto(`${base}/settings/workspace`);
+    await other.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Pin / }).waitFor();
+    // The first tab hides "Quick numbers" and applies it.
+    await page.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Show / }).click();
+    await page.getByText(/Preview, not applied yet/).waitFor();
+    await page.getByRole("button", { name: "Apply layout" }).click();
+    await waitUntil(async () => (await revisions()) === 1, "the first tab's change to apply");
+    // The second tab, still on the layout before it, pins the same block and hides an unrelated one.
+    await other.locator('[data-anchor="dashboard.stats"]').getByRole("button", { name: /^Pin / }).click();
+    await other.getByRole("alert").filter({ hasText: "The layout changed meanwhile" }).waitFor();
+    await other.locator('[data-anchor="dashboard.activity"]').getByRole("button", { name: /^Show / }).click();
+    const keep = other.getByRole("alert").getByRole("button", { name: "Keep my other change (1)" });
+    await keep.click();
+    await other.getByText(/Preview, not applied yet/).waitFor();
+    await other.getByText("Not kept, changed elsewhere meanwhile: Quick numbers.").waitFor();
+    const [draft] = await db.q("SELECT patches, status FROM workspace_drafts ORDER BY updated_at DESC LIMIT 1");
+    assert.equal(draft.status, "ready");
+    assert.deepEqual(JSON.parse(draft.patches).flatMap(patch => patch.operations.map(operation => [operation.type, operation.anchorId])), [["visibility", "dashboard.activity"]], "only the unrelated change is proposed");
+    assert.equal(await revisions(), 1, "nothing is applied until the user says so");
+    await other.getByRole("button", { name: "Apply layout" }).click();
+    await waitUntil(async () => (await revisions()) === 2, "the kept change to apply");
+    const [live] = await db.q("SELECT operations FROM workspace_revisions WHERE status = 'committed'");
+    const operations = JSON.parse(live.operations).map(item => item.operation);
+    assert.deepEqual(operations.filter(operation => operation.anchorId === "dashboard.stats").map(operation => [operation.type, operation.visible]), [["visibility", false]], "the first tab's value stays");
+    assert.deepEqual(operations.filter(operation => operation.anchorId === "dashboard.activity").map(operation => [operation.type, operation.visible]), [["visibility", false]]);
+  }));
+
 test("A forged .flowmap is kept apart, redrawn and never turns into a layout", () =>
   withApp({ seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()) }, async ({ page, base, db }) => {
     const descriptor = { effectiveRevision: "eff-forged", sourceActiveRevision: "default", workspaceFingerprint: "fp", productDefaultVersion: "product-1", catalogVersion: "1.0.0", resolverVersion: 1, constraintsFingerprint: "c", feedbackFingerprint: "f", discoveryFingerprint: "d", rendererBindingsFingerprint: "r" };

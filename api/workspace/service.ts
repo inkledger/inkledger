@@ -19,6 +19,8 @@ import { CATALOG_V1, PRODUCT_DEFAULTS_V1, PRODUCT_MIGRATIONS_V1 } from "@contrac
 import { assertCatalogManifest, assertProductDefaults, productDefaultFor, scopeFor } from "@contracts/workspace/catalog";
 import { resolve } from "@contracts/workspace/resolve";
 import { rollbackOperations } from "@contracts/workspace/rollback";
+import { reproposeDisjoint } from "@contracts/workspace/repropose";
+import { StaleDraftError } from "./staleDraft";
 import { fingerprint } from "./crypto";
 import { hashActivationToken, newActivationToken } from "./lease";
 import { getDiscoveryState, updateDiscoveryState } from "./discovery";
@@ -41,6 +43,7 @@ import {
 import type {
   ActiveRevision,
   Draft,
+  LayoutOperation,
   PresentationDescriptor,
   ResolvedWorkspace,
   ResolveInput,
@@ -243,12 +246,61 @@ export async function saveWorkspaceDraft(userId: number, scope: Scope, draft: Dr
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
   const active = await inputFor(userId, scope, null);
-  if (draft.baseRevision !== active.activeRevision.revisionId) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
+  if (draft.baseRevision !== active.activeRevision.revisionId) {
+    // Made on an older layout: refused as before, saying how much of it the user could keep (reproposeWorkspaceDraft).
+    const { operations } = await reproposalFor(userId, scope, draft, active);
+    throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed"), cause: new StaleDraftError({ keepable: operations.length }) });
+  }
   // resolvedFor throws on conflicts: what is saved always resolves.
   const result = await resolvedFor(userId, scope, draft);
   const saved: Draft = { ...draft, status: "ready" };
   await upsertDraft(userId, saved, previous);
   return { draft: saved, preview: result };
+}
+
+/** What was committed since a draft's base: the current revision's operations its base did not hold (all of them for an unknown base). */
+async function committedSince(userId: number, scope: Scope, baseRevision: string, current: ActiveRevision): Promise<LayoutOperation[]> {
+  const base = baseRevision === "default" ? defaultRevision(scope) : await revisionById(userId, scope, baseRevision);
+  const known = new Set((base?.operations ?? []).map(item => item.operation.operationId));
+  return current.operations.filter(item => !known.has(item.operation.operationId)).map(item => item.operation);
+}
+
+async function reproposalFor(userId: number, scope: Scope, draft: Draft, current: ResolveInput) {
+  return reproposeDisjoint(draft, await committedSince(userId, scope, draft.baseRevision, current.activeRevision), current);
+}
+
+/**
+ * A draft made on an older layout, proposed again on the current one with only its changes disjoint
+ * from what was committed since (§21 #16): written as the scope's new draft, a preview like any other,
+ * never applied nor committed here (D-54). The changes left out are listed. Another tab's open draft is
+ * never replaced, and nothing is written when no change can be kept.
+ */
+export async function reproposeWorkspaceDraft(userId: number, scope: Scope, draft: Draft) {
+  if (draft.scope.surfaceId !== scope.surfaceId || draft.scope.deviceClass !== scope.deviceClass) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.invalidRequest") });
+  }
+  if (await importHasUnknownContent(userId, scope, draft.draftId)) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.readOnly") });
+  const current = await inputFor(userId, scope, null);
+  if (draft.baseRevision === current.activeRevision.revisionId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.changed") });
+  const previous = await latestDraft(userId, scope);
+  if (previous && OPEN_DRAFT.includes(previous.status) && previous.draftId !== draft.draftId) {
+    throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
+  }
+  const { patches, operations, dropped } = await reproposalFor(userId, scope, draft, current);
+  if (operations.length === 0) return { draft: null, preview: null, dropped };
+  const next: Draft = {
+    draftId: `draft_${newActivationToken()}`,
+    draftRevision: Math.max(draft.draftRevision, previous?.draftRevision ?? 0) + 1,
+    baseRevision: current.activeRevision.revisionId,
+    scope,
+    patches,
+    status: "ready",
+  };
+  // resolvedFor throws on conflicts: what is proposed always resolves.
+  const { workspace, descriptor } = await resolvedFor(userId, scope, next);
+  // Under the scope's draft lock, and only over the draft read above: a tab that saved meanwhile wins.
+  await upsertDraft(userId, next, previous);
+  return { draft: next, preview: { workspace, descriptor }, dropped };
 }
 
 export async function completeWorkspaceDraft(userId: number, scope: Scope, draftId: string, draftRevision?: number) {
