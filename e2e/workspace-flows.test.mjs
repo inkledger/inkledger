@@ -423,8 +423,10 @@ test("#12 use on two layouts is mapped per layout: each period on its own page, 
     const show = page.getByRole("button", { name: "Show use", exact: true });
     await show.click();
     assert.equal(await show.getAttribute("aria-pressed"), "true");
-    await page.locator('[data-anchor="dashboard.tasks"]').getByText("5 uses", { exact: true }).waitFor();
-    assert.equal(await page.locator('[data-anchor="dashboard.customize"]').getByText(/^\d+ uses?$/).count(), 0, "Customize's use belongs to the earlier layout");
+    await page.locator('[data-anchor="dashboard.tasks"]').getByText("My issues: 5 uses", { exact: true }).waitFor({ state: "attached" });
+    assert.equal(await page.locator('[data-anchor="dashboard.tasks"] [data-use-badge]').textContent(), "5");
+    assert.equal(await page.locator('[data-anchor="dashboard.customize"] [data-heat]').count(), 0, "Customize's use belongs to the earlier layout");
+    assert.equal(await page.locator('[data-anchor="dashboard.customize"]').getByText(/^Customize dashboard: [1-9]\d* uses?$/).count(), 0, "no use of the earlier layout said on it");
   });
 });
 

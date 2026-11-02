@@ -10,8 +10,8 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { staleDraftOf, useWorkspaceActions } from "@/lib/workspace/actions";
 import { draftFromWorkspace, movePatch, pinPatch, reorderPatch, variantPatch, visibilityPatch } from "@/lib/workspace/draft";
 import { assessWorkspaceDrop } from "@/lib/workspace/drag";
-import { areaLabel, anchorLabel, inPageOrder } from "@/lib/workspace/labels";
-import { applyLocally, blocksIn, sketchFor, usesByAnchor, type LocalChange } from "@/lib/workspace/sketch";
+import { areaLabel, anchorLabel, inPageOrder, periodLabel } from "@/lib/workspace/labels";
+import { applyLocally, blocksIn, heatLayerOf, sketchFor, type LocalChange } from "@/lib/workspace/sketch";
 import { trpc } from "@/lib/trpc";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
@@ -21,6 +21,8 @@ import { failureText } from "@/lib/errorText";
 import { useProviderName } from "@/hooks/useConnections";
 import { dateFormat, t } from "@/i18n";
 import { LayoutCanvas, type BlockRules, type CanvasActions } from "./LayoutCanvas";
+import { HeatLegend } from "./HeatOverlay";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { prefersReducedMotion } from "@/lib/dom";
 import { placementsFor } from "@/lib/workspace/utils";
 
@@ -80,12 +82,19 @@ function WorkspaceEditor() {
   const [announcement, setAnnouncement] = useState("");
   const [showApplied, setShowApplied] = useState(false);
   const [showUse, setShowUse] = useState(false);
-  // How much each block is used (FlowMap): this week so far, else the newest saved period of this layout.
+  // The periods of use (FlowMap) the canvas can lay over its blocks: this week so far first, then the
+  // saved ones newest first; only this device's own, only with some use.
   const flow = trpc.flowMap.get.useQuery({ scope: workspace.scope });
-  const usage = useMemo(() => {
-    const current = flow.data?.live ?? flow.data?.evidence.find(item => item.origin === "local" && item.descriptor.effectiveRevision === descriptor.effectiveRevision);
-    return current && current.heat.some(point => point.activations > 0) ? usesByAnchor(current.heat) : null;
-  }, [flow.data, descriptor.effectiveRevision]);
+  const [usePeriod, setUsePeriod] = useState<string | null>(null);
+  const usePeriods = useMemo(() => {
+    const used = (item: { heat: readonly { activations: number }[] }) => item.heat.some(point => point.activations > 0);
+    const live = flow.data?.live && used(flow.data.live) ? [flow.data.live] : [];
+    const stored = (flow.data?.evidence ?? []).filter(item => item.origin === "local" && item.coverage.lastAt > 0 && used(item)).sort((a, b) => b.coverage.lastAt - a.coverage.lastAt);
+    return [...live, ...stored];
+  }, [flow.data]);
+  const shownPeriod = usePeriods.find(item => item.evidenceId === usePeriod) ?? usePeriods[0] ?? null;
+  const usage = useMemo(() => shownPeriod ? heatLayerOf(shownPeriod.heat) : null, [shownPeriod]);
+  const periodName = (item: { evidenceId: string; coverage: Parameters<typeof periodLabel>[0] }) => item.evidenceId === flow.data?.live?.evidenceId ? t("settings.categories.workspace.timelineLive") : periodLabel(item.coverage);
   const lastActionAnchor = useRef<string | undefined>(undefined);
   const restoreFocus = useRef<string | null | undefined>(undefined);
   const previewQueue = useRef<Promise<void>>(Promise.resolve());
@@ -439,9 +448,27 @@ function WorkspaceEditor() {
           </ActionRow>
         )}
         {flow.data?.settings.enabled && (
-          <ActionRow actions={<Button variant="outline" size="sm" aria-pressed={showUse && usage !== null} disabled={!usage} onClick={() => setShowUse(value => !value)}>{t("settings.categories.workspace.showUse")}</Button>}>
-            <span className="text-caption text-muted-foreground">{usage ? t("settings.categories.workspace.showUseHint") : t("settings.categories.workspace.useNone")}</span>
-          </ActionRow>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {showUse && usage ? (
+              <span className="grid min-w-0 gap-1">
+                <HeatLegend />
+                {shownPeriod && shownPeriod.descriptor.effectiveRevision !== descriptor.effectiveRevision && <span className="text-caption text-muted-foreground">{t("settings.categories.workspace.useOtherLayout")}</span>}
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1 text-caption text-muted-foreground">{usage ? t("settings.categories.workspace.showUseHint") : t("settings.categories.workspace.useNone")}</span>
+            )}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {showUse && usePeriods.length > 1 && shownPeriod && (
+                <Select value={shownPeriod.evidenceId} onValueChange={setUsePeriod}>
+                  <SelectTrigger size="sm" aria-label={t("settings.categories.workspace.usePeriod")} className="w-auto min-w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {usePeriods.map(item => <SelectItem key={item.evidenceId} value={item.evidenceId}>{periodName(item)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button variant="outline" size="sm" aria-pressed={showUse && usage !== null} disabled={!usage} onClick={() => setShowUse(value => !value)}>{t("settings.categories.workspace.showUse")}</Button>
+            </div>
+          </div>
         )}
         {pending && (
           <SegmentedControl

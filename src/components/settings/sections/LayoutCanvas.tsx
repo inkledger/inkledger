@@ -14,12 +14,13 @@ import {
 import { surface } from "@/components/app/surface";
 import { cn } from "@/lib/utils";
 import { areaLabel } from "@/lib/workspace/labels";
-import { blocksIn, heatClass, type Sketch, type SketchArea, type SketchAxis } from "@/lib/workspace/sketch";
+import { blocksIn, type HeatLayer, type Sketch, type SketchArea, type SketchAxis } from "@/lib/workspace/sketch";
 import { useBlockDrag, type BlockDrag } from "@/lib/workspace/useBlockDrag";
 import type { AnchorManifest, AreaManifest } from "@contracts/workspace/catalogTypes";
 import type { ResolvedPlacement, Variant } from "@contracts/workspace/model";
 import { t, type MessageKey } from "@/i18n";
 import { AreaBlocks, PageSketch } from "./PageSketch";
+import { HeatOverlay, UseBadge } from "./HeatOverlay";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
@@ -59,11 +60,10 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
   actions: CanvasActions;
   /** A block's name, as the page writes it (with the user's tracker in it). */
   label: (anchorId: string) => string;
-  /** How much each block was used (FlowMap), drawn on the blocks when given. */
-  usage?: ReadonlyMap<string, number> | null;
+  /** The use layer (FlowMap) laid over the blocks when given: tint, click dots, counts on the most used. */
+  usage?: HeatLayer | null;
   onAnnounce: (text: string) => void;
 }) {
-  const most = usage ? Math.max(1, ...usage.values()) : 1;
   const root = useRef<HTMLDivElement>(null);
   const editable = sketch.areas.filter(area => areas.some(item => item.id === area.areaId));
   const others = (areaId: string, anchorId: string) => blocksIn(placements, areaId).filter(placement => placement.anchorId !== anchorId);
@@ -173,8 +173,7 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
             anchor={anchors.get(placement.anchorId)}
             rules={rules(placement.anchorId)}
             changed={isChanged(placement, applied)}
-            uses={usage ? usage.get(placement.anchorId) ?? 0 : null}
-            most={most}
+            usage={usage}
             busy={busy}
             areas={areas}
             actions={actions}
@@ -225,7 +224,7 @@ function isChanged(placement: ResolvedPlacement, applied: readonly ResolvedPlace
   return !before || before.areaId !== placement.areaId || before.order !== placement.order || before.visible !== placement.visible || before.variant !== placement.variant || before.pinned !== placement.pinned;
 }
 
-function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor, rules, changed, uses, most, busy, areas, actions, reorder, canReorderTo, dragging, onHandlePointerDown, onHandleKeyDown }: {
+function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor, rules, changed, usage, busy, areas, actions, reorder, canReorderTo, dragging, onHandlePointerDown, onHandleKeyDown }: {
   placement: ResolvedPlacement;
   areaId: string;
   axis: SketchAxis;
@@ -237,9 +236,8 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
   anchor: AnchorManifest | undefined;
   rules: BlockRules;
   changed: boolean;
-  /** Times used, when use is shown (null: not shown). */
-  uses: number | null;
-  most: number;
+  /** The use layer, when shown (null: not shown). */
+  usage: HeatLayer | null;
   busy: boolean;
   areas: readonly AreaManifest[];
   actions: CanvasActions;
@@ -253,6 +251,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
   const movable = (rules.canMove || rules.canReorder) && !busy;
   const targets = rules.canMove ? areas.filter(area => area.id !== areaId && actions.check(placement.anchorId, area.id, Number.MAX_SAFE_INTEGER).allowed) : [];
   const ghost = !placement.visible && !overlay;
+  const uses = usage?.uses.get(placement.anchorId) ?? 0;
   const handle = (
     <button
       type="button"
@@ -273,10 +272,11 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
   );
   const name = (
     <>
-      <span id={labelId} className="min-w-0 flex-1 truncate text-body-sm" title={block}>{block}</span>
+      <span id={labelId} className="min-w-0 flex-1 truncate text-body-sm" title={usage ? undefined : block}>{block}</span>
       {changed && <span role="img" aria-label={t(key("changed"))} title={t(key("changed"))} className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-strong" />}
       {ghost && <span className="sr-only">{t(key("hidden"))}</span>}
-      {uses !== null && uses > 0 && <span className="shrink-0 text-caption tabular-nums text-foreground" title={t(key("timelineBlock"), { block, count: uses })}>{t(key("usesShort"), { count: uses })}</span>}
+      {usage && <span className="sr-only">{t(key("timelineBlock"), { block, count: uses })}</span>}
+      {usage && <UseBadge anchorId={placement.anchorId} layer={usage} />}
     </>
   );
   const buttons = overlay ? null : (
@@ -351,9 +351,9 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
       data-moving={dragging || undefined}
       data-visible={placement.visible}
       data-variant={placement.variant}
+      title={usage ? t(key("timelineBlock"), { block, count: uses }) : undefined}
       className={cn(
-        "min-w-0 rounded-md border p-0.5",
-        uses !== null ? heatClass(uses, most) : "bg-card",
+        "relative isolate min-w-0 rounded-md border bg-card p-0.5",
         stacked ? "grid content-between gap-0.5" : "flex items-center gap-0.5 pr-1",
         axis === "row" ? cn("flex-1", WIDTH[placement.variant]) : HEIGHT[placement.variant],
         ghost && "border-dashed bg-transparent text-muted-foreground",
@@ -361,6 +361,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
         dragging && "border-dashed border-primary",
       )}
     >
+      {usage && <HeatOverlay anchorId={placement.anchorId} layer={usage} />}
       {stacked ? (
         <>
           <div className="flex min-w-0 items-center gap-0.5 pr-1">{handle}{name}</div>

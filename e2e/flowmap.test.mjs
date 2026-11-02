@@ -288,6 +288,84 @@ test("Each page's use over time shows at once, one map per period, oldest first"
   });
 });
 
+test("Show use lays the chosen period over the editor's blocks: tint, dots where clicked, counts on the most used", async () => {
+  await withApp({
+    viewport: { width: 1280, height: 1400 },
+    seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
+  }, async ({ page, base, db }) => {
+    await page.goto(base + "/");
+    for (let i = 0; i < 50 && (await db.q("SELECT count(*)::int AS n FROM workspace_descriptors WHERE surface_id = 'dashboard'"))[0].n === 0; i++) await new Promise(r => setTimeout(r, 100));
+    const [stored] = await db.q("SELECT descriptor FROM workspace_descriptors WHERE surface_id = 'dashboard' AND device_class = 'desktop' LIMIT 1");
+    const descriptor = JSON.parse(stored.descriptor);
+    const scope = { surfaceId: "dashboard", deviceClass: "desktop" };
+    const day = 86_400_000;
+    const grid = (marks = []) => {
+      const cells = Array.from({ length: 8 }, () => Array(8).fill(0));
+      for (const [x, y, n] of marks) cells[y][x] = n;
+      return cells;
+    };
+    const point = (controlId, anchorId, uses, cells = grid()) => ({ controlId, anchorId, semanticRevision: 1, activations: uses, successes: 0, failures: 0, exposures: 50, activationRate: uses / 50, modalities: { pointer: uses, touch: 0, keyboard: 0, unknown: 0 }, cells });
+    const period = (id, daysAgo, heat) => ({
+      evidenceId: id, scope, descriptor, semanticRevision: 1, algorithmVersion: 1, origin: "local",
+      coverage: { firstAt: Date.now() - (daysAgo + 7) * day, lastAt: Date.now() - daysAgo * day, activeDays: 5, sessions: 5, exposures: 50, droppedEvents: 0, gaps: 0 },
+      heat, flows: [], friction: [], expectations: [],
+    });
+    // Customize: 30 clicks near its top right, 10 at its bottom left (cells[y][x]).
+    const later = period("evidence_later", 1, [
+      point("dashboard.customize.open", "dashboard.customize", 40, grid([[6, 1, 30], [0, 5, 10]])),
+      point("dashboard.tasks.openBoard", "dashboard.tasks", 20),
+      point("dashboard.timeline.gap", "dashboard.timeline", 10),
+      point("dashboard.activity", "dashboard.activity", 5),
+    ]);
+    const earlier = period("evidence_earlier", 14, [point("dashboard.customize.open", "dashboard.customize", 4)]);
+    for (const item of [later, earlier]) {
+      await db.q("INSERT INTO workspace_flow_aggregates (user_id, id, surface_id, device_class, effective_revision, origin, payload, created_at) VALUES (1, ?, 'dashboard', 'desktop', ?, 'local', ?, ?)", item.evidenceId, descriptor.effectiveRevision, JSON.stringify(item), item.coverage.lastAt);
+    }
+    await page.goto(`${base}/settings/workspace`);
+    const canvas = page.locator("[data-layout-canvas]");
+    await canvas.waitFor();
+    assert.equal(await canvas.locator("[data-heat]").count(), 0, "use is not laid over until asked");
+    const show = page.getByRole("button", { name: "Show use", exact: true });
+    await show.click();
+    assert.equal(await show.getAttribute("aria-pressed"), "true");
+    // The newest period by default: the block says its use, the dots sit where the clicks landed, nowhere else.
+    const customize = canvas.locator('[data-anchor="dashboard.customize"]');
+    await customize.getByText("Customize dashboard: 40 uses", { exact: true }).waitFor({ state: "attached" });
+    assert.deepEqual((await customize.locator("[data-hit]").evaluateAll(dots => dots.map(dot => dot.getAttribute("data-hit")))).sort(), ["0,5", "6,1"]);
+    assert.equal(await canvas.locator('[data-anchor="dashboard.tasks"] [data-hit]').count(), 0, "no pointer spots, no dots");
+    assert.equal(await canvas.locator('[data-anchor="dashboard.summary"] [data-heat]').count(), 0, "an unused block stays flat");
+    // Counts printed on the three most used blocks only; the others say theirs to hover and screen readers.
+    const badged = await canvas.locator("[data-use-badge]").evaluateAll(badges => badges.map(badge => [badge.closest("[data-anchor]").getAttribute("data-anchor"), badge.textContent]));
+    assert.deepEqual(badged.sort(), [["dashboard.customize", "40"], ["dashboard.tasks", "20"], ["dashboard.timeline", "10"]]);
+    await canvas.locator('[data-anchor="dashboard.activity"]').getByText("Recent activity: 5 uses", { exact: true }).waitFor({ state: "attached" });
+    assert.equal(await canvas.locator('[data-anchor="dashboard.activity"]').getAttribute("title"), "Recent activity: 5 uses");
+    // Another period, picked, is laid over instead.
+    await page.getByRole("combobox", { name: "Period of use" }).click();
+    await page.getByRole("option").last().click();
+    await customize.getByText("Customize dashboard: 4 uses", { exact: true }).waitFor({ state: "attached" });
+    assert.equal(await canvas.locator('[data-anchor="dashboard.tasks"] [data-heat]').count(), 0);
+    // Off again: the page flat.
+    await show.click();
+    assert.equal(await show.getAttribute("aria-pressed"), "false");
+    assert.equal(await canvas.locator("[data-heat]").count(), 0);
+    assert.equal(await canvas.locator("[data-use-badge]").count(), 0);
+  });
+});
+
+test("With FlowMap on and nothing used yet, the editor's page stays flat and says why", async () => {
+  await withApp({
+    viewport: { width: 1280, height: 1000 },
+    seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()),
+  }, async ({ page, base }) => {
+    await page.goto(`${base}/settings/workspace`);
+    await page.getByText("No clicks yet in this period", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Show use", exact: true }).isDisabled(), true);
+    const canvas = page.locator("[data-layout-canvas]");
+    assert.ok(await canvas.locator("[data-anchor]").count() >= 5, "the page's blocks are drawn");
+    assert.equal(await canvas.locator("[data-heat]").count(), 0, "flat: no use over any block");
+  });
+});
+
 test("Use shows at once: on the editor's blocks and as this week so far, with nothing stored by looking", { timeout: 120_000 }, async () => {
   await withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
     await seedPlannerEvidence(db, page, base, PLANNER_STEPS);
@@ -298,9 +376,9 @@ test("Use shows at once: on the editor's blocks and as this week so far, with no
     const show = page.getByRole("button", { name: "Show use", exact: true });
     await show.click();
     assert.equal(await show.getAttribute("aria-pressed"), "true");
-    const tasks = page.locator('[data-anchor="dashboard.tasks"]');
-    await tasks.getByText(/^\d+ uses?$/).waitFor();
-    assert.ok(Number((await tasks.getByText(/^\d+ uses?$/).textContent()).split(" ")[0]) > 0, "the block used shows its count");
+    const tasks = page.locator('[data-layout-canvas] [data-anchor="dashboard.tasks"]');
+    await tasks.getByText(/^My issues: \d+ uses?$/).waitFor({ state: "attached" });
+    assert.ok(Number((await tasks.locator("[data-use-badge]").textContent()).trim()) > 0, "the block used shows its count");
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_flow_aggregates"))[0].n, 0, "looking stores no period");
   });
 });

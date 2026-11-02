@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { ResolvedPlacement, Scope } from "@contracts/workspace/model";
-import { applyLocally, blocksIn, hitGridByAnchor, insertionIndex, sketchFor } from "./sketch";
+import { applyLocally, blocksIn, heatLayerOf, hitGridByAnchor, hitStep, insertionIndex, sketchFor } from "./sketch";
 
 const scopes: Scope[] = [
   { surfaceId: "dashboard", deviceClass: "desktop" },
@@ -107,5 +107,38 @@ describe("where in a block the clicks landed", () => {
     expect(stats.every(row => row.length === 8)).toBe(true);
     expect(stats[0][0]).toBe(1);
     expect(stats.flat().reduce((sum, value) => sum + value, 0)).toBe(1);
+  });
+});
+
+describe("how strong a click dot is drawn", () => {
+  it("is nothing without clicks and grows in three steps towards the map's busiest spot", () => {
+    expect(hitStep(0, 10)).toBe(0);
+    expect(hitStep(1, 10)).toBe(1);
+    expect(hitStep(5, 10)).toBe(2);
+    expect(hitStep(10, 10)).toBe(3);
+    expect(hitStep(3, 0)).toBe(3);
+  });
+});
+
+describe("a page's heat layer", () => {
+  const cells = (x: number, y: number, count: number) => Array.from({ length: 8 }, (_, row) => Array.from({ length: 8 }, (_, column) => (row === y && column === x ? count : 0)));
+  it("ranks the most used blocks, scales tints to the busiest block and dots to the busiest spot", () => {
+    const layer = heatLayerOf([
+      { anchorId: "a", activations: 40, cells: cells(6, 1, 30) },
+      { anchorId: "a", activations: 2, cells: cells(6, 1, 2) },
+      { anchorId: "b", activations: 20, cells: [] },
+      { anchorId: "c", activations: 10, cells: [] },
+      { anchorId: "d", activations: 5, cells: [] },
+      { anchorId: "e", activations: 0, cells: [] },
+    ]);
+    expect([...layer.top]).toEqual(["a", "b", "c"]);
+    expect(layer.most).toBe(42);
+    expect(layer.hitMost).toBe(32);
+    expect(layer.total).toBe(77);
+  });
+  it("is flat with no use: nothing ranked, scales of 1 so nothing divides by zero", () => {
+    const layer = heatLayerOf([]);
+    expect(layer).toMatchObject({ most: 1, hitMost: 1, total: 0 });
+    expect(layer.top.size).toBe(0);
   });
 });

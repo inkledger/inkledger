@@ -132,7 +132,7 @@ Not changed, with reason:
 - The forced interleaving "consent read, Delete, insert" is not unit-tested; consent is re-read under the flow lock (checked in the code).
 
 Visual Layout editor (user request, 1 Nov), D-58:
-- `contracts/workspace/sketch.ts` (re-exported by `src/lib/workspace/sketch.ts`, which adds the Tailwind heat tint) draws each page the way it is laid out (Dashboard desktop and phone, sidebar, phone tabs); the editor and "Use over time" share it (`PageSketch`).
+- `contracts/workspace/sketch.ts` (re-exported by `src/lib/workspace/sketch.ts`, which adds the Tailwind heat tint) draws each page the way it is laid out (Dashboard desktop and phone, sidebar, phone tabs); the editor, "Use over time" and the server's file picture share it (`PageSketch`, `api/workspace/flowSvg.ts`); the editor's "Show use" lays `HeatOverlay` (tint, 8×8 click dots from `hitGridByAnchor`, counts on the 3 most used) over its blocks for a chosen period.
 - Every block sits in its area with its eye, pin and ⋯ menu (size, up/down/start/end, move to); hidden blocks stay as dashed ghosts; locked ones say why.
 - Drag by the handle with pointer events (mouse, pen, finger; `touch-action:none` only on the handle), live slot, inline refusal reason, edge auto-scroll; keyboard: Space, arrows, Enter, Escape, announced.
 - Each change is drawn at once and replaced by the server's preview; "Now on the page" shows the applied layout.

@@ -156,3 +156,38 @@ export function hitGridByAnchor(heat: readonly Pick<HeatPoint, "anchorId" | "cel
   }
   return grids;
 }
+
+/** How strong a spot's dot is drawn, against the map's busiest spot: none, then three steps. */
+export function hitStep(count: number, most: number): 0 | 1 | 2 | 3 {
+  if (count <= 0) return 0;
+  const share = count / Math.max(count, most);
+  return share > 2 / 3 ? 3 : share > 1 / 3 ? 2 : 1;
+}
+
+/** What a heat layer lays over a page drawing: use per block, where it was clicked, and the scales to compare them. */
+export type HeatLayer = {
+  uses: ReadonlyMap<string, number>;
+  grids: ReadonlyMap<string, number[][]>;
+  /** The most used block's count (at least 1): tints compare to it. */
+  most: number;
+  /** The busiest spot of the whole page (at least 1): dots compare across blocks. */
+  hitMost: number;
+  /** The most used blocks, the only ones that print their count. */
+  top: ReadonlySet<string>;
+  /** All the uses added up. */
+  total: number;
+};
+
+export function heatLayerOf(heat: readonly Pick<HeatPoint, "anchorId" | "activations" | "cells">[], topCount = 3): HeatLayer {
+  const uses = usesByAnchor(heat);
+  const grids = hitGridByAnchor(heat);
+  const ranked = [...uses].filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  return {
+    uses,
+    grids,
+    most: Math.max(1, ...uses.values()),
+    hitMost: Math.max(1, ...[...grids.values()].flatMap(grid => grid.flat())),
+    top: new Set(ranked.slice(0, topCount).map(([anchorId]) => anchorId)),
+    total: ranked.reduce((sum, [, count]) => sum + count, 0),
+  };
+}
