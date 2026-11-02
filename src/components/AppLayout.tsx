@@ -398,7 +398,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
         </button>
       </RailTip>
     );
-    else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} controls={{ open: flowControlProps("shell.account.open"), logout: flowControlProps("shell.account.logout") }} />;
+    else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} settings controls={{ open: flowControlProps("shell.account.open"), settings: flowControlProps("shell.account.settings"), logout: flowControlProps("shell.account.logout") }} />;
     else if (anchorId === "shell.sidebar") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
         <button type="button" onClick={sidebar.toggle} {...flowControlProps("shell.sidebar.toggle")} aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")} className={cn(row, "font-normal")}>

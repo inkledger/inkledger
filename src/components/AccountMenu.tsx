@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,16 +21,22 @@ import { BucketMenu } from "@/components/BucketMenu";
 import { surface, surfaceFace } from "@/components/app/surface";
 import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
 
-/** The signed-in user: avatar, name and email, opening server and sign-out. */
+/** The signed-in user: avatar, name and email, opening server, Settings (in the sidebar) and sign-out. */
 export function AccountMenu({
   collapsed = false,
   side = "top",
+  settings = false,
   controls,
 }: {
   collapsed?: boolean;
   side?: "top" | "right";
+  /**
+   * A way to Settings that no layout can hide (S-01): the sidebar's navigation can be, and the
+   * layout editor and its reset are in Settings. The phone's More sheet lists Settings itself.
+   */
+  settings?: boolean;
   /** Counted by FlowMap where the caller says so (the desktop sidebar's account). */
-  controls?: { open: FlowControlAttributes; logout: FlowControlAttributes };
+  controls?: { open: FlowControlAttributes; settings?: FlowControlAttributes; logout: FlowControlAttributes };
 }) {
   const { user } = useAuth();
   const sites = useTrackerSites();
@@ -86,6 +92,12 @@ export function AccountMenu({
         <DropdownMenuSeparator />
         <BucketMenu />
         <NativeServerMenu />
+        {settings && (
+          <DropdownMenuItem onClick={() => void navigate("/settings")} {...controls?.settings}>
+            <Settings className="mr-2 h-4 w-4" />
+            {t("ui.nav.settings")}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => logout.mutate()} {...controls?.logout}>
           <LogOut className="mr-2 h-4 w-4" />
           {t("ui.layout.logout")}

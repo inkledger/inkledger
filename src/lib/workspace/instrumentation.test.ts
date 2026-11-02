@@ -9,7 +9,6 @@ import { ROUTE_CONTROLS } from "./searchEvents";
 const UNMARKED: Record<string, string> = {
   "shell.search.select": "the palette reports the chosen result itself (emitWorkspaceSearch)",
   "shell.timer.start": "the sidebar timer block draws nothing without a timer, and resuming one counts as shell.timer.resume; starting goes through shell.quickStart.open",
-  "shell.account.settings": "the account menu has no Settings item (only buckets, servers and sign-out); Settings is reached from the navigation (shell.nav.settings)",
   "dashboard.closeDay": "its button is drawn in the Summary panel (dashboard.summary), not in the header's quick actions the catalog anchors it on",
   "dashboard.period.pickDate": "its button is drawn beside the page title, not in the period block (dashboard.period) the catalog anchors it on",
 };
