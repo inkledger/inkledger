@@ -25,6 +25,7 @@ import { HeatLegend } from "./HeatOverlay";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { prefersReducedMotion } from "@/lib/dom";
 import { placementsFor } from "@/lib/workspace/utils";
+import { randomUUID } from "@/lib/randomId";
 
 const FlowMapPanel = lazy(() => import("./FlowMapPanel"));
 const PlannerPanel = lazy(() => import("./PlannerPanel"));
@@ -277,7 +278,7 @@ function WorkspaceEditor() {
       if (wantedIds.join("\n") !== currentIds.join("\n")) patches.push(reorderPatch(workspace, areaId, wantedIds));
     }
     if (patches.length > 0 || constraints.length > 0) void preview({
-      patchId: `reset_${crypto.randomUUID()}`,
+      patchId: `reset_${randomUUID()}`,
       patchSchemaVersion: 1,
       scope: workspace.scope,
       baseRevision: workspace.sourceActiveRevision,

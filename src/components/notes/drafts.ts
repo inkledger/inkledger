@@ -4,6 +4,7 @@ import {
   type NoteIssue,
 } from "@contracts/notes";
 import { readStoredJson, writeStored } from "@/lib/storage";
+import { randomUUID } from "@/lib/randomId";
 
 export type NoteDraft = {
   version: 1;
@@ -24,10 +25,7 @@ const TAB_KEY = "ikl-note-tab:v1";
 let memoryTab: string | null = null;
 
 function uuid(): string {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
+  return randomUUID();
 }
 
 export function newDraftId(): string {

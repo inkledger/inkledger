@@ -1,4 +1,5 @@
 import { readStored, writeStored } from "@/lib/storage";
+import { randomUUID } from "@/lib/randomId";
 
 /**
  * This device's id: what it remembers for itself on the server (its active
@@ -13,7 +14,7 @@ export function deviceId(): string {
   if (known) return known;
   if (fallback) return fallback;
   // Kept for this page too: stored or not, read back or not, the same one until it reloads.
-  fallback = crypto.randomUUID();
+  fallback = randomUUID();
   writeStored(KEY, fallback);
   return fallback;
 }

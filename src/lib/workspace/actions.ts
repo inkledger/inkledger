@@ -7,6 +7,7 @@ import { t } from "@/i18n";
 import { UserFacingError } from "@/lib/errorText";
 import { whenWorkspaceIdle, workspaceInteractionEpoch, workspaceTaskActive } from "./client";
 import { renderersReady } from "./renderers";
+import { randomUUID } from "@/lib/randomId";
 
 export type WorkspaceActions = ReturnType<typeof useWorkspaceActions>;
 
@@ -68,7 +69,7 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
         if (interrupted()) return { status: "deferred" as const };
         const prepared = await prepare({
           scope,
-          prepareId: `prepare_${crypto.randomUUID()}`,
+          prepareId: `prepare_${randomUUID()}`,
           clientInstanceId,
           draftRevision: ready.draft.draftRevision,
           interactionEpoch,
@@ -77,7 +78,7 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
         const committed = await commit({
           scope,
           prepareId: prepared.prepareId,
-          operationId: `apply_${crypto.randomUUID()}`,
+          operationId: `apply_${randomUUID()}`,
           clientInstanceId,
           draftRevision: ready.draft.draftRevision,
           interactionEpoch,

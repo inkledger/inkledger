@@ -1,6 +1,7 @@
 // What the Outlook pane uses of Office.js (loaded by outlook.html), typed.
 // The open mail's headers (subject, sender, date, ids); its whole message only
 // when the user keeps copies of pinned mails (docs/work/ideas/mail-copies.md).
+import { randomUUID } from "@/lib/randomId";
 
 type OfficeMailItem = {
   itemId?: string;
@@ -68,7 +69,7 @@ export function paneDevice(): string {
   if (!s) return "";
   const kept = s.get(DEVICE);
   if (typeof kept === "string" && kept) return kept;
-  const made = `outlook-${crypto.randomUUID().replace(/-/g, "")}`;
+  const made = `outlook-${randomUUID().replace(/-/g, "")}`;
   s.set(DEVICE, made);
   s.saveAsync(() => undefined);
   return made;

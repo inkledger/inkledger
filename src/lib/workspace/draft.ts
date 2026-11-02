@@ -1,9 +1,10 @@
 import type { Draft, ResolvedWorkspace, SuggestionPatch } from "@contracts/workspace/model";
+import { randomUUID } from "@/lib/randomId";
 
 export function draftFromWorkspace(workspace: ResolvedWorkspace, patches: readonly SuggestionPatch[], previous?: Draft | null): Draft {
   const reusable = previous?.baseRevision === workspace.sourceActiveRevision ? previous : null;
   return {
-    draftId: reusable?.draftId ?? `draft_${crypto.randomUUID()}`,
+    draftId: reusable?.draftId ?? `draft_${randomUUID()}`,
     draftRevision: reusable ? reusable.draftRevision + 1 : 1,
     baseRevision: workspace.sourceActiveRevision,
     scope: workspace.scope,
@@ -14,7 +15,7 @@ export function draftFromWorkspace(workspace: ResolvedWorkspace, patches: readon
 
 export function visibilityPatch(workspace: ResolvedWorkspace, anchorId: string, visible: boolean): SuggestionPatch {
   return {
-    patchId: `patch_${crypto.randomUUID()}`,
+    patchId: `patch_${randomUUID()}`,
     patchSchemaVersion: 1,
     scope: workspace.scope,
     baseRevision: workspace.sourceActiveRevision,
@@ -22,7 +23,7 @@ export function visibilityPatch(workspace: ResolvedWorkspace, anchorId: string, 
     author: "user",
     provenance: {},
     intent: { kind: visible ? "keepVisible" : "reduce", status: "explicit", anchorId },
-    operations: [{ type: "visibility", operationId: `op_${crypto.randomUUID()}`, anchorId, visible }],
+    operations: [{ type: "visibility", operationId: `op_${randomUUID()}`, anchorId, visible }],
     evidence: [],
     proposedConstraints: [],
   };
@@ -30,7 +31,7 @@ export function visibilityPatch(workspace: ResolvedWorkspace, anchorId: string, 
 
 export function reorderPatch(workspace: ResolvedWorkspace, areaId: string, anchorIds: readonly string[]): SuggestionPatch {
   return {
-    patchId: `patch_${crypto.randomUUID()}`,
+    patchId: `patch_${randomUUID()}`,
     patchSchemaVersion: 1,
     scope: workspace.scope,
     baseRevision: workspace.sourceActiveRevision,
@@ -38,7 +39,7 @@ export function reorderPatch(workspace: ResolvedWorkspace, areaId: string, ancho
     author: "user",
     provenance: {},
     intent: { kind: "group", status: "explicit", areaId },
-    operations: [{ type: "reorder", operationId: `op_${crypto.randomUUID()}`, areaId, anchorIds }],
+    operations: [{ type: "reorder", operationId: `op_${randomUUID()}`, areaId, anchorIds }],
     evidence: [],
     proposedConstraints: [],
   };
@@ -46,7 +47,7 @@ export function reorderPatch(workspace: ResolvedWorkspace, areaId: string, ancho
 
 export function pinPatch(workspace: ResolvedWorkspace, anchorId: string, pinned: boolean): SuggestionPatch {
   return {
-    patchId: `patch_${crypto.randomUUID()}`,
+    patchId: `patch_${randomUUID()}`,
     patchSchemaVersion: 1,
     scope: workspace.scope,
     baseRevision: workspace.sourceActiveRevision,
@@ -54,7 +55,7 @@ export function pinPatch(workspace: ResolvedWorkspace, anchorId: string, pinned:
     author: "user",
     provenance: {},
     intent: { kind: "keepVisible", status: "explicit", anchorId },
-    operations: [{ type: "pin", operationId: `op_${crypto.randomUUID()}`, anchorId, pinned }],
+    operations: [{ type: "pin", operationId: `op_${randomUUID()}`, anchorId, pinned }],
     evidence: [],
     proposedConstraints: [],
   };
@@ -62,7 +63,7 @@ export function pinPatch(workspace: ResolvedWorkspace, anchorId: string, pinned:
 
 export function movePatch(workspace: ResolvedWorkspace, anchorId: string, toAreaId: string, order?: number): SuggestionPatch {
   return {
-    patchId: `patch_${crypto.randomUUID()}`,
+    patchId: `patch_${randomUUID()}`,
     patchSchemaVersion: 1,
     scope: workspace.scope,
     baseRevision: workspace.sourceActiveRevision,
@@ -70,7 +71,7 @@ export function movePatch(workspace: ResolvedWorkspace, anchorId: string, toArea
     author: "user",
     provenance: {},
     intent: { kind: "group", status: "explicit", anchorId, areaId: toAreaId },
-    operations: [{ type: "move", operationId: `op_${crypto.randomUUID()}`, anchorId, toAreaId, ...(order === undefined ? {} : { order }) }],
+    operations: [{ type: "move", operationId: `op_${randomUUID()}`, anchorId, toAreaId, ...(order === undefined ? {} : { order }) }],
     evidence: [],
     proposedConstraints: [],
   };
@@ -78,7 +79,7 @@ export function movePatch(workspace: ResolvedWorkspace, anchorId: string, toArea
 
 export function variantPatch(workspace: ResolvedWorkspace, anchorId: string, variant: "compact" | "default" | "expanded"): SuggestionPatch {
   return {
-    patchId: `patch_${crypto.randomUUID()}`,
+    patchId: `patch_${randomUUID()}`,
     patchSchemaVersion: 1,
     scope: workspace.scope,
     baseRevision: workspace.sourceActiveRevision,
@@ -86,7 +87,7 @@ export function variantPatch(workspace: ResolvedWorkspace, anchorId: string, var
     author: "user",
     provenance: {},
     intent: { kind: "custom", status: "explicit", anchorId },
-    operations: [{ type: "variant", operationId: `op_${crypto.randomUUID()}`, anchorId, variant }],
+    operations: [{ type: "variant", operationId: `op_${randomUUID()}`, anchorId, variant }],
     evidence: [],
     proposedConstraints: [],
   };

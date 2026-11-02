@@ -1,3 +1,5 @@
+import { randomUUID } from "@/lib/randomId";
+
 const CLIENT_KEY = "ikl-workspace-client";
 let interactionEpoch = 1;
 let activeTasks = 0;
@@ -9,11 +11,11 @@ export function workspaceClientInstanceId(): string {
   try {
     const existing = sessionStorage.getItem(CLIENT_KEY);
     if (existing) return existing;
-    const created = `ci_${crypto.randomUUID()}`;
+    const created = `ci_${randomUUID()}`;
     sessionStorage.setItem(CLIENT_KEY, created);
     return created;
   } catch {
-    return `ci_${crypto.randomUUID()}`;
+    return `ci_${randomUUID()}`;
   }
 }
 

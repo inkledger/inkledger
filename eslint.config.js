@@ -71,4 +71,15 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // Missing on plain http pages (the dev server opened from another machine).
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/randomId.ts', 'src/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'crypto', property: 'randomUUID', message: 'Use randomUUID() from @/lib/randomId: it works on plain http pages too.' },
+      ],
+    },
+  },
 ])

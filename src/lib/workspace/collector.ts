@@ -4,6 +4,7 @@ import type { FlowEvent, FlowModality } from "@contracts/workspace/flowMap";
 import type { PresentationDescriptor, Scope } from "@contracts/workspace/model";
 import { workspaceMutationPath } from "./instrumentation";
 import { flowClickOf, type FlowClick } from "./flowClick";
+import { randomUUID } from "@/lib/randomId";
 
 export type FlowCollectionOptions = {
   scope: Scope;
@@ -32,7 +33,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   let timer: ReturnType<typeof setTimeout> | undefined;
   let sending = false;
   let stopped = false;
-  let sessionId = crypto.randomUUID();
+  let sessionId = randomUUID();
   let surfaceSeen = false;
   let lastAction: { controlId: string; semanticRevision: number; at: number } | undefined;
   let modality: FlowModality = "unknown";
@@ -64,7 +65,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
     }
     queue.push({
       eventSchemaVersion: 1,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       kind,
       scope,
       ...(controlId ? { controlId } : {}),
@@ -190,7 +191,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
       for (const element of pendingExposures.keys()) cancelExposure(element);
       beacon();
     } else {
-      sessionId = crypto.randomUUID();
+      sessionId = randomUUID();
       exposed.clear();
       observeAnchors();
     }

@@ -17,6 +17,7 @@ import { t, type MessageKey } from "@/i18n";
 import { areaLabel, controlLabel, periodLabel } from "@/lib/workspace/labels";
 import { HeatTimeline } from "./HeatTimeline";
 import { downloadBlob } from "@/lib/download";
+import { randomUUID } from "@/lib/randomId";
 
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
 
@@ -72,7 +73,7 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
   const previewExpectation = async (evidence: EvidenceSet, gap: ExpectationGap) => {
     const target = expectationTarget(gap);
     if (!target || gap.state !== "confirmed") return;
-    const patchId = `patch_${crypto.randomUUID()}`;
+    const patchId = `patch_${randomUUID()}`;
     const { anchor, placement, area } = target;
     await run(() => onPatch({
       patchId,
@@ -83,9 +84,9 @@ export default function FlowMapPanel({ onPatch }: { onPatch: (patch: SuggestionP
       author: "user",
       provenance: {},
       intent: { kind: "expectHere", status: "explicit", anchorId: anchor.id, areaId: area.id },
-      operations: placement.areaId === area.id ? [] : [{ type: "move", operationId: `op_${crypto.randomUUID()}`, anchorId: anchor.id, toAreaId: area.id }],
+      operations: placement.areaId === area.id ? [] : [{ type: "move", operationId: `op_${randomUUID()}`, anchorId: anchor.id, toAreaId: area.id }],
       evidence: [{ evidenceId: evidence.evidenceId, effectiveRevision: evidence.descriptor.effectiveRevision }],
-      proposedConstraints: [{ id: `constraint_${crypto.randomUUID()}`, kind: "expectHere", status: "explicit", author: "user", scope, anchorId: anchor.id, areaId: area.id }],
+      proposedConstraints: [{ id: `constraint_${randomUUID()}`, kind: "expectHere", status: "explicit", author: "user", scope, anchorId: anchor.id, areaId: area.id }],
     }));
   };
   // A gap by what it says, destination included: two gaps from one area never read the same.

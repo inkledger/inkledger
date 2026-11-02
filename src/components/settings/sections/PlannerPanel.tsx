@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { anchorLabel, areaLabel } from "@/lib/workspace/labels";
 import { downloadBlob } from "@/lib/download";
 import { dayMonth } from "@/lib/dates";
+import { randomUUID } from "@/lib/randomId";
 
 type Candidate = { patch: SuggestionPatch; preview: ResolvedWorkspace; reason: string; ranking: Ranking; adaptationWindowDays: number };
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
@@ -129,7 +130,7 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
     if (operations.length === 0) return;
     await onPatch({
       ...candidate.patch,
-      patchId: `patch_${crypto.randomUUID()}`,
+      patchId: `patch_${randomUUID()}`,
       author: "user",
       provenance: { ...candidate.patch.provenance, parentPatchId: candidate.patch.patchId },
       intent: { ...candidate.patch.intent, status: "explicit" },

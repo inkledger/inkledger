@@ -34,6 +34,7 @@ import {
   type TodoStep,
 } from "@contracts/todo";
 import { t } from "@/i18n";
+import { randomUUID } from "@/lib/randomId";
 
 /**
  * The parts of a TODO beside its text, each a chip that says its value and
@@ -432,7 +433,7 @@ export function StepsEditor({
     if (!text || steps.length >= MAX_TODO_STEPS) return;
     onChange([
       ...steps,
-      { id: crypto.randomUUID().slice(0, 8), text, done: false },
+      { id: randomUUID().slice(0, 8), text, done: false },
     ]);
     setDraft("");
   };
