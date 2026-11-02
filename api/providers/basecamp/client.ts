@@ -4,8 +4,9 @@
 // without one), errors in the layer's words, pages by the Link header.
 // Basecamp is a hosted service only, so every call goes to the public internet.
 // An account's API lives under https://3.basecampapi.com/<account id>.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 /** Where the accounts of a token are listed (a different host from the API). */
 export const LAUNCHPAD = "https://launchpad.37signals.com";
@@ -79,23 +80,13 @@ export type BcAuthorization = { identity?: { id: number; email_address?: string 
 
 /** A Basecamp answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Basecamp answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { error?: unknown; errors?: unknown };
-      const said = typeof body.error === "string" ? body.error : Array.isArray(body.errors) ? body.errors.filter((e): e is string => typeof e === "string").join("; ") : "";
-      if (said) message = `Basecamp: ${said}`;
-    } catch {
-      if (text.trim()) message = `Basecamp: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ error?: unknown; errors?: unknown }>(res, "Basecamp", (body) => {
+    const said = typeof body.error === "string" ? body.error : Array.isArray(body.errors) ? body.errors.filter((e): e is string => typeof e === "string").join("; ") : "";
+    return said || undefined;
+  });
   if (res.status === 429) {
     // 50 requests per 10 seconds per IP; Retry-After is in seconds.
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : 10_000;
+    const waitMs = retryAfterMs(res.headers, 10_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
@@ -133,22 +124,15 @@ export async function bc<T>(c: BcCreds, path: string, init: Call = {}): Promise<
   // A full address (a next page, kept in a page token) is only ever followed on the server itself, with the token.
   if (new URL(url).origin !== new URL(site).origin) throw new ProviderError("incompatible", "Basecamp: an address on another server");
   const body = init.json === undefined ? undefined : JSON.stringify(init.json);
-  const res = await safeFetch({
+  const res = await jsonCall({
     site,
     url,
-    init: {
-      method: init.method ?? "GET",
-      headers: { Accept: "application/json", Authorization: `Bearer ${c.token}`, "User-Agent": USER_AGENT, ...(body ? { "Content-Type": "application/json; charset=utf-8" } : {}) },
-      ...(body ? { body } : {}),
-    },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { method: init.method ?? "GET", ...(body ? { body, headers: { "Content-Type": "application/json; charset=utf-8" } } : {}) },
+    headers: { Authorization: `Bearer ${c.token}`, "User-Agent": USER_AGENT },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   const next = init.site ? null : nextOf(res, c.apiBase);
   const total = Number(res.headers.get("x-total-count"));
   if (res.status === 204 || res.headers.get("content-length") === "0") return { data: undefined as T, next, total: Number.isFinite(total) && total > 0 ? total : null };
@@ -156,11 +140,7 @@ export async function bc<T>(c: BcCreds, path: string, init: Call = {}): Promise<
 }
 
 /** A call that always answers. */
-export async function bcOk<T>(c: BcCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await bc<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Basecamp: nothing at ${path}`);
-  return r.data;
-}
+export const bcOk = <T>(c: BcCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(bc<T>(c, path, init), "Basecamp", path);
 
 export const joined = (path: string, params: Record<string, string | number | undefined>) => {
   const q = new URLSearchParams(Object.entries(params).flatMap(([k, v]): [string, string][] => (v === undefined ? [] : [[k, String(v)]])));
@@ -169,13 +149,13 @@ export const joined = (path: string, params: Record<string, string | number | un
 };
 
 /** Every page of a list (bounded: 100 pages). */
-export async function bcPages<T>(c: BcCreds, path: string, maxPages = 100): Promise<T[]> {
-  const out: T[] = [];
-  let at: string | null = path;
-  for (let n = 0; n < maxPages && at; n++) {
-    const r: Answer<T[]> | null = await bc<T[]>(c, at);
-    out.push(...(r?.data ?? []));
-    at = r?.next ?? null;
-  }
-  return out;
+export function bcPages<T>(c: BcCreds, path: string, maxPages = 100): Promise<T[]> {
+  return collectPages<T, string>(
+    path,
+    async (at) => {
+      const r = await bc<T[]>(c, at);
+      return { rows: r?.data ?? [], next: r?.next || null };
+    },
+    maxPages,
+  );
 }

@@ -2,8 +2,9 @@
 // safe fetch (read-only servers, redirects re-checked), the personal API key in
 // X-Api-Key, errors in the layer's words, lists paged by `page` and `limit`.
 // Dates are plain days (YYYY-MM-DD, the user's own), times whole seconds.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type EverhourCreds = {
   /** The API root: https://api.everhour.com */
@@ -40,23 +41,12 @@ export type EverhourTimer = { status: "active" | "stopped"; duration?: number; s
 
 /** An Everhour answer refused, as a ProviderError (a rate limit with when to retry; a locked period as a conflict). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Everhour answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { message?: unknown; error?: unknown };
-      if (typeof body.message === "string") message = `Everhour: ${body.message}`;
-      else if (typeof body.error === "string") message = `Everhour: ${body.error}`;
-    } catch {
-      if (text.trim()) message = `Everhour: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ message?: unknown; error?: unknown }>(res, "Everhour", (body) =>
+    typeof body.message === "string" ? body.message : typeof body.error === "string" ? body.error : undefined,
+  );
   if (res.status === 429) {
-    const retryAfter = Number(res.headers.get("retry-after"));
     // The documented limit is 20 requests per 10 seconds per key: a short wait if none is said.
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : 10_000;
+    const waitMs = retryAfterMs(res.headers, 10_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0 } });
   }
   // A locked timesheet or approved time is refused with 403: a lock, not a missing permission.
@@ -73,46 +63,33 @@ type Call = RequestInit & {
 /** One call. */
 export async function eh<T>(c: EverhourCreds, path: string, init: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const { missingIsNull, intent, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}`,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        "X-Api-Key": c.token,
-        "X-Accept-Version": API_VERSION,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    ...(intent ? { intent } : {}),
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: rest,
+    headers: { "X-Api-Key": c.token, "X-Accept-Version": API_VERSION },
+    intent,
+    missing: missingIsNull ? [404] : [],
+    refused,
   });
-  if (res.status === 404 && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   const text = res.status === 204 ? "" : await res.text();
   return { data: (text ? JSON.parse(text) : undefined) as T, headers: res.headers };
 }
 
 /** A call that always answers. */
-export async function ehOk<T>(c: EverhourCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await eh<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Everhour: nothing at ${path}`);
-  return r.data;
-}
+export const ehOk = <T>(c: EverhourCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(eh<T>(c, path, init), "Everhour", path);
 
 /** Every page of a list (bounded: 50 pages), until one comes back empty (a service may cap `limit` below what was asked, so a short page isn't the end). */
-export async function ehPages<T>(c: EverhourCreds, path: string, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  for (let page = 1; page <= maxPages; page++) {
-    const q = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page) });
-    const rows = await ehOk<T[]>(c, `${path}${path.includes("?") ? "&" : "?"}${q.toString()}`);
-    out.push(...rows);
-    if (rows.length === 0) return out;
-  }
-  throw new ProviderError("incompatible", `Everhour: ${path} has more than ${maxPages} pages`);
+export function ehPages<T>(c: EverhourCreds, path: string, maxPages = 50): Promise<T[]> {
+  return collectPages<T, number>(
+    1,
+    async (page) => {
+      const q = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page) });
+      const rows = await ehOk<T[]>(c, `${path}${path.includes("?") ? "&" : "?"}${q.toString()}`);
+      return { rows, next: rows.length === 0 ? null : page + 1 };
+    },
+    maxPages,
+    () => new ProviderError("incompatible", `Everhour: ${path} has more than ${maxPages} pages`),
+  );
 }

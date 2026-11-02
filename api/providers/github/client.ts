@@ -2,7 +2,7 @@
 // safe fetch (read-only servers, redirects re-checked), errors in the
 // layer's words, pages by the Link header.
 import { createHash } from "node:crypto";
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
 import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
 import { nextLink } from "../core/paging";
 
@@ -42,20 +42,14 @@ export type GitHubComment = { id: number; body?: string | null; user?: GitHubUse
 
 /** A GitHub answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `GitHub answered ${res.status}`;
-  try {
-    const body = (await res.json()) as { message?: string };
-    if (body.message) message = `GitHub: ${body.message}`;
-  } catch {
-    // no JSON body
-  }
+  const { message } = await readRefusal<{ message?: string }>(res, "GitHub", (body) => (body.message ? String(body.message) : undefined), { jsonOnly: true });
   const remaining = res.headers.get("x-ratelimit-remaining");
   const reset = Number(res.headers.get("x-ratelimit-reset"));
   const retryAfter = Number(res.headers.get("retry-after"));
   // A spent quota answers 403 (primary) or 429 (secondary): both are waits, not refusals.
   const limited = res.status === 429 || (res.status === 403 && (remaining === "0" || Number.isFinite(retryAfter) && retryAfter > 0));
   if (limited) {
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { reset: "x-ratelimit-reset" });
     return new ProviderError("rateLimit", message, { status: res.status, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Number.isFinite(reset) ? reset * 1000 : undefined } });
   }
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
@@ -89,7 +83,6 @@ export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { 
         ...(init.headers as Record<string, string> | undefined),
       },
     },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (res.status === 304 && known) return { data: known.data as T, next: known.next };
   if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
@@ -111,8 +104,4 @@ export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { 
 }
 
 /** A call that always answers. */
-export async function ghOk<T>(c: GitHubCreds, path: string, init: RequestInit = {}): Promise<T> {
-  const r = await gh<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `GitHub: nothing at ${path}`);
-  return r.data;
-}
+export const ghOk = <T>(c: GitHubCreds, path: string, init: RequestInit = {}): Promise<T> => mustAnswer(gh<T>(c, path, init), "GitHub", path);

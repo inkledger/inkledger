@@ -3,8 +3,8 @@
 // errors in the layer's words. Toggl is a hosted service only. Every request
 // counts against a per-hour quota (30 on the free plan): the adapter makes as
 // few as it can, and a refusal over the quota waits for the quota to reset.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
 
 export type TogglCreds = {
   /** The API root: https://api.track.toggl.com/api/v9 */
@@ -105,32 +105,21 @@ type Call = {
 /** One call. The answer may be JSON `null` (Toggl answers an empty project list with it) or empty (a delete). */
 export async function toggl<T>(c: TogglCreds, path: string, init: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const body = init.data === undefined ? undefined : JSON.stringify(init.data);
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}`,
-    init: {
-      method: init.method ?? "GET",
-      headers: { Accept: "application/json", Authorization: basicAuth(c.token), ...(body ? { "Content-Type": "application/json" } : {}) },
-      ...(body ? { body } : {}),
-    },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { method: init.method ?? "GET", ...(body ? { body } : {}) },
+    headers: { Authorization: basicAuth(c.token) },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   const text = (await res.text()).trim();
   return { data: (text ? JSON.parse(text) : undefined) as T, headers: res.headers };
 }
 
 /** A call that always answers. */
-export async function togglOk<T>(c: TogglCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await toggl<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Toggl: nothing at ${path}`);
-  return r.data;
-}
+export const togglOk = <T>(c: TogglCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(toggl<T>(c, path, init), "Toggl", path);
 
 /** A path with a query string (undefined values left out). */
 export function withQuery(path: string, query: Record<string, string | number | boolean | undefined>): string {

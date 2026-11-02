@@ -5,7 +5,7 @@
 // old API only come back through /id_mappings), a list takes at most 200 a
 // page, writes often answer 204 with no body, and the rate limit arrives as a
 // 429 whose body says how long to wait.
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer } from "../core/errors";
 import { safeFetch, trimTrailingSlash } from "../core/http";
 
 export type TodoistCreds = {
@@ -140,8 +140,6 @@ export async function td<T>(c: TodoistCreds, path: string, call: Call = {}): Pro
       ...(call.body ? { body: JSON.stringify(call.body) } : {}),
     },
     ...(call.intent ? { intent: call.intent } : {}),
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (!res.ok) {
     const err = await refused(res);
@@ -159,11 +157,7 @@ export async function td<T>(c: TodoistCreds, path: string, call: Call = {}): Pro
 }
 
 /** A call that always answers. */
-export async function tdOk<T>(c: TodoistCreds, path: string, call: Call = {}): Promise<T> {
-  const r = await td<T>(c, path, call);
-  if (!r) throw new ProviderError("notFound", `Todoist: nothing at ${path}`);
-  return r.data;
-}
+export const tdOk = <T>(c: TodoistCreds, path: string, call: Call = {}): Promise<T> => mustAnswer(td<T>(c, path, call), "Todoist", path);
 
 /** A write with no answer body. */
 export async function tdDo(c: TodoistCreds, path: string, call: Call = {}): Promise<void> {

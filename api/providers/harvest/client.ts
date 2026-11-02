@@ -3,8 +3,9 @@
 // a Bearer plus the account id in Harvest-Account-Id, a User-Agent (Harvest
 // refuses calls without one), errors in the layer's words, pages by
 // page/next_page. The budget is 100 requests per 15 seconds, then 429.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, readRefusal, retryAfterMs } from "../core/errors";
+import { jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type HarvestCreds = {
   /** https://api.harvestapp.com/v2 */
@@ -73,24 +74,12 @@ const LOCKED = /locked|closed|approved|invoice|billed/i;
 
 /** A Harvest answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Harvest answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { message?: unknown; error?: unknown; error_description?: unknown };
-      if (typeof body.message === "string") message = `Harvest: ${body.message}`;
-      else if (typeof body.error_description === "string") message = `Harvest: ${body.error_description}`;
-      else if (typeof body.error === "string") message = `Harvest: ${body.error}`;
-    } catch {
-      if (text.trim()) message = `Harvest: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ message?: unknown; error?: unknown; error_description?: unknown }>(res, "Harvest", (body) =>
+    typeof body.message === "string" ? body.message : typeof body.error_description === "string" ? body.error_description : typeof body.error === "string" ? body.error : undefined,
+  );
   if (res.status === 429) {
-    const retryAfter = Number(res.headers.get("retry-after"));
     // 100 calls per 15 seconds: without a header, wait out the window.
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : 15_000;
+    const waitMs = retryAfterMs(res.headers, 15_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   // A refusal to change what is locked is a conflict (read it again), not a malformed call.
@@ -106,27 +95,15 @@ type Call = RequestInit & {
 /** One call: the parsed answer, null for an accepted 404, undefined for an empty body. */
 export async function hv<T>(c: HarvestCreds, path: string, init: Call = {}): Promise<T | null> {
   const { missingIsNull, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}`,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${c.token}`,
-        "Harvest-Account-Id": c.accountId,
-        "User-Agent": USER_AGENT,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: rest,
+    headers: { Authorization: `Bearer ${c.token}`, "Harvest-Account-Id": c.accountId, "User-Agent": USER_AGENT },
+    missing: missingIsNull ? [404] : [],
+    refused,
   });
-  if (res.status === 404 && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   // DELETE answers 200 with nothing in it.
   const text = await res.text();
   return (text.trim() ? JSON.parse(text) : undefined) as T;
@@ -157,13 +134,13 @@ export async function hvPage<T>(c: HarvestCreds, path: string, key: string, page
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export async function hvPages<T>(c: HarvestCreds, path: string, key: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let page: number | null = 1;
-  for (let n = 0; page !== null && n < maxPages; n++) {
-    const r: { items: T[]; next: number | null } = await hvPage<T>(c, path, key, page, params);
-    out.push(...r.items);
-    page = r.next;
-  }
-  return out;
+export function hvPages<T>(c: HarvestCreds, path: string, key: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
+  return collectPages<T, number>(
+    1,
+    async (page) => {
+      const r = await hvPage<T>(c, path, key, page, params);
+      return { rows: r.items, next: r.next };
+    },
+    maxPages,
+  );
 }

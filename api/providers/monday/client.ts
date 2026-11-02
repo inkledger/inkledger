@@ -8,6 +8,7 @@
 // expire, and page numbers for boards, updates and activity logs.
 import { ProviderError, kindOfStatus, type RateLimit } from "../core/errors";
 import { safeFetch } from "../core/http";
+import { collectPages } from "../core/paging";
 
 /** The schema version asked for (monday keeps each for about a year); a request without the header gets the "current" one, which moves. */
 export const API_VERSION = "2025-07";
@@ -142,7 +143,6 @@ export async function gqlRaw<T>(c: MondayCreds, operationName: string, query: st
       },
       body: JSON.stringify({ operationName, query, variables }),
     },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   let body: Answer<T> | null = null;
   try {
@@ -167,14 +167,15 @@ export async function gql<T>(c: MondayCreds, operationName: string, query: strin
 }
 
 /** Every item of a page-numbered list (boards, updates, activity logs), until a short page (bounded). */
-export async function allPages<T>(size: number, read: (page: number) => Promise<T[]>, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  for (let page = 1; page <= maxPages; page++) {
-    const got = await read(page);
-    out.push(...got);
-    if (got.length < size) break;
-  }
-  return out;
+export function allPages<T>(size: number, read: (page: number) => Promise<T[]>, maxPages = 50): Promise<T[]> {
+  return collectPages<T, number>(
+    1,
+    async (page) => {
+      const rows = await read(page);
+      return { rows, next: rows.length < size ? null : page + 1 };
+    },
+    maxPages,
+  );
 }
 
 /** An activity log's time: 17 digits, tenths of a microsecond since the epoch (never milliseconds or ISO). */

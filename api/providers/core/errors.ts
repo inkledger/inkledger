@@ -69,6 +69,51 @@ export function kindOfStatus(status: number): ProviderErrorKind {
   return "invalid";
 }
 
+/**
+ * A refused answer's message, in the service's words: what `pick` finds in
+ * its JSON body, else (not JSON) its first 200 characters (`plain`: with the
+ * HTML tags out; `jsonOnly`: none), else "<name> answered <status>". `said`
+ * is the service's own words, "" when it said nothing.
+ */
+export async function readRefusal<B>(res: Response, name: string, pick: (body: B) => string | undefined, o: { plain?: boolean; jsonOnly?: boolean } = {}): Promise<{ message: string; said: string }> {
+  let said: string | undefined;
+  try {
+    const text = await res.text();
+    try {
+      said = pick(JSON.parse(text) as B);
+    } catch {
+      const shown = o.jsonOnly ? "" : o.plain ? text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : text.trim();
+      if (shown) said = shown.slice(0, 200);
+    }
+  } catch {
+    // no body
+  }
+  return { message: said === undefined ? `${name} answered ${res.status}` : `${name}: ${said}`, said: said ?? "" };
+}
+
+/**
+ * How long a rate-limited answer asks to wait: Retry-After in seconds (or, with
+ * `httpDate`, a date), else the `reset` header (epoch seconds; with
+ * `resetMayBeDelta`, seconds to wait when it is no epoch), else `fallbackMs`.
+ */
+export function retryAfterMs(headers: Headers, fallbackMs: number, o: { httpDate?: boolean; reset?: string; resetMayBeDelta?: boolean } = {}): number {
+  const retry = headers.get("retry-after");
+  const secs = Number(retry);
+  if (Number.isFinite(secs) && secs > 0) return secs * 1000;
+  const at = o.httpDate && retry && !Number.isFinite(secs) ? Date.parse(retry) : NaN;
+  if (Number.isFinite(at)) return Math.max(0, at - Date.now());
+  const reset = o.reset ? Number(headers.get(o.reset)) : NaN;
+  if (Number.isFinite(reset) && reset > 0) return Math.max(0, o.resetMayBeDelta && reset <= 1e9 ? reset * 1000 : reset * 1000 - Date.now());
+  return fallbackMs;
+}
+
+/** A call's data, "notFound" when it answered null (for calls that always answer). */
+export async function mustAnswer<T>(answer: Promise<{ data: T } | null>, name: string, path: string): Promise<T> {
+  const r = await answer;
+  if (!r) throw new ProviderError("notFound", `${name}: nothing at ${path}`);
+  return r.data;
+}
+
 /** Why a write was refused before it left: the whole server is read-only, or this connection may not write. */
 export type ReadOnlyCause = "server" | "connection";
 

@@ -4,8 +4,9 @@
 // a header Notion refuses to answer without, errors in the layer's words.
 // Notion answers every error as JSON ({ object: "error", status, code,
 // message }); a lost or unshared page is a 404 (object_not_found), never a 403.
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer, retryAfterMs } from "../core/errors";
 import { safeFetch, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 /** The version of the API the adapter is written against; a newer one changes databases into data sources. */
 export const NOTION_VERSION = "2022-06-28";
@@ -117,8 +118,7 @@ async function refused(res: Response): Promise<ProviderError> {
   message = `Notion: ${message.slice(0, 300)}`;
   if (res.status === 429 || code === "rate_limited") {
     // Retry-After is in seconds; an average of 3 requests a second is the documented budget.
-    const seconds = Number(res.headers.get("retry-after"));
-    return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: seconds > 0 ? seconds * 1000 : 1000, remaining: 0 } });
+    return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: retryAfterMs(res.headers, 1000), remaining: 0 } });
   }
   if (res.status === 401) return new ProviderError("auth", message, { status: 401 });
   if (res.status === 403) return new ProviderError("forbidden", message, { status: 403 });
@@ -152,8 +152,6 @@ export async function nt<T>(c: NotionCreds, path: string, call: Call = {}): Prom
     },
     // A query is a POST that only reads.
     ...(call.intent ? { intent: call.intent } : {}),
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (!res.ok) {
     const err = await refused(res);
@@ -170,11 +168,7 @@ export async function nt<T>(c: NotionCreds, path: string, call: Call = {}): Prom
 }
 
 /** A call that always answers. */
-export async function ntOk<T>(c: NotionCreds, path: string, call: Call = {}): Promise<T> {
-  const r = await nt<T>(c, path, call);
-  if (!r) throw new ProviderError("notFound", `Notion: nothing at ${path}`);
-  return r.data;
-}
+export const ntOk = <T>(c: NotionCreds, path: string, call: Call = {}): Promise<T> => mustAnswer(nt<T>(c, path, call), "Notion", path);
 
 /** The page size Notion allows at most. */
 export const PAGE_SIZE = 100;
@@ -190,16 +184,15 @@ export async function ntList<T>(c: NotionCreds, path: string, call: Call, cursor
 }
 
 /** Every page of a list. */
-export async function ntAll<T>(c: NotionCreds, path: string, call: Call = {}, maxPages = 100): Promise<T[]> {
-  const out: T[] = [];
-  let cursor: string | null = null;
-  for (let n = 0; n < maxPages; n++) {
-    const page: { results: T[]; next: string | null } = await ntList<T>(c, path, call, cursor);
-    out.push(...page.results);
-    if (!page.next) break;
-    cursor = page.next;
-  }
-  return out;
+export function ntAll<T>(c: NotionCreds, path: string, call: Call = {}, maxPages = 100): Promise<T[]> {
+  return collectPages<T, string | null>(
+    null,
+    async (cursor) => {
+      const page = await ntList<T>(c, path, call, cursor);
+      return { rows: page.results, next: page.next || null };
+    },
+    maxPages,
+  );
 }
 
 /** The ids of a page or database as the API writes them (dashed) from the 32 hex characters of a URL. */

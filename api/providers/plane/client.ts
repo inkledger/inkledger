@@ -3,8 +3,9 @@
 // X-API-Key, errors in the layer's words, lists by cursor ("per_page:page:offset").
 // Plane cloud answers on api.plane.so and shows its pages on app.plane.so; a
 // self-hosted Plane answers and shows on one host.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, retryAfterMs } from "../core/errors";
+import { jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type PlaneCreds = {
   /** The server's root (no /api/v1): https://api.plane.so, or https://host[/prefix] */
@@ -159,9 +160,8 @@ async function refused(res: Response): Promise<ProviderError> {
 
 /** 60 calls a minute per key: a spent quota says when it comes back (Retry-After, else X-RateLimit-Reset in epoch seconds). */
 function rateLimited(message: string, textWaitMs: number | null, res: Response): ProviderError {
-  const retryAfter = Number(res.headers.get("retry-after"));
   const reset = Number(res.headers.get("x-ratelimit-reset"));
-  const waitMs = retryAfter > 0 ? retryAfter * 1000 : reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : (textWaitMs ?? 60_000);
+  const waitMs = retryAfterMs(res.headers, textWaitMs ?? 60_000, { reset: "x-ratelimit-reset" });
   return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, ...(reset > 0 ? { resetAt: reset * 1000 } : {}) } });
 }
 
@@ -175,27 +175,21 @@ type Call = RequestInit & {
 /** One call. `path` starts after /api/v1. */
 export async function plane<T>(c: PlaneCreds, path: string, init: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const { missingIsNull, forbiddenIsNull, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.root,
-    url: `${c.root.replace(/\/+$/, "")}/api/v1${path}`,
-    init: { ...rest, headers: { Accept: "application/json", "X-API-Key": c.token, ...(rest.body ? { "Content-Type": "application/json" } : {}), ...(rest.headers as Record<string, string> | undefined) } },
+    url: `${trimTrailingSlash(c.root)}/api/v1${path}`,
+    init: rest,
+    headers: { "X-API-Key": c.token },
     network: networkOf(c.root),
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    missing: [...(missingIsNull ? [404] : []), ...(forbiddenIsNull ? [403] : [])],
+    refused,
   });
-  if ((res.status === 404 && missingIsNull) || (res.status === 403 && forbiddenIsNull)) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   return { data: (res.status === 204 ? undefined : await res.json()) as T, headers: res.headers };
 }
 
 /** A call that always answers. */
-export async function planeOk<T>(c: PlaneCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await plane<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Plane: nothing at ${path}`);
-  return r.data;
-}
+export const planeOk = <T>(c: PlaneCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(plane<T>(c, path, init), "Plane", path);
 
 /** The workspace's path, for calls that need it. */
 export function inWorkspace(c: PlaneCreds, rest: string): string {
@@ -222,16 +216,15 @@ export async function planePage<T>(c: PlaneCreds, path: string, cursor: string |
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export async function planeAll<T>(c: PlaneCreds, path: string, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let cursor: string | null = null;
-  for (let n = 0; n < maxPages; n++) {
-    const p: { results: T[]; next: string | null } = await planePage<T>(c, path, cursor);
-    out.push(...p.results);
-    if (!p.next) break;
-    cursor = p.next;
-  }
-  return out;
+export function planeAll<T>(c: PlaneCreds, path: string, maxPages = 50): Promise<T[]> {
+  return collectPages<T, string | null>(
+    null,
+    async (cursor) => {
+      const p = await planePage<T>(c, path, cursor);
+      return { rows: p.results, next: p.next || null };
+    },
+    maxPages,
+  );
 }
 
 /** What an issue is asked with: objects for its state, people, labels and author instead of uuids. */

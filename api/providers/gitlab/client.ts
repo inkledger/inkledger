@@ -2,9 +2,9 @@
 // adapter needs them: every call through the shared safe fetch (read-only
 // servers, redirects re-checked), the personal token in PRIVATE-TOKEN, errors
 // in the layer's words, pages by the Link header.
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
 import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
-import { nextLink } from "../core/paging";
+import { collectPages, nextLink } from "../core/paging";
 
 export type GitLabCreds = {
   /** The API root: https://gitlab.com/api/v4, or a self-hosted https://host[/prefix]/api/v4 */
@@ -57,29 +57,21 @@ export type GitLabMilestoneEvent = { id: number; user?: GitLabUser | null; creat
 
 /** A GitLab answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `GitLab answered ${res.status}`;
   let fields: Record<string, string> | undefined;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { message?: unknown; error?: unknown; error_description?: unknown };
-      if (typeof body.message === "string") message = `GitLab: ${body.message}`;
-      else if (body.message && typeof body.message === "object") {
-        // Validation errors come as { field: ["is invalid"] }.
-        fields = Object.fromEntries(Object.entries(body.message).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v)]));
-        message = `GitLab: ${Object.entries(fields).map(([k, v]) => `${k} ${v}`).join("; ")}`;
-      } else if (typeof body.error === "string") message = `GitLab: ${body.error}${typeof body.error_description === "string" ? ` (${body.error_description})` : ""}`;
-    } catch {
-      // A limit answers plain text ("Retry later").
-      if (text.trim()) message = `GitLab: ${text.trim().slice(0, 200)}`;
+  // A limit answers plain text ("Retry later").
+  const { message } = await readRefusal<{ message?: unknown; error?: unknown; error_description?: unknown }>(res, "GitLab", (body) => {
+    if (typeof body.message === "string") return body.message;
+    if (body.message && typeof body.message === "object") {
+      // Validation errors come as { field: ["is invalid"] }.
+      fields = Object.fromEntries(Object.entries(body.message).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v)]));
+      return Object.entries(fields).map(([k, v]) => `${k} ${v}`).join("; ");
     }
-  } catch {
-    // no body
-  }
+    if (typeof body.error === "string") return `${body.error}${typeof body.error_description === "string" ? ` (${body.error_description})` : ""}`;
+    return undefined;
+  });
   if (res.status === 429) {
-    const retryAfter = Number(res.headers.get("retry-after"));
     const reset = Number(res.headers.get("ratelimit-reset"));
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { reset: "ratelimit-reset" });
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: reset > 0 ? reset * 1000 : undefined } });
   }
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status, ...(fields ? { fields } : {}) });
@@ -117,7 +109,6 @@ export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Prom
       },
     },
     ...(intent ? { intent } : {}),
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if ((res.status === 404 || res.status === 410) && missingIsNull) {
     await discardBody(res);
@@ -133,22 +124,18 @@ export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Prom
 }
 
 /** A call that always answers. */
-export async function glOk<T>(c: GitLabCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await gl<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `GitLab: nothing at ${path}`);
-  return r.data;
-}
+export const glOk = <T>(c: GitLabCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(gl<T>(c, path, init), "GitLab", path);
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export async function glPages<T>(c: GitLabCreds, path: string, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let next: string | null = `${path}${path.includes("?") ? "&" : "?"}per_page=100`;
-  for (let n = 0; next && n < maxPages; n++) {
-    const r: { data: T[]; next: string | null } | null = await gl<T[]>(c, next);
-    out.push(...(r?.data ?? []));
-    next = r?.next ?? null;
-  }
-  return out;
+export function glPages<T>(c: GitLabCreds, path: string, maxPages = 50): Promise<T[]> {
+  return collectPages<T, string>(
+    `${path}${path.includes("?") ? "&" : "?"}per_page=100`,
+    async (at) => {
+      const r = await gl<T[]>(c, at);
+      return { rows: r?.data ?? [], next: r?.next || null };
+    },
+    maxPages,
+  );
 }
 
 /** GraphQL answers 200 with `errors`: a query is a read, though it is a POST; a mutation a write. */
@@ -159,7 +146,6 @@ export async function gql<T>(c: GitLabCreds, operationName: string, query: strin
     url: graphqlUrl(c.apiBase),
     init: { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", "PRIVATE-TOKEN": c.token }, body: JSON.stringify({ operationName, query, variables }) },
     intent,
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (!res.ok) throw await refused(res);
   const body = (await res.json()) as { data?: T | null; errors?: { message?: string }[] };

@@ -6,6 +6,7 @@
 // instead of pages.
 import { ProviderError, kindOfStatus, type RateLimit } from "../core/errors";
 import { safeFetch } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type LinearCreds = {
   /** The API root, https://api.linear.app (the /graphql path is added here) */
@@ -130,7 +131,6 @@ export async function gqlRaw<T>(c: LinearCreds, operationName: string, query: st
       },
       body: JSON.stringify({ operationName, query, variables }),
     },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   let body: Answer<T> | null = null;
   try {
@@ -155,14 +155,13 @@ export async function gql<T>(c: LinearCreds, operationName: string, query: strin
 }
 
 /** Every node of a connection, following cursors (bounded: 50 pages). */
-export async function allNodes<T>(read: (after: string | null) => Promise<Connection<T>>): Promise<T[]> {
-  const out: T[] = [];
-  let after: string | null = null;
-  for (let n = 0; n < 50; n++) {
-    const page: Connection<T> = await read(after);
-    out.push(...page.nodes);
-    if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) break;
-    after = page.pageInfo.endCursor;
-  }
-  return out;
+export function allNodes<T>(read: (after: string | null) => Promise<Connection<T>>): Promise<T[]> {
+  return collectPages<T, string | null>(
+    null,
+    async (after) => {
+      const page = await read(after);
+      return { rows: page.nodes, next: page.pageInfo.hasNextPage && page.pageInfo.endCursor ? page.pageInfo.endCursor : null };
+    },
+    50,
+  );
 }

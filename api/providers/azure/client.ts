@@ -3,7 +3,7 @@
 // name), errors in the layer's words, rate limits read from the headers.
 // Paging has no single rule here: callers use what each endpoint documents
 // ($top/$skip, continuation tokens in a header or in the body).
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
 import { safeFetch, type Intent, discardBody, trimTrailingSlash } from "../core/http";
 
 export type AzureCreds = {
@@ -100,20 +100,21 @@ export const workItemUrl = (apiBase: string, project: string, id: number | strin
 
 /** An Azure DevOps answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Azure DevOps answered ${res.status}`;
   let typeKey = "";
-  try {
-    const body = (await res.json()) as { message?: string; typeKey?: string };
-    if (body.message) message = `Azure DevOps: ${body.message}`;
-    typeKey = body.typeKey ?? "";
-  } catch {
-    // no JSON body
-  }
+  const { message } = await readRefusal<{ message?: string; typeKey?: string }>(
+    res,
+    "Azure DevOps",
+    (body) => {
+      const said = body.message ? String(body.message) : undefined;
+      typeKey = body.typeKey ?? "";
+      return said;
+    },
+    { jsonOnly: true },
+  );
   if (res.status === 429) {
-    const retryAfter = Number(res.headers.get("retry-after"));
     const reset = Number(res.headers.get("x-ratelimit-reset"));
     const remaining = Number(res.headers.get("x-ratelimit-remaining"));
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { reset: "x-ratelimit-reset" });
     return new ProviderError("rateLimit", message, {
       status: 429,
       rateLimit: { retryAfterMs: waitMs, ...(Number.isFinite(remaining) ? { remaining } : {}), ...(Number.isFinite(reset) && reset > 0 ? { resetAt: reset * 1000 } : {}) },
@@ -161,7 +162,6 @@ export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Pro
         Authorization: basicAuth(c.token),
       },
     },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   // A 203 (or a web page where JSON was asked) is the sign-in page: the token wasn't accepted.
   if (res.status === 203 || /text\/html/i.test(res.headers.get("content-type") ?? "")) {
@@ -178,11 +178,7 @@ export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Pro
 }
 
 /** A call that always answers. */
-export async function azOk<T>(c: AzureCreds, path: string, init: AzCall = {}): Promise<T> {
-  const r = await az<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Azure DevOps: nothing at ${path}`);
-  return r.data;
-}
+export const azOk = <T>(c: AzureCreds, path: string, init: AzCall = {}): Promise<T> => mustAnswer(az<T>(c, path, init), "Azure DevOps", path);
 
 /** A JSON-patch call to a work item (the test op on /rev is how a revision is held). */
 export type PatchOp = { op: "add" | "replace" | "test" | "remove"; path: string; value?: unknown };

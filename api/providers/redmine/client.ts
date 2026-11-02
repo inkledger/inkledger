@@ -8,8 +8,8 @@
 // - a write answers 201 with the record (create) or 204 with nothing (update, delete): the adapter reads again;
 // - validation answers 422 `{ errors: ["Hours is invalid"] }`: messages, not field ids;
 // - there is no built-in rate limit, a proxy in front may answer 429 (Retry-After).
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall } from "../core/http";
 
 export type RedmineCreds = {
   /** The site root, with its sub-URI if it has one: https://redmine.example.com, https://host/redmine */
@@ -82,29 +82,16 @@ export type RmActivity = RmRef & { is_default?: boolean; active?: boolean };
 
 /** A refused answer as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Redmine answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { errors?: unknown; error?: unknown };
-      if (Array.isArray(body.errors) && body.errors.length > 0) message = `Redmine: ${body.errors.map(String).join("; ")}`;
-      else if (typeof body.error === "string") message = `Redmine: ${body.error}`;
-    } catch {
-      // A proxy's limit or an error page is not JSON.
-      const plain = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      if (plain) message = `Redmine: ${plain.slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  // A proxy's limit or an error page is not JSON: its text, without the tags.
+  const { message } = await readRefusal<{ errors?: unknown; error?: unknown }>(
+    res,
+    "Redmine",
+    (body) => (Array.isArray(body.errors) && body.errors.length > 0 ? body.errors.map(String).join("; ") : typeof body.error === "string" ? body.error : undefined),
+    { plain: true },
+  );
   if (res.status === 429) {
-    const retry = res.headers.get("retry-after");
-    const secs = Number(retry);
-    const at = retry && !Number.isFinite(secs) ? Date.parse(retry) : NaN;
-    const reset = Number(res.headers.get("x-ratelimit-reset"));
     // A proxy's reset is epoch seconds (or seconds to wait): both seen.
-    const resetMs = Number.isFinite(reset) && reset > 0 ? (reset > 1e9 ? reset * 1000 - Date.now() : reset * 1000) : NaN;
-    const waitMs = Number.isFinite(secs) && secs > 0 ? secs * 1000 : Number.isFinite(at) ? Math.max(0, at - Date.now()) : Number.isFinite(resetMs) ? Math.max(0, resetMs) : 30_000;
+    const waitMs = retryAfterMs(res.headers, 30_000, { httpDate: true, reset: "x-ratelimit-reset", resetMayBeDelta: true });
     const remaining = Number(res.headers.get("x-ratelimit-remaining"));
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, ...(res.headers.has("x-ratelimit-remaining") && Number.isFinite(remaining) ? { remaining } : {}) } });
   }
@@ -122,32 +109,18 @@ type Call = RequestInit & {
 /** One call; `data` is undefined for an answer with no body (204). */
 export async function rd<T>(c: RedmineCreds, path: string, init: Call = {}): Promise<{ data: T; headers: Headers } | null> {
   const { missingIsNull, hiddenIsNull, intent, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimmed(c.apiBase)}${path}`,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        "X-Redmine-API-Key": c.token,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    ...(intent ? { intent } : {}),
+    init: rest,
+    headers: { "X-Redmine-API-Key": c.token },
+    intent,
     // A self-hosted server may be on the user's own network.
     network: "private",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    missing: [...(missingIsNull ? GONE : []), ...(hiddenIsNull ? [403] : [])],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (res.status === 403 && hiddenIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return { data: undefined as T, headers: res.headers };
   const text = await res.text();
   if (!text.trim()) return { data: undefined as T, headers: res.headers };
@@ -160,11 +133,7 @@ export async function rd<T>(c: RedmineCreds, path: string, init: Call = {}): Pro
 }
 
 /** A call that always answers. */
-export async function rdOk<T>(c: RedmineCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await rd<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Redmine: nothing at ${path}`);
-  return r.data;
-}
+export const rdOk = <T>(c: RedmineCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(rd<T>(c, path, init), "Redmine", path);
 
 /** `path` with the paging parameters added (path may already have a query string). */
 export const paged = (path: string, limit: number, offset: number) => `${path}${path.includes("?") ? "&" : "?"}limit=${limit}&offset=${offset}`;

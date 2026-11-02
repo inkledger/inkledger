@@ -23,6 +23,8 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     expect(intentOf("POST")).toBe("write");
     expect(intentOf("HEAD")).toBe("read");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Without its own error, a provider's refused write is a ProviderError.
+    await expect(safeFetch({ site: "https://t.example", url: "https://t.example/api/x", init: { method: "PUT" } })).rejects.toMatchObject({ name: "ProviderError", kind: "readOnly" });
   });
 
   it("never reaches an address the tracker's network forbids, written out or behind a name", async () => {

@@ -4,8 +4,8 @@
 // here: search pages of at most 25 whose `next` is a path (with /api/v3 in
 // it) rather than a URL, the budget of 200 requests a minute answered with a
 // 429 and Retry-After, and validation errors as a list of messages.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall } from "../core/http";
 
 export type ShortcutCreds = {
   /** The API host: https://api.app.shortcut.com (a trailing /api/v3 is tolerated; the path is added here) */
@@ -85,20 +85,13 @@ export type ShortcutHistory = {
 
 /** A Shortcut answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Shortcut answered ${res.status}`;
-  let text = "";
-  try {
-    text = await res.text();
-    const body = JSON.parse(text) as { message?: unknown; errors?: unknown };
+  const { message } = await readRefusal<{ message?: unknown; errors?: unknown }>(res, "Shortcut", (body) => {
     const errors = Array.isArray(body.errors) ? body.errors.filter((e): e is string => typeof e === "string") : [];
-    if (typeof body.message === "string") message = `Shortcut: ${[body.message, ...errors].join(": ")}`;
-    else if (errors.length) message = `Shortcut: ${errors.join("; ")}`;
-  } catch {
-    if (text.trim()) message = `Shortcut: ${text.trim().slice(0, 200)}`;
-  }
+    if (typeof body.message === "string") return [body.message, ...errors].join(": ");
+    return errors.length ? errors.join("; ") : undefined;
+  });
   if (res.status === 429) {
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   return new ProviderError(kindOfStatus(res.status), message, { status: res.status });
@@ -115,38 +108,15 @@ export async function sc<T>(c: ShortcutCreds, path: string, init: Call = {}): Pr
   const { missingIsNull, intent, ...rest } = init;
   const site = trimmed(c.apiBase);
   const url = path.startsWith("/api/v3/") ? `${site}${path}` : `${rootOf(c.apiBase)}${path}`;
-  const res = await safeFetch({
-    site,
-    url,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        "Shortcut-Token": c.token,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    ...(intent ? { intent } : {}),
-    // Shortcut is a service on the internet: never a private address.
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
-  });
-  if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  // Shortcut is a service on the internet: never a private address (the default network).
+  const res = await jsonCall({ site, url, init: rest, headers: { "Shortcut-Token": c.token }, intent, missing: missingIsNull ? GONE : [], refused });
+  if (!res) return null;
   const data = (res.status === 204 ? undefined : await res.json()) as T;
   return { data, headers: res.headers };
 }
 
 /** A call that always answers. */
-export async function scOk<T>(c: ShortcutCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await sc<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Shortcut: nothing at ${path}`);
-  return r.data;
-}
+export const scOk = <T>(c: ShortcutCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(sc<T>(c, path, init), "Shortcut", path);
 
 /**
  * The path a search's `next` points to, kept only when it is the search

@@ -12,8 +12,8 @@
 //   sub-URI install in front): ids are read off their tail;
 // - errors are HAL `Error` objects; a validation failure (422) lists the
 //   attributes at fault in `_embedded.errors`.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall } from "../core/http";
 import type { Network } from "../../lib/security";
 
 export type OpenProjectCreds = {
@@ -122,14 +122,10 @@ async function refused(res: Response): Promise<ProviderError> {
     // no JSON body
   }
   if (res.status === 429) {
-    const retry = res.headers.get("retry-after");
-    const secs = Number(retry);
-    const date = retry && !Number.isFinite(secs) ? Date.parse(retry) : NaN;
     const reset = Number(res.headers.get("x-ratelimit-reset"));
     const remaining = res.headers.get("x-ratelimit-remaining");
     // Retry-After in seconds or a date; else the reset (epoch seconds); else a minute.
-    const waitMs =
-      Number.isFinite(secs) && secs > 0 ? secs * 1000 : Number.isFinite(date) ? Math.max(0, date - Date.now()) : Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { httpDate: true, reset: "x-ratelimit-reset" });
     return new ProviderError("rateLimit", message, {
       status: 429,
       rateLimit: { retryAfterMs: waitMs, ...(remaining !== null && Number.isFinite(Number(remaining)) ? { remaining: Number(remaining) } : {}), ...(Number.isFinite(reset) && reset > 0 ? { resetAt: reset * 1000 } : {}) },
@@ -148,27 +144,17 @@ type Call = RequestInit & {
 export async function op<T>(c: OpenProjectCreds, path: string, init: Call = {}): Promise<T | null> {
   const root = apiRootOf(c.apiBase);
   const { missingIsNull, intent, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: root,
     url: `${root}${path}`,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/hal+json",
-        Authorization: `Basic ${Buffer.from(`apikey:${c.token}`, "utf8").toString("base64")}`,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    ...(intent ? { intent } : {}),
+    init: rest,
+    headers: { Accept: "application/hal+json", Authorization: `Basic ${Buffer.from(`apikey:${c.token}`, "utf8").toString("base64")}` },
+    intent,
     network: networkOf(c.apiBase),
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    missing: missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;

@@ -2,8 +2,9 @@
 // safe fetch (read-only servers, redirects re-checked), the personal access
 // token as a Bearer, errors in the layer's words, pages by `next_page.offset`.
 // Asana is a hosted service only, so every call goes to the public internet.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type AsanaCreds = {
   /** The API root: https://app.asana.com/api/1.0 */
@@ -110,23 +111,13 @@ export type AsanaEntry = {
 
 /** An Asana answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Asana answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { errors?: { message?: unknown }[] };
-      const said = body.errors?.map((e) => (typeof e.message === "string" ? e.message : "")).filter(Boolean);
-      if (said?.length) message = `Asana: ${said.join("; ")}`;
-    } catch {
-      if (text.trim()) message = `Asana: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ errors?: { message?: unknown }[] }>(res, "Asana", (body) => {
+    const said = body.errors?.map((e) => (typeof e.message === "string" ? e.message : "")).filter(Boolean);
+    return said?.length ? said.join("; ") : undefined;
+  });
   if (res.status === 429) {
     // Retry-After is in seconds (a plan's per-minute quota, or too many calls at once).
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   // A page token Asana no longer takes: read the pass again.
@@ -149,22 +140,15 @@ export type Answer<T> = { data: T; next: string | null; headers: Headers };
 /** One call. */
 export async function asana<T>(c: AsanaCreds, path: string, init: Call = {}): Promise<Answer<T> | null> {
   const body = init.data === undefined ? undefined : JSON.stringify({ data: init.data });
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}`,
-    init: {
-      method: init.method ?? "GET",
-      headers: { Accept: "application/json", Authorization: `Bearer ${c.token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
-      ...(body ? { body } : {}),
-    },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { method: init.method ?? "GET", ...(body ? { body } : {}) },
+    headers: { Authorization: `Bearer ${c.token}` },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return { data: undefined as T, next: null, headers: res.headers };
   const json = (await res.json()) as { data?: T; next_page?: { offset?: string } | null };
   if (json.data === undefined) throw new ProviderError("incompatible", "Asana: an answer with no data");
@@ -172,11 +156,7 @@ export async function asana<T>(c: AsanaCreds, path: string, init: Call = {}): Pr
 }
 
 /** A call that always answers. */
-export async function asanaOk<T>(c: AsanaCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await asana<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Asana: nothing at ${path}`);
-  return r.data;
-}
+export const asanaOk = <T>(c: AsanaCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(asana<T>(c, path, init), "Asana", path);
 
 const joined = (path: string, params: Record<string, string | number | undefined>) => {
   const q = new URLSearchParams(Object.entries(params).flatMap(([k, v]): [string, string][] => (v === undefined ? [] : [[k, String(v)]])));
@@ -189,14 +169,13 @@ export function asanaPage<T>(c: AsanaCreds, path: string, o: { limit: number; of
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export async function asanaPages<T>(c: AsanaCreds, path: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let offset: string | null = null;
-  for (let n = 0; n < maxPages; n++) {
-    const r: Answer<T[]> | null = await asanaPage<T>(c, path, { limit: 100, offset, params });
-    out.push(...(r?.data ?? []));
-    offset = r?.next ?? null;
-    if (!offset) break;
-  }
-  return out;
+export function asanaPages<T>(c: AsanaCreds, path: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
+  return collectPages<T, string | null>(
+    null,
+    async (offset) => {
+      const r = await asanaPage<T>(c, path, { limit: 100, offset, params });
+      return { rows: r?.data ?? [], next: r?.next || null };
+    },
+    maxPages,
+  );
 }

@@ -8,8 +8,8 @@
 // the values of a filter or of `fields` are JSON in the query string; writes
 // are form-encoded; ids are long strings, and the number in a task's link is
 // another id (the "API v2" one) that /ids converts.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
 
 export type WrikeCreds = {
   /** The API root of the account's data center: https://www.wrike.com/api/v4 */
@@ -90,23 +90,13 @@ export type WrikeCategory = { id: string; name: string; hidden?: boolean };
 
 /** A Wrike answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Wrike answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { error?: unknown; errorDescription?: unknown };
-      const said = [body.error, body.errorDescription].filter((v): v is string => typeof v === "string" && v !== "");
-      if (said.length) message = `Wrike: ${said.join(": ")}`;
-    } catch {
-      if (text.trim()) message = `Wrike: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ error?: unknown; errorDescription?: unknown }>(res, "Wrike", (body) => {
+    const said = [body.error, body.errorDescription].filter((v): v is string => typeof v === "string" && v !== "");
+    return said.length ? said.join(": ") : undefined;
+  });
   if (res.status === 429) {
     // Retry-After in seconds; Wrike limits per minute and per token, so a minute is the fallback.
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs = retryAfter > 0 ? retryAfter * 1000 : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000);
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   // A page token Wrike no longer takes: read the pass again.
@@ -133,33 +123,22 @@ const encoded = (p: Record<string, unknown>) => new URLSearchParams(Object.entri
 export async function wrike<T>(c: WrikeCreds, path: string, init: Call = {}): Promise<Answer<T> | null> {
   const q = init.query ? encoded(init.query) : "";
   const body = init.form ? encoded(init.form) : undefined;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}${q ? `?${q}` : ""}`,
-    init: {
-      method: init.method ?? "GET",
-      headers: { Accept: "application/json", Authorization: `bearer ${c.token}`, ...(body !== undefined ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
-      ...(body !== undefined ? { body } : {}),
-    },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { method: init.method ?? "GET", ...(body !== undefined ? { body, headers: { "Content-Type": "application/x-www-form-urlencoded" } } : {}) },
+    headers: { Authorization: `bearer ${c.token}` },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   const json = (await res.json()) as { data?: T[]; nextPageToken?: string };
   if (!Array.isArray(json.data)) throw new ProviderError("incompatible", "Wrike: an answer with no data list");
   return { data: json.data, next: json.nextPageToken ?? null };
 }
 
 /** A call that always answers, with its list. */
-export async function wrikeList<T>(c: WrikeCreds, path: string, init: Call = {}): Promise<T[]> {
-  const r = await wrike<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Wrike: nothing at ${path}`);
-  return r.data;
-}
+export const wrikeList = <T>(c: WrikeCreds, path: string, init: Call = {}): Promise<T[]> => mustAnswer(wrike<T>(c, path, init), "Wrike", path);
 
 /** A call for one record (Wrike answers a list of one). */
 export async function wrikeOne<T>(c: WrikeCreds, path: string, init: Call = {}): Promise<T> {

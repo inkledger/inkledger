@@ -33,6 +33,24 @@ export async function eachPage<T, G>(
   throw new IncompatibleResultError("a pass longer than the page limit");
 }
 
+/**
+ * Every row of a list, page after page from `start` while a page names the
+ * next, at most `maxPages`: past them `overflow` is thrown, or (none) the
+ * rows read so far are the answer.
+ */
+export async function collectPages<T, C>(start: C, fetchPage: (at: C) => Promise<{ rows: T[]; next: C | null }>, maxPages: number, overflow?: () => Error): Promise<T[]> {
+  const out: T[] = [];
+  let at = start;
+  for (let n = 0; n < maxPages; n++) {
+    const { rows, next } = await fetchPage(at);
+    out.push(...rows);
+    if (next === null) return out;
+    at = next;
+  }
+  if (overflow) throw overflow();
+  return out;
+}
+
 /** A whole pass in memory (tests, small passes). */
 export async function readPass<T, G>(read: (q: PageQuery) => Promise<Page<T, G>>, since: Checkpoint | null, maxPages = MAX_PAGES) {
   const items: T[] = [];

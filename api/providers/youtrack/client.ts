@@ -6,8 +6,8 @@
 // - lists are cut by `$top` (default 42, a server cap below what was asked) and
 //   have no Link header or total: pages by `$skip`, ending on an empty page;
 // - timestamps are epoch milliseconds, users' avatars may be relative paths.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall } from "../core/http";
 
 export type YouTrackCreds = {
   /** The service root, with or without /api: https://x.youtrack.cloud, https://host/youtrack/api */
@@ -101,19 +101,17 @@ export const FIELDS = {
 
 /** A refused answer as a ProviderError: YouTrack explains in error_description; a spent quota is a wait. */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `YouTrack answered ${res.status}`;
-  try {
-    const body = (await res.json()) as { error?: string; error_description?: string };
-    const why = body.error_description ?? body.error;
-    if (why) message = `YouTrack: ${why}`;
-  } catch {
-    // no JSON body
-  }
+  const { message } = await readRefusal<{ error?: string; error_description?: string }>(
+    res,
+    "YouTrack",
+    (body) => {
+      const why = body.error_description ?? body.error;
+      return why ? String(why) : undefined;
+    },
+    { jsonOnly: true },
+  );
   if (res.status === 429) {
-    const retry = res.headers.get("retry-after");
-    const secs = Number(retry);
-    const at = retry && !Number.isFinite(secs) ? Date.parse(retry) : NaN;
-    const waitMs = Number.isFinite(secs) && secs > 0 ? secs * 1000 : Number.isFinite(at) ? Math.max(0, at - Date.now()) : 30_000;
+    const waitMs = retryAfterMs(res.headers, 30_000, { httpDate: true });
     const remaining = Number(res.headers.get("x-ratelimit-remaining"));
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, ...(Number.isFinite(remaining) && res.headers.has("x-ratelimit-remaining") ? { remaining } : {}) } });
   }
@@ -130,26 +128,16 @@ const networkOf = (base: string) => {
 export async function yt<T>(c: YouTrackCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<T | null> {
   const root = apiRootOf(c.apiBase);
   const { missingIsNull, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: root,
     network: networkOf(root),
     url: `${root}${path}`,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${c.token}`,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: rest,
+    headers: { Authorization: `Bearer ${c.token}` },
+    missing: missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;

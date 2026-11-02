@@ -1,9 +1,9 @@
 // Gitea's (and Forgejo's) REST API, as the adapter needs it: every call
 // through the shared safe fetch (read-only servers, redirects re-checked),
 // errors in the layer's words, pages by the Link header.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
-import { nextLink } from "../core/paging";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages, nextLink } from "../core/paging";
 
 export type GiteaCreds = {
   /** The API root of the server: https://host/api/v1 (maybe under a sub-path: https://host/gitea/api/v1) */
@@ -63,20 +63,15 @@ export type GiteaTimelineEntry = {
 
 /** A Gitea answer refused, as a ProviderError (a rate limit, from a proxy in front of it, with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Gitea answered ${res.status}`;
-  try {
-    const body = (await res.json()) as { message?: string };
-    if (body.message) message = `Gitea: ${body.message}`;
-  } catch {
-    // no JSON body (a refused permission is often an empty 403)
-  }
+  // No JSON body is common (a refused permission is often an empty 403).
+  const { message } = await readRefusal<{ message?: string }>(res, "Gitea", (body) => (body.message ? String(body.message) : undefined), { jsonOnly: true });
   const remaining = res.headers.get("x-ratelimit-remaining");
   const reset = Number(res.headers.get("x-ratelimit-reset"));
   const retryAfter = Number(res.headers.get("retry-after"));
   // Gitea has no rate limit of its own: a reverse proxy in front of it may answer 429 (or a spent 403) with the usual headers.
   const limited = res.status === 429 || (res.status === 403 && (remaining === "0" || (Number.isFinite(retryAfter) && retryAfter > 0)));
   if (limited) {
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { reset: "x-ratelimit-reset" });
     return new ProviderError("rateLimit", message, { status: res.status, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Number.isFinite(reset) && reset > 0 ? reset * 1000 : undefined } });
   }
   // Time tracking switched off on a repository is a setting, answered 400 (a permission would be 403).
@@ -113,26 +108,16 @@ const networkOf = (base: string) => {
 export async function gt<T>(c: GiteaCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<GiteaResult<T> | null> {
   const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   const { missingIsNull, ...rest } = init;
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     network: networkOf(c.apiBase),
     url,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        Authorization: `token ${c.token}`,
-        ...(rest.body ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: rest,
+    headers: { Authorization: `token ${c.token}` },
+    missing: missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   // Several writes answer 201 where one would expect 200 or 204 (an edit, a subscription): any 2xx is a success.
   const text = res.status === 204 ? "" : await res.text();
   const data = (text ? JSON.parse(text) : undefined) as T;
@@ -141,20 +126,16 @@ export async function gt<T>(c: GiteaCreds, path: string, init: RequestInit & { m
 }
 
 /** A call that always answers. */
-export async function gtOk<T>(c: GiteaCreds, path: string, init: RequestInit = {}): Promise<T> {
-  const r = await gt<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Gitea: nothing at ${path}`);
-  return r.data;
-}
+export const gtOk = <T>(c: GiteaCreds, path: string, init: RequestInit = {}): Promise<T> => mustAnswer(gt<T>(c, path, init), "Gitea", path);
 
 /** Every page of a list, following the Link header (bounded). */
-export async function allPages<T>(c: GiteaCreds, path: string, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let next: string | null = path;
-  for (let n = 0; next && n < maxPages; n++) {
-    const r: GiteaResult<T[]> | null = await gt<T[]>(c, next);
-    out.push(...(r?.data ?? []));
-    next = r?.next ?? null;
-  }
-  return out;
+export function allPages<T>(c: GiteaCreds, path: string, maxPages = 50): Promise<T[]> {
+  return collectPages<T, string>(
+    path,
+    async (at) => {
+      const r = await gt<T[]>(c, at);
+      return { rows: r?.data ?? [], next: r?.next || null };
+    },
+    maxPages,
+  );
 }

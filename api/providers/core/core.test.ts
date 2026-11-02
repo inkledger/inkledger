@@ -6,7 +6,8 @@ import { checkActiveSources, checkEntryPage, checkFind } from "./results";
 import { assertRevision, assertSeconds } from "./time";
 import { trackerProbeExceeds } from "./validate";
 import { readPass } from "../conformance/suite";
-import { ProviderError } from "./errors";
+import { ProviderError, readRefusal, retryAfterMs } from "./errors";
+import { collectPages } from "./paging";
 import type { RemoteIssue, Transition, TrackerProbe, PageToken } from "../types";
 
 const caps = fakeTrackerCapabilities();
@@ -95,5 +96,36 @@ describe("reading a pass", () => {
   it("refuses a page token that comes back (a loop)", async () => {
     const token = "pg1.loop" as PageToken;
     await expect(readPass(async () => ({ last: false, items: [], gone: [], next: token }), null)).rejects.toThrow(/came back twice/);
+  });
+});
+
+describe("refusals and lists over HTTP", () => {
+  it("a refusal in the service's words: its JSON, else its text, else the status", async () => {
+    const pick = (b: { error?: unknown }) => (typeof b.error === "string" ? b.error : undefined);
+    expect(await readRefusal(new Response('{"error":"bad hours"}', { status: 422 }), "T", pick)).toEqual({ message: "T: bad hours", said: "bad hours" });
+    expect((await readRefusal(new Response("{}", { status: 422 }), "T", pick)).message).toBe("T answered 422");
+    expect((await readRefusal(new Response("  Retry later \n", { status: 429 }), "T", pick)).message).toBe("T: Retry later");
+    expect((await readRefusal(new Response("<h1>Bad  gateway</h1>", { status: 502 }), "T", pick, { plain: true })).message).toBe("T: Bad gateway");
+    expect((await readRefusal(new Response("Bad gateway", { status: 502 }), "T", pick, { jsonOnly: true })).message).toBe("T answered 502");
+    expect((await readRefusal(new Response(null, { status: 500 }), "T", pick)).said).toBe("");
+  });
+
+  it("a rate limit's wait: Retry-After seconds or date, then the reset, then the fallback", () => {
+    const h = (o: Record<string, string>) => new Headers(o);
+    const inAMinute = new Date(Date.now() + 60_000).toUTCString();
+    expect(retryAfterMs(h({ "retry-after": "7" }), 1000)).toBe(7000);
+    expect(retryAfterMs(h({ "retry-after": "0" }), 1000)).toBe(1000);
+    expect(retryAfterMs(h({ "retry-after": inAMinute }), 1000)).toBe(1000);
+    expect(retryAfterMs(h({ "retry-after": inAMinute }), 1000, { httpDate: true })).toBeGreaterThan(50_000);
+    expect(retryAfterMs(h({ "x-reset": String(Math.floor(Date.now() / 1000) + 30) }), 1000, { reset: "x-reset" })).toBeGreaterThan(25_000);
+    expect(retryAfterMs(h({ "x-reset": "30" }), 1000, { reset: "x-reset" })).toBe(0);
+    expect(retryAfterMs(h({ "x-reset": "30" }), 1000, { reset: "x-reset", resetMayBeDelta: true })).toBe(30_000);
+  });
+
+  it("collects pages until one names no next, bounded", async () => {
+    const pages = (n: number) => async (at: number) => ({ rows: [at], next: at < n ? at + 1 : null });
+    expect(await collectPages(1, pages(3), 10)).toEqual([1, 2, 3]);
+    expect(await collectPages(1, pages(30), 2)).toEqual([1, 2]);
+    await expect(collectPages(1, pages(30), 2, () => new ProviderError("incompatible", "too long"))).rejects.toThrow("too long");
   });
 });

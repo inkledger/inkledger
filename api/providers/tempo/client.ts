@@ -8,8 +8,8 @@
 // - errors are { errors: [{ message }] }, a 400 even for a worklog in an approved period (told apart by its message: "forbidden");
 // - a worklog has two ids (tempoWorklogId, the one every Tempo call takes, and jiraWorklogId, its mirror in Jira): never mixed;
 // - the limit answers 429, with Retry-After when the plan sends it.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { jsonCall } from "../core/http";
 import type { TimeZone } from "@contracts/values";
 
 export type TempoCreds = {
@@ -76,26 +76,17 @@ const LOCKED = /approved|locked|closed period|submitted/i;
 
 /** A refused answer as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Tempo answered ${res.status}`;
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { errors?: { message?: unknown }[]; message?: unknown };
+  const { message } = await readRefusal<{ errors?: { message?: unknown }[]; message?: unknown }>(
+    res,
+    "Tempo",
+    (body) => {
       const messages = (body.errors ?? []).map((e) => e.message).filter((m): m is string => typeof m === "string");
-      if (messages.length > 0) message = `Tempo: ${messages.join("; ")}`;
-      else if (typeof body.message === "string") message = `Tempo: ${body.message}`;
-    } catch {
-      const plain = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-      if (plain) message = `Tempo: ${plain.slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+      return messages.length > 0 ? messages.join("; ") : typeof body.message === "string" ? body.message : undefined;
+    },
+    { plain: true },
+  );
   if (res.status === 429) {
-    const retry = res.headers.get("retry-after");
-    const secs = Number(retry);
-    const at = retry && !Number.isFinite(secs) ? Date.parse(retry) : NaN;
-    const waitMs = Number.isFinite(secs) && secs > 0 ? secs * 1000 : Number.isFinite(at) ? Math.max(0, at - Date.now()) : 60_000;
+    const waitMs = retryAfterMs(res.headers, 60_000, { httpDate: true });
     return new ProviderError("rateLimit", message, { status: 429, rateLimit: { retryAfterMs: waitMs, remaining: 0 } });
   }
   // A worklog in an approved (or otherwise locked) period is a 400 whose message says so: not the user's typo, a lock.
@@ -119,26 +110,15 @@ export async function tp<T>(c: TempoCreds, path: string, init: Call = {}): Promi
   const url = path.startsWith("http") ? path : `${base}${path}`;
   // A "next" link is followed on the API's own origin only.
   if (new URL(url).origin !== new URL(base).origin) throw new ProviderError("incompatible", "Tempo: a link to another site");
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url,
-    init: {
-      ...rest,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${c.token}`,
-        ...(data !== undefined ? { "Content-Type": "application/json" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-      ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
-    },
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { ...rest, ...(data !== undefined ? { body: JSON.stringify(data) } : {}) },
+    headers: { Authorization: `Bearer ${c.token}` },
+    missing: [...(missingIsNull || absentIsNull ? [404] : []), ...(absentIsNull ? [403] : [])],
+    refused,
   });
-  if ((res.status === 404 && (missingIsNull || absentIsNull)) || (res.status === 403 && absentIsNull)) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return { data: undefined as T };
   const text = await res.text();
   if (!text.trim()) return { data: undefined as T };
@@ -150,11 +130,7 @@ export async function tp<T>(c: TempoCreds, path: string, init: Call = {}): Promi
 }
 
 /** A call that always answers. */
-export async function tpOk<T>(c: TempoCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await tp<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Tempo: nothing at ${path}`);
-  return r.data;
-}
+export const tpOk = <T>(c: TempoCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(tp<T>(c, path, init), "Tempo", path);
 
 /** `path` with a query: URLSearchParams from the given pairs (undefined left out). */
 export function withQuery(path: string, q: Record<string, string | number | undefined>): string {

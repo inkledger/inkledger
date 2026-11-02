@@ -9,7 +9,7 @@ import { env } from "../../lib/env";
 import { assertSafeUrl, isForbiddenAddress, isReservedHost, type Network } from "../../lib/security";
 import { t } from "@contracts/i18n";
 import { callSignal, currentCall } from "./context";
-import type { ReadOnlyCause } from "./errors";
+import { ProviderError, type ReadOnlyCause } from "./errors";
 
 /** A response whose body nobody reads: released, so its connection goes back to the pool. */
 export const discardBody = (res: Response): Promise<void> => res.body?.cancel().catch(() => undefined) ?? Promise.resolve();
@@ -54,13 +54,16 @@ export type SafeFetch = {
   intent?: Intent;
   /** Follow a redirect to another https origin (without Authorization), e.g. an attachment CDN. */
   allowCrossOrigin?: boolean;
-  /** The provider's error for a refused call (read-only, redirect not allowed). */
-  fail: (status: number, message: string) => Error;
+  /** The provider's error for a refused call (read-only, redirect not allowed); a ProviderError by default. */
+  fail?: (status: number, message: string) => Error;
   /** "private" only for a self-hosted tracker; a service on the internet never reaches private addresses. */
   network?: Network;
 };
 
-export async function safeFetch({ site, url, init, intent, allowCrossOrigin = false, fail, network = "public" }: SafeFetch): Promise<Response> {
+/** A refused call as a ProviderError: a write the read-only switch blocked is "readOnly", anything else "invalid". */
+const providerFail = (status: number, message: string): Error => new ProviderError(status === 403 ? "readOnly" : "invalid", message);
+
+export async function safeFetch({ site, url, init, intent, allowCrossOrigin = false, fail = providerFail, network = "public" }: SafeFetch): Promise<Response> {
   const verb = (init.method ?? "GET").toUpperCase();
   // The server read-only (test servers), or this connection's adapter not verified and its writes not allowed yet.
   if ((env.readOnly || currentCall()?.readOnly) && intentOf(verb, intent) === "write") {
@@ -119,3 +122,46 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
 
 /** A site address without the slashes that end it. */
 export const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, "");
+
+/** 404 and 410: a record that is not there, or was deleted. */
+export const GONE: readonly number[] = [404, 410];
+
+export type JsonCall = {
+  site: string;
+  url: string;
+  /** Method, body and headers of this call; a body is sent as JSON unless these headers say otherwise. */
+  init?: RequestInit;
+  /** The headers every call carries (credentials, API version), after Accept. */
+  headers: Record<string, string>;
+  intent?: Intent;
+  network?: Network;
+  /** Statuses that mean "not there": answered null, the body released. */
+  missing?: readonly number[];
+  /** The provider's error for an answer that is not ok. */
+  refused: (res: Response) => Promise<Error>;
+};
+
+/** One call to a JSON API: the answer when ok, null for a `missing` status, the refusal thrown otherwise. */
+export async function jsonCall({ site, url, init = {}, headers, intent, network, missing, refused }: JsonCall): Promise<Response | null> {
+  const res = await safeFetch({
+    site,
+    url,
+    init: {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...headers,
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers as Record<string, string> | undefined),
+      },
+    },
+    ...(intent ? { intent } : {}),
+    ...(network ? { network } : {}),
+  });
+  if (missing?.includes(res.status)) {
+    await discardBody(res);
+    return null;
+  }
+  if (!res.ok) throw await refused(res);
+  return res;
+}

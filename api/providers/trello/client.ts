@@ -4,8 +4,9 @@
 // as query parameters, which would put the token in every URL and log), errors
 // in the layer's words. Trello answers errors in plain text more often than in
 // JSON, and uses 401 both for a bad token and for a card the token can't see.
-import { ProviderError, kindOfStatus } from "../core/errors";
+import { ProviderError, kindOfStatus, mustAnswer } from "../core/errors";
 import { safeFetch, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type TrelloCreds = {
   /** https://api.trello.com (the version goes in the path) */
@@ -144,8 +145,6 @@ export async function tr<T>(c: TrelloCreds, path: string, call: Call = {}): Prom
       ...(call.body ? { body: JSON.stringify(call.body) } : {}),
     },
     ...(call.intent ? { intent: call.intent } : {}),
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
   });
   if (!res.ok) {
     const err = await refused(res);
@@ -162,24 +161,19 @@ export async function tr<T>(c: TrelloCreds, path: string, call: Call = {}): Prom
 }
 
 /** A call that always answers. */
-export async function trOk<T>(c: TrelloCreds, path: string, call: Call = {}): Promise<T> {
-  const r = await tr<T>(c, path, call);
-  if (!r) throw new ProviderError("notFound", `Trello: nothing at ${path}`);
-  return r.data;
-}
+export const trOk = <T>(c: TrelloCreds, path: string, call: Call = {}): Promise<T> => mustAnswer(tr<T>(c, path, call), "Trello", path);
 
 /** Actions are listed newest first, a page at a time, by `before` (the id of the last action seen). */
-export async function trActions(c: TrelloCreds, path: string, query: Record<string, string>, maxPages = 50): Promise<TrelloAction[]> {
-  const out: TrelloAction[] = [];
+export function trActions(c: TrelloCreds, path: string, query: Record<string, string>, maxPages = 50): Promise<TrelloAction[]> {
   const limit = 100;
-  let before: string | undefined;
-  for (let n = 0; n < maxPages; n++) {
-    const page: TrelloAction[] = await trOk<TrelloAction[]>(c, path, { query: { ...query, limit, ...(before ? { before } : {}) } });
-    out.push(...page);
-    if (page.length < limit) break;
-    before = page[page.length - 1].id;
-  }
-  return out;
+  return collectPages<TrelloAction, string | undefined>(
+    undefined,
+    async (before) => {
+      const page = await trOk<TrelloAction[]>(c, path, { query: { ...query, limit, ...(before ? { before } : {}) } });
+      return { rows: page, next: page.length < limit ? null : page[page.length - 1].id };
+    },
+    maxPages,
+  );
 }
 
 /** The creation time inside a Trello id (its first 8 hex characters are seconds since the epoch), in ms; null when the id isn't one. */

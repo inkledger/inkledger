@@ -3,8 +3,8 @@
 // the whole Authorization header (no "Bearer": that is for OAuth), errors in
 // the layer's words, rate-limit headers read. ClickUp is a hosted service only,
 // so every call goes to the public internet.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
 
 export type ClickUpCreds = {
   /** The API root: https://api.clickup.com/api/v2 */
@@ -104,20 +104,12 @@ const TEAM_NOT_AUTHORIZED = /^OAUTH_02[37]$/;
 
 /** A ClickUp answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `ClickUp answered ${res.status}`;
   let ecode = "";
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as Refusal;
-      if (typeof body.err === "string" && body.err) message = `ClickUp: ${body.err}`;
-      if (typeof body.ECODE === "string") ecode = body.ECODE;
-    } catch {
-      if (text.trim()) message = `ClickUp: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<Refusal>(res, "ClickUp", (body) => {
+    const said = typeof body.err === "string" && body.err ? body.err : undefined;
+    if (typeof body.ECODE === "string") ecode = body.ECODE;
+    return said;
+  });
   if (res.status === 429) {
     // X-RateLimit-Reset is a Unix time in seconds; no Retry-After.
     const reset = Number(res.headers.get("x-ratelimit-reset"));
@@ -142,32 +134,21 @@ export type Answer<T> = { data: T; headers: Headers };
 /** One call. */
 export async function clickup<T>(c: ClickUpCreds, path: string, init: Call = {}): Promise<Answer<T> | null> {
   const body = init.data === undefined ? undefined : JSON.stringify(init.data);
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url: `${trimTrailingSlash(c.apiBase)}${path}`,
-    init: {
-      method: init.method ?? "GET",
-      headers: { Accept: "application/json", Authorization: c.token, ...(body ? { "Content-Type": "application/json" } : {}) },
-      ...(body ? { body } : {}),
-    },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    init: { method: init.method ?? "GET", ...(body ? { body } : {}) },
+    headers: { Authorization: c.token },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return { data: undefined as T, headers: res.headers };
   return { data: (await res.json()) as T, headers: res.headers };
 }
 
 /** A call that always answers. */
-export async function clickupOk<T>(c: ClickUpCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await clickup<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `ClickUp: nothing at ${path}`);
-  return r.data;
-}
+export const clickupOk = <T>(c: ClickUpCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(clickup<T>(c, path, init), "ClickUp", path);
 
 /** A path with its query: an array parameter is written name[]=a&name[]=b, as ClickUp reads it. */
 export function withQuery(path: string, params: Record<string, string | number | boolean | string[] | undefined>): string {

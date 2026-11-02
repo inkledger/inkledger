@@ -2,8 +2,9 @@
 // the shared safe fetch (read-only servers, redirects re-checked), the access
 // token as a Bearer, errors in the layer's words, lists by @odata.nextLink.
 // Graph is a hosted service only, so every call goes to the public internet.
-import { ProviderError, kindOfStatus } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
+import { collectPages } from "../core/paging";
 
 export type PlannerCreds = {
   /** The API root: https://graph.microsoft.com/v1.0 */
@@ -48,24 +49,14 @@ export type PlannerPlanDetails = { id: string; categoryDescriptions?: Record<str
 
 /** A Graph answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {
-  let message = `Microsoft Graph answered ${res.status}`;
   let code = "";
-  try {
-    const text = await res.text();
-    try {
-      const body = JSON.parse(text) as { error?: { code?: unknown; message?: unknown } };
-      if (typeof body.error?.code === "string") code = body.error.code;
-      if (typeof body.error?.message === "string" && body.error.message) message = `Microsoft Graph: ${body.error.message}`;
-    } catch {
-      if (text.trim()) message = `Microsoft Graph: ${text.trim().slice(0, 200)}`;
-    }
-  } catch {
-    // no body
-  }
+  const { message } = await readRefusal<{ error?: { code?: unknown; message?: unknown } }>(res, "Microsoft Graph", (body) => {
+    if (typeof body.error?.code === "string") code = body.error.code;
+    return typeof body.error?.message === "string" && body.error.message ? body.error.message : undefined;
+  });
   if (res.status === 429 || ((res.status === 503 || res.status === 504) && res.headers.has("retry-after"))) {
     // Retry-After in seconds; none: wait a while, as Graph asks for a back-off.
-    const seconds = Number(res.headers.get("retry-after"));
-    const waitMs = seconds > 0 ? seconds * 1000 : 30_000;
+    const waitMs = retryAfterMs(res.headers, 30_000);
     return new ProviderError("rateLimit", message, { status: res.status, rateLimit: { retryAfterMs: waitMs, remaining: 0, resetAt: Date.now() + waitMs } });
   }
   // A skip token Graph no longer takes: read the pass again.
@@ -96,28 +87,19 @@ export async function graph<T>(c: PlannerCreds, path: string, init: Call = {}): 
     url = path;
   }
   const body = init.body === undefined ? undefined : JSON.stringify(init.body);
-  const res = await safeFetch({
+  const res = await jsonCall({
     site: c.apiBase,
     url,
     init: {
       method: init.method ?? "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${c.token}`,
-        ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(init.etag ? { "If-Match": init.etag } : {}),
-        ...(init.representation ? { Prefer: "return=representation" } : {}),
-      },
+      headers: { ...(init.etag ? { "If-Match": init.etag } : {}), ...(init.representation ? { Prefer: "return=representation" } : {}) },
       ...(body ? { body } : {}),
     },
-    network: "public",
-    fail: (status, message) => new ProviderError(status === 403 ? "readOnly" : "invalid", message),
+    headers: { Authorization: `Bearer ${c.token}` },
+    missing: init.missingIsNull ? GONE : [],
+    refused,
   });
-  if ((res.status === 404 || res.status === 410) && init.missingIsNull) {
-    await discardBody(res);
-    return null;
-  }
-  if (!res.ok) throw await refused(res);
+  if (!res) return null;
   if (res.status === 204) return { data: undefined as T, next: null };
   const json = (await res.json()) as { value?: unknown; "@odata.nextLink"?: string };
   // A list is { value: [...] }; a single record is the record itself.
@@ -125,23 +107,19 @@ export async function graph<T>(c: PlannerCreds, path: string, init: Call = {}): 
 }
 
 /** A call that always answers. */
-export async function graphOk<T>(c: PlannerCreds, path: string, init: Call = {}): Promise<T> {
-  const r = await graph<T>(c, path, init);
-  if (!r) throw new ProviderError("notFound", `Microsoft Graph: nothing at ${path}`);
-  return r.data;
-}
+export const graphOk = <T>(c: PlannerCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(graph<T>(c, path, init), "Microsoft Graph", path);
 
 /** One page of a list, and the link of the next. */
 export const graphPage = <T>(c: PlannerCreds, path: string): Promise<Answer<T[]> | null> => graph<T[]>(c, path);
 
 /** Every page of a list (bounded). */
-export async function graphPages<T>(c: PlannerCreds, path: string, maxPages = 50): Promise<T[]> {
-  const out: T[] = [];
-  let next: string | null = path;
-  for (let n = 0; n < maxPages && next; n++) {
-    const r: Answer<T[]> | null = await graph<T[]>(c, next);
-    out.push(...(r?.data ?? []));
-    next = r?.next ?? null;
-  }
-  return out;
+export function graphPages<T>(c: PlannerCreds, path: string, maxPages = 50): Promise<T[]> {
+  return collectPages<T, string>(
+    path,
+    async (at) => {
+      const r = await graph<T[]>(c, at);
+      return { rows: r?.data ?? [], next: r?.next || null };
+    },
+    maxPages,
+  );
 }
