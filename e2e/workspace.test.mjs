@@ -44,7 +44,9 @@ test("Workspace Studio previews, applies and rolls back a scoped layout without 
     await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
     await activity.getByRole("button", { name: /^Show /, pressed: false }).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 1);
-    const html = await (await context.request.get(base + "/")).text();
+    const html = await (await context.request.get(base + "/", { headers: { Accept: "text/html" } })).text();
+    // The server's page itself, not the empty shell: otherwise the check below could never fail.
+    assert.match(html, /<section\b[^>]*data-workspace-anchor="dashboard.tasks"/, "the server drew the Dashboard");
     assert.equal(/<section\b[^>]*data-workspace-anchor="dashboard.activity"[^>]*>/.test(html), false, "the personalized SSR markup never shows a hidden section");
     await page.goto(base + "/");
     await page.getByRole("button", { name: "Log time", exact: true }).first().waitFor();
