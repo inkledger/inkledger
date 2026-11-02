@@ -52,7 +52,7 @@ function TaskCard({
       to={issuePath(issue)}
       {...surface("card")}
       {...flowControlProps("dashboard.tasks.issueOpen")}
-      className="block rounded-xl border bg-card p-2.5 transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm"
+      className="block rounded-xl border bg-card p-2.5 transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm"
     >
       <p className="line-clamp-2 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
         {issue.summary}

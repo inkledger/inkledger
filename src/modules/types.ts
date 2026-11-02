@@ -27,6 +27,11 @@ export type ThemeState = {
   tokens: Record<"primary" | "foreground" | "muted" | "card" | "border" | "background" | "ring", string>;
   /** The person wants night on the Dashboard (Settings → Appearance). Optional: older hosts don't say. */
   night?: boolean;
+  /**
+   * No usable graphics card here (software rendering, or WebGL refused as too slow): keep to
+   * still pictures, no WebGL scenes or big animated canvases. Optional: older hosts don't say.
+   */
+  softwareRender?: boolean;
 };
 
 /**

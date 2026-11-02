@@ -17,6 +17,7 @@ import type {
   TodayState,
 } from "./types";
 import { prefersReducedMotion } from "@/lib/dom";
+import { softwareRender } from "./render";
 
 /**
  * The page side of the host API: one hub per app, fed by the React Query cache
@@ -101,6 +102,7 @@ function readTheme(night = true): ThemeState {
     reducedMotion: prefersReducedMotion(),
     tokens,
     night,
+    softwareRender: softwareRender(),
   };
 }
 

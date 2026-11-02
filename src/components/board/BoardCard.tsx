@@ -122,7 +122,7 @@ export function BoardCard({
         onDragStart();
       }}
       onDragEnd={onDragEnd}
-      className="cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[box-shadow,border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
+      className="cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
     >
       <div className="flex items-start gap-1.5">
         <p className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
