@@ -262,6 +262,24 @@ describe("workspace resolver", () => {
     expect(resolve(input({ activeRevision: history, draft: draftOf([now]) })).kind).toBe("conflicts");
   });
 
+  it("sets aside a saved rule on a block a release removed, and keeps the rest of the saved layout", () => {
+    const gone = constraintOf({ id: "pin-gone", anchorId: "removed-widget" });
+    const kept = constraintOf({ id: "pin-tasks", anchorId: "tasks" });
+    const saved = active({
+      operations: [{ operation: { type: "visibility", operationId: "hide-stats", anchorId: "stats", visible: false }, origin: "user", acceptedByUser: true }],
+      constraints: [gone, kept],
+    });
+    const result = resolve(input({ activeRevision: saved, explicitConstraints: [gone, kept] }));
+    expect(result.kind).toBe("resolved");
+    const resolved = placements(result);
+    expect(resolved.find(placement => placement.anchorId === "stats")?.visible).toBe(false);
+    expect(resolved.find(placement => placement.anchorId === "tasks")?.pinned).toBe(true);
+    if (result.kind === "resolved") expect(result.workspace.fallbacks).toEqual([{ anchorId: "removed-widget", reason: "isolated" }]);
+    // A rule proposed in a draft still follows today's catalogue.
+    const proposing = patch({ author: "user", intent: { kind: "custom", status: "explicit" }, suggestionSignature: undefined, proposedConstraints: [constraintOf({ id: "pin-new", anchorId: "removed-widget" })] });
+    expect(resolve(input({ draft: draftOf([proposing]) })).kind).toBe("conflicts");
+  });
+
   it("keeps every pinned anchor of a reorder in place, not only the first", () => {
     const four = { ...productDefault, placements: [...productDefault.placements, { anchorId: "new-feature", areaId: "primary", order: 3, visible: true, variant: "default" as const, pinned: false }] };
     const pins = [constraintOf({ id: "pin-timeline", anchorId: "timeline" }), constraintOf({ id: "pin-tasks", anchorId: "tasks" })];

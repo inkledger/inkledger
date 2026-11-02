@@ -284,8 +284,21 @@ export function resolve(input: ResolveInput): ResolveResult {
       } else revokedConstraintIds.add(constraintId);
     }
   }
-  for (const constraint of activeRevision.constraints) if (!revokedConstraintIds.has(constraint.id)) applyConstraint(constraint);
-  for (const constraint of explicitConstraints) if (!revokedConstraintIds.has(constraint.id)) applyConstraint(constraint);
+  // A saved rule follows saved changes: one today's catalogue refuses (its block removed by a release) is set
+  // aside and listed as a fallback, never the whole layout turned into a conflict (§13.5, §13.6).
+  const applySavedConstraint = (constraint: Constraint) => {
+    const conflictCount = conflicts.length;
+    const fallbackCount = fallbacks.length;
+    const before = placements.map(placement => ({ ...placement }));
+    applyConstraint(constraint);
+    if (conflicts.length === conflictCount) return;
+    conflicts.splice(conflictCount);
+    placements.splice(0, placements.length, ...before);
+    fallbacks.length = fallbackCount;
+    if (!fallbacks.some(fallback => fallback.anchorId === constraint.anchorId && fallback.reason === "isolated")) fallbacks.push({ anchorId: constraint.anchorId, reason: "isolated" });
+  };
+  for (const constraint of activeRevision.constraints) if (!revokedConstraintIds.has(constraint.id)) applySavedConstraint(constraint);
+  for (const constraint of explicitConstraints) if (!revokedConstraintIds.has(constraint.id)) applySavedConstraint(constraint);
   for (const patch of draft?.patches ?? []) {
     for (const constraint of patch.proposedConstraints) {
       if (constraint.status === "explicit") applyConstraint(constraint);
