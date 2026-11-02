@@ -15,11 +15,10 @@ import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, jsonPayload, localDate, localDateOf, type JsonValue, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
+import { connectionMapping } from "../core/categories";
 import { ProviderError } from "../core/errors";
-import { verifySha256Header } from "../core/webhooks";
+import { headerOf, verifySha256Header } from "../core/webhooks";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type ConversionWarning,
@@ -318,7 +317,7 @@ export function statusesOf(s: Shape, sc: Schema): RemoteStatus[] {
       id: o.id,
       name: o.name,
       category: mapped ?? native ?? "todo",
-      categoryOrigin: !mapped && native ? { by: "native" } : { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) },
+      categoryOrigin: !mapped && native ? { by: "native" } : connectionMapping(s.connId),
       source: { kind: "projectField", fieldRemoteId: col.id, containerRemoteId: sc.db.id },
       ...(groups.length === 3 && g >= 0 ? { nativeReason: groups[g].name } : {}),
       ...(o.color ? { color: o.color } : {}),
@@ -332,7 +331,7 @@ const noStatus = (s: Shape, sc: Schema): RemoteStatus => ({
   id: "none",
   name: "No status",
   category: "triage",
-  categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) },
+  categoryOrigin: connectionMapping(s.connId),
   source: { kind: "projectField", fieldRemoteId: sc.status.id, containerRemoteId: sc.db.id },
 });
 
@@ -676,8 +675,8 @@ type Hook = { id?: unknown; timestamp?: unknown; type?: unknown; entity?: unknow
  */
 export const notionWebhook = {
   verify(a: { secret: string; rawBody: string; headers: Record<string, string> | Headers }): boolean {
-    const given = a.headers instanceof Headers ? a.headers.get("x-notion-signature") : Object.entries(a.headers).find(([k]) => k.toLowerCase() === "x-notion-signature")?.[1];
-    return verifySha256Header(given ?? undefined, a.secret, a.rawBody);
+    const given = headerOf(a.headers, "x-notion-signature");
+    return verifySha256Header(given, a.secret, a.rawBody);
   },
   parse(rawBody: string): Hook | null {
     try {

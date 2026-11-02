@@ -14,7 +14,7 @@ export type GiteaCreds = {
 const API_SUFFIX = /\/api\/v1\/?$/;
 
 /** The web site for an API root (the server may sit under a sub-path). */
-export const webBaseOf = (apiBase: string) => apiBase.replace(API_SUFFIX, "").replace(/\/+$/, "");
+export const webBaseOf = (apiBase: string) => trimTrailingSlash(apiBase.replace(API_SUFFIX, ""));
 
 /** The API root for the address a person types (the server's web address) or the API's own: /api/v1 once. */
 export const apiRootOf = (address: string) => `${webBaseOf(address)}/api/v1`;
@@ -90,7 +90,7 @@ export function rebase(apiBase: string, link: string | null): string | null {
     const u = new URL(link);
     const at = u.pathname.lastIndexOf("/api/v1");
     if (at < 0) return null;
-    return `${apiBase.replace(/\/+$/, "")}${u.pathname.slice(at + "/api/v1".length)}${u.search}`;
+    return `${trimTrailingSlash(apiBase)}${u.pathname.slice(at + "/api/v1".length)}${u.search}`;
   } catch {
     return null;
   }

@@ -6,15 +6,15 @@
 // Completed, Deferred, Cancelled) says what it means. Time is Wrike's timelogs:
 // a tracked day and decimal hours, a category, billable or not.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
-import { createHmac } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { sameSecret } from "../core/webhooks";
+import { hmacHex, sameSecret } from "../core/webhooks";
 import type {
   ActiveWorkflowSource,
   CallContext,
@@ -128,12 +128,6 @@ const PER_PAGE = 100;
 const FINISHED_WINDOW_DAYS = 30;
 const FIRST_STAGES: Stage[] = ["open", "recent"];
 const LATER_STAGES: Stage[] = ["changed", "deleted"];
-
-async function credsOf(x: X): Promise<WrikeCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 // ---------- Keys and links ----------
 
@@ -291,7 +285,7 @@ async function mustLocate(c: WrikeCreds, ref: IssueRef): Promise<WrikeTask> {
 // ---------- Search ----------
 
 async function search(x: X, text: string, limit: number): Promise<Limited<RemoteIssue>> {
-  const c = await credsOf(x);
+  const c = await tokenCreds(x);
   // The title filter is a substring match; one more than asked tells whether there is more.
   const r = await wrike<WrikeTask>(c, "/tasks", {
     query: { responsibles: [x.conn.remoteAccountId], title: text, pageSize: Math.min(1000, limit + 1), sortField: "UpdatedDate", sortOrder: "Desc", fields: TASK_FIELDS },
@@ -469,7 +463,7 @@ export const wrikeWebhook = {
   verify(headers: Headers2, rawBody: string, secret: string): boolean {
     const given = headers["x-hook-secret"];
     if (!secret || !given || !/^[0-9a-f]{64}$/i.test(given)) return false;
-    return sameSecret(given.toLowerCase(), createHmac("sha256", secret).update(rawBody, "utf8").digest("hex"));
+    return sameSecret(given.toLowerCase(), hmacHex(secret, rawBody));
   },
   /** When the latest event happened, from the body (null: none says). */
   sentAt(rawBody: string): Instant | null {
@@ -516,11 +510,7 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
   capabilities: wrikeCapabilities,
   traits: wrikeTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Wrike options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Wrike", optionsSchema),
 
   normalizeKey,
 
@@ -539,20 +529,20 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
   },
 
   async verify(x) {
-    const me = await wrikeOne<WrikeContact>(await credsOf(x), "/contacts", { query: { me: true } });
+    const me = await wrikeOne<WrikeContact>(await tokenCreds(x), "/contacts", { query: { me: true } });
     const email = me.profiles?.[0]?.email;
     return { ...person(me), ...(email ? { email, login: email } : {}) };
   },
 
   async probe(x) {
-    await wrikeOne<WrikeContact>(await credsOf(x), "/contacts", { query: { me: true } });
+    await wrikeOne<WrikeContact>(await tokenCreds(x), "/contacts", { query: { me: true } });
     const sources: ActiveWorkflowSource[] = [{ kind: "itemState", transitions: "direct", ref: { kind: "itemState" }, name: "Task status" }];
     // Wrike limits requests per minute and answers only when exceeded (429): no figure to give.
     return { capabilities: wrikeCapabilities, activeSources: sources, verifiedAt: instant(Date.now()) };
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     const stages = since === null ? FIRST_STAGES : LATER_STAGES;
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
@@ -576,13 +566,13 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
   },
 
   async getIssue(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, ref.remoteId);
     return t ? (await shapeAll(c, x, [t]))[0] : null;
   },
 
   async findIssue(x, handle) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, await idOfHandle(c, handle));
     // An API id is unique on the service, and a number converts to one: never ambiguous.
     return t ? { kind: "found", issue: (await shapeAll(c, x, [t]))[0] } : { kind: "none" };
@@ -592,12 +582,12 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
 
   async statuses(x, source) {
     if (source.kind !== "itemState") return [];
-    const flow = await flowOf(await credsOf(x));
+    const flow = await flowOf(await tokenCreds(x));
     return flow.list.flatMap((w) => w.customStatuses.filter((s) => !s.hidden).map((s) => flow.byStatus.get(s.id)!.status));
   },
 
   async description(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     if (!apiIdLike(ref.remoteId)) return null;
     const r = await wrike<WrikeTask>(c, taskPath(ref.remoteId), { query: { fields: ["description"] }, missingIsNull: true });
     const html = r?.data[0]?.description;
@@ -606,7 +596,7 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const flow = await flowOf(c);
       // The ways out are the other statuses of the workflow the task's status belongs to; hidden ones can't be set.
@@ -617,7 +607,7 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
       );
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const flow = await flowOf(c);
       const here = t.customStatusId ? flow.byStatus.get(t.customStatusId) : undefined;
@@ -629,18 +619,18 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       if (!apiIdLike(ref.remoteId)) throw new ProviderError("notFound", `Wrike: no task ${ref.key}`);
       return shapeLogs(c, x, await wrikeList<WrikeTimelog>(c, `${taskPath(ref.remoteId)}/timelogs`, { query: { plainText: true } }));
     },
     async get(x, _ref, id) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const r = await wrike<WrikeTimelog>(c, `/timelogs/${encodeURIComponent(id)}`, { query: { plainText: true }, missingIsNull: true });
       return r?.data[0] ? (await shapeLogs(c, x, [r.data[0]]))[0] : null;
     },
     /** The user's timelogs updated in the last 30 days: a window, always read whole (Wrike has no deletion feed). */
     async changed(x, q) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       decodeCheckpoint<Since>(x.conn, "worklogs", V, q.since);
       decodePageToken<Since>(x.conn, "worklogs", V, q.since, q.page);
       const at = Date.now();
@@ -648,35 +638,35 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
       return { last: true, items: await shapeLogs(c, x, logs), gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at } satisfies Since) };
     },
     async create(x, ref, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       if (!apiIdLike(ref.remoteId)) throw new ProviderError("notFound", `Wrike: no task ${ref.key}`);
       const l = await wrikeOne<WrikeTimelog>(c, `${taskPath(ref.remoteId)}/timelogs`, { method: "POST", form: logForm(w) });
       return (await shapeLogs(c, x, [l]))[0];
     },
     async update(x, _ref, id, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const l = await wrikeOne<WrikeTimelog>(c, `/timelogs/${encodeURIComponent(id)}`, { method: "PUT", form: logForm(w) });
       return (await shapeLogs(c, x, [l]))[0];
     },
     async delete(x, _ref, id) {
       // Deleting what is already gone is a success.
-      await wrike<WrikeTimelog>(await credsOf(x), `/timelogs/${encodeURIComponent(id)}`, { method: "DELETE", missingIsNull: true });
+      await wrike<WrikeTimelog>(await tokenCreds(x), `/timelogs/${encodeURIComponent(id)}`, { method: "DELETE", missingIsNull: true });
     },
     /** The timelog categories of the account (an entry has at most one). */
     async activities(x, _scope, limit) {
-      const cats = (await wrikeList<WrikeCategory>(await credsOf(x), "/timelog_categories")).filter((k) => !k.hidden);
+      const cats = (await wrikeList<WrikeCategory>(await tokenCreds(x), "/timelog_categories")).filter((k) => !k.hidden);
       return { items: cats.slice(0, limit).map((k) => ({ id: k.id, name: k.name })), complete: cats.length <= limit };
     },
   },
 
   comments: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       return commentsOf(c, await wrikeList<WrikeComment>(c, `${taskPath(t.id)}/comments`, { query: { plainText: false } }));
     },
     async add(x, ref, body) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const { html, warnings } = toWrikeHtml(body);
       const made = await wrikeOne<WrikeComment>(c, `${taskPath(t.id)}/comments`, { method: "POST", form: { text: html, plainText: false } });
@@ -685,7 +675,7 @@ export const wrikeProvider: TrackerProvider<"wrike", WrikeOptions> = {
   },
 
   async watch(x, ref, on) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     if (!apiIdLike(ref.remoteId)) throw new ProviderError("notFound", `Wrike: no task ${ref.key}`);
     // Following twice, or unfollowing twice, is what was asked.
     await wrikeList<WrikeTask>(c, taskPath(ref.remoteId), { method: "PUT", form: { [on ? "addFollowers" : "removeFollowers"]: [x.conn.remoteAccountId] } });

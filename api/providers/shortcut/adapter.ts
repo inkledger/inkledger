@@ -7,11 +7,12 @@
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type JsonValue } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { hmacHex, sameSecret } from "../core/webhooks";
-import type { ActiveWorkflowSource, CallContext, ChangeValue, IssueHandle, IssueRef, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
+import { headerOf, hmacHex, sameSecret } from "../core/webhooks";
+import type { ActiveWorkflowSource, ChangeValue, IssueHandle, IssueRef, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
 import {
   SEARCH_PAGE_MAX,
   sc,
@@ -72,8 +73,6 @@ export const shortcutTraits: TrackerTraits = {
 const optionsSchema = z.strictObject({});
 export type ShortcutOptions = z.infer<typeof optionsSchema>;
 
-type X = CallContext<"shortcut", ShortcutOptions>;
-
 /** Format of this adapter's checkpoints (core/checkpoint.ts). */
 const V = 1;
 type Since = { at: number };
@@ -84,11 +83,6 @@ type PageAt = { phase: "feed" | "archived"; next: string | null; mention: string
 const OVERLAP_MS = 5 * 60_000;
 /** A story open to the world has no more than 200 requests a minute behind it. */
 const PER_HOUR = 200 * 60;
-
-async function credsOf(x: X): Promise<ShortcutCreds> {
-  const cred = await x.conn.credential();
-  return { apiBase: x.conn.baseUrl, token: secretOf(cred) };
-}
 
 /** sc-123: the prefix and the story's public id. */
 export const STORY_KEY = /^sc-(\d{1,12})$/i;
@@ -248,11 +242,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   capabilities: shortcutCapabilities,
   traits: shortcutTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Shortcut options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Shortcut", optionsSchema),
 
   normalizeKey,
 
@@ -272,7 +262,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   },
 
   async verify(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const me = await scOk<ShortcutMe>(c, "/member");
     // /member has no email or picture: the member list does, when this token may read it.
     const listed = await scOk<ShortcutMember[]>(c, "/members").catch((e: unknown) => {
@@ -291,7 +281,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   },
 
   async probe(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const { workflows } = await lookups(c);
     // One source per workflow (states are the workflow's).
     const activeSources: ActiveWorkflowSource[] = workflows.length
@@ -301,7 +291,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     const at =
       decodePageToken<PageAt>(x.conn, "issues", V, q.since, q.page) ??
@@ -329,14 +319,14 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   },
 
   async getIssue(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const id = storyId(ref);
     const s = id ? await storyBy(c, id) : null;
     return s ? toRemoteIssue(s, await lookups(c)) : null;
   },
 
   async findIssue(x, handle) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const id = storyId(handle);
     const s = id ? await storyBy(c, id) : null;
     return s ? { kind: "found", issue: toRemoteIssue(s, await lookups(c)) } : { kind: "none" };
@@ -345,7 +335,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   async searchText(x, text, limit) {
     const query = textQuery(text);
     if (!query) return { items: [], complete: true };
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const found: ShortcutStory[] = [];
     let next: string | null = null;
     let first = true;
@@ -361,20 +351,20 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
   },
 
   async statuses(x, source) {
-    const { workflows } = await lookups(await credsOf(x));
+    const { workflows } = await lookups(await tokenCreds(x));
     const only = source.ref.kind === "itemState" ? source.ref.containerRemoteId : undefined;
     return workflows.filter((w) => !only || String(w.id) === only).flatMap((w) => w.states.map((s) => statusOf(s, w.id)));
   },
 
   async description(x, ref) {
-    const s = await storyBy(await credsOf(x), must(ref));
+    const s = await storyBy(await tokenCreds(x), must(ref));
     const text = s?.description;
     return text?.trim() ? { kind: "text", format: "commonmark", text } : null;
   },
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const s = await storyBy(c, must(ref));
       if (!s) throw new ProviderError("notFound", `Shortcut: no story ${ref.key}`);
       const w = (await lookups(c)).workflows.find((v) => v.id === s.workflow_id);
@@ -385,7 +375,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
         .map<Transition>((st) => ({ id: String(st.id), name: st.name, to: statusOf(st, s.workflow_id), requirements: [], remoteUrl: s.app_url }));
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       if (!/^\d+$/.test(transitionId)) throw new ProviderError("invalid", `Shortcut: ${transitionId} is not a workflow state`);
       const s = await scOk<ShortcutStory>(c, `/stories/${must(ref)}`, { method: "PUT", body: JSON.stringify({ workflow_state_id: Number(transitionId) }) });
       return toRemoteIssue(s, await lookups(c));
@@ -394,7 +384,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
 
   comments: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const [comments, l] = await Promise.all([scOk<ShortcutComment[]>(c, `/stories/${must(ref)}/comments`), lookups(c)]);
       // Deleted comments stay in the list, marked.
       return comments
@@ -404,14 +394,14 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
     },
     async add(x, ref, body) {
       // Shortcut's comments are Markdown: CommonMark goes as is.
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const made = await scOk<ShortcutComment>(c, `/stories/${must(ref)}/comments`, { method: "POST", body: JSON.stringify({ text: body }) });
       return { comment: toRemoteComment(made, await lookups(c)), warnings: [] };
     },
   },
 
   async watch(x, ref, on) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const id = must(ref);
     const s = await storyBy(c, id);
     if (!s) throw new ProviderError("notFound", `Shortcut: no story ${ref.key}`);
@@ -431,15 +421,11 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
 
 
   async history(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const [entries, l] = await Promise.all([scOk<ShortcutHistory[]>(c, `/stories/${must(ref)}/history`), lookups(c)]);
     return entries.flatMap((h) => toChanges(h, l)).sort((a, b) => a.at - b.at);
   },
 };
-
-function headerOf(headers: Record<string, string>, name: string): string | undefined {
-  return Object.entries(headers).find(([k]) => k.toLowerCase() === name)?.[1];
-}
 
 function bodyField(body: string, field: string): string | null {
   try {

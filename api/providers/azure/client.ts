@@ -96,7 +96,7 @@ export const ITEM_FIELDS = [
 export const basicAuth = (token: string) => `Basic ${Buffer.from(`:${token}`).toString("base64")}`;
 
 /** The page of a work item on the web, in its project. */
-export const workItemUrl = (apiBase: string, project: string, id: number | string) => `${apiBase.replace(/\/+$/, "")}/${encodeURIComponent(project)}/_workitems/edit/${id}`;
+export const workItemUrl = (apiBase: string, project: string, id: number | string) => `${trimTrailingSlash(apiBase)}/${encodeURIComponent(project)}/_workitems/edit/${id}`;
 
 /** An Azure DevOps answer refused, as a ProviderError (a rate limit with when to retry). */
 async function refused(res: Response): Promise<ProviderError> {

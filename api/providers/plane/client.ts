@@ -39,7 +39,7 @@ export function addressOf(baseUrl: string, workspaceOption: string | null): { ro
 }
 
 /** Where Plane's pages open for a server root (the cloud's API host is not its web host). */
-export const webBaseOf = (root: string) => (new URL(root).hostname === CLOUD_API ? CLOUD_WEB : root.replace(/\/+$/, ""));
+export const webBaseOf = (root: string) => (new URL(root).hostname === CLOUD_API ? CLOUD_WEB : trimTrailingSlash(root));
 
 /** A service on the internet never reaches private addresses; a self-hosted server may be on the user's network. */
 const networkOf = (root: string) => (new URL(root).hostname === CLOUD_API ? ("public" as const) : ("private" as const));

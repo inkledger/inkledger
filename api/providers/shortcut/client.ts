@@ -5,7 +5,7 @@
 // it) rather than a URL, the budget of 200 requests a minute answered with a
 // 429 and Retry-After, and validation errors as a list of messages.
 import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
-import { GONE, jsonCall } from "../core/http";
+import { GONE, jsonCall, trimTrailingSlash } from "../core/http";
 
 export type ShortcutCreds = {
   /** The API host: https://api.app.shortcut.com (a trailing /api/v3 is tolerated; the path is added here) */
@@ -13,7 +13,7 @@ export type ShortcutCreds = {
   token: string;
 };
 
-const trimmed = (apiBase: string) => apiBase.replace(/\/+$/, "").replace(/\/api\/v3$/, "");
+const trimmed = (apiBase: string) => trimTrailingSlash(apiBase).replace(/\/api\/v3$/, "");
 /** Where every v3 path starts. */
 export const rootOf = (apiBase: string) => `${trimmed(apiBase)}/api/v3`;
 

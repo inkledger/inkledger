@@ -3,7 +3,7 @@
 // adapter call inside one, so cancellation and the correlation id reach each
 // request without threading them through every client function.
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Credential } from "../types";
+import type { Conn, Credential } from "../types";
 
 export type CallMeta = { signal: AbortSignal; correlationId: string };
 
@@ -27,3 +27,9 @@ export function callSignal(own: AbortSignal | null | undefined): AbortSignal | u
 
 /** The secret a credential carries, whatever its kind: a token, an OAuth access token or a password. */
 export const secretOf = (cred: Credential): string => (cred.kind === "token" ? cred.token : cred.kind === "oauth" ? cred.accessToken : cred.password);
+
+/** A connection's site and secret: the credentials of a client that sends one token. */
+export const tokenCreds = async (x: { conn: Pick<Conn, "baseUrl" | "credential"> }): Promise<{ apiBase: string; token: string }> => ({
+  apiBase: x.conn.baseUrl,
+  token: secretOf(await x.conn.credential()),
+});

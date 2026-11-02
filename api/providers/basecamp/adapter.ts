@@ -8,6 +8,8 @@
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
 import { secretOf } from "../core/context";
+import { connectionMapping } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { wholeMinutes } from "../core/time";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -17,9 +19,8 @@ import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
+import { trimTrailingSlash } from "../core/http";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type ConversionWarning,
@@ -189,7 +190,7 @@ async function accountOf(base: string, token: string, chosen: string | null): Pr
 async function credsOf(x: X): Promise<BcCreds> {
   const cred = await x.conn.credential();
   const token = secretOf(cred);
-  const base = x.conn.baseUrl.replace(/\/+$/, "");
+  const base = trimTrailingSlash(x.conn.baseUrl);
   return { apiBase: `${base}/${await accountOf(base, token, x.conn.options.account)}`, token };
 }
 
@@ -233,13 +234,12 @@ function columnCategory(s: Pick<Shape, "columns">, col: Column): { category: Sta
   return mapped ? { category: mapped, native: false } : null;
 }
 
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 function columnStatus(s: Shape, bucket: string, col: Column, c: { category: StatusCategory; native: boolean }): RemoteStatus {
   return {
     id: String(col.id),
     name: col.title,
     category: c.category,
-    categoryOrigin: c.native ? { by: "native" } : { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) },
+    categoryOrigin: c.native ? { by: "native" } : connectionMapping(s.connId),
     source: { kind: "column", boardRemoteId: bucket },
   };
 }
@@ -586,11 +586,7 @@ export const basecampProvider: TrackerProvider<"basecamp", BasecampOptions> = {
   capabilities: basecampCapabilities,
   traits: basecampTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Basecamp options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Basecamp", optionsSchema),
 
   normalizeKey,
 

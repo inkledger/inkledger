@@ -123,6 +123,19 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
 /** A site address without the slashes that end it. */
 export const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, "");
 
+/** The path of a link on a site, after the site's own sub-path ("/…"): null when the text is no link, or one elsewhere. */
+export function pathUnderSite(text: string, webBase: string): string | null {
+  try {
+    const url = new URL(text.trim());
+    const site = new URL(webBase);
+    if (url.origin !== site.origin) return null;
+    const prefix = site.pathname.replace(/\/+$/, "");
+    return url.pathname.startsWith(`${prefix}/`) ? url.pathname.slice(prefix.length) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 404 and 410: a record that is not there, or was deleted. */
 export const GONE: readonly number[] = [404, 410];
 

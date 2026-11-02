@@ -8,11 +8,12 @@
 // changed under a revision test. Comments are HTML. Built from the API's
 // documentation on a simulator, not yet checked on a real account: see
 // docs/dev/spikes.md ("Azure DevOps").
-import { createHash, timingSafeEqual } from "node:crypto";
+import { sameSecretHashed } from "../core/webhooks";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits, WEBHOOK_EVENTS } from "@contracts/providers";
 import { instant, instantFrom, localDateOf, type JsonValue } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ConversionWarning, Instant, IssueRef, Limited, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, ReportedIssueGone, TrackerProvider, Transition } from "../types";
@@ -97,12 +98,6 @@ const OVERLAP_MS = 5 * 60_000;
 const PER_PAGE = 100;
 /** How long what the adapter learned about projects and states is trusted. */
 const CACHE_MS = 5 * 60_000;
-
-async function credsOf(x: X): Promise<AzureCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 // ---------- Keys and links ----------
 
@@ -364,7 +359,7 @@ const COMPLETED = "Microsoft.VSTS.Scheduling.CompletedWork";
 
 /** Moves the counter by `delta` seconds, held to the revision the caller read (or, with none, the one read now). */
 async function moveCounter(x: X, ref: IssueRef, delta: number, expectedVersion: string | undefined) {
-  const creds = await credsOf(x);
+  const creds = await tokenCreds(x);
   const w = await itemById(creds, idOf(ref), ["System.TeamProject", COMPLETED]);
   if (!w) throw new ProviderError("notFound", `Azure DevOps: no work item ${ref.key}`);
   const held = expectedVersion === undefined ? w.rev : Number(expectedVersion);
@@ -381,7 +376,7 @@ async function moveCounter(x: X, ref: IssueRef, delta: number, expectedVersion: 
 // ---------- The provider ----------
 
 async function search(x: X, query: string, limit: number): Promise<Limited<RemoteIssue>> {
-  const creds = await credsOf(x);
+  const creds = await tokenCreds(x);
   const { ids } = await wiql(creds, query, limit + 1);
   const items = await itemsByIds(creds, ids.slice(0, limit));
   return { items: await issuesOf(x, creds, items), complete: ids.length <= limit };
@@ -427,11 +422,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   capabilities: azureCapabilities,
   traits: azureTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Azure DevOps options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Azure DevOps", optionsSchema),
 
   normalizeKey,
 
@@ -464,7 +455,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   },
 
   async verify(x) {
-    const d = await azOk<AzureConnectionData>(await credsOf(x), "/_apis/connectionData", { version: CONNECTION_API_VERSION });
+    const d = await azOk<AzureConnectionData>(await tokenCreds(x), "/_apis/connectionData", { version: CONNECTION_API_VERSION });
     const u = d.authenticatedUser;
     const email = u.properties?.Account?.$value;
     return { remoteId: u.id, name: u.providerDisplayName ?? email ?? u.id, ...(email ? { login: email, email } : {}) };
@@ -472,7 +463,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
 
   async probe(x) {
     // No call budget is published as a figure (the service delays calls it finds too many, and answers 429 past that): throttled from the errors.
-    await azOk<AzureConnectionData>(await credsOf(x), "/_apis/connectionData", { version: CONNECTION_API_VERSION });
+    await azOk<AzureConnectionData>(await tokenCreds(x), "/_apis/connectionData", { version: CONNECTION_API_VERSION });
     return {
       capabilities: azureCapabilities,
       activeSources: [{ kind: "itemState", transitions: "allowedList", ref: { kind: "itemState" }, name: "Work item state" }],
@@ -481,7 +472,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   },
 
   async listChanged(x, q) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const top = x.conn.options.wiqlTop;
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     const at = decodePageToken<PageAt>(x.conn, "issues", V, q.since, q.page);
@@ -506,11 +497,11 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   },
 
   async getIssue(x, ref) {
-    return oneIssue(x, await credsOf(x), idOf(ref));
+    return oneIssue(x, await tokenCreds(x), idOf(ref));
   },
 
   async findIssue(x, handle) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     // The id is the identity: a link or a stored reference finds an item wherever it moved to.
     if (handle.remoteId) {
       const i = await oneIssue(x, creds, idOf(handle));
@@ -531,7 +522,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   },
 
   async statuses(x, source) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const wanted = (source.ref.kind === "itemState" ? source.ref.containerRemoteId : undefined)?.toLowerCase();
     const projects = (await projectsOf(x, creds)).filter((p) => !wanted || p.id.toLowerCase() === wanted || p.name.toLowerCase() === wanted).slice(0, 20);
     const byName = new Map<string, RemoteStatus>();
@@ -547,14 +538,14 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
   },
 
   async description(x, ref) {
-    const w = await itemById(await credsOf(x), idOf(ref), ["System.Description"]);
+    const w = await itemById(await tokenCreds(x), idOf(ref), ["System.Description"]);
     const html = w?.fields["System.Description"];
     return html ? { kind: "text", format: "html", text: html } : null;
   },
 
   transitions: {
     async list(x, ref) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const w = await itemById(creds, idOf(ref));
       if (!w) throw new ProviderError("notFound", `Azure DevOps: no work item ${ref.key}`);
       const [issue] = await issuesOf(x, creds, [w]);
@@ -574,7 +565,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
         });
     },
     async apply(x, ref, transitionId) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       // A state the type doesn't allow from here, or one that asks for a field, is refused with a 400: "invalid".
       const w = await patchItem(creds, idOf(ref), [{ op: "add", path: "/fields/System.State", value: transitionId }]);
       return (await issuesOf(x, creds, [w]))[0];
@@ -583,7 +574,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
 
   timeCounter: {
     async read(x, ref) {
-      const w = await itemById(await credsOf(x), idOf(ref), [COMPLETED]);
+      const w = await itemById(await tokenCreds(x), idOf(ref), [COMPLETED]);
       if (!w) throw new ProviderError("notFound", `Azure DevOps: no work item ${ref.key}`);
       return { seconds: secondsOf(w.fields[COMPLETED]) ?? 0, version: String(w.rev) };
     },
@@ -598,7 +589,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
 
   comments: {
     async list(x, ref) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       return inProject(creds, ref, async (project) => {
         const out: RemoteComment[] = [];
         let token: string | undefined;
@@ -615,7 +606,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
       });
     },
     async add(x, ref, body) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const c = await inProject(creds, ref, (project) =>
         azOk<AzureComment>(creds, `/${encodeURIComponent(project)}/_apis/wit/workItems/${idOf(ref)}/comments`, { method: "POST", version: COMMENTS_API_VERSION, body: JSON.stringify({ text: paragraphs(body) }) }),
       );
@@ -632,7 +623,7 @@ export const azureProvider: TrackerProvider<"azure", AzureOptions> = {
 
 
   async history(x, ref) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const out: RemoteChange[] = [];
     for (let skip = 0, n = 0; n < 50; n++, skip += 200) {
       const r = await azOk<{ value: AzureUpdate[] }>(creds, `/_apis/wit/workItems/${idOf(ref)}/updates`, { params: { $top: 200, $skip: skip } });
@@ -665,13 +656,12 @@ const HOOK_EVENTS: Record<string, WebhookEvent> = {
   "workitem.deleted": "issueRemoved",
   "workitem.commented": "commentAdded",
 };
-const digest = (s: string) => createHash("sha256").update(s).digest();
 
 export const azureWebhook = {
   /** Whether a delivery carries the subscription's own user name and password (compared in constant time). */
   verify(authorization: string | null | undefined, secret: { username: string; password: string }): boolean {
     const expected = `Basic ${Buffer.from(`${secret.username}:${secret.password}`).toString("base64")}`;
-    return typeof authorization === "string" && timingSafeEqual(digest(authorization), digest(expected));
+    return typeof authorization === "string" && sameSecretHashed(authorization, expected);
   },
   /** The event's own id: a redelivery of the same event carries the same one (notificationId counts deliveries of a subscription, not events). */
   deliveryId(body: unknown): string | null {

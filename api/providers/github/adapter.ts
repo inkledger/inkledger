@@ -3,7 +3,8 @@
 // service's own open/closed with its reason (completed, not planned): the
 // project status of Projects v2 waits for its spike. GitHub keeps no time:
 // the time stays in inkledger's own register.
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { verifySha256Header } from "../core/webhooks";
 import { toGitHubQuery } from "./translate";
 import { z } from "zod";
@@ -97,12 +98,6 @@ const REASONS: Record<string, "mention" | "comment" | "review" | "change" | "ass
   state_change: "change",
   assign: "assign",
 };
-
-async function credsOf(x: X): Promise<GitHubCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 /** owner/repo#12, as GitHub writes it. */
 export const REPO_KEY = /^([A-Za-z0-9][\w.-]{0,99})\/([\w.-]{1,100})#(\d{1,9})$/;
@@ -208,7 +203,7 @@ async function watchedOutsideFeed(creds: GitHubCreds): Promise<string[]> {
 }
 
 async function patchIssue(x: X, ref: { key: string }, body: Record<string, unknown>) {
-  return toRemoteIssue(await ghOk<GitHubIssue>(await credsOf(x), issuePath(ref.key), { method: "PATCH", body: JSON.stringify(body) }));
+  return toRemoteIssue(await ghOk<GitHubIssue>(await tokenCreds(x), issuePath(ref.key), { method: "PATCH", body: JSON.stringify(body) }));
 }
 
 export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
@@ -218,11 +213,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   traits: githubTraits,
   settings: [{ key: "mine", choices: ["followed", "assigned"] }],
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `GitHub options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("GitHub", optionsSchema),
 
   normalizeKey,
 
@@ -240,12 +231,12 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async verify(x) {
-    const me = await ghOk<GitHubUser>(await credsOf(x), "/user");
+    const me = await ghOk<GitHubUser>(await tokenCreds(x), "/user");
     return { ...person(me), login: me.login };
   },
 
   async probe(x) {
-    const r = await ghOk<{ resources: { core: { limit: number } } }>(await credsOf(x), "/rate_limit");
+    const r = await ghOk<{ resources: { core: { limit: number } } }>(await tokenCreds(x), "/rate_limit");
     return {
       capabilities: githubCapabilities,
       activeSources: [{ kind: "boolean", transitions: "direct", reasons: true, ref: { kind: "boolean" }, name: "Open / closed" }],
@@ -255,7 +246,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async listChanged(x, q) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const excluded = new Set(x.conn.options.excludeRepos.map((r) => r.toLowerCase()));
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
@@ -291,7 +282,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async inbox(x, cursor) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     // Unread threads changed since the cursor; an unchanged list answers 304 (free).
     const since = cursor ? `&since=${encodeURIComponent(cursor)}` : "";
     const threads = await allPages<GitHubThread>(creds, `/notifications?all=false&per_page=50${since}`);
@@ -306,7 +297,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async otherFields(x, ref) {
-    const i = await issueByKey(await credsOf(x), ref.key);
+    const i = await issueByKey(await tokenCreds(x), ref.key);
     if (!i) return [];
     const out = [
       { name: "Milestone", value: i.milestone?.title ?? "" },
@@ -317,11 +308,11 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async markRead(x, id) {
-    await gh(await credsOf(x), `/notifications/threads/${encodeURIComponent(id)}`, { method: "PATCH" });
+    await gh(await tokenCreds(x), `/notifications/threads/${encodeURIComponent(id)}`, { method: "PATCH" });
   },
 
   async containers(x) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const excluded = new Set(x.conn.options.excludeRepos.map((r) => r.toLowerCase()));
     // The user's own (owned, collaborated on) and the org's ones they can write to: not every
     // repository of every org, nor the ones only watched (the repositories where the user
@@ -332,18 +323,18 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async getIssue(x, ref) {
-    const i = await issueByKey(await credsOf(x), ref.key);
+    const i = await issueByKey(await tokenCreds(x), ref.key);
     return i ? toRemoteIssue(i) : null;
   },
 
   async findIssue(x, handle) {
     if (!handle.key) return { kind: "none" };
-    const i = await issueByKey(await credsOf(x), handle.key);
+    const i = await issueByKey(await tokenCreds(x), handle.key);
     return i ? { kind: "found", issue: toRemoteIssue(i) } : { kind: "none" };
   },
 
   async searchText(x, text, limit) {
-    return search(await credsOf(x), `${text.replace(/[^\p{L}\p{N}\s#/.-]/gu, " ").trim()} involves:@me`, limit);
+    return search(await tokenCreds(x), `${text.replace(/[^\p{L}\p{N}\s#/.-]/gu, " ").trim()} involves:@me`, limit);
   },
 
   translate(expr, now) {
@@ -357,7 +348,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async query(x, query, limit) {
-    return search(await credsOf(x), query, limit);
+    return search(await tokenCreds(x), query, limit);
   },
 
   async statuses() {
@@ -365,19 +356,19 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
   },
 
   async description(x, ref) {
-    const i = await issueByKey(await credsOf(x), ref.key);
+    const i = await issueByKey(await tokenCreds(x), ref.key);
     return i?.body ? { kind: "text", format: "gfm", text: i.body } : null;
   },
 
   manage: {
     async assignable(x, container) {
-      return (await allPages<GitHubUser>(await credsOf(x), `/repos/${container.key}/assignees?per_page=100`)).map(person);
+      return (await allPages<GitHubUser>(await tokenCreds(x), `/repos/${container.key}/assignees?per_page=100`)).map(person);
     },
     async assign(x, ref, people) {
       return patchIssue(x, ref, { assignees: people.map((p) => p.handle ?? p.name) });
     },
     async labelOptions(x, container) {
-      return (await allPages<{ name: string }>(await credsOf(x), `/repos/${container.key}/labels?per_page=100`)).map((l) => l.name);
+      return (await allPages<{ name: string }>(await tokenCreds(x), `/repos/${container.key}/labels?per_page=100`)).map((l) => l.name);
     },
     async setLabels(x, ref, labels) {
       return patchIssue(x, ref, { labels });
@@ -385,7 +376,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
     async create(x, container, draft) {
       // GFM takes CommonMark as is.
       const body = { title: draft.title, body: draft.body ?? "", labels: draft.labels ?? [], assignees: (draft.assignees ?? []).map((p) => p.handle ?? p.name) };
-      return toRemoteIssue(await ghOk<GitHubIssue>(await credsOf(x), `/repos/${container.key}/issues`, { method: "POST", body: JSON.stringify(body) }));
+      return toRemoteIssue(await ghOk<GitHubIssue>(await tokenCreds(x), `/repos/${container.key}/issues`, { method: "POST", body: JSON.stringify(body) }));
     },
     async edit(x, ref, patch) {
       return patchIssue(x, ref, { ...(patch.title !== undefined ? { title: patch.title } : {}), ...(patch.body !== undefined ? { body: patch.body } : {}) });
@@ -394,7 +385,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
 
   transitions: {
     async list(x, ref) {
-      const i = await issueByKey(await credsOf(x), ref.key);
+      const i = await issueByKey(await tokenCreds(x), ref.key);
       if (!i) throw new ProviderError("notFound", `GitHub: no issue ${ref.key}`);
       const now = statusOf(i);
       return STATUSES.filter((s) => s.id !== now.id).map((to) => ({
@@ -407,14 +398,14 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
     },
     async apply(x, ref, transitionId) {
       const body = transitionId === "open" ? { state: "open", state_reason: "reopened" } : { state: "closed", state_reason: transitionId === "not_planned" ? "not_planned" : "completed" };
-      const i = await ghOk<GitHubIssue>(await credsOf(x), issuePath(ref.key), { method: "PATCH", body: JSON.stringify(body) });
+      const i = await ghOk<GitHubIssue>(await tokenCreds(x), issuePath(ref.key), { method: "PATCH", body: JSON.stringify(body) });
       return toRemoteIssue(i);
     },
   },
 
   comments: {
     async list(x, ref) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const out: RemoteComment[] = [];
       let next: string | null = `${issuePath(ref.key)}/comments?per_page=100`;
       for (let n = 0; next && n < 20; n++) {
@@ -426,7 +417,7 @@ export const githubProvider: TrackerProvider<"github", GitHubOptions> = {
     },
     async add(x, ref, body) {
       // GFM takes CommonMark as is: nothing to approximate.
-      const c = await ghOk<GitHubComment>(await credsOf(x), `${issuePath(ref.key)}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+      const c = await ghOk<GitHubComment>(await tokenCreds(x), `${issuePath(ref.key)}/comments`, { method: "POST", body: JSON.stringify({ body }) });
       return { comment: toRemoteComment(c), warnings: [] };
     },
   },

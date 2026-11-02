@@ -4,10 +4,12 @@
 // which is the team's own words). Linear keeps no time inkledger can use
 // (estimates are points): the time stays in inkledger's own register.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { headerOf, type DeliveryHeaders } from "../core/webhooks";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type Instant, type JsonValue } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { ActiveWorkflowSource, CallContext, ChangeValue, IssueHandle, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
@@ -191,11 +193,7 @@ export const linearProvider: TrackerProvider<"linear", LinearOptions> = {
   capabilities: linearCapabilities,
   traits: linearTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Linear options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Linear", optionsSchema),
 
   normalizeKey,
 
@@ -421,13 +419,6 @@ export function toChanges(h: HistoryNode): RemoteChange[] {
 /** Linear refuses nothing itself: a delivery older than this is a replay and is refused here. */
 export const WEBHOOK_MAX_AGE_MS = 60_000;
 
-type HeaderSource = Headers | Record<string, string | string[] | undefined>;
-const header = (h: HeaderSource, name: string): string | undefined => {
-  if (h instanceof Headers) return h.get(name) ?? undefined;
-  const hit = Object.entries(h).find(([k]) => k.toLowerCase() === name);
-  return Array.isArray(hit?.[1]) ? hit[1][0] : hit?.[1];
-};
-
 /**
  * Linear's webhooks: `Linear-Signature` is the hex HMAC-SHA256 of the raw
  * body under the webhook's signing secret, `Linear-Delivery` the delivery id,
@@ -435,8 +426,8 @@ const header = (h: HeaderSource, name: string): string | undefined => {
  * detectable. The raw body, never a re-serialized one.
  */
 export const linearWebhook = {
-  verify(a: { secret: string; rawBody: string; headers: HeaderSource; now?: number }): boolean {
-    const given = header(a.headers, "linear-signature");
+  verify(a: { secret: string; rawBody: string; headers: DeliveryHeaders; now?: number }): boolean {
+    const given = headerOf(a.headers, "linear-signature");
     if (!given || !/^[0-9a-f]{64}$/i.test(given)) return false;
     const expected = createHmac("sha256", a.secret).update(a.rawBody).digest();
     const got = Buffer.from(given, "hex");
@@ -444,8 +435,8 @@ export const linearWebhook = {
     const sent = linearWebhook.sentAt(a.rawBody);
     return sent !== null && Math.abs((a.now ?? Date.now()) - sent) <= WEBHOOK_MAX_AGE_MS;
   },
-  deliveryId(headers: HeaderSource): string | null {
-    return header(headers, "linear-delivery") ?? null;
+  deliveryId(headers: DeliveryHeaders): string | null {
+    return headerOf(headers, "linear-delivery") ?? null;
   },
   sentAt(rawBody: string): Instant | null {
     try {

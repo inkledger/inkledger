@@ -7,7 +7,7 @@
 // are strings in GraphQL and numbers inside column values, cursors that
 // expire, and page numbers for boards, updates and activity logs.
 import { ProviderError, kindOfStatus, type RateLimit } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 import { collectPages } from "../core/paging";
 
 /** The schema version asked for (monday keeps each for about a year); a request without the header gets the "current" one, which moves. */
@@ -127,7 +127,7 @@ function refused(status: number, headers: Headers, body: Answer<unknown> | null)
 
 /** One operation; the data, and the headers it came with. `missingIsNull`: a not-found answer as null data. */
 export async function gqlRaw<T>(c: MondayCreds, operationName: string, query: string, variables: Record<string, unknown> = {}, o: { write?: boolean; missingIsNull?: boolean } = {}): Promise<{ data: T | null; headers: Headers }> {
-  const url = c.apiBase.replace(/\/+$/, "");
+  const url = trimTrailingSlash(c.apiBase);
   const res = await safeFetch({
     site: url,
     url,

@@ -3,7 +3,7 @@
 // them only to a browser session, so they are found again in the issue's
 // rendered body (body_html), whose links are signed for a few minutes:
 // asked fresh on every download, the connection's token never leaves the server.
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 import { ProviderError } from "../core/errors";
 import type { GitHubCreds } from "./client";
 import { issuePath } from "./adapter";
@@ -39,7 +39,7 @@ const fail = (status: number, message: string) => new ProviderError(status === 4
 export async function fetchGitHubAttachment(c: GitHubCreds, key: string, url: string): Promise<Response> {
   const res = await safeFetch({
     site: c.apiBase,
-    url: `${c.apiBase.replace(/\/+$/, "")}${issuePath(key)}`,
+    url: `${trimTrailingSlash(c.apiBase)}${issuePath(key)}`,
     init: { headers: { Accept: "application/vnd.github.full+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${c.token}` } },
     fail,
   });

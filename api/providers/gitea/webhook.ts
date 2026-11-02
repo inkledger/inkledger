@@ -2,7 +2,7 @@
 // and the event, read from the raw request. The provider contract has no
 // webhook operation yet (webhooks are the last provider work, D5): these are
 // the pieces the receiving route will bind to it. Payloads are signals only.
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { hmacHex, sameSecret } from "../core/webhooks";
 import type { Instant } from "@contracts/values";
 import { instantFrom } from "@contracts/values";
 
@@ -21,11 +21,7 @@ const signatureOf = (h: Headers) => header(h, "x-gitea-signature") ?? header(h, 
 /** Whether the body (as received, byte for byte) was signed with the hook's secret. */
 export function verifyWebhook(secret: string, rawBody: string | Uint8Array, headers: Headers): boolean {
   const given = signatureOf(headers)?.trim().toLowerCase();
-  if (!given || !secret) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(given, "utf8");
-  const b = Buffer.from(expected, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
+  return !!given && !!secret && sameSecret(given, hmacHex(secret, rawBody));
 }
 
 /** The delivery's id (a UUID, the same on a redelivery): what makes handling it idempotent. */

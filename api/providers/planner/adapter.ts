@@ -14,12 +14,12 @@ import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { connectionMapping } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type IssueHandle,
@@ -108,12 +108,6 @@ const COMPLETED_WINDOW_DAYS = 30;
 /** Tasks that left the list are looked at one by one: bounded. */
 const MAX_GONE_CHECKS = 100;
 
-async function credsOf(x: X): Promise<PlannerCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 type Shape = { connId: number; columns: Record<string, StatusCategory>; zone: TimeZone };
 const shapeOf = (x: X): Shape => ({ connId: x.conn.id, columns: x.conn.options.columns, zone: x.conn.timeZone });
 
@@ -140,9 +134,8 @@ const NOT_STARTED = itemState("0", "Not started", "todo");
 const IN_PROGRESS = itemState("50", "In progress", "doing");
 const COMPLETED = itemState("100", "Completed", "done");
 
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 function columnStatus(s: Shape, plan: string, bucket: { id: string; name: string }, category: StatusCategory): RemoteStatus {
-  return { id: bucket.id, name: bucket.name, category, categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) }, source: { kind: "column", boardRemoteId: plan } };
+  return { id: bucket.id, name: bucket.name, category, categoryOrigin: connectionMapping(s.connId), source: { kind: "column", boardRemoteId: plan } };
 }
 
 /** Completed is completed; an open task takes its bucket's status when the options say what it is, else its percentComplete. */
@@ -348,11 +341,7 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
   capabilities: plannerCapabilities,
   traits: plannerTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Planner options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Planner", optionsSchema),
 
   normalizeKey,
 
@@ -371,12 +360,12 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
   },
 
   async verify(x) {
-    const me = await graphOk<GraphUser>(await credsOf(x), "/me");
+    const me = await graphOk<GraphUser>(await tokenCreds(x), "/me");
     return { ...person(me), ...(me.mail ? { email: me.mail } : {}), ...(me.userPrincipalName ? { login: me.userPrincipalName } : {}) };
   },
 
   async probe(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     await graphOk<GraphUser>(c, "/me");
     const sources: ActiveWorkflowSource[] = [{ kind: "itemState", transitions: "direct", ref: { kind: "itemState" }, name: "Progress" }];
     // Buckets are statuses only once the options name some: then each plan is a board (the plans shared with the user).
@@ -388,7 +377,7 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const shape = shapeOf(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since);
     const pass = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { next: "/me/planner/tasks", seen: {}, at: Date.now() };
@@ -415,13 +404,13 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
   },
 
   async getIssue(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, idOfHandle(ref));
     return t ? (await shapeAll(c, shapeOf(x), [t]))[0] : null;
   },
 
   async findIssue(x, handle) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, idOfHandle(handle));
     // An id is unique on the service: never ambiguous.
     return t ? { kind: "found", issue: (await shapeAll(c, shapeOf(x), [t]))[0] } : { kind: "none" };
@@ -431,7 +420,7 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
     if (source.kind === "itemState") return [NOT_STARTED, IN_PROGRESS, COMPLETED];
     if (source.kind !== "column") return [];
     const s = shapeOf(x);
-    const buckets = await graphPages<PlannerBucket>(await credsOf(x), `/planner/plans/${encodeURIComponent(source.ref.boardRemoteId)}/buckets`);
+    const buckets = await graphPages<PlannerBucket>(await tokenCreds(x), `/planner/plans/${encodeURIComponent(source.ref.boardRemoteId)}/buckets`);
     return buckets.flatMap((b, order) => {
       const category = s.columns[bucketKey(b.name)];
       return category ? [{ ...columnStatus(s, source.ref.boardRemoteId, b, category), order }] : [];
@@ -441,14 +430,14 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
   async description(x, ref) {
     const id = idOfHandle(ref);
     if (!id || !ID.test(id)) return null;
-    const d = await soft(graph<PlannerDetails>(await credsOf(x), `${taskPath(id)}/details`, { missingIsNull: true }));
+    const d = await soft(graph<PlannerDetails>(await tokenCreds(x), `${taskPath(id)}/details`, { missingIsNull: true }));
     const text = d?.data.description?.replace(/\r\n?/g, "\n") ?? "";
     return text.trim() ? { kind: "text", format: "plain", text } : null;
   },
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const s = shapeOf(x);
       const look = lookups(c);
@@ -466,7 +455,7 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
       return [...moves, ...start, { id: "percent:100", name: "Complete", to: COMPLETED, ...common }];
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const shape = shapeOf(x);
       const change = await changeOf(c, shape, t, transitionId);

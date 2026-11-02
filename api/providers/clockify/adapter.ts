@@ -9,7 +9,8 @@
 import { z } from "zod";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { ProviderError } from "../core/errors";
 import type { ApprovalState, CallContext, ExternalRef, Limited, RemoteWorklog, SinkTarget, TimeSinkProvider, WorklogInput } from "../types";
 import {
@@ -60,12 +61,6 @@ export const clockifySinkCapabilities: TimeSinkCapabilities = {
 export const clockifySinkTraits: TimeSinkTraits = { invoices: true, rates: true };
 
 type X = CallContext<"clockify", ClockifyOptions>;
-
-async function credsOf(x: X): Promise<ClockifyCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 /** The workspace of a connection: its option, else the user's active one (read once per connection). */
 const workspaces = new WeakMap<object, Promise<string>>();
@@ -200,7 +195,7 @@ const person = (u: ClockifyUser) => ({ remoteId: u.id, name: u.name ?? u.email ?
 const TASK_PROJECTS = 5;
 
 async function findTargets(x: X, query: string, limit: number): Promise<Limited<SinkTarget>> {
-  const c = await credsOf(x);
+  const c = await tokenCreds(x);
   const ws = await workspaceOf(x, c);
   const projects = await cfOk<ClockifyProject[]>(c, `/workspaces/${ws}/projects?${new URLSearchParams({ name: query, archived: "false", page: "1", "page-size": String(limit + 1) }).toString()}`);
   const items: SinkTarget[] = projects.filter((p) => !p.archived).map((p) => ({ remoteId: p.id, name: p.name, path: [] }));
@@ -224,14 +219,10 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
   capabilities: clockifySinkCapabilities,
   traits: clockifySinkTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Clockify options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Clockify", optionsSchema),
 
   async verify(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const me = await cfOk<ClockifyUser>(c, "/user");
     const wanted = x.conn.options.workspaceId;
     if (wanted) {
@@ -242,7 +233,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
   },
 
   async probe(x) {
-    await cfOk<ClockifyUser>(await credsOf(x), "/user");
+    await cfOk<ClockifyUser>(await tokenCreds(x), "/user");
     // 50 requests a second per key is Clockify's published budget (not yet declared: clockify-rate-limit).
     return { capabilities: clockifySinkCapabilities, rateLimit: { perSecond: 50, origin: "typical" }, verifiedAt: instant(Date.now()) };
   },
@@ -251,7 +242,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
 
   entries: {
     async list(x, range) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
       const zone = x.conn.timeZone;
       // Local days to instants (Clockify's filters are instants, never dates), the last second of the last day.
@@ -263,7 +254,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
     },
 
     async create(x, ref, target, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
       const body = {
         ...sessionOf(w),
@@ -280,7 +271,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
     },
 
     async update(x, id, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
       const cur = (await cf<ClockifyEntry>(c, `/workspaces/${ws}/time-entries/${id}`, { missingIsNull: true }))?.data;
       if (!cur) throw new ProviderError("notFound", `Clockify: no entry ${id}`);
@@ -302,7 +293,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
     },
 
     async delete(x, id) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
       // Already gone is a success (404).
       await cf<undefined>(c, `/workspaces/${ws}/time-entries/${id}`, { method: "DELETE", missingIsNull: true });

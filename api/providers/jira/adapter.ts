@@ -44,6 +44,7 @@ import {
   type JiraWorklog, fetchCreateFields, type JiraCreateField } from "../../jira/client";
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
+import { trimTrailingSlash } from "../core/http";
 import type { CallContext, ConversionWarning, FieldReq, FieldValue, RemoteBody, RemoteComment, RemoteIssue, RemoteStatus, RemoteWorklog, TrackerProvider, WorklogInput } from "../types";
 import type { JiraTransitionField } from "../../jira/client";
 
@@ -145,7 +146,7 @@ function statusOf(s: { id?: string; name?: string; statusCategory?: { key?: stri
   return { id: s?.id ?? name, name, category: jiraCategory(s?.statusCategory?.key), categoryOrigin: { by: "native" }, source: { kind: "itemState" }, nativeReason: resolution ?? null };
 }
 
-const browse = (site: string, key: string) => `${site.replace(/\/+$/, "")}/browse/${key}`;
+const browse = (site: string, key: string) => `${trimTrailingSlash(site)}/browse/${key}`;
 
 export function toRemoteIssue(siteUrl: string, i: JiraSearchedIssue): RemoteIssue {
   const f = i.fields;

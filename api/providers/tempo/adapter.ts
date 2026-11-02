@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, type TimeZone } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, CatalogItem, ExternalRef, Limited, Page, RemoteWorklog, ReportedEntryGone, TimeSinkProvider, WorklogInput } from "../types";
@@ -59,12 +59,6 @@ type X = CallContext<"tempo", TempoOptions>;
 const V = 1;
 const LOOKBACK_MS = 7 * DAY_MS;
 const OVERLAP_MS = 3_600_000;
-
-async function credsOf(x: X): Promise<TempoCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 /** The Jira account the worklogs are for. */
 function accountOf(x: X): string {
@@ -237,26 +231,26 @@ export const tempoSink: TimeSinkProvider<"tempo", TempoOptions> = {
   async verify(x) {
     // Tempo has no "who am I": the worklogs of the account prove the token and the account id together.
     const id = accountOf(x);
-    await tpOk<TempoList<TempoWorklog>>(await credsOf(x), withQuery(`/worklogs/user/${enc(id)}`, { limit: 1 }));
+    await tpOk<TempoList<TempoWorklog>>(await tokenCreds(x), withQuery(`/worklogs/user/${enc(id)}`, { limit: 1 }));
     return { remoteId: id, name: `Tempo account ${id}` };
   },
 
   async probe(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     await tpOk<TempoList<TempoWorklog>>(c, withQuery(`/worklogs/user/${enc(accountOf(x))}`, { limit: 1 }));
     return { capabilities: tempoSinkCapabilities, verifiedAt: instant(Date.now()) };
   },
 
   entries: {
     async list(x, range) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const rows = await tpPages<TempoWorklog>(c, withQuery(`/worklogs/user/${enc(accountOf(x))}`, { from: range.from, to: range.to, limit: PER_PAGE }));
       return remotes(x, c, rows ?? []);
     },
 
     /** Worklogs changed since the checkpoint (a week back at the first pass): updatedFrom filters by change, to the second. */
     async changed(x, q): Promise<Page<RemoteWorklog, ReportedEntryGone>> {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const since = decodeCheckpoint<FeedSince>(x.conn, "worklogs", V, q.since)?.at ?? null;
       const pass = decodePageToken<FeedPass>(x.conn, "worklogs", V, q.since, q.page) ?? { offset: 0, at: Date.now() };
       const r = await tpOk<TempoList<TempoWorklog>>(c, withQuery(`/worklogs/user/${enc(accountOf(x))}`, { updatedFrom: isoSeconds(since ?? pass.at - LOOKBACK_MS), offset: pass.offset, limit: PER_PAGE }));
@@ -266,7 +260,7 @@ export const tempoSink: TimeSinkProvider<"tempo", TempoOptions> = {
     },
 
     async create(x, ref, _target, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const pair = w.activityId ? await activityPair(x, c, w.activityId) : null;
       const body = bodyOf(x, w, noteOf(ref, w.comment), w.time.seconds, {
         issueId: issueIdOf(ref),
@@ -278,7 +272,7 @@ export const tempoSink: TimeSinkProvider<"tempo", TempoOptions> = {
     },
 
     async update(x, id, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const was = (await tp<TempoWorklog>(c, `/worklogs/${enc(id)}`, { missingIsNull: true }))?.data;
       if (!was) throw new ProviderError("notFound", `Tempo: no worklog ${id}`);
       if (!was.issue) throw new ProviderError("incompatible", "Tempo: a worklog with no issue");
@@ -297,11 +291,11 @@ export const tempoSink: TimeSinkProvider<"tempo", TempoOptions> = {
 
     async delete(x, id) {
       // Deleting what is already gone is a success. The id is the Tempo one: Jira's mirror id is a 404 here.
-      await tp<undefined>(await credsOf(x), `/worklogs/${enc(id)}`, { method: "DELETE", missingIsNull: true });
+      await tp<undefined>(await tokenCreds(x), `/worklogs/${enc(id)}`, { method: "DELETE", missingIsNull: true });
     },
 
     async activities(x, _scope, limit): Promise<Limited<CatalogItem>> {
-      const act = await activityAttribute(x, await credsOf(x));
+      const act = await activityAttribute(x, await tokenCreds(x));
       const items = (act?.values ?? []).map((v) => ({ id: v, name: act?.names.get(v) ?? v }));
       return { items: items.slice(0, limit), complete: items.length <= limit };
     },

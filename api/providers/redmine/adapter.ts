@@ -9,7 +9,10 @@ import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, type LocalDate } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { categoryByName } from "../core/categories";
+import { optionsParser } from "../core/options";
+import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { IncompatibleResultError } from "../core/results";
@@ -134,12 +137,6 @@ const TAIL = 4;
 /** The feed window the capabilities declare: 30 days and 2 of overlap. */
 const WINDOW_DAYS = 32;
 
-async function credsOf(x: X): Promise<RedmineCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 // ---------- Keys and links ----------
 
 /** #123, as people write an issue in Redmine. */
@@ -194,10 +191,7 @@ const DOING = /progress|doing|started|working|review|testing|feedback|resolved|a
  * (SPIKES.md, redmine-status-categories). A Resolved status stays open by
  * default in Redmine: it is not done until it is closed.
  */
-export function categoryOf(name: string, closed: boolean): StatusCategory {
-  if (closed) return CANCELLED.test(name) ? "cancelled" : "done";
-  return DOING.test(name) ? "doing" : "todo";
-}
+export const categoryOf = (name: string, closed: boolean): StatusCategory => categoryByName(name, closed, { cancelled: CANCELLED, doing: DOING });
 
 const statusOf = (id: number, name: string, closed: boolean): RemoteStatus => ({
   id: String(id),
@@ -308,7 +302,7 @@ const meId = (x: X) => {
 const issuesQuery = (params: Record<string, string>) => new URLSearchParams({ status_id: "*", ...params }).toString();
 
 async function search(x: X, text: string, limit: number) {
-  const c = await credsOf(x);
+  const c = await tokenCreds(x);
   const needle = text.trim();
   if (!needle) return { items: [], complete: true };
   const per = Math.min(100, limit + 1);
@@ -472,38 +466,25 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
   capabilities: redmineCapabilities,
   traits: redmineTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Redmine options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Redmine", optionsSchema),
 
   normalizeKey,
 
   parseRef(r, text): IssueHandle | null {
     const key = normalizeKey(text);
     if (key) return { key };
-    try {
-      const url = new URL(text.trim());
-      const site = new URL(webBaseOf(r.baseUrl));
-      if (url.origin !== site.origin) return null;
-      // …/issues/12, …/issues/12.json, …/issues/12/time_entries/new: under the site's sub-URI when it has one.
-      const prefix = site.pathname.replace(/\/+$/, "");
-      if (!url.pathname.startsWith(`${prefix}/`)) return null;
-      const m = /^\/issues\/(\d{1,9})(?:\.(?:json|xml))?(?:\/.*)?$/.exec(url.pathname.slice(prefix.length));
-      return m ? { key: keyOfId(Number(m[1])) } : null;
-    } catch {
-      return null;
-    }
+    // …/issues/12, …/issues/12.json, …/issues/12/time_entries/new: under the site's sub-URI when it has one.
+    const m = /^\/issues\/(\d{1,9})(?:\.(?:json|xml))?(?:\/.*)?$/.exec(pathUnderSite(text, webBaseOf(r.baseUrl)) ?? "");
+    return m ? { key: keyOfId(Number(m[1])) } : null;
   },
 
   async verify(x) {
-    const { user } = await rdOk<{ user: RmUser }>(await credsOf(x), "/users/current.json");
+    const { user } = await rdOk<{ user: RmUser }>(await tokenCreds(x), "/users/current.json");
     return { ...person(user), ...(user.login ? { login: user.login } : {}), ...(user.mail ? { email: user.mail } : {}) };
   },
 
   async probe(x) {
-    await rdOk<{ user: RmUser }>(await credsOf(x), "/users/current.json");
+    await rdOk<{ user: RmUser }>(await tokenCreds(x), "/users/current.json");
     return {
       capabilities: redmineCapabilities,
       activeSources: [{ kind: "itemState", transitions: "allowedList", ref: { kind: "itemState" }, name: "Status" }],
@@ -513,7 +494,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     const here = decodePageToken<PassAt>(x.conn, "issues", V, q.since, q.page);
     const from = Math.max(0, (here?.skip ?? 0) - TAIL);
@@ -545,14 +526,14 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
   },
 
   async getIssue(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const id = idOf(ref);
     const i = id === null ? null : await fetchIssue(c, id);
     return i ? (await shapeAll(x, c, [i]))[0] : null;
   },
 
   async findIssue(x, handle) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const fromKey = handle.key ? idOf({ key: handle.key }) : null;
     const fromId = handle.remoteId ? idOf({ remoteId: handle.remoteId }) : null;
     // An id is unique on the server: a key and an id that disagree name nothing.
@@ -567,18 +548,18 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
   },
 
   async statuses(x) {
-    const r = await rdOk<{ issue_statuses?: RmStatus[] }>(await credsOf(x), "/issue_statuses.json");
+    const r = await rdOk<{ issue_statuses?: RmStatus[] }>(await tokenCreds(x), "/issue_statuses.json");
     return (r.issue_statuses ?? []).map((s, order) => ({ ...statusOf(s.id, s.name, s.is_closed === true), order }));
   },
 
   async description(x, ref) {
-    const i = await fetchIssue(await credsOf(x), idOf(ref) ?? -1);
+    const i = await fetchIssue(await tokenCreds(x), idOf(ref) ?? -1);
     return i?.description ? { kind: "text", format: "textile", text: i.description } : null;
   },
 
   transitions: {
     async list(x, ref): Promise<Transition[]> {
-      const i = await mustIssue(await credsOf(x), ref, "allowed_statuses");
+      const i = await mustIssue(await tokenCreds(x), ref, "allowed_statuses");
       // Before Redmine 5.0 the allowed statuses aren't given: nothing is offered rather than a guess.
       if (!i.allowed_statuses) return [];
       const url = `${webOf(x)}/issues/${i.id}`;
@@ -587,7 +568,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
         .map((s) => ({ id: `status:${s.id}`, name: s.name, to: statusOf(s.id, s.name, s.is_closed === true), requirements: [], remoteUrl: url }));
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const m = /^status:(\d+)$/.exec(transitionId);
       if (!m) throw new ProviderError("invalid", `Redmine: no transition ${transitionId}`);
       const i = await mustIssue(c, ref);
@@ -600,7 +581,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const id = idOf(ref);
       if (id === null) return [];
       const rows = (await rdPages<RmTimeEntry>(c, `/time_entries.json?issue_id=${id}`, "time_entries")) ?? [];
@@ -608,11 +589,11 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
       return rows.filter((e) => e.issue?.id === id).map((e) => toRemoteWorklog(e, x.conn.remoteAccountId));
     },
     async get(x, ref, id) {
-      const e = await readEntry(await credsOf(x), id);
+      const e = await readEntry(await tokenCreds(x), id);
       return e && e.issue?.id === idOf(ref) ? toRemoteWorklog(e, x.conn.remoteAccountId) : null;
     },
     async changed(x, q) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       // Only validated: a window is always read whole (an entry can be dated before it was logged).
       decodeCheckpoint<Since>(x.conn, "worklogs", V, q.since);
       const pageAt =
@@ -635,7 +616,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
       return { last: false, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, { ...pageAt, offset } satisfies EntriesAt) };
     },
     async create(x, ref, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const id = idOf(ref);
       if (id === null) throw new ProviderError("notFound", `Redmine: no issue ${ref.key}`);
       const made = (await rdOk<{ time_entry: RmTimeEntry }>(c, "/time_entries.json", { method: "POST", body: JSON.stringify(entryBody(w, { issueId: id })) })).time_entry;
@@ -647,7 +628,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
       return toRemoteWorklog(made, x.conn.remoteAccountId);
     },
     async update(x, _ref, id, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       // 204 and no body: read again.
       await rd(c, entryPath(id), { method: "PUT", body: JSON.stringify(entryBody(w, null)) });
       const e = await readEntry(c, id);
@@ -656,10 +637,10 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
     },
     async delete(x, _ref, id) {
       // Already gone is what was asked for.
-      await rd(await credsOf(x), entryPath(id), { method: "DELETE", missingIsNull: true });
+      await rd(await tokenCreds(x), entryPath(id), { method: "DELETE", missingIsNull: true });
     },
     async activities(x, scope, limit) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       let list: (RmRef & { active?: boolean })[] | undefined;
       if (scope.issue) {
         // A project may offer fewer activities than the server has.
@@ -677,11 +658,11 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
 
   comments: {
     async list(x, ref) {
-      const i = await mustIssue(await credsOf(x), ref, "journals");
+      const i = await mustIssue(await tokenCreds(x), ref, "journals");
       return (i.journals ?? []).filter((j) => (j.notes ?? "").trim() !== "").map(toRemoteComment);
     },
     async add(x, ref, body) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const i = await mustIssue(c, ref);
       // 204 and no journal back: read again later (null), not invented.
       await rd(c, issuePath(i.id), { method: "PUT", body: JSON.stringify({ issue: { notes: body } }) });
@@ -690,7 +671,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
   },
 
   async watch(x, ref, on) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const id = idOf(ref);
     if (id === null) throw new ProviderError("notFound", `Redmine: no issue ${ref.key}`);
     const me = meId(x);
@@ -707,7 +688,7 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
 
 
   async history(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const i = await mustIssue(c, ref, "journals");
     const cat = await catalogFor(x, c, [i]);
     const resolve = resolver(c, cat);

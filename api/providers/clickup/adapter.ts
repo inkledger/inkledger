@@ -5,15 +5,15 @@
 // closed), which gives its category. Time is ClickUp's time entries: a start
 // and a duration in milliseconds, per workspace, read in a 30 day window.
 // Built on a simulator, not verified on a real account: SPIKES.md.
-import { createHmac } from "node:crypto";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, jsonPayload, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { sameSecret } from "../core/webhooks";
+import { hmacHex, sameSecret } from "../core/webhooks";
 import type {
   ActiveWorkflowSource,
   CallContext,
@@ -139,12 +139,6 @@ const COMMENTS_PER_CALL = 25;
 const MAX_COMMENT_CALLS = 40;
 /** Searching has no server side: this many pages of the user's newest tasks are read. */
 const SEARCH_PAGES = 5;
-
-async function credsOf(x: X): Promise<ClickUpCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 const enc = encodeURIComponent;
 
@@ -300,7 +294,7 @@ async function recentPage(c: ClickUpCreds, ws: string, me: string, page: number)
 
 /** ClickUp's public API has no text search: the user's newest tasks are read and matched here, so it says when it stopped short. */
 async function search(x: X, text: string, limit: number): Promise<Limited<RemoteIssue>> {
-  const c = await credsOf(x);
+  const c = await tokenCreds(x);
   const needle = text.trim().toLowerCase();
   const found: ClickUpTask[] = [];
   let cut = false;
@@ -497,7 +491,7 @@ export const clickupWebhook = {
   verify(headers: Headers2, rawBody: string, secret: string): boolean {
     const given = headers["x-signature"];
     if (!secret || !given || !/^[0-9a-f]{64}$/i.test(given)) return false;
-    return sameSecret(given.toLowerCase(), createHmac("sha256", secret).update(rawBody, "utf8").digest("hex"));
+    return sameSecret(given.toLowerCase(), hmacHex(secret, rawBody));
   },
   /** The webhook and its first history item: the same delivery sent again has the same id (null when it has no item). */
   deliveryId(rawBody: string): string | null {
@@ -545,11 +539,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   capabilities: clickupCapabilities,
   traits: clickupTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `ClickUp options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("ClickUp", optionsSchema),
 
   normalizeKey,
 
@@ -570,12 +560,12 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   },
 
   async verify(x) {
-    const { user } = await clickupOk<{ user: ClickUpUser }>(await credsOf(x), "/user");
+    const { user } = await clickupOk<{ user: ClickUpUser }>(await tokenCreds(x), "/user");
     return { ...person(user), ...(user.email ? { email: user.email } : {}), ...(user.username ? { login: user.username } : {}) };
   },
 
   async probe(x) {
-    const r = await clickup<{ user: ClickUpUser }>(await credsOf(x), "/user");
+    const r = await clickup<{ user: ClickUpUser }>(await tokenCreds(x), "/user");
     const limit = Number(r?.headers.get("x-ratelimit-limit"));
     // 100 calls a minute on most plans, more on the larger ones: the header says.
     const perHour = (Number.isInteger(limit) && limit > 0 ? limit : 100) * 60;
@@ -584,7 +574,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
     const pass = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { ws: await workspacesOf(c, x), step: 0, page: 0, at: Date.now() };
@@ -618,12 +608,12 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   },
 
   async getIssue(x, ref) {
-    const [t] = await locateAll(await credsOf(x), x, ref);
+    const [t] = await locateAll(await tokenCreds(x), x, ref);
     return t ? toRemoteIssue(x.conn.timeZone, t) : null;
   },
 
   async findIssue(x, handle) {
-    const found = (await locateAll(await credsOf(x), x, handle)).map((t) => toRemoteIssue(x.conn.timeZone, t));
+    const found = (await locateAll(await tokenCreds(x), x, handle)).map((t) => toRemoteIssue(x.conn.timeZone, t));
     const [first, second, ...rest] = found;
     if (!first) return { kind: "none" };
     // A custom id is only unique inside a workspace: never a silent pick.
@@ -634,7 +624,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
 
   async statuses(x, source) {
     if (source.kind !== "itemState") return [];
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const listId = source.ref.containerRemoteId;
     if (listId) {
       const l = await clickupOk<ClickUpList>(c, `/list/${enc(listId)}`);
@@ -650,7 +640,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   },
 
   async description(x, ref) {
-    const [t] = await locateAll(await credsOf(x), x, ref);
+    const [t] = await locateAll(await tokenCreds(x), x, ref);
     const md = t?.markdown_description?.trim();
     if (md) return { kind: "text", format: "gfm", text: t?.markdown_description ?? md };
     return t?.description?.trim() ? { kind: "text", format: "plain", text: t.description } : null;
@@ -658,7 +648,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const listId = t.list?.id;
       if (!listId) return [];
@@ -669,7 +659,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
         .map((s): Transition => ({ id: s.status.toLowerCase(), name: s.status, to: statusOf(s, listId), requirements: [], remoteUrl: t.url }));
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const listId = t.list?.id;
       const l = listId ? await clickupOk<ClickUpList>(c, `/list/${enc(listId)}`) : null;
@@ -683,7 +673,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       // task_id with no dates would give only the last 30 days: ask for all of them.
       const path = withQuery(entriesPath(teamOf(t)), { task_id: t.id, start_date: 946_684_800_000, end_date: Date.now() + DAY_MS });
@@ -691,14 +681,14 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
       return data.flatMap((e) => toRemoteWorklog(e, x.conn.remoteAccountId) ?? []);
     },
     async get(x, ref, id) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const r = await clickup<{ data: ClickUpEntry | ClickUpEntry[] }>(c, `${entriesPath(teamOf(t))}/${enc(id)}`, { missingIsNull: true });
       return r ? toRemoteWorklog(oneEntry(r.data.data), x.conn.remoteAccountId) : null;
     },
     /** Entries started in the window, changed since the checkpoint: the list is by start, so the window is read whole and `at` picks. */
     async changed(x, q) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const since = decodeCheckpoint<Since>(x.conn, "worklogs", V, q.since)?.at ?? null;
       const pass = decodePageToken<EntryPage>(x.conn, "worklogs", V, q.since, q.page) ?? { ws: await workspacesOf(c, x), i: 0, at: Date.now() };
       const ws = pass.ws[pass.i];
@@ -719,7 +709,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
       return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: pass.at - OVERLAP_MS } satisfies Since) };
     },
     async create(x, ref, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const r = await clickupOk<{ data: ClickUpEntry | ClickUpEntry[] }>(c, entriesPath(teamOf(t)), { method: "POST", data: { ...entryBody(w), tid: t.id } });
       const made = toRemoteWorklog(oneEntry(r.data), x.conn.remoteAccountId);
@@ -727,7 +717,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
       return made;
     },
     async update(x, ref, id, w) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const r = await clickupOk<{ data: ClickUpEntry | ClickUpEntry[] }>(c, `${entriesPath(teamOf(t))}/${enc(id)}`, { method: "PUT", data: entryBody(w) });
       const changed = toRemoteWorklog(oneEntry(r.data), x.conn.remoteAccountId);
@@ -735,7 +725,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
       return changed;
     },
     async delete(x, ref, id) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       // Deleting what is already gone is a success.
       await clickup<unknown>(c, `${entriesPath(teamOf(t))}/${enc(id)}`, { method: "DELETE", missingIsNull: true });
@@ -744,7 +734,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
 
   comments: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       // Newest first, 25 a call: continue after the oldest seen with its date and id (comments can share a millisecond).
       const all: ClickUpComment[] = [];
@@ -760,7 +750,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
       return all.sort((a, b) => Number(a.date) - Number(b.date) || a.id.localeCompare(b.id)).map(toRemoteComment);
     },
     async add(x, ref, body) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, x, ref);
       const { text, warnings } = toClickUpText(body);
       // The answer is only { id, hist_id, date }: the comment is read again.
@@ -770,7 +760,7 @@ export const clickupProvider: TrackerProvider<"clickup", ClickUpOptions> = {
   },
 
   async watch(x, ref, on) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await mustLocate(c, x, ref);
     const me = Number(x.conn.remoteAccountId);
     // Watching twice, or unwatching twice, is what was asked.

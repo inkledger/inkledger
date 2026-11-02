@@ -8,15 +8,15 @@
 // time stays in inkledger's own register.
 import { createHmac } from "node:crypto";
 import { z } from "zod";
-import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
+import { STATUS_CATEGORIES, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDateOf, type Instant, type JsonValue, type TimeZone } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { connectionMapping, mappedCategory } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { sameSecret } from "../core/webhooks";
+import { headerOf, sameSecret } from "../core/webhooks";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type ChangeValue,
@@ -138,21 +138,12 @@ const person = (m: TrelloMember): RemotePerson => ({
 type Shape = { connId: number; zone: TimeZone; categories: TrelloOptions["categories"] };
 const shapeOf = (x: X): Shape => ({ connId: x.conn.id, zone: x.conn.timeZone, categories: x.conn.options.categories });
 
-function categoryOf(s: Shape, list: Pick<TrelloList, "id" | "name">): StatusCategory {
-  const byId = s.categories[list.id];
-  if (byId) return byId;
-  const name = list.name.trim().toLowerCase();
-  const hit = Object.entries(s.categories).find(([k]) => k.toLowerCase() === name);
-  return hit ? hit[1] : "todo";
-}
-
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 export function statusOf(s: Shape, list: TrelloList): RemoteStatus {
   return {
     id: list.id,
     name: list.name,
-    category: categoryOf(s, list),
-    categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) },
+    category: mappedCategory(s.categories, list),
+    categoryOrigin: connectionMapping(s.connId),
     source: { kind: "column", boardRemoteId: list.idBoard },
     ...(list.closed ? { nativeReason: "archived list" } : {}),
     order: list.pos,
@@ -314,11 +305,7 @@ export const trelloProvider: TrackerProvider<"trello", TrelloOptions> = {
   capabilities: trelloCapabilities,
   traits: trelloTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Trello options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Trello", optionsSchema),
 
   normalizeKey,
 
@@ -498,7 +485,7 @@ export const trelloWebhook = {
     return createHmac("sha1", secret).update(rawBody + callbackUrl, "utf8").digest("base64");
   },
   verify(a: { secret: string; callbackUrl: string; rawBody: string; headers: Record<string, string> | Headers }): boolean {
-    const given = a.headers instanceof Headers ? a.headers.get("x-trello-webhook") : Object.entries(a.headers).find(([k]) => k.toLowerCase() === "x-trello-webhook")?.[1];
+    const given = headerOf(a.headers, "x-trello-webhook");
     return !!given && sameSecret(given, trelloWebhook.sign(a.secret, a.callbackUrl, a.rawBody));
   },
   action(rawBody: string): { id?: unknown; type?: unknown; date?: unknown } | null {

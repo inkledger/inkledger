@@ -7,13 +7,15 @@
 // the connection's own mapping. Time: the time tracking column is read, never
 // written (spentSeconds); the time filed stays in inkledger's own register.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { headerOf, type DeliveryHeaders } from "../core/webhooks";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonValue, type LocalDate, type TimeZone } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { connectionMapping } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { mappingId, mappingVersion } from "../types";
 import type { ActiveWorkflowSource, CallContext, ChangeValue, ConversionWarning, IssueHandle, IssueRef, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, TrackerProvider, Transition } from "../types";
 import {
   ITEM_FIELDS,
@@ -174,8 +176,7 @@ function categoryOf(sh: Shape, l: Pick<Label, "name" | "done">): Pick<RemoteStat
   if (l.name.trim() === "") return { category: "backlog", categoryOrigin: { by: "native" } };
   const name = l.name.trim().toLowerCase();
   const hit = Object.entries(sh.categories).find(([k]) => k.trim().toLowerCase() === name);
-  // The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
-  return { category: hit ? hit[1] : "todo", categoryOrigin: { by: "mapping", mapping: mappingId(sh.connId), version: mappingVersion(1) } };
+    return { category: hit ? hit[1] : "todo", categoryOrigin: connectionMapping(sh.connId) };
 }
 
 export function statusOf(sh: Shape, board: Pick<MondayBoard, "id">, col: MondayColumn, l: Label): RemoteStatus {
@@ -496,11 +497,7 @@ export const mondayProvider: TrackerProvider<"monday", MondayOptions> = {
   capabilities: mondayCapabilities,
   traits: mondayTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `monday options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("monday", optionsSchema),
 
   normalizeKey,
 
@@ -787,12 +784,6 @@ export function toChanges(l: MondayActivity, data: Record<string, unknown>, titl
 
 // ---------- Webhooks ----------
 
-type Headers_ = Headers | Record<string, string | string[] | undefined>;
-const header = (h: Headers_, name: string): string | undefined => {
-  if (h instanceof Headers) return h.get(name) ?? undefined;
-  const hit = Object.entries(h).find(([k]) => k.toLowerCase() === name);
-  return Array.isArray(hit?.[1]) ? hit[1][0] : hit?.[1];
-};
 const b64url = (b: Buffer) => b.toString("base64url");
 
 /**
@@ -802,8 +793,8 @@ const b64url = (b: Buffer) => b.toString("base64url");
  * later delivery is `{"event": {…}}` with a `triggerUuid` to refuse replays by.
  */
 export const mondayWebhook = {
-  verify(a: { secret: string; headers: Headers_; now?: number }): boolean {
-    const given = header(a.headers, "authorization")?.replace(/^Bearer\s+/i, "").trim();
+  verify(a: { secret: string; headers: DeliveryHeaders; now?: number }): boolean {
+    const given = headerOf(a.headers, "authorization")?.replace(/^Bearer\s+/i, "").trim();
     const parts = given?.split(".");
     if (!parts || parts.length !== 3) return false;
     const [h, p, s] = parts;

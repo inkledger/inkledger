@@ -9,15 +9,15 @@
 // stays in inkledger's own register.
 import { createHmac } from "node:crypto";
 import { z } from "zod";
-import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
+import { STATUS_CATEGORIES, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type JsonValue, type LocalDate, type TimeZone } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { connectionMapping, mappedCategory } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { sameSecret } from "../core/webhooks";
+import { headerOf, sameSecret } from "../core/webhooks";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type ChangeValue,
@@ -111,12 +111,6 @@ type Since = { token: string };
 const RATE = { perHour: 1800, origin: "typical" } as const;
 const WEB = "https://app.todoist.com";
 
-async function credsOf(x: X): Promise<TodoistCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 // ---------- Keys and links ----------
 
 /** An id: letters and digits, at least one digit (so that no plain word is taken for one). Legacy numeric ids match too. */
@@ -152,24 +146,15 @@ const person = (u: Pick<TodoistUser, "id" | "full_name" | "email" | "avatar_big"
 type Shape = { connId: number; zone: TimeZone; categories: TodoistOptions["categories"] };
 const shapeOf = (x: X): Shape => ({ connId: x.conn.id, zone: x.conn.timeZone, categories: x.conn.options.categories });
 
-function categoryOf(s: Shape, section: Pick<TodoistSection, "id" | "name">): StatusCategory {
-  const byId = s.categories[section.id];
-  if (byId) return byId;
-  const name = section.name.trim().toLowerCase();
-  const hit = Object.entries(s.categories).find(([k]) => k.toLowerCase() === name);
-  return hit ? hit[1] : "todo";
-}
-
 const OPEN: RemoteStatus = { id: "open", name: "Open", category: "todo", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 const COMPLETED: RemoteStatus = { id: "completed", name: "Completed", category: "done", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 export function sectionStatus(s: Shape, section: TodoistSection): RemoteStatus {
   return {
     id: section.id,
     name: section.name,
-    category: categoryOf(s, section),
-    categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) },
+    category: mappedCategory(s.categories, section),
+    categoryOrigin: connectionMapping(s.connId),
     source: { kind: "column", boardRemoteId: section.project_id },
     order: section.section_order,
   };
@@ -425,11 +410,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   capabilities: todoistCapabilities,
   traits: todoistTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Todoist options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Todoist", optionsSchema),
 
   normalizeKey,
 
@@ -442,7 +423,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
 
   async verify(x) {
     try {
-      const me = await tdOk<TodoistUser>(await credsOf(x), "/user");
+      const me = await tdOk<TodoistUser>(await tokenCreds(x), "/user");
       return { ...person(me), ...(me.email ? { email: me.email } : {}) };
     } catch (e) {
       // The old API answered a bad token with 403: nothing but the token can be refused here.
@@ -452,7 +433,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   },
 
   async probe(x) {
-    const w = worldOf(x, await credsOf(x));
+    const w = worldOf(x, await tokenCreds(x));
     await Promise.all([loadProjects(w), loadSections(w)]);
     const withSections = new Set([...w.sections.values()].filter((s): s is TodoistSection => !!s && !s.is_archived).map((s) => s.project_id));
     // Completed or not, and one column source per project that has sections.
@@ -466,7 +447,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.token ?? "*";
     // A pass is one page: the Sync API answers whole (a page token can only be a stale one).
     decodePageToken<unknown>(x.conn, "issues", V, q.since, q.page);
@@ -488,16 +469,16 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   },
 
   async getIssue(x, ref) {
-    return issueBy(x, await credsOf(x), idOf(ref));
+    return issueBy(x, await tokenCreds(x), idOf(ref));
   },
 
   async findIssue(x, handle) {
-    const i = await issueBy(x, await credsOf(x), handle.remoteId ?? handle.key ?? "");
+    const i = await issueBy(x, await tokenCreds(x), handle.remoteId ?? handle.key ?? "");
     return i ? { kind: "found", issue: i } : { kind: "none" };
   },
 
   async searchText(x, input, limit) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const words = input.trim();
     if (!words) return { items: [], complete: true };
     const r = await tdAll<TodoistTask>(c, "/tasks/filter", { query: `search: ${escapeFilter(words)}` }, Math.max(1, limit));
@@ -508,19 +489,19 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
     const s = shapeOf(x);
     if (source.ref.kind === "boolean") return [OPEN, COMPLETED];
     if (source.ref.kind !== "column") return [];
-    const rows = await tdAll<TodoistSection>(await credsOf(x), "/sections", { project_id: source.ref.boardRemoteId });
+    const rows = await tdAll<TodoistSection>(await tokenCreds(x), "/sections", { project_id: source.ref.boardRemoteId });
     return [...rows.rows].sort((a, b) => a.section_order - b.section_order).map((sec) => sectionStatus(s, sec));
   },
 
   async description(x, ref) {
-    const t = await taskBy(await credsOf(x), idOf(ref));
+    const t = await taskBy(await tokenCreds(x), idOf(ref));
     // Todoist keeps Markdown in the description; an empty one is "".
     return t?.description ? { kind: "text", format: "commonmark", text: t.description } : null;
   },
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await taskBy(c, idOf(ref));
       if (!t) throw new ProviderError("notFound", `Todoist: no task ${ref.key}`);
       const url = `${WEB}/app/task/${t.id}`;
@@ -538,7 +519,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
       ];
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const id = encodeURIComponent(idOf(ref));
       if (transitionId === "complete") await tdDo(c, `/tasks/${id}/close`);
       else if (transitionId === "reopen") await tdDo(c, `/tasks/${id}/reopen`);
@@ -556,7 +537,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
 
   comments: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const w = worldOf(x, c);
       const projectId = ref.container?.remoteId ?? (await taskBy(c, idOf(ref)))?.project_id ?? null;
       const rows = (await tdAll<TodoistComment>(c, "/comments", { task_id: idOf(ref) })).rows.filter((r) => !r.is_deleted);
@@ -567,7 +548,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
       return out;
     },
     async add(x, ref, body) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const cm = await tdOk<TodoistComment>(c, "/comments", { method: "POST", body: { task_id: idOf(ref), content: body } });
       const w = worldOf(x, c);
       return { comment: toRemoteComment(cm, cm.posted_uid ? await personOf(w, cm.posted_uid, ref.container?.remoteId ?? null) : { remoteId: "", name: "", avatarUrl: null }), warnings: [] };
@@ -575,7 +556,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   },
 
   async statusHistory(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await taskBy(c, idOf(ref));
     if (!t) throw new ProviderError("notFound", `Todoist: no task ${ref.key}`);
     const [sections, activity] = await Promise.all([
@@ -586,7 +567,7 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
   },
 
   async history(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const w = worldOf(x, c);
     // Activities page by 100, not 200; kept for as long as the plan keeps them (a week on the free one).
     const rows = (await tdAll<TodoistActivity>(c, "/activities", { object_type: "item", object_id: idOf(ref), limit: 100 })).rows;
@@ -610,7 +591,7 @@ export const todoistWebhook = {
     return createHmac("sha256", secret).update(rawBody, "utf8").digest("base64");
   },
   verify(a: { secret: string; rawBody: string; headers: Record<string, string> | Headers }): boolean {
-    const given = a.headers instanceof Headers ? a.headers.get("x-todoist-hmac-sha256") : Object.entries(a.headers).find(([k]) => k.toLowerCase() === "x-todoist-hmac-sha256")?.[1];
+    const given = headerOf(a.headers, "x-todoist-hmac-sha256");
     return !!a.secret && !!given && sameSecret(given, todoistWebhook.sign(a.secret, a.rawBody));
   },
   body(rawBody: string): { event_name?: unknown; triggered_at?: unknown } | null {

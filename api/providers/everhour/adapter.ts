@@ -9,11 +9,12 @@
 import { z } from "zod";
 import type { TimeSinkCapabilities, TimeSinkTraits, TrackerType } from "@contracts/providers";
 import { instant, localDate, localDateOf } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { optionsParser } from "../core/options";
 import { ProviderError } from "../core/errors";
 import { assertSeconds } from "../core/time";
-import type { CallContext, ExternalRef, RemoteWorklog, TimeSinkProvider } from "../types";
-import { eh, ehOk, ehPages, type EverhourCreds, type EverhourTimeRecord, type EverhourTimer, type EverhourUser } from "./client";
+import type { ExternalRef, RemoteWorklog, TimeSinkProvider } from "../types";
+import { eh, ehOk, ehPages, type EverhourTimeRecord, type EverhourTimer, type EverhourUser } from "./client";
 
 export const everhourSinkCapabilities: TimeSinkCapabilities = {
   entries: {
@@ -35,14 +36,6 @@ export const everhourSinkTraits: TimeSinkTraits = { invoices: true, rates: true 
 // The account is the API key's: nothing else to say.
 const optionsSchema = z.strictObject({});
 export type EverhourOptions = z.infer<typeof optionsSchema>;
-
-type X = CallContext<"everhour", EverhourOptions>;
-
-async function credsOf(x: X): Promise<EverhourCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
 
 /**
  * Everhour's task ids: the integration's two-letter prefix and the tracker's
@@ -97,19 +90,15 @@ export const everhourSink: TimeSinkProvider<"everhour", EverhourOptions> = {
   capabilities: everhourSinkCapabilities,
   traits: everhourSinkTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Everhour options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Everhour", optionsSchema),
 
   async verify(x) {
-    const me = await ehOk<EverhourUser>(await credsOf(x), "/users/me");
+    const me = await ehOk<EverhourUser>(await tokenCreds(x), "/users/me");
     return { remoteId: String(me.id), name: me.name?.trim() || me.email || String(me.id), avatarUrl: me.avatarUrl ?? null, ...(me.email ? { email: me.email } : {}) };
   },
 
   async probe(x) {
-    await ehOk<EverhourUser>(await credsOf(x), "/users/me");
+    await ehOk<EverhourUser>(await tokenCreds(x), "/users/me");
     // No published budget declared (everhour-rate-limit): none reported.
     return { capabilities: everhourSinkCapabilities, verifiedAt: instant(Date.now()) };
   },
@@ -117,7 +106,7 @@ export const everhourSink: TimeSinkProvider<"everhour", EverhourOptions> = {
   entries: {
     async list(x, range) {
       const q = new URLSearchParams({ from: range.from, to: range.to });
-      const rows = await ehPages<EverhourTimeRecord>(await credsOf(x), `/users/me/time?${q.toString()}`);
+      const rows = await ehPages<EverhourTimeRecord>(await tokenCreds(x), `/users/me/time?${q.toString()}`);
       return rows.filter((r) => r.date >= range.from && r.date <= range.to && r.time > 0).map(toWorklog);
     },
 
@@ -125,7 +114,7 @@ export const everhourSink: TimeSinkProvider<"everhour", EverhourOptions> = {
       if (target) throw new ProviderError("invalid", "Everhour files time under the issue's task, not a project/task of its own");
       assertSeconds(seconds, true);
       if (seconds > 24 * 3600) throw new ProviderError("invalid", "Everhour takes at most 24 hours a day on a task");
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const task = taskIdOf(ref);
       // A running timer on the task adds its time when stopped, on top of what is set now: wait for the user.
       const timer = await ehOk<EverhourTimer>(c, "/timers/current");

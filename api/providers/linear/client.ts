@@ -5,7 +5,7 @@
 // a personal key sent as is while an OAuth token needs Bearer, cursors
 // instead of pages.
 import { ProviderError, kindOfStatus, type RateLimit } from "../core/errors";
-import { safeFetch } from "../core/http";
+import { safeFetch, trimTrailingSlash } from "../core/http";
 import { collectPages } from "../core/paging";
 
 export type LinearCreds = {
@@ -116,7 +116,7 @@ function refused(status: number, headers: Headers, body: Answer<unknown> | null)
 
 /** One operation; the data, and the headers (budgets) it came with. `missingIsNull`: "Entity not found" as null data. */
 export async function gqlRaw<T>(c: LinearCreds, operationName: string, query: string, variables: Record<string, unknown> = {}, o: { write?: boolean; missingIsNull?: boolean } = {}): Promise<{ data: T | null; headers: Headers }> {
-  const site = c.apiBase.replace(/\/+$/, "").replace(/\/graphql$/, "");
+  const site = trimTrailingSlash(c.apiBase).replace(/\/graphql$/, "");
   const res = await safeFetch({
     site,
     url: `${site}/graphql`,

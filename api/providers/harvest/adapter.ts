@@ -13,6 +13,7 @@ import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers"
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { optionsParser } from "../core/options";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ExternalRef, IssueHandle, Limited, RemotePerson, RemoteWorklog, SinkTarget, TimeSinkProvider, WorklogInput } from "../types";
@@ -215,11 +216,7 @@ export const harvestSink: TimeSinkProvider<"harvest", HarvestOptions> = {
   capabilities: harvestSinkCapabilities,
   traits: harvestSinkTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Harvest options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Harvest", optionsSchema),
 
   async verify(x) {
     const me = await hvOk<HarvestUser>(await credsOf(x), "/users/me");

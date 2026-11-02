@@ -5,7 +5,10 @@
 // the bundle's `isResolved` and the state's name. Time is work items, kept by
 // date in whole minutes. Built from the API's documentation on a simulator,
 // not yet on a real account: docs/dev/spikes.md, section YouTrack.
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { categoryByName } from "../core/categories";
+import { optionsParser } from "../core/options";
+import { pathUnderSite } from "../core/http";
 import { wholeMinutes } from "../core/time";
 import { toYouTrackQuery } from "./translate";
 import { verifyYouTrackWebhook } from "./webhook";
@@ -141,12 +144,6 @@ const OVERLAP_MS = 5 * 60_000;
 const PER_PAGE = 100;
 const TAIL = 4;
 
-async function credsOf(x: X): Promise<YouTrackCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 // ---------- Keys and links ----------
 
 const KEY = /^[A-Za-z][A-Za-z0-9_]*-\d{1,9}$/;
@@ -189,10 +186,7 @@ const DOING = /progress|doing|started|working|review|testing|in corso|lavorazion
  * A State's category. YouTrack says only resolved or not (`isResolved`): the
  * rest comes from the usual names, English and Italian (spike youtrack-state-categories).
  */
-export function categoryOf(name: string, resolved: boolean): StatusCategory {
-  if (resolved) return CANCELLED.test(name) ? "cancelled" : "done";
-  return DOING.test(name) ? "doing" : "todo";
-}
+export const categoryOf = (name: string, resolved: boolean): StatusCategory => categoryByName(name, resolved, { cancelled: CANCELLED, doing: DOING });
 
 const statusOfName = (name: string, resolved: boolean): RemoteStatus => ({
   id: name,
@@ -283,7 +277,7 @@ async function issuesPage(creds: YouTrackCreds, query: string, limit: number, sk
 }
 
 async function search(x: X, query: string, limit: number) {
-  const found = await issuesPage(await credsOf(x), query, limit + 1);
+  const found = await issuesPage(await tokenCreds(x), query, limit + 1);
   return { items: kept(x, found).slice(0, limit), complete: found.length <= limit };
 }
 
@@ -351,7 +345,7 @@ function changeValues(v: unknown): ChangeValue[] {
 /** An issue's activities, every page. */
 async function activitiesOf(x: X, ref: IssueRef): Promise<YtActivity[]> {
   // `categories` is required: without it the activities endpoint refuses.
-  const list = await allPages<YtActivity>(await credsOf(x), `/issues/${issueId(ref)}/activities?categories=${enc(CATEGORIES)}&fields=${enc(FIELDS.activity)}`, { missingIsNull: true });
+  const list = await allPages<YtActivity>(await tokenCreds(x), `/issues/${issueId(ref)}/activities?categories=${enc(CATEGORIES)}&fields=${enc(FIELDS.activity)}`, { missingIsNull: true });
   if (list === null) throw new ProviderError("notFound", `YouTrack: no issue ${ref.key}`);
   return list;
 }
@@ -399,25 +393,18 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   capabilities: youtrackCapabilities,
   traits: youtrackTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `YouTrack options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("YouTrack", optionsSchema),
 
   normalizeKey,
 
   parseRef(r, text): IssueHandle | null {
     const key = normalizeKey(text);
     if (key) return { key };
+    // https://x.youtrack.cloud/issue/PROJ-12, .../issue/PROJ-12/Title, a self-hosted context path before /issue, or the internal id.
+    const path = pathUnderSite(text, webBaseOf(r.baseUrl));
+    if (!path?.startsWith("/issue/")) return null;
     try {
-      const url = new URL(text.trim());
-      const site = new URL(webBaseOf(r.baseUrl));
-      if (url.origin !== site.origin) return null;
-      // https://x.youtrack.cloud/issue/PROJ-12, .../issue/PROJ-12/Title, a self-hosted context path before /issue, or the internal id.
-      const prefix = site.pathname.replace(/\/+$/, "");
-      if (!url.pathname.startsWith(`${prefix}/issue/`)) return null;
-      const id = decodeURIComponent(url.pathname.slice(prefix.length + "/issue/".length).split("/")[0] ?? "");
+      const id = decodeURIComponent(path.slice("/issue/".length).split("/")[0] ?? "");
       const k = normalizeKey(id);
       if (k) return { key: k };
       return DB_ID.test(id) ? { remoteId: id } : null;
@@ -427,7 +414,7 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   },
 
   async verify(x) {
-    const me = await ytOk<YtUser>(await credsOf(x), `/users/me?fields=${enc(FIELDS.user)}`);
+    const me = await ytOk<YtUser>(await tokenCreds(x), `/users/me?fields=${enc(FIELDS.user)}`);
     // A request without a valid token may be answered as the guest account: never a connection.
     if (me.guest || me.login === "guest") throw new ProviderError("auth", "YouTrack: the token is anonymous (guest)");
     return { ...person(webOf(x), me), ...(me.login ? { login: me.login } : {}), ...(me.email ? { email: me.email } : {}) };
@@ -443,7 +430,7 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   },
 
   async listChanged(x, q) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const p = await pass<YtIssue>(x, "issues", q, (top, skip, since) => issuesPage(creds, assignedQuery(since === null ? null : since - OVERLAP_MS), top, skip));
     // The query's date is a day in the user's zone, cut wider than needed: the exact cut is on `updated`.
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
@@ -452,12 +439,12 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   },
 
   async getIssue(x, ref) {
-    const i = await issueByRef(await credsOf(x), ref);
+    const i = await issueByRef(await tokenCreds(x), ref);
     return i ? issueOf(x, i) : null;
   },
 
   async findIssue(x, handle) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const key = handle.key ? normalizeKey(handle.key) : null;
     if (handle.key && !key && !handle.remoteId) return { kind: "none" };
     const i = await issueByRef(creds, { remoteId: handle.remoteId ?? "", key: key ?? "" });
@@ -475,7 +462,7 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   },
 
   async statuses(x, source) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const only = source.ref.kind === "itemState" ? source.ref.containerRemoteId : undefined;
     const projects = only ? [{ id: only }] : ((await allPages<{ id: string }>(creds, `/admin/projects?fields=${enc("id")}`)) ?? []).slice(0, 50);
     const byName = new Map<string, { v: YtBundleValue; order: number }>();
@@ -490,14 +477,14 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
   },
 
   async description(x, ref) {
-    const i = await issueByRef(await credsOf(x), ref, FIELDS.description);
+    const i = await issueByRef(await tokenCreds(x), ref, FIELDS.description);
     const text = i?.description;
     return text ? ({ kind: "text", format: "commonmark", text } satisfies RemoteBody) : null;
   },
 
   transitions: {
     async list(x, ref): Promise<Transition[]> {
-      const i = await issueByRef(await credsOf(x), ref);
+      const i = await issueByRef(await tokenCreds(x), ref);
       if (!i) throw new ProviderError("notFound", `YouTrack: no issue ${ref.key}`);
       const s = stateOf(i);
       if (!s) return [];
@@ -511,7 +498,7 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
         .map((v) => ({ id: `state:${v.name}`, name: v.name, to: statusOfName(v.name, v.isResolved === true), requirements: [], remoteUrl: url }));
     },
     async apply(x, ref, transitionId) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const i = await issueByRef(creds, ref);
       const s = i ? stateOf(i) : null;
       if (!i || !s) throw new ProviderError("notFound", `YouTrack: no State on ${ref.key}`);
@@ -532,13 +519,13 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const id = ref.remoteId || ref.key;
       const list = (await allPages<YtWorkItem>(creds, `/issues/${enc(id)}/timeTracking/workItems?fields=${enc(FIELDS.workItem)}`, { missingIsNull: true })) ?? [];
       return list.map((w) => toRemoteWorklog(w, x.conn.remoteAccountId, { id: ref.remoteId, key: ref.key }));
     },
     async changed(x, q) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const me = x.conn.remoteAccountId;
       const p = await pass<YtWorkItem>(x, "worklogs", q, async (top, skip, since) => {
         const filter = `author=${enc(me)}${since !== null ? `&updatedStart=${since - OVERLAP_MS}` : ""}`;
@@ -549,19 +536,19 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
       return p.last ? { last: true, items, gone: [], checkpoint: p.last } : { last: false, items, gone: [], next: p.next! };
     },
     async create(x, ref, w) {
-      const made = await ytOk<YtWorkItem>(await credsOf(x), `/issues/${issueId(ref)}/timeTracking/workItems?fields=${enc(FIELDS.workItem)}`, { method: "POST", body: JSON.stringify(workItemBody(w)) });
+      const made = await ytOk<YtWorkItem>(await tokenCreds(x), `/issues/${issueId(ref)}/timeTracking/workItems?fields=${enc(FIELDS.workItem)}`, { method: "POST", body: JSON.stringify(workItemBody(w)) });
       return toRemoteWorklog(made, x.conn.remoteAccountId, { id: ref.remoteId, key: ref.key });
     },
     async update(x, ref, id, w) {
-      const made = await ytOk<YtWorkItem>(await credsOf(x), `/issues/${issueId(ref)}/timeTracking/workItems/${enc(id)}?fields=${enc(FIELDS.workItem)}`, { method: "POST", body: JSON.stringify(workItemBody(w)) });
+      const made = await ytOk<YtWorkItem>(await tokenCreds(x), `/issues/${issueId(ref)}/timeTracking/workItems/${enc(id)}?fields=${enc(FIELDS.workItem)}`, { method: "POST", body: JSON.stringify(workItemBody(w)) });
       return toRemoteWorklog(made, x.conn.remoteAccountId, { id: ref.remoteId, key: ref.key });
     },
     async delete(x, ref, id) {
       // Already gone is what was asked for.
-      await yt(await credsOf(x), `/issues/${issueId(ref)}/timeTracking/workItems/${enc(id)}`, { method: "DELETE", missingIsNull: true });
+      await yt(await tokenCreds(x), `/issues/${issueId(ref)}/timeTracking/workItems/${enc(id)}`, { method: "DELETE", missingIsNull: true });
     },
     async activities(x, scope, limit) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       let types: CatalogItem[];
       if (scope.issue) {
         // Work types are set per project.
@@ -578,21 +565,21 @@ export const youtrackProvider: TrackerProvider<"youtrack", YouTrackOptions> = {
 
   comments: {
     async list(x, ref) {
-      const list = await allPages<YtComment>(await credsOf(x), `/issues/${issueId(ref)}/comments?fields=${enc(FIELDS.comment)}`, { missingIsNull: true });
+      const list = await allPages<YtComment>(await tokenCreds(x), `/issues/${issueId(ref)}/comments?fields=${enc(FIELDS.comment)}`, { missingIsNull: true });
       if (list === null) throw new ProviderError("notFound", `YouTrack: no issue ${ref.key}`);
       // A deleted comment is still listed, flagged.
       return list.filter((c) => !c.deleted).map((c) => toRemoteComment(webOf(x), c));
     },
     async add(x, ref, body) {
       // YouTrack's comments are Markdown: CommonMark goes as is.
-      const c = await ytOk<YtComment>(await credsOf(x), `/issues/${issueId(ref)}/comments?fields=${enc(FIELDS.comment)}`, { method: "POST", body: JSON.stringify({ text: body }) });
+      const c = await ytOk<YtComment>(await tokenCreds(x), `/issues/${issueId(ref)}/comments?fields=${enc(FIELDS.comment)}`, { method: "POST", body: JSON.stringify({ text: body }) });
       return { comment: toRemoteComment(webOf(x), c), warnings: [] };
     },
   },
 
   async watch(x, ref, on) {
     // Starring an issue is watching it; setting what is set is a success.
-    await ytOk(await credsOf(x), `/issues/${issueId(ref)}?fields=id`, { method: "POST", body: JSON.stringify({ watchers: { hasStar: on } }) });
+    await ytOk(await tokenCreds(x), `/issues/${issueId(ref)}?fields=id`, { method: "POST", body: JSON.stringify({ watchers: { hasStar: on } }) });
   },
 
   async statusHistory(x, ref) {

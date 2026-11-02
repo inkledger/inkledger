@@ -10,7 +10,10 @@
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type Instant, type LocalDate } from "@contracts/values";
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { categoryByName } from "../core/categories";
+import { optionsParser } from "../core/options";
+import { pathUnderSite } from "../core/http";
 import { isoDuration } from "../core/time";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
@@ -133,12 +136,6 @@ type PassAt = { page: number; at: number };
 const OVERLAP_MS = 5 * 60_000;
 const PER_PAGE = 100;
 
-async function credsOf(x: X): Promise<OpenProjectCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 // ---------- Keys and links ----------
 
 /** `#123`, also written WP#123: the number is the work package's id. */
@@ -212,10 +209,7 @@ const DOING = /progress|developed|testing|tested|test failed|review|started|work
  * package (`isClosed`): the rest comes from the usual names, English and
  * Italian (spike openproject-status-categories).
  */
-export function categoryOf(name: string, closed: boolean): StatusCategory {
-  if (closed) return CANCELLED.test(name) ? "cancelled" : "done";
-  return DOING.test(name) ? "doing" : "todo";
-}
+export const categoryOf = (name: string, closed: boolean): StatusCategory => categoryByName(name, closed, { cancelled: CANCELLED, doing: DOING });
 
 const statusOf = (s: OpStatus): RemoteStatus => ({
   id: String(s.id),
@@ -328,7 +322,7 @@ function entryBody(w: WorklogInput, extra: { workPackage?: string; lockVersion?:
 
 /** Time entries of a filter, a page at a time in id order (stable under edits). */
 async function entriesPass(x: X, q: PageQuery) {
-  const creds = await credsOf(x);
+  const creds = await tokenCreds(x);
   const since = decodeCheckpoint<Since>(x.conn, "worklogs", V, q.since)?.at ?? null;
   const here = decodePageToken<PassAt>(x.conn, "worklogs", V, q.since, q.page) ?? { page: 1, at: Date.now() };
   const filters: Filter[] = [{ user: { operator: "=", values: ["me"] } }];
@@ -390,39 +384,27 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
   capabilities: openprojectCapabilities,
   traits: openprojectTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `OpenProject options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("OpenProject", optionsSchema),
 
   normalizeKey,
 
   parseRef(r, text): IssueHandle | null {
     const key = normalizeKey(text);
     if (key) return { key };
-    try {
-      const url = new URL(text.trim());
-      const site = new URL(webBaseOf(r.baseUrl));
-      if (url.origin !== site.origin) return null;
-      // https://host/work_packages/12, /projects/p/work_packages/12/activity, /work_packages/details/12/overview, /wp/12, /notifications/details/12, the API's own link; a context path may come first.
-      const prefix = site.pathname.replace(/\/+$/, "");
-      if (!url.pathname.startsWith(`${prefix}/`)) return null;
-      const path = url.pathname.slice(prefix.length);
-      const m =
-        /^\/(?:projects\/[^/]+\/)?work_packages\/(?:details\/)?(\d+)(?:\/|$)/.exec(path) ??
-        /^\/wp\/(\d+)\/?$/.exec(path) ??
-        /^\/notifications\/details\/(\d+)(?:\/|$)/.exec(path) ??
-        /^\/api\/v3\/work_packages\/(\d+)\/?$/.exec(path);
-      const k = m ? normalizeKey(`#${m[1]}`) : null;
-      return k ? { key: k } : null;
-    } catch {
-      return null;
-    }
+    // https://host/work_packages/12, /projects/p/work_packages/12/activity, /work_packages/details/12/overview, /wp/12, /notifications/details/12, the API's own link; a context path may come first.
+    const path = pathUnderSite(text, webBaseOf(r.baseUrl));
+    if (path === null) return null;
+    const m =
+      /^\/(?:projects\/[^/]+\/)?work_packages\/(?:details\/)?(\d+)(?:\/|$)/.exec(path) ??
+      /^\/wp\/(\d+)\/?$/.exec(path) ??
+      /^\/notifications\/details\/(\d+)(?:\/|$)/.exec(path) ??
+      /^\/api\/v3\/work_packages\/(\d+)\/?$/.exec(path);
+    const k = m ? normalizeKey(`#${m[1]}`) : null;
+    return k ? { key: k } : null;
   },
 
   async verify(x) {
-    const me = await opOk<OpUser>(await credsOf(x), "/users/me");
+    const me = await opOk<OpUser>(await tokenCreds(x), "/users/me");
     // Without a user the server answers as the anonymous account (a public instance): never a connection.
     if (me._type === "AnonymousUser" || (!me.login && me.name?.toLowerCase() === "anonymous")) throw new ProviderError("auth", "OpenProject: the token is anonymous");
     return { ...person(webOf(x), me), ...(me.login ? { login: me.login } : {}), ...(me.email ? { email: me.email } : {}) };
@@ -438,7 +420,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
   },
 
   async listChanged(x, q) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     const here = decodePageToken<PassAt>(x.conn, "issues", V, q.since, q.page) ?? { page: 1, at: Date.now() };
     // Explicit filters: without any, the list keeps only the open work packages.
@@ -452,7 +434,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
   },
 
   async getIssue(x, ref) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     if (!/^\d+$/.test(ref.remoteId || ref.key.replace(/^#/, ""))) return null;
     const wp = await workPackage(creds, ref);
     return wp ? ((await issuesOf(x, creds, [wp]))[0] ?? null) : null;
@@ -470,25 +452,25 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
   async searchText(x, text, limit) {
     const term = text.replace(/\s+/g, " ").trim();
     if (!term) return { items: [], complete: true };
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const filters: Filter[] = [{ subjectOrId: { operator: "**", values: [term] } }];
     const p = (await pageOf<OpWorkPackage>(creds, `/work_packages?${filtersQuery(filters)}&${sortQuery([["updatedAt", "desc"]])}`, 1, Math.min(limit + 1, 100)))!;
     return { items: (await issuesOf(x, creds, p.elements)).slice(0, limit), complete: p.total <= limit };
   },
 
   async statuses(x) {
-    const list = (await allPages<OpStatus>(await credsOf(x), "/statuses")) ?? [];
+    const list = (await allPages<OpStatus>(await tokenCreds(x), "/statuses")) ?? [];
     return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map(statusOf);
   },
 
   async description(x, ref) {
-    const wp = await workPackage(await credsOf(x), ref);
+    const wp = await workPackage(await tokenCreds(x), ref);
     return wp?.description?.raw ? bodyOf(wp.description) : null;
   },
 
   transitions: {
     async list(x, ref): Promise<Transition[]> {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const id = wpId(ref);
       const wp = await workPackage(creds, ref);
       if (!wp) throw new ProviderError("notFound", `OpenProject: no work package ${ref.key}`);
@@ -504,7 +486,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
         .map((a) => ({ id: `status:${a.id}`, name: a.name, to: statusOf(a.value ?? all.get(a.id) ?? { id: Number(a.id), name: a.name }), requirements: [], remoteUrl: url }));
     },
     async apply(x, ref, transitionId) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const m = /^status:(\d+)$/.exec(transitionId);
       if (!m) throw new ProviderError("invalid", `OpenProject: not a transition: ${transitionId}`);
       // The change is made at the revision just read: someone changing it meanwhile is a conflict (409), read again by the core.
@@ -520,22 +502,22 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
 
   worklogs: {
     async list(x, ref) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const filters: Filter[] = [{ workPackage: { operator: "=", values: [wpId(ref)] } }];
       const list = (await allPages<OpTimeEntry>(creds, `/time_entries?${filtersQuery(filters)}&${sortQuery([["id", "asc"]])}`)) ?? [];
       return list.map((e) => toRemoteWorklog(e, ref));
     },
     async get(x, ref, id) {
-      const e = await op<OpTimeEntry>(await credsOf(x), `/time_entries/${enc(id)}`, { missingIsNull: true });
+      const e = await op<OpTimeEntry>(await tokenCreds(x), `/time_entries/${enc(id)}`, { missingIsNull: true });
       return e ? toRemoteWorklog(e, ref) : null;
     },
     changed: (x, q) => entriesPass(x, q),
     async create(x, ref, w) {
-      const made = await opOk<OpTimeEntry>(await credsOf(x), "/time_entries", { method: "POST", body: JSON.stringify(entryBody(w, { workPackage: wpId(ref) })) });
+      const made = await opOk<OpTimeEntry>(await tokenCreds(x), "/time_entries", { method: "POST", body: JSON.stringify(entryBody(w, { workPackage: wpId(ref) })) });
       return toRemoteWorklog(made, ref);
     },
     async update(x, ref, id, w, m) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       const entry = await opOk<OpTimeEntry>(creds, `/time_entries/${enc(id)}`);
       if (m.expectedVersion !== undefined && versionOf(entry) !== m.expectedVersion) throw new ProviderError("conflict", `OpenProject: time entry ${id} changed meanwhile`);
       // Who logged an entry is fixed: moving it to someone else is not a change OpenProject takes.
@@ -547,7 +529,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
       return toRemoteWorklog(made, ref);
     },
     async delete(x, _ref, id, m) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       if (m.expectedVersion !== undefined) {
         const entry = await op<OpTimeEntry>(creds, `/time_entries/${enc(id)}`, { missingIsNull: true });
         if (!entry) return;
@@ -557,7 +539,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
       await op(creds, `/time_entries/${enc(id)}`, { method: "DELETE", missingIsNull: true });
     },
     async activities(x, scope, limit) {
-      const creds = await credsOf(x);
+      const creds = await tokenCreds(x);
       // The activities are the form's allowed values for the entry: they depend on the project (a project may switch some off).
       const payload = scope.issue ? { _links: { workPackage: { href: hrefOf(`/work_packages/${wpId(scope.issue)}`) } } } : {};
       const form = await opOk<{ _embedded?: { schema?: { activity?: Parameters<typeof allowedValues>[1] } } }>(creds, "/time_entries/form", { method: "POST", body: JSON.stringify(payload), intent: "read" });
@@ -569,20 +551,20 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
 
   comments: {
     async list(x, ref) {
-      const list = await allPages<OpActivity>(await credsOf(x), `/work_packages/${enc(wpId(ref))}/activities`, { missingIsNull: true });
+      const list = await allPages<OpActivity>(await tokenCreds(x), `/work_packages/${enc(wpId(ref))}/activities`, { missingIsNull: true });
       if (list === null) throw new ProviderError("notFound", `OpenProject: no work package ${ref.key}`);
       // Changes and comments share one list; a revision (a commit) is not a comment.
       return list.filter((a) => a._type !== "Activity::Revision" && !!a.comment?.raw).map((a) => toRemoteComment(webOf(x), a));
     },
     async add(x, ref, body) {
       // Comments are Markdown: CommonMark goes as is.
-      const a = await opOk<OpActivity>(await credsOf(x), `/work_packages/${enc(wpId(ref))}/activities`, { method: "POST", body: JSON.stringify({ comment: { raw: body } }) });
+      const a = await opOk<OpActivity>(await tokenCreds(x), `/work_packages/${enc(wpId(ref))}/activities`, { method: "POST", body: JSON.stringify({ comment: { raw: body } }) });
       return { comment: toRemoteComment(webOf(x), a), warnings: [] };
     },
   },
 
   async watch(x, ref, on) {
-    const creds = await credsOf(x);
+    const creds = await tokenCreds(x);
     const id = enc(wpId(ref));
     const me = x.conn.remoteAccountId;
     // Adding a watcher twice answers 200, removing one who isn't there 404: both are what was asked for.
@@ -591,7 +573,7 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
   },
 
   async history(x, ref) {
-    const list = await allPages<OpActivity>(await credsOf(x), `/work_packages/${enc(wpId(ref))}/activities`, { missingIsNull: true });
+    const list = await allPages<OpActivity>(await tokenCreds(x), `/work_packages/${enc(wpId(ref))}/activities`, { missingIsNull: true });
     if (list === null) throw new ProviderError("notFound", `OpenProject: no work package ${ref.key}`);
     return list.flatMap((a) => (a.details ?? []).map((d) => toRemoteChange(webOf(x), a, d)));
   },

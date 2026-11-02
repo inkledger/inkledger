@@ -10,6 +10,8 @@ import type { TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { optionsParser } from "../core/options";
+import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import type { CallContext, ChangeValue, RemoteChange, RemoteComment, RemoteIssue, RemotePerson, RemoteStatus, RemoteWorklog, TrackerProvider } from "../types";
@@ -256,28 +258,15 @@ export const giteaProvider: TrackerProvider<"gitea", GiteaOptions> = {
   capabilities: giteaCapabilities,
   traits: giteaTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Gitea options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Gitea", optionsSchema),
 
   normalizeKey,
 
   parseRef(r, text) {
     const key = normalizeKey(text);
     if (key) return { key };
-    try {
-      const url = new URL(text.trim());
-      const web = new URL(webBaseOf(r.baseUrl));
-      if (url.origin !== web.origin) return null;
-      const prefix = web.pathname.replace(/\/+$/, "");
-      if (!url.pathname.startsWith(`${prefix}/`)) return null;
-      const m = /^\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/.exec(url.pathname.slice(prefix.length));
-      return m ? { key: `${m[1]}/${m[2]}#${m[3]}` } : null;
-    } catch {
-      return null;
-    }
+    const m = /^\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/.exec(pathUnderSite(text, webBaseOf(r.baseUrl)) ?? "");
+    return m ? { key: `${m[1]}/${m[2]}#${m[3]}` } : null;
   },
 
   async verify(x) {

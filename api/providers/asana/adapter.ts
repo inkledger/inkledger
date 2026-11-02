@@ -6,19 +6,18 @@
 // Completed. Time is Asana's time tracking entries: a date, whole minutes, a
 // category (attributable_to) and a billable status.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
-import { secretOf } from "../core/context";
+import { tokenCreds } from "../core/context";
+import { connectionMapping } from "../core/categories";
+import { optionsParser } from "../core/options";
 import { wholeMinutes } from "../core/time";
-import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { sameSecret } from "../core/webhooks";
+import { hmacHex, sameSecret } from "../core/webhooks";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type ConversionWarning,
@@ -149,12 +148,6 @@ const PER_PAGE = 50;
 /** A first read takes the tasks completed in this window, with everything still open. */
 const COMPLETED_WINDOW_DAYS = 30;
 
-async function credsOf(x: X): Promise<AsanaCreds> {
-  const cred = await x.conn.credential();
-  const token = secretOf(cred);
-  return { apiBase: x.conn.baseUrl, token };
-}
-
 /** What turning a task into the layer's shape needs of its connection. */
 type Shape = { connId: number; columns: Record<string, StatusCategory>; zone: TimeZone };
 const shapeOf = (x: X): Shape => ({ connId: x.conn.id, columns: x.conn.options.columns, zone: x.conn.timeZone });
@@ -176,9 +169,8 @@ const gidOfHandle = (h: { remoteId?: string; key?: string }) => h.remoteId ?? (h
 const OPEN: RemoteStatus = { id: "open", name: "Open", category: "todo", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 const COMPLETED: RemoteStatus = { id: "completed", name: "Completed", category: "done", categoryOrigin: { by: "native" }, source: { kind: "boolean" } };
 
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 function columnStatus(s: Shape, project: string, section: AsanaRef, category: StatusCategory): RemoteStatus {
-  return { id: section.gid, name: section.name ?? "", category, categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) }, source: { kind: "column", boardRemoteId: project } };
+  return { id: section.gid, name: section.name ?? "", category, categoryOrigin: connectionMapping(s.connId), source: { kind: "column", boardRemoteId: project } };
 }
 
 type Membership = NonNullable<AsanaTask["memberships"]>[number];
@@ -331,7 +323,7 @@ async function workspacesOf(c: AsanaCreds, x: X): Promise<string[]> {
 // ---------- Search ----------
 
 async function search(x: X, text: string, limit: number): Promise<Limited<RemoteIssue>> {
-  const c = await credsOf(x);
+  const c = await tokenCreds(x);
   const s = shapeOf(x);
   const per = Math.min(100, limit + 1);
   const found = new Map<string, AsanaTask>();
@@ -517,7 +509,7 @@ export const asanaWebhook = {
   verify(headers: Headers2, rawBody: string, secret: string): boolean {
     const given = headers["x-hook-signature"];
     if (!secret || !given || !/^[0-9a-f]{64}$/i.test(given)) return false;
-    return sameSecret(given.toLowerCase(), createHmac("sha256", secret).update(rawBody, "utf8").digest("hex"));
+    return sameSecret(given.toLowerCase(), hmacHex(secret, rawBody));
   },
   /** The secret to echo back when Asana opens a webhook (null: not a handshake). */
   handshake(headers: Headers2): string | null {
@@ -566,11 +558,7 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
   capabilities: asanaCapabilities,
   traits: asanaTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Asana options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Asana", optionsSchema),
 
   normalizeKey,
 
@@ -590,12 +578,12 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
   },
 
   async verify(x) {
-    const me = await asanaOk<AsanaUser>(await credsOf(x), `/users/me?opt_fields=${USER_FIELDS}`);
+    const me = await asanaOk<AsanaUser>(await tokenCreds(x), `/users/me?opt_fields=${USER_FIELDS}`);
     return { ...person(me), ...(me.email ? { email: me.email, login: me.email } : {}) };
   },
 
   async probe(x) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     await asanaOk<AsanaUser>(c, "/users/me?opt_fields=name");
     const sources: ActiveWorkflowSource[] = [{ kind: "boolean", transitions: "direct", reasons: false, ref: { kind: "boolean" }, name: "Open / completed" }];
     // Sections are statuses only once the options name some: then each project is a board (the first hundred of each workspace).
@@ -610,7 +598,7 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
   },
 
   async listChanged(x, q) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const shape = shapeOf(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
@@ -631,13 +619,13 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
   },
 
   async getIssue(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, gidOfHandle(ref));
     return t ? (await shapeAll(c, shapeOf(x), [t]))[0] : null;
   },
 
   async findIssue(x, handle) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await locate(c, gidOfHandle(handle));
     // A gid is unique on the service: never ambiguous.
     return t ? { kind: "found", issue: (await shapeAll(c, shapeOf(x), [t]))[0] } : { kind: "none" };
@@ -649,7 +637,7 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
     if (source.kind === "boolean") return [OPEN, COMPLETED];
     if (source.kind !== "column") return [];
     const s = shapeOf(x);
-    const sections = await asanaPages<AsanaRef>(await credsOf(x), `/projects/${encodeURIComponent(source.ref.boardRemoteId)}/sections`, { opt_fields: "name" });
+    const sections = await asanaPages<AsanaRef>(await tokenCreds(x), `/projects/${encodeURIComponent(source.ref.boardRemoteId)}/sections`, { opt_fields: "name" });
     return sections.flatMap((section, order) => {
       const category = s.columns[sectionKey(section.name ?? "")];
       return category ? [{ ...columnStatus(s, source.ref.boardRemoteId, section, category), order }] : [];
@@ -657,13 +645,13 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
   },
 
   async description(x, ref) {
-    const t = await locate(await credsOf(x), gidOfHandle(ref));
+    const t = await locate(await tokenCreds(x), gidOfHandle(ref));
     return t?.notes?.trim() ? { kind: "text", format: "html", text: t.html_notes ?? `<body>${escapeHtml(t.notes)}</body>` } : null;
   },
 
   transitions: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const s = shapeOf(x);
       const common = { requirements: [], remoteUrl: t.permalink_url };
@@ -679,7 +667,7 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
       return [...moves, { id: "complete", name: "Complete", to: COMPLETED, ...common }];
     },
     async apply(x, ref, transitionId) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const shape = shapeOf(x);
       if (transitionId === "complete" || transitionId === "reopen") {
@@ -701,33 +689,33 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const gid = gidOfHandle(ref);
       if (!gid) throw new ProviderError("notFound", `Asana: no task ${ref.key}`);
       const entries = await asanaPages<AsanaEntry>(c, `${taskPath(gid)}/time_tracking_entries`, { opt_fields: ENTRY_FIELDS });
       return entries.map((e) => toRemoteWorklog(e, x.conn.remoteAccountId));
     },
     async get(x, _ref, id) {
-      const e = await asana<AsanaEntry>(await credsOf(x), `/time_tracking_entries/${encodeURIComponent(id)}?opt_fields=${ENTRY_FIELDS}`, { missingIsNull: true });
+      const e = await asana<AsanaEntry>(await tokenCreds(x), `/time_tracking_entries/${encodeURIComponent(id)}?opt_fields=${ENTRY_FIELDS}`, { missingIsNull: true });
       return e ? toRemoteWorklog(e.data, x.conn.remoteAccountId) : null;
     },
     async create(x, ref, w) {
       const gid = gidOfHandle(ref);
       if (!gid) throw new ProviderError("notFound", `Asana: no task ${ref.key}`);
-      const e = await asanaOk<AsanaEntry>(await credsOf(x), `${taskPath(gid)}/time_tracking_entries?opt_fields=${ENTRY_FIELDS}`, { method: "POST", data: entryBody(w) });
+      const e = await asanaOk<AsanaEntry>(await tokenCreds(x), `${taskPath(gid)}/time_tracking_entries?opt_fields=${ENTRY_FIELDS}`, { method: "POST", data: entryBody(w) });
       return toRemoteWorklog(e, x.conn.remoteAccountId);
     },
     async update(x, _ref, id, w) {
-      const e = await asanaOk<AsanaEntry>(await credsOf(x), `/time_tracking_entries/${encodeURIComponent(id)}?opt_fields=${ENTRY_FIELDS}`, { method: "PUT", data: entryBody(w) });
+      const e = await asanaOk<AsanaEntry>(await tokenCreds(x), `/time_tracking_entries/${encodeURIComponent(id)}?opt_fields=${ENTRY_FIELDS}`, { method: "PUT", data: entryBody(w) });
       return toRemoteWorklog(e, x.conn.remoteAccountId);
     },
     async delete(x, _ref, id) {
       // Deleting what is already gone is a success.
-      await asana<unknown>(await credsOf(x), `/time_tracking_entries/${encodeURIComponent(id)}`, { method: "DELETE", missingIsNull: true });
+      await asana<unknown>(await tokenCreds(x), `/time_tracking_entries/${encodeURIComponent(id)}`, { method: "DELETE", missingIsNull: true });
     },
     /** The time tracking categories of the workspaces (an entry has at most one). */
     async activities(x, _scope, limit) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const items: { id: string; name: string }[] = [];
       for (const ws of await workspacesOf(c, x)) {
         for (const cat of await asanaPages<AsanaRef>(c, "/time_tracking_categories", { workspace: ws, opt_fields: "name" })) items.push({ id: cat.gid, name: cat.name ?? cat.gid });
@@ -738,14 +726,14 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
 
   comments: {
     async list(x, ref) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       // System stories ("moved this task to…", "assigned to…") share the list: they are history, not comments.
       const stories = await asanaPages<AsanaStory>(c, `${taskPath(t.gid)}/stories`, { opt_fields: STORY_FIELDS });
       return stories.filter((s) => s.type === "comment").map(toRemoteComment);
     },
     async add(x, ref, body) {
-      const c = await credsOf(x);
+      const c = await tokenCreds(x);
       const t = await mustLocate(c, ref);
       const { html, warnings } = toAsanaHtml(body);
       const story = await asanaOk<AsanaStory>(c, `${taskPath(t.gid)}/stories?opt_fields=${STORY_FIELDS}`, { method: "POST", data: { html_text: html } });
@@ -757,17 +745,17 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
     const gid = gidOfHandle(ref);
     if (!gid) throw new ProviderError("notFound", `Asana: no task ${ref.key}`);
     // Following twice, or unfollowing twice, is what was asked.
-    await asanaOk<unknown>(await credsOf(x), `${taskPath(gid)}/${on ? "addFollowers" : "removeFollowers"}`, { method: "POST", data: { followers: ["me"] } });
+    await asanaOk<unknown>(await tokenCreds(x), `${taskPath(gid)}/${on ? "addFollowers" : "removeFollowers"}`, { method: "POST", data: { followers: ["me"] } });
   },
 
   async statusHistory(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await mustLocate(c, ref);
     return replayStatus(shapeOf(x), t, await asanaPages<AsanaStory>(c, `${taskPath(t.gid)}/stories`, { opt_fields: STORY_FIELDS }));
   },
 
   async history(x, ref) {
-    const c = await credsOf(x);
+    const c = await tokenCreds(x);
     const t = await mustLocate(c, ref);
     const stories = await asanaPages<AsanaStory>(c, `${taskPath(t.gid)}/stories`, { opt_fields: STORY_FIELDS });
     return stories.flatMap((s) => toChange(s) ?? []).sort((a, b) => a.at - b.at);

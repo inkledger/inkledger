@@ -6,18 +6,16 @@
 // new change does not) and the time is the payload's own. A delivery is only
 // ever a signal: the adapter reads the issue again.
 import { createHash, createHmac } from "node:crypto";
-import { sameSecret } from "../core/webhooks";
+import { headerOf, sameSecret } from "../core/webhooks";
 
 export const WEBHOOK_SIGNATURE_HEADER = "x-op-signature";
-
-const header = (headers: Record<string, string | undefined>, name: string) => Object.entries(headers).find(([k]) => k.toLowerCase() === name)?.[1] ?? null;
 
 /** `sha1=<hex>` of the body with the secret: what the header carries. */
 export const signWebhook = (secret: string, body: string) => `sha1=${createHmac("sha1", secret).update(body, "utf8").digest("hex")}`;
 
 /** Whether the body (as received, byte for byte) was signed with the webhook's secret. */
 export function verifyOpenProjectWebhook(headers: Record<string, string | undefined>, body: string, secret: string): boolean {
-  const given = header(headers, WEBHOOK_SIGNATURE_HEADER)?.trim().toLowerCase();
+  const given = headerOf(headers, WEBHOOK_SIGNATURE_HEADER)?.trim().toLowerCase();
   if (!given || !secret || !/^sha1=[0-9a-f]{40}$/.test(given)) return false;
   return sameSecret(given, signWebhook(secret, body));
 }

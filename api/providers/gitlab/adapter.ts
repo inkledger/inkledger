@@ -6,17 +6,18 @@
 // Time two ways, by what the server has: timelogs through GraphQL (14+ reads,
 // 15+ writes), else /spend notes and the system notes they leave (legacyTime.ts).
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
-import { timingSafeEqual, createHash } from "node:crypto";
+import { sameSecretHashed } from "../core/webhooks";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantFrom, localDate, type Instant } from "@contracts/values";
 import { secretOf } from "../core/context";
+import { connectionMapping } from "../core/categories";
+import { optionsParser } from "../core/options";
+import { pathUnderSite } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import {
-  mappingId,
-  mappingVersion,
   type ActiveWorkflowSource,
   type CallContext,
   type IssueRef,
@@ -181,9 +182,8 @@ function scoped(label: string): { scope: string; value: string } | null {
 
 const sameScope = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-// The connection's options are its category mapping until the engine's own mapping table exists: id = the connection, version 1.
 function labelStatus(s: Shape, scope: string, value: string, category: StatusCategory): RemoteStatus {
-  return { id: value, name: value, category, categoryOrigin: { by: "mapping", mapping: mappingId(s.connId), version: mappingVersion(1) }, source: { kind: "labelSet", scope } };
+  return { id: value, name: value, category, categoryOrigin: connectionMapping(s.connId), source: { kind: "labelSet", scope } };
 }
 
 /** Closed is closed; open takes the one status label of the configured set, else plain Open (several is no answer). */
@@ -403,7 +403,6 @@ const toRemoteComment = (web: string, n: GitLabNote): RemoteComment => ({
 // ---------- Webhooks ----------
 
 type Headers2 = { get(name: string): string | null };
-const digest = (s: string) => createHash("sha256").update(s).digest();
 
 /**
  * GitLab's webhooks (the provider contract has no webhook operation yet: the
@@ -413,7 +412,7 @@ const digest = (s: string) => createHash("sha256").update(s).digest();
 export const gitlabWebhook = {
   verify(headers: Headers2, secret: string): boolean {
     const sent = headers.get("x-gitlab-token");
-    return secret.length > 0 && sent !== null && timingSafeEqual(digest(sent), digest(secret));
+    return secret.length > 0 && sent !== null && sameSecretHashed(sent, secret);
   },
   /** A delivery's own id (X-Gitlab-Event-UUID; Idempotency-Key on versions that have no UUID header): retries repeat it. */
   deliveryId(headers: Headers2): string | null {
@@ -446,29 +445,17 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
   capabilities: gitlabCapabilities,
   traits: gitlabTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `GitLab options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("GitLab", optionsSchema),
 
   normalizeKey,
 
   parseRef(r, text) {
     const key = normalizeKey(text);
     if (key) return { key };
-    try {
-      const url = new URL(text.trim());
-      const web = new URL(webBaseOf(r.baseUrl));
-      if (url.origin !== web.origin) return null;
-      const prefix = web.pathname.replace(/\/+$/, "");
-      if (!url.pathname.startsWith(`${prefix}/`)) return null;
-      // …/group/sub/project/-/issues/12 (or /-/work_items/12; the old form has no /-/)
-      const m = /^\/(.+?)\/(?:-\/)?(?:issues|work_items)\/(\d+)\/?$/.exec(url.pathname.slice(prefix.length));
-      return m ? ((k) => (k ? { key: k } : null))(normalizeKey(`${m[1]}#${m[2]}`)) : null;
-    } catch {
-      return null;
-    }
+    // …/group/sub/project/-/issues/12 (or /-/work_items/12; the old form has no /-/)
+    const m = /^\/(.+?)\/(?:-\/)?(?:issues|work_items)\/(\d+)\/?$/.exec(pathUnderSite(text, webBaseOf(r.baseUrl)) ?? "");
+    const k = m ? normalizeKey(`${m[1]}#${m[2]}`) : null;
+    return k ? { key: k } : null;
   },
 
   async verify(x) {

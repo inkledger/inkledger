@@ -7,6 +7,7 @@
 // worklogs: whole minutes on a day, created and read, not changed.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { secretOf } from "../core/context";
+import { optionsParser } from "../core/options";
 import { wholeMinutes } from "../core/time";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
@@ -469,11 +470,7 @@ export const planeProvider: TrackerProvider<"plane", PlaneOptions> = {
   capabilities: planeCapabilities,
   traits: planeTraits,
 
-  parseOptions(raw) {
-    const r = optionsSchema.safeParse(raw ?? {});
-    if (!r.success) throw new ProviderError("invalid", `Plane options: ${r.error.issues.map((i) => i.message).join("; ")}`);
-    return r.data;
-  },
+  parseOptions: optionsParser("Plane", optionsSchema),
 
   normalizeKey,
 
