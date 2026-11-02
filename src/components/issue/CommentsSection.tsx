@@ -19,7 +19,16 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t, dateFormat } from "@/i18n";
 
 /** Jira comments of an issue with a composer (posts to Jira). */
-export function CommentsSection({ issueKey, connectionId }: { issueKey: string; connectionId?: number | null }) {
+export function CommentsSection({
+  issueKey,
+  connectionId,
+  inputId = `comment-${issueKey}`,
+}: {
+  issueKey: string;
+  connectionId?: number | null;
+  /** The new comment's field: unique where the same key is shown twice. */
+  inputId?: string;
+}) {
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
   // On its own tracker: the same key may be on another one.
@@ -61,11 +70,11 @@ export function CommentsSection({ issueKey, connectionId }: { issueKey: string; 
           submit();
         }}
       >
-        <label htmlFor={`comment-${issueKey}`} className="sr-only">
+        <label htmlFor={inputId} className="sr-only">
           {t("views.issue.comments.new")}
         </label>
         <Textarea
-          id={`comment-${issueKey}`}
+          id={inputId}
           placeholder={t("views.issue.comments.placeholder")}
           rows={3}
           value={text}

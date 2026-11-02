@@ -28,9 +28,12 @@ import { t, dateFormat } from "@/i18n";
 export function PrivateNotesSection({
   issueKey,
   connectionId,
+  inputId = `private-note-${issueKey}`,
 }: {
   issueKey: string;
   connectionId?: number | null;
+  /** The new note's field: unique where the same key is shown twice. */
+  inputId?: string;
 }) {
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
@@ -146,11 +149,11 @@ export function PrivateNotesSection({
           submit();
         }}
       >
-        <label htmlFor={`private-note-${issueKey}`} className="sr-only">
+        <label htmlFor={inputId} className="sr-only">
           {t("views.issue.privateNotes.new")}
         </label>
         <Textarea
-          id={`private-note-${issueKey}`}
+          id={inputId}
           placeholder={t("views.issue.privateNotes.placeholder")}
           rows={2}
           maxLength={5000}

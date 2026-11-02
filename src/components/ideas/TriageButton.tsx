@@ -2,12 +2,13 @@ import { Link } from "react-router";
 import { Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/app/Chip";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 
-/** On an issue's page (docs/work/ideas/triage.md R-2.4, R-2.10): "In triage" when an idea is open for it, else "Send to triage" (nothing written to the tracker). */
-export function TriageButton({ issueKey, connectionId }: { issueKey: string; connectionId: number }) {
+/** The idea open for an issue, if any, and sending the issue to triage. */
+function useTriage(issueKey: string, connectionId: number) {
   const utils = trpc.useUtils();
   const open = trpc.ideas.forIssue.useQuery({ issueKey, connectionId }, { staleTime: 60_000, retry: false });
   const send = trpc.ideas.fromIssue.useMutation({
@@ -15,6 +16,12 @@ export function TriageButton({ issueKey, connectionId }: { issueKey: string; con
     onError: e => toastError(e),
     onSettled: () => void utils.ideas.list.invalidate(),
   });
+  return { open, send };
+}
+
+/** On an issue's page (docs/work/ideas/triage.md R-2.4, R-2.10): "In triage" when an idea is open for it, else "Send to triage" (nothing written to the tracker). */
+export function TriageButton({ issueKey, connectionId }: { issueKey: string; connectionId: number }) {
+  const { open, send } = useTriage(issueKey, connectionId);
   if (open.isLoading || open.isError) return null;
   if (open.data)
     return (
@@ -27,5 +34,24 @@ export function TriageButton({ issueKey, connectionId }: { issueKey: string; con
       <Lightbulb className="h-4 w-4" aria-hidden />
       {t("ui.ideas.sendToTriage")}
     </Button>
+  );
+}
+
+/** The same in an issue's menu: "In triage" opens the idea, else "Send to triage". */
+export function TriageMenuItem({ issueKey, connectionId }: { issueKey: string; connectionId: number }) {
+  const { open, send } = useTriage(issueKey, connectionId);
+  if (open.isLoading || open.isError) return null;
+  if (open.data)
+    return (
+      <DropdownMenuItem asChild>
+        <Link to={`/ideas?open=${open.data.id}`}>
+          <Lightbulb className="h-4 w-4" aria-hidden /> {t("ui.ideas.inTriage")}
+        </Link>
+      </DropdownMenuItem>
+    );
+  return (
+    <DropdownMenuItem disabled={send.isPending} onSelect={() => send.mutate({ issueKey, connectionId })}>
+      <Lightbulb className="h-4 w-4" aria-hidden /> {t("ui.ideas.sendToTriage")}
+    </DropdownMenuItem>
   );
 }
