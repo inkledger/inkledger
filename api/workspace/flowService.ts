@@ -5,7 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { attributeEvent } from "@contracts/workspace/applyMachine";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { scopeFor } from "@contracts/workspace/catalog";
-import { FLOW_AGGREGATION_VERSION, aggregateEvidence, flowMapChecksumInput, type EvidenceSet, type FlowEvent, type FlowMapDocument, type FlowMapView } from "@contracts/workspace/flowMap";
+import { FLOW_AGGREGATION_VERSION, aggregateEvidence, flowMapChecksumInput, type EvidenceSet, type FlowEvent, type FlowMapDocument, type FlowMapView, type SemanticRevisions } from "@contracts/workspace/flowMap";
 import type { Scope } from "@contracts/workspace/model";
 import { digestBytes, fingerprint } from "./crypto";
 import { loadApplyState } from "./store";
@@ -31,6 +31,12 @@ import {
 export function flowMapChecksum(document: unknown): string {
   return digestBytes(new TextEncoder().encode(`flowmap-v1\n${flowMapChecksumInput(document)}`));
 }
+
+/** What each control and anchor means in this version: events kept from an older meaning are isolated (C-03). */
+const SEMANTIC_REVISIONS: SemanticRevisions = {
+  controls: Object.fromEntries(CATALOG_V1.controls.map(control => [control.id, control.semanticRevision])),
+  anchors: Object.fromEntries(CATALOG_V1.anchors.map(anchor => [anchor.id, anchor.semanticRevision])),
+};
 
 function checkEventCatalog(event: FlowEvent): boolean {
   try {
@@ -112,7 +118,7 @@ async function buildFlowEvidence(userId: number, scope: Scope, effectiveRevision
   if (onlyIfUsed && events.length === 0) return null;
   const id = `evidence_${fingerprint("workspace", { algorithm: FLOW_AGGREGATION_VERSION, effectiveRevision: snapshot.descriptor.effectiveRevision, eventIds: events.map(event => event.id).sort() }).value}`;
   const areasByAnchor = Object.fromEntries(snapshot.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
-  const evidence = aggregateEvidence(events, snapshot.descriptor, scope, id, 0, areasByAnchor);
+  const evidence = aggregateEvidence(events, snapshot.descriptor, scope, id, 0, areasByAnchor, SEMANTIC_REVISIONS);
   const feedback = await feedbackById(userId);
   const withFeedback = { ...evidence, expectations: evidence.expectations.map(gap => ({ ...gap, state: feedback[gap.id] ?? gap.state })) };
   await saveEvidence(userId, withFeedback);
@@ -138,7 +144,7 @@ export async function flowMapOverview(userId: number, scope: Scope) {
     const events = await loadFlowEvents(userId, scope, current.descriptor.effectiveRevision, Date.now() - 7 * DAY_MS);
     if (events.length > 0) {
       const areasByAnchor = Object.fromEntries(current.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
-      live = aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor);
+      live = aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor, SEMANTIC_REVISIONS);
       layouts[current.descriptor.effectiveRevision] ??= current.workspace.placements.map(({ anchorId, areaId, order, visible }) => ({ anchorId, areaId, order, visible }));
     }
   }

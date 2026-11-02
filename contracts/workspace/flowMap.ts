@@ -126,6 +126,17 @@ export function expectationId(gap: Omit<ExpectationGap, "id" | "state">): string
   return [gap.pattern, gap.areaId, gap.destinationControlId ?? "unresolved"].join(":");
 }
 
+/** The catalogue's current semantic revision of each control and anchor (C-03). */
+export type SemanticRevisions = {
+  controls: Readonly<Record<string, number>>;
+  anchors: Readonly<Record<string, number>>;
+};
+
+/**
+ * `semanticRevisions`: what each control and anchor means now. An event recorded under another meaning
+ * is isolated, never counted as today's (C-03, §13.4); one the catalogue does not list counts under the
+ * newest revision its events carry.
+ */
 export function aggregateEvidence(
   events: readonly FlowEvent[],
   descriptor: PresentationDescriptor,
@@ -133,6 +144,7 @@ export function aggregateEvidence(
   evidenceId: string,
   droppedEvents = 0,
   areasByAnchor: Readonly<Record<string, string>> = {},
+  semanticRevisions: SemanticRevisions = { controls: {}, anchors: {} },
 ): EvidenceSet {
   const heat = new Map<string, {
     controlId: string;
@@ -159,8 +171,23 @@ export function aggregateEvidence(
   const previousEventBySession = new Map<string, FlowEvent>();
   const searches = new Map<string, { anchorId?: string; selected: FlowEvent[]; abandoned: number }>();
   const sorted = [...events].sort((a, b) => byCodeUnit(a.sessionId, b.sessionId) || a.sequence - b.sequence || a.occurredAt - b.occurredAt || byCodeUnit(a.id, b.id));
+  const newestControl = new Map<string, number>();
+  const newestAnchor = new Map<string, number>();
   for (const event of sorted) {
     if (event.descriptor.effectiveRevision !== descriptor.effectiveRevision) continue;
+    if (event.controlId) newestControl.set(event.controlId, Math.max(newestControl.get(event.controlId) ?? 0, event.semanticRevision));
+    else if (event.anchorId) newestAnchor.set(event.anchorId, Math.max(newestAnchor.get(event.anchorId) ?? 0, event.semanticRevision));
+  }
+  const currentMeaning = (event: FlowEvent) => event.controlId
+    ? event.semanticRevision === (semanticRevisions.controls[event.controlId] ?? newestControl.get(event.controlId))
+    : !event.anchorId || event.semanticRevision === (semanticRevisions.anchors[event.anchorId] ?? newestAnchor.get(event.anchorId));
+  for (const event of sorted) {
+    if (event.descriptor.effectiveRevision !== descriptor.effectiveRevision) continue;
+    if (!currentMeaning(event)) {
+      // Isolated, not lost: its place in the session's sequence is no gap.
+      previousEventBySession.set(event.sessionId, event);
+      continue;
+    }
     if (event.droppedBefore) gaps += event.droppedBefore;
     firstAt = Math.min(firstAt, event.occurredAt);
     lastAt = Math.max(lastAt, event.occurredAt);
