@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATALOG_V1, PRODUCT_DEFAULTS_V1 } from "@contracts/workspace/catalogV1";
 import { productDefaultFor } from "@contracts/workspace/catalog";
 import type { ResolvedPlacement, Scope } from "@contracts/workspace/model";
-import { applyLocally, blocksIn, insertionIndex, sketchFor } from "./sketch";
+import { applyLocally, blocksIn, hitGridByAnchor, insertionIndex, sketchFor } from "./sketch";
 
 const scopes: Scope[] = [
   { surfaceId: "dashboard", deviceClass: "desktop" },
@@ -79,5 +79,33 @@ describe("the Dashboard's composition, shared by the page and its drawings", () 
       lead: null,
       segments: [{ kind: "row", items: ["dashboard.summary"] }, { kind: "band", anchorId: "dashboard.timeline" }, { kind: "row", items: [["dashboard.activity"]] }],
     });
+  });
+});
+
+describe("where in a block the clicks landed", () => {
+  const grid = (marks: [x: number, y: number, count: number][]) => {
+    const cells = Array.from({ length: 8 }, () => Array<number>(8).fill(0));
+    for (const [x, y, count] of marks) cells[y][x] = count;
+    return cells;
+  };
+  it("adds up the 8×8 grids of every control of a block, rows by columns", () => {
+    const grids = hitGridByAnchor([
+      { anchorId: "dashboard.quickActions", cells: grid([[1, 2, 3]]) },
+      { anchorId: "dashboard.quickActions", cells: grid([[1, 2, 2], [7, 0, 1]]) },
+      { anchorId: "dashboard.timeline", cells: grid([[0, 7, 4]]) },
+    ]);
+    const quick = grids.get("dashboard.quickActions")!;
+    expect(quick[2][1]).toBe(5);
+    expect(quick[0][7]).toBe(1);
+    expect(quick.flat().reduce((sum, value) => sum + value, 0)).toBe(6);
+    expect(grids.get("dashboard.timeline")![7][0]).toBe(4);
+  });
+  it("counts a control without cells as zeros, still 8×8", () => {
+    const grids = hitGridByAnchor([{ anchorId: "dashboard.stats", cells: [] }, { anchorId: "dashboard.stats", cells: [[1]] }]);
+    const stats = grids.get("dashboard.stats")!;
+    expect(stats).toHaveLength(8);
+    expect(stats.every(row => row.length === 8)).toBe(true);
+    expect(stats[0][0]).toBe(1);
+    expect(stats.flat().reduce((sum, value) => sum + value, 0)).toBe(1);
   });
 });
