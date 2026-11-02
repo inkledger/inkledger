@@ -1,7 +1,7 @@
 # State: Desk (issues side by side) — partial
 
 ## Goal and done criteria
-`/issues/desk` shows up to 4 issues at once, tiled like snapped windows: halves, thirds, one big pane with two beside it, or quarters.
+`/issues/desk` shows up to 6 issues at once, tiled like snapped windows: halves, thirds, rows, one big pane with the others beside it, quarters, two rows of different counts, or grids of six.
 
 Done criteria:
 - Panes are placed with snap zones, by pointer and by keyboard, and resized with dividers.
@@ -26,18 +26,20 @@ Done criteria:
 - **Storage:** the current desk is stored server-side in `desks` (`name` null). The page applies changes at once and saves after 300 ms of quiet, and on pagehide.
 - **Snapping:** `useSnapDrag` does pointer and keyboard dragging with a small store, so panes never re-render while the pointer moves. A pane's scroll position is restored after a move. `snapTargetAt` can be reused for drops from outside the desk with n+1 panes.
 - **Hotkeys:** Alt+Shift+arrows snap a pane; `useHotkeys` no longer treats Alt+Shift+←/→ as back/forward.
-- **Empty slots:** a slot of the arrangement may hold `{ empty: true, id }` (id "1"–"99", the first free one, so the model stays pure and deterministic). They count towards the four, are stored, and survive `normalizeDesk`, which dedupes issues and drops a desk of empty slots alone. `addPane` (and the server's `desks.add`) fills the first one; `setPreset` adds or drops them; they are never parked. Phones show the issues alone.
+- **Empty slots:** a slot of the arrangement may hold `{ empty: true, id }` (id "1"–"99", the first free one, so the model stays pure and deterministic). They count towards the six, are stored, and survive `normalizeDesk`, which dedupes issues and drops a desk of empty slots alone. `addPane` (and the server's `desks.add`) fills the first one; `setPreset` adds or drops them; they are never parked. Phones show the issues alone.
 - **Sending from an issue page** (`placeIssue`): this issue in the chosen slot, the desk's other issues in the other slots in their order while they fit (the rest parked), empty slots for what is left. The page offers `pagePresets(n)`, at most six arrangements with room for the desk's issues plus this one (n at least 2: an issue sent alone keeps an empty slot beside it). Alt+Shift+arrows use the halves, so the desk's first other issue takes the other half.
-- **Shift-click** (`useOpenBeside`, capture phase in the shell; Shift alone): on the Desk it fills the first empty slot (an event the Desk page handles); on an issue page the Desk opens with the two side by side (`sideBySide`, others parked); elsewhere `desks.add` (which now also takes `{ connectionId, remoteId }`) and a toast "n/4" with "Open desk". The work lives in `src/lib/desk/send.ts`, loaded on first use.
+- **Shift-click** (`useOpenBeside`, capture phase in the shell; Shift alone): on the Desk it fills the first empty slot (an event the Desk page handles); on an issue page the Desk opens with the two side by side (`sideBySide`, others parked); elsewhere `desks.add` (which now also takes `{ connectionId, remoteId }`) and a toast "n/6" with "Open desk". The work lives in `src/lib/desk/send.ts`, loaded on first use.
 - **Dragging issues in:** rows (their key link; pinned rows as a whole) and board cards add `application/x-inkledger-issue` beside their own types (`setIssueDragData`). The Desk takes it on an empty slot, on its snap places with one more slot (a full desk: the pane under the pointer is parked), and on the sidebar's Desk entry.
-- **Picking in Issues:** `x` and checkboxes (shown on hover, all once one is picked; a card's menu has "Pick for the desk"), then the bar's "Open on desk" (`openTogether`, the default arrangement for the count; disabled above four, saying why).
+- **Picking in Issues:** `x` and checkboxes (shown on hover, all once one is picked; a card's menu has "Pick for the desk"), then the bar's "Open on desk" (`openTogether`, the default arrangement for the count; disabled above six, saying why).
+- **Six panes (4b):** `DESK_MAX_PANES` is 6 (empty slots count). New arrangements: `rows-3`, `rows-4`, `main-{left,right,top,bottom}-3`, `main-left-4`/`main-right-4` (big beside a 2×2), `top-3-bottom-2`/`top-2-bottom-3` (on six columns, each pane spanning two or three), `grid-3x2`, `grid-2x3`; defaults 5 → `main-left-4`, 6 → `grid-3x2`. Old ids stay; a stored desk with an id this version doesn't know keeps its issues in the default (the schema reads `preset` as any string). Spanning panes: `minTrackOf` lets a column go to MIN_TRACK/2 where every pane covers two or more, so no pane is ever under MIN_TRACK; dividers and `normalizeDesk` use it. `fitPreset` measures each pane at even sizes (20×14 rem minimum) and falls back along `FALLBACKS`; when nothing fits, the candidate whose tightest pane comes nearest. Edges with 4–5 panes make the pane the big one on that side, corners a small one opposite (4: quarters); with 6, corners are the grid's corners and edges the middle of a side. The Layout picker groups arrangements by pane count (two columns); "Move to" lists places flat up to 8, beyond that one submenu per arrangement. Keys `1`–`6`; toasts "n/6".
 
 ## Batches and progress
 - [x] 0. Layout model (`contracts/desk.ts`, tests)
 - [x] 1. `IssueBody` as page or pane; the issue page is unchanged (byte-identical screenshots)
-- [x] 2. Desk page: current desk, layouts, dividers, parking tray, maximize, phone tabs, `g e` / `1`–`4` / `x`
+- [x] 2. Desk page: current desk, layouts, dividers, parking tray, maximize, phone tabs, `g e` / `1`–`4` (now `1`–`6`) / `x`
 - [x] 3. Snapping by drag, keys or menu ("Move to", "Swap with"); live region announcements
 - [x] 4. Entry points and the Desk in the workflow: empty slots, sending an issue from its page (grip to an edge, Layout button, Alt+Shift+arrows, long press on a phone), Shift-click on issue links, "Open beside", dragging from lists and the board, picking in Issues
+- [x] 4b. Up to six panes and more arrangements (presets, fit, snap edges, picker, Move to, keys, toasts, tabs)
 - [ ] 5. Compare view, and its phone table
 - [ ] 6. Copy all for model (`issues.copyForAgentMany`)
 - [ ] 7. Decision note (`markdown_note_issues`, migration 0039)
@@ -55,10 +57,14 @@ Done criteria:
 | `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && pnpm db:check` | batch 4 | pass; 2891 unit tests |
 | `e2e/desk-flow.test.mjs` (new) + `desk` + `desk-snap` | batch 4 | 15/15, ×3 |
 | a11y, board, issue-*, keyboard-list, layout-overflow, manage-issue, create-issue, regressions, desk* | batch 4 | 123/123 |
+| `pnpm lint && pnpm check && OLLAMA_URL= pnpm test && pnpm build && pnpm test:smoke && pnpm db:check` | batch 4b | pass; 2909 unit tests; first load 868.0/276.1 KiB |
+| `desk` + `desk-snap` + `desk-flow` + `desk-six` (new) | batch 4b | 19/19, ×3 |
+| issue-copy, issue-hotkeys, issue-links, manage-issue, create-issue, keyboard-list, layout-overflow, a11y | batch 4b | 25/25 |
 
 ## Open issues and next action
-- The "Move to" menu lists 14 places plus 2 swaps with three panes; grouping them by layout could make it shorter.
-- At 320 px the fourth tab is reached only by scrolling the tab row.
+- At 320 px three of six tabs show; the others are reached by scrolling the tab row (or the arrows).
+- A divider of a spanning arrangement (three above two) moves one six-column line: its value is that column's share, not the pane's; and a pane there can shrink only to its other column plus half the minimum.
+- With five panes the top and bottom edges are not symmetric (top: the wide top-left of "two above three"; bottom: the wide bottom-left of "three above two").
 - With no tracker in e2e, seeded descriptions show "Could not load the data".
 - Two Dashboard e2e tests sometimes fail when run repeatedly: "Two quick ticks in Customize" and FlowMap #14.
 - The title's grip is for the pointer only (keyboard: the Layout button and Alt+Shift+arrows), and only on wide screens.
