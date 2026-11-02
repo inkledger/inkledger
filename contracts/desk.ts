@@ -290,7 +290,7 @@ export function zoneAt(point: { x: number; y: number }, n: number, paneRects: re
   const nearLeft = point.x < band, nearRight = point.x > 1 - band, nearTop = point.y < band, nearBottom = point.y > 1 - band;
   const vertical = nearTop ? "top" : nearBottom ? "bottom" : null;
   const horizontal = nearLeft ? "left" : nearRight ? "right" : null;
-  const edge = (vertical && horizontal ? `${vertical}-${horizontal}` : vertical ?? horizontal);
+  const edge: Edge | null = vertical && horizontal ? `${vertical}-${horizontal}` : vertical ?? horizontal;
   if (edge) {
     const target = edgeTarget(edge, n);
     // A corner with no meaning of its own for this count falls back to its side.
