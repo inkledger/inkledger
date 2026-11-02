@@ -29,7 +29,7 @@
 - [x] 4 split placement UI (LogTimeDialog, QuickLog, DayReview, Timesheet duplicate, pending timers)
 - [x] 5 day hours editor (DayHoursEditor, useDayHoursEdit, dayHours)
 - [x] 6 suggestions + settings (IdleDialog "It was my break", BreakSuggestion, own days list, keep/drop dialog)
-- [x] 7 e2e (`e2e/day-hours.test.mjs`, 4 tests) + full checks
+- [x] 7 e2e (`e2e/day-hours.test.mjs`, 5 tests) + full checks
 
 ## Checks
 | Command | Scope | Result |
@@ -44,4 +44,4 @@
 ## Blocks and next action
 - Done: rebased onto main after the team heat map (fa15879), then merged into main on 2026-11-02.
 - Checks after the rebase: lint, check, test (2971), build and smoke all passed. Full e2e: 393 of 394 passed; desk-snap failed once under load and passes when rerun alone.
-- Not covered by e2e: a timer placed across the break in the UI (covered by unit and router tests).
+- A stopped timer across the break: e2e checks the dialog's preview and the one `create` with both parts (the server is read-only toward Jira there; the split write is in the router tests). `e2e/day-hours.test.mjs`: 5 of 5 pass.

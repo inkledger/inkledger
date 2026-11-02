@@ -123,6 +123,50 @@ test("a future day off; a closed week's hours can't change; a day's own hours sh
     assert.equal(await page.getByRole("button", { name: /^Log missing time from 09:00 to 13:00/ }).count(), 0);
   }));
 
+test("a timer stopped across the break is logged as two worklogs, either side of it", () => {
+  const at = (h, m = 0) => new Date(lastWorkday()).setHours(h, m, 0, 0);
+  const now = Date.now();
+  return withApp(
+    {
+      viewport: { width: 1280, height: 900 },
+      // 9:00–18:00 with an hour paused for lunch: 8 h tracked, not one stretch.
+      seed: db =>
+        db.q(
+          "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 28800, ?, '', ?, ?)",
+          at(9), at(18), now, now,
+        ),
+    },
+    async ({ page, base }) => {
+      // The server is read-only toward Jira: what the dialog sends is answered as the server
+      // would (the server's split write is covered by the worklogs router tests).
+      const sent = [];
+      await page.route(/\/api\/trpc\/worklogs\.create/, async route => {
+        const body = JSON.parse(route.request().postData() ?? "{}");
+        const input = body[0]?.json ?? body.json;
+        sent.push(input);
+        const made = { id: 900, issueKey: input.issueKey, remoteId: "wl-1", timeSpentSeconds: input.seconds, comment: "" };
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body[0] ? [{ result: { data: { json: made } } }] : { result: { data: { json: made } } }) });
+      });
+      await page.goto(`${base}/?period=day&from=${day()}`);
+      const blocks = page.getByRole("button", { name: /^DEMO-101, .* tracked and not logged yet: log it$/ });
+      await blocks.first().waitFor();
+      assert.equal(await blocks.count(), 2, "drawn either side of the break");
+      await blocks.first().click();
+      const dialog = page.getByRole("dialog", { name: "Log time on DEMO-101" });
+      await dialog.getByText("Split around your break: 09:00–13:00 + 14:00–18:00.").waitFor();
+      await dialog.getByRole("button", { name: "Log", exact: true }).click();
+      await dialog.waitFor({ state: "detached" });
+      assert.equal(sent.length, 1, "one write: the timer is claimed once");
+      assert.equal(sent[0].seconds, 8 * 3600);
+      assert.equal(sent[0].fromTimer, true);
+      assert.deepEqual(
+        sent[0].parts.map(p => [new Date(p.started).getTime(), p.seconds]),
+        [[at(9), 4 * 3600], [at(14), 4 * 3600]],
+      );
+    },
+  );
+});
+
 test("on a phone the hours are fields, at 320 px, and a refused draft can't be saved", () =>
   withApp({ viewport: { width: 320, height: 720 } }, async ({ page, base, db }) => {
     const key = day();
