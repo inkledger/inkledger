@@ -34,7 +34,8 @@ const root = folder("shop", {
   ".git": { HEAD: "ref: refs/heads/main MAGA-400", config: "url = https://token@example.com/shop.git" },
   ".env": "TOKEN=MAGA-400-secret",
   ".env.example": "TOKEN=",
-  deploy: { "server.pem": "-----BEGIN PRIVATE KEY----- MAGA-400" },
+  // Not a key's real marker: the repository refuses anything shaped like one (modules.test.ts).
+  deploy: { "server.pem": "fake key material MAGA-400" },
   node_modules: { lib: { "x.js": "MAGA-400 inside a dependency" } },
   dist: { "app.js": "MAGA-400 built" },
   "README.md": "# Shop\r\nMAGA-400 notes\r\n",
@@ -97,7 +98,7 @@ describe("browserTool", () => {
       expect(!out.ok && out.error, path).toMatch(/private/);
     }
     expect((await browserTool(root, "ls", { repo: "shop", path: ".git" })).ok).toBe(false);
-    const grep = await browserTool(root, "grep", { repo: "shop", query: "secret|PRIVATE KEY|token@", regex: true });
+    const grep = await browserTool(root, "grep", { repo: "shop", query: "secret|fake key|token@", regex: true });
     expect(grep.ok && "hits" in grep.result && grep.result.hits).toEqual([]);
     const find = await browserTool(root, "find", { repo: "shop", pattern: "*", path: "" });
     expect(find.ok && "paths" in find.result && find.result.paths.filter(p => /\.env$|\.pem$/.test(p))).toEqual([]);
