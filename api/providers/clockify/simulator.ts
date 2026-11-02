@@ -14,6 +14,7 @@
 // - nothing honours an idempotency key: a retried create makes a second entry.
 import type { ClockifyApproval, ClockifyEntry, ClockifyProject, ClockifyTask, ClockifyUser } from "./client";
 import { isoDuration, isoSecondsUtc } from "../core/time";
+import { simRequest } from "../core/simulator";
 
 type SimEntry = {
   id: string;
@@ -103,9 +104,7 @@ export function clockifySimulator(o: { apiBase?: string; forceProjects?: boolean
   const refuse = (message: string, code: number, status = 400) => json({ message, code }, status);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     const root = new URL(apiBase).pathname.replace(/\/$/, "");
     const path = url.pathname.slice(root.length);

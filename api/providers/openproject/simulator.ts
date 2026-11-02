@@ -27,6 +27,7 @@
 //   and a server open to the public may answer as the anonymous account.
 import { createHmac } from "node:crypto";
 import { isoDuration } from "../core/time";
+import { simRequest } from "../core/simulator";
 
 export type SimUser = { id: number; name: string; login: string; email?: string; avatar?: string };
 type SimStatus = { id: number; name: string; isClosed: boolean; position: number; color: string };
@@ -474,8 +475,7 @@ export function openprojectSimulator(site = "https://op.example.com", me: SimUse
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     const signal = init?.signal;
     if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException("aborted", "AbortError");
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
+    const { url, method } = simRequest(input, init);
     state.calls.push(`${method} ${url.pathname.slice(webPath.length)}${url.search ? "?" + decodeURIComponent(url.search.slice(1)) : ""}`);
     if (url.origin !== new URL(web).origin) return error(404, "NotFound", "unknown site");
     const fault = injected.shift();

@@ -18,6 +18,7 @@
 //   archived repositories refuse writes (403); a repository the user can't see
 //   is a 404.
 import type { GiteaComment, GiteaIssue, GiteaTimelineEntry, GiteaTrackedTime, GiteaUser } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimRepo = { id: number; owner: string; name: string; archived: boolean; timeTracking: boolean; canWrite: boolean; access: boolean };
 type SimComment = { id: number; userId: number; body: string; created: number; updated: number };
@@ -174,8 +175,7 @@ export function giteaSimulator(
   };
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
+    const { url, method } = simRequest(input, init);
     const sent = new Headers(init?.headers);
     requests.push({ method, origin: url.origin, path: url.pathname, search: url.search, headers: Object.fromEntries(sent.entries()) });
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};

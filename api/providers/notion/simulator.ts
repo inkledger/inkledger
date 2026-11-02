@@ -37,6 +37,7 @@
 // - over the rate limit (an average of 3 requests a second): 429 rate_limited
 //   with Retry-After in seconds.
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 import type { NotionBlock, NotionColumn, NotionComment, NotionDatabase, NotionGroup, NotionOption, NotionPage, NotionRichText, NotionUser, NotionValue } from "./client";
 
 export type SimUser = { id: string; name: string; email: string | null; avatar: string | null };
@@ -431,10 +432,8 @@ export function notionSimulator(
   };
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method, headers } = simRequest(input, init);
     const base = new URL(apiBase);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
     const body = init?.body && typeof init.body === "string" ? objOf(JSON.parse(init.body)) : {};
     calls.push({ method, path: url.pathname, search: url.search, body });
     if (url.origin !== base.origin || !url.pathname.startsWith(`${base.pathname}/`)) return json({ object: "error", status: 404, code: "invalid_request_url", message: "Invalid request URL." }, 404);

@@ -24,6 +24,7 @@
 //   category; an approved or pending one is locked (403), other people's are read-only.
 import { createHmac } from "node:crypto";
 import { isoSecondsUtc } from "../core/time";
+import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 type Group = "Active" | "Completed" | "Deferred" | "Cancelled";
@@ -343,9 +344,7 @@ export function wrikeSimulator(apiBase = "https://www.wrike.com/api/v4") {
   };
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");
     state.calls++;
 

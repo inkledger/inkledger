@@ -14,6 +14,7 @@
 // - lists are paged by page/limit and the service caps limit below what the
 //   client may ask; there is no idempotency key (a lost answer may have landed).
 import type { EverhourTaskRef, EverhourTimeRecord, EverhourTimer, EverhourUser } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimRecord = { date: string; time: number; user: number; task: string; comment: string | null; history: { id: number; time: number; previousTime: number; createdAt: string }[] };
 type SimTimer = { task: string; startedAt: number; user: number };
@@ -80,9 +81,7 @@ export function everhourSimulator(apiBase = "https://api.everhour.com", me: Ever
   const fail = (status: number, message: string, headers: Record<string, string> = {}) => json({ code: status, message }, status, headers);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     let body: Record<string, unknown> = {};
     if (typeof init?.body === "string") {
       try {

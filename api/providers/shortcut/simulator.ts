@@ -20,6 +20,7 @@
 import { randomUUID } from "node:crypto";
 import { hmacHex } from "../core/webhooks";
 import type { ShortcutChanges, ShortcutComment, ShortcutHistory, ShortcutMe, ShortcutMember, ShortcutRef, ShortcutState, ShortcutStory, ShortcutWorkflow } from "./client";
+import { simRequest } from "../core/simulator";
 
 export const PER_MINUTE = 200;
 export const SEARCH_MAX = 25;
@@ -337,9 +338,7 @@ export function shortcutSimulator(apiBase = "https://api.app.shortcut.com", meOv
   const missing = () => json({ message: "Resource does not exist.", tag: "not_found" }, 404);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     calls.push({ method, path: `${url.pathname}${url.search}`, token: headers.get("shortcut-token"), authorization: headers.get("authorization") });
 

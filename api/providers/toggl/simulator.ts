@@ -22,6 +22,7 @@
 // - the project list is paged (151 by default, 200 at most), filters `name`
 //   exactly, and is `null` when empty.
 import type { TogglEntry, TogglMe, TogglProject, TogglWorkspace } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimWorkspace = { id: number; name: string; premium: boolean };
 type SimProject = { id: number; workspace: number; name: string; active: boolean };
@@ -191,9 +192,7 @@ export function togglSimulator(apiBase = "https://api.track.toggl.com/api/v9", o
   }
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");
     const path = url.pathname.slice(apiPath.length);

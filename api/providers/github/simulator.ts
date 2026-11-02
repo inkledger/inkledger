@@ -3,6 +3,7 @@
 // assigned list, 404 for what isn't there).
 import { createHash } from "node:crypto";
 import type { GitHubComment, GitHubIssue, GitHubUser } from "./client";
+import { simRequest } from "../core/simulator";
 
 export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUser = { id: 4242, login: "mrossi", name: "Mario Rossi" }) {
   const issues: (GitHubIssue & { owner: string; repo: string; assignee: number | null; comments: GitHubComment[] })[] = [];
@@ -108,8 +109,7 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
     body.replace(/https:\/\/github\.com\/user-attachments\/assets\/([\w-]+)/g, (_, asset: string) => `${IMAGE_HOST}/${me.id}/1-${asset}.png?jwt=sim.${signingNow() + 5 * 60_000}`);
 
   async function answer(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
+    const { url, method } = simRequest(input, init);
     if (url.origin === "https://github.com" && url.pathname.startsWith("/user-attachments/")) return json({ message: "Not Found" }, 404);
     if (url.origin === IMAGE_HOST) {
       const signed = /^sim\.(\d+)$/.exec(url.searchParams.get("jwt") ?? "");

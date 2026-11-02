@@ -18,6 +18,7 @@ import type { TempoApproval, TempoWorkAttribute, TempoWorklog } from "./client";
 import { wallOf } from "./client";
 import { isoSecondsUtc } from "../core/time";
 import { timeZone } from "@contracts/values";
+import { simRequest } from "../core/simulator";
 
 export type SimWorklog = {
   tempoWorklogId: number;
@@ -148,9 +149,7 @@ export function tempoSimulator(apiBase = "https://api.tempo.io/4", o: { userZone
   const kept = (seconds: number) => (state.roundsToMinutes ? Math.max(60, Math.round(seconds / 60) * 60) : seconds);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     state.calls++;
     const path = url.pathname.slice(new URL(apiBase).pathname.replace(/\/$/, "").length);

@@ -13,6 +13,7 @@
 // - self-hosted servers send avatars as paths on their own site.
 import { hmacHex } from "../core/webhooks";
 import type { PlaneActivity, PlaneComment, PlaneIssue, PlaneLabel, PlaneProject, PlaneState, PlaneStateGroup, PlaneUser, PlaneWorklog } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimComment = { id: string; html: string; actor: string; created: number; updated: number };
 type SimActivity = { id: string; created: number; verb: string; field: string | null; oldValue: string | null; newValue: string | null; oldId: string | null; newId: string | null; actor: string };
@@ -277,9 +278,7 @@ export function planeSimulator(apiBase = "https://api.plane.so", workspace = "ac
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
 
     // 60 a minute per key, counted in a window that opens with the first call.

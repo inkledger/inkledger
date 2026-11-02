@@ -15,6 +15,7 @@
 //   a user_id the account may not log for is silently ignored: the entry is made for the caller;
 // - watchers: POST/DELETE answer 204 whether or not it changed anything; 403 without the permission.
 import type { RmActivity, RmIssue, RmJournal, RmJournalDetail, RmProject, RmStatus, RmTimeEntry, RmUser } from "./client";
+import { simRequest } from "../core/simulator";
 
 export type SimStatus = { id: number; name: string; closed: boolean };
 export type SimProject = { id: number; identifier: string; name: string; parent: number | null; access: boolean; activities: number[] | null };
@@ -308,9 +309,7 @@ export function redmineSimulator(apiBase = "https://redmine.example.com", me: Rm
   };
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, Record<string, unknown>>) : {};
     state.calls++;
 

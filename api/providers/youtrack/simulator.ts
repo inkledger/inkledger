@@ -18,6 +18,8 @@
 // - deleted comments are still listed, flagged `deleted`; a token that is
 //   wrong is 401, and a guest account may answer in its place;
 // - avatar URLs are relative paths.
+import { simRequest } from "../core/simulator";
+
 export type SimUser = { id: string; login: string; fullName: string; email?: string; avatarUrl?: string };
 export type SimState = { name: string; isResolved: boolean };
 
@@ -376,8 +378,7 @@ export function youtrackSimulator(site = "https://acme.youtrack.cloud", me: SimU
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     const signal = init?.signal;
     if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException("aborted", "AbortError");
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
+    const { url, method } = simRequest(input, init);
     state.calls.push(`${method} ${url.pathname.slice(webPath.length)}${url.search ? "?" + decodeURIComponent(url.search.slice(1)) : ""}`);
     if (url.origin !== new URL(web).origin) return error(404, "unknown site");
     const fault = injected.shift();

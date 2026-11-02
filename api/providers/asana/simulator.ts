@@ -21,6 +21,7 @@
 // - time tracking entries: whole minutes, a plain date, billable_status, a category (attributable_to),
 //   an approval that locks them (403), other people's entries visible but not editable.
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 type SimUser = { gid: string; name: string; email: string; photo: string | null };
@@ -351,9 +352,7 @@ export function asanaSimulator(apiBase = "https://app.asana.com/api/1.0", opts: 
   const plain = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const parsed = typeof init?.body === "string" ? (JSON.parse(init.body) as { data?: Rec }) : {};
     const body: Rec = parsed.data ?? {};
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");

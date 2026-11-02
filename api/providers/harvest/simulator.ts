@@ -18,6 +18,7 @@
 // - lists are paged with page/per_page (at most 2000) and next_page;
 // - DELETE answers 200 with an empty body.
 import type { HarvestCompany, HarvestExternalReference, HarvestProjectAssignment, HarvestTimeEntry, HarvestUser } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimTask = { id: number; name: string };
 type SimProject = { id: number; name: string; code: string; clientId: number; active: boolean };
@@ -304,9 +305,7 @@ export function harvestSimulator(apiBase = "https://api.harvestapp.com/v2", o: {
   }
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     state.calls++;
 

@@ -26,6 +26,7 @@
 //   belongs to, and leaves archived cards out;
 // - a member's avatarUrl is a base (the size and .png are appended), or null.
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 import type { TrelloAction, TrelloBoard, TrelloCard, TrelloLabel, TrelloList, TrelloMember } from "./client";
 
 export type SimMember = TrelloMember;
@@ -353,10 +354,8 @@ export function trelloSimulator(
   }
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method, headers } = simRequest(input, init);
     const base = new URL(apiBase);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
     calls.push({ method, path: url.pathname, authorization: headers.get("authorization"), search: url.search });
     if (url.origin !== base.origin || !url.pathname.startsWith("/1/")) return text("Not Found", 404);
     const path = url.pathname.slice(2);

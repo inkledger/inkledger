@@ -18,6 +18,7 @@
 // - assignees are user ids: names need GET /users/{id} (User.ReadBasic.All, 403 without);
 // - the description is in the task's details (its own ETag), not in the task;
 // - a deleted task is a 404; a plan the user lost is a 403, and its tasks leave /me/planner/tasks.
+import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 export type SimUser = { id: string; displayName: string; mail: string; userPrincipalName: string };
@@ -199,9 +200,7 @@ export function plannerSimulator(apiBase = "https://graph.microsoft.com/v1.0", o
   const unknown = (what: string, id: string) => fail(404, "NotFound", `${what} '${id}' was not found.`);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = (typeof init?.body === "string" ? JSON.parse(init.body) : {}) as Rec;
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");
     state.calls++;

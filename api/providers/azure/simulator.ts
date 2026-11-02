@@ -19,6 +19,7 @@
 // - older servers send identities as "Name <unique name>";
 // - a type without listed transitions (an inherited process) allows any state.
 import type { AzureIdentity } from "./client";
+import { simRequest } from "../core/simulator";
 
 export type SimUser = { id: string; displayName: string; uniqueName: string };
 type StateDef = { name: string; category: "Proposed" | "InProgress" | "Resolved" | "Completed" | "Removed"; color: string };
@@ -467,9 +468,7 @@ export function azureSimulator(o: { apiBase?: string; wiqlLimit?: number; legacy
   };
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     calls.push(`${method} ${url.pathname}${url.search}`);
     const denied = checkAuth(headers);
     if (denied) return denied;

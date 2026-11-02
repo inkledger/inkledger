@@ -29,6 +29,7 @@
 //   body under the app's client secret; X-Todoist-Delivery-ID repeats on a
 //   retry.
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 import type { TodoistActivity, TodoistComment, TodoistDue, TodoistProject, TodoistSection, TodoistTask, TodoistUser } from "./client";
 
 export type SimUser = TodoistUser & { full_name: string; email: string };
@@ -360,10 +361,8 @@ export function todoistSimulator(
   }
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method, headers } = simRequest(input, init);
     const base = new URL(apiBase);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
     const rawBody = typeof init?.body === "string" ? init.body : "";
     calls.push({ method, path: url.pathname, search: url.search, authorization: headers.get("authorization"), body: rawBody });
     if (url.origin !== base.origin || !url.pathname.startsWith("/api/v1/")) return notFound();

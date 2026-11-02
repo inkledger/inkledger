@@ -21,6 +21,7 @@
 //   entry of someone else can be read, not changed (403);
 // - search finds every recording type and everybody's, as bare records;
 // - webhooks carry no signature: { id, kind, created_at, recording, creator }.
+import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 type SimPerson = { id: number; name: string; email: string; avatar: string | null };
@@ -349,9 +350,7 @@ export function basecampSimulator(apiBase = "https://3.basecampapi.com", opts: {
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     state.calls++;
-    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body: Rec = typeof init?.body === "string" && init.body ? (JSON.parse(init.body) as Rec) : {};
     // Basecamp refuses a client that doesn't say who it is.
     if (!headers.get("user-agent")) return fail(400, "Bad Request: send a User-Agent header with the name of your application and a contact");

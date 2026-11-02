@@ -27,6 +27,7 @@
 //   delivery id of their own (the history items have ids).
 import { createHmac } from "node:crypto";
 import { instantAtLocal, localDate, timeZone } from "@contracts/values";
+import { simRequest } from "../core/simulator";
 
 type Rec = Record<string, unknown>;
 export type SimUser = { id: number; username: string; email: string; color: string; profilePicture: string | null };
@@ -308,9 +309,7 @@ export function clickupSimulator(apiBase = "https://api.clickup.com/api/v2") {
   const reachable = (t: SimTask): Response | null => (visible(t) ? null : outOfReach());
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body: Rec = typeof init?.body === "string" ? (JSON.parse(init.body) as Rec) : {};
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");
     state.calls++;

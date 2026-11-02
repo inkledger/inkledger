@@ -14,6 +14,7 @@
 //   time, and leaves a system note "added 1h 30m of time spent at 2026-10-21" (a day as 8 hours).
 import type { GitLabIssue, GitLabLabelEvent, GitLabMilestoneEvent, GitLabNote, GitLabStateEvent, GitLabUser } from "./client";
 import { gidOf } from "./client";
+import { simRequest } from "../core/simulator";
 
 type SimNote = { id: number; body: string; author: number; created: number; system: boolean };
 type SimEvent = { id: number; user: number; created: number } & ({ kind: "label"; label: string; labelId: number; action: "add" | "remove" } | { kind: "state"; state: string });
@@ -262,9 +263,7 @@ export function gitlabSimulator(
     new Response(status === 204 || status === 304 ? null : JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...rateHeaders(), ...headers } });
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
+    const { url, method, headers } = simRequest(input, init);
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     const apiPath = new URL(apiBase).pathname.replace(/\/$/, "");
     state.calls++;
