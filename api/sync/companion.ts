@@ -13,8 +13,9 @@ import { withDeleteReason } from "../queries/trash";
 import { ProviderError } from "../providers/core/errors";
 import { certainRefusal } from "../providers/trpc";
 import { boundSink, pushOne, sinksSoon, trackerOfSink } from "./extraSinks";
+import { callMeta } from "../lib/callMeta";
 
-const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `companion-${Date.now()}` });
+const meta = () => callMeta("companion");
 const transient = (e: unknown) => e instanceof ProviderError && e.transient;
 
 async function reread(id: number): Promise<Worklog> {

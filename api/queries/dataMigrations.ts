@@ -2,6 +2,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { markdownNotes, serverSettings, settings } from "@db/schema";
 import { normalizeDashboardLayout } from "@contracts/dashboard";
 import { dayKey } from "@contracts/time";
+import { parseStringList } from "../lib/json";
 import type { Db } from "./connection";
 
 /**
@@ -80,13 +81,7 @@ const DONE_KEY = "data-migrations.done";
 
 async function done(db: Db): Promise<string[]> {
   const [row] = await db.select().from(serverSettings).where(eq(serverSettings.key, DONE_KEY)).limit(1);
-  if (!row) return [];
-  try {
-    const ids = JSON.parse(row.value) as unknown;
-    return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
+  return row ? parseStringList(row.value) : [];
 }
 
 async function record(db: Db, ids: string[]) {

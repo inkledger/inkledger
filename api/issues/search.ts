@@ -8,6 +8,7 @@ import type { RemoteIssue } from "../providers/types";
 import { ProviderError } from "../providers/core/errors";
 import { providerTrpcError } from "../providers/trpc";
 import { t } from "@contracts/i18n";
+import { callMeta } from "../lib/callMeta";
 
 function isKeyQuery(query: string): boolean {
   return /^[A-Za-z][A-Za-z0-9]+-\d+$/.test(query.trim());
@@ -145,4 +146,3 @@ type SearchResult = {
   updatedAt: number | null;
 };
 
-export const callMeta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `ui-${Date.now()}` });

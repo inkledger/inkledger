@@ -11,8 +11,9 @@ import { getDb } from "../queries/connection";
 import { ownConnection } from "../providers/connections";
 import { providerCall } from "../providers/trpc";
 import { boundSink, pushSinks, sinksSoon } from "../sync/extraSinks";
+import { callMeta } from "../lib/callMeta";
 
-const meta = () => ({ signal: AbortSignal.timeout(20_000), correlationId: `sink-ui-${Date.now()}` });
+const meta = () => callMeta("sink-ui", 20_000);
 const target = z.object({ remoteId: z.string().min(1).max(200), name: z.string().max(300), path: z.array(z.object({ remoteId: z.string().max(200), name: z.string().max(300) })).max(10) });
 
 async function ownSink(userId: number, id: number) {

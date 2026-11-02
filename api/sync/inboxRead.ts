@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { connections } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { boundTracker } from "./engine";
+import { callMeta } from "../lib/callMeta";
 
 /** The inbox item a notification's dedupe names (c<connection>:inbox:<id>:<at>), if any. */
 export function inboxItemOf(dedupe: string): { connectionId: number; id: string } | null {
@@ -23,7 +24,7 @@ export async function markInboxRead(userId: number, dedupes: string[]): Promise<
       .limit(1);
     const b = conn ? boundTracker(conn) : null;
     if (!b?.markRead) continue;
-    await b.markRead({ signal: AbortSignal.timeout(15_000), correlationId: `read-${conn.id}-${Date.now()}` }, item.id).catch((e: unknown) => {
+    await b.markRead(callMeta(`read-${conn.id}`, 15_000), item.id).catch((e: unknown) => {
       console.warn(`[inbox] ${conn.id}: not marked read there (${e instanceof Error ? e.message : String(e)})`);
     });
   }

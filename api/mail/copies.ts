@@ -1,7 +1,7 @@
 // Copies of pinned mails (docs/work/ideas/mail-copies.md): made only when the
 // user chose to keep them, sealed for their own row (R-1.5), never failing the
 // pin they come with (R-1.6). From a dropped .eml, from Graph, from the add-in.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import PostalMime from "postal-mime";
 import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -109,7 +109,7 @@ export async function keepCopy(userId: number, mailId: number, raw: Buffer, sour
     };
     plain = Buffer.from(JSON.stringify(body), "utf8");
   }
-  const sha = createHash("sha256").update(plain).digest("hex");
+  const sha = sha256Hex(plain);
   const db = getDb();
   const [known] = await db.select({ sha: mailCopies.plainSha256 }).from(mailCopies).where(eq(mailCopies.mailId, mailId));
   if (known?.sha !== sha) {

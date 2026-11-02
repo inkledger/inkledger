@@ -2,9 +2,9 @@
 // once a day per site, best effort (a failure leaves ranks unknown).
 import type { JiraCredentials } from "@contracts/types";
 import { priorityRankOf } from "@contracts/categories";
+import { DAY_MS } from "@contracts/time";
 import { fetchPriorities } from "./client";
 
-const DAY_MS = 24 * 3600_000;
 const cache = new Map<string, { at: number; ranks: Map<string, number | null> }>();
 
 export async function priorityRanks(creds: JiraCredentials): Promise<Map<string, number | null> | null> {

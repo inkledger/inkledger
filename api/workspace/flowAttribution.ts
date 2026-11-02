@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { attributeEvent } from "@contracts/workspace/applyMachine";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import type { FlowEvent } from "@contracts/workspace/flowMap";
@@ -17,7 +17,7 @@ async function record(userId: number, scope: Scope, kind: "committed" | "present
     eventSchemaVersion: 1,
     // One event per fact: per scope (a tab shows desktop and phone layouts), per presentation, and per revision a commit saw.
     // Hashed: a fixed, short id whatever the length of the tab and revision ids.
-    id: `${discovery ? `discovery.${kind}` : `layout.${kind}`}.${createHash("sha256").update([anchorId ?? areaId ?? "", scope.surfaceId, scope.deviceClass, clientInstanceId, epoch, kind === "committed" ? observedCommittedRevision : ""].join("\n")).digest("hex").slice(0, 40)}`,
+    id: `${discovery ? `discovery.${kind}` : `layout.${kind}`}.${sha256Hex([anchorId ?? areaId ?? "", scope.surfaceId, scope.deviceClass, clientInstanceId, epoch, kind === "committed" ? observedCommittedRevision : ""].join("\n")).slice(0, 40)}`,
     kind: discovery ? `discovery.${kind}` : `layout.${kind}`,
     scope,
     ...(anchorId ? { anchorId } : {}),

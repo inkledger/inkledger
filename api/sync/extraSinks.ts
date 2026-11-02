@@ -16,7 +16,7 @@ import { instant, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
 import { bindSink, type BoundSink } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
-import { connOf } from "../providers/connections";
+import { connectionOptions, connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
 import { withDeleteReason } from "../queries/trash";
@@ -26,20 +26,12 @@ import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
 import { CLAIM_TTL_MS } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
+import { callMeta } from "../lib/callMeta";
 
-const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `sink-${Date.now()}` });
+const meta = () => callMeta("sink");
 const SINKS = new Set<string>(TIME_SINK_TYPES);
 export { COMPANIONS } from "./companions";
 const BESIDE = (type: string) => SINKS.has(type) && !COMPANIONS[type as TimeSinkType];
-
-const optionsOf = (c: Connection): Record<string, unknown> => {
-  try {
-    const o = JSON.parse(c.options) as unknown;
-    return o && typeof o === "object" ? (o as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-};
 
 /** Unverified sinks write only once the user allowed it. */
 const mayWrite = (c: Connection) => sinkStatus(c.type as TimeSinkType) !== "experimental" || c.writesAllowed === 1;
@@ -59,7 +51,7 @@ async function sinkConnections(userId: number): Promise<Connection[]> {
 /** The tracker connection a sink stands in for, or null (a sink beside every tracker). */
 export function trackerOfSink(c: Connection): number | null {
   const k = COMPANIONS[c.type as TimeSinkType];
-  const id = k ? Number(optionsOf(c)[k.option]) : NaN;
+  const id = k ? Number(connectionOptions(c)[k.option]) : NaN;
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 

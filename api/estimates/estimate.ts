@@ -23,6 +23,7 @@ import {
   type StatusChange,
 } from "@contracts/estimate";
 import { q } from "../queries/connection";
+import { parseStringList } from "../lib/json";
 import { estimateRevision } from "../queries/estimateRevision";
 
 /** Candidates of one estimate: my closed issues with my time, the newest first (R-3.2) */
@@ -152,15 +153,6 @@ const CLOSED_SQL = `
 WITH ${CANDIDATES}
 SELECT NULL AS "target", ${samplesOfCand("NULL")} FROM cand c) AS "samples", ${STATUSES_AND_CHOICES}`;
 
-const jsonList = (text: string): string[] => {
-  try {
-    const v: unknown = JSON.parse(text);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-};
-
 /** Whether each status counts as work, per connection: the user's choice, else the provider's default (R-3.14); null when nothing places it. */
 export function classifier(statuses: Row["statuses"], choices: Row["choices"]): (connectionId: number, statusId: string) => boolean | null {
   const category = new Map<string, string>();
@@ -214,7 +206,7 @@ function samplesOf(row: Row): { samples: (Sample & { id: number })[]; excluded: 
       id: c.id,
       workSeconds: seconds,
       type: c.type,
-      components: jsonList(c.components),
+      components: parseStringList(c.components),
       containerId: c.container_id,
       trackerEstimate: c.time_estimate_seconds !== null && c.time_estimate_seconds > 0 ? c.time_estimate_seconds : null,
       lastCountedWorklogAt: Math.max(...counted.map((w) => Number(w.started))),
@@ -244,7 +236,7 @@ export async function estimateForIssue(userId: number, input: { issueKey: string
       samples.map((s) => (usableSummary(target.summary) ? s : { ...s, similarity: null })),
       {
         type: target.type,
-        components: jsonList(target.components),
+        components: parseStringList(target.components),
         containerId: target.container_id,
         trackerEstimate: target.time_estimate_seconds !== null && target.time_estimate_seconds > 0 ? target.time_estimate_seconds : null,
       },

@@ -1,4 +1,5 @@
 import { t } from "@contracts/i18n";
+import { DAY_MS } from "@contracts/time";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { attributeEvent } from "@contracts/workspace/applyMachine";
@@ -131,7 +132,7 @@ export async function flowMapOverview(userId: number, scope: Scope) {
   let live: EvidenceSet | null = null;
   if (settings.enabled) {
     const current = await getWorkspace(userId, scope);
-    const events = await loadFlowEvents(userId, scope, current.descriptor.effectiveRevision, Date.now() - 7 * DAY);
+    const events = await loadFlowEvents(userId, scope, current.descriptor.effectiveRevision, Date.now() - 7 * DAY_MS);
     if (events.length > 0) {
       const areasByAnchor = Object.fromEntries(current.workspace.placements.map(placement => [placement.anchorId, placement.areaId]));
       live = aggregateEvidence(events, current.descriptor, scope, `live_${current.descriptor.effectiveRevision}`.slice(0, 128), 0, areasByAnchor);
@@ -211,20 +212,18 @@ export async function reviewExpectation(userId: number, scope: Scope, expectatio
 
 export { deleteFlowData, getFlowSettings, setFlowConsent } from "./flowStore";
 
-const DAY = 86_400_000;
-
 /**
  * Once a day per page, for whom collects: the last week of use as a new period, so the maps show how
  * use changes without anyone pressing "Update evidence". Nothing new, nothing made.
  */
 export async function snapshotFlowEvidence(now = Date.now()): Promise<number> {
   let made = 0;
-  for (const candidate of await flowSnapshotCandidates(now - DAY)) {
+  for (const candidate of await flowSnapshotCandidates(now - DAY_MS)) {
     if (candidate.newestEvidenceAt !== null && candidate.newestEvidenceAt > now - 20 * 3_600_000) continue;
     const scope = { surfaceId: candidate.surfaceId, deviceClass: candidate.deviceClass } as Scope;
     // A page whose layout cannot be drawn any more just waits for the next one.
     // A layout applied since and not used yet makes no (empty) period.
-    made += await buildFlowEvidence(candidate.userId, scope, undefined, now - 7 * DAY, true).then(evidence => (evidence ? 1 : 0), () => 0);
+    made += await buildFlowEvidence(candidate.userId, scope, undefined, now - 7 * DAY_MS, true).then(evidence => (evidence ? 1 : 0), () => 0);
   }
   return made;
 }

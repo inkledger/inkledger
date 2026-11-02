@@ -45,6 +45,7 @@ import {
   type JiraIdentity,
 } from "../lib/jiraLogin";
 import {
+  connectionOptions,
   ownConnection,
   storeGitHubTokenSet,
   storeSecret,
@@ -99,7 +100,7 @@ function settingsOf(
   if (!adapter?.settings) return [];
   let parsed: unknown = {};
   try {
-    parsed = adapter.parseOptions(optionsOf(c));
+    parsed = adapter.parseOptions(connectionOptions(c));
   } catch {
     // unreadable options: the defaults show
   }
@@ -112,24 +113,12 @@ function settingsOf(
   });
 }
 
-/** The connection's options, as stored (JSON). */
-const optionsOf = (c: Connection): Record<string, unknown> => {
-  try {
-    const o: unknown = JSON.parse(c.options);
-    return o && typeof o === "object" && !Array.isArray(o)
-      ? (o as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-};
-
 /** Its tracker's options with `excludeRepos` set, or null when that tracker has no such option. */
 function withExcluded(c: Connection, repos: string[]): unknown {
   const adapter = trackerAdapter(c.type as TrackerType);
   if (!adapter) return null;
   try {
-    return adapter.parseOptions({ ...optionsOf(c), excludeRepos: repos });
+    return adapter.parseOptions({ ...connectionOptions(c), excludeRepos: repos });
   } catch {
     return null;
   }
@@ -597,12 +586,7 @@ export const connectionsRouter = createRouter({
           });
         account = tracker.remoteAccountId;
       }
-      let options: Record<string, unknown> = {};
-      try {
-        options = JSON.parse(conn.options) as Record<string, unknown>;
-      } catch {
-        options = {};
-      }
+      const options = connectionOptions(conn);
       // Time it filed for its current tracker and hasn't sent yet: moving the stand-in now would
       // leave it filed nowhere (the tracker's rows wait for this sink). Sent, or discarded, first.
       const current =
@@ -719,7 +703,7 @@ export const connectionsRouter = createRouter({
     .query(async ({ input, ctx }) => {
       const conn = await ownConnection(ctx.user.id, input.id);
       const excluded = new Set(
-        ((optionsOf(conn).excludeRepos as string[] | undefined) ?? []).map(k =>
+        ((connectionOptions(conn).excludeRepos as string[] | undefined) ?? []).map(k =>
           k.toLowerCase()
         )
       );
@@ -854,7 +838,7 @@ export const connectionsRouter = createRouter({
           code: "BAD_REQUEST",
           message: t("server.input.invalid"),
         });
-      const next = { ...optionsOf(conn), [input.key]: input.value };
+      const next = { ...connectionOptions(conn), [input.key]: input.value };
       adapter.parseOptions(next);
       const db = getDb();
       const [saved] = await db

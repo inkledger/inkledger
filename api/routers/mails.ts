@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { escapeLike } from "../queries/issueQuery";
 import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNotes, pinboards, todos, type Mail, type User } from "@db/schema";
 import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
@@ -134,7 +136,7 @@ async function withLink(userId: number, input: z.infer<typeof headers>): Promise
 }
 
 /** The add-in's key: shown once, kept as its hash. */
-export const addinKeyHash = (key: string) => createHash("sha256").update(key).digest("hex");
+export const addinKeyHash = (key: string) => sha256Hex(key);
 
 /**
  * Saves a mail: a new one, or the one already kept with the same Message-ID or
@@ -394,7 +396,7 @@ export const mailsRouter = createRouter({
     ),
 
   recent: protectedProcedure.input(z.object({ query: z.string().trim().max(200).optional() })).query(async ({ ctx, input }): Promise<ListedMail[]> => {
-    const q = input.query ? `%${input.query.replace(/[\\%_]/g, c => `\\${c}`)}%` : null;
+    const q = input.query ? `%${escapeLike(input.query)}%` : null;
     return getDb()
       .select(listed)
       .from(mails)

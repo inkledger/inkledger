@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { z } from "zod";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { assertOpaqueEntries, base64UrlToBytes } from "@contracts/workspace/opaque";
@@ -52,7 +52,7 @@ const opaqueSchema = z.array(opaqueEntrySchema).max(32).readonly().superRefine((
   try {
     assertOpaqueEntries(entries);
     for (const entry of entries) {
-      if (createHash("sha256").update(base64UrlToBytes(entry.payloadBase64url)).digest("hex") !== entry.sha256) throw new Error("opaque v1: digest mismatch");
+      if (sha256Hex(base64UrlToBytes(entry.payloadBase64url)) !== entry.sha256) throw new Error("opaque v1: digest mismatch");
     }
   } catch (error) {
     ctx.addIssue({ code: "custom", message: error instanceof Error ? error.message : "opaque v1: invalid" });

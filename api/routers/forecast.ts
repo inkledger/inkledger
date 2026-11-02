@@ -20,6 +20,7 @@ import {
 } from "@contracts/forecast";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { CLOSED } from "../queries/issueQuery";
 import { issueKeyInput } from "../lib/inputs";
 import { activeBucket, bucketQuery, coversIssue } from "../queries/buckets";
 import { myRemoteIds } from "../providers/connections";
@@ -122,7 +123,7 @@ async function trendOf(series: Weekly | Insufficient): Promise<Series | Insuffic
 }
 
 const OPEN = (userId: number): SQL =>
-  and(eq(issues.userId, userId), isNull(issues.goneAt), notInArray(issues.category, ["done", "cancelled"])) as SQL;
+  and(eq(issues.userId, userId), isNull(issues.goneAt), notInArray(issues.category, CLOSED)) as SQL;
 
 const id = z.number().int().positive();
 

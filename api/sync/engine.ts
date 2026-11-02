@@ -17,6 +17,7 @@ import { entriesOf, syncEntries } from "./worklogs";
 import { acquire, failed, HEARTBEAT_MS, LeaseLostError, renew, succeeded } from "./state";
 import { observePass } from "./observe";
 import { insertNotifications } from "../routers/notifications";
+import { callMeta } from "../lib/callMeta";
 
 export type StreamRun<R> =
   | { ran: true; result: R }
@@ -66,7 +67,7 @@ export async function syncInbox(conn: Connection, opts: { background: boolean; b
   const inbox = b.inbox;
   let added = 0;
   await withStream(conn, "inbox", { full: false, background: opts.background }, async (since) => {
-    const meta = { signal: AbortSignal.timeout(30_000), correlationId: `inbox-${conn.id}-${Date.now()}` };
+    const meta = callMeta(`inbox-${conn.id}`);
     const read = await inbox(meta, since);
     if (since !== null) {
       const news = read.items.flatMap((i) =>

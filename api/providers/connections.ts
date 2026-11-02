@@ -236,6 +236,18 @@ export async function jiraCredentials(user: {
   return credentialsOf(conn);
 }
 
+/** The connection's options as stored (JSON): an object, or none when unreadable. */
+export function connectionOptions(row: Connection): Record<string, unknown> {
+  try {
+    const o: unknown = JSON.parse(row.options);
+    return o && typeof o === "object" && !Array.isArray(o)
+      ? (o as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 /** A connection as stored, ready to bind to its provider: options still raw, the secret decrypted on use. */
 export function connOf(row: Connection): StoredConn<TrackerType> {
   let options: unknown = {};

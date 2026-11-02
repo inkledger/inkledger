@@ -2,7 +2,8 @@
 // first need, kept in a file of its own (INSTANCE_KEY_PATH, 0600, created
 // exclusively: two processes never make two), never in the database, so a
 // copied database is not a copied server. Its id is what the store counts.
-import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { closeSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import { env } from "../lib/env";
@@ -51,7 +52,7 @@ export function instance(file = env.instanceKeyPath): Instance {
   // The raw key is the SPKI's last 32 bytes (Ed25519).
   const raw = createPublicKey(key).export({ type: "spki", format: "der" }).subarray(-32);
   const made: Instance = {
-    id: createHash("sha256").update(raw).digest("hex").slice(0, 32),
+    id: sha256Hex(raw).slice(0, 32),
     pubkey: b64url(Buffer.from(raw)),
     sign: (message) => b64url(sign(null, Buffer.from(message, "utf8"), key)),
   };

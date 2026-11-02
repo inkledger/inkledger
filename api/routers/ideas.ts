@@ -10,6 +10,7 @@ import { t } from "@contracts/i18n";
 import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, ideaSuggestionSchema, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { TRASH_DAYS } from "../queries/trash";
 import { issueKeyInput } from "../lib/inputs";
 import { agentCopy } from "../issues/agentCopy";
 import { chat, ollamaRefusal, OllamaError } from "../ai/ollama";
@@ -18,9 +19,6 @@ import { env } from "../lib/env";
 import { currentLocale } from "@contracts/i18n/core";
 import { withSharedIdeaFiles } from "../ideaFiles";
 import { fromMarkdown } from "../providers/core/richtext";
-
-/** How long a deleted idea can be brought back */
-const TRASH_DAYS = 30;
 
 const id = z.number().int().positive();
 const title = z.string().trim().min(1, { error: () => t("server.ideas.empty") }).max(200);

@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { APPLY_POLICY_V1 } from "@contracts/workspace/versions";
 
 export function newActivationToken(): string {
@@ -6,5 +7,5 @@ export function newActivationToken(): string {
 }
 
 export function hashActivationToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
+  return sha256Hex(token);
 }

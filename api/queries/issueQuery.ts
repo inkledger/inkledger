@@ -5,6 +5,7 @@
 import { and, eq, inArray, not, notInArray, or, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { clientContainers, clients, connections, issues, worklogs } from "@db/schema";
 import { dateBounds, formatQuery, priorityRankOfValue, type QueryExpr, type QueryField, type QueryTerm } from "@contracts/query";
+import { dayKey } from "@contracts/time";
 
 export const CLOSED = ["done", "cancelled"];
 
@@ -116,8 +117,7 @@ export function compileIssueQuery(expr: QueryExpr | null, ctx: QueryContext): Co
     const b = dateBounds(t.op, t.value, ctx.now);
     if (!b) return skip(t);
     if (t.field === "due") {
-      const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      return and(sql`${issues.dueDate} IS NOT NULL`, b.from ? sql`${issues.dueDate} >= ${day(b.from)}` : undefined, b.to ? sql`${issues.dueDate} < ${day(b.to)}` : undefined)!;
+      return and(sql`${issues.dueDate} IS NOT NULL`, b.from ? sql`${issues.dueDate} >= ${dayKey(b.from)}` : undefined, b.to ? sql`${issues.dueDate} < ${dayKey(b.to)}` : undefined)!;
     }
     if (t.field === "logged") {
       return sql`EXISTS (SELECT 1 FROM ${worklogs} w WHERE w.user_id = ${issues.userId} AND w.connection_id = ${issues.connectionId} AND w.issue_key = ${issues.key}${b.from ? sql` AND w.started >= ${b.from.getTime()}` : sql``}${b.to ? sql` AND w.started < ${b.to.getTime()}` : sql``})`;

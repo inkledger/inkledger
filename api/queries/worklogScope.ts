@@ -6,7 +6,7 @@ import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import { bucketSources, issues, worklogs } from "@db/schema";
 import { parseQuery } from "@contracts/query";
 import { activeBucket, bucketQuery, coversIssue } from "./buckets";
-import { compileIssueQuery } from "./issueQuery";
+import { compileIssueQuery, escapeLike } from "./issueQuery";
 import { myRemoteIds } from "../providers/connections";
 
 /**
@@ -39,7 +39,7 @@ export async function worklogScope(userId: number, deviceId: string | undefined,
   const compiled = compileIssueQuery(parseQuery(search).expr, { myRemoteIds: await myRemoteIds(userId), now: new Date() });
   // The search reads the worklog's issue (a worklog whose issue isn't in the catalogue matches by its key only).
   if (compiled.where) {
-    where.push(sql`(EXISTS (SELECT 1 FROM ${issues} WHERE ${and(issueOfWorklog, compiled.where)}) OR (NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issueOfWorklog}) AND ${worklogs.issueKey} ILIKE ${`%${search.replace(/[%_\\]/g, "\\$&")}%`}))`);
+    where.push(sql`(EXISTS (SELECT 1 FROM ${issues} WHERE ${and(issueOfWorklog, compiled.where)}) OR (NOT EXISTS (SELECT 1 FROM ${issues} WHERE ${issueOfWorklog}) AND ${worklogs.issueKey} ILIKE ${`%${escapeLike(search)}%`}))`);
   }
   return { where, unsupported: compiled.unsupported };
 }

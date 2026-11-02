@@ -1,4 +1,4 @@
-import { addDays, dayKey, parseDayKey } from "./time";
+import { addDays, dayKey, parseDayKey, startOfDay } from "./time";
 
 /**
  * Quick capture of a TODO: the text as typed, with an optional day ("@…")
@@ -143,7 +143,7 @@ export function todoTimeByDay(spans: TodoSpan[]): Map<string, { linked: number; 
     const end = s.end.getTime();
     while (at < end) {
       const day = new Date(at);
-      const next = Math.min(end, addDays(new Date(day.getFullYear(), day.getMonth(), day.getDate()), 1).getTime());
+      const next = Math.min(end, addDays(startOfDay(day), 1).getTime());
       const key = dayKey(day);
       const cur = out.get(key) ?? { linked: 0, gap: 0 };
       const seconds = (next - at) / 1000;

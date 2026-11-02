@@ -3,7 +3,7 @@
 // on this server with our own reader (contracts/ots.ts): the licence's SHA-256 must be
 // the proof's digest, and its operations must lead to the merkle root of the block an
 // explorer (OTS_EXPLORER) shows. Without a network it stays "unverified", never "failed".
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { attestationsOf, merkleRootBytes, OtsError, parseProof, toHex } from "@contracts/ots";
 import { env } from "../lib/env";
 import { getServerSetting, setServerSetting } from "../lib/serverSettings";
@@ -66,7 +66,7 @@ export async function proofOf(id: string, licence: string): Promise<LicenceProof
     throw e;
   }
   // The proof is of this licence, or of nothing that matters here.
-  if (toHex(proof.digest) !== createHash("sha256").update(licence, "utf8").digest("hex")) return { status: "failed", block: kept.block, time: null, existedBy };
+  if (toHex(proof.digest) !== sha256Hex(licence)) return { status: "failed", block: kept.block, time: null, existedBy };
   const bitcoin = (await attestationsOf(proof.timestamp, proof.digest)).reached.filter(
     (r): r is typeof r & { attestation: { kind: "bitcoin"; height: number } } => r.attestation.kind === "bitcoin",
   );

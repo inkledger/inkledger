@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "../lib/env";
+import { parseStringList } from "../lib/json";
 import { BACKDROP_VISIBILITY } from "@contracts/modules";
 import { eq, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -43,15 +44,6 @@ export type SettingsWithDashboard = Omit<Settings, "allowedLinkDomains"> & {
   /** Domains whose links open without asking */
   allowedLinkDomains: string[];
 };
-
-function parseStringList(raw: string): string[] {
-  try {
-    const v: unknown = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
 
 function withDashboard(row: Settings): SettingsWithDashboard {
   let saved: unknown = null;

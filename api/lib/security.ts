@@ -1,11 +1,11 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { createHash } from "node:crypto";
+import { sha256Hex } from "./hash";
 import { t } from "@contracts/i18n";
 
 /** Hash stored in the DB instead of the raw session id (cookie value). */
 export function hashSessionId(sessionId: string): string {
-  return createHash("sha256").update(sessionId).digest("hex");
+  return sha256Hex(sessionId);
 }
 
 /**

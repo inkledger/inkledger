@@ -3,7 +3,7 @@
 // (a report on activities or meetings). Shared: the page draws the days, the
 // server writes them for the model.
 import { escapeMd } from "./richtext";
-import { addDays, dayKey, formatDurationLong, parseDayKey } from "./time";
+import { addDays, dayKey, formatDurationLong, hhmm, parseDayKey } from "./time";
 
 export type DiaryMode = "summary" | "timeline";
 export const DIARY_MAX_DAYS = 31;
@@ -58,8 +58,6 @@ export function diaryDays(
 }
 
 export const diaryDayIsEmpty = (d: DiaryDay) => !d.notes.length && !d.issues.length && !d.planned.length && !d.mails.length;
-
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
 /**
  * The days as Markdown, for a model: one section per day with something in it,

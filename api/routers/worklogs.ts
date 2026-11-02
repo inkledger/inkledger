@@ -36,6 +36,7 @@ import { trackerAdapter } from "../providers/registry";
 import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
 import { withWriteLease } from "../queries/writeLease";
 import { deleteThere } from "../sync/worklogs";
+import { callMeta } from "../lib/callMeta";
 
 const timeFields = {
   /** Whole seconds: what the app sends (a typed "1d" is resolved on the device, by the work schedule) */
@@ -273,7 +274,6 @@ async function assertUnlocked(where: SQL | undefined) {
   if (lock) throw new TRPCError({ code: "FORBIDDEN", message: lock.message ? t("server.worklogs.lockedBecause", { reason: lock.message }) : t("server.worklogs.locked") });
 }
 
-const timeMeta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `time-${Date.now()}` });
 
 export const worklogsRouter = createRouter({
   /**
@@ -375,7 +375,7 @@ export const worklogsRouter = createRouter({
       if (keepsTimeLocally(conn)) return null;
       const through = await contractTime(ctx.user.id, conn, input.issueKey);
       if (!through?.b.worklogs?.list) return null;
-      const remote = await through.b.worklogs.list({ signal: AbortSignal.timeout(30_000), correlationId: `team-${Date.now()}` }, through.ref);
+      const remote = await through.b.worklogs.list(callMeta("team"), through.ref);
       const entries = remote.map((w) => ({
         remoteId: w.remoteId,
         // A session's start, or the day alone (services keeping only the date)
@@ -660,11 +660,11 @@ export const worklogsRouter = createRouter({
           // The tracker unreachable: the delete is queued, the replay sends it later.
           try {
             const there = through.b.worklogs?.get
-              ? await through.b.worklogs.get(timeMeta(), through.ref, input.remoteId)
-              : (await through.b.worklogs?.list(timeMeta(), through.ref))?.find((w) => w.remoteId === input.remoteId);
+              ? await through.b.worklogs.get(callMeta("time"), through.ref, input.remoteId)
+              : (await through.b.worklogs?.list(callMeta("time"), through.ref))?.find((w) => w.remoteId === input.remoteId);
             if (!there) return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };
             if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
-            await deleteThere(through.b, timeMeta(), through.ref, input.remoteId);
+            await deleteThere(through.b, callMeta("time"), through.ref, input.remoteId);
           } catch (e) {
             // Gone there meanwhile (read, then deleted elsewhere): done, as for an entry read back.
             if (e instanceof ProviderError && e.kind === "notFound") return { ok: true, seconds: local[0]?.seconds ?? null, issueKey: input.issueKey, connectionId: conn.id };

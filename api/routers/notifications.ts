@@ -5,6 +5,7 @@ import { z } from "zod";
 import { and, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { CLOSED } from "../queries/issueQuery";
 import { issues, notifications } from "@db/schema";
 import {
   CRITICAL_PRIORITIES,
@@ -218,7 +219,7 @@ export const notificationsRouter = createRouter({
             and(
               eq(issues.userId, ctx.user.id),
               eq(issues.hidden, 0),
-              notInArray(issues.category, ["done", "cancelled"]),
+              notInArray(issues.category, CLOSED),
             ),
           )
           .orderBy(desc(issues.activityAt))

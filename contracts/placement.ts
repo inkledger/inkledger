@@ -1,4 +1,4 @@
-import { addDays, dayKey, startOfDay } from "./time";
+import { addDays, dayKey, hhmm, startOfDay } from "./time";
 import { workBounds, type WorkSchedule } from "./workSchedule";
 import { t } from "./i18n";
 
@@ -78,11 +78,7 @@ function fitAtEnd(lo: number, hi: number, seconds: number): number | null {
     : null;
 }
 
-const describe = (o: Occupied) => {
-  const hm = (d: Date) =>
-    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${o.label ? `${o.label} ` : ""}${hm(o.start)}–${hm(new Date(endMs(o)))}`;
-};
+const describe = (o: Occupied) => `${o.label ? `${o.label} ` : ""}${hhmm(o.start)}–${hhmm(new Date(endMs(o)))}`;
 
 /** Human message for a collision with `with`. */
 export function conflictMessage(withItems: Occupied[]): string {

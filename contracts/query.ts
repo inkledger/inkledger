@@ -4,6 +4,7 @@
 // parentheses. Parsing never fails: what isn't an operator is text, and
 // what can't be read is said in `warnings`. Saved queries are kept in English
 // (`formatQuery(q, "en")`) and shown in the user's language.
+import { addDays, startOfDay, startOfWeek } from "./time";
 
 export type QueryField =
   | "client"
@@ -133,9 +134,6 @@ const DATE_FIELDS = new Set<QueryField>(["updated", "created", "due", "logged"])
 
 // ---------- Dates ----------
 
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-
 /** A date value as a span of local days [from, to): null when it isn't a date. */
 export function daySpan(value: string, now: Date): { from: Date; to: Date } | null {
   const v = value.toLowerCase();
@@ -151,7 +149,7 @@ export function daySpan(value: string, now: Date): { from: Date; to: Date } | nu
   if (v === "tomorrow" || v === "domani") return { from: addDays(today, 1), to: addDays(today, 2) };
   if (v === "week" || v === "settimana") {
     // Weeks start on Monday.
-    const from = addDays(today, -((today.getDay() + 6) % 7));
+    const from = startOfWeek(today);
     return { from, to: addDays(from, 7) };
   }
   if (v === "month" || v === "mese") {

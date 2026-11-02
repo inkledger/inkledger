@@ -13,7 +13,7 @@ import { accuracyFor, estimateForIssue, estimateForTodo } from "../estimates/est
 import { statusesOf, storedStatuses, type Known } from "../estimates/history";
 import { boundTracker } from "../sync/engine";
 import { providerCall } from "../providers/trpc";
-import { callMeta } from "../issues/search";
+import { callMeta } from "../lib/callMeta";
 
 const id = z.number().int().positive();
 

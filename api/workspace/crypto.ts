@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
-import { hexOf } from "@contracts/workspace/canonical";
+import { sha256Hex } from "../lib/hash";
 import { fingerprintDescriptor, fingerprintInput, type FingerprintKind } from "@contracts/workspace/fingerprint";
 import type { FingerprintDescriptor } from "@contracts/workspace/model";
 import { base64UrlToBytes, opaqueEntryFromBytes, type OpaqueEntry } from "@contracts/workspace/opaque";
 
 export function digestBytes(bytes: Uint8Array): string {
-  return hexOf(createHash("sha256").update(bytes).digest());
+  return sha256Hex(bytes);
 }
 
 export function fingerprint(kind: FingerprintKind, value: unknown): FingerprintDescriptor {

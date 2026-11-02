@@ -20,11 +20,12 @@ import type { IssueRef } from "../providers/types";
 import { boundTracker } from "./engine";
 import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
+import { callMeta } from "../lib/callMeta";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
 export type ContractTime = { conn: Connection; b: BoundTracker; ref: IssueRef; zone: TimeZone };
 
-const meta = () => ({ signal: AbortSignal.timeout(30_000), correlationId: `time-${Date.now()}` });
+const meta = () => callMeta("time");
 
 /** A failure worth trying again later (the tracker unreachable, busy, slow), not a refusal. */
 const queueable = (e: unknown) => e instanceof ProviderError && e.transient;

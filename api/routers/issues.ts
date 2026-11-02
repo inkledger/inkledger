@@ -8,21 +8,20 @@ import { boundTracker, syncConnectionEntries, syncConnectionIssues, withStream }
 import { toRichDoc } from "../providers/core/richtext";
 import { replayContract } from "../sync/timeWrites";
 import { fieldsOf, upsertRemote } from "../sync/issues";
-import { compileIssueQuery, mentions, UNREAD_SQL } from "../queries/issueQuery";
+import { CLOSED, compileIssueQuery, escapeLike, mentions, UNREAD_SQL } from "../queries/issueQuery";
 import { parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
 import { onLiveConnection } from "../queries/liveConnections";
 import { issuesInBucket } from "../queries/buckets";
 import { isClosed } from "@contracts/categories";
 
-/** Finished one way or the other. */
-const CLOSED = ["done", "cancelled"];
 import { providerCall } from "../providers/trpc";
 import { assertFields, assertTransitionFields, executable } from "../providers/core/fields";
 import { localDate, markdown } from "@contracts/values";
 import { randomUUID } from "node:crypto";
 import type { FieldValue, RemoteBody, RemoteIssue } from "../providers/types";
 import { env } from "../lib/env";
+import { parseStringList } from "../lib/json";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { buildTimeline } from "../lib/history";
 import { agentCopy } from "../issues/agentCopy";
@@ -37,7 +36,8 @@ import { t } from "@contracts/i18n";
 import { contextFor, issueConnection, ownConnection, jiraContextFor, myRemoteIds } from "../providers/connections";
 import { runSync, toRow, upsertIssue } from "../sync/jiraIssues";
 import { syncUser } from "../sync/orchestrator";
-import { callMeta, searchConnection } from "../issues/search";
+import { searchConnection } from "../issues/search";
+import { callMeta } from "../lib/callMeta";
 import { analyzeCommand, analyzeInstructions } from "@contracts/analyze";
 import { pathsOf } from "./projectPaths";
 import { getSettings } from "./settings";
@@ -53,7 +53,7 @@ async function markSeen(userId: number, key: string, connectionId: number) {
 }
 
 /** Others' activity newer than the last visit (my own actions are never news). */
-const UNREAD = sql<number>`(CASE WHEN ${issues.othersActivityAt} IS NOT NULL AND ${issues.othersActivityAt} > coalesce(${issues.seenAt}, 0) THEN 1 ELSE 0 END)`;
+const UNREAD = sql<number>`(CASE WHEN ${UNREAD_SQL} THEN 1 ELSE 0 END)`;
 
 /** My own time on the issue (its tracker's total counts everyone's). */
 const MY_SPENT = sql<number>`(SELECT coalesce(sum(${worklogs.timeSpentSeconds}), 0)::int FROM ${worklogs}
@@ -90,11 +90,6 @@ function orderFor(sort: "activity" | "updated" | "priority" | "key" | "due") {
     default:
       return BY_UPDATED;
   }
-}
-
-/** Escape LIKE wildcards; pair with `ESCAPE '\\'`. */
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 /** The user's live trackers, in the order they were added. */
@@ -1126,7 +1121,7 @@ export const issuesRouter = createRouter({
       return {
         issues: rows.map((r) => ({
           ...r,
-          labels: safeParseStrings(r.labels),
+          labels: parseStringList(r.labels),
           isMine: r.assigneeId !== null && myIds.includes(r.assigneeId),
           unread: r.othersActivityAt !== null && r.othersActivityAt > (r.seenAt ?? 0),
         })),
@@ -1232,7 +1227,7 @@ export const issuesRouter = createRouter({
             raw: null,
             ...fieldsOf(hit.issue),
           };
-          return { ...row, labels: safeParseStrings(row.labels), components: safeParseStrings(row.components), remote: true as boolean };
+          return { ...row, labels: parseStringList(row.labels), components: parseStringList(row.components), remote: true as boolean };
         }
         const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
         const remote = await fetchIssueByKey(creds, input.key);
@@ -1255,7 +1250,7 @@ export const issuesRouter = createRouter({
           raw: null,
           ...toRow(user.id, user.siteUrl, user.connectionId, remote),
         };
-        return { ...row, labels: safeParseStrings(row.labels), components: safeParseStrings(row.components), remote: true as boolean };
+        return { ...row, labels: parseStringList(row.labels), components: parseStringList(row.components), remote: true as boolean };
       }
       // Rows synced before the people columns existed: fill them once (GET only).
       if (rows[0].reporterName === null) {
@@ -1271,15 +1266,6 @@ export const issuesRouter = createRouter({
           console.warn(`[issues.get] people of ${input.key} not refreshed: ${String(e)}`);
         }
       }
-      return { ...rows[0], labels: safeParseStrings(rows[0].labels), components: safeParseStrings(rows[0].components), remote: false as boolean };
+      return { ...rows[0], labels: parseStringList(rows[0].labels), components: parseStringList(rows[0].components), remote: false as boolean };
     }),
 });
-
-function safeParseStrings(raw: string): string[] {
-  try {
-    const v: unknown = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}

@@ -6,10 +6,10 @@ import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { mailAccounts, mails } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { isShuttingDown } from "../lib/shutdown";
+import { DAY_MS } from "@contracts/time";
 import { findByMessageId } from "./microsoft";
 
 const PER_PASS = 200;
-const DAY_MS = 86_400_000;
 /** The first pass a while after start, not with the boot's other work. */
 const FIRST_PASS_DELAY_MS = 15 * 60_000;
 

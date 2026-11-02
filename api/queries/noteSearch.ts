@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { TRPCError } from "@trpc/server";
 import {
   and,
@@ -90,7 +90,7 @@ function fingerprint(input: Omit<SearchOptions, "cursor" | "limit">): string {
     issue: input.issue ?? null,
     dates: input.dates ?? [],
   });
-  return createHash("sha256").update(value).digest("hex");
+  return sha256Hex(value);
 }
 
 export function encodeNoteCursor(cursor: Cursor): string {

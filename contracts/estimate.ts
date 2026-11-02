@@ -3,7 +3,8 @@
 // work time (my worklogs inside the spans the issue was being worked on),
 // weighted by how recent they are. Pure: the server reads, this decides.
 
-const DAY_MS = 86_400_000;
+import { DAY_MS } from "./time";
+
 const HOUR = 3600;
 
 /** Fewer eligible samples than this: no number at all (R-3.3). */

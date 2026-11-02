@@ -1,6 +1,7 @@
 // inkledger's own accounts: who exists on this server, what they may do, how they
 // get in (password, invite link), and turning access off again.
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { sha256Hex } from "../lib/hash";
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
@@ -118,7 +119,7 @@ export async function purgeExpiredAccess(now = Date.now()): Promise<{ devices: n
   return { devices: devices.length, invites: links.length };
 }
 
-const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const hashToken = (token: string) => sha256Hex(token);
 
 /** A one-time invite link token for a user (earlier unused ones stop working). Only its hash is kept. */
 export async function createInvite(userId: number, createdBy: number | null): Promise<{ token: string; expiresAt: Date }> {

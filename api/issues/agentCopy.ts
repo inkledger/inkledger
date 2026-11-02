@@ -16,7 +16,7 @@ import { toRichDoc } from "../providers/core/richtext";
 import { fetchAttachments } from "../jira/client";
 import { signShare } from "../lib/shareLinks";
 import { getSettings } from "../routers/settings";
-import { callMeta } from "./search";
+import { callMeta } from "../lib/callMeta";
 
 export type AgentCopy = { markdown: string; expiresAt: Date };
 

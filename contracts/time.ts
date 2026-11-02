@@ -173,9 +173,14 @@ export function weekStartKey(date: Date): string {
   return dayKey(startOfWeek(date));
 }
 
+/** Local time of day of `date` as "HH:MM". */
+export function hhmm(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 /** Value for <input type="datetime-local"> in local time. */
 export function toLocalInputValue(date: Date): string {
-  return `${dayKey(date)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  return `${dayKey(date)}T${hhmm(date)}`;
 }
 
 /**

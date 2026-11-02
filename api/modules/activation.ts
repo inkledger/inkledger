@@ -13,6 +13,7 @@
 // the server says so at start.
 import { verifyEnvelope } from "../vendor/seal/envelope";
 import { env } from "../lib/env";
+import { DAY_MS } from "@contracts/time";
 import { getServerSetting, setServerSetting } from "../lib/serverSettings";
 import { StoreError, postStore } from "../store/client";
 import { ACTIVATION_KEYS, asPem, extraKey } from "./keys";
@@ -21,13 +22,12 @@ import { instance, proofMessage } from "./instance";
 export const ACTIVATION_CONTEXT = "inkledger-activation-v1\n";
 const TOKENS_KEY = "modules.activations";
 const GRACE_KEY = "modules.grace";
-const DAY = 86_400_000;
 /** Renewed when less than this is left. */
-export const RENEW_BEFORE_MS = 30 * DAY;
+export const RENEW_BEFORE_MS = 30 * DAY_MS;
 /** The store unreachable when renewing (network, 5xx): a token keeps working this long past its end. */
-export const GRACE_MS = 30 * DAY;
+export const GRACE_MS = 30 * DAY_MS;
 /** Clocks differ: a token is still good a day past its end. */
-const SKEW_MS = DAY;
+const SKEW_MS = DAY_MS;
 
 export type ActivationPayload = { lic: string; product: string; inst: string; iat: number; exp: number; v: 1 };
 

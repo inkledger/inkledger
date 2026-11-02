@@ -24,7 +24,7 @@ import {
   type JiraSearchedIssue,
 } from "../jira/client";
 import { detectNotifications, insertNotifications, snapshotIssues } from "../routers/notifications";
-import { contextFor, type JiraUser } from "../providers/connections";
+import { connectionOptions, contextFor, type JiraUser } from "../providers/connections";
 
 /**
  * Status-change time: Jira's statuscategorychangedate ignores moves within a
@@ -514,9 +514,5 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
 
 /** A Jira connection's choice of what is mine: assigned (default), or involved (reported too). */
 function jiraMineOf(conn: Connection): "assigned" | "involved" {
-  try {
-    return (JSON.parse(conn.options) as { mine?: string }).mine === "involved" ? "involved" : "assigned";
-  } catch {
-    return "assigned";
-  }
+  return connectionOptions(conn).mine === "involved" ? "involved" : "assigned";
 }
