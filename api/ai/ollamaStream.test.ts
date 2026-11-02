@@ -1,7 +1,7 @@
 // The streamed answer of Ollama's /api/chat (NDJSON: one JSON object a line,
 // the last one `done`), read as the text the model writes.
 import { describe, expect, it } from "vitest";
-import { OllamaError, readOllamaStream } from "./ollama";
+import { OllamaError, readOllamaPieces, readOllamaStream } from "./ollama";
 
 const encode = (s: string) => new TextEncoder().encode(s);
 async function* chunks(...parts: (string | Uint8Array)[]) {
@@ -39,5 +39,23 @@ describe("readOllamaStream", () => {
 
   it("a last line without its newline still counts", async () => {
     expect(await all(readOllamaStream(chunks(line("a"), line("b", true).trimEnd())))).toEqual(["a", "b"]);
+  });
+});
+
+describe("readOllamaPieces", () => {
+  it("tool calls come as their own piece, arguments as an object or JSON text", async () => {
+    const calls = (list: unknown[]) => `${JSON.stringify({ message: { role: "assistant", content: "", tool_calls: list }, done: false })}\n`;
+    const out: unknown[] = [];
+    const text = line("Let me look") + calls([{ function: { name: "grep", arguments: { repo: "app", query: "MAGA-400" } } }, { function: { name: "read", arguments: '{"repo":"app","path":"a.kt"}' } }, { nope: 1 }]) + line("", true);
+    for await (const piece of readOllamaPieces(chunks(text))) out.push(piece);
+    expect(out).toEqual([
+      { text: "Let me look" },
+      {
+        toolCalls: [
+          { name: "grep", arguments: { repo: "app", query: "MAGA-400" } },
+          { name: "read", arguments: { repo: "app", path: "a.kt" } },
+        ],
+      },
+    ]);
   });
 });

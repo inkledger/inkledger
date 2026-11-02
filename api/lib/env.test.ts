@@ -27,6 +27,7 @@ describe("env", () => {
     expect(serviceEnv({})).toEqual({
       ollamaUrl: null,
       ollamaModel: "gemma3:4b",
+      ollamaChatModel: "gemma3:4b",
       ollamaAllowPublic: false,
       forecastUrl: null,
       forecastModel: "Timestral-28M",
@@ -37,6 +38,7 @@ describe("env", () => {
     const set = serviceEnv({
       OLLAMA_URL: " http://192.168.1.20:11434/ ",
       OLLAMA_MODEL: "qwen3:4b",
+      OLLAMA_CHAT_MODEL: " qwen3:8b ",
       OLLAMA_ALLOW_PUBLIC: "1",
       FORECAST_URL: "http://127.0.0.1:8601",
       FORECAST_MODEL: "Timestral-209M",
@@ -47,6 +49,7 @@ describe("env", () => {
     expect(set).toEqual({
       ollamaUrl: "http://192.168.1.20:11434",
       ollamaModel: "qwen3:4b",
+      ollamaChatModel: "qwen3:8b",
       ollamaAllowPublic: true,
       forecastUrl: "http://127.0.0.1:8601",
       forecastModel: "Timestral-209M",

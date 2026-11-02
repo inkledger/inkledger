@@ -160,4 +160,163 @@ describe("the desk's chat", () => {
       await vi.waitFor(() => expect(upstream?.aborted).toBe(true));
     });
   });
+
+  describe("tools (batch 4d): the page runs them, the server only forwards", () => {
+    const ask = (body: unknown) => app.request("/api/desk/chat", { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify(body) });
+    const readAll = async (res: Response) => new TextDecoder().decode(await res.arrayBuffer());
+    const events = (text: string) => [...text.matchAll(/event: (\w+)\ndata: (.*)\n/g)].map(m => ({ event: m[1], data: JSON.parse(m[2]) as Record<string, unknown> }));
+    const question = { role: "user", content: "Is APP-1 solved? Look at the code" };
+    const call = { role: "assistant", content: "", tool_calls: [{ name: "grep", arguments: { repo: "app", query: "APP-1" } }] };
+    const result = { role: "tool", name: "grep", content: "src/Login.kt:12: // APP-1 fixed" };
+    const body = (messages: unknown[], extra: Record<string, unknown> = {}) => ({ panes: [pane("APP-1")], messages, tools: ["grep", "read"], repos: ["app"], ...extra });
+
+    it("validates tool turns: known tools, a result only after a call, sizes capped", async () => {
+      env.ollamaSimulator = "1";
+      const bad = [
+        body([question, { ...call, tool_calls: [{ name: "bash", arguments: { cmd: "ls" } }] }, result]),
+        body([question, result]),
+        body([question, call, { ...result, content: "x".repeat(20_000) }]),
+        body([question, call, result], { tools: ["write"] }),
+        body([question, call, result, result]),
+        body([question, { ...call, tool_calls: [{ name: "grep", arguments: { query: "y".repeat(5_000) } }] }, result]),
+        body([question, call]),
+        body([question], { repos: ["/Users/me/secret"] }),
+      ];
+      for (const b of bad) expect((await ask(b)).status, JSON.stringify(b).slice(0, 200)).toBe(400);
+      expect((await ask(body([question, call, result]))).status).toBe(200);
+    });
+
+    it("forwards the tools offered and the turns to Ollama; tool calls come back as an event", async () => {
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      let sent: { tools?: { function: { name: string; parameters: unknown } }[]; messages: Record<string, unknown>[]; model: string } | undefined;
+      ollama = init => {
+        sent = JSON.parse(String(init?.body)) as typeof sent;
+        return new Response(
+          `${JSON.stringify({ message: { role: "assistant", content: "", tool_calls: [{ function: { name: "read", arguments: { repo: "app", path: "src/Login.kt" } } }] }, done: false })}\n${JSON.stringify({ message: { content: "" }, done: true })}\n`,
+        );
+      };
+      const text = await readAll(await ask(body([question, call, result])));
+      expect(sent?.tools?.map(t => t.function.name)).toEqual(["grep", "read"]);
+      // The repositories are context, not part of the tools' schemas.
+      expect(JSON.stringify(sent?.tools)).not.toContain('"app"');
+      expect(sent?.messages.map(m => m.role)).toEqual(["system", "user", "assistant", "tool"]);
+      expect(sent?.messages[2]).toMatchObject({ tool_calls: [{ function: { name: "grep", arguments: { repo: "app", query: "APP-1" } } }] });
+      expect(sent?.messages[3]).toEqual({ role: "tool", tool_name: "grep", content: "src/Login.kt:12: // APP-1 fixed" });
+      expect(String(sent?.messages[0].content)).toContain("app");
+      expect(String(sent?.messages[0].content)).toMatch(/exactly/);
+      const tc = events(text).find(e => e.event === "tool_calls");
+      expect(tc?.data).toEqual({ calls: [{ name: "read", arguments: { repo: "app", path: "src/Login.kt" } }] });
+      expect(text).not.toContain("event: done");
+    });
+
+    it("the chat model is OLLAMA_CHAT_MODEL; a model without tools gets none", async () => {
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      const savedModel = env.ollamaChatModel;
+      env.ollamaChatModel = "qwen3:8b";
+      let sent: { model: string; tools?: unknown[] } | undefined;
+      ollama = init => {
+        sent = JSON.parse(String(init?.body)) as typeof sent;
+        return new Response(`${JSON.stringify({ message: { content: "Hi" }, done: true })}\n`);
+      };
+      await readAll(await ask(body([question], { tools: [] })));
+      expect(sent?.model).toBe("qwen3:8b");
+      expect(sent?.tools).toBeUndefined();
+      env.ollamaChatModel = savedModel;
+    });
+
+    it("after twelve rounds no tools go to the model, which is told to answer", async () => {
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      let sent: { tools?: unknown[]; messages: { role: string; content: string }[] } | undefined;
+      ollama = init => {
+        sent = JSON.parse(String(init?.body)) as typeof sent;
+        return new Response(`${JSON.stringify({ message: { content: "Done" }, done: true })}\n`);
+      };
+      const rounds = (n: number) => Array.from({ length: n }, () => [call, result]).flat();
+      await readAll(await ask(body([question, ...rounds(12)])));
+      expect(sent?.tools).toBeUndefined();
+      expect(sent?.messages.at(-1)?.content).toMatch(/answer now/i);
+      expect((await ask(body([question, ...rounds(13)]))).status).toBe(400);
+    });
+
+    it("the simulator plays a scripted round: grep for the first key, then an answer citing the result", async () => {
+      env.ollamaSimulator = "1";
+      const first = events(await readAll(await ask(body([question]))));
+      expect(first.find(e => e.event === "tool_calls")?.data).toEqual({ calls: [{ name: "grep", arguments: { repo: "app", query: "APP-1" } }] });
+      const second = events(await readAll(await ask(body([question, call, result]))));
+      const done = second.find(e => e.event === "done")?.data as { markdown: string } | undefined;
+      expect(done?.markdown).toContain("src/Login.kt:12");
+      expect(done?.markdown).toContain("APP-1");
+    });
+
+    it("extracts (a model without tools) go in with the question", async () => {
+      env.ollamaSimulator = "notools";
+      const res = await ask(body([question], { tools: [], extracts: '### grep "APP-1" in app\nsrc/Login.kt:12: // APP-1 fixed' }));
+      const done = events(await readAll(res)).find(e => e.event === "done")?.data as { markdown: string } | undefined;
+      expect(done?.markdown).toContain("src/Login.kt:12");
+    });
+
+    it("questions and tool rounds are counted apart: a round never uses up a question", async () => {
+      env.ollamaSimulator = "1";
+      for (let i = 0; i < 20; i++) expect((await ask(body([question, call, result]))).status).toBe(200);
+    });
+
+    it("never touches the file system, whatever paths the turns carry", async () => {
+      env.ollamaSimulator = "1";
+      const { syncBuiltinESMExports } = await import("node:module");
+      const fs = (await import("node:fs")).default;
+      const names = ["readFileSync", "readdirSync", "statSync", "lstatSync", "openSync", "existsSync", "realpathSync", "createReadStream", "readFile", "readdir", "stat", "lstat", "open", "opendir"] as const;
+      const promised = ["readFile", "readdir", "stat", "lstat", "open", "realpath", "opendir"] as const;
+      const spies = [...names.map(n => vi.spyOn(fs, n)), ...promised.map(n => vi.spyOn(fs.promises, n))];
+      syncBuiltinESMExports();
+      try {
+        // The spies see a read made through the named ESM exports too.
+        (await import("node:fs")).statSync(".");
+        expect(spies[names.indexOf("statSync")].mock.calls).toHaveLength(1);
+        for (const s of spies) s.mockClear();
+        const sneaky = { role: "assistant", content: "", tool_calls: [{ name: "read", arguments: { repo: "app", path: "/etc/passwd" } }] };
+        const text = await readAll(await ask(body([question, sneaky, { role: "tool", name: "read", content: "error" }], { repos: ["app", "etc"] })));
+        expect(text).toContain("event: done");
+        for (const s of spies) expect(s.mock.calls, s.getMockName()).toEqual([]);
+      } finally {
+        for (const s of spies) s.mockRestore();
+        syncBuiltinESMExports();
+      }
+    });
+  });
+
+  it("the chat's own modules import no file system or process API", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const file of ["api/desk/chat.ts", "api/ai/ollama.ts", "api/ai/prompts/deskChat.ts", "contracts/codeTools.ts", "contracts/deskChat.ts"]) {
+      const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+      expect(source, file).not.toMatch(/from "(node:)?(fs|fs\/promises|child_process|path)"/);
+    }
+  });
+
+  describe("POST /api/desk/chat/reach", () => {
+    const reach = (panes: unknown[]) => app.request("/api/desk/chat/reach", { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify({ panes }) });
+    it("the projects of the issues shown with their repository paths, and whether the model can use tools", async () => {
+      env.ollamaSimulator = "1";
+      const [c] = await q<{ id: number }>("INSERT INTO containers (connection_id, remote_id, key, name, created_at) VALUES (?, 'app', 'APP', 'App', 1) RETURNING id", conn);
+      await q("UPDATE issues SET container_id = ? WHERE key IN ('APP-1', 'APP-2')", c.id);
+      await q("INSERT INTO container_paths (user_id, container_id, label, path, position) VALUES (?, ?, 'app', '~/code/app', 0)", user.id, c.id);
+      const res = await reach([pane("APP-1"), pane("APP-2"), pane("BOB-1", bobConn)]);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        model: { on: true, tools: true },
+        projects: [{ containerId: c.id, key: "APP", name: "App", repos: [{ label: "app", path: "~/code/app" }] }],
+        issues: [
+          { key: "APP-1", title: "Login fails on Safari" },
+          { key: "APP-2", title: "Slow search" },
+        ],
+      });
+      env.ollamaSimulator = "notools";
+      expect(((await (await reach([pane("APP-1")])).json()) as { model: unknown }).model).toEqual({ on: true, tools: false });
+      env.ollamaSimulator = null;
+      env.ollamaUrl = null;
+      expect(((await (await reach([pane("APP-1")])).json()) as { model: unknown }).model).toEqual({ on: false, tools: false });
+    });
+  });
 });

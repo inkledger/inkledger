@@ -61,10 +61,13 @@ const yes = (raw: string | undefined) => ["1", "true", "yes"].includes((raw ?? "
  * nothing set reaches nothing outside; the defaults are the agreed ones.
  */
 export function serviceEnv(e: Record<string, string | undefined>) {
+  const ollamaModel = (e.OLLAMA_MODEL ?? "").trim() || "gemma3:4b";
   return {
     /** Ollama for idea suggestions; unset, the feature isn't offered */
     ollamaUrl: serviceUrl(e.OLLAMA_URL),
-    ollamaModel: (e.OLLAMA_MODEL ?? "").trim() || "gemma3:4b",
+    ollamaModel,
+    /** The Desk's chat model (one that can call tools reads the code itself); OLLAMA_MODEL when unset */
+    ollamaChatModel: (e.OLLAMA_CHAT_MODEL ?? "").trim() || ollamaModel,
     /** Let OLLAMA_URL be a public address (otherwise loopback or private only) */
     ollamaAllowPublic: yes(e.OLLAMA_ALLOW_PUBLIC),
     /** The forecast sidecar (Timestral); unset, the forecast isn't offered */

@@ -145,23 +145,60 @@ export async function askModel<T>(ask: () => Promise<T>): Promise<T> {
   }
 }
 
+
+/** A tool the model asked for, as Ollama streams it (arguments an object, or JSON text). */
+export type OllamaToolCall = { name: string; arguments: Record<string, unknown> };
+/** A message of a conversation that may hold tool rounds (the Desk's chat, batch 4d). */
+export type OllamaWireMessage =
+  | { role: "system" | "user"; content: string }
+  | { role: "assistant"; content: string; tool_calls?: { function: OllamaToolCall }[] }
+  | { role: "tool"; content: string; tool_name: string };
+/** A tool offered to the model (Ollama's `tools`, OpenAI's function shape). */
+export type OllamaToolDef = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
+/** A piece of a streamed answer: text, or the tools the model wants run. */
+export type ChatPiece = { text: string } | { toolCalls: OllamaToolCall[] };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** The tool calls a line carries (`message.tool_calls`), arguments read whether object or text. */
+function toolCallsOf(value: unknown): OllamaToolCall[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const fn = isRecord(item) && isRecord(item.function) ? item.function : null;
+    if (!fn || typeof fn.name !== "string") return [];
+    let args: unknown = fn.arguments ?? {};
+    if (typeof args === "string") {
+      try {
+        args = JSON.parse(args);
+      } catch {
+        args = {};
+      }
+    }
+    return [{ name: fn.name, arguments: isRecord(args) ? args : {} }];
+  });
+}
+
 /**
- * The text of a streamed /api/chat answer (NDJSON: one object a line, the last one
- * `done`), piece by piece. Lines and characters may be split anywhere across chunks.
- * An `error` line, a line that isn't JSON or an end before `done` is an error.
+ * The pieces of a streamed /api/chat answer (NDJSON: one object a line, the last one
+ * `done`): its text, and the tool calls when the model asks for tools. Lines and
+ * characters may be split anywhere across chunks. An `error` line, a line that isn't
+ * JSON or an end before `done` is an error.
  */
-export async function* readOllamaStream(body: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>): AsyncGenerator<string> {
+export async function* readOllamaPieces(body: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>): AsyncGenerator<ChatPiece> {
   const decoder = new TextDecoder();
   let pending = "";
-  const parse = (line: string): { content: string; done: boolean } => {
-    let value: { message?: { content?: unknown }; done?: unknown; error?: unknown };
+  const parse = (line: string): { pieces: ChatPiece[]; done: boolean } => {
+    let value: { message?: { content?: unknown; tool_calls?: unknown }; done?: unknown; error?: unknown };
     try {
       value = JSON.parse(line) as typeof value;
     } catch {
       throw new OllamaError("bad", "a line of the answer is not JSON");
     }
     if (typeof value.error === "string") throw new OllamaError("unreachable", value.error);
-    return { content: typeof value.message?.content === "string" ? value.message.content : "", done: value.done === true };
+    const content = typeof value.message?.content === "string" ? value.message.content : "";
+    const calls = toolCallsOf(value.message?.tool_calls);
+    const pieces: ChatPiece[] = [...(content ? [{ text: content }] : []), ...(calls.length ? [{ toolCalls: calls }] : [])];
+    return { pieces, done: value.done === true };
   };
   for await (const chunk of "getReader" in body ? chunksOf(body) : body) {
     pending += decoder.decode(chunk, { stream: true });
@@ -170,18 +207,23 @@ export async function* readOllamaStream(body: AsyncIterable<Uint8Array> | Readab
       const line = pending.slice(0, at).trim();
       pending = pending.slice(at + 1);
       if (!line) continue;
-      const { content, done } = parse(line);
-      if (content) yield content;
+      const { pieces, done } = parse(line);
+      yield* pieces;
       if (done) return;
     }
   }
   const last = (pending + decoder.decode()).trim();
   if (last) {
-    const { content, done } = parse(last);
-    if (content) yield content;
+    const { pieces, done } = parse(last);
+    yield* pieces;
     if (done) return;
   }
   throw new OllamaError("unreachable", "the answer ended before the end");
+}
+
+/** The text of a streamed /api/chat answer, piece by piece (tool calls left out). */
+export async function* readOllamaStream(body: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  for await (const piece of readOllamaPieces(body)) if ("text" in piece) yield piece.text;
 }
 
 /** A web stream's chunks; leaving early cancels it (the request to Ollama ends). */
@@ -201,22 +243,35 @@ async function* chunksOf(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uin
 /** The simulator's pace: a piece every few ms, so Stop can be tried (OLLAMA_SIMULATOR). */
 const SIMULATED_PIECE_MS = 40;
 
+type StreamOptions = {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  numCtx?: number;
+  numPredict?: number;
+  /** Tools the model may call; its answer may then be tool calls instead of text. */
+  tools?: OllamaToolDef[];
+  /** What the simulator answers (OLLAMA_SIMULATOR): text word by word, or tool calls. */
+  simulated?: string | OllamaToolCall[];
+};
+
 /**
- * A plain-text answer to a conversation, streamed as the model writes it (the Desk's
- * chat). `timeoutMs` bounds the whole answer; `signal` stops it (the client went away).
- * With OLLAMA_SIMULATOR the `simulated` text comes back word by word.
+ * An answer to a conversation, streamed as the model writes it (the Desk's chat, with
+ * OLLAMA_CHAT_MODEL): text pieces, or the tools it wants run. `timeoutMs` bounds the
+ * whole answer; `signal` stops it (the client went away).
  */
-export async function* streamChat(
-  messages: OllamaChatMessage[],
-  o: { timeoutMs?: number; signal?: AbortSignal; numCtx?: number; numPredict?: number; simulated?: string } = {},
-): AsyncGenerator<string> {
+export async function* streamChatPieces(messages: OllamaWireMessage[], o: StreamOptions = {}): AsyncGenerator<ChatPiece> {
   const timeout = AbortSignal.timeout(o.timeoutMs ?? 180_000);
   const signal = o.signal ? AbortSignal.any([timeout, o.signal]) : timeout;
   if (env.ollamaSimulator) {
+    if (Array.isArray(o.simulated)) {
+      await new Promise(resolve => setTimeout(resolve, SIMULATED_PIECE_MS));
+      if (!signal.aborted) yield { toolCalls: o.simulated };
+      return;
+    }
     for (const piece of (o.simulated ?? "").match(/\S+\s*|\s+/g) ?? []) {
       await new Promise(resolve => setTimeout(resolve, SIMULATED_PIECE_MS));
       if (signal.aborted) return;
-      yield piece;
+      yield { text: piece };
     }
     return;
   }
@@ -227,8 +282,9 @@ export async function* streamChat(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.ollamaModel,
+        model: env.ollamaChatModel,
         messages,
+        ...(o.tools?.length ? { tools: o.tools } : {}),
         stream: true,
         think: false,
         keep_alive: "5m",
@@ -243,10 +299,51 @@ export async function* streamChat(
   }
   if (!res.ok || !res.body) throw new OllamaError("unreachable", `Ollama answered ${res.status}`);
   try {
-    yield* readOllamaStream(res.body);
+    yield* readOllamaPieces(res.body);
   } catch (e) {
     if (timeout.aborted) throw new OllamaError("slow", "the model took too long");
     if (signal.aborted) return;
     throw e instanceof OllamaError ? e : new OllamaError("unreachable", String(e));
   }
+}
+
+/** A plain-text answer to a conversation, streamed (no tools). */
+export async function* streamChat(messages: OllamaChatMessage[], o: Omit<StreamOptions, "tools" | "simulated"> & { simulated?: string } = {}): AsyncGenerator<string> {
+  for await (const piece of streamChatPieces(messages, o)) if ("text" in piece) yield piece.text;
+}
+
+/** Whether a model can call tools, by model and address: asked once in a while, not each question. */
+const toolSupport = new Map<string, { tools: boolean; until: number }>();
+const KNOWN_MS = 10 * 60_000;
+const UNKNOWN_MS = 30_000;
+
+/**
+ * Whether the chat model (OLLAMA_CHAT_MODEL) can call tools: Ollama's /api/show lists
+ * `tools` among its capabilities. Unreachable or unknown: no (the chat then sends
+ * extracts instead), asked again a little later. The simulator can (`notools`: can't).
+ */
+export async function chatModelTools(): Promise<boolean> {
+  if (env.ollamaSimulator) return env.ollamaSimulator !== "notools";
+  if (!env.ollamaUrl) return false;
+  const key = `${env.ollamaUrl} ${env.ollamaChatModel}`;
+  const known = toolSupport.get(key);
+  if (known && known.until > Date.now()) return known.tools;
+  let tools = false;
+  let ok = false;
+  try {
+    const res = await fetch(`${env.ollamaUrl}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: env.ollamaChatModel }),
+      redirect: "error",
+      signal: AbortSignal.timeout(5_000),
+    });
+    const body = (res.ok ? await res.json().catch(() => null) : null) as { capabilities?: unknown } | null;
+    ok = body !== null;
+    tools = Array.isArray(body?.capabilities) && body.capabilities.includes("tools");
+  } catch {
+    // Unreachable now: no tools, asked again soon.
+  }
+  toolSupport.set(key, { tools, until: Date.now() + (ok ? KNOWN_MS : UNKNOWN_MS) });
+  return tools;
 }

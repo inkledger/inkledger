@@ -13,6 +13,11 @@ The app only reads `OLLAMA_URL` (and `OLLAMA_MODEL`, default `gemma3:4b`), so ei
 | Container | `pnpm dev:services` (profile `ai` of `deploy/dev.yml`) | `http://127.0.0.1:11434` | Clean machine, nothing installed; **CPU only on a Mac** (Docker has no Metal). Limited to 8 GB and 4 CPUs. Pull the model inside it: `docker exec inkledger-ollama ollama pull gemma3:4b` |
 | Another machine | its own Ollama | `http://<its LAN address>:11434` | Loopback and private addresses only, unless `OLLAMA_ALLOW_PUBLIC=1` |
 
+The Desk's chat uses `OLLAMA_CHAT_MODEL` when set (else `OLLAMA_MODEL`). A model whose
+`/api/show` lists the `tools` capability (e.g. `qwen3:8b`, `llama3.1:8b`) reads the user's code by itself
+with read-only tools; any other model gets automatic extracts instead (docs/work/desk.md, batch 4d).
+`gemma3:4b` has no tool support.
+
 Both use port 11434: run one at a time. `pnpm dev:down` stops the containers (models stay in the
 `ollama-models` volume).
 
