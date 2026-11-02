@@ -78,20 +78,20 @@ test("desk: empty, two issues side by side, another layout, a divider by keyboar
     assert.equal((await boxes(page)).length, 1);
   }));
 
-test("desk: a fifth issue parks one; maximize keeps the others' scroll, Esc restores", () =>
+test("desk: a seventh issue parks one; maximize keeps the others' scroll, Esc restores", () =>
   withApp({ viewport: { width: 1280, height: 800 }, seed: seedDesk(["DEMO-101", "DEMO-102"]) }, async ({ page, base, db }) => {
     await page.goto(base + "/issues/desk");
     await page.locator('[data-desk-pane="1:DEMO-102"]').waitFor();
-    for (const key of ["DEMO-103", "DEMO-104", "DEMO-105"]) await addIssue(page, key);
-    assert.equal((await boxes(page)).length, 4);
-    const tray = page.getByRole("button", { name: "Show DEMO-104 in place of the focused pane" });
+    for (const key of ["DEMO-103", "DEMO-104", "DEMO-105", "DEMO-106", "DEMO-107"]) await addIssue(page, key);
+    assert.equal((await boxes(page)).length, 6);
+    const tray = page.getByRole("button", { name: "Show DEMO-106 in place of the focused pane" });
     await tray.waitFor();
-    await page.getByText("DEMO-105 added to the desk; DEMO-104 was parked").first().waitFor();
+    await page.getByText("DEMO-107 added to the desk; DEMO-106 was parked").first().waitFor();
     await page.waitForTimeout(800);
     const stored = await storedDesk(db);
-    assert.deepEqual(stored.panes.map(p => p.key), ["DEMO-101", "DEMO-102", "DEMO-103", "DEMO-105"]);
-    assert.deepEqual(stored.parked.map(p => p.key), ["DEMO-104"]);
-    assert.equal(stored.preset, "quad");
+    assert.deepEqual(stored.panes.map(p => p.key), ["DEMO-101", "DEMO-102", "DEMO-103", "DEMO-104", "DEMO-105", "DEMO-107"]);
+    assert.deepEqual(stored.parked.map(p => p.key), ["DEMO-106"]);
+    assert.equal(stored.preset, "grid-3x2");
 
     // Scrolled down in the first pane, the second maximized, then restored: the first is where it was.
     const first = page.locator('[data-desk-pane="1:DEMO-101"] [data-pane-size]');
@@ -105,7 +105,7 @@ test("desk: a fifth issue parks one; maximize keeps the others' scroll, Esc rest
     assert.ok(only.width > 900, `the maximized pane fills the desk (${only.width}px)`);
     await page.getByRole("menu").waitFor({ state: "detached" });
     await page.keyboard.press("Escape");
-    await page.waitForFunction(() => document.querySelectorAll("section[data-desk-pane]:not([hidden])").length === 4);
+    await page.waitForFunction(() => document.querySelectorAll("section[data-desk-pane]:not([hidden])").length === 6);
     assert.equal(await first.evaluate(el => el.scrollTop), scrolled, "its scroll survived");
 
     // The parked chip comes back in place of the focused pane.

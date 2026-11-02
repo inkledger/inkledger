@@ -117,7 +117,10 @@ test("desk flow: the title's grip dragged to the right edge puts the issue on th
 test("desk flow: Alt+Shift+→ on an issue page, then the Layout button's slots; axe clean with the popover open", () =>
   withApp({ viewport: { width: 1280, height: 800 }, seed: seedDesk(["DEMO-102"], "single") }, async ({ page, base, db }) => {
     await openIssue(page, base, "DEMO-101", "Test task number 1");
-    await page.locator("body").click({ position: { x: 600, y: 600 } });
+    // The keys go to the page itself: nothing focused (a click at a point could land in a field
+    // that opens for typing, where the keys are the field's), and the window has the focus.
+    await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+    await page.waitForFunction(() => document.hasFocus() && (document.activeElement === document.body || document.activeElement === null));
     await page.keyboard.press("Alt+Shift+ArrowRight");
     await onDesk(page);
     await page.locator('[data-desk-pane="1:DEMO-101"]').waitFor();
@@ -151,7 +154,7 @@ test("desk flow: Shift-click adds from a list (toast with the count), opens two 
     const link = page.getByRole("link", { name: "DEMO-102", exact: true }).first();
     await link.waitFor();
     await link.click({ modifiers: ["Shift"] });
-    await page.getByText("DEMO-102 added to the desk (1/4)").waitFor();
+    await page.getByText("DEMO-102 added to the desk (1/6)").waitFor();
     assert.match(page.url(), /\/issues$/, "stays on the list");
     assert.equal(await page.context().pages().length, 1, "no new window");
     await page.getByRole("button", { name: "Open desk" }).waitFor();
@@ -180,7 +183,7 @@ test("desk flow: a row dragged onto the sidebar's Desk; a board card carries the
     await link.waitFor();
     const desk = page.getByRole("link", { name: /^Desk/ }).first();
     await link.dragTo(desk);
-    await page.getByText("DEMO-105 added to the desk (1/4)").waitFor();
+    await page.getByText("DEMO-105 added to the desk (1/6)").waitFor();
     assert.deepEqual(await storedShape(db), ["DEMO-105"]);
 
     // A board card's drag carries the issue (beside the board's own types).
@@ -222,7 +225,7 @@ test("desk flow: a row dragged onto the sidebar's Desk; a board card carries the
     assert.deepEqual(await storedShape(db), ["DEMO-107", "DEMO-105", "DEMO-106"]);
   }));
 
-test("desk flow: x picks rows in Issues, Open on desk opens them together; five can't; a full desk parks one for a fifth", () =>
+test("desk flow: x picks rows in Issues, Open on desk opens them together; seven can't; a full desk parks one for a seventh", () =>
   withApp({ viewport: { width: 1280, height: 800 } }, async ({ page, base, db }) => {
     await page.goto(base + "/issues");
     await page.getByText("Test task number 1", { exact: true }).first().waitFor();
@@ -244,20 +247,20 @@ test("desk flow: x picks rows in Issues, Open on desk opens them together; five 
     assert.equal((await onScreen(page)).length, 3);
     assert.equal((await storedDesk(db)).preset, "main-left");
 
-    // Five picked: the button says why it can't.
+    // Seven picked: the button says why it can't.
     await page.goto(base + "/issues");
     await page.getByText("Test task number 1", { exact: true }).first().waitFor();
-    for (const n of [1, 2, 3, 4, 5]) await page.getByRole("checkbox", { name: `Pick DEMO-10${n} to open on the desk` }).first().check();
-    await bar.getByText("5 picked").waitFor();
-    await bar.getByText("At most 4 fit on the desk").waitFor();
+    for (const n of [1, 2, 3, 4, 5, 6, 7]) await page.getByRole("checkbox", { name: `Pick DEMO-10${n} to open on the desk` }).first().check();
+    await bar.getByText("7 picked").waitFor();
+    await bar.getByText("At most 6 fit on the desk").waitFor();
     assert.equal(await bar.getByRole("button", { name: "Open on desk" }).isDisabled(), true);
     await bar.getByRole("button", { name: "Clear" }).click();
     await bar.waitFor({ state: "detached" });
 
-    // A full desk: a fifth issue Shift-clicked parks the last one, and says so.
-    await db.q("UPDATE desks SET layout = ? WHERE user_id = 1 AND name IS NULL", JSON.stringify(layout(["DEMO-101", "DEMO-102", "DEMO-103", "DEMO-104"], "quad")));
+    // A full desk: a seventh issue Shift-clicked parks the last one, and says so.
+    await db.q("UPDATE desks SET layout = ? WHERE user_id = 1 AND name IS NULL", JSON.stringify(layout(["DEMO-101", "DEMO-102", "DEMO-103", "DEMO-104", "DEMO-105", "DEMO-106"], "grid-3x2")));
     await page.getByRole("link", { name: "DEMO-109", exact: true }).first().click({ modifiers: ["Shift"] });
-    await page.getByText("DEMO-109 added to the desk; DEMO-104 was parked").waitFor();
+    await page.getByText("DEMO-109 added to the desk; DEMO-106 was parked").waitFor();
   }));
 
 test("desk flow on a phone: a long press on the title opens the places in a sheet; one opens the desk", () =>
