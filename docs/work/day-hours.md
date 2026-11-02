@@ -1,4 +1,4 @@
-# State: Hours of the day (per-day schedule, breaks respected when logging) — in progress
+# State: Hours of the day (per-day schedule, breaks respected when logging) — done
 
 ## Goal and done criteria
 - Any day (past, today, future) can have its own hours (start, end, breaks, day off) overriding the weekly schedule version.
@@ -42,7 +42,6 @@
 | `pnpm test` after the fix | all | pass |
 
 ## Blocks and next action
-- Status: done in worktree `feat/day-hours`, not committed.
-- The full e2e was not run again after the render fix; only renders, day-hours, dashboard-day, day-review, regressions, layout-overflow and a11y were rerun.
-- At merge: the main checkout's team work touches `team.ts` and `api/parity/*`. Land that first, rebase, run `pnpm parity:update` again, and check that migration 0039 is still free.
+- Done: rebased onto main after the team heat map (fa15879), then merged into main on 2026-11-02.
+- Checks after the rebase: lint, check, test (2971), build and smoke all passed. Full e2e: 393 of 394 passed; desk-snap failed once under load and passes when rerun alone.
 - Not covered by e2e: a timer placed across the break in the UI (covered by unit and router tests).
