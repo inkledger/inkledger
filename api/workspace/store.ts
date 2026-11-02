@@ -274,10 +274,6 @@ export async function upsertPrepared(userId: number, scope: Scope, prepared: Pre
   });
 }
 
-export async function deletePrepared(userId: number, scope: Scope, prepareId: string): Promise<void> {
-  await getDb().delete(workspacePrepared).where(and(eq(workspacePrepared.userId, userId), scopeWhere(scope)(workspacePrepared), eq(workspacePrepared.prepareId, prepareId)));
-}
-
 /** One scope's apply state; `prepareId` picks that prepared revision (each tab has its own), else none. */
 export async function loadApplyState(userId: number, scope: Scope, prepareId?: string): Promise<ApplyState> {
   const db = getDb();

@@ -17,7 +17,7 @@ const equalsCi = (col: AnyColumn, v: string) => sql`${col} ILIKE ${escapeLike(v)
 export const UNREAD_SQL = sql`(${issues.othersActivityAt} IS NOT NULL AND ${issues.othersActivityAt} > coalesce(${issues.seenAt}, 0))`;
 
 /** The key a tracker's link points at (Jira browse, GitHub/GitLab/Gitea issues). */
-export function keyOfLink(url: string): string | null {
+function keyOfLink(url: string): string | null {
   try {
     const u = new URL(url);
     const jira = /\/browse\/([A-Za-z][A-Za-z0-9_]*-\d+)/.exec(u.pathname)?.[1] ?? u.searchParams.get("selectedIssue");

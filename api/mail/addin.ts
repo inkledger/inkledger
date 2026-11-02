@@ -71,7 +71,7 @@ function originOf(c: Context): string {
   return `https://${host}`;
 }
 
-export function manifestXml(origin: string): string {
+function manifestXml(origin: string): string {
   const o = escapeXml(origin);
   const en = (k: "button" | "buttonTip") => escapeXml(withLocale("en", () => t(`server.outlook.${k}`)));
   const it = (k: "button" | "buttonTip") => escapeXml(withLocale("it", () => t(`server.outlook.${k}`)));

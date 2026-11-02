@@ -17,7 +17,7 @@ import { getSettings } from "./routers/settings";
 type App = Hono<{ Bindings: HttpBindings }>;
 
 /** The picture types an idea takes, by their first bytes. */
-export function sniffImage(bytes: Uint8Array): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | null {
+function sniffImage(bytes: Uint8Array): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | null {
   const at = (i: number, ...b: number[]) => b.every((x, j) => bytes[i + j] === x);
   if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
   if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";

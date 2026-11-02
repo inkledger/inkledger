@@ -9,7 +9,7 @@ export type RawQuery = (text: string, params?: unknown[]) => Promise<{ rows: Rec
  * never migrates it by accident. It names the database it was written in: a
  * production dump restored into a dev database doesn't carry the protection.
  */
-export const DB_OWNER_KEY = "db.owner";
+const DB_OWNER_KEY = "db.owner";
 
 type Owner = { role: "production"; database: string };
 

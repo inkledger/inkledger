@@ -58,7 +58,7 @@ function isStockAvatar(type: string, body: ArrayBuffer): boolean {
 
 /** Upload limits for POST /api/issues/:key/attachments */
 export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
-export const UPLOAD_MAX_FILES = 10;
+const UPLOAD_MAX_FILES = 10;
 
 /** Raster images are safe to show inline; everything else (incl. SVG) downloads. */
 const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"]);

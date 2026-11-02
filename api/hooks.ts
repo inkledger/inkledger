@@ -18,14 +18,14 @@ import type { WebhookRequest } from "./providers/types";
 import { syncConnectionEntries, syncConnectionIssues } from "./sync/engine";
 
 /** A delivery sent longer ago than this is refused (replayed, or held somewhere). */
-export const STALE_MS = 5 * 60_000;
+const STALE_MS = 5 * 60_000;
 /** Deliveries are coalesced: one read per connection at most this often. */
 const DEBOUNCE_MS = 5_000;
 /** Delivery ids are kept this long to refuse replays. */
 const KEEP_DELIVERIES_MS = 2 * 86_400_000;
 
 /** The token in a connection's webhook address: derived from its secret, so turning webhooks off and on again changes it. */
-export const webhookToken = (secret: string, connectionId: number) => hmacHex(secret, `url:${connectionId}`).slice(0, 32);
+const webhookToken = (secret: string, connectionId: number) => hmacHex(secret, `url:${connectionId}`).slice(0, 32);
 
 /** The address to register on the service. */
 export const webhookPath = (secret: string, connectionId: number) => `/api/hooks/${connectionId}/${webhookToken(secret, connectionId)}`;

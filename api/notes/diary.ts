@@ -6,7 +6,7 @@ import { diaryDays, diaryMarkdown, type DiaryDay } from "@contracts/diary";
 import { getDb } from "../queries/connection";
 
 /** About this many characters of diary for a local model (≈ 8k tokens): longer notes are cut, never the days. */
-export const DIARY_BUDGET_CHARS = 28_000;
+const DIARY_BUDGET_CHARS = 28_000;
 
 export type DiaryRange = { fromDay: string; toDay: string; from: string; to: string; folderId?: string | null };
 

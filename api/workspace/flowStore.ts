@@ -31,7 +31,7 @@ export async function setFlowConsent(userId: number, enabled: boolean) {
 }
 
 /** Raw events kept per user at most: the newest ones, whatever the retention window allows. */
-export const FLOW_MAX_EVENTS_PER_USER = 100_000;
+const FLOW_MAX_EVENTS_PER_USER = 100_000;
 const lastPruned = new Map<number, number>();
 
 export async function pruneFlowData(userId: number, now = Date.now(), maxEvents = FLOW_MAX_EVENTS_PER_USER): Promise<void> {

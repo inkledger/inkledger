@@ -8,7 +8,7 @@ import { boundTracker } from "./engine";
 import { callMeta } from "../lib/callMeta";
 
 /** The inbox item a notification's dedupe names (c<connection>:inbox:<id>:<at>), if any. */
-export function inboxItemOf(dedupe: string): { connectionId: number; id: string } | null {
+function inboxItemOf(dedupe: string): { connectionId: number; id: string } | null {
   const m = /^c(\d+):inbox:(.+):[^:]+$/.exec(dedupe);
   return m ? { connectionId: Number(m[1]), id: m[2] } : null;
 }

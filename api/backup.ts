@@ -30,7 +30,7 @@ export type BackupState = { lastOkAt: number | null; lastError: string | null; l
 const SETTINGS_KEY = "backup";
 const STATE_KEY = "backup.state";
 
-export const BACKUP_FILE = /^inkledger-\d{8}-\d{6}\.dump$/;
+const BACKUP_FILE = /^inkledger-\d{8}-\d{6}\.dump$/;
 
 export function backupDir(): string {
   return process.env.BACKUP_DIR ?? (env.isProduction ? "/backups" : path.join(process.cwd(), "data/backups"));

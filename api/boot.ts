@@ -41,7 +41,7 @@ import { purgeIdeas } from "./routers/ideas";
 import { purgeWorkspace } from "./workspace/purge";
 import { ollamaRefusal } from "./ai/ollama";
 import { startSyncScheduler } from "./syncScheduler";
-import { settleInFlightSyncs } from "./routers/issues";
+import { settleInFlightSyncs } from "./sync/orchestrator";
 import { startBackupScheduler } from "./backup";
 import { t } from "@contracts/i18n";
 import { DEFAULT_ADMIN } from "@contracts/accounts";

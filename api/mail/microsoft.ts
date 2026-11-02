@@ -19,7 +19,7 @@ import { t } from "@contracts/i18n";
 const LOGIN = "https://login.microsoftonline.com";
 const GRAPH = "https://graph.microsoft.com/v1.0";
 /** What inkledger asks for: reading mail (headers only are used), staying signed in, who is signed in. */
-export const MAIL_SCOPES = "Mail.Read offline_access User.Read";
+const MAIL_SCOPES = "Mail.Read offline_access User.Read";
 
 /** Microsoft's answers that mean the organization must approve the app first. */
 const CONSENT_CODES = /AADSTS(65001|65004|90094|900941|90095)\b/;
@@ -235,7 +235,7 @@ export async function messageContent(userId: number, exchangeId: string): Promis
   return asUser(userId, `/me/messages/${encodeURIComponent(exchangeId)}/$value`, async (res) => Buffer.from(await res.arrayBuffer()));
 }
 
-export const foundMail = (m: GraphMessage): FoundMail => ({
+const foundMail = (m: GraphMessage): FoundMail => ({
   subject: (m.subject ?? "").trim(),
   fromName: m.from?.emailAddress?.name?.trim() || null,
   fromAddress: m.from?.emailAddress?.address?.trim().toLowerCase() || null,

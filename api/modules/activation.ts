@@ -19,11 +19,11 @@ import { StoreError, postStore } from "../store/client";
 import { ACTIVATION_KEYS, asPem, extraKey } from "./keys";
 import { instance, proofMessage } from "./instance";
 
-export const ACTIVATION_CONTEXT = "inkledger-activation-v1\n";
+const ACTIVATION_CONTEXT = "inkledger-activation-v1\n";
 const TOKENS_KEY = "modules.activations";
 const GRACE_KEY = "modules.grace";
 /** Renewed when less than this is left. */
-export const RENEW_BEFORE_MS = 30 * DAY_MS;
+const RENEW_BEFORE_MS = 30 * DAY_MS;
 /** The store unreachable when renewing (network, 5xx): a token keeps working this long past its end. */
 export const GRACE_MS = 30 * DAY_MS;
 /** Clocks differ: a token is still good a day past its end. */
@@ -35,11 +35,11 @@ export type ActivationPayload = { lic: string; product: string; inst: string; ia
 const activationKeys = (): string[] => [...ACTIVATION_KEYS, ...(process.env.VITEST && process.env.TEST_ACTIVATION_KEY ? [process.env.TEST_ACTIVATION_KEY] : [])];
 
 /** Whether this server must hold an activation for its licences: always, but under Vitest only when a test asks (TEST_ACTIVATION_REQUIRED). */
-export const activationRequired = () =>
+const activationRequired = () =>
   (!process.env.VITEST || process.env.TEST_ACTIVATION_REQUIRED === "1") && !extraKey() && activationKeys().length > 0;
 
 /** A token from the store, checked: its signature, version and shape (not yet whose it is). */
-export function readActivation(token: string): ActivationPayload | null {
+function readActivation(token: string): ActivationPayload | null {
   const v = verifyEnvelope(token, { context: ACTIVATION_CONTEXT, keys: activationKeys().map(asPem) });
   if (!v.ok) return null;
   try {

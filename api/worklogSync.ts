@@ -7,17 +7,18 @@ import {
   fetchUpdatedWorklogIds,
   fetchWorklogs,
   fetchWorklogsByIds,
+  isAuthor,
   searchIssues,
   type JiraWorklog,
 } from "./jira/client";
-import { isAuthoredBy, PENDING_PREFIX, rowFromJira, upsertLocal } from "./routers/worklogs";
+import { PENDING_PREFIX, rowFromJira, upsertLocal } from "./routers/worklogs";
 import { upsertIssue } from "./sync/jiraIssues";
 import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
 import { creationInFlight } from "./sync/timeWrites";
 
 /** How far back the first import reaches. */
-export const WORKLOG_HISTORY_DAYS = 365;
+const WORKLOG_HISTORY_DAYS = 365;
 
 export type WorklogSyncResult = { imported: number; deleted: number; initial: boolean };
 
@@ -108,7 +109,7 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
     seen.add(issue.key);
     await ensureIssue(user, issue.key, () => Promise.resolve(issue));
     const mine = (await fetchWorklogs(creds, issue.key)).filter(
-      (w) => isAuthoredBy(w, user.accountId) && Date.parse(w.started) >= from,
+      (w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from,
     );
     for (const w of mine) {
       if (queued.has(w.id)) continue;
@@ -128,7 +129,7 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
     const list: JiraWorklog[] = await fetchWorklogsByIds(creds, updated.ids);
     const keyOf = await issueKeysById(user.id, user.connectionId);
     for (const w of list) {
-      if (!isAuthoredBy(w, user.accountId) || queued.has(w.id) || !w.issueId) continue;
+      if (!isAuthor(w.author, user.accountId) || queued.has(w.id) || !w.issueId) continue;
       let key = keyOf.get(w.issueId);
       if (!key) {
         const remote = await fetchIssueById(creds, w.issueId);

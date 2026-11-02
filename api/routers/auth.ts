@@ -54,7 +54,7 @@ function throttle(ctx: Ctx, accountKey?: string) {
   }
 }
 
-export function assertNewPassword(password: string) {
+function assertNewPassword(password: string) {
   if ([...password].length < PASSWORD_MIN_LENGTH) {
     throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.passwordTooShort", { min: PASSWORD_MIN_LENGTH }) });
   }

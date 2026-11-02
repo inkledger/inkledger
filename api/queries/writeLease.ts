@@ -12,7 +12,7 @@ import { keyedLock } from "../lib/locks";
 import { getDb } from "./connection";
 
 /** Longer than any write takes (each tracker call has its own 30 s timeout): a holder past it died. */
-export const WRITE_LEASE_MS = 2 * 60_000;
+const WRITE_LEASE_MS = 2 * 60_000;
 /** How long a write waits for another process's before giving up. */
 const WAIT_MS = 45_000;
 

@@ -53,7 +53,7 @@ export async function userById(id: number): Promise<User | undefined> {
 }
 
 /** Where a production server leaves its first admin's random password (INITIAL_ADMIN_PASSWORD_PATH, else data/). */
-export const initialAdminPasswordFile = () => process.env.INITIAL_ADMIN_PASSWORD_PATH || path.resolve("data/initial-admin-password");
+const initialAdminPasswordFile = () => process.env.INITIAL_ADMIN_PASSWORD_PATH || path.resolve("data/initial-admin-password");
 
 /**
  * A new server starts with one admin, "admin", whose password must be changed

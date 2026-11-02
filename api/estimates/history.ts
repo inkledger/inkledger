@@ -19,11 +19,11 @@ import type { RemoteStatusStep, TrackerProbe } from "../providers/types";
 const isCategory = (c: string): c is StatusCategory => (STATUS_CATEGORIES as readonly string[]).includes(c);
 
 /** Histories read per pass, across users */
-export const HISTORY_PASS = 50;
+const HISTORY_PASS = 50;
 const MIN = 60_000;
 
 /** When a failed read is tried again: 5 min, doubling, at most a day. */
-export const retryAt = (now: number, attempts: number) => now + Math.min(24 * 60 * MIN, 5 * MIN * 2 ** attempts);
+const retryAt = (now: number, attempts: number) => now + Math.min(24 * 60 * MIN, 5 * MIN * 2 ** attempts);
 
 /** Trackers with a history: their issues are read (one with no status history in it is then invalid, never unsupported) */
 function historyTypes(): string[] {

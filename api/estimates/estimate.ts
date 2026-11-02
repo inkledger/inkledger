@@ -27,7 +27,7 @@ import { parseStringList } from "../lib/json";
 import { estimateRevision } from "../queries/estimateRevision";
 
 /** Candidates of one estimate: my closed issues with my time, the newest first (R-3.2) */
-export const UNIVERSE = 2000;
+const UNIVERSE = 2000;
 const TTL_MS = 10 * 60_000;
 /** The backtest's window (R-3.16) */
 const BACKTEST_WINDOW_MS = 90 * 24 * 3_600_000;
@@ -154,7 +154,7 @@ WITH ${CANDIDATES}
 SELECT NULL AS "target", ${samplesOfCand("NULL")} FROM cand c) AS "samples", ${STATUSES_AND_CHOICES}`;
 
 /** Whether each status counts as work, per connection: the user's choice, else the provider's default (R-3.14); null when nothing places it. */
-export function classifier(statuses: Row["statuses"], choices: Row["choices"]): (connectionId: number, statusId: string) => boolean | null {
+function classifier(statuses: Row["statuses"], choices: Row["choices"]): (connectionId: number, statusId: string) => boolean | null {
   const category = new Map<string, string>();
   const hasDoing = new Set<number>();
   for (const s of statuses ?? []) {

@@ -91,7 +91,7 @@ export async function ownNote(
   return row;
 }
 
-export async function lockNoteTree(tx: NoteTx, userId: number): Promise<void> {
+async function lockNoteTree(tx: NoteTx, userId: number): Promise<void> {
   await xactLockIn(tx, "markdown-notes-tree", userId);
 }
 
@@ -128,7 +128,7 @@ async function ancestors(
 
 type SubtreeNode = { id: string; depth: number };
 
-export async function noteSubtree(
+async function noteSubtree(
   tx: NoteTx,
   userId: number,
   rootId: string

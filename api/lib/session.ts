@@ -7,7 +7,7 @@ const REMEMBER_COOKIE = "ikl_remember";
  * proxy). Drives the cookie Secure flag: the Docker deployment serves plain
  * HTTP on 127.0.0.1, where a Secure cookie would never come back.
  */
-export function isHttpsRequest(req: Request): boolean {
+function isHttpsRequest(req: Request): boolean {
   const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
   if (forwarded) return forwarded === "https";
   try {
@@ -24,7 +24,7 @@ export function isHttpsRequest(req: Request): boolean {
  * explicit port in Host goes into the name. Default ports keep the plain
  * name, as before.
  */
-export function sessionCookieName(req: Request): string {
+function sessionCookieName(req: Request): string {
   return portScoped(req, SESSION_COOKIE);
 }
 
@@ -56,7 +56,7 @@ export function sessionCookie(req: Request, sessionId: string, maxAgeSeconds: nu
  * without the Jira secret. Port-scoped like the session one, never shared
  * with the old plain name.
  */
-export function rememberCookieName(req: Request): string {
+function rememberCookieName(req: Request): string {
   return portScoped(req, REMEMBER_COOKIE);
 }
 

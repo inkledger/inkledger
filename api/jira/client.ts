@@ -20,7 +20,7 @@ export class JiraApiError extends Error {
 }
 
 /** Upper bound for a single Jira HTTP call. */
-export const JIRA_TIMEOUT_MS = 15_000;
+const JIRA_TIMEOUT_MS = 15_000;
 
 /**
  * True when Jira could not be reached at all (DNS, connection, timeout),
@@ -400,7 +400,7 @@ export async function fetchOpenIssueActivity(
 }
 
 /** JQL clause: issues updated in the last `minutes` minutes. */
-export function updatedWindow(minutes: number): string {
+function updatedWindow(minutes: number): string {
   return `updated >= "-${Math.max(1, Math.floor(minutes))}m"`;
 }
 
@@ -950,7 +950,7 @@ export async function uploadAttachments(
 }
 
 /** Upper bound for attachment downloads/uploads. */
-export const JIRA_TRANSFER_TIMEOUT_MS = 60_000;
+const JIRA_TRANSFER_TIMEOUT_MS = 60_000;
 
 /**
  * Authenticated GET of an absolute Jira URL (attachment content/thumbnail).

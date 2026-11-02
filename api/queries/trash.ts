@@ -16,7 +16,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
  * folded into its twin: no trace). Without it a delete counts as gone from
  * the service.
  */
-export async function deletingAs(tx: Tx, reason: "user" | "merged") {
+async function deletingAs(tx: Tx, reason: "user" | "merged") {
   await tx.execute(sql`select set_config('inkledger.delete_reason', ${reason}, true)`);
 }
 

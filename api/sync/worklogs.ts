@@ -178,7 +178,7 @@ function startOf(span: RemoteWorklog["span"], zone: TimeZone): Date {
 }
 
 /** Two entries are the same time: same length, starts within a minute (a create whose answer was lost, read back). */
-export const SAME_START_MS = 60_000;
+const SAME_START_MS = 60_000;
 export const sameTime = (a: { started: Date; seconds: number }, b: { started: Date; seconds: number }) =>
   a.seconds === b.seconds && Math.abs(a.started.getTime() - b.started.getTime()) < SAME_START_MS;
 

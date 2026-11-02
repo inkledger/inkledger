@@ -7,7 +7,7 @@ import { isShuttingDown } from "./lib/shutdown";
 import { serverBuild } from "./lib/appBuild";
 
 /** A comment line now and then keeps proxies (and the browser) from closing an idle stream. */
-export const KEEPALIVE_MS = 25_000;
+const KEEPALIVE_MS = 25_000;
 
 /**
  * GET /api/events: the signed-in user's changes as server-sent events (a

@@ -14,7 +14,6 @@ import type { TrackerType } from "@contracts/providers";
 import {
   fetchWorklogs,
   isAuthor,
-  isNetworkError,
   textFromAdf,
   type JiraWorklog,
 } from "../jira/client";
@@ -80,14 +79,14 @@ async function worklogRef(
 /** Local placeholder id for worklogs queued in the offline outbox. */
 export const PENDING_PREFIX = "pending-";
 
-export function isPendingId(remoteId: string): boolean {
+function isPendingId(remoteId: string): boolean {
   return remoteId.startsWith(PENDING_PREFIX);
 }
 
 /** Id of a worklog kept only in inkledger: its tracker keeps no time (GitHub). */
-export const LOCAL_PREFIX = "local-";
+const LOCAL_PREFIX = "local-";
 
-export function isLocalId(remoteId: string): boolean {
+function isLocalId(remoteId: string): boolean {
   return remoteId.startsWith(LOCAL_PREFIX);
 }
 
@@ -106,19 +105,10 @@ function stillQueued(userId: number, outboxId: number) {
   return and(eq(outbox.id, outboxId), eq(outbox.userId, userId), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS)));
 }
 
-export function pendingOutboxId(remoteId: string): number {
+function pendingOutboxId(remoteId: string): number {
   return parseInt(remoteId.slice(PENDING_PREFIX.length), 10);
 }
 
-export { isNetworkError };
-
-/** Worklog authored by the given user (Cloud: accountId, Server/DC: name or key). */
-export function isAuthoredBy(w: JiraWorklog, accountId: string): boolean {
-  return isAuthor(w.author, accountId);
-}
-
-/** One write at a time per user, in every server process: two requests can't both pass the overlap or week check. */
-const withWriteLock = withWriteLease;
 
 function parseLogInput(input: { seconds?: number; timeSpent?: string; started: string }) {
   const seconds = input.seconds ?? parseDurationToSeconds(input.timeSpent ?? "");
@@ -289,7 +279,7 @@ export const worklogsRouter = createRouter({
       const [sink] = await db.select().from(worklogSinks).where(and(eq(worklogSinks.worklogId, row.id), eq(worklogSinks.state, "conflict")));
       const remote = parseJson<RemoteSnapshot>(sink?.remoteSnapshot);
       if (!sink || !remote) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.noConflict") });
-      return withWriteLock(ctx.user.id, async () => {
+      return withWriteLease(ctx.user.id, async () => {
         if (input.keep === "theirs") {
           await db.update(worklogs).set({ timeSpentSeconds: remote.seconds, started: new Date(remote.started), comment: remote.comment, syncedAt: new Date() }).where(eq(worklogs.id, row.id));
           await db.delete(outbox).where(and(eq(outbox.worklogId, row.id), eq(outbox.connectionId, sink.sinkConnectionId)));
@@ -419,7 +409,7 @@ export const worklogsRouter = createRouter({
             )
         ).map((o) => o.id),
       );
-      const mine = remote.filter((w) => isAuthoredBy(w, user.accountId));
+      const mine = remote.filter((w) => isAuthor(w.author, user.accountId));
       for (const w of mine) {
         if (queued.has(w.id)) continue;
         await upsertLocal(rowFromJira(ctx.user.id, input.issueKey, w, user.connectionId));
@@ -457,7 +447,7 @@ export const worklogsRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { seconds, started } = parseLogInput(input);
-      return withWriteLock(ctx.user.id, async () => {
+      return withWriteLease(ctx.user.id, async () => {
         await assertWeekOpen(ctx.user.id, started);
         await assertNoOverlap(ctx.user.id, { start: started, seconds });
         // A timer's time is logged once: it is taken under the database lock
@@ -504,7 +494,7 @@ export const worklogsRouter = createRouter({
       // Check and save under one lock, as in create: two writes can't both pass.
       // With what it was (host events tell how much the logged time moved).
       const previousSeconds = current?.seconds ?? null;
-      const saved = await withWriteLock(ctx.user.id, async () => {
+      const saved = await withWriteLease(ctx.user.id, async () => {
         // Again under the lock: a week closed meanwhile (another device, another process).
         await assertWeekOpen(ctx.user.id, started);
         if (current) await assertWeekOpen(ctx.user.id, current.started);
@@ -567,7 +557,7 @@ export const worklogsRouter = createRouter({
       .where(and(eq(worklogTrash.id, input.id), eq(worklogTrash.userId, ctx.user.id)))
       .limit(1);
     if (!item) throw new TRPCError({ code: "NOT_FOUND", message: t("server.worklogs.notFound") });
-    return withWriteLock(ctx.user.id, async () => {
+    return withWriteLease(ctx.user.id, async () => {
       await assertWeekOpen(ctx.user.id, item.started);
       // Taken from the trash first, in one statement: a second restore of it (a double
       // click, another device, another process) finds it gone and logs nothing.
@@ -598,7 +588,7 @@ export const worklogsRouter = createRouter({
       const input = await worklogRef(ctx.user.id, given);
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       const db = getDb();
-      return withWriteLock(ctx.user.id, () => deleteLocked());
+      return withWriteLease(ctx.user.id, () => deleteLocked());
 
       async function deleteLocked() {
         const where = worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id);

@@ -52,7 +52,7 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  * with another one and resurrect or lose time. The lock is the database's,
  * so it holds across processes too.
  */
-export function withTimerLock<T>(userId: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
+function withTimerLock<T>(userId: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${userId})`);
     return fn(tx);

@@ -66,7 +66,7 @@ export type CheckedPackage =
 export const buildOf = (signature: string) => sha256hex(Buffer.from(signature.trim())).slice(0, 32);
 
 /** The full check of a package given as bytes (installed folder or upload). */
-export function checkPackage(files: Files, signature: string): CheckedPackage {
+function checkPackage(files: Files, signature: string): CheckedPackage {
   const rawManifest = files.get(MANIFEST_FILE);
   if (!rawManifest) return { ok: false, reason: "manifest-missing" };
   let json: unknown;
@@ -186,7 +186,7 @@ export async function licenseStates(): Promise<{ licensed: Set<string>; active: 
 }
 
 /** The products unlocked here: a valid licence, active on this server. */
-export async function licensedProducts(): Promise<Set<string>> {
+async function licensedProducts(): Promise<Set<string>> {
   return (await licenseStates()).active;
 }
 

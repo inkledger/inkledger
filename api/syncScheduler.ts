@@ -4,7 +4,7 @@ import { getDb } from "./queries/connection";
 import { connections, sessions, syncState, users, type User } from "@db/schema";
 import { markConnection, markJiraConnection } from "./providers/connections";
 import { originOf } from "./providers/core/origin";
-import { syncUser } from "./routers/issues";
+import { syncUser } from "./sync/orchestrator";
 import { JiraApiError } from "./jira/client";
 import { UnreadableCredentialsError } from "./middleware";
 import { isShuttingDown } from "./lib/shutdown";
@@ -39,7 +39,7 @@ export async function activeUsers(now: Date = new Date()): Promise<User[]> {
 }
 
 /** A background sync is full at least this often (catalog refresh + watchers). */
-export const FULL_SYNC_EVERY_MS = 60 * 60_000;
+const FULL_SYNC_EVERY_MS = 60 * 60_000;
 
 /** Full when the user never had one, or the last is older than FULL_SYNC_EVERY_MS. */
 export async function needsFullSync(userId: number, now: number = Date.now()): Promise<boolean> {

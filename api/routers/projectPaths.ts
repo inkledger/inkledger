@@ -9,7 +9,7 @@ import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 
-export const REPO_PATHS_MAX = 10;
+const REPO_PATHS_MAX = 10;
 
 const repo = z.object({
   label: z.string().trim().max(60),

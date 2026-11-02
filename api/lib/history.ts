@@ -30,7 +30,7 @@ const FIELD_KEYS: Record<string, MessageKey> = {
   comment: "server.history.fields.comment",
 };
 
-export function fieldLabel(field: string): string {
+function fieldLabel(field: string): string {
   const key = FIELD_KEYS[field.toLowerCase()];
   return key ? t(key) : field;
 }

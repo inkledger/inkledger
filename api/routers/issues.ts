@@ -42,7 +42,6 @@ import { analyzeCommand, analyzeInstructions } from "@contracts/analyze";
 import { pathsOf } from "./projectPaths";
 import { getSettings } from "./settings";
 
-export { settleInFlightSyncs, syncUser } from "../sync/orchestrator";
 
 /** The user looked at (or acted on) an issue: its activity so far is read. */
 async function markSeen(userId: number, key: string, connectionId: number) {

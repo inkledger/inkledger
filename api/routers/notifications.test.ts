@@ -96,7 +96,7 @@ describe("notifications, incremental sync, watchers", () => {
   let other: Caller;
   let userId = 0;
   let raw: <T>(sql: string, ...params: unknown[]) => Promise<T[]>;
-  let syncUser: typeof import("./issues").syncUser;
+  let syncUser: typeof import("../sync/orchestrator").syncUser;
   let user: () => Promise<import("@db/schema").User>;
   let today: (plusDays: number) => string;
 
@@ -141,7 +141,7 @@ describe("notifications, incremental sync, watchers", () => {
     userId = me.id;
     other = (await login(SITE2)).caller;
     raw = <T,>(sql: string, ...params: unknown[]) => conn.q<T>(sql, ...params);
-    syncUser = (await import("./issues")).syncUser;
+    syncUser = (await import("../sync/orchestrator")).syncUser;
     const { users } = await import("@db/schema");
     const { eq } = await import("drizzle-orm");
     user = async () => (await conn.getDb().select().from(users).where(eq(users.id, userId)).limit(1))[0];

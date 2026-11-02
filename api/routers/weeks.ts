@@ -22,7 +22,7 @@ function normalizeWeek(week: string): string {
 }
 
 /** True when the week containing `date` is closed for the user. */
-export async function isWeekClosed(userId: number, date: Date): Promise<boolean> {
+async function isWeekClosed(userId: number, date: Date): Promise<boolean> {
   const rows = await getDb()
     .select({ id: weekLocks.id })
     .from(weekLocks)

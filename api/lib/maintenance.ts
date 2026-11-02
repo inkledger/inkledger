@@ -17,8 +17,3 @@ export function leaveMaintenance(): void {
 export function inMaintenance(): boolean {
   return on !== null;
 }
-
-/** Why, while on. */
-export function maintenanceReason(): string | null {
-  return on;
-}
