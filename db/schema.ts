@@ -52,6 +52,8 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("member"),
   /** JSON array of Permission (contracts/accounts.ts); an admin has them all */
   permissions: text("permissions").notNull().default("[]"),
+  /** JSON array of module ids this account may run (with useModules); an admin runs them all */
+  moduleGrants: text("module_grants").notNull().default("[]"),
   /** 1 = the next sign-in must set a new password first (default admin, reset) */
   mustChangePassword: integer("must_change_password").notNull().default(0),
   /** Set when an admin turns the account off: no sign-in, sessions gone */

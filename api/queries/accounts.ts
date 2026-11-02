@@ -7,6 +7,7 @@ import path from "node:path";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, sessions, users, type User } from "@db/schema";
 import { DEFAULT_ADMIN, INVITE_DAYS, PERMISSIONS, type Permission, type Role } from "@contracts/accounts";
+import { moduleIdSchema } from "@contracts/modulesSchema";
 import { env } from "../lib/env";
 import { hashPassword } from "../lib/password";
 import { getDb } from "./connection";
@@ -26,15 +27,42 @@ export function permissionsOf(user: Pick<User, "role" | "permissions">): Permiss
 
 export const can = (user: Pick<User, "role" | "permissions">, permission: Permission) => permissionsOf(user).includes(permission);
 
-/** `granted` is within what `by` holds: an admin holds anything; anyone else never admin, nor a power it lacks. */
-export function within(by: Pick<User, "role" | "permissions">, granted: { role: string; permissions: readonly string[] }): boolean {
+type Access = Pick<User, "role" | "permissions" | "moduleGrants">;
+
+/** The module ids granted to the account, as stored (an admin's don't matter: it runs every module). */
+export function grantsOf(user: Pick<User, "moduleGrants">): string[] {
+  try {
+    const granted = JSON.parse(user.moduleGrants) as unknown;
+    return Array.isArray(granted) ? granted.filter((g): g is string => moduleIdSchema.safeParse(g).success) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether the account runs this module: an admin runs every one; anyone else needs useModules and the module granted. */
+export const mayRunModule = (user: Access, id: string) =>
+  roleOf(user) === "admin" || (can(user, "useModules") && grantsOf(user).includes(id));
+
+/**
+ * `granted` is within what `by` holds: an admin holds anything; anyone else never admin,
+ * nor a power it lacks, nor a module it doesn't run itself.
+ */
+export function within(by: Access, granted: { role: string; permissions: readonly string[]; modules: readonly string[] }): boolean {
   if (roleOf(by) === "admin") return true;
   const mine: readonly string[] = permissionsOf(by);
-  return granted.role !== "admin" && granted.permissions.every((p) => mine.includes(p));
+  return (
+    granted.role !== "admin" &&
+    granted.permissions.every((p) => mine.includes(p)) &&
+    granted.modules.every((m) => mayRunModule(by, m))
+  );
 }
 
 /** Permissions as stored: known ones only, in a stable order. */
 export const storedPermissions = (granted: readonly unknown[]) => JSON.stringify(PERMISSIONS.filter((p) => granted.some((g) => isPermission(g) && g === p)));
+
+/** Module grants as stored: valid ids, once each, sorted. */
+export const storedGrants = (granted: readonly string[]) =>
+  JSON.stringify([...new Set(granted.filter((g) => moduleIdSchema.safeParse(g).success))].sort());
 
 export const roleOf = (user: Pick<User, "role">): Role => (user.role === "admin" ? "admin" : "member");
 
@@ -148,7 +176,7 @@ export async function inviteUser(token: string): Promise<{ inviteId: string; use
   if (!row) return null;
   const maker = row.createdBy === null ? null : await userById(row.createdBy);
   // Its maker must still be able to make it: on, managing accounts, holding what the account has.
-  if (maker && (maker.disabledAt || !can(maker, "manageUsers") || !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user) }))) return null;
+  if (maker && (maker.disabledAt || !can(maker, "manageUsers") || !within(maker, { role: roleOf(row.user), permissions: permissionsOf(row.user), modules: grantsOf(row.user) }))) return null;
   return { inviteId: id, user: row.user };
 }
 

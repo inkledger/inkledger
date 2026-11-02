@@ -107,7 +107,8 @@ function readInstalled(id: string): CheckedPackage {
   }
 }
 
-function installedIds(): string[] {
+/** The ids of the modules installed on this server (verified or not). */
+export function installedIds(): string[] {
   try {
     return fs
       .readdirSync(env.modulesDir)

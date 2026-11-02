@@ -1,7 +1,7 @@
 // Accounts in the browser: a new server's first sign-in, and an invite.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, withApp } from "./harness.mjs";
+import { fakeProcedures, start, withApp } from "./harness.mjs";
 
 test("first start: the admin signs in with the default password, must change it, then invites someone who sets their own", () =>
   withApp({ bare: true }, async ({ page, base, context }) => {
@@ -48,4 +48,26 @@ test("first start: the admin signs in with the default password, must change it,
     } finally {
       await hers.close();
     }
+  }));
+
+// Add-on modules can be heavy on a computer without a usable GPU (a whole browser froze): none for a new account, the admin gives them one by one.
+test("an invite gives no add-on module; the admin grants them one by one", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const fakeModule = (id, en) => ({ id, version: "1.0.0", product: `inkledger.${id}`, name: { en, it: en }, slots: ["panel-edge"], status: { state: "needs-license" }, entryUrl: null, integrity: null, build: null });
+    await fakeProcedures(page, {
+      "modules.list": { modules: [fakeModule("kanbunny", "Kanbunny"), fakeModule("bonsai", "Bonsai")], licenses: [], extraKey: false, off: [], canUse: true, granted: [] },
+    });
+    await page.goto(base + "/settings/users");
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("none for a new account").waitFor();
+    for (const name of ["Kanbunny", "Bonsai"]) assert.equal(await dialog.getByRole("checkbox", { name }).isChecked(), false, `${name} off by default`);
+    await dialog.getByLabel("Name", { exact: true }).fill("Luca");
+    await dialog.getByLabel("Username").fill("luca");
+    await dialog.getByRole("checkbox", { name: "Kanbunny" }).check();
+    await dialog.getByRole("button", { name: "Create and get link" }).click();
+    await page.getByRole("textbox", { name: "Invite link for Luca" }).waitFor();
+    const [luca] = await db.q("SELECT permissions, module_grants FROM users WHERE username = 'luca'");
+    assert.deepEqual(JSON.parse(luca.permissions), ["useModules"], "a module granted brings the permission to run modules");
+    assert.deepEqual(JSON.parse(luca.module_grants), ["kanbunny"], "only the module granted");
   }));

@@ -42,10 +42,11 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
 
   // Modules this user switched off in the Store stay unloaded.
   // The kill switch wins over data other pages (the Store) put in the shared cache.
-  // Not allowed to use modules (useModules): none runs.
+  // Not allowed to use modules (useModules): none runs; else only the ones granted to this account.
   const all = disabled || list.data?.canUse === false ? undefined : list.data?.modules;
   const off = list.data?.off;
-  const entries = useMemo(() => all?.filter(e => !off?.includes(e.id)), [all, off]);
+  const granted = list.data?.granted;
+  const entries = useMemo(() => all?.filter(e => granted?.includes(e.id) && !off?.includes(e.id)), [all, off, granted]);
   useEffect(() => {
     if (!entries) return;
     let live = true;

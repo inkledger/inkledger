@@ -23,13 +23,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { dateFormat, t } from "@/i18n";
+import { dateFormat, getLocale, t } from "@/i18n";
+import { loc } from "./store/format";
 import { surface } from "@/components/app/surface";
 
 type Account = inferRouterOutputs<AppRouter>["users"]["list"][number];
-type Access = { role: Role; permissions: Permission[] };
+type Access = { role: Role; permissions: Permission[]; modules: string[] };
 
-/** Role, and what a member may manage (an admin may manage everything). */
+/** The add-on modules installed here, each granted on its own: none for a new account. */
+function ModuleGrants({ value, onChange, admin }: { value: Access; onChange: (v: Access) => void; admin: boolean }) {
+  const installed = trpc.modules.list.useQuery().data?.modules ?? [];
+  if (installed.length === 0) return null;
+  const set = (id: string, on: boolean) => {
+    const modules = on ? [...value.modules, id] : value.modules.filter(m => m !== id);
+    // A module granted brings the permission to run modules; the last one taken away, it goes too.
+    const permissions = value.permissions.filter(p => p !== "useModules");
+    onChange({ ...value, modules, permissions: modules.length > 0 ? [...permissions, "useModules"] : permissions });
+  };
+  return (
+    <div className="grid gap-2 pl-6">
+      <p className="text-caption text-muted-foreground">{t("settings.users.modulesHint")}</p>
+      {installed.map(m => (
+        <label key={m.id} className="flex items-center gap-2 text-body-sm">
+          <Checkbox checked={admin || value.modules.includes(m.id)} disabled={admin} onCheckedChange={on => set(m.id, on === true)} />
+          {loc(m.name, getLocale())}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Role, what a member may manage (an admin may manage everything), and the modules it runs. */
 function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access) => void }) {
   const admin = value.role === "admin";
   return (
@@ -47,7 +71,7 @@ function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-body-sm font-medium">{t("settings.users.permissions")}</legend>
         {admin && <p className="text-caption text-muted-foreground">{t("settings.users.adminHint")}</p>}
-        {PERMISSIONS.map(p => (
+        {PERMISSIONS.filter(p => p !== "useModules").map(p => (
           <label key={p} className="flex items-center gap-2 text-body-sm">
             <Checkbox
               checked={admin || value.permissions.includes(p)}
@@ -59,6 +83,8 @@ function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access
             {t(`settings.users.permission.${p}`)}
           </label>
         ))}
+        <span className="mt-1 text-body-sm">{t("settings.users.permission.useModules")}</span>
+        <ModuleGrants value={value} onChange={onChange} admin={admin} />
       </fieldset>
     </>
   );
@@ -100,7 +126,7 @@ function HandOver({ shown, onClose }: { shown: { title: string; hint: string; va
   );
 }
 
-const newInvite = (): { username: string; displayName: string; access: Access } => ({ username: "", displayName: "", access: { role: "member", permissions: [...DEFAULT_PERMISSIONS] } });
+const newInvite = (): { username: string; displayName: string; access: Access } => ({ username: "", displayName: "", access: { role: "member", permissions: [...DEFAULT_PERMISSIONS], modules: [] } });
 
 const absolute = (path: string) => new URL(path, window.location.origin).toString();
 const linkHint = (expiresAt: Date) => t("settings.users.linkHint", { date: dateFormat({ dateStyle: "medium" }).format(expiresAt) });
@@ -114,7 +140,7 @@ export function UsersSection() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [shown, setShown] = useState<{ title: string; hint: string; value: string; qr?: boolean } | null>(null);
   const [form, setForm] = useState(newInvite);
-  const [access, setAccess] = useState<Access>({ role: "member", permissions: [] });
+  const [access, setAccess] = useState<Access>({ role: "member", permissions: [], modules: [] });
   const [error, setError] = useState<string | null>(null);
 
   const invite = trpc.users.invite.useMutation({
@@ -194,7 +220,7 @@ export function UsersSection() {
                   <DropdownMenuItem
                     onSelect={() => {
                       setError(null);
-                      setAccess({ role: u.role, permissions: u.permissions });
+                      setAccess({ role: u.role, permissions: u.permissions, modules: u.modules });
                       setEditing(u);
                     }}
                   >

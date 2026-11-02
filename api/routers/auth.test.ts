@@ -310,6 +310,24 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).resolves.toMatchObject({ permissions: ["manageUsers"] });
       await expect(k.users.resetPassword({ id: plain.id })).resolves.toBeTruthy();
       await expect(k.users.reinvite({ id: pend.id })).resolves.toBeTruthy();
+      // Modules too: only the ones it runs itself, given or held.
+      await expect(k.users.invite({ username: "x5", displayName: "X", role: "member", permissions: ["useModules"], modules: ["kanbunny"] })).rejects.toMatchObject(forbidden);
+      const gardener = await account("gardener", { permissions: '["useModules"]' });
+      await q("UPDATE users SET module_grants = '[\"bonsai\"]' WHERE id = ?", gardener.id);
+      await expect(k.users.setAccess({ id: gardener.id, role: "member", permissions: [] })).rejects.toMatchObject(forbidden);
+      await q("UPDATE users SET module_grants = '[\"kanbunny\"]' WHERE username = 'keeper'");
+      await expect(k.users.invite({ username: "x6", displayName: "X", role: "member", permissions: ["useModules"], modules: ["kanbunny"] })).resolves.toMatchObject({
+        user: { modules: ["kanbunny"] },
+      });
+    });
+
+    it("a new account runs no module unless it is given, one by one", async () => {
+      const a = appRouter.createCaller(await admin());
+      const plain = await a.users.invite({ username: "nomods", displayName: "No mods", role: "member", permissions: [] });
+      expect(plain.user).toMatchObject({ permissions: [], modules: [] });
+      const some = await a.users.setAccess({ id: plain.user.id, role: "member", permissions: ["useModules"], modules: ["kanbunny", "kanbunny", "Bad Id"].slice(0, 2) });
+      expect(some).toMatchObject({ permissions: ["useModules"], modules: ["kanbunny"] });
+      await expect(a.users.setAccess({ id: plain.user.id, role: "member", permissions: [], modules: ["Bad Id"] })).rejects.toThrow();
     });
 
     it("a link a manager made stops working once the account outgrows the manager, or has a password", async () => {

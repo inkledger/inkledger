@@ -199,6 +199,55 @@ describe("add-on modules", () => {
     }
   });
 
+  it("a member runs only the modules granted to it, one by one; members from before keep the installed ones", async () => {
+    const { getDb } = await import("../queries/connection");
+    const { users, serverSettings } = await import("@db/schema");
+    const { userFromRequest } = await import("../context");
+    const { appRouter } = await import("../router");
+    const { runDataMigrations } = await import("../queries/dataMigrations");
+    const as = async (permissions: string[], grants: string[]) => {
+      await getDb()
+        .update(users)
+        .set({ role: "member", permissions: JSON.stringify(permissions), moduleGrants: JSON.stringify(grants) })
+        .where(eq(users.id, userId));
+      const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+      return appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: ctx.user, sessionId: ctx.sessionId });
+    };
+    await upload(bundle());
+    await (await import("./registry")).addLicense(license("inkledger.hello"));
+    try {
+      // Allowed to run modules, none granted: nothing runs, its code isn't served.
+      const none = await as(["useModules"], []);
+      const listed = await none.modules.list();
+      expect(listed.granted).toEqual([]);
+      const entryUrl = listed.modules.find((m) => m.id === "hello")?.entryUrl;
+      expect(entryUrl).toBeTruthy();
+      await expect(none.modules.storageGet({ moduleId: "hello", key: "k" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect((await app.request(entryUrl!, { headers: { cookie } })).status).toBe(403);
+
+      // Granted: it runs.
+      const one = await as(["useModules"], ["hello"]);
+      expect((await one.modules.list()).granted).toEqual(["hello"]);
+      await one.modules.storageSet({ moduleId: "hello", key: "k", value: 1 });
+      await one.modules.storageDelete({ moduleId: "hello", key: "k" });
+      expect((await app.request(entryUrl!, { headers: { cookie } })).status).toBe(200);
+
+      // Granted but without the permission: nothing.
+      const off = await as([], ["hello"]);
+      expect((await off.modules.list()).granted).toEqual([]);
+      await expect(off.modules.storageGet({ moduleId: "hello", key: "k" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      // An account from before grants (useModules, none listed) keeps the modules installed now.
+      await as(["useModules"], []);
+      await getDb().delete(serverSettings).where(eq(serverSettings.key, "data-migrations.done"));
+      await runDataMigrations(getDb());
+      const [after] = await getDb().select({ grants: users.moduleGrants }).from(users).where(eq(users.id, userId));
+      expect(JSON.parse(after.grants)).toEqual(["hello"]);
+    } finally {
+      await getDb().update(users).set({ role: "admin", permissions: "[]", moduleGrants: "[]" }).where(eq(users.id, userId));
+    }
+  });
+
   it("refuses an upload from another origin (CSRF)", async () => {
     const res = await app.request("/api/modules/upload", {
       method: "POST",

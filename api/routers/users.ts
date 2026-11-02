@@ -6,10 +6,11 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { connections, users, type User } from "@db/schema";
 import { PERMISSIONS } from "@contracts/accounts";
+import { moduleIdSchema } from "@contracts/modulesSchema";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { can, createInvite, permissionsOf, roleOf, signOutEverywhere, storedPermissions, userById, within } from "../queries/accounts";
+import { can, createInvite, grantsOf, permissionsOf, roleOf, signOutEverywhere, storedGrants, storedPermissions, userById, within } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
 import { assertFreeUsername } from "./auth";
 
@@ -18,6 +19,8 @@ const manage = permProcedure("manageUsers");
 const access = z.object({
   role: z.enum(["admin", "member"]),
   permissions: z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length),
+  /** The add-on modules the account runs (with useModules); none unless given. */
+  modules: z.array(moduleIdSchema).max(64).default([]),
 });
 
 const row = (u: User) => ({
@@ -26,6 +29,7 @@ const row = (u: User) => ({
   displayName: u.displayName,
   role: roleOf(u),
   permissions: permissionsOf(u),
+  modules: grantsOf(u),
   /** Hasn't set a password yet (invite pending, or an account from before local accounts) */
   pending: !u.passwordHash,
   mustChangePassword: Boolean(u.mustChangePassword),
@@ -40,7 +44,7 @@ const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.a
  * by permission) never an admin, nor a power it hasn't itself. Otherwise it could
  * hand one to an account it controls, or take over a bigger one (a reset, a link).
  */
-function assertWithin(me: User, granted: { role: string; permissions: readonly string[] }) {
+function assertWithin(me: User, granted: { role: string; permissions: readonly string[]; modules: readonly string[] }) {
   if (!within(me, granted)) throw notAllowed();
 }
 
@@ -48,7 +52,7 @@ async function target(id: number, me: User): Promise<User> {
   if (id === me.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
   const user = await userById(id);
   if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user) });
+  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user), modules: grantsOf(user) });
   return user;
 }
 
@@ -58,7 +62,7 @@ async function target(id: number, me: User): Promise<User> {
  */
 function asChecked(user: User, me: User) {
   if (roleOf(me) === "admin") return eq(users.id, user.id);
-  return and(eq(users.id, user.id), eq(users.role, user.role), eq(users.permissions, user.permissions));
+  return and(eq(users.id, user.id), eq(users.role, user.role), eq(users.permissions, user.permissions), eq(users.moduleGrants, user.moduleGrants));
 }
 
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -93,7 +97,7 @@ async function writeAccount<T>(me: User, target: User, takesAway: boolean, write
     // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
     const [actor] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
     assertActing(actor);
-    assertWithin(actor, { role: roleOf(target), permissions: permissionsOf(target) });
+    assertWithin(actor, { role: roleOf(target), permissions: permissionsOf(target), modules: grantsOf(target) });
     const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
     const admin = now?.role === "admin" && !now.disabledAt;
     if (admin && takesAway && !admins.some((a) => a.id !== target.id)) {
@@ -130,7 +134,7 @@ export const usersRouter = createRouter({
       await assertFreeUsername(username);
       const [user] = await getDb()
         .insert(users)
-        .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions) })
+        .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
         .returning();
       const { token, expiresAt } = await createInvite(user.id, me.id);
       return { user: row(user), link: inviteLink(token), expiresAt };
@@ -153,7 +157,7 @@ export const usersRouter = createRouter({
       assertWithin(me, input);
       return db
         .update(users)
-        .set({ role: input.role, permissions: storedPermissions(input.permissions) })
+        .set({ role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
         .where(asChecked(user, me))
         .returning();
     });

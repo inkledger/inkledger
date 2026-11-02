@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq, gte, not, like } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
-import { can } from "../queries/accounts";
+import { can, mayRunModule } from "../queries/accounts";
+import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { moduleStorage, worklogs } from "@db/schema";
 import { FILE_MAX_BYTES, FILE_TYPES, PROGRESS_FILE_FORMAT, STORAGE_MAX_BYTES, STORAGE_MAX_KEYS } from "@contracts/modules";
@@ -54,9 +55,9 @@ const fileRef = z.object({ moduleId: moduleIdSchema, key: z.string().regex(/^[\w
 // Base64 of FILE_MAX_BYTES, rounded up.
 const FILE_MAX_B64 = Math.ceil(FILE_MAX_BYTES / 3) * 4;
 
-/** Storage is the module's own, and only while it is active. */
-async function requireActive(moduleId: string) {
-  if (!(await isActive(moduleId))) {
+/** Storage is the module's own, and only while it is active and granted to this account. */
+async function requireActive(user: User, moduleId: string) {
+  if (!mayRunModule(user, moduleId) || !(await isActive(moduleId))) {
     throw new TRPCError({ code: "FORBIDDEN", message: t("server.modules.inactive") });
   }
 }
@@ -175,7 +176,16 @@ export const modulesRouter = createRouter({
       .from(moduleStorage)
       .where(and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.key, OFF)));
     // Who may not use modules runs none (a store manager still sees them, to manage).
-    return { modules: await listModules(), licenses, extraKey: extraKey() !== null, off: off.map((r) => r.moduleId), canUse: can(ctx.user, "useModules") };
+    const modules = await listModules();
+    return {
+      modules,
+      licenses,
+      extraKey: extraKey() !== null,
+      off: off.map((r) => r.moduleId),
+      canUse: can(ctx.user, "useModules"),
+      // The ones this account runs (the Store still lists them all, to manage).
+      granted: modules.filter((m) => mayRunModule(ctx.user, m.id)).map((m) => m.id),
+    };
   }),
 
   /**
@@ -272,7 +282,7 @@ export const modulesRouter = createRouter({
 
   /** This user's progress in a module as a signed file. */
   exportProgress: use.input(z.object({ id: moduleIdSchema })).query(async ({ ctx, input }) => {
-    await requireActive(input.id);
+    await requireActive(ctx.user, input.id);
     const db = getDb();
     const since = await sinceOf(db, ctx.user.id, input.id);
     const rows = await db
@@ -308,7 +318,7 @@ export const modulesRouter = createRouter({
     if (want.length !== got.length || !timingSafeEqual(want, got)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: t("server.modules.badProgress") });
     }
-    await requireActive(module);
+    await requireActive(ctx.user, module);
     const entries = Object.entries(data).map(([key, value]) => [key, JSON.stringify(value ?? null)] as const);
     if (entries.length > STORAGE_MAX_KEYS || entries.some(([, v]) => Buffer.byteLength(v) > STORAGE_MAX_BYTES)) {
       throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageFull") });
@@ -331,7 +341,7 @@ export const modulesRouter = createRouter({
   }),
 
   storageGet: use.input(storageRef).query(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     const [row] = await getDb()
       .select({ value: moduleStorage.value, revision: moduleStorage.revision })
       .from(moduleStorage)
@@ -350,7 +360,7 @@ export const modulesRouter = createRouter({
   storageSet: use
     .input(storageRef.extend({ value: z.unknown() }))
     .mutation(async ({ ctx, input }) => {
-      await requireActive(input.moduleId);
+      await requireActive(ctx.user, input.moduleId);
       await writeStorage(ctx.user.id, input.moduleId, input.key, input.value);
     }),
 
@@ -358,12 +368,12 @@ export const modulesRouter = createRouter({
   storageSetIf: use
     .input(storageRef.extend({ value: z.unknown(), ifRevision: z.number().int().min(0) }))
     .mutation(async ({ ctx, input }) => {
-      await requireActive(input.moduleId);
+      await requireActive(ctx.user, input.moduleId);
       return writeStorage(ctx.user.id, input.moduleId, input.key, input.value, input.ifRevision);
     }),
 
   storageDelete: use.input(storageRef).mutation(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     await getDb()
       .delete(moduleStorage)
       .where(
@@ -377,7 +387,7 @@ export const modulesRouter = createRouter({
 
   /** For the host API: a cached file of this module (base64), null when missing. */
   fileGet: use.input(fileRef).query(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     const row = await getModuleFile(ctx.user.id, input.moduleId, input.key);
     return row ? { contentType: row.contentType, data: row.data.toString("base64") } : null;
   }),
@@ -385,7 +395,7 @@ export const modulesRouter = createRouter({
   filePut: use
     .input(fileRef.extend({ contentType: z.enum(FILE_TYPES), data: z.string().max(FILE_MAX_B64) }))
     .mutation(async ({ ctx, input }) => {
-      await requireActive(input.moduleId);
+      await requireActive(ctx.user, input.moduleId);
       const data = Buffer.from(input.data, "base64");
       if (data.length === 0 || data.length > FILE_MAX_BYTES) {
         throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: t("server.modules.storageTooLarge") });
@@ -394,29 +404,29 @@ export const modulesRouter = createRouter({
     }),
 
   fileDelete: use.input(fileRef).mutation(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     await deleteModuleFile(ctx.user.id, input.moduleId, input.key);
   }),
 
   /** For the host API: the weather now near a place (server-side, cached). */
   weather: use
     .input(z.object({ moduleId: moduleIdSchema, lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) }))
-    .query(async ({ input }) => {
-      await requireActive(input.moduleId);
+    .query(async ({ ctx, input }) => {
+      await requireActive(ctx.user, input.moduleId);
       return weatherAt(input.lat, input.lon);
     }),
 
   /** For the host API: places matching a name (a module's location setting). */
   geocode: use
     .input(z.object({ moduleId: moduleIdSchema, query: z.string().max(80), language: z.enum(["en", "it"]) }))
-    .query(async ({ input }) => {
-      await requireActive(input.moduleId);
+    .query(async ({ ctx, input }) => {
+      await requireActive(ctx.user, input.moduleId);
       return geocode(input.query, input.language);
     }),
 
   /** For the host API: hours this user worked (parallel work once) since the module started counting (see sinceOf). */
   totals: use.input(z.object({ moduleId: moduleIdSchema })).query(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     const db = getDb();
     const since = await sinceOf(db, ctx.user.id, input.moduleId);
     // This week, from Monday or from since if later (a module installed mid-week).
@@ -438,7 +448,7 @@ export const modulesRouter = createRouter({
    * Days with nothing logged are left out.
    */
   historyDaily: use.input(z.object({ moduleId: moduleIdSchema, since: z.number().int().nonnegative().optional() })).query(async ({ ctx, input }) => {
-    await requireActive(input.moduleId);
+    await requireActive(ctx.user, input.moduleId);
     const db = getDb();
     const from = Math.max(await sinceOf(db, ctx.user.id, input.moduleId), input.since ?? 0);
     const rows = await db

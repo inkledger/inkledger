@@ -700,6 +700,7 @@ export const settings = {
     member: "Member",
     adminHint: "An admin may do everything below.",
     permissions: "May manage",
+    modulesHint: "Each one granted on request: none for a new account. Some are heavy on computers without a graphics card.",
     create: "Create and get link",
     linkTitle: "Invite link for {name}",
     linkHint: "Valid until {date}, once. Copy it and send it to them.",

@@ -260,6 +260,13 @@
       "when": 1793617022320,
       "tag": "0036_workspace_flow_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793629117773,
+      "tag": "0037_module_grants",
+      "breakpoints": true
     }
   ]
 }

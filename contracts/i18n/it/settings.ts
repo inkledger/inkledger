@@ -701,6 +701,7 @@ export const settings: Shape<typeof en> = {
     member: "Membro",
     adminHint: "Un amministratore può fare tutto quanto sotto.",
     permissions: "Può gestire",
+    modulesHint: "Ciascuno concesso su richiesta: nessuno per un nuovo account. Alcuni sono pesanti sui computer senza scheda grafica.",
     create: "Crea e ottieni il link",
     linkTitle: "Link d'invito per {name}",
     linkHint: "Valido fino al {date}, una volta sola. Copialo e mandaglielo.",

@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { markdownNotes, serverSettings, settings } from "@db/schema";
+import { markdownNotes, serverSettings, settings, users } from "@db/schema";
 import { normalizeDashboardLayout } from "@contracts/dashboard";
 import { dayKey } from "@contracts/time";
 import { parseStringList } from "../lib/json";
@@ -73,6 +73,18 @@ export const DATA_MIGRATIONS: DataMigration[] = [
         const hidden = normalizeDashboardLayout(saved).filter(item => !item.visible).map(item => `dashboard.${item.id}`);
         await seedLegacyDashboard(row.userId, hidden);
       }
+    },
+  },
+  {
+    // Modules are granted one by one now: members already running them keep the ones installed today.
+    id: "module-grants-for-existing",
+    run: async (db) => {
+      const { installedIds } = await import("../modules/registry");
+      const ids = JSON.stringify(installedIds());
+      await db
+        .update(users)
+        .set({ moduleGrants: ids })
+        .where(sql`${users.role} <> 'admin' AND ${users.permissions}::jsonb ? 'useModules' AND ${users.moduleGrants} = '[]'`);
     },
   },
 ];

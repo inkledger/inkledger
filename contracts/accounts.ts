@@ -1,11 +1,14 @@
 // inkledger's own accounts: who may do what on a server. An admin may do all of it;
 // a member what the admin granted. Everyone works on their own issues and time.
 
-/** Server-wide powers an admin can grant; useModules (running the installed add-on modules) is granted by default. */
+/**
+ * Server-wide powers an admin can grant. useModules runs add-on modules: the ones
+ * granted to the account one by one (some are heavy on PCs without a usable GPU).
+ */
 export const PERMISSIONS = ["manageUsers", "manageStore", "manageBackups", "manageServer", "useModules"] as const;
 
-/** What a new account may do unless the admin says otherwise. */
-export const DEFAULT_PERMISSIONS: readonly (typeof PERMISSIONS)[number][] = ["useModules"];
+/** What a new account may do unless the admin says otherwise: nothing beyond its own work, no modules. */
+export const DEFAULT_PERMISSIONS: readonly (typeof PERMISSIONS)[number][] = [];
 export type Permission = (typeof PERMISSIONS)[number];
 
 export type Role = "admin" | "member";
