@@ -185,10 +185,11 @@ function WorkspaceEditor() {
     setApplying(true);
     setError(null);
     setStale(null);
+    // Apply is disabled while it runs: whatever the outcome, the keyboard comes back to the layout.
+    restoreFocus.current = lastActionAnchor.current ?? null;
     try {
       const result = await actions.applyDraft(pending.draft);
       if (result.status === "applied") {
-        restoreFocus.current = lastActionAnchor.current ?? null;
         latestDraft.current = null;
         setCompletedDraftId(pending.draft.draftId);
         setPending(null);
@@ -238,7 +239,8 @@ function WorkspaceEditor() {
       setNotKept([]);
       setCompletedDraftId(pending.draft.draftId);
       setPending(null);
-      document.getElementById("workspace-reset")?.focus({ preventScroll: true });
+      // Focused once the page is no longer busy (Reset is disabled until then).
+      restoreFocus.current = null;
     } catch (e) {
       setError(failureText(e));
     } finally {

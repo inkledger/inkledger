@@ -544,9 +544,7 @@ for (const viewport of [{ width: 1400, height: 900 }, { width: 320, height: 760 
 /** Where the keyboard is, in words: "body" when it was dropped to the page. */
 const focusedElement = page => page.evaluate(() => !document.activeElement || document.activeElement === document.body ? "body" : `${document.activeElement.tagName} ${document.activeElement.getAttribute("aria-label") ?? document.activeElement.textContent?.trim().slice(0, 40)}`);
 
-// Known defects in src/components/settings/sections/Workspace.tsx, left to its owner (edited concurrently):
-// reported as todo until fixed there, so they show in every run without failing it.
-test("#13 keyboard: a failed apply keeps the focus on the page's controls", { todo: "Workspace.tsx apply(): the error path sets no restoreFocus while Apply was disabled" }, async () => {
+test("#13 keyboard: a failed apply keeps the focus on the page's controls", async () => {
   await withApp({}, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
     await page.getByRole("button", { name: "Show Recent activity", exact: true }).focus();
@@ -561,7 +559,7 @@ test("#13 keyboard: a failed apply keeps the focus on the page's controls", { to
   });
 });
 
-test("#13 keyboard: discarding a draft keeps the focus on the page's controls", { todo: "Workspace.tsx discard(): focuses #workspace-reset while it is still disabled (busy)" }, async () => {
+test("#13 keyboard: discarding a draft keeps the focus on the page's controls", async () => {
   await withApp({}, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
     await page.getByRole("button", { name: "Show Recent activity", exact: true }).focus();
