@@ -47,6 +47,15 @@ describe("workspace portability", () => {
     expect(result.preview?.draft.patches).toEqual([]);
   });
 
+  it("refuses a file canonicalized by another version, even with a checksum that matches it (integration #13)", async () => {
+    const document = await documentForUser();
+    const other = { ...document, checksum: undefined, canonicalizationVersion: 2 };
+    const text = JSON.stringify({ ...other, checksum: fingerprint("workspace", other).value });
+    await expect(importWorkspace(userId, scope, text)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(await q("SELECT id FROM workspace_imports")).toEqual([]);
+    expect(await q("SELECT id FROM workspace_drafts")).toEqual([]);
+  });
+
   it("reimports a workspace after the previous draft has been completed", async () => {
     const exported = await exportWorkspace(userId, scope);
     await upsertDraft(userId, { draftId: "completed", draftRevision: 1, baseRevision: "default", scope, status: "applied", patches: [] });

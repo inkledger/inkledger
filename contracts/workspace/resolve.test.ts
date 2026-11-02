@@ -195,6 +195,33 @@ describe("workspace resolver", () => {
     expect(placements(recovered).find(placement => placement.anchorId === "new-feature")).toMatchObject({ areaId: "primary", origin: "fallback" });
   });
 
+  it("keeps the saved layout and the rest of the page when a release's migration cannot apply (T-05, A-02)", () => {
+    // The user swapped stats and tasks; a release then puts a new block into the now full primary area,
+    // with a migration to secondary, which the user's own choice filled.
+    const smallCatalog: Catalog = { ...catalog, catalogVersion: "2.0.0", areas: [{ ...catalog.areas[0], capacity: 3 }, catalog.areas[1]] };
+    const release: ProductDefault = { ...productDefault, placements: [...productDefault.placements.filter(placement => placement.anchorId !== "tasks"), { anchorId: "tasks", areaId: "primary", order: 2, visible: true, variant: "default", pinned: false }, { anchorId: "new-feature", areaId: "primary", order: 3, visible: true, variant: "default", pinned: false }] };
+    const swapped = active({ operations: [
+      { operation: { type: "move", operationId: "stats-up", anchorId: "stats", toAreaId: "primary" }, origin: "user", acceptedByUser: true },
+      { operation: { type: "move", operationId: "tasks-down", anchorId: "tasks", toAreaId: "secondary" }, origin: "user", acceptedByUser: true },
+    ] });
+    const migration = { id: "new-feature-aside", fromCatalogVersion: "1.0.0", toCatalogVersion: "2.0.0", anchorId: "new-feature", fallback: { type: "move" as const, toAreaId: "secondary" } };
+    for (const migrations of [[migration], []]) {
+      const result = resolve(input({ catalog: smallCatalog, productDefault: release, activeRevision: swapped, migrations }));
+      expect(result.kind, JSON.stringify(result)).toBe("resolved");
+      if (result.kind !== "resolved") continue;
+      const byAnchor = Object.fromEntries(result.workspace.placements.map(placement => [placement.anchorId, placement]));
+      // The user's choices stand, as saved; nothing else moved.
+      expect(byAnchor.stats).toMatchObject({ areaId: "primary", visible: true, origin: "user" });
+      expect(byAnchor.tasks).toMatchObject({ areaId: "secondary", visible: true, origin: "user" });
+      expect(byAnchor.timeline).toMatchObject({ areaId: "primary", visible: true });
+      // The new block is set aside, said so, and stays to be found in Discovery, never dropped.
+      expect(byAnchor["new-feature"]).toMatchObject({ visible: false, origin: "fallback" });
+      expect(result.workspace.fallbacks).toEqual([expect.objectContaining({ anchorId: "new-feature", reason: "isolated", fromAreaId: "primary", ...(migrations.length ? { migrationId: migration.id } : {}) })]);
+      expect(result.workspace.discoveryAnchorIds).toContain("new-feature");
+    }
+    expect(swapped.operations).toHaveLength(2);
+  });
+
   it("treats accepted AI operations as user-owned without losing their provenance", () => {
     const accepted = patch({
       operations: [{ type: "move", operationId: "op-ai", anchorId: "stats", toAreaId: "primary" }],

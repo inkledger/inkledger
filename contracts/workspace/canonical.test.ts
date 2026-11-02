@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { fingerprint as nodeFingerprint } from "../../api/workspace/crypto";
 import { fingerprint as browserFingerprint } from "../../src/lib/workspace/crypto";
+import { presentationDescriptorSchema } from "../../api/workspace/validation";
 import { canonicalBytes, canonicalJSON, domainSeparatedBytes, sortByStableId } from "./canonical";
+import { productDefaultFor } from "./catalog";
+import { CATALOG_V1, PRODUCT_DEFAULTS_V1, PRODUCT_MIGRATIONS_V1 } from "./catalogV1";
+import { resolve } from "./resolve";
 
 const vector = {
   z: "e\u0301",
@@ -47,6 +51,33 @@ describe("workspace fingerprint adapters", () => {
     );
     const sorted = sortByStableId([{ id: "b" }, { id: "a" }], item => item.id);
     expect((await browserFingerprint("workspace", sorted)).value).toBe(nodeFingerprint("workspace", sorted).value);
+  });
+
+  it("gives the same resolved layout and fingerprint in Node and through WebCrypto for every shipped scope (integration #13)", async () => {
+    for (const surface of CATALOG_V1.surfaces) {
+      for (const deviceClass of surface.deviceClasses) {
+        const scope = { surfaceId: surface.id, deviceClass };
+        const result = resolve({
+          catalog: CATALOG_V1,
+          productDefault: productDefaultFor(PRODUCT_DEFAULTS_V1, surface.id),
+          activeRevision: { revisionId: "default", scope, catalogVersion: CATALOG_V1.catalogVersion, productDefaultVersion: CATALOG_V1.productDefaultVersion, committedAt: 0, operations: [], constraints: [], opaque: [] },
+          draft: null,
+          explicitConstraints: [],
+          feedback: { suppressedSuggestionSignatures: [] },
+          discoveryState: { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [] },
+          migrations: PRODUCT_MIGRATIONS_V1,
+        });
+        expect(result.kind).toBe("resolved");
+        if (result.kind !== "resolved") continue;
+        expect(await browserFingerprint("workspace", result.workspace)).toEqual(nodeFingerprint("workspace", result.workspace));
+      }
+    }
+  });
+
+  it("refuses what another resolver version described: its descriptors are never read as this one's (integration #13)", () => {
+    const descriptor = { effectiveRevision: "eff", sourceActiveRevision: "default", workspaceFingerprint: "fp", productDefaultVersion: "product-1", catalogVersion: "1.0.0", resolverVersion: 1, constraintsFingerprint: "c", feedbackFingerprint: "f", discoveryFingerprint: "d", rendererBindingsFingerprint: "r" };
+    expect(presentationDescriptorSchema.safeParse(descriptor).success).toBe(true);
+    expect(presentationDescriptorSchema.safeParse({ ...descriptor, resolverVersion: 2 }).success).toBe(false);
   });
 
   it("normalizes keys before ordering them and refuses keys that collide after NFC", () => {

@@ -101,6 +101,22 @@ describe("FlowMap aggregation", () => {
     expect(result.coverage.activeDays).toBe(1);
   });
 
+  it("keeps a control's events from another semantic revision out of the current one (C-03)", () => {
+    // The same control id meant something else before a release: its old events are isolated, not counted as today's.
+    const before = [1, 2, 3].map(sequence => event({ id: `old-${sequence}`, sequence, semanticRevision: 1 }));
+    const after = event({ id: "new", sequence: 4, semanticRevision: 2 });
+    const exposureBefore = event({ id: "old-exposure", sequence: 5, kind: "anchor.exposure", controlId: undefined, semanticRevision: 1 });
+    const followUp = event({ id: "follow-up", sequence: 6, controlId: "dashboard.logTime", anchorId: "dashboard.quickActions" });
+    const current = { controls: { "dashboard.customize.open": 2, "dashboard.logTime": 1 }, anchors: { "dashboard.customize": 2, "dashboard.quickActions": 1 } };
+    const result = aggregateEvidence([...before, after, exposureBefore, followUp], descriptor, scope, "semantic", 0, {}, current);
+    expect(result.heat.find(point => point.controlId === "dashboard.customize.open")).toMatchObject({ semanticRevision: 2, activations: 1, exposures: 0 });
+    expect(result.semanticRevision).toBe(2);
+    expect(result.flows).toEqual([{ fromControlId: "dashboard.customize.open", toControlId: "dashboard.logTime", count: 1 }]);
+    // Without the catalogue's word, the newest revision seen is the current one: still never a mix.
+    const inferred = aggregateEvidence([...before, after], descriptor, scope, "semantic-inferred");
+    expect(inferred.heat).toEqual([expect.objectContaining({ controlId: "dashboard.customize.open", semanticRevision: 2, activations: 1 })]);
+  });
+
   it("separates discoverability hypotheses from unnamed missing capabilities", () => {
     const shellScope: Scope = { surfaceId: "shell-desktop", deviceClass: "desktop" };
     const events = Array.from({ length: 5 }, (_, day) => [

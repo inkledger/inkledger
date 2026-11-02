@@ -89,6 +89,34 @@ describe("FlowMap collection delivery", () => {
     stop();
   });
 
+  it("never makes a second event out of one through offline, a retry or a lost answer (integration #15)", async () => {
+    vi.useFakeTimers();
+    // The server keeps the first copy of an id and ignores the rest (saveFlowEvents: on conflict do nothing).
+    const stored = new Map<string, FlowEvent>();
+    const sends: FlowEvent[][] = [];
+    const { document, stop } = setup(async events => {
+      sends.push(events);
+      if (sends.length === 1) throw new TypeError("Failed to fetch");
+      for (const event of events) if (!stored.has(event.id)) stored.set(event.id, event);
+      if (sends.length === 2) throw new TypeError("Failed to fetch");
+    });
+    for (let index = 0; index < 3; index++) click(document);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(stored.size).toBe(0);
+    await vi.advanceTimersByTimeAsync(30_000);
+    click(document);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+    const all = sends.flat();
+    const ids = new Set(all.map(event => event.id));
+    // Every copy sent again is the same event (same id, same place in the session), so it is stored once.
+    for (const event of all) expect(event).toEqual(stored.get(event.id));
+    expect(stored.size).toBe(ids.size);
+    expect([...stored.values()].map(event => event.sequence).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5]);
+    expect([...stored.values()].filter(event => event.kind === "control.activate")).toHaveLength(4);
+    stop({ optedOut: true });
+  });
+
   it("uses the RPC transformer envelope for page-hide beacons", async () => {
     let beaconBody: Blob | undefined;
     const sendBeacon = vi.fn((_url: string, body: Blob) => { beaconBody = body; return true; });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { q, resetDbForTests } from "../queries/connection";
 import { aggregateEvidence, FLOW_EVENT_SCHEMA_VERSION, type FlowEvent } from "@contracts/workspace/flowMap";
 import type { Scope } from "@contracts/workspace/model";
-import { getWorkspace, saveWorkspaceDraft } from "./service";
+import { getWorkspace, markWorkspaceDiscovery, saveWorkspaceDraft } from "./service";
 import { generateFlowEvidence } from "./flowService";
 import { saveEvidence, setFlowConsent } from "./flowStore";
 import { generateWorkspaceSuggestions, interpretWorkspaceRequest, rankSuggestions, suppressPlannerSuggestion } from "./plannerService";
@@ -216,6 +216,43 @@ describe("workspace planner service", () => {
   it("keeps manual editing available when request translation is unavailable", async () => {
     const result = await interpretWorkspaceRequest(1, scope, "Make statistics more prominent");
     expect(result).toEqual({ status: "unavailable" });
+    expect((await getWorkspace(1, scope)).committedRevision).toBeNull();
+  });
+
+  it("with a local model slower than its limit, answers rule-based, and editing and Discovery run meanwhile (integration #19)", async () => {
+    await seedEvidence();
+    // A model that never answers: a call ends only when its own time limit passes (here, when the test says so).
+    const waiting: { limit: number; give: () => void }[] = [];
+    vi.mocked(chat).mockImplementation((_schema, _messages, options) => new Promise((_resolve, reject) => {
+      waiting.push({ limit: options?.timeoutMs ?? Number.POSITIVE_INFINITY, give: () => reject(new Error("the model took too long")) });
+    }));
+    const suggestions = generateWorkspaceSuggestions(1, scope, true);
+    const request = interpretWorkspaceRequest(1, scope, "Make statistics more prominent");
+    await vi.waitFor(() => expect(waiting).toHaveLength(2));
+    // While both wait on the model, the layout is edited and Discovery marked as usual.
+    const current = await getWorkspace(1, scope, "tab-a");
+    const edited = await saveWorkspaceDraft(1, scope, {
+      draftId: "manual-while-slow",
+      draftRevision: 1,
+      baseRevision: current.workspace.sourceActiveRevision,
+      scope,
+      status: "editing",
+      patches: [{ patchId: "manual-slow", patchSchemaVersion: 1, scope, baseRevision: current.workspace.sourceActiveRevision, catalogVersion: current.workspace.catalogVersion, author: "user", provenance: {}, intent: { kind: "custom", status: "explicit" }, operations: [{ type: "visibility", operationId: "hide-stats", anchorId: "dashboard.stats", visible: false }], evidence: [], proposedConstraints: [] }],
+    });
+    expect(edited.draft.status).toBe("ready");
+    await markWorkspaceDiscovery(1, scope, { seenAnchorIds: ["dashboard.stats"], placedAnchorIds: [], dismissedAnchorIds: [] }, "tab-a");
+    expect((await getWorkspace(1, scope)).input.discoveryState.seenAnchorIds).toContain("dashboard.stats");
+    // Ten seconds go by: every call the planner made had to give up by then.
+    expect(waiting.every(call => call.limit <= 10_000)).toBe(true);
+    for (const call of waiting) call.give();
+    const ready = await suggestions;
+    expect(ready.status).toBe("ready");
+    if (ready.status === "ready") {
+      expect(ready.ai).toBe("unavailable");
+      expect(ready.suggestions.length).toBeGreaterThan(0);
+      expect(ready.suggestions.every(item => item.patch.author === "deterministic")).toBe(true);
+    }
+    expect(await request).toEqual({ status: "unavailable" });
     expect((await getWorkspace(1, scope)).committedRevision).toBeNull();
   });
 
