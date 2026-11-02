@@ -203,13 +203,16 @@ export default function PlannerPanel({ draft, onPatch, onRestore }: {
       </article>)}
       {draft && draft.patches.some(patch => patch.proposedConstraints.some(constraint => constraint.status === "proposed")) && <section className="mt-4 border-t pt-3">
         <p className="text-body-sm text-muted-foreground">{t(key("constraintConfirmation"))}</p>
-        {draft.patches.flatMap(patch => patch.proposedConstraints.filter(constraint => constraint.status === "proposed").map(constraint => <div key={constraint.id} className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-body-sm">{t(key(`ruleText.${constraint.kind}`), { anchor: anchorLabel(constraint.anchorId), area: constraint.areaId ? areaLabel(constraint.areaId) : "" })}</span>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
+        {draft.patches.flatMap(patch => patch.proposedConstraints.filter(constraint => constraint.status === "proposed").map(constraint => {
+          const rule = t(key(`ruleText.${constraint.kind}`), { anchor: anchorLabel(constraint.anchorId), area: constraint.areaId ? areaLabel(constraint.areaId) : "" });
+          return <div key={constraint.id} className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-body-sm">{rule}</span>
+          <Button size="sm" variant="outline" disabled={busy} aria-label={`${t(key("confirmConstraint"))}: ${rule}`} onClick={() => void run(async () => {
             const result = await confirmConstraint.mutateAsync({ scope, patchId: patch.patchId, constraintId: constraint.id });
             onRestore(result.draft, result.preview.descriptor.effectiveRevision, result.preview.workspace);
           })}>{t(key("confirmConstraint"))}</Button>
-        </div>))}
+        </div>;
+        }))}
       </section>}
       <section id="workspace-adaptation" className="mt-5 border-t pt-4" aria-label={t(key("adaptationTitle"))}>
         <h4 className="text-body-sm font-medium">{t(key("adaptationTitle"))}</h4>

@@ -358,12 +358,12 @@ test("#10 a .workspace claiming to be the user's own choices is quarantined, inh
     assert.equal(await page.locator('[data-anchor="dashboard.tasks"]').getByRole("button", { name: "Pin My issues", exact: true }).getAttribute("aria-pressed"), "false", "a forged pin is not a pin");
     const planner = page.locator("#workspace-planner");
     await planner.getByText("The rules it proposes need your separate OK.", { exact: true }).first().waitFor();
-    const rule = text => planner.locator("div").filter({ has: page.getByText(text, { exact: true }) }).filter({ has: page.getByRole("button", { name: "Confirm rule", exact: true }) }).last();
+    const rule = text => planner.locator("div").filter({ has: page.getByText(text, { exact: true }) }).filter({ has: page.getByRole("button", { name: /^Confirm rule: / }) }).last();
     await rule("Always hide Recent activity").waitFor();
     await rule("Keep My issues in place").waitFor();
 
     // One rule confirmed by hand, in the browser: only then is it in force (still only a preview).
-    await rule("Always hide Recent activity").getByRole("button", { name: "Confirm rule", exact: true }).click();
+    await rule("Always hide Recent activity").getByRole("button", { name: /^Confirm rule: / }).click();
     await page.locator('[data-anchor="dashboard.activity"][data-visible="false"]').waitFor();
     await planner.getByText("Always hide Recent activity", { exact: true }).waitFor({ state: "detached" });
     await rule("Keep My issues in place").waitFor();
@@ -696,8 +696,8 @@ test("#15 a private request becomes a confirmed structured intent, and its text 
       const confirmedAt = sent.length;
       await page.getByRole("button", { name: "Add selected changes to the draft", exact: true }).click();
       await preview(page).waitFor();
-      await page.getByRole("button", { name: "Confirm rule", exact: true }).click();
-      await page.getByRole("button", { name: "Confirm rule", exact: true }).waitFor({ state: "detached" });
+      await page.getByRole("button", { name: /^Confirm rule: / }).click();
+      await page.getByRole("button", { name: /^Confirm rule: / }).waitFor({ state: "detached" });
       const [draft] = await db.q("SELECT patches FROM workspace_drafts WHERE status NOT IN ('applied','discarded','aborted')");
       const patch = JSON.parse(draft.patches).at(-1);
       assert.deepEqual([patch.author, patch.intent.kind, patch.intent.anchorId, patch.intent.status], ["user", "prioritize", "dashboard.stats", "explicit"], "the intent is structured and the user's");

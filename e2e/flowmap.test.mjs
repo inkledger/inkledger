@@ -193,8 +193,8 @@ test("A private request is clarified, previewed and applied only after separate 
       assert.equal(patch.author, "user");
       assert.equal(patch.intent.status, "explicit");
       assert.equal(patch.proposedConstraints[0].status, "proposed");
-      await page.getByRole("button", { name: "Confirm rule", exact: true }).click();
-      await page.getByRole("button", { name: "Confirm rule", exact: true }).waitFor({ state: "detached" });
+      await page.getByRole("button", { name: /^Confirm rule: / }).click();
+      await page.getByRole("button", { name: /^Confirm rule: / }).waitFor({ state: "detached" });
       assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0);
       await page.getByRole("button", { name: "Apply layout", exact: true }).click();
       await page.getByText(/Preview, not applied yet/).waitFor({ state: "detached" });
@@ -316,7 +316,10 @@ test("With FlowMap off the editor says how to see use, and takes you to its swit
 
 test("Clicks across the Dashboard count: the period, the quick actions and their dialogs", { timeout: 120_000 }, () =>
   withApp({ seed: db => db.q("INSERT INTO workspace_flow_settings (user_id, enabled, updated_at) VALUES (1, true, ?)", Date.now()) }, async ({ page, base, db }) => {
+    // Collection starts once its code has loaded (it stays out of the first load): click after that.
+    const collecting = page.waitForResponse(response => /\/assets\/collector-[\w-]+\.js$/.test(new URL(response.url()).pathname));
     await page.goto(base + "/");
+    await collecting;
     await page.getByRole("radio", { name: "Week" }).click();
     await page.getByRole("radio", { name: "Day" }).click();
     await page.getByRole("button", { name: "Log time", exact: true }).first().click();
