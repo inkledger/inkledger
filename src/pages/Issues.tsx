@@ -36,7 +36,9 @@ import {
   type IssueFilterState,
   type SortMode,
 } from "@/components/issues/IssueFilters";
-import { IssueCard, IssueRow, IssueTable } from "@/components/issues/IssueRow";
+import { IssueCard, IssueRow, IssueTable, type IssueItem } from "@/components/issues/IssueRow";
+import { SelectionBar } from "@/components/issues/SelectionBar";
+import { openTogether, type DeskPane } from "@contracts/desk";
 import { usePinnedOrder } from "@/hooks/usePinnedOrder";
 import { visibleIssues, issuePath, issueId } from "@/lib/issues";
 import { TrackerSearchPanel } from "@/components/issues/TrackerSearchPanel";
@@ -271,6 +273,22 @@ export default function Issues() {
     const i = byId(id);
     if (i) run(i);
   };
+  // Issues picked (x, the checkboxes) to open on the desk together, in the order picked.
+  const [picked, setPicked] = useState<[string, DeskPane][]>([]);
+  const togglePick = useCallback((issue: IssueItem) => {
+    const id = issueId(issue);
+    setPicked(list => (list.some(([at]) => at === id) ? list.filter(([at]) => at !== id) : [...list, [id, { connectionId: issue.connectionId, key: issue.key, remoteId: issue.remoteId }]]));
+  }, []);
+  const onPick = useCallback((id: string) => {
+    const i = onScreen.find(row => issueId(row) === id);
+    if (i) togglePick(i);
+  }, [onScreen, togglePick]);
+  const pickedIds = useMemo(() => new Set(picked.map(([id]) => id)), [picked]);
+  const pickFor = (i: IssueItem) => ({ picked: pickedIds.has(issueId(i)), picking: picked.length > 0, onPick });
+  const openPicked = () => {
+    const panes = picked.map(([, pane]) => pane);
+    void import("@/lib/desk/send").then(m => m.sendToDesk({ utils, navigate }, d => openTogether(d, panes)));
+  };
   const { selected } = useListKeyboard(
     onScreen.map(i => issueId(i)),
     {
@@ -281,6 +299,7 @@ export default function Issues() {
       c: id => onRow(id, i => void act.copyKey(i.key)),
       b: id => onRow(id, i => void act.copyBranch(i)),
       m: id => onRow(id, i => void act.copyCommit(i)),
+      x: id => onRow(id, togglePick),
     }
   );
 
@@ -378,6 +397,7 @@ export default function Issues() {
                     onLog={openLog}
                     pin={pinned.pinFor(issueId(i), idx)}
                     selected={selected === issueId(i)}
+                    {...pickFor(i)}
                   />
                 ))}
               </IssueTable>
@@ -388,6 +408,7 @@ export default function Issues() {
                     issue={i}
                     onLog={openLog}
                     pin={pinned.pinFor(issueId(i), idx)}
+                    {...pickFor(i)}
                   />
                 ))}
               </ul>
@@ -455,12 +476,13 @@ export default function Issues() {
                         issue={i}
                         onLog={openLog}
                         selected={selected === issueId(i)}
+                        {...pickFor(i)}
                       />
                     ))}
                   </IssueTable>
                   <ul className="divide-y border-t md:hidden">
                     {issues.map(i => (
-                      <IssueCard key={issueId(i)} issue={i} onLog={openLog} />
+                      <IssueCard key={issueId(i)} issue={i} onLog={openLog} {...pickFor(i)} />
                     ))}
                   </ul>
                 </>
@@ -498,6 +520,7 @@ export default function Issues() {
               </div>
             </nav>
           )}
+          <SelectionBar count={picked.length} onOpen={openPicked} onClear={() => setPicked([])} />
         </PanelSection>
 
         <aside

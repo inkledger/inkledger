@@ -18,6 +18,8 @@ import {
   MoreHorizontal,
   Star,
   ListChecks,
+  Columns2,
+  SquareCheck,
 } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
@@ -34,12 +36,15 @@ import { TimerControls } from "@/components/TimerControls";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import type { SortMode } from "@/components/issues/IssueFilters";
 import { useIssueActions } from "@/hooks/useIssueActions";
-import { activityText, issuePath, issueId } from "@/lib/issues";
+import { activityText, issuePath, issueId, setIssueDragData } from "@/lib/issues";
+import { useOpenBesideAction } from "@/hooks/useOpenBeside";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -97,6 +102,15 @@ function HistoryLink({
   );
 }
 
+/** Several issues picked (x, the checkboxes) to open on the desk together. */
+type PickProps = {
+  picked: boolean;
+  /** Something is picked: every checkbox shows, not only the hovered row's. */
+  picking: boolean;
+  /** The row by its identity (issueId) */
+  onPick: (id: string) => void;
+};
+
 type RowProps = {
   issue: IssueItem;
   /** With the issue's connection: its key may be on two trackers. */
@@ -104,7 +118,27 @@ type RowProps = {
   pin?: PinProps;
   /** Keyboard selection (j / k). */
   selected?: boolean;
+  /** Picked for the desk (as plain values: a row redraws only when its own change). */
+  picked?: boolean;
+  picking?: boolean;
+  onPick?: (id: string) => void;
 };
+
+const pickOf = ({ picked = false, picking = false, onPick }: Pick<RowProps, "picked" | "picking" | "onPick">): PickProps | undefined =>
+  onPick ? { picked, picking, onPick } : undefined;
+
+/** The box that picks the row (or card) for the desk. */
+function PickBox({ issue, pick, className }: { issue: IssueItem; pick: PickProps; className?: string }) {
+  return (
+    <Checkbox
+      checked={pick.picked}
+      onCheckedChange={() => pick.onPick(issueId(issue))}
+      aria-label={t("pages.issues.pick", { key: issue.key })}
+      title={t("pages.issues.pickTitle")}
+      className={cn(!pick.picking && !pick.picked && "opacity-0 focus-visible:opacity-100 group-hover:opacity-100", className)}
+    />
+  );
+}
 
 function dueText(issue: IssueItem): string | null {
   const due = issue.dueDate ? parseDayKey(issue.dueDate.slice(0, 10)) : null;
@@ -115,9 +149,10 @@ function updatedText(issue: IssueItem): string | null {
   return issue.remoteUpdated ? formatDate(new Date(issue.remoteUpdated), "short") : null;
 }
 
-function Actions({ issue, onLog, pin: pinProps }: RowProps) {
+function Actions({ issue, onLog, pin: pinProps, pick }: Omit<RowProps, "picked" | "picking" | "onPick"> & { pick?: PickProps }) {
   const provider = useProviderName(issue.connectionId);
   const act = useIssueActions();
+  const openBeside = useOpenBesideAction();
   const favorite = issue.favorite === 1;
   const hidden = issue.hidden === 1;
   return (
@@ -142,7 +177,20 @@ function Actions({ issue, onLog, pin: pinProps }: RowProps) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onSelect={() => openBeside(issue)}>
+            <Columns2 className="h-4 w-4" aria-hidden />
+            {t("views.issues.row.openBeside")}
+            <DropdownMenuShortcut>{t("ui.keys.shiftClick")}</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          {pick && (
+            <DropdownMenuItem onSelect={() => pick.onPick(issueId(issue))}>
+              <SquareCheck className="h-4 w-4" aria-hidden />
+              {pick.picked ? t("views.issues.row.unpick") : t("views.issues.row.pickForDesk")}
+              <DropdownMenuShortcut>X</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
           {!hidden && (
             <DropdownMenuItem onSelect={() => act.toggleFavorite(issue.key, issue.connectionId)}>
               <Star className="h-4 w-4" />
@@ -225,6 +273,8 @@ function KeyLink({ issue }: { issue: IssueItem }) {
     <Link
       to={issuePath(issue)}
       viewTransition
+      // Dragged (to the Desk, its sidebar entry): the issue goes along, not only its link.
+      onDragStart={e => setIssueDragData(e.dataTransfer, issue)}
       className="flex min-w-0 items-center gap-3 underline-offset-4 hover:underline"
     >
       <span className="relative shrink-0">
@@ -299,6 +349,9 @@ export function IssueTable({
     <Table containerClassName="hidden md:block" className="min-w-[720px]">
       <thead>
         <TableHeaderRow>
+          <TableHead className="w-7 pl-2 pr-0">
+            <span className="sr-only">{t("pages.issues.pickCol")}</span>
+          </TableHead>
           <TableHead className="w-9 pl-1">
             <span className="sr-only">{t("views.issues.row.favouriteCol")}</span>
           </TableHead>
@@ -343,16 +396,20 @@ export const IssueRow = memo(function IssueRow({
   onLog,
   pin,
   selected = false,
+  ...picks
 }: RowProps) {
   const due = dueText(issue);
   const updated = updatedText(issue);
   const activity = activityText(issue);
+  const pick = pickOf(picks);
   return (
     <tr
       data-issue-id={issueId(issue)}
       aria-selected={selected || undefined}
+      data-picked={pick?.picked || undefined}
       className={cn(
         "group border-t transition-[opacity,background-color]",
+        pick?.picked && "bg-primary-soft/40",
         selected && "bg-accent/70 shadow-[inset_2px_0_0_hsl(var(--primary))]",
         pin?.dragging && "opacity-40",
         pin?.over && "bg-primary-soft/60"
@@ -361,8 +418,10 @@ export const IssueRow = memo(function IssueRow({
       onDragStart={
         pin &&
         (e => {
-          e.dataTransfer.effectAllowed = "move";
+          // Moved among the pins, or copied to the Desk.
+          e.dataTransfer.effectAllowed = "copyMove";
           e.dataTransfer.setData("text/plain", issue.key);
+          setIssueDragData(e.dataTransfer, issue);
           pin.onDragStart(issueId(issue));
         })
       }
@@ -371,6 +430,7 @@ export const IssueRow = memo(function IssueRow({
       onDrop={pin && (e => e.preventDefault())}
       onDragEnd={pin?.onDragEnd}
     >
+      <td className="w-7 py-3 pl-2 pr-0">{pick && <PickBox issue={issue} pick={pick} className="flex" />}</td>
       <td className="w-9 py-3 pl-1">
         <span className="relative flex items-center">
           {pin && (
@@ -441,7 +501,7 @@ export const IssueRow = memo(function IssueRow({
       </td>
       <td className="py-3 pr-1">
         <div className="flex items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          <Actions issue={issue} onLog={onLog} pin={pin} />
+          <Actions issue={issue} onLog={onLog} pin={pin} pick={pick} />
         </div>
       </td>
     </tr>
@@ -452,13 +512,20 @@ export const IssueCard = memo(function IssueCard({
   issue,
   onLog,
   pin,
+  ...picks
 }: RowProps) {
   const due = dueText(issue);
   const activity = activityText(issue);
+  const pick = pickOf(picks);
   return (
-    <li data-issue-id={issueId(issue)} className="grid gap-2 py-3">
+    <li data-issue-id={issueId(issue)} data-picked={pick?.picked || undefined} className="grid gap-2 py-3">
       <ActionRow
-        leading={issue.hidden === 1 ? (
+        leading={pick?.picking ? (
+          // Picking (from a card's menu): each card's box, at a finger's size.
+          <span className="flex size-touch items-center justify-center">
+            <PickBox issue={issue} pick={pick} />
+          </span>
+        ) : issue.hidden === 1 ? (
           <EyeOff
             className="mx-2 h-4 w-4 text-muted-foreground"
             aria-label={t("views.issues.row.hiddenLabel")}
@@ -466,7 +533,7 @@ export const IssueCard = memo(function IssueCard({
         ) : (
           <FavoriteStar issueKey={issue.key} connectionId={issue.connectionId} favorite={issue.favorite === 1} />
         )}
-        actions={<Actions issue={issue} onLog={onLog} pin={pin} />}
+        actions={<Actions issue={issue} onLog={onLog} pin={pin} pick={pick} />}
       >
         <span className="flex min-w-0 items-center gap-1">
           <KeyLink issue={issue} />
