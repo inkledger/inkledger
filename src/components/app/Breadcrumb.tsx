@@ -24,7 +24,15 @@ export function Breadcrumb({ current, trail = [] }: { current?: string; trail?: 
       <ol className="flex min-w-0 flex-wrap items-center gap-1 text-caption font-medium text-muted-foreground">
         {!via && (
           <>
-            <li>{entry.group}</li>
+            <li>
+              {entry.parent ? (
+                <Link to={entry.parent.to} className="hover:text-foreground hover:underline underline-offset-4">
+                  {entry.parent.label}
+                </Link>
+              ) : (
+                entry.group
+              )}
+            </li>
             <li aria-hidden>
               <ChevronRight className="h-3 w-3" />
             </li>

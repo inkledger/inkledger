@@ -4,6 +4,7 @@ import {
   Info as InfoIcon,
   KanbanSquare,
   LayoutDashboard,
+  LayoutPanelLeft,
   ListChecks,
   ListTodo,
   NotebookPen,
@@ -35,6 +36,7 @@ export function navItems() {
         { to: "/todos", label: t("ui.nav.todos"), icon: ListChecks },
         { to: "/ideas", label: t("ui.nav.ideas"), icon: Lightbulb },
         { to: "/issues", label: t("ui.nav.issues"), icon: ListTodo },
+        { to: "/issues/desk", label: t("ui.nav.desk"), icon: LayoutPanelLeft },
         { to: "/notes", label: t("ui.nav.notes"), icon: NotebookPen },
         { to: "/timesheet", label: t("ui.nav.timesheet"), icon: CalendarDays },
       ],
@@ -73,18 +75,22 @@ export function useNavItems() {
 /** Phones: the sections in the tab bar; the others are under "More". */
 export const TAB_ROUTES: readonly string[] = ["/", "/board", "/issues"];
 
-/** Group title and item of the nav entry matching a pathname (longest prefix). */
+/**
+ * Group title and item of the nav entry matching a pathname (longest prefix); `parent`,
+ * the section an entry lives under (the Desk under Issues).
+ */
 export function navEntryFor(pathname: string) {
-  let best: { group: string; to: string; label: string } | null = null;
+  const matches: { group: string; to: string; label: string }[] = [];
   for (const { title, items } of navItems()) {
     for (const { to, label } of items) {
       const match =
         to === "/"
           ? pathname === "/"
           : pathname === to || pathname.startsWith(`${to}/`);
-      if (match && (!best || to.length > best.to.length))
-        best = { group: title, to, label };
+      if (match) matches.push({ group: title, to, label });
     }
   }
-  return best;
+  matches.sort((a, b) => b.to.length - a.to.length);
+  const [best, parent] = matches;
+  return best ? { ...best, parent: parent && parent.to !== "/" ? { to: parent.to, label: parent.label } : undefined } : null;
 }

@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrackerSites } from "@/hooks/useConnections";
 import { useHotkeys, useMouseHistoryButtons } from "@/hooks/useHotkeys";
@@ -179,13 +180,16 @@ const ICON = "h-[18px] w-[18px] shrink-0";
 const labelClass = (collapsed: boolean) => cn("min-w-0 truncate", collapsed && "sr-only");
 
 /** A count beside a row: a number open, a dot on the icon closed. */
-function CountChip({ count, collapsed, title, sr }: { count: number; collapsed: boolean; title?: string; sr?: string }) {
+/** A section's count: news in the accent; `quiet` a plain tally (the Desk's panes), not shown on the rail. */
+function CountChip({ count, collapsed, title, sr, quiet = false }: { count: number; collapsed: boolean; title?: string; sr?: string; quiet?: boolean }) {
+  if (quiet && collapsed) return null;
   return (
     <span
       title={title}
       {...surface("chip")}
       className={cn(
-        "rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
+        "rounded-full text-2xs font-semibold tabular",
+        quiet ? "bg-muted text-muted-foreground" : "bg-primary-soft text-primary-strong",
         collapsed ? "absolute left-[34px] top-1 h-2 w-2 bg-primary-strong" : "ml-auto px-1.5 py-px"
       )}
     >
@@ -201,7 +205,7 @@ function CountChip({ count, collapsed, title, sr }: { count: number; collapsed: 
  * A section of the menu: drawn again only when its own count or the width
  * changes (the sidebar itself redraws with every sync tick and count).
  */
-const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, count, countTitle, countSr }: {
+const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, count, countTitle, countSr, countQuiet, end = to === "/" }: {
   to: string;
   name: string;
   Icon: LucideIcon;
@@ -210,13 +214,16 @@ const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, coun
   count: number | null;
   countTitle?: string;
   countSr?: string;
+  countQuiet?: boolean;
+  /** Current only on its own path, not on the pages under it. */
+  end?: boolean;
 }) {
   return (
     <RailTip collapsed={collapsed} label={name}>
       {/* Static classes (aria-current) so Tooltip's asChild merge keeps them. */}
       <NavLink
         to={to}
-        end={to === "/"}
+        end={end}
         aria-label={collapsed ? name : undefined}
         // Stands out only while current; keeps its own ::before bar.
         {...surface("nav", { current: true, edge: false })}
@@ -230,7 +237,7 @@ const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, coun
       >
         <Icon className={ICON} aria-hidden />
         <span className={labelClass(collapsed)}>{name}</span>
-        {count !== null && <CountChip count={count} collapsed={collapsed} title={countTitle} sr={countSr} />}
+        {count !== null && <CountChip count={count} collapsed={collapsed} title={countTitle} sr={countSr} quiet={countQuiet} />}
       </NavLink>
     </RailTip>
   );
@@ -245,13 +252,18 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const unread = useUnreadCount();
   const inbox = useNotificationCount();
   const due = useTodoReminders().items.length;
-  // The count beside a section: issues with news, TODOs due today or late.
+  // The Desk's panes, only once the desk was read (it never adds a request to a page).
+  const desk = trpc.desks.current.useQuery(undefined, { enabled: false }).data;
+  const onDesk = desk ? desk.panes.length + desk.parked.length : 0;
+  // The count beside a section: issues with news, TODOs due today or late, issues on the desk.
   const chipOf = (to: string) =>
     to === "/issues" && unread > 0
       ? { count: unread, title: t("ui.layout.issuesWithNews", { count: unread }), sr: t("ui.layout.withNews") }
       : to === "/todos" && due > 0
         ? { count: due, title: t("ui.layout.todosDue", { count: due }), sr: t("ui.layout.forToday") }
-        : null;
+        : to === "/issues/desk" && onDesk > 0
+          ? { count: onDesk, title: t("pages.desk.count", { count: onDesk }), sr: undefined, quiet: true }
+          : null;
   const pinboard = usePinboardPanel();
   const { workspace } = useWorkspace();
   const placementsIn = (areaId: string) => placementsFor(workspace, areaId);
@@ -295,6 +307,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
               count={chip?.count ?? null}
               countTitle={chip?.title}
               countSr={chip?.sr}
+              countQuiet={chip?.quiet}
+              // The Desk lives under Issues but is its own entry: Issues is not current there.
+              end={to === "/" || (to === "/issues" && pathname.startsWith("/issues/desk"))}
             />
           );
           if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page" || !isVisible("shell.pinboard", "shell.navigation")) return link;

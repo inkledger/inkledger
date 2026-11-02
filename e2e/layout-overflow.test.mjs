@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dayKey, start } from "./harness.mjs";
 
-const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/timesheet?view=month", "/board", "/reports", "/settings", "/settings/store", "/info", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
+const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/timesheet?view=month", "/board", "/reports", "/settings", "/settings/store", "/info", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 const VIEWPORTS = [320, 390, 768, 1024, 1400];
 const TOKEN = "MAGA-398-ThisIsAVeryLongUnbrokenTokenThatMustNotPushActionsOutsideTheRow-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -18,6 +18,10 @@ async function seed(db) {
   const day = dayKey(today);
   await db.q("INSERT INTO todos (user_id, text, due_on, issue_key, connection_id, position, created_at, updated_at) VALUES (1, ?, ?, 'DEMO-101', 1, 1, ?, ?)", `Finish ${TOKEN}`, day, now, now);
   await db.q("INSERT INTO notifications (user_id, connection_id, kind, issue_key, detail, dedupe, created_at) VALUES (1, 1, 'assigned', 'DEMO-101', ?, 'assigned:overflow', ?)", TOKEN, now - 60_000);
+  // The Desk: the long title and the long key side by side, one more parked.
+  const pane = key => ({ connectionId: 1, key, remoteId: key === TOKEN ? "DEMO-102" : key });
+  const desk = { v: 1, preset: "cols-2", tracks: {}, panes: [pane("DEMO-101"), pane(TOKEN)], parked: [pane("DEMO-103")], maximized: null, compare: false, onlyDifferences: false, noteId: null };
+  await db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, ?, ?)", JSON.stringify(desk), now, now);
 }
 
 /** Visible things that stick out of an overlay (a sheet, a floating panel, the palette): left or right of its box. */

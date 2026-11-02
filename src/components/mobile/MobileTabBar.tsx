@@ -135,8 +135,9 @@ function MobileTabBarContent() {
   const [timersOpen, setTimersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const entry = navEntryFor(pathname);
+  // A page under a tab's section (the Desk under Issues) stays on that tab.
   const inMore =
-    entry !== null && !TAB_ROUTES.includes(entry.to);
+    entry !== null && !TAB_ROUTES.includes(entry.to) && !(entry.parent && TAB_ROUTES.includes(entry.parent.to));
   const visibleTabs = placementsFor(workspace, "mobile.tabs");
   const density = visibleTabs.some(placement => placement.variant === "expanded") ? "expanded" : visibleTabs.every(placement => placement.variant === "compact") ? "compact" : "default";
   // The bar's height feeds --bottom-nav-h through CSS, so wide screens and the soft keyboard still zero it.

@@ -40,6 +40,10 @@
     "guard": "RequireAuth"
   },
   {
+    "path": "/issues/desk",
+    "guard": "RequireAuth"
+  },
+  {
     "path": "/login",
     "guard": "GuestOnly"
   },

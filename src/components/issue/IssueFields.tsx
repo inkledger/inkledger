@@ -44,6 +44,7 @@ export function IssueFields({
   data: { ownConnection, manage, history },
   gridClassName,
   transitionName,
+  headless = false,
 }: {
   issue: Issue;
   /** The key it was opened by (moves and their form act on it). */
@@ -54,6 +55,8 @@ export function IssueFields({
   gridClassName: string;
   /** The project picture's view transition (one per document: the page only). */
   transitionName?: string;
+  /** A desk's pane: its header shows the picture, key, status and priority; here not again. */
+  headless?: boolean;
 }) {
   const { transOpen, setTransOpen, transitions, asking, setAsking, transitionDone, transition } =
     useIssueTransitions(key, connectionId);
@@ -63,26 +66,30 @@ export function IssueFields({
           cover taking vertical space under the fixed header. */}
       {/* The timer runs on another device (or one gone silent): said here, with what to do. */}
       <TimerWhere issueKey={i.key} connectionId={i.connectionId} className="mb-3" />
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <ProjectAvatar
-          project={i.projectKey || i.key}
-          connectionId={i.connectionId}
-          size="md"
-          transitionName={transitionName}
-        />
-        <ConnectionBadge connectionId={i.connectionId} />
-        <StatusBadge status={i.status} category={i.category} />
-        {i.priority && (
-          <Chip variant="dot" tone={priorityTone(i.priority)}>
-            {priorityLabel(i.priority)}
-          </Chip>
-        )}
-      </div>
-      <p className="mb-5 text-body-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">{i.key}</span>
-        {i.projectName ? ` · ${i.projectName}` : ""}
-        {i.issueType ? ` · ${i.issueType}` : ""}
-      </p>
+      {headless ? null : (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <ProjectAvatar
+              project={i.projectKey || i.key}
+              connectionId={i.connectionId}
+              size="md"
+              transitionName={transitionName}
+            />
+            <ConnectionBadge connectionId={i.connectionId} />
+            <StatusBadge status={i.status} category={i.category} />
+            {i.priority && (
+              <Chip variant="dot" tone={priorityTone(i.priority)}>
+                {priorityLabel(i.priority)}
+              </Chip>
+            )}
+          </div>
+          <p className="mb-5 text-body-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{i.key}</span>
+            {i.projectName ? ` · ${i.projectName}` : ""}
+            {i.issueType ? ` · ${i.issueType}` : ""}
+          </p>
+        </>
+      )}
       <dl className={gridClassName}>
         <Detail label={t("pages.issueDetail.project")}>
           {i.projectKey}
@@ -111,6 +118,8 @@ export function IssueFields({
                 placeholder={
                   transition.isPending
                     ? t("pages.issueDetail.changing")
+                    : headless
+                    ? t("pages.issueDetail.changeStatus")
                     : t("pages.issueDetail.changeTo", { status: i.status })
                 }
               />

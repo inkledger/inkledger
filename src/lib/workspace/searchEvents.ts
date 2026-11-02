@@ -13,6 +13,8 @@ export const ROUTE_CONTROLS: Readonly<Record<string, string>> = {
 };
 
 export function routeControlId(path: string): string | undefined {
+  // The Desk is a nav entry of its own, with no control in the catalogue yet.
+  if (path.startsWith("/issues/desk")) return undefined;
   if (path.startsWith("/issues")) return "shell.nav.issues";
   if (path.startsWith("/notes")) return "shell.nav.notes";
   return ROUTE_CONTROLS[path];

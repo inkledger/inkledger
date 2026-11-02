@@ -17,6 +17,7 @@ const load = {
   changePassword: () => import("@/pages/ChangePassword"),
   dashboard: () => import("@/pages/Dashboard"),
   issues: () => import("@/pages/Issues"),
+  desk: () => import("@/pages/DeskPage"),
   timesheet: () => import("@/pages/Timesheet"),
   board: () => import("@/pages/Board"),
   pinboard: () => import("@/pages/PinboardPage"),
@@ -39,6 +40,7 @@ const FIRST: [RegExp, keyof typeof load][] = [
   [/^\/install\/?$/, "install"],
   [/^\/invite\//, "invite"],
   [/^\/issues\/?$/, "issues"],
+  [/^\/issues\/desk\/?$/, "desk"],
   [/^\/issues\/.+/, "issue"],
   [/^\/timesheet/, "timesheet"],
   [/^\/board/, "board"],
@@ -63,6 +65,7 @@ const Invite = lazy(load.invite);
 const ChangePassword = lazy(load.changePassword);
 const Dashboard = lazy(load.dashboard);
 const Issues = lazy(load.issues);
+const DeskPage = lazy(load.desk);
 const Timesheet = lazy(load.timesheet);
 const Board = lazy(load.board);
 const PinboardPage = lazy(load.pinboard);
@@ -156,6 +159,7 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/issues" element={<Issues />} />
+              <Route path="/issues/desk" element={<DeskPage />} />
               <Route path="/issues/:connectionId/:remoteId" element={<IssueByRef />} />
               <Route path="/issues/:key" element={<IssueByKey />} />
               <Route path="/timesheet" element={<Timesheet />} />

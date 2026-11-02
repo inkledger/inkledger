@@ -5,10 +5,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AXE, start } from "./harness.mjs";
 
-const ROUTES = ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
+const ROUTES = ["/", "/issues", "/issues/desk", "/issues/DEMO-101", "/timesheet", "/board", "/reports", "/settings", "/notes", "/notes/new", "/notes/trash", "/todos", "/pinboard"];
 
 test("key routes have no serious or critical accessibility violation", async () => {
-  const app = await start({});
+  // A desk with two issues and one parked: its panes, dividers and tray are checked too.
+  const pane = key => ({ connectionId: 1, key, remoteId: key });
+  const desk = { v: 1, preset: "cols-2", tracks: {}, panes: [pane("DEMO-101"), pane("DEMO-102")], parked: [pane("DEMO-103")], maximized: null, compare: false, onlyDifferences: false, noteId: null };
+  const app = await start({ seed: db => db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify(desk)) });
   try {
     const { page, base } = app;
     const found = [];

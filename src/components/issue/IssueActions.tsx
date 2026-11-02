@@ -1,6 +1,7 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import {
   Bot,
+  ClockPlus,
   Copy,
   ExternalLink,
   Eye,
@@ -107,7 +108,8 @@ export function IssueTitleAddon({
 /**
  * The issue's actions: watch, pin, TODO, triage, timer, copy, open on its tracker and
  * log time. `compact` (a desk's pane) keeps the timer and Log time and moves the rest,
- * favorite / restore / import included, into one menu.
+ * favorite / restore / import included, into one menu; `menuTop` (the pane's own items)
+ * heads that menu, so a pane has one menu, not two.
  */
 export function IssueActions({
   issue: i,
@@ -116,6 +118,7 @@ export function IssueActions({
   act,
   onLogTime,
   compact = false,
+  menuTop,
 }: {
   issue: Issue;
   data: IssueData;
@@ -123,6 +126,7 @@ export function IssueActions({
   act: Act;
   onLogTime: () => void;
   compact?: boolean;
+  menuTop?: ReactNode;
 }) {
   const { provider, offers } = data;
   const logTime = (
@@ -159,6 +163,11 @@ export function IssueActions({
     return (
       <>
         <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+        {/* A desk's pane: the main action, its text hidden when the pane is narrow. */}
+        <Button size="sm" variant="outline" onClick={onLogTime} title={t("pages.issueDetail.logTime")}>
+          <ClockPlus className="h-4 w-4" aria-hidden />
+          <span className="group-data-[pane-size=s]/pane:sr-only">{t("pages.issueDetail.logTime")}</span>
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -171,6 +180,12 @@ export function IssueActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {menuTop && (
+              <>
+                {menuTop}
+                <DropdownMenuSeparator />
+              </>
+            )}
             {i.remote ? (
               <DropdownMenuItem
                 disabled={data.importIssue.isPending}
@@ -213,7 +228,6 @@ export function IssueActions({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {logTime}
       </>
     );
 

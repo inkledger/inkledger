@@ -18,12 +18,14 @@ import { IssueTimeCard } from "@/components/issue/IssueTimeCard";
 import { IssueWorklogs } from "@/components/issue/IssueWorklogs";
 import { IssueAttachedSections, IssueTextSections } from "@/components/issue/IssueTextSections";
 import { descriptionSnippet } from "@/components/issue/issueFormat";
-import { usePaneSize } from "@/components/issue/paneSize";
-import { useIssueData, type Issue } from "@/components/issue/useIssueData";
+import { usePaneSize, type PaneSize } from "@/components/issue/paneSize";
+import { useIssueData, type Issue, type IssueData } from "@/components/issue/useIssueData";
 import { useIssueHotkeys } from "@/components/issue/useIssueHotkeys";
 import { t } from "@/i18n";
 
 type Variant = "page" | "pane";
+
+const PANE_SIZES: readonly PaneSize[] = ["s", "m", "l"];
 
 /**
  * Where each part goes. The page: wide, two columns each scrolling on its own;
@@ -76,15 +78,29 @@ export function IssueBody(props: {
   variant: Variant;
   /** A pane: the one the keyboard talks to. */
   active?: boolean;
+  /** A pane: the widest layout it takes (a pane beside others stays in one column). */
+  maxSize?: PaneSize;
   /** A pane: its scroller's key (`${prefix}-${issueId}`) for scroll restoration. */
   scrollKeyPrefix?: string;
-  /** A pane: in place of its own slim header (key, title, status, actions). */
-  header?: ReactNode;
+  /**
+   * A pane: in place of its own slim header (key, title, status, actions), drawn from the
+   * issue as loaded (none yet while loading or when missing: the key alone is known).
+   */
+  header?: (pane: PaneHeaderProps) => ReactNode;
 }) {
   return props.variant === "page" ? <PageBody {...props} /> : <PaneBody {...props} />;
 }
 
 type BodyProps = Parameters<typeof IssueBody>[0];
+
+/** What a pane's own header draws from. */
+export type PaneHeaderProps = {
+  issue: Issue | undefined;
+  data: IssueData;
+  act: ReturnType<typeof useIssueActions>;
+  connectionId: number | undefined;
+  onLogTime: () => void;
+};
 
 function PageBody({ issueKey: key, connectionId }: BodyProps) {
   useHashFlash();
@@ -142,9 +158,10 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
   );
 }
 
-function PaneBody({ issueKey: key, connectionId, active = false, scrollKeyPrefix = "pane", header }: BodyProps) {
+function PaneBody({ issueKey: key, connectionId, active = false, maxSize = "l", scrollKeyPrefix = "pane", header }: BodyProps) {
   const root = useRef<HTMLDivElement>(null);
-  const size = usePaneSize(root);
+  const measured = usePaneSize(root);
+  const size = PANE_SIZES.indexOf(measured) > PANE_SIZES.indexOf(maxSize) ? maxSize : measured;
   // Read (unread dot) once it is first on screen, not while parked out of sight.
   const shown = useShownOnce(root);
   const body = useBody({ issueKey: key, connectionId, variant: "pane", markSeen: shown, hotkeys: active });
@@ -157,13 +174,14 @@ function PaneBody({ issueKey: key, connectionId, active = false, scrollKeyPrefix
       data-scroll-key={`${scrollKeyPrefix}-${issueId({ key, connectionId: i?.connectionId ?? connectionId })}`}
       className="group/pane flex h-full min-h-0 min-w-0 flex-col overflow-y-auto"
     >
+      {header?.({ issue: i, data, act, connectionId, onLogTime: body.openLog })}
       {data.issue.isPending ? (
         <DetailSkeleton />
       ) : !i ? (
         <Missing issueKey={key} body={body} />
       ) : (
         <>
-          {header ?? (
+          {!header && (
             // surface: none — the pane's own title row, on the pane's panel like the page header.
             <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b bg-card px-3 py-2">
               <div className="min-w-0 flex-1">
@@ -278,6 +296,8 @@ function Columns({
           connectionId={connectionId}
           data={data}
           gridClassName={layout.fields}
+          // A pane's header already names it (picture, key, status): not again here.
+          headless={variant === "pane"}
           // One view transition name per document: the page's alone.
           transitionName={variant === "page" ? `issue-${i.key}` : undefined}
         />

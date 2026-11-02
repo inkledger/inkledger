@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Keyboard,
   KanbanSquare,
+  LayoutPanelLeft,
   Settings as SettingsIcon,
   LayoutDashboard,
   ListTodo,
@@ -30,6 +31,8 @@ import {
   MailPlus,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { toast } from "sonner";
+import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { useSync } from "@/hooks/useSync";
 import { visibleIssues, issuePath, issueId } from "@/lib/issues";
@@ -234,6 +237,10 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
           <CommandItem onSelect={() => go("/issues")}>
             <ListTodo className="mr-2 h-4 w-4" /> {t("ui.nav.issues")}
           </CommandItem>
+          <CommandItem value={`${t("ui.palette.openDesk")} ${t("ui.nav.desk")}`} onSelect={() => go("/issues/desk")}>
+            <LayoutPanelLeft className="mr-2 h-4 w-4" /> {t("ui.palette.openDesk")}
+            <Kbd className="ml-auto text-muted-foreground">G E</Kbd>
+          </CommandItem>
           <CommandItem onSelect={() => go("/notes")}>
             <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.nav.notes")}
             <Kbd className="ml-auto text-muted-foreground">G N</Kbd>
@@ -258,6 +265,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading={t("ui.palette.actions")}>
+          {open && <AddToDeskCommand pathname={pathname} onDone={() => setOpen(false)} />}
           <CommandItem
             onSelect={() => {
               setOpen(false);
@@ -398,6 +406,55 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         </span>
       </div>
     </>
+  );
+}
+
+/** The issue a page shows, as its path names it: /issues/:connectionId/:remoteId or /issues/:key (?c=). */
+function issueOnPage(pathname: string, search: string): { connectionId: number; remoteId: string } | { key: string; connectionId?: number } | null {
+  const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  if (parts[0] !== "issues" || parts[1] === "desk") return null;
+  if (parts.length === 3 && Number(parts[1]) > 0) return { connectionId: Number(parts[1]), remoteId: parts[2] };
+  if (parts.length !== 2) return null;
+  const c = Number(new URLSearchParams(search).get("c"));
+  return c > 0 ? { key: parts[1], connectionId: c } : { key: parts[1] };
+}
+
+/**
+ * On an issue's page: "Add KEY to desk". The server puts it there (a full desk parks
+ * its last pane); a toast says what happened and goes to the desk.
+ */
+function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () => void }) {
+  const { search } = useLocation();
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const shown = issueOnPage(pathname, search);
+  // The issue page asked the same (cached): its key today.
+  const located = trpc.issues.locate.useQuery(shown && "remoteId" in shown ? shown : { key: "-" }, { enabled: !!shown && "remoteId" in shown, staleTime: 60_000 });
+  const add = trpc.desks.add.useMutation({
+    onSuccess: r => {
+      utils.desks.current.setData(undefined, r.layout);
+      const message = r.already
+        ? t("pages.desk.already", { key: r.key })
+        : r.parked
+          ? t("pages.desk.addedParked", { key: r.key, parked: r.parked })
+          : t("pages.desk.added", { key: r.key, count: r.layout.panes.length });
+      toast(message, { action: { label: t("ui.palette.openDesk"), onClick: () => void navigate("/issues/desk") } });
+    },
+    onError: error => toastError(error),
+  });
+  const target = !shown ? null : "key" in shown ? shown : located.data && !("ambiguous" in located.data) ? { key: located.data.key, connectionId: located.data.connectionId } : null;
+  if (!target) return null;
+  const label = t("ui.palette.addToDesk", { key: target.key });
+  return (
+    <CommandItem
+      value={label}
+      onSelect={() => {
+        onDone();
+        add.mutate(target);
+      }}
+    >
+      <LayoutPanelLeft className="mr-2 h-4 w-4" /> {label}
+    </CommandItem>
   );
 }
 

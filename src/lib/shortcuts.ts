@@ -39,6 +39,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["g", "d"], label: t("ui.nav.dashboard") },
         { keys: ["g", "b"], label: t("ui.nav.board") },
         { keys: ["g", "i"], label: t("ui.nav.issues") },
+        { keys: ["g", "e"], label: t("ui.nav.desk") },
         { keys: ["g", "n"], label: t("ui.nav.notes") },
         { keys: ["g", "t"], label: t("ui.nav.timesheet") },
         { keys: ["g", "r"], label: t("ui.nav.reports") },
@@ -67,6 +68,14 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
           keys: [PALETTE_SHORTCUT.startsWith("⌘") ? "⌘" : "Ctrl", t("ui.keys.enter")],
           label: t("ui.shortcuts.postComment"),
         },
+      ],
+    },
+    {
+      group: t("ui.shortcuts.desk"),
+      items: [
+        { keys: ["1–4"], label: t("ui.shortcuts.focusPane") },
+        { keys: ["x"], label: t("ui.shortcuts.closePane") },
+        { keys: ["Esc"], label: t("ui.shortcuts.restorePane") },
       ],
     },
   ];
