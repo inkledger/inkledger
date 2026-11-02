@@ -93,7 +93,7 @@ export function EmptySlot({
         >
           <X className="h-4 w-4" aria-hidden />
         </Button>
-        <div className="grid w-full max-w-72 gap-3">
+        <div className="grid w-full min-w-0 max-w-72 grid-cols-1 gap-3">
           <div className="grid justify-items-center gap-1 text-center">
             <SquarePlus className="h-5 w-5 text-muted-foreground" aria-hidden />
             <h2 id={titleId} className="text-body-sm font-semibold">
@@ -115,9 +115,9 @@ export function EmptySlot({
             }}
           />
           {recent.length > 0 && (
-            <div className="grid gap-1">
+            <div className="grid grid-cols-1 gap-1">
               <h3 className="text-overline uppercase text-muted-foreground">{t("pages.desk.slot.recent")}</h3>
-              <ul className="grid">
+              <ul className="grid grid-cols-1">
                 {recent.map(i => (
                   <li key={paneId(i)}>
                     <button

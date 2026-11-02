@@ -289,8 +289,15 @@ test("desk flow on a phone: a long press on the title opens the places in a shee
     assert.equal(await page.locator("[data-empty-slot]").count(), 0);
   }));
 
-test("desk flow: an empty slot is named and axe clean in both themes; ✕ closes it", () =>
-  withApp({ viewport: { width: 1280, height: 800 }, seed: db => db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify({ ...layout(["DEMO-101"], "cols-2"), panes: [pane("DEMO-101"), { empty: true, id: "1" }] })) }, async ({ page, base, db }) => {
+test("desk flow: an empty slot is named, stays inside its place with a long title, and is axe clean in both themes; ✕ closes it", () =>
+  withApp({
+    viewport: { width: 1280, height: 800 },
+    seed: async db => {
+      await db.q("INSERT INTO desks (user_id, name, layout, created_at, updated_at) VALUES (1, NULL, ?, 1, 1)", JSON.stringify({ ...layout(["DEMO-101"], "cols-2"), panes: [pane("DEMO-101"), { empty: true, id: "1" }] }));
+      // A title far wider than the slot: it is cut, never pushes the slot's content under the next pane.
+      await db.q("UPDATE issues SET summary = ?, seen_at = 1 WHERE key = 'DEMO-103'", "Manage the stock and the extra allowance when the app goes over what is available ".repeat(3).trim());
+    },
+  }, async ({ page, base, db }) => {
     await page.goto(base + "/issues/1/DEMO-102");
     await page.getByRole("heading", { level: 1, name: "Test task number 2" }).waitFor();
     await page.goto(base + "/issues/desk");
@@ -299,6 +306,12 @@ test("desk flow: an empty slot is named and axe clean in both themes; ✕ closes
     // Opened lately: DEMO-102 (just seen), not DEMO-101 (already on the desk).
     await slot.getByRole("button", { name: /^Open DEMO-102 here/ }).waitFor();
     assert.equal(await slot.getByRole("button", { name: /^Open DEMO-101 here/ }).count(), 0);
+    await slot.getByRole("button", { name: /^Open DEMO-103 here/ }).waitFor();
+    const spill = await slot.evaluate(el => {
+      const right = el.getBoundingClientRect().right;
+      return { scroll: el.scrollWidth - el.clientWidth, past: [...el.querySelectorAll("*")].filter(c => c.getBoundingClientRect().right > right + 0.5).map(c => c.tagName + "." + c.className.toString().slice(0, 40)) };
+    });
+    assert.deepEqual(spill, { scroll: 0, past: [] }, "nothing in the empty slot reaches past its right edge");
     for (const colorScheme of ["light", "dark"]) {
       await page.emulateMedia({ colorScheme });
       await page.waitForTimeout(400);
