@@ -74,12 +74,11 @@ export function boundSink(conn: Connection): BoundSink | null {
 /** A worklog logged or changed: due on every sink of its user. */
 export async function markForSinks(userId: number, worklogId: number) {
   const sinks = await sinkConnections(userId);
-  for (const s of sinks) {
-    await getDb()
-      .insert(worklogSinks)
-      .values({ worklogId, sinkConnectionId: s.id, state: "pending" })
-      .onConflictDoUpdate({ target: [worklogSinks.worklogId, worklogSinks.sinkConnectionId], set: { state: "pending", lastError: null } });
-  }
+  if (sinks.length === 0) return;
+  await getDb()
+    .insert(worklogSinks)
+    .values(sinks.map((s) => ({ worklogId, sinkConnectionId: s.id, state: "pending" })))
+    .onConflictDoUpdate({ target: [worklogSinks.worklogId, worklogSinks.sinkConnectionId], set: { state: "pending", lastError: null } });
 }
 
 /**

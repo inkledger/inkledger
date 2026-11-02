@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { liveConnections } from "../queries/liveConnections";
+import { mapInPool } from "../lib/pool";
 import { pendingReplays } from "../routers/outbox";
 import type { Connection, User } from "@db/schema";
 import { syncConnectionEntries, syncConnectionIssues, syncInbox, withStream } from "./engine";
@@ -45,23 +46,13 @@ export async function settleInFlightSyncs(timeoutMs: number): Promise<void> {
 const SYNC_CONCURRENCY = 3;
 
 /** `run` over the items, at most `size` at a time; every outcome, in order. */
-async function inPool<T>(items: T[], size: number, run: (item: T) => Promise<void>): Promise<PromiseSettledResult<void>[]> {
-  const out = new Array<PromiseSettledResult<void>>(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      try {
-        await run(items[i]);
-        out[i] = { status: "fulfilled", value: undefined };
-      } catch (reason) {
-        out[i] = { status: "rejected", reason };
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-  return out;
-}
+const inPool = <T>(items: T[], size: number, run: (item: T) => Promise<void>): Promise<PromiseSettledResult<void>[]> =>
+  mapInPool(items, size, (item) =>
+    run(item).then(
+      (): PromiseSettledResult<void> => ({ status: "fulfilled", value: undefined }),
+      (reason: unknown): PromiseSettledResult<void> => ({ status: "rejected", reason }),
+    ),
+  );
 
 async function syncConnections(user: User, full: boolean, background: boolean): Promise<SyncResult> {
   const conns = await liveConnections(user.id);

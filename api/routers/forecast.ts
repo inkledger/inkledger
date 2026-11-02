@@ -24,7 +24,9 @@ import { CLOSED } from "../queries/issueQuery";
 import { issueKeyInput } from "../lib/inputs";
 import { activeBucket, bucketQuery, coversIssue } from "../queries/buckets";
 import { myRemoteIds } from "../providers/connections";
-import { closedSamples, estimateForIssue } from "../estimates/estimate";
+import { closedSamples, defaultCache, estimateForIssue } from "../estimates/estimate";
+import { estimateRevision } from "../queries/estimateRevision";
+import { mapInPool } from "../lib/pool";
 import { forecast, ForecastError, readiness, type ForecastRequest } from "../ml/forecast";
 import { listScheduleVersions } from "./workSchedule";
 
@@ -33,6 +35,8 @@ const FINISH_DAYS = 90;
 const TREND_WEEKS = 12;
 const QUANTILES = [0.1, 0.5, 0.9];
 const MAX_ISSUES = 200;
+/** Issue estimates worked out at once. */
+const ESTIMATE_CONCURRENCY = 4;
 
 /** The sidecar's refusals as the API's errors (E-3.2–E-3.4, E-3.6). */
 function asTrpc(e: unknown): never {
@@ -195,14 +199,19 @@ export const forecastRouter = createRouter({
             .where(and(eq(worklogs.userId, userId), inArray(worklogs.issueKey, keys.map((k) => k.issueKey))))
             .groupBy(worklogs.issueKey, worklogs.connectionId)
         : [];
-      const spentOn = (k: { issueKey: string; connectionId: number }) => spent.find((s) => s.key === k.issueKey && s.connectionId === k.connectionId)?.seconds ?? 0;
+      const spentBy = new Map<string, number>();
+      for (const s of spent) if (!spentBy.has(`${s.connectionId}:${s.key}`)) spentBy.set(`${s.connectionId}:${s.key}`, s.seconds);
+      const spentOn = (k: { issueKey: string; connectionId: number }) => spentBy.get(`${k.connectionId}:${k.issueKey}`) ?? 0;
       let workP50 = 0;
       let workP80 = 0;
       const unknownKeys: string[] = [];
       const overKeys: string[] = [];
       let counted = 0;
-      for (const k of keys) {
-        const e = await estimateForIssue(userId, k, now).catch(() => null);
+      // The revision read once for all (unreadable: each estimate reads its own); a few estimates at a time, taken in order.
+      const revision = await estimateRevision(userId).catch(() => undefined);
+      const estimates = await mapInPool(keys, ESTIMATE_CONCURRENCY, (k) => estimateForIssue(userId, k, now, defaultCache, revision).catch(() => null));
+      for (const [i, k] of keys.entries()) {
+        const e = estimates[i];
         if (!e || "hidden" in e) {
           if (!e) unknownKeys.push(k.issueKey);
           continue;

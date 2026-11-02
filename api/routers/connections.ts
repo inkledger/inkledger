@@ -8,7 +8,7 @@ import { assertSafeUrl } from "../lib/security";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import {
   connections,
   connectionSync,
@@ -126,22 +126,30 @@ function withExcluded(c: Connection, repos: string[]): unknown {
 }
 const excludableOf = (c: Connection) => withExcluded(c, []) !== null;
 
-/** A connection as the app shows it. */
-async function shown(c: Connection) {
-  const [sync] = await getDb()
-    .select({
-      lastOkAt: connectionSync.lastOkAt,
-      lastError: connectionSync.lastError,
-      lastErrorAt: connectionSync.lastErrorAt,
-    })
-    .from(connectionSync)
-    .where(
-      and(
-        eq(connectionSync.connectionId, c.id),
-        eq(connectionSync.stream, "issues")
-      )
-    )
-    .limit(1);
+/** The issue streams' last outcomes of these connections, by connection. */
+async function issueSyncs(ids: number[]) {
+  const rows = ids.length
+    ? await getDb()
+        .select({
+          connectionId: connectionSync.connectionId,
+          lastOkAt: connectionSync.lastOkAt,
+          lastError: connectionSync.lastError,
+          lastErrorAt: connectionSync.lastErrorAt,
+        })
+        .from(connectionSync)
+        .where(
+          and(
+            inArray(connectionSync.connectionId, ids),
+            eq(connectionSync.stream, "issues")
+          )
+        )
+    : [];
+  return new Map(rows.map(r => [r.connectionId, r]));
+}
+
+/** A connection as the app shows it (`syncs`: its stream's outcome, when read already for many). */
+async function shown(c: Connection, syncs?: Awaited<ReturnType<typeof issueSyncs>>) {
+  const sync = (syncs ?? (await issueSyncs([c.id]))).get(c.id);
   return {
     id: c.id,
     type: c.type,
@@ -214,7 +222,8 @@ export const connectionsRouter = createRouter({
   /** The user's connections, with their service's name and what it can do: the app decides by capability, never by type. */
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await liveConnections(ctx.user.id);
-    return Promise.all(rows.map(shown));
+    const syncs = await issueSyncs(rows.map(r => r.id));
+    return Promise.all(rows.map(r => shown(r, syncs)));
   }),
 
   /** Every tracker type, how it is connected, and whether inkledger can connect it yet. */

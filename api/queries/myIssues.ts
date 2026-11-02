@@ -15,16 +15,23 @@ export type FollowTag = { field: "label" | "component"; value: string; connectio
  * tag, all of them.
  */
 export async function openIssuesTagged(userId: number, deviceId: string | undefined, tag: FollowTag | null): Promise<SQL> {
-  const myIds = await myRemoteIds(userId);
-  const tagged = tag ? compileIssueQuery({ kind: "field", field: tag.field, op: "=", value: tag.value }, { myRemoteIds: myIds, now: new Date() }).where : undefined;
-  return and(
-    eq(issues.userId, userId),
-    onLiveConnection,
-    eq(issues.hidden, 0),
-    notInArray(issues.category, CLOSED),
-    inArray(issues.assigneeId, myIds),
-    tag?.connectionId ? eq(issues.connectionId, tag.connectionId) : undefined,
-    await issuesInBucket(userId, deviceId),
-    tagged,
-  )!;
+  return (await openIssuesTagger(userId, deviceId))(tag);
+}
+
+/** openIssuesTagged for several tags: what they share (my ids, the device's bucket) read once. */
+export async function openIssuesTagger(userId: number, deviceId: string | undefined): Promise<(tag: FollowTag | null) => SQL> {
+  const [myIds, inBucket] = await Promise.all([myRemoteIds(userId), issuesInBucket(userId, deviceId)]);
+  return (tag) => {
+    const tagged = tag ? compileIssueQuery({ kind: "field", field: tag.field, op: "=", value: tag.value }, { myRemoteIds: myIds, now: new Date() }).where : undefined;
+    return and(
+      eq(issues.userId, userId),
+      onLiveConnection,
+      eq(issues.hidden, 0),
+      notInArray(issues.category, CLOSED),
+      inArray(issues.assigneeId, myIds),
+      tag?.connectionId ? eq(issues.connectionId, tag.connectionId) : undefined,
+      inBucket,
+      tagged,
+    )!;
+  };
 }

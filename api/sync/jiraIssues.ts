@@ -389,10 +389,10 @@ async function syncWatchers(
     await tx.update(issues)
       .set({ watching: 0 })
       .where(and(eq(issues.userId, c.user.id), eq(issues.connectionId, c.user.connectionId), eq(issues.watching, 1)));
-    for (const i of watched) {
+    if (watched.length > 0) {
       await tx.update(issues)
         .set({ watching: 1 })
-        .where(and(eq(issues.userId, c.user.id), eq(issues.connectionId, c.user.connectionId), eq(issues.key, i.key)));
+        .where(and(eq(issues.userId, c.user.id), eq(issues.connectionId, c.user.connectionId), inArray(issues.key, watched.map((i) => i.key))));
     }
   });
   return true;

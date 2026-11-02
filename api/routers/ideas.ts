@@ -19,6 +19,7 @@ import { env } from "../lib/env";
 import { currentLocale } from "@contracts/i18n/core";
 import { withSharedIdeaFiles } from "../ideaFiles";
 import { fromMarkdown } from "../providers/core/richtext";
+import { setPositions } from "../queries/positions";
 
 const id = z.number().int().positive();
 const title = z.string().trim().min(1, { error: () => t("server.ideas.empty") }).max(200);
@@ -282,13 +283,13 @@ export const ideasRouter = createRouter({
 
   /** A state's ideas in this order (ids not the user's, or elsewhere, are left alone). */
   reorder: protectedProcedure.input(z.object({ state, ids: z.array(id).max(2000) })).mutation(async ({ ctx, input }) => {
-    await getDb().transaction(async (tx) => {
-      for (const [position, ideaId] of input.ids.entries())
-        await tx
-          .update(ideas)
-          .set({ position })
-          .where(and(eq(ideas.id, ideaId), eq(ideas.userId, ctx.user.id), eq(ideas.state, input.state), isNull(ideas.deletedAt)));
-    });
+    await setPositions(
+      getDb(),
+      ideas,
+      { id: ideas.id, position: ideas.position },
+      input.ids.map((ideaId, position) => [ideaId, position] as const),
+      and(eq(ideas.userId, ctx.user.id), eq(ideas.state, input.state), isNull(ideas.deletedAt)),
+    );
     return { ok: true as const };
   }),
 

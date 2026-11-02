@@ -131,17 +131,21 @@ const fieldValueInput = z.union([
   z.object({ user: z.string().min(1).max(200) }),
 ]);
 
-/** The issue's tracker, bound to its connection, and the issue's reference on it. */
-async function boundFor(user: User, key: string, connectionId?: number) {
-  const conn = await issueConnection(user.id, key, connectionId);
+/** The issue's tracker, bound to its connection, the issue's reference on it, and its container as the catalogue knows it. */
+async function boundOn(user: User, key: string, conn: Connection) {
   const b = boundTracker(conn);
   if (!b) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.auth.noConnection") });
   const [row] = await getDb()
-    .select({ remoteId: issues.remoteId })
+    .select({ remoteId: issues.remoteId, projectKey: issues.projectKey })
     .from(issues)
     .where(and(eq(issues.userId, user.id), eq(issues.connectionId, conn.id), eq(issues.key, key)))
     .limit(1);
-  return { conn, b, ref: { remoteId: row?.remoteId ?? key, key } };
+  return { conn, b, ref: { remoteId: row?.remoteId ?? key, key }, projectKey: row?.projectKey ?? null };
+}
+
+/** The issue's tracker (see issueConnection), as boundOn. */
+async function boundFor(user: User, key: string, connectionId?: number) {
+  return boundOn(user, key, await issueConnection(user.id, key, connectionId));
 }
 
 async function trackerFor(user: User, key: string, connectionId?: number) {
@@ -153,12 +157,12 @@ async function trackerFor(user: User, key: string, connectionId?: number) {
 }
 
 /**
- * The issue's tracker through the provider contract when it isn't Jira
- * (Jira keeps its own calls until it moves over), else null.
+ * The issue's connection, and its tracker through the provider contract
+ * when it isn't Jira (Jira keeps its own calls until it moves over), else null.
  */
 async function otherTracker(user: User, key: string, connectionId?: number) {
   const conn = await issueConnection(user.id, key, connectionId);
-  return conn.type === "jira" ? null : boundFor(user, key, conn.id);
+  return { conn, bound: conn.type === "jira" ? null : await boundOn(user, key, conn) };
 }
 
 type ManageOp = "assignable" | "assign" | "labelOptions" | "setLabels" | "edit";
@@ -170,12 +174,7 @@ const cannotManage = (type: string) => new TRPCError({ code: "PRECONDITION_FAILE
 async function managed(user: User, key: string, connectionId: number | undefined, op: ManageOp) {
   const found = await boundFor(user, key, connectionId);
   if (!found.b.manage?.[op]) throw cannotManage(found.conn.type);
-  const [row] = await getDb()
-    .select({ projectKey: issues.projectKey })
-    .from(issues)
-    .where(and(eq(issues.userId, user.id), eq(issues.connectionId, found.conn.id), eq(issues.key, key)))
-    .limit(1);
-  const containerKey = row?.projectKey ?? key.replace(/#\d+$/, "").replace(/-\d+$/, "");
+  const containerKey = found.projectKey ?? key.replace(/#\d+$/, "").replace(/-\d+$/, "");
   return { ...found, ref: { ...found.ref, me: found.conn.remoteAccountId }, container: { remoteId: containerKey, key: containerKey } };
 }
 
@@ -221,7 +220,8 @@ const onConnection = { connectionId: z.number().int().positive().optional() };
 
 /** The user's issues in compact form (board, palette, pickers, the sidebar's favorites), narrowed by `narrow`. */
 async function compactIssues(userId: number, narrow: SQL | undefined) {
-  const rows = await getDb()
+  const [rows, myRemote] = await Promise.all([
+    getDb()
     .select({
       key: issues.key,
       // Its identity, for links that survive a key change
@@ -250,9 +250,11 @@ async function compactIssues(userId: number, narrow: SQL | undefined) {
     .from(issues)
     .where(and(eq(issues.userId, userId), onLiveConnection, narrow))
     .orderBy(desc(issues.favorite), asc(issues.favoriteRank), ...BY_UPDATED)
-    .limit(LIST_MAX_ROWS);
+    .limit(LIST_MAX_ROWS),
+    myRemoteIds(userId),
+  ]);
   // Mine: assigned to me on any of my connections (Jira, GitHub…).
-  const myIds = new Set(await myRemoteIds(userId));
+  const myIds = new Set(myRemote);
   return rows.map(({ assigneeId, unread, remoteUpdatedAt, remoteCreatedAt, activityAt, ...r }) => ({
     ...r,
     unread: unread === 1,
@@ -361,7 +363,7 @@ export const issuesRouter = createRouter({
     .input(z.object({ ...onConnection, key: issueKeyInput }))
     .query(async ({ ctx, input }) => {
       // Other trackers: what inkledger saw change between syncs (activity), and when it was made.
-      const other = await otherTracker(ctx.user, input.key, input.connectionId);
+      const { conn, bound: other } = await otherTracker(ctx.user, input.key, input.connectionId);
       if (other) {
         const [row] = await getDb()
           .select({ id: issues.id, createdAt: issues.remoteCreatedAt, reporter: issues.reporterName })
@@ -376,7 +378,7 @@ export const issuesRouter = createRouter({
           comments: [],
         });
       }
-      return buildTimeline(await fetchIssueHistory((await jiraContextFor(ctx.user, input.key, input.connectionId)).creds, input.key));
+      return buildTimeline(await fetchIssueHistory(contextFor(ctx.user, conn).creds, input.key));
     }),
 
   /**
@@ -387,7 +389,7 @@ export const issuesRouter = createRouter({
   watch: protectedProcedure
     .input(z.object({ ...onConnection, key: issueKeyInput, watch: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const other = await otherTracker(ctx.user, input.key, input.connectionId);
+      const { conn, bound: other } = await otherTracker(ctx.user, input.key, input.connectionId);
       if (other) {
         if (!other.b.watch) throw cannotManage(other.conn.type);
         await providerCall(() => other.b.watch!(callMeta(), other.ref, input.watch));
@@ -398,7 +400,7 @@ export const issuesRouter = createRouter({
           .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, other.conn.id), eq(issues.key, input.key)));
         return { key: input.key, watching: input.watch };
       }
-      const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
+      const { user, creds } = contextFor(ctx.user, conn);
       const db = getDb();
       const known = await db
         .select({ id: issues.id })
@@ -426,9 +428,9 @@ export const issuesRouter = createRouter({
       z.object({ ...onConnection, key: issueKeyInput }),
     )
     .mutation(async ({ ctx, input }) => {
-      const other = await otherTracker(ctx.user, input.key, input.connectionId);
+      const { conn, bound: other } = await otherTracker(ctx.user, input.key, input.connectionId);
       if (other) return { imported: await importRemote(ctx.user.id, other) };
-      const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
+      const { user, creds } = contextFor(ctx.user, conn);
       const remote = await fetchIssueByKey(creds, input.key);
       if (!remote) {
         throw new TRPCError({
@@ -538,31 +540,33 @@ export const issuesRouter = createRouter({
    */
   cleanup: protectedProcedure.mutation(async ({ ctx }) => {
     const db = getDb();
-    const tracked = await db
-      .select({ issueKey: worklogs.issueKey, connectionId: worklogs.connectionId })
-      .from(worklogs)
-      .where(eq(worklogs.userId, ctx.user.id))
-      .groupBy(worklogs.issueKey, worklogs.connectionId);
-    const timed = await db
-      .select({ issueKey: timers.issueKey, connectionId: timers.connectionId })
-      .from(timers)
-      .where(eq(timers.userId, ctx.user.id));
+    const [tracked, timed, local, myRemote] = await Promise.all([
+      db
+        .select({ issueKey: worklogs.issueKey, connectionId: worklogs.connectionId })
+        .from(worklogs)
+        .where(eq(worklogs.userId, ctx.user.id))
+        .groupBy(worklogs.issueKey, worklogs.connectionId),
+      db
+        .select({ issueKey: timers.issueKey, connectionId: timers.connectionId })
+        .from(timers)
+        .where(eq(timers.userId, ctx.user.id)),
+      db
+        .select({
+          id: issues.id,
+          key: issues.key,
+          connectionId: issues.connectionId,
+          favorite: issues.favorite,
+          hidden: issues.hidden,
+          watching: issues.watching,
+          assigneeId: issues.assigneeId,
+          category: issues.category,
+        })
+        .from(issues)
+        .where(eq(issues.userId, ctx.user.id)),
+      myRemoteIds(ctx.user.id),
+    ]);
     const keep = new Set([...tracked, ...timed].map((t) => `${t.connectionId}:${t.issueKey}`));
-
-    const local = await db
-      .select({
-        id: issues.id,
-        key: issues.key,
-        connectionId: issues.connectionId,
-        favorite: issues.favorite,
-        hidden: issues.hidden,
-        watching: issues.watching,
-        assigneeId: issues.assigneeId,
-        category: issues.category,
-      })
-      .from(issues)
-      .where(eq(issues.userId, ctx.user.id));
-    const myIds = new Set(await myRemoteIds(ctx.user.id));
+    const myIds = new Set(myRemote);
     const toDelete = local
       .filter(
         (l) =>
@@ -648,8 +652,9 @@ export const issuesRouter = createRouter({
     .input(z.object({ ...onConnection, key: issueKeyInput }))
     .query(async ({ ctx, input }) => {
       // Attachments are Jira's alone for now (no contract operation yet).
-      if (await otherTracker(ctx.user, input.key, input.connectionId)) return [];
-      const list = await fetchAttachments((await jiraContextFor(ctx.user, input.key, input.connectionId)).creds, input.key);
+      const { conn, bound } = await otherTracker(ctx.user, input.key, input.connectionId);
+      if (bound) return [];
+      const list = await fetchAttachments(contextFor(ctx.user, conn).creds, input.key);
       return list.map((a) => ({
         id: a.id,
         filename: a.filename,
@@ -696,8 +701,9 @@ export const issuesRouter = createRouter({
   remoteLinks: protectedProcedure
     .input(z.object({ ...onConnection, key: issueKeyInput }))
     .query(async ({ ctx, input }) => {
-      if (await otherTracker(ctx.user, input.key, input.connectionId)) return [];
-      const list = await fetchRemoteLinks((await jiraContextFor(ctx.user, input.key, input.connectionId)).creds, input.key);
+      const { conn, bound } = await otherTracker(ctx.user, input.key, input.connectionId);
+      if (bound) return [];
+      const list = await fetchRemoteLinks(contextFor(ctx.user, conn).creds, input.key);
       return list.flatMap((l) => {
         const url = l.object?.url;
         if (!url || !/^https?:\/\//i.test(url)) return [];
@@ -1001,9 +1007,9 @@ export const issuesRouter = createRouter({
       const db = getDb();
       // The user's issues on live connections (an archived one's leave the
       // lists), in this device's bucket if it has one on.
-      const mine = and(eq(issues.userId, ctx.user.id), onLiveConnection, await issuesInBucket(ctx.user.id, ctx.deviceId))!;
+      const [inBucket, myIds] = await Promise.all([issuesInBucket(ctx.user.id, ctx.deviceId), myRemoteIds(ctx.user.id)]);
+      const mine = and(eq(issues.userId, ctx.user.id), onLiveConnection, inBucket)!;
       const notDone = notInArray(issues.category, CLOSED);
-      const myIds = await myRemoteIds(ctx.user.id);
       const assignedToMe = inArray(issues.assigneeId, myIds);
       // The search box speaks the query language (contracts/query.ts).
       const parsed = parseQuery(input?.search?.trim() ?? "");
@@ -1046,26 +1052,6 @@ export const issuesRouter = createRouter({
         includeUnassigned: input?.includeUnassigned ?? false,
       };
       const where = viewWhere(view);
-      const [rows, countRows] = await Promise.all([
-        db
-          .select({ ...listColumns, mySpentSeconds: MY_SPENT })
-          .from(issues)
-          .where(where)
-          // what the words match best, favorites (in their manual order), then the requested order
-          .orderBy(
-            ...relevance,
-            desc(issues.favorite),
-            asc(issues.favoriteRank),
-            ...orderFor(input?.sort ?? "activity"),
-          )
-          .limit(pageSize)
-          .offset((page - 1) * pageSize),
-        db
-          .select({ total: sql<number>`count(*)` })
-          .from(issues)
-          .where(where),
-      ]);
-      const total = countRows[0]?.total ?? 0;
 
       // What each toggle would add to the current view (labels of the toggles).
       const doneWhere = and(
@@ -1083,27 +1069,47 @@ export const issuesRouter = createRouter({
       );
       const countIf = (cond: SQL | undefined) =>
         sql<number>`coalesce(sum(CASE WHEN ${cond} THEN 1 ELSE 0 END), 0)`;
-      const [counts] = await db
-        .select({
-          done: countIf(doneWhere),
-          unassigned: countIf(unassignedWhere),
-          hidden: countIf(hiddenWhere),
-          watching: countIf(watchingWhere),
-        })
-        .from(issues)
-        .where(mine);
-
-      const facets = await db
-        .select({
-          status: issues.status,
-          projectKey: issues.projectKey,
-          projectName: issues.projectName,
-          labels: issues.labels,
-          count: sql<number>`count(*)`,
-        })
-        .from(issues)
-        .where(mine)
-        .groupBy(issues.status, issues.projectKey, issues.projectName, issues.labels);
+      // The page, its total, the toggle counts and the facets: independent reads, at once.
+      const [rows, countRows, [counts], facets] = await Promise.all([
+        db
+          .select({ ...listColumns, mySpentSeconds: MY_SPENT })
+          .from(issues)
+          .where(where)
+          // what the words match best, favorites (in their manual order), then the requested order
+          .orderBy(
+            ...relevance,
+            desc(issues.favorite),
+            asc(issues.favoriteRank),
+            ...orderFor(input?.sort ?? "activity"),
+          )
+          .limit(pageSize)
+          .offset((page - 1) * pageSize),
+        db
+          .select({ total: sql<number>`count(*)` })
+          .from(issues)
+          .where(where),
+        db
+          .select({
+            done: countIf(doneWhere),
+            unassigned: countIf(unassignedWhere),
+            hidden: countIf(hiddenWhere),
+            watching: countIf(watchingWhere),
+          })
+          .from(issues)
+          .where(mine),
+        db
+          .select({
+            status: issues.status,
+            projectKey: issues.projectKey,
+            projectName: issues.projectName,
+            labels: issues.labels,
+            count: sql<number>`count(*)`,
+          })
+          .from(issues)
+          .where(mine)
+          .groupBy(issues.status, issues.projectKey, issues.projectName, issues.labels),
+      ]);
+      const total = countRows[0]?.total ?? 0;
 
       const statuses = [...new Set(facets.map((f) => f.status))].sort();
       const projectsMap = new Map<string, string>();
@@ -1207,13 +1213,13 @@ export const issuesRouter = createRouter({
       if (!rows[0]) {
         // Not in the catalog (e.g. opened from the search): shown live from
         // its tracker, read-only, without importing it.
-        const other = await otherTracker(ctx.user, input.key, input.connectionId);
+        const { conn, bound: other } = await otherTracker(ctx.user, input.key, input.connectionId);
         if (other) {
           const hit = await providerCall(() => other.b.findIssue(callMeta(), { key: input.key }));
           if (hit.kind !== "found") throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFoundOnJira") });
           return shownIssue({ ...GHOST, userId: ctx.user.id, connectionId: other.conn.id, remoteId: hit.issue.remoteId, remoteUpdated: null, ...fieldsOf(hit.issue) }, true);
         }
-        const { user, creds } = await jiraContextFor(ctx.user, input.key, input.connectionId);
+        const { user, creds } = contextFor(ctx.user, conn);
         const remote = await fetchIssueByKey(creds, input.key);
         if (!remote) {
           throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFoundOnJira") });

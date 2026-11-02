@@ -218,8 +218,15 @@ function samplesOf(row: Row): { samples: (Sample & { id: number })[]; excluded: 
 }
 
 /** The estimate of an issue of mine (R-3.1–R-3.9): none on a closed one. */
-export async function estimateForIssue(userId: number, input: { issueKey: string; connectionId?: number }, now: number, cache: EstimateCache = defaultCache): Promise<IssueEstimate> {
-  const revision = await estimateRevision(userId);
+export async function estimateForIssue(
+  userId: number,
+  input: { issueKey: string; connectionId?: number },
+  now: number,
+  cache: EstimateCache = defaultCache,
+  /** The user's estimate revision when the caller read it already (many issues at once). */
+  known?: bigint,
+): Promise<IssueEstimate> {
+  const revision = known ?? (await estimateRevision(userId));
   const key = `issue:${input.connectionId ?? ""}:${input.issueKey}`;
   const cached = cache.get<IssueEstimate>(userId, revision, key, now);
   if (cached) return cached;

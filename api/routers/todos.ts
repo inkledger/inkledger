@@ -15,6 +15,7 @@ import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
 import { t } from "@contracts/i18n";
 import { mailCopyColumns } from "../mail/copies";
+import { setPositions } from "../queries/positions";
 
 /**
  * The user's TODO list. "Today" is the user's day as their device says it
@@ -308,7 +309,7 @@ export const todosRouter = createRouter({
       if (found.length !== ids.length) throw new TRPCError({ code: "NOT_FOUND", message: t("server.todos.notFound") });
       // From the smallest of their places, one each in the new order (two that shared a place no longer do).
       const from = Math.min(...found.map((f) => f.position));
-      for (const [i, id] of ids.entries()) await tx.update(todos).set({ position: from + i }).where(eq(todos.id, id));
+      await setPositions(tx, todos, { id: todos.id, position: todos.position }, ids.map((id, i) => [id, from + i] as const));
     });
     return { ok: true };
   }),

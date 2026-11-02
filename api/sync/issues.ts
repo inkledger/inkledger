@@ -3,7 +3,7 @@
 // reports gone marked (never deleted here), transfers followed with the
 // time and notes that hang on the issue, and in a full pass the issues no
 // longer among the user's asked one by one: still there, or missing.
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
 import { issueNotes, issues, itemAliases, notifications, outbox, pinboardNotes, timers, todos, worklogs } from "@db/schema";
 import type { StatusCategory } from "@contracts/providers";
 import { getDb } from "../queries/connection";
@@ -11,7 +11,7 @@ import { ensureContainer } from "../queries/containers";
 import type { BoundTracker } from "../providers/core/bind";
 import type { CallMeta } from "../providers/core/context";
 import { eachPage } from "../providers/core/paging";
-import type { Checkpoint, IssueGone, IssueRef, RemoteIssue, ReportedIssueGone } from "../providers/types";
+import type { Checkpoint, ContainerRef, IssueGone, IssueRef, RemoteIssue, ReportedIssueGone } from "../providers/types";
 import type { Budget } from "./budget";
 
 /** The catalogue's status grouping (until categories get their own column, WP-14). */
@@ -71,12 +71,62 @@ export async function upsertRemote(t: Target, i: RemoteIssue): Promise<number> {
   return saved.id;
 }
 
+/**
+ * The containers one pass has written, by what was written: the same
+ * container again is the same row (writing it again would change nothing).
+ */
+type ContainerCache = Map<string, Promise<number>>;
+
+function containerOf(t: Target, c: ContainerRef, cache: ContainerCache): Promise<number> {
+  const key = JSON.stringify({ remoteId: c.remoteId, key: c.key, name: c.name, kind: c.kind, avatarUrl: c.avatarUrl ?? null, group: c.group });
+  let id = cache.get(key);
+  if (!id) {
+    id = ensureContainer(t.connectionId, c);
+    cache.set(key, id);
+    // A failed write is not remembered: the next one tries again, as before.
+    id.catch(() => cache.delete(key));
+  }
+  return id;
+}
+
+/**
+ * A page of issues in the catalogue in one statement, as upsertRemote one
+ * after another would leave it: each container written in the page's order,
+ * an issue listed twice as its last listing.
+ */
+async function upsertPage(t: Target, items: RemoteIssue[], containers: ContainerCache): Promise<void> {
+  const rows = new Map<string, typeof issues.$inferInsert>();
+  for (const i of items) {
+    rows.set(i.remoteId, { userId: t.userId, connectionId: t.connectionId, remoteId: i.remoteId, ...fieldsOf(i), containerId: await containerOf(t, i.container, containers) });
+  }
+  if (rows.size === 0) return;
+  const columns = getTableColumns(issues);
+  const written = Object.keys({ ...fieldsOf(items[0]), containerId: 0 }) as (keyof typeof columns)[];
+  const set: Record<string, SQL> = Object.fromEntries(written.map((k) => [k, sql`excluded.${sql.identifier(columns[k].name)}`]));
+  await getDb()
+    .insert(issues)
+    .values([...rows.values()])
+    .onConflictDoUpdate({ target: [issues.userId, issues.connectionId, issues.remoteId], set });
+}
+
 async function markGone(t: Target, remoteIds: string[], reason: IssueGone["reason"], at = new Date()) {
   if (remoteIds.length === 0) return;
   await getDb()
     .update(issues)
     .set({ goneAt: at, goneReason: reason })
     .where(and(eq(issues.userId, t.userId), eq(issues.connectionId, t.connectionId), inArray(issues.remoteId, remoteIds), isNull(issues.goneAt)));
+}
+
+/** Gone marks in their order, one update per run of the same reason (the first mark of an issue stays, as one by one). */
+async function markGoneInOrder(t: Target, marks: { remoteId: string; reason: IssueGone["reason"] }[]) {
+  let run: string[] = [];
+  for (const [i, m] of marks.entries()) {
+    run.push(m.remoteId);
+    if (marks[i + 1]?.reason !== m.reason) {
+      await markGone(t, run, m.reason);
+      run = [];
+    }
+  }
 }
 
 /**
@@ -127,6 +177,7 @@ export type IssuePassResult = { checkpoint: Checkpoint | null; seen: number; gon
 export async function syncIssues(b: BoundTracker, t: Target, opts: { since: Checkpoint | null; meta: CallMeta; budget: Budget }): Promise<IssuePassResult> {
   const { meta, budget } = opts;
   const seen = new Set<string>();
+  const containers: ContainerCache = new Map();
   let goneCount = 0;
   const { checkpoint } = await eachPage(
     async (q) => {
@@ -135,22 +186,27 @@ export async function syncIssues(b: BoundTracker, t: Target, opts: { since: Chec
     },
     opts.since,
     async (items, gone) => {
-      for (const i of items) {
-        await upsertRemote(t, i);
-        seen.add(i.remoteId);
-      }
+      await upsertPage(t, items, containers);
+      for (const i of items) seen.add(i.remoteId);
+      // Gone marks wait for the next transfer (which may write its successor), then go together.
+      let marks: { remoteId: string; reason: IssueGone["reason"] }[] = [];
       for (const g of gone) {
-        if (g.reason === "transferred") await followTransfer(b, t, meta, budget, g);
-        await markGone(t, [g.remoteId], g.reason);
+        if (g.reason === "transferred") {
+          await markGoneInOrder(t, marks);
+          marks = [];
+          await followTransfer(b, t, meta, budget, g);
+        }
+        marks.push({ remoteId: g.remoteId, reason: g.reason });
         goneCount++;
       }
+      await markGoneInOrder(t, marks);
     },
   );
   const missing = opts.since === null ? await reconcile(b, t, seen, meta, budget) : 0;
   // A full pass also lists every container the account sees: a bucket can pick one with no issue yet.
   if (opts.since === null && b.containers) {
     await budget.take(meta.signal);
-    for (const c of await b.containers(meta)) await ensureContainer(t.connectionId, c);
+    for (const c of await b.containers(meta)) await containerOf(t, c, containers);
   }
   return { checkpoint, seen: seen.size, gone: goneCount, missing };
 }
@@ -172,16 +228,24 @@ async function reconcile(b: BoundTracker, t: Target, seen: Set<string>, meta: Ca
         seen.size ? notInArray(issues.remoteId, [...seen]) : sql`true`,
       ),
     );
+  // Missing marks go together after the loop (before any refresh that would write one of them).
   let missing = 0;
+  let marks: string[] = [];
   for (const r of rest) {
     await budget.take(meta.signal);
     const ref: IssueRef = { remoteId: r.remoteId, key: r.key };
     const remote = await b.getIssue(meta, ref);
-    if (remote) await upsertRemote(t, remote);
-    else {
-      await markGone(t, [r.remoteId], "missing");
+    if (remote) {
+      if (marks.includes(remote.remoteId)) {
+        await markGone(t, marks, "missing");
+        marks = [];
+      }
+      await upsertRemote(t, remote);
+    } else {
+      marks.push(r.remoteId);
       missing++;
     }
   }
+  await markGone(t, marks, "missing");
   return missing;
 }

@@ -10,6 +10,7 @@ import { getDb } from "../queries/connection";
 import { ownBucket } from "../queries/owned";
 import { activeBucket } from "../queries/buckets";
 import { publish } from "../lib/userEvents";
+import { setPositions } from "../queries/positions";
 
 const source = z.object({ connectionId: z.number().int().positive(), containerId: z.number().int().positive().nullable().default(null) });
 const boardMode = z.enum(["lanes", "category", "custom"]);
@@ -125,11 +126,7 @@ export const bucketsRouter = createRouter({
 
   /** The buckets in a new order (the switchers list them so). */
   reorder: protectedProcedure.input(z.object({ ids: z.array(z.number().int().positive()).max(100) })).mutation(async ({ ctx, input }) => {
-    await getDb().transaction(async (tx) => {
-      for (const [position, id] of input.ids.entries()) {
-        await tx.update(buckets).set({ position }).where(and(eq(buckets.id, id), eq(buckets.userId, ctx.user.id)));
-      }
-    });
+    await setPositions(getDb(), buckets, { id: buckets.id, position: buckets.position }, input.ids.map((id, position) => [id, position] as const), eq(buckets.userId, ctx.user.id));
     return { ok: true };
   }),
 

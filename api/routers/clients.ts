@@ -63,17 +63,19 @@ export const clientsRouter = createRouter({
       .select()
       .from(connections)
       .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)));
-    for (const conn of conns) {
-      const b = boundTracker(conn);
-      if (!b?.containers) continue;
-      try {
-        const list = await providerCall(() => b.containers!({ signal: AbortSignal.timeout(30_000), correlationId: `clients-${conn.id}` }));
-        for (const c of list) await ensureContainer(conn.id, c);
-      } catch (e) {
-        // A tracker that doesn't answer suggests from what is known.
-        console.warn(`[clients] ${conn.id}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
+    // Every tracker at once (each its own service); one that doesn't answer suggests from what is known.
+    await Promise.all(
+      conns.map(async (conn) => {
+        const b = boundTracker(conn);
+        if (!b?.containers) return;
+        try {
+          const list = await providerCall(() => b.containers!({ signal: AbortSignal.timeout(30_000), correlationId: `clients-${conn.id}` }));
+          for (const c of list) await ensureContainer(conn.id, c);
+        } catch (e) {
+          console.warn(`[clients] ${conn.id}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }),
+    );
     const taken = new Set((await getDb().select({ name: clients.name }).from(clients).where(eq(clients.userId, ctx.user.id))).map((c) => c.name.toLowerCase()));
     const groups = new Map<string, number[]>();
     for (const b of await userContainers(ctx.user.id)) {

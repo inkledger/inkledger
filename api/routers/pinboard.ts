@@ -8,7 +8,7 @@ import { ownBucket, ownIssueNote, ownMail, ownTodo } from "../queries/owned";
 import { buckets, connections, issueNotes, issues, mails, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
-import { openIssuesTagged, type FollowTag } from "../queries/myIssues";
+import { openIssuesTagged, openIssuesTagger, type FollowTag } from "../queries/myIssues";
 import {
   type NoteColor,
   clampToCanvas,
@@ -80,8 +80,8 @@ async function boardsOf(userId: number) {
  * never shown under a bucket, so the filter never leaks foreign boards.
  */
 async function visibleBoards(userId: number, deviceId: string | undefined) {
-  const [boards, bucket] = await Promise.all([boardsOf(userId), activeBucket(userId, deviceId)]);
-  return { bucket, boards: bucket === null ? boards : boards.filter((b) => b.bucketId === null || b.bucketId === bucket) };
+  const [all, bucket] = await Promise.all([boardsOf(userId), activeBucket(userId, deviceId)]);
+  return { all, bucket, boards: bucket === null ? all : all.filter((b) => b.bucketId === null || b.bucketId === bucket) };
 }
 
 /**
@@ -89,10 +89,13 @@ async function visibleBoards(userId: number, deviceId: string | undefined) {
  * the asked one anyway (pinning from a page with no board in the bucket). A
  * board that is not the user's is NOT_FOUND, never swapped for one of theirs.
  */
+function shownIn(view: Awaited<ReturnType<typeof visibleBoards>>, boardId?: number) {
+  const asked = pickBoard(view.all, boardId);
+  return view.boards.find((b) => b.id === asked.id) ?? view.boards[0] ?? asked;
+}
+
 async function shownBoard(userId: number, deviceId: string | undefined, boardId?: number) {
-  const asked = await resolveBoard(userId, boardId);
-  const { boards } = await visibleBoards(userId, deviceId);
-  return boards.find((b) => b.id === asked.id) ?? boards[0] ?? asked;
+  return shownIn(await visibleBoards(userId, deviceId), boardId);
 }
 
 /** A bucket of the user (a board's scope), or NOT_FOUND. */
@@ -100,7 +103,10 @@ const ownBoardBucket = (userId: number, bucketId: number) => ownBucket(userId, b
 
 /** A board of the user: the asked one, else the first. */
 async function resolveBoard(userId: number, boardId?: number) {
-  const boards = await boardsOf(userId);
+  return pickBoard(await boardsOf(userId), boardId);
+}
+
+function pickBoard(boards: Pinboard[], boardId?: number) {
   if (boardId === undefined) return boards[0];
   const b = boards.find((x) => x.id === boardId);
   if (!b) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.boardNotFound") });
@@ -124,10 +130,10 @@ function writable(b: Pick<Pinboard, "followField" | "followValue" | "followConne
  * shown on the device may): then the first board pinned by hand it shows.
  */
 async function pinTarget(userId: number, deviceId: string | undefined, boardId?: number) {
-  const asked = await shownBoard(userId, deviceId, boardId);
+  const view = await visibleBoards(userId, deviceId);
+  const asked = shownIn(view, boardId);
   if (!followOf(asked)) return asked;
-  const { boards } = await visibleBoards(userId, deviceId);
-  const free = boards.find((b) => !followOf(b)) ?? (await boardsOf(userId)).find((b) => !followOf(b));
+  const free = view.boards.find((b) => !followOf(b)) ?? view.all.find((b) => !followOf(b));
   if (!free) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.followReadOnly") });
   return free;
 }
@@ -287,35 +293,40 @@ export const pinboardRouter = createRouter({
    */
   boards: protectedProcedure.input(z.object(scopeInput).optional()).query(async ({ ctx, input }) => {
     const { bucket, boards } = await visibleBoards(ctx.user.id, ctx.deviceId);
-    const scope = await pinScope(ctx.user.id, ctx.deviceId, input?.connectionId);
+    const [scope, tagged] = await Promise.all([pinScope(ctx.user.id, ctx.deviceId, input?.connectionId), openIssuesTagger(ctx.user.id, ctx.deviceId)]);
     const ids = boards.map((b) => b.id);
-    const counts = ids.length
-      ? await getDb()
-          .select({
-            boardId: pinboardNotes.boardId,
-            all: count(),
-            shown: scope ? sql<number>`count(*) filter (where ${scope})`.mapWith(Number) : count(),
-          })
-          .from(pinboardNotes)
-          .leftJoin(issues, pinnedIssue)
-          .where(and(eq(pinboardNotes.userId, ctx.user.id), inArray(pinboardNotes.boardId, ids)))
-          .groupBy(pinboardNotes.boardId)
-      : [];
-    const by = new Map(counts.map((c) => [c.boardId, c]));
-    const names = new Map(
-      (await getDb().select({ id: buckets.id, name: buckets.name }).from(buckets).where(eq(buckets.userId, ctx.user.id))).map((b) => [b.id, b.name]),
-    );
-    // A followed board counts the issues it shows (capped as it draws them).
-    const followed = new Map<number, number>();
-    for (const b of boards) {
+    const follows = boards.flatMap((b) => {
       const tag = followOf(b);
-      if (!tag) continue;
-      const [r] = await getDb()
-        .select({ n: count() })
-        .from(issues)
-        .where(and(await openIssuesTagged(ctx.user.id, ctx.deviceId, tag), input?.connectionId ? eq(issues.connectionId, input.connectionId) : undefined));
-      followed.set(b.id, Math.min(MAX_NOTES, r?.n ?? 0));
-    }
+      return tag ? [{ id: b.id, tag }] : [];
+    });
+    const [counts, bucketRows, followCounts] = await Promise.all([
+      ids.length
+        ? getDb()
+            .select({
+              boardId: pinboardNotes.boardId,
+              all: count(),
+              shown: scope ? sql<number>`count(*) filter (where ${scope})`.mapWith(Number) : count(),
+            })
+            .from(pinboardNotes)
+            .leftJoin(issues, pinnedIssue)
+            .where(and(eq(pinboardNotes.userId, ctx.user.id), inArray(pinboardNotes.boardId, ids)))
+            .groupBy(pinboardNotes.boardId)
+        : [],
+      getDb().select({ id: buckets.id, name: buckets.name }).from(buckets).where(eq(buckets.userId, ctx.user.id)),
+      // A followed board counts the issues it shows (capped as it draws them).
+      Promise.all(
+        follows.map(async (f) => {
+          const [r] = await getDb()
+            .select({ n: count() })
+            .from(issues)
+            .where(and(tagged(f.tag), input?.connectionId ? eq(issues.connectionId, input.connectionId) : undefined));
+          return [f.id, Math.min(MAX_NOTES, r?.n ?? 0)] as const;
+        }),
+      ),
+    ]);
+    const by = new Map(counts.map((c) => [c.boardId, c]));
+    const names = new Map(bucketRows.map((b) => [b.id, b.name]));
+    const followed = new Map<number, number>(followCounts);
     return boards.map((b) => {
       const c = by.get(b.id);
       const tag = followOf(b);
