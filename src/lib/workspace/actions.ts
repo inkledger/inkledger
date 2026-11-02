@@ -3,7 +3,7 @@ import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import type { DiscoveryState, Draft, Scope } from "@contracts/workspace/model";
 import type { StaleDraftInfo } from "@contracts/workspace/repropose";
-import { workspaceInteractionEpoch, workspaceTaskActive } from "./client";
+import { whenWorkspaceIdle, workspaceInteractionEpoch, workspaceTaskActive } from "./client";
 
 export type WorkspaceActions = ReturnType<typeof useWorkspaceActions>;
 
@@ -80,12 +80,19 @@ export function useWorkspaceActions(scope: Scope, clientInstanceId: string) {
           await invalidate();
           return { status: "committed" as const, revision: committed.revision };
         }
-        if (interrupted()) {
-          await defer({ scope, clientInstanceId, interactionEpoch: committed.presentation.pending?.interactionEpoch ?? interactionEpoch });
+        let leaseToken = committed.leaseToken;
+        let leaseEpoch = committed.presentation.pending?.interactionEpoch ?? interactionEpoch;
+        // A task started while committing: the layout is saved (its draft with it), and shows in this tab
+        // only once the task is over, through a fresh lease (§15.4: activation waits for a safe boundary).
+        while (workspaceTaskActive() || workspaceInteractionEpoch() !== leaseEpoch) {
+          await defer({ scope, clientInstanceId, interactionEpoch: leaseEpoch });
+          await completeDraft({ scope, draftId: ready.draft.draftId, draftRevision: ready.draft.draftRevision });
           await invalidate();
-          return { status: "deferred" as const };
+          await whenWorkspaceIdle();
+          leaseEpoch = workspaceInteractionEpoch();
+          leaseToken = (await renew({ scope, clientInstanceId, interactionEpoch: leaseEpoch, draftRevision: ready.draft.draftRevision })).leaseToken;
         }
-        const activated = await activate({ scope, clientInstanceId, interactionEpoch, leaseToken: committed.leaseToken });
+        const activated = await activate({ scope, clientInstanceId, interactionEpoch: leaseEpoch, leaseToken });
         await acknowledge({
           scope,
           clientInstanceId,
