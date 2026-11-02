@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { isDialogOpen } from "@/lib/dom";
 
 let open = false;
 const listeners = new Set<() => void>();
@@ -31,4 +32,20 @@ export function useCommandPaletteOpen(): boolean {
     () => open,
     () => open
   );
+}
+
+/** ⌘K / Ctrl+K: in the first load, so a key pressed at once is never lost (the palette's body comes later). */
+export function useCommandPaletteShortcut() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        // Never stack on another dialog (QuickStart, focus, log time…).
+        if (!commandPalette.isOpen() && isDialogOpen()) return;
+        commandPalette.toggle();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 }

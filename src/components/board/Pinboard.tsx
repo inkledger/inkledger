@@ -1,5 +1,5 @@
 import { toastError, errorText } from "@/lib/errorText";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { dayKey } from "@contracts/time";
 import { useNavigate } from "react-router";
 import {
@@ -123,6 +123,50 @@ const NONE: Offscreen = {
   left: { count: 0, nearest: null },
   right: { count: 0, nearest: null },
 };
+const sameEdges = (a: Offscreen, b: Offscreen) =>
+  (Object.keys(a) as Edge[]).every(edge => a[edge].count === b[edge].count && a[edge].nearest === b[edge].nearest);
+
+type NoteActions = {
+  front: (id: number) => void;
+  nudge: (id: number, dx: number, dy: number) => void;
+  move: (n: PostItData, x: number, y: number) => void;
+  note: (n: PostItData, note: string) => void;
+  color: (n: PostItData, color: NoteColor) => void;
+  remove: (n: PostItData) => void;
+  tick: (n: PostItData, done: boolean) => void;
+  copy: (n: PostItData, to: number, move: boolean) => void;
+  createIssue: (n: PostItData) => void;
+  open: (n: PostItData) => void;
+};
+
+/** A post-it on the board, drawn again only when its note, the zoom or the boards change. */
+const PinnedNote = memo(function PinnedNote({ n, zoom, readOnly, boards, actions }: {
+  n: PostItData;
+  zoom: number;
+  readOnly: boolean;
+  boards: { id: number; name: string }[];
+  actions: RefObject<NoteActions | null>;
+}) {
+  return (
+    <PostIt
+      n={n}
+      zoom={zoom}
+      readOnly={readOnly}
+      onFront={() => actions.current?.front(n.id)}
+      onNudge={(dx, dy) => actions.current?.nudge(n.id, dx, dy)}
+      onMove={(x, y) => actions.current?.move(n, x, y)}
+      onNote={note => actions.current?.note(n, note)}
+      onDrag={p => pinboardLive.set(n.id, p)}
+      onColor={color => actions.current?.color(n, color)}
+      onRemove={() => actions.current?.remove(n)}
+      onTodoTick={n.todo ? done => actions.current?.tick(n, done) : undefined}
+      boards={boards}
+      onCopy={(to, move) => actions.current?.copy(n, to, move)}
+      onCreateIssue={() => actions.current?.createIssue(n)}
+      onOpen={() => actions.current?.open(n)}
+    />
+  );
+});
 
 /**
  * The lavagne: named boards of notes pinned by hand on a fixed canvas
@@ -215,7 +259,7 @@ export function Pinboard({
     return next;
   };
   /** A TODO's post-it ticked: ticked in its list too (a repeating one comes back from today). */
-  const tickTodo = (n: Note, done: boolean) => {
+  const tickTodo = (n: PostItData, done: boolean) => {
     const todo = n.todo;
     if (!todo) return;
     patch(n.id, { todo: { ...todo, done } }, () =>
@@ -282,7 +326,11 @@ export function Pinboard({
   };
 
   // Elsewhere: the other boards pinned by hand (a followed one shows the tracker's, nothing goes there).
-  const elsewhere = boards.filter(b => !b.follow && b.id !== boardId).map(b => ({ id: b.id, name: b.name }));
+  // One list while the boards stay: the notes are drawn again only when they change.
+  const elsewhere = useMemo(
+    () => (freshBoards ?? []).filter(b => !b.follow && b.id !== boardId).map(b => ({ id: b.id, name: b.name })),
+    [freshBoards, boardId]
+  );
 
   /** A post-it to another board, moved or copied; from a followed board, its issue pinned there. */
   const copy = async (n: PostItData, to: number, move: boolean) => {
@@ -359,14 +407,14 @@ export function Pinboard({
     frame.current = requestAnimationFrame(() => {
       const el = scroller.current;
       if (!el) return;
-      setEdges(
-        offscreenByEdge(notes, {
-          left: el.scrollLeft / zoom,
-          top: el.scrollTop / zoom,
-          width: el.clientWidth / zoom,
-          height: el.clientHeight / zoom,
-        })
-      );
+      const next = offscreenByEdge(notes, {
+        left: el.scrollLeft / zoom,
+        top: el.scrollTop / zoom,
+        width: el.clientWidth / zoom,
+        height: el.clientHeight / zoom,
+      });
+      // Every scroll measures: the board is drawn again only when a pill changes.
+      setEdges(prev => (sameEdges(prev, next) ? prev : next));
     });
   }, [notes, zoom]);
   useEffect(() => {
@@ -414,6 +462,45 @@ export function Pinboard({
     () => new Set(notes.flatMap(n => (n.issueKey && !n.issueNoteId ? [`${n.connectionId}:${n.issueKey}`] : []))),
     [notes]
   );
+
+  // What a post-it does, read when it acts: its props stay the same, so a note is drawn
+  // again only when it changes (not with every scroll, zoom of another or sync).
+  const noteActions = useRef<NoteActions | null>(null);
+  useLayoutEffect(() => {
+    noteActions.current = {
+      front: toFront,
+      nudge,
+      move: (n, x, y) =>
+        patch(n.id, { x, y }, () =>
+          utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), x, y, toFront: true })
+        ),
+      note: (n, note) =>
+        n.todo
+          ? // A TODO: the text is the TODO's (its list shows it too).
+            patch(n.id, { todo: { ...n.todo, text: note } }, () =>
+              utils.client.pinboard.update.mutate({ id: n.id, note }).then(() => utils.todos.invalidate())
+            )
+          : n.issueNoteId
+          ? // A private note: the text is the note's (the issue page shows it too).
+            patch(n.id, { noteBody: note }, () =>
+              utils.client.pinboard.update
+                .mutate({ id: n.id, note })
+                .then(() => (n.issueKey ? utils.issueNotes.list.invalidate({ issueKey: n.issueKey, connectionId: n.connectionId ?? undefined }) : undefined))
+            )
+          : patch(n.id, { note }, () =>
+              utils.client.pinboard.update.mutate({ id: n.id, note })
+            ),
+      color: (n, color) =>
+        patch(n.id, { color }, () =>
+          utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), color })
+        ),
+      remove: n => void remove(n),
+      tick: tickTodo,
+      copy: (n, to, move) => void copy(n, to, move),
+      createIssue,
+      open: n => n.issueKey && void navigate(issuePath({ key: n.issueKey, connectionId: n.connectionId })),
+    };
+  });
 
   const wide = panel === "wide";
   return (
@@ -693,48 +780,7 @@ export function Pinboard({
                   </div>
                 )}
                 {notes.map(n => (
-                  <PostIt
-                    key={n.id}
-                    n={n}
-                    zoom={zoom}
-                    readOnly={!!follow}
-                    onFront={() => toFront(n.id)}
-                    onNudge={(dx, dy) => nudge(n.id, dx, dy)}
-                    onMove={(x, y) =>
-                      patch(n.id, { x, y }, () =>
-                        utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), x, y, toFront: true })
-                      )
-                    }
-                    onNote={note =>
-                      n.todo
-                        ? // A TODO: the text is the TODO's (its list shows it too).
-                          patch(n.id, { todo: { ...n.todo, text: note } }, () =>
-                            utils.client.pinboard.update.mutate({ id: n.id, note }).then(() => utils.todos.invalidate())
-                          )
-                        : n.issueNoteId
-                        ? // A private note: the text is the note's (the issue page shows it too).
-                          patch(n.id, { noteBody: note }, () =>
-                            utils.client.pinboard.update
-                              .mutate({ id: n.id, note })
-                              .then(() => (n.issueKey ? utils.issueNotes.list.invalidate({ issueKey: n.issueKey, connectionId: n.connectionId ?? undefined }) : undefined))
-                          )
-                        : patch(n.id, { note }, () =>
-                            utils.client.pinboard.update.mutate({ id: n.id, note })
-                          )
-                    }
-                    onDrag={p => pinboardLive.set(n.id, p)}
-                    onColor={color =>
-                      patch(n.id, { color }, () =>
-                        utils.client.pinboard.update.mutate({ id: n.id, ...onFollowed(n.id), color })
-                      )
-                    }
-                    onRemove={() => void remove(n)}
-                    onTodoTick={n.todo ? done => tickTodo(n, done) : undefined}
-                    boards={elsewhere}
-                    onCopy={(to, move) => void copy(n, to, move)}
-                    onCreateIssue={() => createIssue(n)}
-                    onOpen={() => n.issueKey && void navigate(issuePath({ key: n.issueKey, connectionId: n.connectionId }))}
-                  />
+                  <PinnedNote key={n.id} n={n} zoom={zoom} readOnly={!!follow} boards={elsewhere} actions={noteActions} />
                 ))}
                 <Strings notes={notes} />
               </div>

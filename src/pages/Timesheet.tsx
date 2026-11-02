@@ -234,16 +234,16 @@ export default function Timesheet() {
     });
   }, [period, fetchTo]);
 
-  const periodLogs = useMemo(() => {
-    const days = view === "week" ? weekDays : monthCells.filter(c => c.inMonth);
-    return days.flatMap(d => byDay.get(d.key) ?? []);
-  }, [view, weekDays, monthCells, byDay]);
+  // The days of the period shown: the week, or the month's own days.
+  const periodDays = useMemo<{ date: Date; key: string }[]>(
+    () => (view === "week" ? weekDays : monthCells.filter(c => c.inMonth)),
+    [view, weekDays, monthCells]
+  );
+  const periodLogs = useMemo(() => periodDays.flatMap(d => byDay.get(d.key) ?? []), [periodDays, byDay]);
   // The hours worked (parallel work once); the entries' sum beside it when they differ.
   const periodTotal = workedSeconds(periodLogs);
   const periodLogged = periodLogs.reduce((a, w) => a + w.timeSpentSeconds, 0);
-  const target = (
-    view === "week" ? weekDays : monthCells.filter(c => c.inMonth)
-  ).reduce((a, d) => a + targetFor(d.date), 0);
+  const target = periodDays.reduce((a, d) => a + targetFor(d.date), 0);
 
   const { colorOf, legend, count: projectCount } = useMemo(() => {
     const totals = new Map<string, number>();
@@ -298,8 +298,7 @@ export default function Timesheet() {
   );
 
   const dayStats = useMemo(() => {
-    const days = view === "week" ? weekDays : monthCells.filter(c => c.inMonth);
-    const totals = days.map(d => ({
+    const totals = periodDays.map(d => ({
       date: d.date,
       key: d.key,
       seconds: workedSeconds(byDay.get(d.key) ?? []),
@@ -315,7 +314,7 @@ export default function Timesheet() {
       null
     );
     return { under, active: active.length, longest };
-  }, [view, weekDays, monthCells, byDay, todayKey, targetFor]);
+  }, [periodDays, byDay, todayKey, targetFor]);
 
   // --- closed weeks ---
   const weekKey = dayKey(period.from);

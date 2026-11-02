@@ -1,6 +1,4 @@
 import { lazyPart } from "@/components/app/lazyPart";
-// The palette owns ⌘K: in the first load, so a key pressed at once is never lost.
-import { CommandPalette } from "@/components/CommandPalette";
 import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
 import { memo, Suspense, useRef } from "react";
@@ -43,14 +41,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TimerLogHost } from "@/components/TimerLogHost";
-import { commandPalette } from "@/lib/commandPalette";
+import { commandPalette, useCommandPaletteShortcut } from "@/lib/commandPalette";
 import { notificationCenter, screensaver } from "@/lib/flag";
 import { useShadowReach } from "@/hooks/useShadowReach";
 import { openTodosSheet, useTodoSurfacesNow, useTodoWiring } from "@/hooks/useTodoPanel";
 import { useTodoReminders, useTodoReminderToast } from "@/hooks/useTodoReminders";
 import { TodoWidget } from "@/components/todo/TodoWidget";
-import { MakeTodoHost } from "@/components/todo/MakeTodo";
 import { HotCorner } from "@/components/todo/HotCorner";
 import { togglePinboard, usePinboardPanel, usePinboardTarget, usePinboardWiring } from "@/hooks/usePinboardPanel";
 import { PinboardWidget } from "@/components/board/PinboardWidget";
@@ -107,6 +103,10 @@ const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog"
 const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
 const IdeaCaptureDialog = lazyPart(() => import("@/components/ideas/IdeaCaptureDialog").then(m => m.IdeaCaptureDialog));
 const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog));
+// The palette's body: its ⌘K stays in the first load (useCommandPaletteShortcut), so a key pressed at once is never lost.
+const CommandPalette = lazyPart(() => import("@/components/CommandPalette").then(m => m.CommandPalette));
+const TimerLogHost = lazyPart(() => import("@/components/TimerLogHost").then(m => m.TimerLogHost));
+const MakeTodoHost = lazyPart(() => import("@/components/todo/MakeTodo").then(m => m.MakeTodoHost));
 
 /** Opens the focus view; shown only while a timer exists. */
 function ActiveTimerFocusButton() {
@@ -530,6 +530,7 @@ function ShellWatchers() {
 /** App shell: grouped sidebar on canvas, content in a single white panel. */
 export function AppLayout() {
   useHotkeys();
+  useCommandPaletteShortcut();
   usePinboardWiring();
   useShadowReach();
   useTodoWiring();

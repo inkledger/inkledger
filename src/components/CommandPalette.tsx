@@ -43,7 +43,6 @@ import {
 } from "@/components/ui/command";
 import { commandPalette, useCommandPaletteOpen } from "@/lib/commandPalette";
 import { shortcutsHelp } from "@/lib/shortcuts";
-import { isDialogOpen } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
@@ -63,15 +62,10 @@ import { emitWorkspaceSearch } from "@/lib/workspace/searchEvents";
 /**
  * Global ⌘K palette: jump to any issue, navigate, sync, toggle theme.
  * The fastest way to operate the app without touching the mouse.
+ * Its shortcut lives in the first load (useCommandPaletteShortcut); this body follows.
  */
 export function CommandPalette() {
   const open = useCommandPaletteOpen();
-  const setOpen = commandPalette.set;
-  const navigate = useNavigate();
-  const { setTheme, resolvedTheme } = useTheme();
-  const { pathname } = useLocation();
-  const pinTarget = usePinboardTarget(pathname);
-  const todoTarget = useTodoTarget(pathname);
   const searchSelected = useRef(false);
   const searchWasOpen = useRef(false);
   useEffect(() => {
@@ -86,19 +80,38 @@ export function CommandPalette() {
     if (searchWasOpen.current && !searchSelected.current) emitWorkspaceSearch("search.abandoned");
     searchWasOpen.current = false;
   }, [open]);
+  // Kept while closed: reopened, the palette shows what was typed.
+  const [typed, setTyped] = useState("");
+  const query = useDebouncedValue(typed.trim(), 300);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        // Never stack on another dialog (QuickStart, focus, log time…).
-        if (!commandPalette.isOpen() && isDialogOpen()) return;
-        commandPalette.toggle();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={commandPalette.set}
+      title={t("ui.palette.title")}
+      description={t("ui.palette.description")}
+    >
+      {/* Mounted only while the dialog shows: closed, the palette follows no timers, sync or buckets. */}
+      <PaletteBody open={open} typed={typed} setTyped={setTyped} query={query} onSelected={() => {
+        searchSelected.current = true;
+      }} />
+    </CommandDialog>
+  );
+}
+
+function PaletteBody({ open, typed, setTyped, query, onSelected }: {
+  open: boolean;
+  typed: string;
+  setTyped: (value: string) => void;
+  query: string;
+  onSelected: () => void;
+}) {
+  const setOpen = commandPalette.set;
+  const navigate = useNavigate();
+  const { setTheme, resolvedTheme } = useTheme();
+  const { pathname } = useLocation();
+  const pinTarget = usePinboardTarget(pathname);
+  const todoTarget = useTodoTarget(pathname);
 
   // Local issues for instant jump-to-issue (cached, no extra load)
   const issues = trpc.issues.all.useQuery(BUCKET_SCOPE, {
@@ -107,8 +120,6 @@ export function CommandPalette() {
   });
   // Past what the list holds (a big catalogue): the server searches the rest.
   const size = trpc.issues.allSize.useQuery(BUCKET_SCOPE, { enabled: open, staleTime: 60_000 });
-  const [typed, setTyped] = useState("");
-  const query = useDebouncedValue(typed.trim(), 300);
   const beyond = !!size.data && size.data.total > size.data.limit;
   const more = trpc.issues.list.useQuery(
     { search: query, includeDone: true, includeUnassigned: true, pageSize: 20 },
@@ -128,19 +139,14 @@ export function CommandPalette() {
   const provider = useProviderName();
 
   const go = (path: string) => {
-    searchSelected.current = true;
+    onSelected();
     emitWorkspaceSearch("search.selected", path);
     setOpen(false);
     void navigate(path);
   };
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={setOpen}
-      title={t("ui.palette.title")}
-      description={t("ui.palette.description")}
-    >
+    <>
       <CommandInput placeholder={t("ui.palette.placeholder")} value={typed} onValueChange={setTyped} />
       <CommandList>
         <CommandEmpty>{t("ui.palette.empty")}</CommandEmpty>
@@ -391,7 +397,7 @@ export function CommandPalette() {
           {t("ui.palette.shortcutsHint")}
         </span>
       </div>
-    </CommandDialog>
+    </>
   );
 }
 

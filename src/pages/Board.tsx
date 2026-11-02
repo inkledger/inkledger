@@ -295,7 +295,7 @@ export default function Board() {
     // nameOf reads connections, listed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, customColumns, sourceIds, statuses, rows, connections]);
-  const allColumns = lanes.flatMap(l => l.columns);
+  const allColumns = useMemo(() => lanes.flatMap(l => l.columns), [lanes]);
 
   // "Lately" for finished columns: from when the board was opened.
   const [openedAt] = useState(() => Date.now());
@@ -365,10 +365,26 @@ export default function Board() {
     go(d.card, targets.get(columnId) ?? []);
   };
 
-  const cardsOf = (col: BoardColumn) =>
-    shownRows.filter(r => columnOf({ connectionId: r.connectionId, status: r.status, category: r.category }, [col]) === col.id);
+  // The cards of each column (custom columns may share a status: a card shows in each), in one pass.
   // Custom columns: cards no column takes, said apart (they can't be dropped back there).
-  const unmapped = mode === "custom" ? shownRows.filter(r => columnOf({ connectionId: r.connectionId, status: r.status, category: r.category }, allColumns) === null) : [];
+  const { byColumn, unmapped } = useMemo(() => {
+    const byColumn = new Map<string, Row[]>();
+    const unmapped: Row[] = [];
+    for (const r of shownRows) {
+      const card = { connectionId: r.connectionId, status: r.status, category: r.category };
+      let taken = false;
+      for (const col of allColumns) {
+        if (columnOf(card, [col]) !== col.id) continue;
+        taken = true;
+        const list = byColumn.get(col.id);
+        if (list) list.push(r);
+        else byColumn.set(col.id, [r]);
+      }
+      if (!taken && mode === "custom") unmapped.push(r);
+    }
+    return { byColumn, unmapped };
+  }, [shownRows, allColumns, mode]);
+  const cardsOf = (col: BoardColumn) => byColumn.get(col.id) ?? [];
 
   /** The catalogue on this column: its status (a tracker's status column), done ones included from a done column. */
   const catalogOf = (col: Lane["columns"][number], done: boolean) => {
