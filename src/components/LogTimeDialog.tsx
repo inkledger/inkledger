@@ -5,6 +5,7 @@ import {
   formatSeconds,
   MAX_WORKLOG_SECONDS,
   parseDurationToSeconds,
+  roundToMinute,
   toLocalInputValue,
 } from "@contracts/time";
 import { DURATION_PRESETS } from "@/lib/jira";
@@ -50,7 +51,7 @@ export type EditableWorklog = {
  * hours and minutes only, so a day in the work schedule never changes it.
  */
 function durationInput(seconds: number): string {
-  return formatSeconds(Math.max(60, Math.round(seconds / 60) * 60), { days: false });
+  return formatSeconds(roundToMinute(seconds), { days: false });
 }
 
 type Props = {

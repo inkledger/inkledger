@@ -1,4 +1,4 @@
-import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
+import { formatDate, formatDuration, parseDayKey, addDays, dayKey } from "@contracts/time";
 import { PanelSection } from "@/components/app/Panel";
 import { ErrorState } from "@/components/app/States";
 import { Chip } from "@/components/app/Chip";
@@ -94,9 +94,7 @@ function Finish({ f }: { f: FinishData }) {
 
 /** Today plus `n` days, as a key. */
 function addDaysKey(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dayKey(addDays(new Date(), n - 1));
 }
 
 type TrendData = inferRouterOutputs<AppRouter>["forecast"]["trend"];

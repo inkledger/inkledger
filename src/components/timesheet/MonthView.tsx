@@ -6,13 +6,11 @@ import { surface } from "@/components/app/surface";
 import { goalTone } from "@/lib/goalTone";
 import { t, dateFormat } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
+import { capitalize } from "@/lib/dates";
 
 /** Monday-first short weekday names, in the current language. */
 const weekdays = () =>
-  Array.from({ length: 7 }, (_, i) => {
-    const name = dateFormat({ weekday: "short" }).format(new Date(2024, 0, 1 + i));
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  });
+  Array.from({ length: 7 }, (_, i) => capitalize(dateFormat({ weekday: "short" }).format(new Date(2024, 0, 1 + i))));
 const long = () => dateFormat({ weekday: "short", day: "numeric", month: "short" });
 
 type Cell = { date: Date; key: string; inMonth: boolean };

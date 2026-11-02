@@ -16,6 +16,7 @@ import { dateFormat, numberFormat, t, type MessageKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { anchorLabel, areaLabel } from "@/lib/workspace/labels";
 import { downloadBlob } from "@/lib/download";
+import { dayMonth } from "@/lib/dates";
 
 type Candidate = { patch: SuggestionPatch; preview: ResolvedWorkspace; reason: string; ranking: Ranking; adaptationWindowDays: number };
 const key = (name: string) => `settings.categories.workspace.${name}` as MessageKey;
@@ -37,8 +38,7 @@ type EvidenceSummary = { evidenceId: string; coverage: { firstAt: number; lastAt
 
 /** Evidence named by when it was collected, never by its internal id. */
 function evidenceLabel(evidence: EvidenceSummary): string {
-  const day = dateFormat({ day: "numeric", month: "short" });
-  const range = `${day.format(evidence.coverage.firstAt)} – ${day.format(evidence.coverage.lastAt)}`;
+  const range = `${dayMonth(evidence.coverage.firstAt)} – ${dayMonth(evidence.coverage.lastAt)}`;
   return t(key("evidenceRange"), { range, count: evidence.coverage.activeDays });
 }
 

@@ -21,7 +21,7 @@ import { day, flag, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { toast } from "sonner";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
-import { addDays, dayKey, formatDurationLong, formatDuration, parseDayKey, startOfWeek, hoursDecimal } from "@contracts/time";
+import { addDays, dayKey, formatDurationLong, formatDuration, parseDayKey, startOfWeek, hoursDecimal, roundToMinute, DAY_MS } from "@contracts/time";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useWorklogSelection } from "@/hooks/useWorklogSelection";
 import { downloadCsv } from "@/lib/csv";
@@ -58,10 +58,7 @@ import { PeriodNav } from "@/components/app/PeriodNav";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
 import { QuickLog } from "@/components/QuickLog";
 import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
-import {
-  PeriodSummary,
-  type IssueTotal,
-} from "@/components/dashboard/PeriodSummary";
+import { PeriodSummary } from "@/components/dashboard/PeriodSummary";
 import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { LogTimeDialog } from "@/components/LogTimeDialog";
@@ -78,6 +75,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TrashDialog } from "@/components/timesheet/TrashDialog";
 import { workedSeconds } from "@/lib/worked";
+import { topIssueTotals } from "@/lib/issueTotals";
+import { capitalize } from "@/lib/dates";
 
 type View = "week" | "month";
 
@@ -91,7 +90,6 @@ const monthYear = () => dateFormat({ month: "long", year: "numeric" });
 const dateNumeric = () => dateFormat({ day: "2-digit", month: "2-digit", year: "numeric" });
 const logDayFormat = () => dateFormat({ weekday: "short", day: "numeric", month: "short" });
 
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 type Confirm =
   | { type: "delete"; log: TimesheetLog }
@@ -222,7 +220,7 @@ export default function Timesheet() {
   );
   const monthCells = useMemo(() => {
     const count = Math.round(
-      (fetchTo.getTime() - period.fetchFrom.getTime()) / (7 * 86400000)
+      (fetchTo.getTime() - period.fetchFrom.getTime()) / (7 * DAY_MS)
     );
     return Array.from({ length: count * 7 }, (_, i) => {
       const date = addDays(period.fetchFrom, i);
@@ -254,26 +252,7 @@ export default function Timesheet() {
     return rankProjects(totals);
   }, [periodLogs]);
 
-  const issueTotals = useMemo<IssueTotal[]>(() => {
-    const map = new Map<string, IssueTotal>();
-    for (const w of periodLogs) {
-      const id = issueId(w);
-      const entry = map.get(id) ?? {
-        issueKey: w.issueKey,
-        connectionId: w.connectionId,
-        seconds: 0,
-      };
-      entry.seconds += w.timeSpentSeconds;
-      map.set(id, entry);
-    }
-    return [...map.values()]
-      .sort((a, b) => b.seconds - a.seconds)
-      .slice(0, 5)
-      .map(total => {
-        const info = summaries.get(issueId(total));
-        return { ...total, summary: info?.summary, remoteId: info?.remoteId };
-      });
-  }, [periodLogs, summaries]);
+  const issueTotals = useMemo(() => topIssueTotals(periodLogs, summaries), [periodLogs, summaries]);
 
   const stacks = useMemo<DayStack[]>(
     () =>
@@ -401,7 +380,7 @@ export default function Timesheet() {
     // Jira logs whole minutes: round once, and move the cursor by the same.
     const blocks = entries.map(w => ({
       w,
-      seconds: Math.max(60, Math.round(w.timeSpentSeconds / 60) * 60),
+      seconds: roundToMinute(w.timeSpentSeconds),
     }));
     const total = blocks.reduce((a, b) => a + b.seconds, 0);
     if (!todayPlacement.ready) {

@@ -11,9 +11,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { t, dateFormat } from "@/i18n";
+import { t } from "@/i18n";
+import { dayMonth } from "@/lib/dates";
 
-const short = () => dateFormat({ day: "numeric", month: "short" });
 
 /**
  * One header control for the report period: presets plus a custom range,
@@ -39,7 +39,7 @@ export function PeriodPicker({
   const [open, setOpen] = useState(false);
   const a = parseDayKey(from);
   const b = parseDayKey(to);
-  const range = a && b ? `${short().format(a)} – ${short().format(b)}` : "—";
+  const range = a && b ? `${dayMonth(a)} – ${dayMonth(b)}` : "—";
   const presetLabel = PRESET_OPTIONS.find(p => p.value === preset)?.label;
 
   return (

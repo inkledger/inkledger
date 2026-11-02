@@ -1,7 +1,5 @@
 import { dateFormat } from "@contracts/i18n";
-import { parseDayKey, startOfDay } from "@contracts/time";
-
-const DAY_MS = 86_400_000;
+import { DAY_MS, parseDayKey, startOfDay } from "@contracts/time";
 
 /** Days from today to a "YYYY-MM-DD" due date (negative = overdue). */
 export function daysUntil(due: string, today: Date): number | null {
@@ -21,6 +19,16 @@ export function timeOfDay(at: Date | number): string {
 /** A moment with its day: "Thu 22 Oct, 09:30" / "gio 22 ott, 09:30". */
 export function dayAndTime(at: Date | number): string {
   return dateFormat({ weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(at);
+}
+
+/** A day and its month: "22 Oct" / "22 ott". */
+export function dayMonth(at: Date | number): string {
+  return dateFormat({ day: "numeric", month: "short" }).format(at);
+}
+
+/** The first letter in upper case: a date that starts a title ("giovedì 22 ottobre" → "Giovedì 22 ottobre"). */
+export function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** A date in the locale's medium style: "22 Oct 2026" / "22 ott 2026"; an invalid one says so, as toLocaleDateString did. */

@@ -2,7 +2,7 @@ import { toastError, failureText } from "@/lib/errorText";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { providerName } from "@contracts/providerNames";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { MoreHorizontal, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { useDeviceFlow } from "@/hooks/useDeviceFlow";
 
 type Shown = inferRouterOutputs<AppRouter>["connections"]["list"][number];
 
@@ -93,57 +94,19 @@ function JiraForm({ reconnect, onDone }: { reconnect?: Shown; onDone: () => void
 function GitHubForm({ reconnect = false, onDone }: { reconnect?: boolean; onDone: () => void }) {
   const refresh = useRefresh();
   const [label, setLabel] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [flow, setFlow] = useState<{ flowId: string; userCode: string; verificationUri: string; intervalSeconds: number } | null>(null);
-  const poll = trpc.connections.githubPoll.useMutation();
-  const start = trpc.connections.githubStart.useMutation({
-    onSuccess: f => {
-      setFlow(f);
-      window.open(f.verificationUri, "_blank", "noopener");
-    },
-    onError: e => setError(failureText(e)),
-  });
-  const { mutateAsync } = poll;
-  // The latest callbacks, without restarting the wait at each render.
-  const finish = useRef(() => {});
-  useEffect(() => {
-    finish.current = () => {
+  const { mutateAsync: poll } = trpc.connections.githubPoll.useMutation();
+  const { flow, error, setError, begin, fail } = useDeviceFlow(poll, r => {
+    if (r.state === "pending") return { wait: r.retryInSeconds };
+    if (r.state === "done") {
+      const name = r.connection.label || r.connection.displayName || "GitHub";
+      toast.success(reconnect ? t("settings.connections.reconnected") : t("settings.connections.added", { name }));
       refresh();
       onDone();
-    };
+      return "keep";
+    }
+    return { end: r.reason === "denied" ? t("settings.connections.githubDenied") : t("settings.connections.githubExpired") };
   });
-  useEffect(() => {
-    if (!flow) return;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const ask = (seconds: number) => {
-      timer = setTimeout(() => {
-        void mutateAsync({ flowId: flow.flowId })
-          .then(r => {
-            if (stopped) return;
-            if (r.state === "pending") return ask(r.retryInSeconds);
-            if (r.state === "done") {
-              const name = r.connection.label || r.connection.displayName || "GitHub";
-              toast.success(reconnect ? t("settings.connections.reconnected") : t("settings.connections.added", { name }));
-              finish.current();
-              return;
-            }
-            setFlow(null);
-            setError(r.reason === "denied" ? t("settings.connections.githubDenied") : t("settings.connections.githubExpired"));
-          })
-          .catch((e: unknown) => {
-            if (stopped) return;
-            setFlow(null);
-            setError(failureText(e));
-          });
-      }, seconds * 1000);
-    };
-    ask(flow.intervalSeconds);
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [flow, mutateAsync, reconnect]);
+  const start = trpc.connections.githubStart.useMutation({ onSuccess: begin, onError: fail });
 
   if (flow) {
     return (

@@ -1,6 +1,7 @@
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
-import { dateFormat, t, type MessageKey } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import type { EvidenceSet } from "@contracts/workspace/flowMap";
+import { dayMonth } from "@/lib/dates";
 
 /** An area by its name in the user's language, never its catalogue id. */
 export const areaLabel = (areaId: string): string =>
@@ -33,8 +34,7 @@ export function inPageOrder<T extends { id: string }>(areas: readonly T[]): T[] 
 
 /** A period of use by its days: one day once, two days as a range. */
 export function periodLabel(coverage: EvidenceSet["coverage"]): string {
-  const day = dateFormat({ day: "numeric", month: "short" });
-  const from = day.format(coverage.firstAt);
-  const to = day.format(coverage.lastAt);
+  const from = dayMonth(coverage.firstAt);
+  const to = dayMonth(coverage.lastAt);
   return from === to ? from : `${from} – ${to}`;
 }

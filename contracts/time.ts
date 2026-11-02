@@ -227,3 +227,8 @@ export function wallHours(ms: number, dayStart: number): number {
   const wall = (t: number) => t - new Date(t).getTimezoneOffset() * 60_000;
   return (wall(ms) - wall(dayStart)) / 3_600_000;
 }
+
+/** Seconds rounded to the nearest whole minute, at least one (trackers log per minute). */
+export function roundToMinute(seconds: number): number {
+  return Math.max(60, Math.round(seconds / 60) * 60);
+}

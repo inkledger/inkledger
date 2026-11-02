@@ -12,7 +12,7 @@ import { publish } from "../lib/userEvents";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
-import { dayKey } from "@contracts/time";
+import { dayKey, roundToMinute } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
 import { withWriteLease } from "../queries/writeLease";
 import { endSession, openSession, trimSession } from "../queries/todoSessions";
@@ -41,10 +41,7 @@ export function elapsedSeconds(t: Timer, now: Date = new Date()): number {
   return t.accumulatedSeconds + running;
 }
 
-/** Round to the nearest whole minute, at least one (Jira logs per minute). */
-export function roundToMinute(seconds: number): number {
-  return Math.max(60, Math.round(seconds / 60) * 60);
-}
+export { roundToMinute };
 
 type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];

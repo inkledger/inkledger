@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Copy, Download, KeyRound, LogOut, Mail } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormError } from "@/components/auth/AuthShell";
-import { failureText, toastError } from "@/lib/errorText";
+import { toastError } from "@/lib/errorText";
 import { mediumDate } from "@/lib/dates";
 import { formatBytes } from "@/lib/initials";
 import { ErrorState } from "@/components/app/States";
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { t } from "@/i18n";
+import { useDeviceFlow } from "@/hooks/useDeviceFlow";
 
 const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success(t("settings.outlook.copied")));
 
@@ -137,50 +138,19 @@ function CopiesGroup() {
 function MailboxGroup() {
   const utils = trpc.useUtils();
   const account = trpc.mails.account.useQuery();
-  const [error, setError] = useState<string | null>(null);
-  const [flow, setFlow] = useState<{ flowId: string; userCode: string; verificationUri: string; intervalSeconds: number } | null>(null);
-  const start = trpc.mails.signInStart.useMutation({
-    onSuccess: f => {
-      setFlow(f);
-      window.open(f.verificationUri, "_blank", "noopener");
-    },
-    onError: e => setError(failureText(e)),
-  });
-  const signOut = trpc.mails.signOut.useMutation({ onSuccess: () => void utils.mails.account.invalidate(), onError: e => toastError(e) });
   const { mutateAsync: poll } = trpc.mails.signInPoll.useMutation();
-
-  useEffect(() => {
-    if (!flow) return;
-    let stopped = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const ask = (seconds: number) => {
-      timer = setTimeout(() => {
-        void poll({ flowId: flow.flowId })
-          .then(r => {
-            if (stopped) return;
-            if (r.state === "pending") return ask(r.retryInSeconds);
-            setFlow(null);
-            if (r.state === "authorized") {
-              toast.success(t("settings.outlook.signedInAs", { account: r.account }));
-              void utils.mails.account.invalidate();
-              void utils.mails.search.invalidate();
-              return;
-            }
-            setError(t(r.reason === "consent" ? "settings.outlook.consent" : r.reason === "denied" ? "settings.outlook.denied" : "settings.outlook.expired"));
-          })
-          .catch((e: unknown) => {
-            if (stopped) return;
-            setFlow(null);
-            setError(failureText(e));
-          });
-      }, seconds * 1000);
-    };
-    ask(flow.intervalSeconds);
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [flow, poll, utils]);
+  const { flow, error, setError, begin, fail } = useDeviceFlow(poll, r => {
+    if (r.state === "pending") return { wait: r.retryInSeconds };
+    if (r.state === "authorized") {
+      toast.success(t("settings.outlook.signedInAs", { account: r.account }));
+      void utils.mails.account.invalidate();
+      void utils.mails.search.invalidate();
+      return { end: null };
+    }
+    return { end: t(r.reason === "consent" ? "settings.outlook.consent" : r.reason === "denied" ? "settings.outlook.denied" : "settings.outlook.expired") };
+  });
+  const start = trpc.mails.signInStart.useMutation({ onSuccess: begin, onError: fail });
+  const signOut = trpc.mails.signOut.useMutation({ onSuccess: () => void utils.mails.account.invalidate(), onError: e => toastError(e) });
 
   return (
     <SettingsGroup id="outlook-mailbox" title={t("settings.outlook.mailboxTitle")} description={t("settings.outlook.mailboxText")} keywords={t("settings.outlook.mailboxKeywords")}>

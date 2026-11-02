@@ -22,6 +22,8 @@ import {
   ZoomOut,
   Tag,
 } from "lucide-react";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../api/router";
 import { trpc } from "@/lib/trpc";
 import { openCreateIssue } from "@/lib/createIssue";
 import {
@@ -122,6 +124,18 @@ const NONE: Offscreen = {
 };
 const sameEdges = (a: Offscreen, b: Offscreen) =>
   (Object.keys(a) as Edge[]).every(edge => a[edge].count === b[edge].count && a[edge].nearest === b[edge].nearest);
+
+type RemovedPin = inferRouterOutputs<AppRouter>["pinboard"]["remove"];
+
+/** An empty board's word: a paper note like the post-its, where the first ones would go. */
+function PaperNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div {...surface("note")} className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
+      <span {...surface("glass")} className="note-tape" aria-hidden />
+      <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">{children}</div>
+    </div>
+  );
+}
 
 type NoteActions = {
   front: (id: number) => void;
@@ -290,6 +304,21 @@ export function Pinboard({
     }
   };
 
+  /** A post-it taken off, back as it was (Undo): on its own board, else the one shown. */
+  const restorePin = (removed: RemovedPin) =>
+    utils.client.pinboard.restore.mutate({
+      boardId: removed.boardId ?? boardId ?? 0,
+      issueKey: removed.issueKey,
+      connectionId: removed.connectionId ?? undefined,
+      issueNoteId: removed.issueNoteId,
+      todoId: removed.todoId,
+      note: removed.note,
+      color: removed.color as NoteColor,
+      x: removed.x,
+      y: removed.y,
+      rotation: removed.rotation,
+    });
+
   const remove = async (n: PostItData) => {
     setNotes(old => old.filter(x => x.id !== n.id));
     try {
@@ -301,20 +330,7 @@ export function Pinboard({
         action: {
           label: t("views.board.pinboard.undo"),
           onClick: () =>
-            void utils.client.pinboard.restore
-              .mutate({
-                boardId: removed.boardId ?? boardId ?? 0,
-                issueKey: removed.issueKey,
-                connectionId: removed.connectionId ?? undefined,
-                issueNoteId: removed.issueNoteId,
-                todoId: removed.todoId,
-                note: removed.note,
-                color: removed.color as NoteColor,
-                x: removed.x,
-                y: removed.y,
-                rotation: removed.rotation,
-              })
-              .then(refresh, fail),
+            void restorePin(removed).then(refresh, fail),
         },
       });
     } catch (e) {
@@ -353,20 +369,7 @@ export function Pinboard({
                 label: t("views.board.pinboard.undo"),
                 onClick: () =>
                   void (r.existed ? Promise.resolve() : utils.client.pinboard.remove.mutate({ id: r.id }))
-                    .then(() =>
-                      utils.client.pinboard.restore.mutate({
-                        boardId: removed.boardId ?? boardId ?? 0,
-                        issueKey: removed.issueKey,
-                        connectionId: removed.connectionId ?? undefined,
-                        issueNoteId: removed.issueNoteId,
-                        todoId: removed.todoId,
-                        note: removed.note,
-                        color: removed.color as NoteColor,
-                        x: removed.x,
-                        y: removed.y,
-                        rotation: removed.rotation,
-                      })
-                    )
+                    .then(() => restorePin(removed))
                     .then(refresh, fail),
               },
             }
@@ -754,27 +757,21 @@ export function Pinboard({
                 }}
               >
                 {!board && boardsQuery.isSuccess && bucket && (
-                  <div {...surface("note")} className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
-                    <span {...surface("glass")} className="note-tape" aria-hidden />
-                    <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
-                      <p className="font-display text-heading">{t("views.board.pinboard.noneInBucketTitle", { bucket: bucket.name })}</p>
-                      <p className="mt-1 text-body-sm opacity-80">{t("views.board.pinboard.noneInBucketHint")}</p>
-                      <Button size="sm" className="mt-3" onClick={() => setNaming("create")}>
-                        <Plus className="h-4 w-4" /> {t("views.board.pinboard.newBoard")}
-                      </Button>
-                    </div>
-                  </div>
+                  <PaperNote>
+                    <p className="font-display text-heading">{t("views.board.pinboard.noneInBucketTitle", { bucket: bucket.name })}</p>
+                    <p className="mt-1 text-body-sm opacity-80">{t("views.board.pinboard.noneInBucketHint")}</p>
+                    <Button size="sm" className="mt-3" onClick={() => setNaming("create")}>
+                      <Plus className="h-4 w-4" /> {t("views.board.pinboard.newBoard")}
+                    </Button>
+                  </PaperNote>
                 )}
                 {board && notes.length === 0 && !list.isPending && (
-                  <div {...surface("note")} className="note-shadow absolute left-10 top-12 w-[20rem] rotate-[-0.8deg] rounded-sm">
-                    <span {...surface("glass")} className="note-tape" aria-hidden />
-                    <div className="note-paper grain rounded-sm px-5 pb-4 pt-6">
-                      <p className="font-display text-heading">{board?.name ?? t("views.board.pinboard.yourBoard")}</p>
-                      <p className="mt-1 text-body-sm opacity-80">
-                        {follow ? t("views.board.pinboard.followEmpty", { value: follow.value }) : t("views.board.pinboard.emptyHint")}
-                      </p>
-                    </div>
-                  </div>
+                  <PaperNote>
+                    <p className="font-display text-heading">{board?.name ?? t("views.board.pinboard.yourBoard")}</p>
+                    <p className="mt-1 text-body-sm opacity-80">
+                      {follow ? t("views.board.pinboard.followEmpty", { value: follow.value }) : t("views.board.pinboard.emptyHint")}
+                    </p>
+                  </PaperNote>
                 )}
                 {notes.map(n => (
                   <PinnedNote key={n.id} n={n} zoom={zoom} readOnly={!!follow} boards={elsewhere} actions={noteActions} />

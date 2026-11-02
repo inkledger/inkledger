@@ -17,6 +17,7 @@ import {
 import {
   formatDuration,
   formatDurationLong,
+  roundToMinute,
   type TimeSpan,
 } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
@@ -252,7 +253,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
         patch(li, i, { status: "saving" });
         // Whole minutes (Jira's unit), rounded, never under one: a piece
         // may touch its neighbour by < 30s, within the overlap tolerance.
-        const seconds = Math.max(60, Math.round(laneSegs[i].seconds / 60) * 60);
+        const seconds = roundToMinute(laneSegs[i].seconds);
         const n = neighbourOf(p);
         try {
           if (n) {
@@ -466,7 +467,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
                   timerLog.push({
                     issueKey: p.issueKey!,
                     connectionId: p.connectionId,
-                    seconds: Math.max(60, Math.round(s.seconds / 60) * 60),
+                    seconds: roundToMinute(s.seconds),
                     note: p.comment,
                     fromTimer: false,
                     start: s.start,

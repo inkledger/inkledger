@@ -51,7 +51,7 @@ import { dayReview } from "@/lib/flag";
 import { weekRecap } from "@/lib/recap";
 import { WeekRecapCard } from "@/components/dashboard/WeekRecapCard";
 import { projectOf, rankProjects } from "@/lib/projectColors";
-import { daysUntil } from "@/lib/dates";
+import { daysUntil, capitalize, dayMonth } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,10 +82,7 @@ import {
   type TimelineEntry,
 } from "@/components/dashboard/DayTimeline";
 import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
-import {
-  PeriodSummary,
-  type IssueTotal,
-} from "@/components/dashboard/PeriodSummary";
+import { PeriodSummary } from "@/components/dashboard/PeriodSummary";
 import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
 import { TasksBoard, type TaskColumn } from "@/components/dashboard/TasksBoard";
 import {
@@ -100,6 +97,7 @@ import { isClosed, isWaiting } from "@contracts/categories";
 import { gapNeighbours } from "@/lib/gapCuts";
 import { placePendingTimers } from "@/lib/pendingTimers";
 import { timerLog } from "@/lib/timerLog";
+import { topIssueTotals } from "@/lib/issueTotals";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun },
@@ -110,11 +108,6 @@ const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun }
 const longDay = () =>
   dateFormat({ weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const monthYear = () => dateFormat({ month: "long", year: "numeric" });
-const shortDay = () => dateFormat({ day: "numeric", month: "short" });
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 /** The Customize popover's six sections (as before the workspace): shown or hidden, saved as a layout. */
 function useDashboardLayout() {
@@ -336,8 +329,8 @@ function DashboardContent() {
       ? capitalize(longDay().format(range.from))
       : range.kind === "week"
         ? t("pages.dashboard.weekTitle", {
-            from: shortDay().format(range.from),
-            to: shortDay().format(addDays(range.to, -1)),
+            from: dayMonth(range.from),
+            to: dayMonth(addDays(range.to, -1)),
           })
         : capitalize(monthYear().format(range.from));
 
@@ -384,7 +377,7 @@ function DashboardContent() {
   // Totals per project / issue / day for the period on screen.
   const derived = useMemo(() => {
     const byProject = new Map<string, number>();
-    const byIssue = new Map<string, IssueTotal>();
+    let logged = 0;
     const byDay = new Map<string, Map<string, number>>();
     for (const w of logs.data ?? []) {
       const project = projectOf(w.issueKey);
@@ -392,24 +385,16 @@ function DashboardContent() {
         project,
         (byProject.get(project) ?? 0) + w.timeSpentSeconds
       );
-      const id = issueId(w);
-      const entry = byIssue.get(id) ?? {
-        issueKey: w.issueKey,
-        connectionId: w.connectionId,
-        seconds: 0,
-      };
-      entry.seconds += w.timeSpentSeconds;
-      byIssue.set(id, entry);
+      logged += w.timeSpentSeconds;
       const key = dayKey(new Date(w.started));
       const day = byDay.get(key) ?? new Map<string, number>();
       day.set(project, (day.get(project) ?? 0) + w.timeSpentSeconds);
       byDay.set(key, day);
     }
-    const logged = [...byIssue.values()].reduce((a, b) => a + b.seconds, 0);
     // The hours worked: each day's entries counted once where they run in parallel.
     const worked = realSecondsByDay((logs.data ?? []).map(w => ({ start: new Date(w.started), seconds: w.timeSpentSeconds })));
     const total = [...worked.values()].reduce((a, s) => a + s, 0);
-    return { byIssue, byDay, worked, total, logged, ...rankProjects(byProject) };
+    return { byDay, worked, total, logged, ...rankProjects(byProject) };
   }, [logs.data]);
 
   // Vacation removes only its intersection with the schedule; work and travel never change the target.
@@ -427,13 +412,7 @@ function DashboardContent() {
   const weeklyTarget = effectiveTargetSecondsBetween(startOfWeek(today), 7, versions, plannedEntries);
   const target = effectiveTargetSecondsBetween(range.from, range.days.length, versions, plannedEntries);
 
-  const issueTotals: IssueTotal[] = [...derived.byIssue.values()]
-    .sort((a, b) => b.seconds - a.seconds)
-    .slice(0, 5)
-    .map(total => {
-      const issue = issueByKey.get(issueId(total));
-      return { ...total, summary: issue?.summary, remoteId: issue?.remoteId };
-    });
+  const issueTotals = useMemo(() => topIssueTotals(logs.data ?? [], issueByKey), [logs.data, issueByKey]);
 
   const timelineEntries: TimelineEntry[] = (logs.data ?? []).map(w => ({
     id: w.remoteId,

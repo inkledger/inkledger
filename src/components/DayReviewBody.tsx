@@ -18,6 +18,7 @@ import {
   startOfDay,
   addDays,
   dayKey,
+  roundToMinute,
 } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { logSpan } from "@/lib/timerLog";
@@ -73,8 +74,6 @@ type RowStatus = "idle" | "saving" | "done" | "error";
 /** Read at event time (handlers), never during render. */
 const nowMs = () => Date.now();
 
-const roundedMinutes = (s: number) => Math.max(60, Math.round(s / 60) * 60);
-
 /** The day review's content (DayReview.tsx draws its sheet): loaded on demand. */
 export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void }) {
   const provider = useProviderName();
@@ -102,7 +101,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
     connectionId: t.connectionId,
     // Only today's time is preselected: one stopped on an earlier day is logged from its timer.
     include: t.elapsedSeconds >= 60 && timerOnDay(t, today, new Date(nowMs())),
-    duration: formatSeconds(roundedMinutes(t.elapsedSeconds), { days: false }),
+    duration: formatSeconds(roundToMinute(t.elapsedSeconds), { days: false }),
     touched: false,
     comment: t.note,
   });
@@ -146,7 +145,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
   const liveSeconds = (id: string): number | null => {
     const t = timers.find(x => issueId(x) === id);
     if (!t || t.state !== "running") return null;
-    return roundedMinutes(t.elapsedSeconds + (nowMs() - fetchedAt) / 1000);
+    return roundToMinute(t.elapsedSeconds + (nowMs() - fetchedAt) / 1000);
   };
   const [frozen, setFrozen] = useState<Map<string, number> | null>(null);
   const parsed = drafts.map(
@@ -411,7 +410,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                     size="sm"
                     className="ml-auto"
                     onClick={() =>
-                      logSpan(g.start, roundedMinutes(g.seconds))
+                      logSpan(g.start, roundToMinute(g.seconds))
                     }
                   >
                     <Plus className="h-4 w-4" /> {t("ui.dayReview.log")}

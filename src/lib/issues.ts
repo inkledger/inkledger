@@ -1,3 +1,4 @@
+import { DAY_MS } from "@contracts/time";
 import { relativeFormat, t } from "@contracts/i18n";
 
 /** Issue fields used by the helpers below (any issue list row fits). */
@@ -8,7 +9,7 @@ type ActivityFields = {
 };
 
 function ago(ms: number): string {
-  const days = Math.round((ms - Date.now()) / 864e5);
+  const days = Math.round((ms - Date.now()) / DAY_MS);
   if (days === 0) return t("ui.rel.today");
   if (Math.abs(days) < 31) return relativeFormat().format(days, "day");
   return relativeFormat().format(Math.round(days / 30), "month");

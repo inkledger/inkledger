@@ -15,6 +15,7 @@ import { t, dateFormat } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { workedSeconds } from "@/lib/worked";
 import { ActionRow } from "@/components/app/ActionRow";
+import { dayMonth } from "@/lib/dates";
 
 export type TimesheetLog = {
   id: number;
@@ -29,7 +30,6 @@ export type TimesheetLog = {
 };
 
 const weekday = () => dateFormat({ weekday: "short" });
-const dayMonth = () => dateFormat({ day: "numeric", month: "short" });
 
 function isPending(w: TimesheetLog): boolean {
   return w.remoteId.startsWith("pending-");
@@ -114,7 +114,7 @@ export function WeekView({
         // The hours worked that day: parallel work once.
         const total = workedSeconds(entries);
         const isToday = day.key === todayKey;
-        const label = `${weekday().format(day.date)} ${dayMonth().format(day.date)}`;
+        const label = `${weekday().format(day.date)} ${dayMonth(day.date)}`;
         return (
           <li
             key={day.key}
@@ -144,7 +144,7 @@ export function WeekView({
                   {weekday().format(day.date)}
                 </h3>
                 <p className="text-caption text-muted-foreground">
-                  {dayMonth().format(day.date)}
+                  {dayMonth(day.date)}
                   {isToday && t("views.timesheet.week.todaySuffix")}
                 </p>
               </div>
