@@ -5,7 +5,7 @@ import { DAY_MS } from "@contracts/time";
  * cards with activity in the last two weeks, at most `cap`, newest first.
  * The rest wait behind "Show older".
  */
-export const RECENT_DAYS = 14;
+const RECENT_DAYS = 14;
 
 export function recentFinished<T extends { relevantAt: number | null }>(items: T[], now: number, cap = 20): { shown: T[]; older: number } {
   const since = now - RECENT_DAYS * DAY_MS;

@@ -38,7 +38,4 @@ export const MOD_KEY = APPLE ? "⌘" : "Ctrl";
 export const BACK_KEYS = APPLE ? "⌘[" : "Alt+←";
 
 /** Shortcut label for the command palette, per platform. */
-export const PALETTE_SHORTCUT =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? "⌘K"
-    : "Ctrl K";
+export const PALETTE_SHORTCUT = APPLE ? "⌘K" : "Ctrl K";

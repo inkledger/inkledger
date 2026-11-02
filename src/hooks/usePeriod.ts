@@ -18,7 +18,7 @@ export type PeriodRange = {
 };
 
 /** The period of `kind` that contains `date`. */
-export function periodContaining(
+function periodContaining(
   kind: PeriodKind,
   date: Date
 ): Omit<PeriodRange, "days" | "isCurrent"> {

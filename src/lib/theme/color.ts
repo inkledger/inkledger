@@ -96,7 +96,7 @@ export function oklchToRgb(color: Oklch): Rgb {
   };
 }
 
-export function relativeLuminance({ r, g, b }: Rgb): number {
+function relativeLuminance({ r, g, b }: Rgb): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 

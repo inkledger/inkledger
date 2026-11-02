@@ -104,7 +104,7 @@ export function MakeTodoButton({ link, initial, count = 0, label, className }: {
 }
 
 /** The same form in a dialog: from a menu item (a card's, a row's), where nothing stays to anchor a popover. */
-export function MakeTodoDialog({ link, initial, open, onOpenChange }: { link: TodoLink; initial: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+function MakeTodoDialog({ link, initial, open, onOpenChange }: { link: TodoLink; initial: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">

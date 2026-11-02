@@ -47,9 +47,9 @@ const SKETCHES: Record<string, Sketch> = {
 };
 
 /** Sections that span the Dashboard's whole width, wherever they sit in the order. */
-export const DASHBOARD_BANDS: ReadonlySet<string> = new Set(["dashboard.timeline", "dashboard.recap"]);
+const DASHBOARD_BANDS: ReadonlySet<string> = new Set(["dashboard.timeline", "dashboard.recap"]);
 /** My issues and Recent activity stack in one column beside the summary. */
-export const DASHBOARD_STACKED: ReadonlySet<string> = new Set(["dashboard.tasks", "dashboard.activity"]);
+const DASHBOARD_STACKED: ReadonlySet<string> = new Set(["dashboard.tasks", "dashboard.activity"]);
 
 /**
  * How the Dashboard lays out its main area, for the page itself and for every drawing of it: the timeline,

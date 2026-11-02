@@ -35,7 +35,7 @@ function isPending(w: TimesheetLog): boolean {
   return w.remoteId.startsWith("pending-");
 }
 
-export function DayProgress({
+function DayProgress({
   seconds,
   target,
   label,

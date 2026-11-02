@@ -13,7 +13,7 @@ export type FlowCollectionOptions = {
   send: (events: FlowEvent[]) => Promise<unknown>;
 };
 
-export function flowCell(clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } | undefined {
+function flowCell(clientX: number, clientY: number, rect: DOMRect): { x: number; y: number } | undefined {
   if (rect.width <= 0 || rect.height <= 0) return undefined;
   return {
     x: Math.max(0, Math.min(7, Math.floor((clientX - rect.left) / rect.width * 8))),

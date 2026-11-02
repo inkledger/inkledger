@@ -36,7 +36,7 @@ export function PlannedEntryRow({ entry, seconds, onEdit, className }: { entry: 
   );
 }
 
-export function PlannedActions({ entry, onEdit }: { entry: PlannedEntry; onEdit: (entry: PlannedEntry) => void }) {
+function PlannedActions({ entry, onEdit }: { entry: PlannedEntry; onEdit: (entry: PlannedEntry) => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const utils = trpc.useUtils();
   const invalidateWorklogs = useInvalidateWorklogs();

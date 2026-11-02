@@ -71,7 +71,7 @@ export const NEUTRAL_C = 0.02;
 const MAX_CHROMA = 0.17;
 /** Pastel caps: fills (buttons, bars, selections) and accented text. */
 export const PASTEL_FILL_C = 0.075;
-export const PASTEL_TEXT_C = 0.06;
+const PASTEL_TEXT_C = 0.06;
 /** Max hue distance (degrees) of any derived colour from the base hue. */
 export const MAX_HUE_DRIFT = 12;
 /** Ceiling for any decorative colour (charts, covers). */

@@ -170,7 +170,6 @@ export default function NotesPage() {
     const reveal = [...ancestorIds(tree.data, noteId), ...(selected?.kind === "folder" ? [noteId] : [])];
     if (reveal.some(id => !expanded.has(id))) setExpanded(new Set([...expanded, ...reveal]));
   }
-  const shownExpanded = expanded;
 
   useEffect(() => {
     const refresh = () => setDrafts(userId ? listDrafts(userId) : []);
@@ -433,7 +432,7 @@ export default function NotesPage() {
                   <NoteTree
                     items={tree.data}
                     selectedId={noteId}
-                    expanded={shownExpanded}
+                    expanded={expanded}
                     toggle={toggle}
                     expand={expand}
                     search={location.search}

@@ -90,9 +90,7 @@ const appEventsLink: TRPCLink<AppRouter> = () => ({ op, next }) =>
     })
   );
 
-// Shared with the SSR renderer; this file's Fast Refresh boundary is the provider below.
-// eslint-disable-next-line react-refresh/only-export-components
-export function createTRPCContext(existing?: QueryClient) {
+function createTRPCContext(existing?: QueryClient) {
   const queryClient: QueryClient = existing ?? new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {

@@ -26,7 +26,7 @@ export function usePinboardSurfaces(): PinboardSurfaces {
 }
 
 /** Kept by the layout, so "p", the palette and the sidebar follow the settings outside React. */
-export function setPinboardSurfaces(next: PinboardSurfaces) {
+function setPinboardSurfaces(next: PinboardSurfaces) {
   const now = surfaces.get();
   if (next.board === now.board && next.menu === now.menu && next.widget === now.widget) return;
   surfaces.set(next);

@@ -9,7 +9,7 @@ import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 
 /** One line per kind, used by toasts and the "For you" card (read when asked: it follows the language). */
-export const KIND_TITLE: Record<string, string> = {
+const KIND_TITLE: Record<string, string> = {
   get assigned() {
     return t("ui.notify.assigned");
   },

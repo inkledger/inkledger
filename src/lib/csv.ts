@@ -11,7 +11,7 @@ const DIALECT: Record<Locale, { separator: string; decimal: string }> = {
 };
 
 /** Plain number (no thousands grouping), the locale's decimal mark. */
-export function csvNumber(value: number, locale: Locale = currentLocale()): string {
+function csvNumber(value: number, locale: Locale = currentLocale()): string {
   const fixed = String(Math.round(value * 100) / 100);
   return fixed.replace(".", DIALECT[locale].decimal);
 }

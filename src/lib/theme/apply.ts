@@ -2,7 +2,7 @@ import { writeStored } from "@/lib/storage";
 import { derivePalette, type ThemeVars } from "./derive";
 
 /** localStorage key read by the inline script in index.html (no flash). */
-export const THEME_CACHE_KEY = "ikl-theme-css";
+const THEME_CACHE_KEY = "ikl-theme-css";
 const STYLE_ID = "theme-vars";
 
 const block = (selector: string, vars: ThemeVars) =>
