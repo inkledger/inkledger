@@ -84,6 +84,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: [...ALT_SHIFT, "← ↑ → ↓"], label: t("ui.shortcuts.snapPane") },
         { keys: [t("ui.keys.space")], label: t("ui.shortcuts.movePane") },
         { keys: ["⇧", t("ui.keys.click")], label: t("ui.shortcuts.openBeside") },
+        { keys: ["a"], label: t("ui.shortcuts.askAi") },
       ],
     },
   ];

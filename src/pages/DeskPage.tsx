@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { addPane, applySnap, deskIssues, dropIssue, edgeTarget, isIssue, maximize, park, paneId, removePane, sameTarget, setPreset, snapTargets, unpark, type DeskLayout, type DeskPane as Pane, type Edge, type SnapTarget } from "@contracts/desk";
 import { trpc } from "@/lib/trpc";
 import { useDesk } from "@/lib/desk/useDesk";
@@ -8,6 +9,7 @@ import { slotNames, targetName } from "@/lib/desk/targetName";
 import { announceAdd } from "@/lib/desk/announce";
 import { DESK_OPEN_EVENT, paneOf, type DeskOpenDetail } from "@/lib/desk/send";
 import { isDialogOpen, isTyping } from "@/lib/dom";
+import { hotkeySequence } from "@/lib/hotkeySequence";
 import { errorText } from "@/lib/errorText";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -21,9 +23,14 @@ import { AddToDesk } from "@/components/desk/AddToDesk";
 import { LayoutPicker } from "@/components/desk/LayoutPicker";
 import { ParkedTray } from "@/components/desk/ParkedTray";
 import type { PaneControls } from "@/components/desk/PaneHeader";
+import { lazyPart } from "@/components/app/lazyPart";
+import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 
 const WIDE = "(min-width: 1024px)";
+
+/** "Ask AI" (batch 4c): its code only once opened. */
+const DeskChat = lazyPart(() => import("@/components/desk/DeskChat").then(m => m.DeskChat));
 
 /** A menu (a pane's ⋯) or a dialog is open: Esc and the desk's keys are theirs. */
 const somethingOpen = () => isDialogOpen() || document.querySelector('[role="menu"][data-state="open"]') !== null;
@@ -60,6 +67,24 @@ export default function DeskPage() {
   const announce = (text: string) => {
     if (liveRef.current) liveRef.current.textContent = text;
   };
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatButton = useRef<HTMLButtonElement>(null);
+  const closeChat = () => {
+    setChatOpen(false);
+    requestAnimationFrame(() => chatButton.current?.focus());
+  };
+  // "a" opens the chat (or goes back to its question when open).
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "a" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || somethingOpen() || hotkeySequence.pending()) return;
+      if (!document.querySelector("[data-desk-pane]")) return;
+      e.preventDefault();
+      setChatOpen(true);
+      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>("[data-desk-chat] textarea")?.focus());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const snap = useSnapDrag({ grid: gridRef, desk, drawn, announce, onDrop: (id, target) => change(d => snapPane(d, id, target), { saveNow: true }) });
   /** Moved from its menu or by Alt+Shift+arrows: said, and the focus kept on the pane when the move took it away. */
   const moveTo = (id: string, target: SnapTarget) => {
@@ -189,6 +214,7 @@ export default function DeskPage() {
       onClose: () => leave(id, d => removePane(d, id)),
     };
   };
+  const chatFocus = issues.find(p => paneId(p) === (wide ? focused : phoneFocused)) ?? null;
   const add = (variant: "default" | "outline") => <AddToDesk desk={desk} change={change} onAdded={setFocusedId} variant={variant} />;
 
   return (
@@ -201,6 +227,10 @@ export default function DeskPage() {
             <>
               {wide && <LayoutPicker count={issues.length} value={desk.preset} drawn={drawn} onChange={id => change(d => setPreset(d, id), { saveNow: true })} />}
               {wide && add("default")}
+              <Button ref={chatButton} variant="outline" aria-expanded={chatOpen} title={t("pages.deskChat.openTitle")} onClick={() => (chatOpen ? closeChat() : setChatOpen(true))}>
+                <Sparkles aria-hidden />
+                {t("pages.deskChat.open")}
+              </Button>
             </>
           )
         }
@@ -214,21 +244,25 @@ export default function DeskPage() {
       {panes.length === 0 ? (
         <DeskEmpty add={add("default")} />
       ) : showGrid ? (
-        <div ref={fitRef} className="min-h-0 flex-1">
-          <Desk
-            desk={desk}
-            drawn={drawn}
-            gridRef={gridRef}
-            controlsFor={controlsFor}
-            onFocusPane={setFocusedId}
-            change={change}
-            snap={snap.store}
-            onFill={(index, pane) => bring(pane, d => dropIssue(d, pane, { kind: "swap", index }))}
-            onDropIssue={(pane, target) => {
-              bring(pane, d => dropIssue(d, pane, target));
-              announce(t("pages.desk.snap.dropped", { key: pane.key, target: targetName(target, names) }));
-            }}
-          />
+        // The chat docks beside the desk, which stays in use (and refits to what is left).
+        <div className="flex min-h-0 flex-1">
+          <div ref={fitRef} className="min-h-0 min-w-0 flex-1">
+            <Desk
+              desk={desk}
+              drawn={drawn}
+              gridRef={gridRef}
+              controlsFor={controlsFor}
+              onFocusPane={setFocusedId}
+              change={change}
+              snap={snap.store}
+              onFill={(index, pane) => bring(pane, d => dropIssue(d, pane, { kind: "swap", index }))}
+              onDropIssue={(pane, target) => {
+                bring(pane, d => dropIssue(d, pane, target));
+                announce(t("pages.desk.snap.dropped", { key: pane.key, target: targetName(target, names) }));
+              }}
+            />
+          </div>
+          {chatOpen && <DeskChat docked panes={panes} focused={chatFocus} onClose={closeChat} />}
         </div>
       ) : (
         // A phone shows the issues alone: an empty slot is a place on a wide desk.
@@ -238,6 +272,7 @@ export default function DeskPage() {
           )}
         </PhoneDesk>
       )}
+      {chatOpen && !showGrid && panes.length > 0 && <DeskChat docked={false} panes={panes} focused={chatFocus} onClose={closeChat} />}
       <ParkedTray
         parked={desk.parked}
         onUnpark={id => {
