@@ -129,7 +129,7 @@ test("A section the Studio moved beside the timeline is drawn there", () =>
     await page.goto(base + "/");
     await page.locator('[data-workspace-anchor="dashboard.activity"]').waitFor();
     // The timeline's band holds the rail: Recent activity sits in it, after the quick numbers.
-    const band = await page.locator('[data-workspace-anchor="dashboard.timeline"]').evaluate(timeline => [...timeline.parentElement.querySelectorAll("[data-workspace-anchor]")].map(element => element.getAttribute("data-workspace-anchor")).filter(id => ["dashboard.timeline", "dashboard.stats", "dashboard.activity"].includes(id)));
+    const band = await page.locator('[data-workspace-anchor="dashboard.timeline"]:not([data-workspace-control])').evaluate(timeline => [...timeline.parentElement.querySelectorAll("[data-workspace-anchor]:not([data-workspace-control])")].map(element => element.getAttribute("data-workspace-anchor")).filter(id => ["dashboard.timeline", "dashboard.stats", "dashboard.activity"].includes(id)));
     assert.deepEqual(band, ["dashboard.timeline", "dashboard.stats", "dashboard.activity"]);
   }));
 

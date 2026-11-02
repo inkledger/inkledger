@@ -175,7 +175,8 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
     }
   }, { threshold: [0, 0.5, 1] });
   const observeAnchors = () => {
-    for (const element of document.querySelectorAll("[data-workspace-anchor]")) {
+    // The blocks themselves: a control inside one carries its anchor too, but is not what is seen.
+    for (const element of document.querySelectorAll("[data-workspace-anchor]:not([data-workspace-control])")) {
       const id = (element as HTMLElement).dataset.workspaceAnchor;
       if (id && anchors.has(id) && !exposed.has(id)) observer.observe(element);
     }
