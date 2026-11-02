@@ -35,7 +35,7 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { useSync } from "@/hooks/useSync";
-import { visibleIssues, issuePath, issueId } from "@/lib/issues";
+import { visibleIssues, issuePath, issueId, parseIssuePath } from "@/lib/issues";
 import {
   CommandDialog,
   CommandEmpty,
@@ -409,16 +409,6 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
   );
 }
 
-/** The issue a page shows, as its path names it: /issues/:connectionId/:remoteId or /issues/:key (?c=). */
-function issueOnPage(pathname: string, search: string): { connectionId: number; remoteId: string } | { key: string; connectionId?: number } | null {
-  const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts[0] !== "issues" || parts[1] === "desk") return null;
-  if (parts.length === 3 && Number(parts[1]) > 0) return { connectionId: Number(parts[1]), remoteId: parts[2] };
-  if (parts.length !== 2) return null;
-  const c = Number(new URLSearchParams(search).get("c"));
-  return c > 0 ? { key: parts[1], connectionId: c } : { key: parts[1] };
-}
-
 /**
  * On an issue's page: "Add KEY to desk". The server puts it there (a full desk parks
  * its last pane); a toast says what happened and goes to the desk.
@@ -427,7 +417,7 @@ function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () =
   const { search } = useLocation();
   const navigate = useNavigate();
   const utils = trpc.useUtils();
-  const shown = issueOnPage(pathname, search);
+  const shown = parseIssuePath(pathname + search);
   // The issue page asked the same (cached): its key today.
   const located = trpc.issues.locate.useQuery(shown && "remoteId" in shown ? shown : { key: "-" }, { enabled: !!shown && "remoteId" in shown, staleTime: 60_000 });
   const add = trpc.desks.add.useMutation({
@@ -437,7 +427,7 @@ function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () =
         ? t("pages.desk.already", { key: r.key })
         : r.parked
           ? t("pages.desk.addedParked", { key: r.key, parked: r.parked })
-          : t("pages.desk.added", { key: r.key, count: r.layout.panes.length });
+          : t("pages.desk.added", { key: r.key, count: r.count });
       toast(message, { action: { label: t("ui.palette.openDesk"), onClick: () => void navigate("/issues/desk") } });
     },
     onError: error => toastError(error),

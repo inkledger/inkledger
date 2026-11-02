@@ -244,6 +244,8 @@ async function compactIssues(userId: number, narrow: SQL | undefined) {
       remoteUpdatedAt: issues.remoteUpdatedAt,
       remoteCreatedAt: issues.remoteCreatedAt,
       activityAt: issues.activityAt,
+      // When I last opened it (the Desk's recent issues)
+      seenAt: issues.seenAt,
       unread: UNREAD,
     })
     .from(issues)

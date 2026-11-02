@@ -147,3 +147,48 @@ export function issuePath(issue: { key: string; connectionId?: number | null; re
   const on = issue.connectionId ? `?c=${issue.connectionId}` : "";
   return `/issues/${encodeURIComponent(issue.key)}${on}`;
 }
+
+/** What an issue link names: its identity on a connection, or its key (and connection when the link says). */
+export type IssueLinkRef = { connectionId: number; remoteId: string } | { key: string; connectionId?: number };
+
+/**
+ * The issue an in-app link (a path, with its ?c= and #anchor) opens: the inverse of issuePath.
+ * Null for any other page (the list, the desk) or a link that can't be read.
+ */
+export function parseIssuePath(href: string): IssueLinkRef | null {
+  const [path, search = ""] = href.split("#")[0].split("?");
+  let parts: string[];
+  try {
+    parts = path.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    return null;
+  }
+  if (!path.startsWith("/") || parts[0] !== "issues" || parts[1] === "desk") return null;
+  if (parts.length === 3) return Number(parts[1]) > 0 && Number.isInteger(Number(parts[1])) ? { connectionId: Number(parts[1]), remoteId: parts[2] } : null;
+  if (parts.length !== 2) return null;
+  const c = Number(new URLSearchParams(search).get("c"));
+  return c > 0 ? { key: parts[1], connectionId: c } : { key: parts[1] };
+}
+
+/** The drag type of an issue (rows, cards): what the Desk and its sidebar entry accept. */
+export const ISSUE_DRAG_TYPE = "application/x-inkledger-issue";
+export type DraggedIssue = { connectionId: number; key: string; remoteId: string | null };
+
+/** Marks a drag as carrying this issue (beside whatever else the drag carries). */
+export function setIssueDragData(dt: Pick<DataTransfer, "setData">, issue: { connectionId: number; key: string; remoteId?: string | null }) {
+  const value: DraggedIssue = { connectionId: issue.connectionId, key: issue.key, remoteId: issue.remoteId ?? null };
+  dt.setData(ISSUE_DRAG_TYPE, JSON.stringify(value));
+}
+
+/** The issue a drop carries; null when it carries none (or something else under its type). */
+export function readIssueDragData(dt: Pick<DataTransfer, "getData">): DraggedIssue | null {
+  try {
+    const value: unknown = JSON.parse(dt.getData(ISSUE_DRAG_TYPE) || "null");
+    if (typeof value !== "object" || value === null) return null;
+    const { connectionId, key, remoteId } = value as Record<string, unknown>;
+    if (typeof connectionId !== "number" || !(connectionId > 0) || typeof key !== "string" || !key) return null;
+    return { connectionId, key, remoteId: typeof remoteId === "string" ? remoteId : null };
+  } catch {
+    return null;
+  }
+}

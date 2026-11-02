@@ -3,8 +3,8 @@ import { z } from "zod";
 /**
  * The Desk: up to four issues side by side, laid out like windows snapped on a desktop. A layout is
  * one of a few fixed arrangements (halves, thirds, one big and two, quarters) with the size of each
- * of its columns and rows; slot i of the arrangement holds pane i. Pure: shared by the page and
- * the server, which stores the desk.
+ * of its columns and rows; slot i of the arrangement holds pane i, an issue or an empty slot (a
+ * place kept free to open an issue in). Pure: shared by the page and the server, which stores the desk.
  */
 
 export const DESK_MAX_PANES = 4;
@@ -52,13 +52,32 @@ export const deskPaneSchema = z.object({
 });
 export type DeskPane = z.infer<typeof deskPaneSchema>;
 
+/** A slot kept free: "Open an issue here". Its id tells it apart from the desk's other empty slots. */
+export const emptySlotSchema = z.object({ empty: z.literal(true), id: z.string().regex(/^\d{1,2}$/) }).strict();
+export type EmptySlot = z.infer<typeof emptySlotSchema>;
+/** What a slot of the arrangement holds. */
+export type DeskSlot = DeskPane | EmptySlot;
+
+export const isEmptySlot = (slot: DeskSlot): slot is EmptySlot => "empty" in slot;
+export const isIssue = (slot: DeskSlot): slot is DeskPane => !isEmptySlot(slot);
+/** The issues on the desk, in slot order (empty slots left out). */
+export const deskIssues = (desk: { panes: readonly DeskSlot[] }): DeskPane[] => desk.panes.filter(isIssue);
+
+/** A new empty slot: the first id the desk's slots don't use yet. */
+export function emptySlot(slots: readonly DeskSlot[]): EmptySlot {
+  const used = new Set(slots.filter(isEmptySlot).map(slot => slot.id));
+  let n = 1;
+  while (used.has(String(n))) n++;
+  return { empty: true, id: String(n) };
+}
+
 const tracksSchema = z.object({ cols: z.array(z.number()).max(4), rows: z.array(z.number()).max(4) });
 
 export const deskLayoutSchema = z.object({
   v: z.literal(1),
   preset: z.enum(PRESET_IDS),
   tracks: z.record(z.string(), tracksSchema),
-  panes: z.array(deskPaneSchema).max(20),
+  panes: z.array(z.union([deskPaneSchema, emptySlotSchema])).max(20),
   parked: z.array(deskPaneSchema).max(40),
   maximized: z.string().nullable(),
   compare: z.boolean(),
@@ -67,7 +86,8 @@ export const deskLayoutSchema = z.object({
 });
 export type DeskLayout = Omit<z.infer<typeof deskLayoutSchema>, "tracks"> & { tracks: Partial<Record<PresetId, Tracks>> };
 
-export const paneId = (pane: Pick<DeskPane, "connectionId" | "key">) => `${pane.connectionId}:${pane.key}`;
+/** A slot's id on the desk: the issue's connection and key, or "empty-N". */
+export const paneId = (slot: Pick<DeskPane, "connectionId" | "key"> | EmptySlot) => ("empty" in slot ? `empty-${slot.id}` : `${slot.connectionId}:${slot.key}`);
 
 export const emptyDesk = (): DeskLayout => ({ v: 1, preset: "single", tracks: {}, panes: [], parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null });
 
@@ -89,18 +109,19 @@ function cleanTracks(values: readonly number[], count: number): number[] | null 
 
 /**
  * Any stored or sent desk made safe to draw: unknown fields and arrangements dropped, the same issue
- * never twice, at most four panes (the rest parked) and eight parked, an arrangement that has as many
- * slots as panes, sizes that add up and none too thin.
+ * (or empty slot) never twice, at most four slots (the issues beyond parked) and eight parked, an
+ * arrangement that has as many slots as panes, sizes that add up and none too thin. Empty slots stay
+ * only beside an issue: a desk of empty slots alone is an empty desk.
  */
 export function normalizeDesk(raw: unknown): DeskLayout {
   const parsed = deskLayoutSchema.safeParse(raw);
   if (!parsed.success) return emptyDesk();
   const value = parsed.data;
   const seen = new Set<string>();
-  const unique = (panes: readonly DeskPane[]) => panes.filter(pane => !seen.has(paneId(pane)) && seen.add(paneId(pane)));
+  const unique = <T extends DeskSlot>(panes: readonly T[]) => panes.filter(pane => !seen.has(paneId(pane)) && seen.add(paneId(pane)));
   const shown = unique(value.panes);
-  const panes = shown.slice(0, DESK_MAX_PANES);
-  const parked = [...shown.slice(DESK_MAX_PANES), ...unique(value.parked)].slice(0, DESK_MAX_PARKED);
+  const panes = shown.slice(0, DESK_MAX_PANES).some(isIssue) ? shown.slice(0, DESK_MAX_PANES) : [];
+  const parked = [...shown.slice(DESK_MAX_PANES).filter(isIssue), ...unique(value.parked)].slice(0, DESK_MAX_PARKED);
   const preset = PRESETS[value.preset].slots === Math.max(panes.length, 1) ? value.preset : defaultPreset(panes.length);
   const tracks: Partial<Record<PresetId, Tracks>> = {};
   for (const id of PRESET_IDS) {
@@ -110,7 +131,7 @@ export function normalizeDesk(raw: unknown): DeskLayout {
     const rows = cleanTracks(stored.rows, PRESETS[id].areas.length);
     if (cols && rows) tracks[id] = { cols, rows };
   }
-  const maximized = value.maximized && panes.some(pane => paneId(pane) === value.maximized) ? value.maximized : null;
+  const maximized = value.maximized && panes.some(pane => isIssue(pane) && paneId(pane) === value.maximized) ? value.maximized : null;
   return { v: 1, preset, tracks, panes, parked, maximized, compare: value.compare, onlyDifferences: value.onlyDifferences, noteId: value.noteId };
 }
 
@@ -182,18 +203,40 @@ export function resetTracks(desk: DeskLayout): DeskLayout {
   return { ...desk, tracks };
 }
 
+/**
+ * Another arrangement: one with more slots than the desk has keeps the extra ones empty, one with
+ * fewer drops empty slots from the end; never fewer slots than issues.
+ */
 export function setPreset(desk: DeskLayout, id: PresetId): DeskLayout {
-  return PRESETS[id].slots === Math.max(desk.panes.length, 1) ? { ...desk, preset: id } : desk;
+  const slots = PRESETS[id].slots;
+  if (slots < Math.max(deskIssues(desk).length, 1)) return desk;
+  if (!desk.panes.length) return slots === 1 ? { ...desk, preset: id } : desk;
+  // The empty slots past what fits go, the last ones first.
+  let extra = desk.panes.length - slots;
+  let panes = [...desk.panes].reverse().filter(pane => !(extra > 0 && isEmptySlot(pane) && extra--)).reverse();
+  while (panes.length < slots) panes = [...panes, emptySlot(panes)];
+  return { ...desk, preset: id, panes };
 }
 
 /** The arrangement after the pane count changed: the same one when it still fits, else the default. */
 const presetAfter = (desk: DeskLayout, n: number): PresetId => (PRESETS[desk.preset].slots === Math.max(n, 1) ? desk.preset : defaultPreset(n));
 
-/** Opens an issue on the desk: already there, nothing changes; parked, it comes back; a full desk parks its last pane. */
+/** The desk with these slots: none when no issue is left among them (empty slots never stand alone). */
+const withSlots = (desk: DeskLayout, slots: DeskSlot[]): DeskLayout => {
+  const panes = slots.some(isIssue) ? slots : [];
+  return { ...desk, panes, preset: presetAfter(desk, panes.length) };
+};
+
+/**
+ * Opens an issue on the desk: already there, nothing changes; parked, it comes back; the first
+ * empty slot takes it; a full desk parks its last pane.
+ */
 export function addPane(desk: DeskLayout, pane: DeskPane): DeskLayout {
   const id = paneId(pane);
   if (desk.panes.some(item => paneId(item) === id)) return desk;
   const parked = desk.parked.filter(item => paneId(item) !== id);
+  const free = desk.panes.findIndex(isEmptySlot);
+  if (free >= 0) return { ...desk, panes: desk.panes.map((item, i) => (i === free ? pane : item)), parked };
   if (desk.panes.length < DESK_MAX_PANES) {
     const panes = [...desk.panes, pane];
     return { ...desk, panes, parked, preset: presetAfter(desk, panes.length) };
@@ -202,32 +245,90 @@ export function addPane(desk: DeskLayout, pane: DeskPane): DeskLayout {
   return park({ ...desk, parked }, paneId(out), pane);
 }
 
+/** Takes an issue (or an empty slot) off the desk. */
 export function removePane(desk: DeskLayout, id: string): DeskLayout {
-  const panes = desk.panes.filter(pane => paneId(pane) !== id);
-  return { ...desk, panes, parked: desk.parked.filter(pane => paneId(pane) !== id), preset: presetAfter(desk, panes.length), maximized: desk.maximized === id ? null : desk.maximized };
+  return {
+    ...withSlots(desk, desk.panes.filter(pane => paneId(pane) !== id)),
+    parked: desk.parked.filter(pane => paneId(pane) !== id),
+    maximized: desk.maximized === id ? null : desk.maximized,
+  };
 }
 
-/** Moves a pane to the tray; `replacement` (or nothing) takes its slot. */
+/** Moves a pane to the tray (an empty slot is only closed); `replacement` (or nothing) takes its slot. */
 export function park(desk: DeskLayout, id: string, replacement?: DeskPane): DeskLayout {
   const at = desk.panes.findIndex(pane => paneId(pane) === id);
   if (at < 0) return desk;
   const out = desk.panes[at];
-  const panes = replacement ? desk.panes.map((pane, i) => (i === at ? replacement : pane)) : desk.panes.filter((_, i) => i !== at);
-  const parked = [out, ...desk.parked.filter(pane => paneId(pane) !== id && (!replacement || paneId(pane) !== paneId(replacement)))].slice(0, DESK_MAX_PARKED);
-  return { ...desk, panes, parked, preset: presetAfter(desk, panes.length), maximized: desk.maximized === id ? null : desk.maximized };
+  const slots = replacement ? desk.panes.map((pane, i) => (i === at ? replacement : pane)) : desk.panes.filter((_, i) => i !== at);
+  const kept = desk.parked.filter(pane => paneId(pane) !== id && (!replacement || paneId(pane) !== paneId(replacement)));
+  const parked = (isIssue(out) ? [out, ...kept] : kept).slice(0, DESK_MAX_PARKED);
+  return { ...withSlots(desk, slots), parked, maximized: desk.maximized === id ? null : desk.maximized };
 }
 
-/** Brings a parked issue back: in place of `replacing` when given (or when the desk is full, of the last pane). */
+/** Brings a parked issue back: in place of `replacing` when given, else as an issue added (an empty slot, or the last pane of a full desk). */
 export function unpark(desk: DeskLayout, id: string, replacing?: string): DeskLayout {
   const pane = desk.parked.find(item => paneId(item) === id);
   if (!pane) return desk;
   const rest = { ...desk, parked: desk.parked.filter(item => paneId(item) !== id) };
-  const target = replacing ?? (desk.panes.length >= DESK_MAX_PANES ? paneId(desk.panes[desk.panes.length - 1]) : undefined);
-  return target ? park(rest, target, pane) : addPane(rest, pane);
+  return replacing ? park(rest, replacing, pane) : addPane(rest, pane);
 }
 
 export function maximize(desk: DeskLayout, id: string | null): DeskLayout {
-  return { ...desk, maximized: id && desk.panes.some(pane => paneId(pane) === id) ? id : null };
+  return { ...desk, maximized: id && desk.panes.some(pane => isIssue(pane) && paneId(pane) === id) ? id : null };
+}
+
+/**
+ * The desk as `slots` in arrangement `preset` (as many as it has): the issues that were on it and
+ * aren't among them go first in the tray, nothing is maximized.
+ */
+function arrange(desk: DeskLayout, slots: DeskSlot[], preset: PresetId): DeskLayout {
+  const ids = new Set(slots.map(paneId));
+  const out = deskIssues(desk).filter(pane => !ids.has(paneId(pane)));
+  const outIds = new Set(out.map(paneId));
+  const parked = [...out, ...desk.parked.filter(pane => !ids.has(paneId(pane)) && !outIds.has(paneId(pane)))].slice(0, DESK_MAX_PARKED);
+  return { ...desk, preset, panes: slots, parked, maximized: null };
+}
+
+/**
+ * An issue sent to the desk from its own page: in slot `slot` of `preset`, the desk's other issues
+ * in the other slots in their order while they fit (the rest parked), empty slots for what is left.
+ * Already on the desk or parked, it moves there.
+ */
+export function placeIssue(desk: DeskLayout, pane: DeskPane, preset: PresetId, slot: number): DeskLayout {
+  const count = PRESETS[preset].slots;
+  if (slot < 0 || slot >= count) return desk;
+  const others: DeskSlot[] = deskIssues(desk).filter(item => paneId(item) !== paneId(pane)).slice(0, count - 1);
+  while (others.length < count - 1) others.push(emptySlot(others));
+  return arrange(desk, [...others.slice(0, slot), pane, ...others.slice(slot)], preset);
+}
+
+/** Two issues side by side (an issue's page and the one Shift-clicked on it); the desk's others parked. */
+export function sideBySide(desk: DeskLayout, first: DeskPane, second: DeskPane): DeskLayout {
+  return paneId(first) === paneId(second) ? placeIssue(desk, first, "single", 0) : arrange(desk, [first, second], "cols-2");
+}
+
+/** Issues picked together (the Issues list's selection), side by side in the default arrangement for their count; the desk's others parked. */
+export function openTogether(desk: DeskLayout, panes: readonly DeskPane[]): DeskLayout {
+  const seen = new Set<string>();
+  const shown = panes.filter(pane => !seen.has(paneId(pane)) && seen.add(paneId(pane))).slice(0, DESK_MAX_PANES);
+  return shown.length ? arrange(desk, shown, defaultPreset(shown.length)) : desk;
+}
+
+const PAGE_ORDER: PresetId[] = ["cols-2", "rows-2", "main-left", "main-right", "cols-3", "quad", "cols-4", "main-top", "main-bottom"];
+/** The arrangements an issue's page offers to send it to, `n` the issues the desk would hold with it: those with room for them all, at most six. */
+export const pagePresets = (n: number): PresetId[] => PAGE_ORDER.filter(id => PRESETS[id].slots >= Math.min(Math.max(n, 2), DESK_MAX_PANES)).slice(0, 6);
+
+/**
+ * An issue dropped on the desk from outside it (a list, the board): a slot of an arrangement with
+ * one more place than the desk has, or a pane's place (it fills an empty slot, parks an issue).
+ * Already on the desk, nothing changes.
+ */
+export function dropIssue(desk: DeskLayout, pane: DeskPane, target: SnapTarget): DeskLayout {
+  if (desk.panes.some(item => paneId(item) === paneId(pane))) return desk;
+  if (target.kind === "swap") return desk.panes[target.index] ? park(desk, paneId(desk.panes[target.index]), pane) : desk;
+  if (PRESETS[target.preset].slots !== desk.panes.length + 1 || target.slot < 0 || target.slot > desk.panes.length) return desk;
+  const panes = [...desk.panes.slice(0, target.slot), pane, ...desk.panes.slice(target.slot)];
+  return { ...desk, panes, preset: target.preset, parked: desk.parked.filter(item => paneId(item) !== paneId(pane)), maximized: null };
 }
 
 export function swapPanes(desk: DeskLayout, a: number, b: number): DeskLayout {

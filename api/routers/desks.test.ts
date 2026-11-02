@@ -8,6 +8,9 @@ vi.mock("node:dns/promises", () => ({
 // Nothing here asks a tracker.
 vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errorMessages: ["unexpected call"] }), { status: 500 }));
 
+/** A slot as its issue key, "_" when empty. */
+const slotKey = (slot: { key: string } | { empty: true }) => ("empty" in slot ? "_" : slot.key);
+
 describe("the current desk", () => {
   type Caller = ReturnType<typeof import("../router").appRouter.createCaller>;
   let ann: Caller;
@@ -49,7 +52,7 @@ describe("the current desk", () => {
     const saved = await ann.desks.setCurrent({
       layout: { v: 1, preset: "quad", tracks: { "cols-2": { cols: [0.99, 0.01], rows: [1] } }, panes: [pane(1), pane(1), pane(2)], parked: [], maximized: "nope", compare: false, onlyDifferences: false, noteId: null },
     });
-    expect(saved.panes.map(p => p.key)).toEqual(["APP-1", "APP-2"]);
+    expect(saved.panes.map(slotKey)).toEqual(["APP-1", "APP-2"]);
     expect(saved.preset).toBe("cols-2");
     expect(saved.tracks["cols-2"]?.cols[1]).toBeCloseTo(0.15);
     expect(saved.maximized).toBeNull();
@@ -68,7 +71,7 @@ describe("the current desk", () => {
     for (const n of [2, 3, 4]) expect((await ann.desks.add({ key: `APP-${n}` })).full).toBe(false);
     const fifth = await ann.desks.add({ connectionId: conn, key: "APP-5" });
     expect(fifth).toMatchObject({ full: true, parked: "APP-4" });
-    expect(fifth.layout.panes.map(p => p.key)).toEqual(["APP-1", "APP-2", "APP-3", "APP-5"]);
+    expect(fifth.layout.panes.map(slotKey)).toEqual(["APP-1", "APP-2", "APP-3", "APP-5"]);
     expect(fifth.layout.parked.map(p => p.key)).toEqual(["APP-4"]);
     expect(fifth.layout.preset).toBe("quad");
   });
@@ -79,14 +82,32 @@ describe("the current desk", () => {
     await q("UPDATE issues SET key = 'NEW-6' WHERE jira_id = '106'");
     // (A trigger keeps the old key as an alias.)
     expect(await q("SELECT a.key FROM item_aliases a JOIN issues i ON i.id = a.item_id WHERE i.jira_id = '106'")).toEqual([{ key: "APP-6" }]);
-    expect((await ann.desks.current()).panes.map(p => p.key)).toEqual(["NEW-6"]);
-    expect((await ann.desks.add({ connectionId: conn, key: "APP-6" })).layout.panes.map(p => p.key)).toEqual(["NEW-6"]);
+    expect((await ann.desks.current()).panes.map(slotKey)).toEqual(["NEW-6"]);
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-6" })).layout.panes.map(slotKey)).toEqual(["NEW-6"]);
+  });
+
+  it("fills the first empty slot, finds an issue by its identity, and keeps empty slots when keys are refreshed", async () => {
+    const empty = (id: string) => ({ empty: true, id });
+    const base = { v: 1, tracks: {}, parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null };
+    await ann.desks.setCurrent({ layout: { ...base, preset: "quad", panes: [{ connectionId: conn, key: "APP-1", remoteId: "101" }, empty("1"), { connectionId: conn, key: "APP-6", remoteId: "106" }, empty("2")] } });
+    // Read back: the renamed one under its key today, the empty slots where they were.
+    expect((await ann.desks.current()).panes).toEqual([{ connectionId: conn, key: "APP-1", remoteId: "101" }, empty("1"), { connectionId: conn, key: "NEW-6", remoteId: "106" }, empty("2")]);
+    const added = await ann.desks.add({ connectionId: conn, remoteId: "102" });
+    expect(added).toMatchObject({ key: "APP-2", already: false, full: false });
+    expect(added.layout.panes.map(slotKey)).toEqual(["APP-1", "APP-2", "NEW-6", "_"]);
+    expect(added.layout.preset).toBe("quad");
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-3" })).full).toBe(false);
+    expect((await ann.desks.add({ connectionId: conn, key: "APP-4" })).full).toBe(true);
+    await expect(ann.desks.add({ connectionId: conn, remoteId: "999" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(ann.desks.add({ connectionId: bobConn, remoteId: "900" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await ann.desks.setCurrent({ layout: null });
+    await ann.desks.add({ connectionId: conn, key: "NEW-6" });
   });
 
   it("is private: nobody else reads it, or puts their issue on someone's connection", async () => {
     expect((await bob.desks.current()).panes).toEqual([]);
     await bob.desks.setCurrent({ layout: { v: 1, preset: "single", tracks: {}, panes: [{ connectionId: bobConn, key: "BOB-1", remoteId: "900" }], parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null } });
-    expect((await ann.desks.current()).panes.map(p => p.key)).toEqual(["NEW-6"]);
+    expect((await ann.desks.current()).panes.map(slotKey)).toEqual(["NEW-6"]);
     await expect(ann.desks.add({ connectionId: bobConn, key: "BOB-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(bob.desks.add({ connectionId: conn, key: "APP-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 2 }]);

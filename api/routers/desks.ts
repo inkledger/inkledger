@@ -2,9 +2,10 @@
 // Stored normalized; read with each pane's key refreshed from the catalogue, so
 // an issue renamed (moved to another project) stays on the desk under its new key.
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { desks, issues, itemAliases } from "@db/schema";
-import { addPane, DESK_MAX_PANES, normalizeDesk, paneId, type DeskLayout, type DeskPane } from "@contracts/desk";
+import { addPane, deskIssues, DESK_MAX_PANES, isIssue, normalizeDesk, paneId, type DeskLayout, type DeskPane, type DeskSlot } from "@contracts/desk";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueConnection } from "../providers/connections";
@@ -34,9 +35,9 @@ async function writeCurrent(userId: number, layout: DeskLayout): Promise<DeskLay
   return desk;
 }
 
-/** Each pane under its issue's key today, found by its identity on its connection. */
+/** Each pane under its issue's key today, found by its identity on its connection (empty slots stay as they are). */
 async function refreshKeys(userId: number, desk: DeskLayout): Promise<DeskLayout> {
-  const all = [...desk.panes, ...desk.parked];
+  const all = [...deskIssues(desk), ...desk.parked];
   const ids = all.filter(pane => pane.remoteId !== null);
   if (!ids.length) return desk;
   const rows = await getDb()
@@ -45,7 +46,8 @@ async function refreshKeys(userId: number, desk: DeskLayout): Promise<DeskLayout
     .where(and(eq(issues.userId, userId), inArray(issues.remoteId, ids.map(pane => pane.remoteId ?? ""))));
   const keyOf = new Map(rows.map(row => [`${row.connectionId}:${row.remoteId}`, row.key]));
   let changed = false;
-  const fresh = (pane: DeskPane): DeskPane => {
+  const fresh = <T extends DeskSlot>(pane: T): T => {
+    if (!isIssue(pane)) return pane;
     const key = pane.remoteId === null ? undefined : keyOf.get(`${pane.connectionId}:${pane.remoteId}`);
     if (!key || key === pane.key) return pane;
     changed = true;
@@ -82,6 +84,17 @@ async function paneFor(userId: number, key: string, connectionId: number | undef
   return { connectionId: connection.id, key: found?.key ?? key, remoteId: found?.remoteId ?? null };
 }
 
+/** The issue with this identity on one of the user's connections, as a pane (its link names it so). */
+async function paneByRef(userId: number, connectionId: number, remoteId: string): Promise<DeskPane> {
+  const [row] = await getDb()
+    .select({ key: issues.key })
+    .from(issues)
+    .where(and(eq(issues.userId, userId), eq(issues.connectionId, connectionId), eq(issues.remoteId, remoteId)))
+    .limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+  return { connectionId, key: row.key, remoteId };
+}
+
 export const desksRouter = createRouter({
   /** The current desk (empty until something is put on it). */
   current: protectedProcedure.query(async ({ ctx }) => {
@@ -97,18 +110,24 @@ export const desksRouter = createRouter({
     .mutation(async ({ ctx, input }) => writeCurrent(ctx.user.id, normalizeDesk(input.layout))),
 
   /**
-   * Puts an issue on the desk: already there, nothing changes; a full desk parks
-   * its last pane (`parked` names it). `key`: the issue's key today.
+   * Puts an issue on the desk, by its key or by its identity (an issue link): already there,
+   * nothing changes; the first empty slot takes it; a full desk parks its last pane (`parked`
+   * names it). `key`: the issue's key today.
    */
   add: protectedProcedure
-    .input(z.object({ connectionId: z.number().int().positive().optional(), key: issueKeyInput }))
+    .input(
+      z.union([
+        z.object({ connectionId: z.number().int().positive().optional(), key: issueKeyInput }),
+        z.object({ connectionId: z.number().int().positive(), remoteId: z.string().min(1).max(200) }),
+      ])
+    )
     .mutation(async ({ ctx, input }) => {
-      const pane = await paneFor(ctx.user.id, input.key, input.connectionId);
+      const pane = "remoteId" in input ? await paneByRef(ctx.user.id, input.connectionId, input.remoteId) : await paneFor(ctx.user.id, input.key, input.connectionId);
       const before = await readCurrent(ctx.user.id);
       const already = before.panes.some(item => paneId(item) === paneId(pane));
-      const full = before.panes.length >= DESK_MAX_PANES && !already;
+      const full = before.panes.length >= DESK_MAX_PANES && before.panes.every(isIssue) && !already;
       const out = full ? before.panes[before.panes.length - 1] : undefined;
       const layout = already ? before : await writeCurrent(ctx.user.id, addPane(before, pane));
-      return { layout, key: pane.key, already, full, parked: out?.key };
+      return { layout, key: pane.key, already, full, parked: out && isIssue(out) ? out.key : undefined, count: deskIssues(layout).length };
     }),
 });

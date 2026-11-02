@@ -1,4 +1,4 @@
-import type { PresetId, SnapTarget } from "@contracts/desk";
+import { isEmptySlot, type DeskSlot, type PresetId, type SnapTarget } from "@contracts/desk";
 import { t } from "@/i18n";
 
 type Side = "left" | "right" | "top" | "bottom";
@@ -61,3 +61,6 @@ export function placeShortName(place: Place): string {
 export function targetName(target: SnapTarget, keys: readonly string[]): string {
   return target.kind === "swap" ? t("pages.desk.snap.swap", { key: keys[target.index] ?? "" }) : placeName(placeOf(target.preset, target.slot));
 }
+
+/** The desk's slots as the snap names say them: each issue's key, "empty slot" for one kept free. */
+export const slotNames = (panes: readonly DeskSlot[]): string[] => panes.map(pane => (isEmptySlot(pane) ? t("pages.desk.slot.name") : pane.key));

@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { moveTargets, paneId, PRESETS, sameTarget, slotRects, tracksOf, zoneAt, type DeskLayout, type PresetId, type Rect, type SnapTarget } from "@contracts/desk";
-import { targetName } from "@/lib/desk/targetName";
+import { slotNames, targetName } from "@/lib/desk/targetName";
 import { t } from "@/i18n";
 
-/** A pane being moved: which, and where it would land now (null: nowhere, it goes back). */
-export type SnapDrag = { id: string; key: string; index: number; target: SnapTarget | null; mode: "pointer" | "keyboard" };
+/**
+ * A pane being moved: which, and where it would land now (null: nowhere, it goes back). `places`:
+ * the slots it is moved among (the panes, or one more for an issue dragged in from outside the
+ * desk, `index` -1 then).
+ */
+export type SnapDrag = { id: string; key: string; index: number; target: SnapTarget | null; mode: "pointer" | "keyboard"; places: number };
 
 /**
  * The drag in progress, kept out of React's state: only what draws it (the overlay, the grips)
@@ -85,7 +89,7 @@ export function useSnapDrag(options: Options): SnapHandle {
 
   const [handle] = useState<SnapHandle>(() => {
     const store = createStore();
-    const keysOf = (desk: DeskLayout) => desk.panes.map(pane => pane.key);
+    const keysOf = (desk: DeskLayout) => slotNames(desk.panes);
     const say = (drag: SnapDrag, desk: DeskLayout) =>
       latest.current.announce(drag.target ? t("pages.desk.snap.target", { key: drag.key, target: targetName(drag.target, keysOf(desk)) }) : t("pages.desk.snap.nowhere", { key: drag.key }));
     const start = (id: string, mode: SnapDrag["mode"]): { drag: SnapDrag; desk: DeskLayout } | null => {
@@ -94,7 +98,7 @@ export function useSnapDrag(options: Options): SnapHandle {
       if (!desk || index < 0 || desk.panes.length < 2) return null;
       paneEl(id)?.setAttribute("data-snap-dragging", "");
       const target: SnapTarget | null = mode === "keyboard" ? { kind: "slot", preset: desk.preset, slot: index } : null;
-      return { drag: { id, key: desk.panes[index].key, index, target, mode }, desk };
+      return { drag: { id, key: keysOf(desk)[index], index, target, mode, places: desk.panes.length }, desk };
     };
     const end = (drag: SnapDrag, drop: boolean) => {
       paneEl(drag.id)?.removeAttribute("data-snap-dragging");

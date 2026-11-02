@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { applySnap, edgeTarget, maximize, park, paneId, removePane, sameTarget, setPreset, snapTargets, unpark, type DeskLayout, type Edge, type SnapTarget } from "@contracts/desk";
+import { toast } from "sonner";
+import { addPane, applySnap, deskIssues, dropIssue, edgeTarget, isIssue, maximize, park, paneId, removePane, sameTarget, setPreset, snapTargets, unpark, type DeskLayout, type DeskPane as Pane, type Edge, type SnapTarget } from "@contracts/desk";
+import { trpc } from "@/lib/trpc";
 import { useDesk } from "@/lib/desk/useDesk";
 import { useSnapDrag } from "@/lib/desk/useSnapDrag";
-import { targetName } from "@/lib/desk/targetName";
+import { slotNames, targetName } from "@/lib/desk/targetName";
+import { announceAdd } from "@/lib/desk/announce";
+import { DESK_OPEN_EVENT, paneOf, type DeskOpenDetail } from "@/lib/desk/send";
 import { isDialogOpen, isTyping } from "@/lib/dom";
 import { errorText } from "@/lib/errorText";
 import { cn } from "@/lib/utils";
@@ -40,11 +44,14 @@ const snapPane = (desk: DeskLayout, id: string, target: SnapTarget) => {
  */
 export default function DeskPage() {
   const { desk, query, change } = useDesk();
+  const utils = trpc.useUtils();
   const wide = useMediaQuery(WIDE, typeof window === "undefined" || window.matchMedia(WIDE).matches);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const panes = desk?.panes ?? [];
   const ids = panes.map(paneId);
+  const names = slotNames(panes);
+  const issues = deskIssues({ panes });
   const focused = focusedId && ids.includes(focusedId) ? focusedId : (ids[0] ?? null);
   const showGrid = wide && panes.length > 0;
   const { ref: fitRef, drawn } = useFittedPreset(desk?.preset ?? "single", showGrid);
@@ -56,10 +63,10 @@ export default function DeskPage() {
   const snap = useSnapDrag({ grid: gridRef, desk, drawn, announce, onDrop: (id, target) => change(d => snapPane(d, id, target), { saveNow: true }) });
   /** Moved from its menu or by Alt+Shift+arrows: said, and the focus kept on the pane when the move took it away. */
   const moveTo = (id: string, target: SnapTarget) => {
-    const pane = panes.find(p => paneId(p) === id);
-    if (!pane) return;
+    const at = ids.indexOf(id);
+    if (at < 0) return;
     change(d => snapPane(d, id, target), { saveNow: true });
-    announce(t("pages.desk.snap.moved", { key: pane.key, target: targetName(target, panes.map(p => p.key)) }));
+    announce(t("pages.desk.snap.moved", { key: names[at], target: targetName(target, names) }));
     requestAnimationFrame(() => {
       if (document.activeElement === document.body) document.getElementById(`desk-pane-${id}`)?.focus({ preventScroll: true });
     });
@@ -68,6 +75,18 @@ export default function DeskPage() {
   const focusPane = (id: string) => {
     setFocusedId(id);
     document.getElementById(`desk-pane-${id}`)?.focus({ preventScroll: true });
+  };
+  /** An issue brought in (an empty slot's choice, a drop, Shift-click): already there, it is only focused. */
+  const bring = (pane: Pane, how: (d: DeskLayout) => DeskLayout) => {
+    const id = paneId(pane);
+    if (ids.includes(id)) {
+      toast(t("pages.desk.already", { key: pane.key }));
+      focusPane(id);
+      return;
+    }
+    change(how, { saveNow: true });
+    setFocusedId(id);
+    requestAnimationFrame(() => document.getElementById(`desk-pane-${id}`)?.focus({ preventScroll: true }));
   };
   /** Off the desk (or parked): the focus goes to the pane that takes its place, or the one before. */
   const leave = (id: string, how: (d: DeskLayout) => DeskLayout) => {
@@ -79,10 +98,24 @@ export default function DeskPage() {
 
   // The desk's own keys: 1–4 focus a pane, x closes the focused one, Esc restores a maximized one,
   // Alt+Shift+arrows send the focused one to that side.
-  const keys = useRef({ ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo });
+  const keys = useRef({ ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk });
   useEffect(() => {
-    keys.current = { ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo };
+    keys.current = { ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk };
   });
+  // Shift-click on an issue link while here: the issue takes the first empty slot (or joins the desk).
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const ref = (e as CustomEvent<DeskOpenDetail>).detail;
+      void paneOf(utils, ref).then(pane => {
+        if (!pane) return;
+        const k = keys.current;
+        if (k.desk && !k.ids.includes(paneId(pane))) announceAdd(k.desk, addPane(k.desk, pane), pane);
+        k.bring(pane, d => addPane(d, pane));
+      });
+    };
+    window.addEventListener(DESK_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(DESK_OPEN_EVENT, onOpen);
+  }, [utils]);
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || isTyping(e.target) || somethingOpen()) return;
@@ -127,22 +160,21 @@ export default function DeskPage() {
       </>
     );
 
+  const phoneFocused = focused && issues.some(p => paneId(p) === focused) ? focused : (issues[0] ? paneId(issues[0]) : null);
   // A phone shows one at a time: no pane to tell apart, nothing to maximize.
   const several = wide && panes.length > 1;
   // Panes move on a grid of several, none maximized; the menu offers every slot but the pane's own.
   const movable = several && !desk.maximized;
-  const keysShown = panes.map(p => p.key);
-  const controlsFor = (index: number): PaneControls => {
-    const pane = panes[index];
+  const controlsFor = (index: number, pane: Pane): PaneControls => {
     const id = ids[index];
     const here: SnapTarget = { kind: "slot", preset: desk.preset, slot: index };
     return {
       id,
       snap: movable ? snap : null,
       moves: movable
-        ? snapTargets(panes.length).flatMap(target => (target.kind === "slot" && !sameTarget(target, here) ? [{ preset: target.preset, slot: target.slot, name: targetName(target, keysShown) }] : []))
+        ? snapTargets(panes.length).flatMap(target => (target.kind === "slot" && !sameTarget(target, here) ? [{ preset: target.preset, slot: target.slot, name: targetName(target, names) }] : []))
         : [],
-      swaps: movable ? panes.flatMap((other, at) => (at === index ? [] : [{ index: at, key: other.key }])) : [],
+      swaps: movable ? names.flatMap((other, at) => (at === index ? [] : [{ index: at, key: other }])) : [],
       onMove: target => moveTo(id, target),
       issueKey: pane.key,
       connectionId: pane.connectionId,
@@ -163,11 +195,11 @@ export default function DeskPage() {
     <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       <PageHeader
         title={t("pages.desk.title")}
-        documentTitle={panes.length ? t("pages.desk.documentTitle", { count: panes.length }) : t("pages.desk.title")}
+        documentTitle={issues.length ? t("pages.desk.documentTitle", { count: issues.length }) : t("pages.desk.title")}
         actions={
           panes.length > 0 && (
             <>
-              {wide && <LayoutPicker count={panes.length} value={desk.preset} drawn={drawn} onChange={id => change(d => setPreset(d, id), { saveNow: true })} />}
+              {wide && <LayoutPicker count={issues.length} value={desk.preset} drawn={drawn} onChange={id => change(d => setPreset(d, id), { saveNow: true })} />}
               {wide && add("default")}
             </>
           )
@@ -175,7 +207,7 @@ export default function DeskPage() {
       />
       {desk.maximized && (
         <p role="status" className="sr-only">
-          {t("pages.desk.maximized", { key: panes.find(p => paneId(p) === desk.maximized)?.key ?? "" })}
+          {t("pages.desk.maximized", { key: names[ids.indexOf(desk.maximized)] ?? "" })}
         </p>
       )}
       <p ref={liveRef} role="status" data-desk-live className="sr-only" />
@@ -183,13 +215,27 @@ export default function DeskPage() {
         <DeskEmpty add={add("default")} />
       ) : showGrid ? (
         <div ref={fitRef} className="min-h-0 flex-1">
-          <Desk desk={desk} drawn={drawn} gridRef={gridRef} controlsFor={controlsFor} onFocusPane={setFocusedId} change={change} snap={snap.store} />
+          <Desk
+            desk={desk}
+            drawn={drawn}
+            gridRef={gridRef}
+            controlsFor={controlsFor}
+            onFocusPane={setFocusedId}
+            change={change}
+            snap={snap.store}
+            onFill={(index, pane) => bring(pane, d => dropIssue(d, pane, { kind: "swap", index }))}
+            onDropIssue={(pane, target) => {
+              bring(pane, d => dropIssue(d, pane, target));
+              announce(t("pages.desk.snap.dropped", { key: pane.key, target: targetName(target, names) }));
+            }}
+          />
         </div>
       ) : (
-        <PhoneDesk ids={ids} keys={panes.map(p => p.key)} focused={focused} onSelect={focusPane} add={<AddToDesk desk={desk} change={change} onAdded={setFocusedId} variant="ghost" icon />}>
-          {panes.map((_, index) => (
-            <DeskPane key={ids[index]} id={ids[index]} controls={controlsFor(index)} hidden={ids[index] !== focused} onFocusPane={setFocusedId} />
-          ))}
+        // A phone shows the issues alone: an empty slot is a place on a wide desk.
+        <PhoneDesk ids={issues.map(paneId)} keys={issues.map(p => p.key)} focused={phoneFocused} onSelect={focusPane} add={<AddToDesk desk={desk} change={change} onAdded={setFocusedId} variant="ghost" icon />}>
+          {panes.map((pane, index) =>
+            isIssue(pane) ? <DeskPane key={ids[index]} id={ids[index]} controls={controlsFor(index, pane)} hidden={ids[index] !== phoneFocused} onFocusPane={setFocusedId} /> : null
+          )}
         </PhoneDesk>
       )}
       <ParkedTray

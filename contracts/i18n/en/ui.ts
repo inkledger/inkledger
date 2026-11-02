@@ -142,6 +142,8 @@ export const ui = {
   keys: {
     enter: "Enter",
     space: "Space",
+    click: "click",
+    shiftClick: "⇧ click",
   },
   logTime: {
     placementFailed: "The day's time couldn't be read: nothing is placed on guesses.",
@@ -374,6 +376,9 @@ export const ui = {
     restorePane: "Restore the maximized pane",
     snapPane: "Snap the focused pane to an edge",
     movePane: "Move a pane from its grip: arrows choose, Enter drops",
+    pickRow: "Pick the selected row for the desk",
+    openBeside: "Open an issue link beside: on the desk, or beside the issue shown",
+    sendToDesk: "Open the issue on the desk, in that half",
     logTime: "Log time (issue detail)",
     toggleFav: "Add to or remove from favorites (detail)",
     toggleHide: "Hide or restore (detail)",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { branchName, byRelevance, commitMessage, relevanceText } from "./issues";
+import { branchName, byRelevance, commitMessage, issuePath, parseIssuePath, readIssueDragData, relevanceText, setIssueDragData, ISSUE_DRAG_TYPE } from "./issues";
 
 describe("branchName", () => {
   it("builds a short ASCII slug after the key", () => {
@@ -61,5 +61,52 @@ describe("byRelevance", () => {
     expect(relevanceText(now - 30_000, now)).toBe("just now");
     expect(relevanceText(now - 20 * 60_000, now)).toBe("20 minutes ago");
     expect(relevanceText(now - 3 * 3600_000, now)).toBe("3 hours ago");
+  });
+});
+
+describe("parseIssuePath", () => {
+  it("reads back every link issuePath makes", () => {
+    for (const issue of [
+      { key: "APP-1", connectionId: 3, remoteId: "10001" },
+      { key: "APP-1", connectionId: 3, remoteId: "owner/repo#12" },
+      { key: "APP-1", connectionId: 3 },
+      { key: "APP-1" },
+      { key: "repo#7" },
+    ]) {
+      const ref = parseIssuePath(issuePath(issue));
+      expect(issuePath({ key: "", ...ref })).toBe(issuePath(issue));
+    }
+    expect(parseIssuePath("/issues/3/10001")).toEqual({ connectionId: 3, remoteId: "10001" });
+    expect(parseIssuePath("/issues/APP-1?c=3#comment-4")).toEqual({ key: "APP-1", connectionId: 3 });
+    expect(parseIssuePath("/issues/APP-1")).toEqual({ key: "APP-1" });
+  });
+
+  it("is null for anything else: the list, the desk, other pages, broken escapes", () => {
+    for (const path of ["/issues", "/issues/", "/issues/desk", "/board", "/issues/0/1", "/issues/a/b/c", "/issues/%E0%A4%A", "https://jira.example.com/browse/APP-1"]) expect(parseIssuePath(path)).toBeNull();
+  });
+});
+
+describe("issue drag data", () => {
+  const transfer = () => {
+    const data = new Map<string, string>();
+    return { setData: (type: string, value: string) => void data.set(type, value), getData: (type: string) => data.get(type) ?? "", data };
+  };
+
+  it("carries the issue's identity under its own type, read back as it was", () => {
+    const dt = transfer();
+    setIssueDragData(dt, { connectionId: 2, key: "APP-1", remoteId: "10001" });
+    expect([...dt.data.keys()]).toContain(ISSUE_DRAG_TYPE);
+    expect(readIssueDragData(dt)).toEqual({ connectionId: 2, key: "APP-1", remoteId: "10001" });
+    setIssueDragData(dt, { connectionId: 2, key: "APP-2" });
+    expect(readIssueDragData(dt)).toEqual({ connectionId: 2, key: "APP-2", remoteId: null });
+  });
+
+  it("refuses what isn't an issue", () => {
+    const dt = transfer();
+    expect(readIssueDragData(dt)).toBeNull();
+    dt.setData(ISSUE_DRAG_TYPE, "{nope");
+    expect(readIssueDragData(dt)).toBeNull();
+    dt.setData(ISSUE_DRAG_TYPE, JSON.stringify({ key: "A-1" }));
+    expect(readIssueDragData(dt)).toBeNull();
   });
 });

@@ -143,6 +143,8 @@ export const ui: Shape<typeof en> = {
   keys: {
     enter: "Invio",
     space: "Spazio",
+    click: "clic",
+    shiftClick: "⇧ clic",
   },
   logTime: {
     placementFailed: "Non è stato possibile leggere il tempo del giorno: niente viene collocato a caso.",
@@ -375,6 +377,9 @@ export const ui: Shape<typeof en> = {
     restorePane: "Riduci il riquadro ingrandito",
     snapPane: "Aggancia il riquadro attivo a un bordo",
     movePane: "Sposta un riquadro dalla sua maniglia: le frecce scelgono, Invio lascia",
+    pickRow: "Scegli la riga selezionata per la scrivania",
+    openBeside: "Apri accanto il link di una issue: sulla scrivania, o accanto alla issue aperta",
+    sendToDesk: "Apri la issue sulla scrivania, in quella metà",
     logTime: "Registra tempo (dettaglio issue)",
     toggleFav: "Aggiungi o togli dalle preferite (dettaglio)",
     toggleHide: "Nascondi o ripristina (dettaglio)",

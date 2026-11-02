@@ -1,5 +1,5 @@
 import { LayoutPanelLeft } from "lucide-react";
-import { presetsFor, slotRects, type PresetId } from "@contracts/desk";
+import { PRESET_IDS, PRESETS, slotRects, type PresetId } from "@contracts/desk";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -33,11 +33,12 @@ export function LayoutMiniature({ preset, active = null, targets = false, classN
 }
 
 /**
- * "Layout": the arrangements for the panes on the desk, drawn small; the chosen one
- * pressed. `drawn` differs when the desk is too small for the chosen one (said below).
+ * "Layout": the arrangements with room for the `count` issues on the desk, drawn small (one
+ * with more places keeps them as empty slots to open an issue in); the chosen one pressed.
+ * `drawn` differs when the desk is too small for the chosen one (said below).
  */
 export function LayoutPicker({ count, value, drawn, onChange }: { count: number; value: PresetId; drawn: PresetId; onChange: (id: PresetId) => void }) {
-  const options = presetsFor(count);
+  const options = PRESET_IDS.filter(id => PRESETS[id].slots >= Math.max(count, 1));
   if (options.length < 2) return null;
   return (
     <Popover>

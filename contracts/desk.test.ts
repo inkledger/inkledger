@@ -10,20 +10,26 @@ import {
   defaultPreset,
   defaultTracks,
   dividersOf,
+  dropIssue,
   edgeTarget,
   emptyDesk,
   fitPreset,
+  isEmptySlot,
   maximize,
   moveTargets,
   normalizeDesk,
+  openTogether,
+  pagePresets,
   park,
   paneId,
+  placeIssue,
   presetsFor,
   removePane,
   sameTarget,
   resizeDivider,
   resizeTracks,
   setPreset,
+  sideBySide,
   slotRects,
   snapTargets,
   tracksOf,
@@ -34,7 +40,9 @@ import {
 } from "./desk";
 
 const pane = (key: string, connectionId = 1): DeskPane => ({ connectionId, key, remoteId: null });
-const keys = (desk: DeskLayout) => desk.panes.map(item => item.key);
+/** The desk's slots in order: each issue's key, "_" for an empty slot. */
+const shape = (desk: DeskLayout) => desk.panes.map(item => (isEmptySlot(item) ? "_" : item.key));
+const keys = shape;
 const deskWith = (...names: string[]) => names.reduce((desk, name) => addPane(desk, pane(name)), emptyDesk());
 
 describe("the arrangements", () => {
@@ -223,5 +231,135 @@ describe("a stored or sent desk", () => {
   it("falls back to an empty desk when it can't be read, and fixes an arrangement that doesn't match", () => {
     expect(normalizeDesk("nope")).toEqual(emptyDesk());
     expect(normalizeDesk({ ...emptyDesk(), preset: "quad", panes: [pane("A"), pane("B")] }).preset).toBe("cols-2");
+  });
+});
+
+describe("empty slots", () => {
+  const empties = (desk: DeskLayout) => desk.panes.filter(isEmptySlot).length;
+
+  it("a layout with more slots than issues keeps the extra ones as empty slots, and an issue added fills the first", () => {
+    let desk = setPreset(deskWith("A"), "cols-2");
+    expect(desk.preset).toBe("cols-2");
+    expect(shape(desk)).toEqual(["A", "_"]);
+    desk = setPreset(desk, "quad");
+    expect(shape(desk)).toEqual(["A", "_", "_", "_"]);
+    expect(new Set(desk.panes.map(paneId)).size).toBe(4);
+    desk = addPane(desk, pane("B"));
+    expect(shape(desk)).toEqual(["A", "B", "_", "_"]);
+    expect(desk.preset).toBe("quad");
+    // Fewer slots: empty ones go first; never fewer than the issues.
+    desk = setPreset(desk, "cols-2");
+    expect(shape(desk)).toEqual(["A", "B"]);
+    expect(setPreset(deskWith("A", "B", "C"), "cols-2").preset).toBe("main-left");
+  });
+
+  it("counts empty slots towards the four, but a fifth issue still fills one before anything is parked", () => {
+    let desk = setPreset(deskWith("A", "B", "C"), "quad");
+    expect(empties(desk)).toBe(1);
+    desk = addPane(desk, pane("D"));
+    expect(shape(desk)).toEqual(["A", "B", "C", "D"]);
+    expect(desk.parked).toEqual([]);
+    desk = addPane(desk, pane("E"));
+    expect(shape(desk)).toEqual(["A", "B", "C", "E"]);
+    expect(desk.parked.map(item => item.key)).toEqual(["D"]);
+  });
+
+  it("closes an empty slot (the arrangement follows), never parks one, and an issue brought back fills one", () => {
+    let desk = setPreset(deskWith("A", "B"), "main-left");
+    const slot = desk.panes.find(isEmptySlot);
+    expect(slot).toBeDefined();
+    if (!slot) return;
+    expect(park(desk, paneId(slot)).parked).toEqual([]);
+    desk = removePane(desk, paneId(slot));
+    expect(shape(desk)).toEqual(["A", "B"]);
+    expect(desk.preset).toBe("cols-2");
+    desk = setPreset(park(desk, "1:B"), "cols-2");
+    expect(shape(desk)).toEqual(["A", "_"]);
+    desk = unpark(desk, "1:B");
+    expect(shape(desk)).toEqual(["A", "B"]);
+    // The last issue gone: the desk is empty, not a desk of empty slots.
+    const one = setPreset(deskWith("A"), "cols-2");
+    expect(removePane(one, "1:A").panes).toEqual([]);
+    expect(maximize(one, paneId(one.panes[1])).maximized).toBeNull();
+  });
+
+  it("are stored: a stored desk keeps them, deduplicates only issues, and drops a desk of empty slots alone", () => {
+    const desk = setPreset(deskWith("A", "B"), "quad");
+    expect(normalizeDesk(JSON.parse(JSON.stringify(desk)))).toEqual(desk);
+    const raw = { ...desk, panes: [pane("A"), { empty: true, id: "1" }, pane("A"), { empty: true, id: "1" }, { empty: true, id: "2" }, pane("B"), pane("C")] };
+    const fixed = normalizeDesk(raw);
+    expect(shape(fixed)).toEqual(["A", "_", "_", "B"]);
+    expect(fixed.parked.map(item => item.key)).toEqual(["C"]);
+    expect(normalizeDesk({ ...emptyDesk(), preset: "cols-2", panes: [{ empty: true, id: "1" }, { empty: true, id: "2" }] }).panes).toEqual([]);
+    // An empty slot is a strict shape: anything else makes the desk unreadable.
+    expect(normalizeDesk({ ...desk, panes: [pane("A"), { empty: true }] })).toEqual(emptyDesk());
+  });
+
+  it("stay where they are when a pane is snapped", () => {
+    const desk = setPreset(deskWith("A"), "cols-2");
+    expect(shape(applySnap(desk, 0, { kind: "slot", preset: "cols-2", slot: 1 }))).toEqual(["_", "A"]);
+    expect(shape(applySnap(desk, 0, { kind: "swap", index: 1 }))).toEqual(["_", "A"]);
+  });
+});
+
+describe("sending an issue to the desk", () => {
+  it("puts it in the slot chosen, the desk's issues in the other slots where they fit, empty slots for the rest", () => {
+    let desk = placeIssue(emptyDesk(), pane("A"), "cols-2", 1);
+    expect(desk.preset).toBe("cols-2");
+    expect(shape(desk)).toEqual(["_", "A"]);
+    desk = placeIssue(deskWith("B", "C"), pane("A"), "cols-2", 0);
+    expect(shape(desk)).toEqual(["A", "B"]);
+    expect(desk.parked.map(item => item.key)).toEqual(["C"]);
+    desk = placeIssue(deskWith("B"), pane("A"), "main-left", 2);
+    expect(shape(desk)).toEqual(["B", "_", "A"]);
+    // Already on the desk (or parked): it moves there, never twice.
+    desk = placeIssue(deskWith("A", "B"), pane("A"), "cols-2", 1);
+    expect(shape(desk)).toEqual(["B", "A"]);
+    desk = placeIssue({ ...deskWith("B"), parked: [pane("A")] }, pane("A"), "cols-2", 0);
+    expect(shape(desk)).toEqual(["A", "B"]);
+    expect(desk.parked).toEqual([]);
+    // A slot the arrangement doesn't have: the desk is left as it is.
+    const before = deskWith("B");
+    expect(placeIssue(before, pane("A"), "cols-2", 2)).toBe(before);
+  });
+
+  it("offers the issue page the arrangements with room for it beside the desk's issues", () => {
+    expect(pagePresets(1)).toEqual(["cols-2", "rows-2", "main-left", "main-right", "cols-3", "quad"]);
+    expect(pagePresets(3)).toEqual(["main-left", "main-right", "cols-3", "quad", "cols-4", "main-top"]);
+    expect(pagePresets(4)).toEqual(["quad", "cols-4"]);
+    expect(pagePresets(9)).toEqual(["quad", "cols-4"]);
+  });
+
+  it("opens issues picked together in the arrangement for their count, parking the others", () => {
+    const desk = openTogether(setPreset(deskWith("A", "B"), "quad"), [pane("C"), pane("A"), pane("D"), pane("C")]);
+    expect(desk.preset).toBe("main-left");
+    expect(shape(desk)).toEqual(["C", "A", "D"]);
+    expect(desk.parked.map(item => item.key)).toEqual(["B"]);
+    const none = deskWith("A");
+    expect(openTogether(none, [])).toBe(none);
+  });
+
+  it("opens two issues side by side, parking the others", () => {
+    const desk = sideBySide(deskWith("B", "C", "D"), pane("A"), pane("C"));
+    expect(desk.preset).toBe("cols-2");
+    expect(shape(desk)).toEqual(["A", "C"]);
+    expect(desk.parked.map(item => item.key)).toEqual(["B", "D"]);
+  });
+
+  it("drops an issue brought from outside: a slot of an arrangement with one more place, or in place of a pane", () => {
+    let desk = dropIssue(deskWith("A", "B"), pane("C"), { kind: "slot", preset: "main-left", slot: 0 });
+    expect(shape(desk)).toEqual(["C", "A", "B"]);
+    expect(desk.preset).toBe("main-left");
+    desk = dropIssue(deskWith("A", "B", "C", "D"), pane("E"), { kind: "swap", index: 1 });
+    expect(shape(desk)).toEqual(["A", "E", "C", "D"]);
+    expect(desk.parked.map(item => item.key)).toEqual(["B"]);
+    // In place of an empty slot: it fills it, nothing parked.
+    desk = dropIssue(setPreset(deskWith("A"), "cols-2"), pane("B"), { kind: "swap", index: 1 });
+    expect(shape(desk)).toEqual(["A", "B"]);
+    expect(desk.parked).toEqual([]);
+    // Already there, or a slot for another count: unchanged.
+    const two = deskWith("A", "B");
+    expect(dropIssue(two, pane("A"), { kind: "slot", preset: "main-left", slot: 0 })).toBe(two);
+    expect(dropIssue(two, pane("C"), { kind: "slot", preset: "cols-2", slot: 0 })).toBe(two);
   });
 });
