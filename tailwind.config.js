@@ -179,5 +179,14 @@ module.exports = {
     ({ addVariant }) => addVariant("coarse", "@media (pointer: coarse)"),
     // forced: Windows contrast themes, a mark that does not rely on fill or shadow.
     ({ addVariant }) => addVariant("forced", "@media (forced-colors: active)"),
+    // Regions (docs/design-system.md §7.1): a block lays itself out by its own width. `region` makes an
+    // element the container; `@m:`, `@l:`, `@xl:` apply from 28, 56 and 80rem of it (src/lib/layout/regions.ts;
+    // rem, so density moves them). No plugin: written by hand, the same as `coarse`.
+    ({ addUtilities, addVariant }) => {
+      addUtilities({ ".region": { "container-type": "inline-size", "container-name": "region" } });
+      addVariant("@m", "@container region (min-width: 28rem)");
+      addVariant("@l", "@container region (min-width: 56rem)");
+      addVariant("@xl", "@container region (min-width: 80rem)");
+    },
   ],
 };

@@ -792,3 +792,217 @@ html.ikl-hit-cursor * {
     scroll-behavior: auto !important;
   }
 }
+
+/* Collection (src/components/app/Collection.tsx, docs/design-system.md §7.1): a bounded grid that shows
+   `rows` rows of as many columns as its own width holds (1 below 28rem, then 2, 3, 4 from 80rem, capped
+   by data-max-cols), then "Show all N". What is past the budget is display:none: out of the tab order
+   and the accessibility tree, never clipped by a mask nor scrolled sideways. Pure CSS (container queries
+   and :nth-child), so the server renders the same and nothing is measured in JS. Generated for 1–4 rows;
+   expanded (no data-rows) every item shows. Each size's rules share one specificity, later sizes win. */
+.collection {
+  container-type: inline-size;
+  container-name: collection;
+}
+.collection-items {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(var(--collection-cols, 1), minmax(0, 1fr));
+}
+.collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+.collection[data-max-cols="2"] > .collection-items { --collection-cols: 1; }
+.collection[data-max-cols="3"] > .collection-items { --collection-cols: 1; }
+.collection[data-max-cols="4"] > .collection-items { --collection-cols: 1; }
+.collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+.collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+.collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 2) { display: none; }
+.collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+.collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 2) { display: none; }
+.collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+.collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 2) { display: none; }
+.collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+.collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+.collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+.collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+.collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+.collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
+.collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+.collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
+.collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+.collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+.collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+.collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 4) { display: none; }
+.collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+.collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+.collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+.collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
+.collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+.collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+.collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+.collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+.collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+.collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
+.collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+.collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+.collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+@container collection (min-width: 28rem) {
+  .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 2; }
+  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 2; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+}
+@container collection (min-width: 56rem) {
+  .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
+  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 3; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 10) { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+}
+@container collection (min-width: 80rem) {
+  .collection[data-max-cols="1"] > .collection-items { --collection-cols: 1; }
+  .collection[data-max-cols="2"] > .collection-items { --collection-cols: 2; }
+  .collection[data-max-cols="3"] > .collection-items { --collection-cols: 3; }
+  .collection[data-max-cols="4"] > .collection-items { --collection-cols: 4; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="1"] > .collection-items > :nth-child(n + 2) { display: none; }
+  .collection[data-rows="1"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(2))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="2"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="1"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="3"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="1"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="1"][data-max-cols="4"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="1"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="1"] > .collection-items > :nth-child(n + 3) { display: none; }
+  .collection[data-rows="2"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(3))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="2"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="2"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="3"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="2"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="2"][data-max-cols="4"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="2"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="1"] > .collection-items > :nth-child(n + 4) { display: none; }
+  .collection[data-rows="3"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(4))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="2"] > .collection-items > :nth-child(n + 7) { display: none; }
+  .collection[data-rows="3"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(7))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="3"] > .collection-items > :nth-child(n + 10) { display: none; }
+  .collection[data-rows="3"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(10))) > .collection-more { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="3"][data-max-cols="4"] > .collection-items > :nth-child(n + 13) { display: none; }
+  .collection[data-rows="3"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="1"] > .collection-items > :nth-child(n + 5) { display: none; }
+  .collection[data-rows="4"][data-max-cols="1"]:not(:has(> .collection-items > :nth-child(5))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="2"] > .collection-items > :nth-child(n + 9) { display: none; }
+  .collection[data-rows="4"][data-max-cols="2"]:not(:has(> .collection-items > :nth-child(9))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="3"] > .collection-items > :nth-child(n + 13) { display: none; }
+  .collection[data-rows="4"][data-max-cols="3"]:not(:has(> .collection-items > :nth-child(13))) > .collection-more { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n) { display: revert; }
+  .collection[data-rows="4"][data-max-cols="4"] > .collection-items > :nth-child(n + 17) { display: none; }
+  .collection[data-rows="4"][data-max-cols="4"]:not(:has(> .collection-items > :nth-child(17))) > .collection-more { display: none; }
+}

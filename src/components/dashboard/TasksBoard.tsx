@@ -1,18 +1,18 @@
 import { Link } from "react-router";
 import {
   CalendarDays,
-  ChevronsLeftRight,
   ChevronsRightLeft,
   Plus,
 } from "lucide-react";
 import { formatDate, parseDayKey } from "@contracts/time";
 import { priorityLabel, priorityTone, type Tone } from "@/lib/jira";
 import { projectOf } from "@/lib/projectColors";
-import { Chip, Dot } from "@/components/app/Chip";
+import { Chip } from "@/components/app/Chip";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { surface } from "@/components/app/surface";
+import { CollapsedColumn, ColumnHeader } from "@/components/app/Columns";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 
 export type TaskIssue = {
@@ -94,55 +94,46 @@ export function TasksBoard({
     <div className="flex flex-col gap-3 sm:flex-row xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1">
       {columns.map(col =>
         collapsed.has(col.title) ? (
-          <button
+          <CollapsedColumn
             key={col.title}
-            type="button"
-            onClick={() => onToggle(col.title)}
-            aria-expanded={false}
-            {...flowControlProps("dashboard.tasks.collapse")}
-            aria-label={t("views.dashboard.tasks.expandColumn", { title: col.title, total: col.total })}
-            title={t("views.dashboard.tasks.expand", { title: col.title })}
-            {...surface("control")}
-            className="flex shrink-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:w-11 sm:flex-col sm:px-0 sm:py-3"
-          >
-            <ChevronsLeftRight
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden
-            />
-            <Dot tone={col.tone} />
-            <span className="text-muted-foreground tabular">{col.total}</span>
-            <span className="whitespace-nowrap sm:[writing-mode:vertical-rl]">
-              {col.title}
-            </span>
-          </button>
+            title={col.title}
+            count={col.total}
+            tone={col.tone}
+            label={t("views.dashboard.tasks.expandColumn", { title: col.title, total: col.total })}
+            onOpen={() => onToggle(col.title)}
+            control={flowControlProps("dashboard.tasks.collapse")}
+          />
         ) : (
           <div key={col.title} className="min-w-0 flex-1 basis-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col">
-            <div {...surface("card")} className="mb-2 flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
-              <Dot tone={col.tone} />
-              <span className="truncate">{col.title}</span>
-              <span className="text-muted-foreground tabular">{col.total}</span>
-              <span className="ml-auto flex items-center">
-                <button
-                  type="button"
-                  onClick={() => onToggle(col.title)}
-                  aria-expanded
-                  {...flowControlProps("dashboard.tasks.collapse")}
-                  aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
-                  title={t("views.dashboard.tasks.collapse", { title: col.title })}
-                  className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <ChevronsRightLeft className="h-4 w-4" />
-                </button>
-                <Link
-                  to="/board"
-                  aria-label={t("views.dashboard.tasks.openBoard", { title: col.title })}
-                  {...flowControlProps("dashboard.tasks.openBoard")}
-                  className="inline-flex size-target items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  <Plus className="h-4 w-4" />
-                </Link>
-              </span>
-            </div>
+            <ColumnHeader
+              className="mb-2"
+              title={col.title}
+              count={col.total}
+              tone={col.tone}
+              actions={
+                <>
+                    <button
+                      type="button"
+                      onClick={() => onToggle(col.title)}
+                      aria-expanded
+                      {...flowControlProps("dashboard.tasks.collapse")}
+                      aria-label={t("views.dashboard.tasks.collapseColumn", { title: col.title })}
+                      title={t("views.dashboard.tasks.collapse", { title: col.title })}
+                      className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <ChevronsRightLeft className="h-4 w-4" />
+                    </button>
+                    <Link
+                      to="/board"
+                      aria-label={t("views.dashboard.tasks.openBoard", { title: col.title })}
+                      {...flowControlProps("dashboard.tasks.openBoard")}
+                      className="inline-flex size-target items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Link>
+                </>
+              }
+            />
             <div className="stagger cast-room-x cast-room-y relative max-h-[25rem] space-y-2 overflow-hidden xl:group-data-[fill]/row:max-h-none xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1 [--room-b:0.25rem] [--room-x:0.5rem] [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
               {col.issues.length === 0 ? (
                 <p className="rounded-xl border border-dashed p-4 text-center text-body-sm text-muted-foreground" {...surface("glass")}>

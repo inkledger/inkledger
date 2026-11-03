@@ -34,6 +34,13 @@ export const ui: Shape<typeof en> = {
     minor: "Minore",
     trivial: "Banale",
   },
+  collection: {
+    showAll: "Mostra tutti ({count})",
+    showFewer: "Mostra meno",
+  },
+  toolbar: {
+    more: "Altro",
+  },
   layout: {
     openPinboard: "Apri la lavagna",
     openPinboardTitle: "Apri la lavagna (P)",

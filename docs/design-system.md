@@ -190,6 +190,11 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | A collection (recent issues, a board column's cards, a day's entries, attachments) | `Collection` (§7.1): a bounded adaptive grid of its container's width, a row budget, then "Show all N" (the same total at every width), expanded in place or on the full page | A rail scrolled sideways, a column clipped by a mask, a list that grows the page, a `slice` with no way to the rest |
 | ▶ on an issue shown as a card or tile | `StartIssueButton` (`controlId` for FlowMap; none while its timer runs; never the card's drag or link) | A per-page start button |
 | A date typed or picked to jump to | `DateJump` (the picker jumps at once, typing on Enter or blur) | An `onChange` on a date input (typing "2" jumped to the 2nd) |
+| A block that adapts to its own width | `region` (a container) and the `@m:` / `@l:` / `@xl:` variants: 28 / 56 / 80rem (`src/lib/layout/regions.ts`, shared with desk panes) | Viewport breakpoints (`md:`, `xl:`) inside a page's blocks |
+| A header's controls | `Toolbar` (at most 3 groups; an item with a `menu` form folds behind ⋯ as the header's region narrows) | A row of controls that wraps the title |
+| A row in a list | `ListRow` (lead, title, second line, trail; `min-h-target`, `coarse:min-h-touch`, never a fixed height) | A row with its own paddings |
+| A card in a column or a grid | `ItemCard` (raised, `p-2.5`, `rounded-xl`) | A card with its own paddings |
+| A board column's head, a folded column | `ColumnHeader`, `CollapsedColumn` (`components/app/Columns.tsx`) | A copy per board |
 | A page's own controls under its header | `PageToolbar` (sticks under the sticky header on desktop, publishes `--page-toolbar-h`, opaque, wraps) | A search or filter row that scrolls away |
 | Sections of a page shown one at a time | `Tabs` + `TabPanel` (`components/ui/tabs.tsx`: one Tab stop, arrows without modifiers, value kept by the caller in the URL) | A long stack of sections |
 | A secondary part folded under its title | `Disclosure` (title and count; content drawn only while open) | Always-open blocks of detail |

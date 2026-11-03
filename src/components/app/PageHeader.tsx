@@ -76,7 +76,8 @@ export function PageHeader({
       // The sticky header is ground; over the Dashboard backdrop (bg-card/[0.97]) it is near see-through but stays ground.
       {...surface("ground", { on: sticky })}
       className={cn(
-        "flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
+        // A region: its toolbar folds by the header's own width (Toolbar), not the window's.
+        "region flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
         sticky && "lg:sticky lg:top-0 lg:z-20 lg:bg-card",
         // Over the Dashboard's backdrop scene: nearly opaque, no backdrop blur (it would be redone on every frame of the scene).
         sticky &&

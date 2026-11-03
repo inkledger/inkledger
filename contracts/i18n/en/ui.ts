@@ -33,6 +33,13 @@ export const ui = {
     minor: "Minor",
     trivial: "Trivial",
   },
+  collection: {
+    showAll: "Show all ({count})",
+    showFewer: "Show fewer",
+  },
+  toolbar: {
+    more: "More",
+  },
   layout: {
     openPinboard: "Open the pinboard",
     openPinboardTitle: "Open the pinboard (P)",
