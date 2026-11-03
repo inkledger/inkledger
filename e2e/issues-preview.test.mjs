@@ -31,3 +31,15 @@ test("issues: Space takes a quick look over the list on a narrower screen", { ti
     await page.keyboard.press("Escape");
     await peek.waitFor({ state: "detached" });
   }));
+
+test("issues on a phone: j / k show their selection on the cards and keep it on screen", { timeout: 180_000 }, () =>
+  withApp({ viewport: { width: 390, height: 844 } }, async ({ page, base }) => {
+    await page.goto(base + "/issues");
+    await page.locator("li[data-issue-id]").first().waitFor();
+    await page.locator("main").click({ position: { x: 5, y: 300 } });
+    for (let i = 0; i < 4; i++) await page.keyboard.press("j");
+    const card = page.locator("li[data-issue-id][data-selected=true]");
+    await card.waitFor();
+    const box = await card.boundingBox();
+    assert.ok(box && box.y >= 0 && box.y + box.height <= 844, `the selected card is on screen (${JSON.stringify(box)}, scrollY ${await page.evaluate(() => scrollY)})`);
+  }));

@@ -68,18 +68,25 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
   // alone stops at the scroller's edge, which those bars cover.
   useEffect(() => {
     if (!selected) return;
-    const row = document.querySelector<HTMLElement>(`[data-issue-id="${CSS.escape(selected)}"]:not([hidden])`);
+    // The one drawn: the table's row on a wide screen, the card on a phone (the other is display:none).
+    const row = [...document.querySelectorAll<HTMLElement>(`[data-issue-id="${CSS.escape(selected)}"]:not([hidden])`)].find(el => el.offsetParent !== null);
     if (!row) return;
     row.scrollIntoView({ block: "nearest" });
     // Bars stack (the page header, the filters under it): out from under one, the row can sit under the
     // next, so it is checked again until none covers it.
     const scroller = row.closest<HTMLElement>("#main");
+    const scrollBy = (delta: number) => {
+      if (scroller && scroller.scrollHeight > scroller.clientHeight) scroller.scrollBy({ top: delta });
+      else window.scrollBy({ top: delta });
+    };
+    // At the bottom, a bar that stays put (a phone's tab bar, the issue page's action bar) covers it too.
+    const bottomBar = Math.min(innerHeight, ...[...document.querySelectorAll<HTMLElement>('[data-chrome="bottom"]')].map(bar => bar.getBoundingClientRect()).filter(box => box.height > 0).map(box => box.top));
+    const below = row.getBoundingClientRect().bottom - bottomBar;
+    if (below > 0) scrollBy(below + 4);
     for (let i = 0; i < 3; i++) {
       const cover = coveringBarBottom(row);
       if (cover === null) return;
-      const delta = row.getBoundingClientRect().top - cover - 4;
-      if (scroller && scroller.scrollHeight > scroller.clientHeight) scroller.scrollBy({ top: delta });
-      else window.scrollBy({ top: delta });
+      scrollBy(row.getBoundingClientRect().top - cover - 4);
     }
   }, [selected]);
 

@@ -524,13 +524,15 @@ export const IssueCard = memo(function IssueCard({
   issue,
   onLog,
   pin,
+  selected = false,
   ...picks
 }: RowProps) {
   const due = dueText(issue);
   const activity = activityText(issue);
   const pick = pickOf(picks);
   return (
-    <li data-issue-id={issueId(issue)} data-picked={pick?.picked || undefined} className="grid gap-2 py-3">
+    // The keyboard's selection shows on a phone too (j / k work there as well).
+    <li data-issue-id={issueId(issue)} data-selected={selected || undefined} data-picked={pick?.picked || undefined} className={cn("grid gap-2 py-3", selected && "-mx-2 rounded-md bg-accent/70 px-2 shadow-[inset_2px_0_0_hsl(var(--primary))]")}>
       <ActionRow
         leading={pick?.picking ? (
           // Picking (from a card's menu): each card's box, at a finger's size.

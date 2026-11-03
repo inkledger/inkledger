@@ -492,6 +492,7 @@ export default function Issues() {
                     issue={i}
                     onLog={openLog}
                     pin={pinned.pinFor(issueId(i), idx)}
+                    selected={selected === issueId(i)}
                     {...pickFor(i)}
                   />
                 ))}
@@ -573,7 +574,7 @@ export default function Issues() {
                   </IssueTable>
                   <ul className="divide-y border-t md:hidden">
                     {issues.map(i => (
-                      <IssueCard key={issueId(i)} issue={i} onLog={openLog} {...pickFor(i)} />
+                      <IssueCard key={issueId(i)} issue={i} onLog={openLog} selected={selected === issueId(i)} {...pickFor(i)} />
                     ))}
                   </ul>
                 </>
