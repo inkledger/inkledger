@@ -34,6 +34,12 @@ const entries = db => db.q("SELECT connection_id, comment, time_spent_seconds FR
 
 // Its own timeout: near midnight it first waits up to 5 minutes (one day, start to end;
 // the copy ends now and never starts before midnight).
+/** The week is a grid of issues × days: an entry's actions are in its cell (its hours open them). */
+async function openCell(page, key) {
+  await page.getByRole("button", { name: new RegExp(`^${key.replace(/[/#]/g, "\\$&")} on .*show its entries$`) }).first().click();
+  await page.getByRole("dialog").last().waitFor();
+}
+
 test("the Timesheet edits, duplicates and deletes an entry on the tracker it is on", { timeout: 600_000 }, async () => {
   await awayFromMidnight();
   return withApp({ seed: sameKey(todayAt(9, 0) - 86_400_000) }, async ({ page, base, db }) => {
@@ -43,6 +49,7 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();
     await page.getByLabel("Go to day").fill(day);
+    await openCell(page, "DEMO-101");
     await page.getByRole("button", { name: "Edit DEMO-101" }).first().click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Comment").fill("edited");
@@ -56,6 +63,7 @@ test("the Timesheet edits, duplicates and deletes an entry on the tracker it is 
     const copied = await entries(db);
     assert.equal(copied.length, 2);
     assert.ok(copied.every(e => e.connection_id === github), "the copy is on GitHub too");
+    await openCell(page, "DEMO-101");
     await page.getByRole("button", { name: "Delete DEMO-101" }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await page.getByText("Worklog deleted").first().waitFor();
@@ -153,6 +161,7 @@ test("deleting an entry another device has just removed counts as done, not as a
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();
     await page.getByLabel("Go to day").fill(day);
+    await openCell(page, "DEMO-101");
     await page.getByRole("button", { name: "Delete DEMO-101" }).first().waitFor();
     // Gone meanwhile (a sync, another device), still on screen here.
     await db.q("DELETE FROM worklogs");
@@ -172,6 +181,7 @@ test("an entry whose tracker is archived is not deleted, and says so", { timeout
     await page.goto(base + "/timesheet");
     await page.getByRole("button", { name: "Pick a date" }).click();
     await page.getByLabel("Go to day").fill(day);
+    await openCell(page, "DEMO-101");
     await page.getByRole("button", { name: "Delete DEMO-101" }).first().click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await page.getByText("Deleted 0 of 1: the one left is selected").first().waitFor();

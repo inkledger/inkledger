@@ -35,8 +35,9 @@ test("a day with entries takes one more, on that day; the header logs today, sai
     await page.getByLabel("Go to day").fill(dayKey(yesterday()));
     // The header's button says it logs today.
     await page.getByRole("button", { name: "Log time today" }).waitFor();
-    const day = page.locator("ol > li").filter({ hasText: "acme/web#1" });
-    await day.getByRole("button", { name: /^Log time on / }).click();
+    // The week is a grid of issues × days: the issue's cell on that day opens its entries and the way to log one more there.
+    await page.getByRole("button", { name: /^acme\/web#1 on .*show its entries$/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Log time on / }).click();
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
     const y = yesterday();

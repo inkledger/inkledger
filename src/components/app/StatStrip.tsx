@@ -45,7 +45,7 @@ const PHONE: Record<number, string> = {
 // A phone: tighter cells and a figure a step smaller (it still leads in the primary colour).
 const PADDING = { compact: "px-3 py-2 lg:px-4", default: "px-3 py-2 lg:px-5 lg:py-3", expanded: "px-4 py-3 lg:px-6 lg:py-4" } as const;
 const VALUE = { compact: "text-body font-semibold", default: "text-body font-semibold lg:text-heading", expanded: "text-heading lg:text-title" } as const;
-const LEAD = { compact: "text-heading", default: "text-heading lg:text-title", expanded: "text-title lg:text-display" } as const;
+const LEAD = { compact: "text-heading", default: "text-heading xl:text-title", expanded: "text-title lg:text-display" } as const;
 
 /**
  * A page's figures in one row divided by hairlines (2×2 on a phone), the reference of Team time's KPIs:

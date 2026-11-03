@@ -113,13 +113,13 @@ function hideable(manifest: AnchorManifest): AnchorManifest {
  * A block of a page FlowMap observes as it is: seen and used, never moved, hidden or resized yet
  * (no Studio operation), so no layout can be proposed or applied to it. Its variants stay declared.
  */
-function observed(id: string, surfaceId: SurfaceId, renderer: string, labelKey: string): AnchorManifest {
+function observed(id: string, surfaceId: SurfaceId, renderer: string, labelKey: string, semanticRevision = 1): AnchorManifest {
   const base = anchor(id, surfaceId, renderer, "stateless", labelKey);
-  return { ...base, studio: { ...base.studio, operations: [] } };
+  return { ...base, semanticRevision, studio: { ...base.studio, operations: [] } };
 }
 
 /** The pages observed as they are, block by block in page order (each one area: the page). */
-const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: readonly (readonly [id: string, renderer: string, labelKey: string])[] }[] = [
+const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: readonly (readonly [id: string, renderer: string, labelKey: string, semanticRevision?: number])[] }[] = [
   { surfaceId: "reports", route: "/reports", blocks: [
     ["reports.trend", "PeriodBars", "pages.reports.trend"],
     ["reports.stats", "StatStrip", "pages.reports.period"],
@@ -130,7 +130,8 @@ const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: re
   { surfaceId: "timesheet", route: "/timesheet", blocks: [
     ["timesheet.summary", "PeriodSummary", "pages.timesheet.summary"],
     ["timesheet.stats", "StatStrip", "pages.timesheet.summary"],
-    ["timesheet.days", "WeekView", "pages.timesheet.days"],
+    // Revision 2: a grid of issues × days (was a card per day); maps from the cards no longer apply.
+    ["timesheet.days", "WeekGrid", "pages.timesheet.days", 2],
   ] },
   { surfaceId: "issues", route: "/issues", blocks: [
     ["issues.catalog", "IssueCatalog", "pages.issues.catalog"],
@@ -148,7 +149,7 @@ const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: re
   ] },
 ];
 
-const observedAnchors = OBSERVED_PAGES.flatMap(page => page.blocks.map(([id, renderer, labelKey]) => observed(id, page.surfaceId, renderer, labelKey)));
+const observedAnchors = OBSERVED_PAGES.flatMap(page => page.blocks.map(([id, renderer, labelKey, revision]) => observed(id, page.surfaceId, renderer, labelKey, revision)));
 const observedAreas = OBSERVED_PAGES.map(page => area(`${page.surfaceId}.page`, page.surfaceId, "primary", page.blocks.length, page.blocks.map(([id]) => id)));
 
 const anchors: AnchorManifest[] = [
@@ -298,6 +299,8 @@ const controls: ControlDefinition[] = [
   control("timesheet.period.today", "timesheet.days", "common.today"),
   control("timesheet.period.next", "timesheet.days", "ui.period.next"),
   control("timesheet.logToday", "timesheet.days", "pages.dashboard.logTime", { kind: "disclosure" }),
+  control("timesheet.layout.grid", "timesheet.days", "views.timesheet.layout.grid", { kind: "toggle", role: "radio" }),
+  control("timesheet.layout.cards", "timesheet.days", "views.timesheet.layout.cards", { kind: "toggle", role: "radio" }),
   control("issues.new", "issues.catalog", "pages.issues.new", { kind: "disclosure" }),
   control("issues.cleanup", "issues.catalog", "pages.issues.cleanup", { kind: "disclosure" }),
   control("issues.row.open", "issues.catalog", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),

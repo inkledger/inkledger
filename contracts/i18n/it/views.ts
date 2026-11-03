@@ -168,6 +168,20 @@ export const views: Shape<typeof en> = {
   },
   timesheet: {
     month: { noEntries: "nessuna registrazione" },
+    grid: {
+      label: "Settimana per issue",
+      issue: "Issue",
+      total: "Totale",
+      dayTotal: "Giorno",
+      cell: "{key} il {label}: {duration}, mostra le voci",
+      emptyCell: "{key} il {label}: niente registrato",
+      days: "Giorni della settimana",
+    },
+    layout: {
+      label: "Disposizione della settimana",
+      grid: "Per issue",
+      cards: "Per giorno",
+    },
     week: {
       todaySuffix: " · oggi",
       duplicateLabel: "Duplica {label} su oggi",

@@ -163,6 +163,20 @@ export const views = {
   },
   timesheet: {
     month: { noEntries: "no entries" },
+    grid: {
+      label: "Week by issue",
+      issue: "Issue",
+      total: "Total",
+      dayTotal: "Day",
+      cell: "{key} on {label}: {duration}, show its entries",
+      emptyCell: "{key} on {label}: nothing logged",
+      days: "Days of the week",
+    },
+    layout: {
+      label: "Week layout",
+      grid: "By issue",
+      cards: "By day",
+    },
     week: {
       todaySuffix: " · today",
       duplicateLabel: "Duplicate {label} to today",

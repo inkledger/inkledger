@@ -1545,11 +1545,11 @@
       {
         "id": "timesheet.days",
         "surfaceId": "timesheet",
-        "renderer": "WeekView",
+        "renderer": "WeekGrid",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "studio": {
           "operations": [],
           "variants": [
@@ -3921,6 +3921,50 @@
         ]
       },
       {
+        "id": "timesheet.layout.cards",
+        "anchorId": "timesheet.days",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "views.timesheet.layout.cards",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.layout.cards.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.layout.grid",
+        "anchorId": "timesheet.days",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "views.timesheet.layout.grid",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.layout.grid.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "timesheet.logToday",
         "anchorId": "timesheet.days",
         "kind": "disclosure",
@@ -4282,7 +4326,7 @@
       {
         "anchorId": "timesheet.days",
         "kind": "core",
-        "renderer": "WeekView"
+        "renderer": "WeekGrid"
       },
       {
         "anchorId": "timesheet.stats",

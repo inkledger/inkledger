@@ -66,6 +66,7 @@ import { deviceSetting } from "@/lib/storage";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { LogTimeDialog } from "@/components/LogTimeDialog";
 import { WeekView, type TimesheetLog } from "@/components/timesheet/WeekView";
+import { WeekGrid } from "@/components/timesheet/WeekGrid";
 import { MonthView } from "@/components/timesheet/MonthView";
 import { Chip } from "@/components/app/Chip";
 import { useConnections, useProviderName } from "@/hooks/useConnections";
@@ -103,9 +104,12 @@ type Confirm =
 
 /** The period's breakdown (projects, issues) open or folded, remembered on this device. */
 const breakdownPanel = deviceSetting<boolean>("ikl-timesheet-breakdown", raw => raw === "open", open => (open ? "open" : null));
+/** The week by issue (a grid, the default) or by day (the cards), remembered on this device. */
+const weekLayout = deviceSetting<"grid" | "cards">("ikl-timesheet-week-layout", raw => (raw === "cards" ? "cards" : "grid"), layout => (layout === "cards" ? "cards" : null));
 
 export default function Timesheet() {
   const breakdownOpen = breakdownPanel.use();
+  const layout = weekLayout.use();
   const [trashOpen, setTrashOpen] = useState(false);
   const provider = useProviderName();
   const today = useToday();
@@ -659,8 +663,19 @@ export default function Timesheet() {
           anchorId="timesheet.days"
           busy={stale}
           actions={
-            view === "week" && !locked && periodLogs.length > 0 ? (
-              <span className="flex items-center gap-2">
+            view === "week" ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  label={t("views.timesheet.layout.label")}
+                  value={layout}
+                  onChange={next => weekLayout.set(next)}
+                  options={[
+                    { value: "grid" as const, label: t("views.timesheet.layout.grid"), control: flowControlProps("timesheet.layout.grid") },
+                    { value: "cards" as const, label: t("views.timesheet.layout.cards"), control: flowControlProps("timesheet.layout.cards") },
+                  ]}
+                />
+                {!locked && periodLogs.length > 0 && (
+                <>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -683,6 +698,8 @@ export default function Timesheet() {
                       ? t("pages.timesheet.deleting", { done: progress.done, total: progress.total })
                       : t("pages.timesheet.deleteSelected", { count: selectedLogs.length })}
                   </Button>
+                )}
+                </>
                 )}
               </span>
             ) : undefined
@@ -709,7 +726,27 @@ export default function Timesheet() {
                   message={t("pages.timesheet.emptyHint")}
                 />
               )}
-              {view === "week" ? (
+              {view === "week" && layout === "grid" && !isEmpty ? (
+                <WeekGrid
+                  days={weekDays}
+                  byDay={byDay}
+                  summaries={summaries}
+                  targetFor={targetFor}
+                  todayKey={todayKey}
+                  locked={locked}
+                  selected={selection.selected}
+                  busy={busy}
+                  onToggle={selection.toggle}
+                  onToggleDay={selection.selectMany}
+                  onEdit={setEditing}
+                  onDelete={log => setConfirm({ type: "delete", log })}
+                  onDuplicate={d => setConfirm({ type: "duplicate", key: d.key, date: d.date })}
+                  onAdd={date => {
+                    setLogDay(date);
+                    setLogOpen(true);
+                  }}
+                />
+              ) : view === "week" ? (
                 <WeekView
                   days={weekDays}
                   byDay={byDay}
