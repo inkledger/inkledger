@@ -290,7 +290,8 @@ export interface FrozenIn {
   "timers.move": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined; toConnectionId?: number | undefined; toIssueKey: string };
   "timers.pause": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.setNote": { connectionId?: number | undefined; issueKey: string; note: string };
-  "timers.start": { connectionId?: number | undefined; device?: string | undefined; epoch?: number | undefined; force?: false | true | undefined; from?: string | undefined; issueKey: string; opId?: string | undefined };
+  "timers.split": { connectionId?: number | undefined; issueKey: string; until?: string | undefined };
+  "timers.start": { connectionId?: number | undefined; device?: string | undefined; epoch?: number | undefined; force?: false | true | undefined; from?: string | undefined; issueKey: string; mode?: "alongside" | "switch" | undefined; opId?: string | undefined };
   "timers.stop": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined };
   "timers.trim": { connectionId?: number | undefined; epoch?: number | undefined; force?: false | true | undefined; issueKey: string; opId?: string | undefined; seconds: number };
   "todos.add": { commentExcerpt?: string | undefined; commentId?: string | undefined; connectionId?: number | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; issueKey?: string | undefined; issueNoteId?: number | undefined; mailId?: number | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; source?: string | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text: string };
@@ -324,7 +325,7 @@ export interface FrozenIn {
   "workSchedule.removeDay": { day: string };
   "workSchedule.save": { overrides?: "drop" | "keep" | undefined; schedule: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string }[]; validFrom: string };
   "workSchedule.saveDay": { day: string; workDay: { breaks: { end: string; start: string }[]; enabled: boolean; end: string; start: string } };
-  "worklogs.create": { comment?: string | undefined; connectionId?: number | undefined; fromTimer?: false | true | undefined; issueKey: string; parts?: undefined | { seconds: number; started: string }[]; seconds?: number | undefined; started: string; timeSpent?: string | undefined };
+  "worklogs.create": { comment?: string | undefined; connectionId?: number | undefined; fromTimer?: false | true | undefined; issueKey: string; parts?: undefined | { seconds: number; started: string }[]; seconds?: number | undefined; split?: undefined | { shares: { bp: number; with: string[] }[]; until: string }; started: string; timeSpent?: string | undefined };
   "worklogs.delete": { connectionId?: number | undefined; id?: number | undefined; issueKey?: string | undefined; jiraWorklogId?: string | undefined; remoteId?: string | undefined };
   "worklogs.list": undefined | void | { connectionId?: number | undefined; from?: string | undefined; issueKey?: string | undefined; scope?: "all" | "bucket" | undefined; search?: string | undefined; to?: string | undefined };
   "worklogs.reimport": void;
@@ -633,11 +634,12 @@ export interface FrozenOut {
   "team.person": { issues: { key: string; seconds: number; summary: string }[]; projects: { key: string; name: string; seconds: number }[] };
   "timers.discard": { epoch: number; ok: boolean };
   "timers.heartbeat": { epoch: number; owned: boolean };
-  "timers.list": { connectionId: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string; unbroken: boolean }[];
+  "timers.list": { connectionId: number; defaultSeconds: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; overlapSeconds: number; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string; unbroken: boolean }[];
   "timers.move": { epoch: number; merged: boolean; note: string; ok: boolean; running: boolean; seconds: number; toLog: number; total: number };
   "timers.pause": { epoch: number; ok: boolean };
   "timers.setNote": { epoch: number; ok: boolean };
-  "timers.start": { epoch: number; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; tookOver: boolean };
+  "timers.split": { runs: { end: number; logged: boolean; start: number; timer: string }[]; shares: { bp: number; end: number; start: number; timer: string }[]; target: string; trackedSeconds: number; until: Date };
+  "timers.start": { epoch: number; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; switchedFromAll: { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }[]; tookOver: boolean };
   "timers.stop": { epoch: number; found: false; note: string; seconds: number; stoppedAt: null } | { epoch: number; found: true; note: string; seconds: number; stoppedAt: Date };
   "timers.trim": { elapsedSeconds: number; epoch: number; found: false } | { elapsedSeconds: number; epoch: number; found: true };
   "todos.add": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; mailId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
@@ -650,7 +652,7 @@ export interface FrozenOut {
   "todos.reorder": { ok: boolean };
   "todos.restore": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; mailId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
   "todos.sessions": { end: Date; label: string; linked: boolean; open: boolean; start: Date }[];
-  "todos.startWork": { epoch: number; linked: boolean; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; tookOver: boolean };
+  "todos.startWork": { epoch: number; linked: boolean; ok: boolean; switchedFrom: null | { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }; switchedFromAll: { connectionId: number; issueKey: string; note: string; seconds: number; stoppedAt: Date }[]; tookOver: boolean };
   "todos.stopWork": { epoch: number; ok: boolean };
   "todos.suggestions": { at: Date; connectionId: number; issueKey: string; kind: "assigned" | "comment" | "doing" | "mention" | "news" | "review" | "status" | "watched"; source: string; status: string; summary: string }[];
   "todos.update": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; mailId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };

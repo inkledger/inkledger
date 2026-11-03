@@ -32,6 +32,8 @@ import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
 import { surface } from "@/components/app/surface";
 import { useFlowControlProps } from "@/lib/workspace/instrumentation";
+import { focusTimer, runningTimers } from "@/lib/timerFocus";
+import { quickStart } from "@/lib/quickStart";
 
 /** Live ticking elapsed time, "h:mm:ss". */
 export function TickingElapsed({
@@ -266,7 +268,7 @@ export function TimerWhere({ issueKey, connectionId, className }: { issueKey: st
 export function ActiveTimerChip({ className }: { className?: string }) {
   const { timers, fetchedAt } = useTimers();
   const working = useTodoWorking();
-  const timer = timers.find(t => t.state === "running") ?? timers[0];
+  const timer = focusTimer(timers);
   const shadow = working.data && !working.data.linked && timer?.state !== "running" ? working.data : null;
   if (shadow)
     return (
@@ -313,6 +315,44 @@ export function ActiveTimerChip({ className }: { className?: string }) {
 }
 
 /**
+ * Timers side by side: the others running beside the one the chip shows, a
+ * row each with its pause and stop (at most `max`; all of them one step
+ * away, in Quick start's timers). Nothing when it runs alone.
+ */
+export function OtherRunningTimers({ max = 2, className }: { max?: number; className?: string }) {
+  const { timers, fetchedAt } = useTimers();
+  const focus = focusTimer(timers);
+  const others = runningTimers(timers).filter(tm => tm !== focus);
+  if (others.length === 0) return null;
+  return (
+    <ul aria-label={t("ui.timer.alsoRunning")} className={cn("grid grid-cols-[minmax(0,1fr)] border-t pt-0.5", className)}>
+      {others.slice(0, max).map(tm => (
+        <li key={issueId(tm)} className="flex min-w-0 items-center gap-0.5">
+          <Link
+            to={issuePath({ key: tm.issueKey, connectionId: tm.connectionId })}
+            {...surface("control")}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-body-sm font-medium transition-colors hover:bg-accent"
+          >
+            <TimerRing running />
+            <span className="sr-only">{t("ui.timer.activeOn")}</span>
+            <span className="truncate text-muted-foreground">{tm.issueKey}</span>
+            <TickingElapsed state={tm.state} elapsedSeconds={tm.elapsedSeconds} fetchedAt={fetchedAt} />
+          </Link>
+          <QuickControls issueKey={tm.issueKey} connectionId={tm.connectionId} compact part="main" />
+        </li>
+      ))}
+      {others.length > max && (
+        <li>
+          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => quickStart.set(true)}>
+            {t("ui.timer.showAllRunning", { count: others.length + 1 })}
+          </Button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/**
  * Pause (or resume) and stop for the timer the chip shows, from any page: the
  * stop asks to log its time as everywhere. Held by another device, nothing
  * here (its issue's page offers the take-over).
@@ -322,7 +362,7 @@ export type QuickControlsPart = "all" | "main" | "more";
 
 export function ActiveTimerQuickControls({ compact = false, part = "all" }: { compact?: boolean; part?: QuickControlsPart }) {
   const { timers } = useTimers();
-  const shown = timers.find(t => t.state === "running") ?? timers[0];
+  const shown = focusTimer(timers);
   if (!shown) return null;
   return <QuickControls key={issueId(shown)} issueKey={shown.issueKey} connectionId={shown.connectionId} compact={compact} part={part} />;
 }
@@ -406,7 +446,7 @@ function QuickControls({ issueKey, connectionId, compact, part }: { issueKey: st
 /** Note of the timer shown in the chip (running first, else latest paused). */
 export function ActiveTimerNote({ className }: { className?: string }) {
   const { timers } = useTimers();
-  const timer = timers.find(t => t.state === "running") ?? timers[0];
+  const timer = focusTimer(timers);
   if (!timer) return null;
   return (
     <TimerNote
@@ -467,12 +507,14 @@ export function TimerRing({
  */
 export function ActiveTimerRailPlayer({ extra }: { extra?: React.ReactNode }) {
   const { timers, fetchedAt } = useTimers();
-  const timer = timers.find(t => t.state === "running") ?? timers[0];
+  const timer = focusTimer(timers);
   const elapsed = useElapsed(timer?.state ?? "paused", timer?.elapsedSeconds ?? 0, fetchedAt);
   if (!timer) return null;
   const running = timer.state === "running";
   const hms = formatHMS(elapsed);
-  const label = t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", { key: timer.issueKey, time: hms });
+  // Timers side by side: how many more run beside it (their rows in the player).
+  const more = Math.max(0, runningTimers(timers).length - 1);
+  const label = `${t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", { key: timer.issueKey, time: hms })}${more > 0 ? `, ${t("ui.timer.moreRunning", { count: more })}` : ""}`;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -485,6 +527,7 @@ export function ActiveTimerRailPlayer({ extra }: { extra?: React.ReactNode }) {
         >
           <TimerRing running={running} />
           <span className="text-2xs font-medium text-muted-foreground tabular">{hms.slice(0, -3)}</span>
+          {more > 0 && <span className="text-2xs font-medium text-muted-foreground tabular">{t("ui.timer.moreRunning", { count: more })}</span>}
         </button>
       </PopoverTrigger>
       {/* The open sidebar's card, the same lines: pause and stop by the time, move and discard by the note. */}
@@ -493,6 +536,7 @@ export function ActiveTimerRailPlayer({ extra }: { extra?: React.ReactNode }) {
           <ActiveTimerChip className="min-w-0 flex-1 border-0 bg-transparent px-2" />
           <ActiveTimerQuickControls compact part="main" />
         </div>
+        <OtherRunningTimers />
         <div className="flex min-w-0 items-center gap-0.5 border-t pt-0.5">
           <ActiveTimerNote className="min-w-0 flex-1" />
           <ActiveTimerQuickControls part="more" />

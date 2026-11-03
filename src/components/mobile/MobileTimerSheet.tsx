@@ -33,9 +33,11 @@ export function MobileTimerSheet({
   const issues = trpc.issues.all.useQuery(undefined, { enabled: open, staleTime: 60_000 });
   const summaryOf = new Map((issues.data ?? []).map(i => [issueId(i), i.summary]));
   const logQueue = useTimerLogQueue();
+  // Running first, the one started last on top (timers side by side), then the ones stopped last.
   const sorted = [...timers].sort(
     (a, b) =>
       Number(b.state === "running") - Number(a.state === "running") ||
+      (b.runningSince?.getTime() ?? 0) - (a.runningSince?.getTime() ?? 0) ||
       (b.pausedAt?.getTime() ?? 0) - (a.pausedAt?.getTime() ?? 0)
   );
 

@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTrackerSites } from "@/hooks/useConnections";
 import { toast } from "sonner";
 import { t } from "@/i18n";
+import { focusTimer } from "@/lib/timerFocus";
 
 /**
  * The native app's menu bar and global shortcuts, wired to the same timer
@@ -35,11 +36,8 @@ export function useNativeBridge() {
     enabled: native,
   });
 
-  const current =
-    timers.find(t => t.state === "running") ??
-    [...timers]
-      .filter(t => t.state === "paused")
-      .sort((a, b) => (b.pausedAt?.getTime() ?? 0) - (a.pausedAt?.getTime() ?? 0))[0];
+  // Timers side by side: the tray shows (and pauses) the one started last.
+  const current = focusTimer(timers);
 
   const summary = current
     ? // By identity: the same key may be on two trackers.

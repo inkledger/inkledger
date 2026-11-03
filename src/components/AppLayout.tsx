@@ -71,6 +71,7 @@ import {
   ActiveTimerNote,
   ActiveTimerRailPlayer,
   ActiveTimerQuickControls,
+  OtherRunningTimers,
 } from "@/components/TimerControls";
 import { LiveTitle } from "@/components/LiveTitle";
 import { SidebarFavorites } from "@/components/SidebarFavorites";
@@ -103,6 +104,7 @@ const FocusMode = lazyPart(() => import("@/components/FocusMode").then(m => m.Fo
 const Screensaver = lazyPart(() => import("@/components/screensaver/Screensaver").then(m => m.Screensaver));
 const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog));
 const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog));
+const StartParallelDialog = lazyPart(() => import("@/components/StartParallelDialog").then(m => m.StartParallelDialog));
 const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
 const IdeaCaptureDialog = lazyPart(() => import("@/components/ideas/IdeaCaptureDialog").then(m => m.IdeaCaptureDialog));
 const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog));
@@ -330,6 +332,8 @@ function SidebarNow({ collapsed, timerPlaced, start }: { collapsed: boolean; tim
               <ActiveTimerChip className="min-w-0 flex-1 border-0 bg-transparent px-2" />
               <ActiveTimerQuickControls compact part="main" />
             </div>
+            {/* Timers side by side: the others below the one started last, each with its pause and stop. */}
+            <OtherRunningTimers />
             <div className="flex min-w-0 items-center gap-0.5 border-t pt-0.5">
               <ActiveTimerNote className="min-w-0 flex-1" />
               <ActiveTimerQuickControls part="more" />
@@ -846,6 +850,7 @@ export function AppLayout() {
         <MakeTodoHost />
         <HotCorner />
         <StartChoiceDialog />
+        <StartParallelDialog />
         <CreateIssueDialog />
         <IdeaCaptureDialog />
         <IssueHistoryDialog />

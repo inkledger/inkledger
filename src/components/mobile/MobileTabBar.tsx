@@ -19,6 +19,7 @@ import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 import { prefersReducedMotion } from "@/lib/dom";
+import { focusTimer, runningTimers } from "@/lib/timerFocus";
 
 const CELL =
   "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -76,7 +77,7 @@ function Tab({ to, controlId }: { to: string; controlId: string }) {
  */
 function TimerButton({ onOpen }: { onOpen: () => void }) {
   const { timers, fetchedAt } = useTimers();
-  const timer = timers.find(t => t.state === "running") ?? timers[0];
+  const timer = focusTimer(timers);
   const elapsed = useElapsed(timer?.state ?? "paused", timer?.elapsedSeconds ?? 0, fetchedAt);
   // Raised by its offset, not a transform: a transform would make it its own
   // layer and a light's shadow would fall on its face.
@@ -100,14 +101,16 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
   }
   const running = timer.state === "running";
   const hms = formatHMS(elapsed);
+  // Timers side by side: how many more run beside it (all of them in the sheet).
+  const more = Math.max(0, runningTimers(timers).length - 1);
   return (
     <button
       type="button"
       aria-haspopup="dialog"
-      aria-label={t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", {
+      aria-label={`${t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", {
         key: timer.issueKey,
         time: hms,
-      })}
+      })}${more > 0 ? `, ${t("ui.timer.moreRunning", { count: more })}` : ""}`}
       onClick={onOpen}
       {...surface("control")}
       {...flowControlProps("mobile.timer.open")}
@@ -122,6 +125,11 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
       >
         {hms.slice(0, -3)}
       </span>
+      {more > 0 && (
+        <span aria-hidden {...surface("chip")} className="absolute -right-1 -top-1 rounded-full border bg-card px-1 text-2xs font-semibold leading-tight text-foreground tabular">
+          {t("ui.timer.moreRunning", { count: more })}
+        </span>
+      )}
     </button>
   );
 }

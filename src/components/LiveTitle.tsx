@@ -3,6 +3,7 @@ import { formatHMS } from "@contracts/time";
 import { useElapsed, useTimers } from "@/hooks/useTimers";
 import { setLiveTitle } from "@/hooks/useDocumentTitle";
 import { BRAND_ARMS, BRAND_HEAD, BRAND_HEAD_OPACITY } from "@/lib/brand";
+import { runningTimers } from "@/lib/timerFocus";
 
 const ICON = "/favicon.svg";
 /** Favicon with a dot: the timer is running (visible in tabs and the Dock). Ink on paper; paper on ink in dark mode, as the favicon. */
@@ -35,7 +36,10 @@ function setIcon(href: string) {
  */
 export function LiveTitle() {
   const { timers, fetchedAt } = useTimers();
-  const running = timers.find(t => t.state === "running");
+  const runningNow = runningTimers(timers);
+  const running = runningNow[0];
+  // Timers side by side: the one started last, and how many more.
+  const more = runningNow.length > 1 ? ` +${runningNow.length - 1}` : "";
   const elapsed = useElapsed(
     running?.state ?? "paused",
     running?.elapsedSeconds ?? 0,
@@ -43,8 +47,8 @@ export function LiveTitle() {
   );
 
   useEffect(() => {
-    setLiveTitle(running ? `▶ ${formatHMS(elapsed)} ${running.issueKey}` : "");
-  }, [running, elapsed]);
+    setLiveTitle(running ? `▶ ${formatHMS(elapsed)} ${running.issueKey}${more}` : "");
+  }, [running, elapsed, more]);
 
   const isRunning = !!running;
   useEffect(() => {

@@ -7,6 +7,7 @@ import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { workedSeconds } from "@/lib/worked";
 import { dateFormat, t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { runningTimers } from "@/lib/timerFocus";
 
 /** The time now, refreshed on every minute. */
 function useClock(): Date {
@@ -29,7 +30,7 @@ function useClock(): Date {
 export function Overlay({ visible }: { visible: boolean }) {
   const now = useClock();
   const { timers, fetchedAt } = useTimers();
-  const timer = timers.find(x => x.state === "running") ?? null;
+  const timer = runningTimers(timers)[0] ?? null;
   const elapsed = useElapsed(timer?.state ?? "paused", timer?.elapsedSeconds ?? 0, fetchedAt);
   const today = startOfDay(useToday());
   const logs = trpc.worklogs.list.useQuery({ from: today.toISOString(), to: addDays(today, 1).toISOString() });

@@ -57,6 +57,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatQuery, parseQuery } from "@contracts/query";
 import { newDraftId } from "@/components/notes/drafts";
 import { emitWorkspaceSearch } from "@/lib/workspace/searchEvents";
+import { focusTimer } from "@/lib/timerFocus";
 
 /**
  * Global ⌘K palette: jump to any issue, navigate, sync, toggle theme.
@@ -405,7 +406,7 @@ function useAddToDeskEntry(pathname: string, onDone: () => void): Entry | null {
  */
 function useTimerEntries(onDone: () => void): Entry[] {
   const { timers } = useTimers();
-  const current = timers.find(tm => tm.state === "running") ?? timers[0];
+  const current = focusTimer(timers);
   const issueKey = current?.issueKey ?? "";
   const { move, pause, start, stop, running, paused, heldElsewhere } = useTimerActions(issueKey, current?.connectionId);
   if (!current || heldElsewhere) return [];

@@ -303,6 +303,8 @@ export const server = {
     fromToday: "A timer can only start earlier today.",
     fromWhileRunning: "Another timer is running: stop it before counting from the start of the gap.",
     fromBeforePause: "A paused timer already counts that time: start from after it.",
+    alongsideFrom: "A timer started beside the running ones counts from now: start it from the gap with no timer running.",
+    parallelBlocked: "Overlapping time is off (Settings, Time in parallel): switch timers instead of running both.",
     held: "The timer of {key} runs on {device}: take it over to act here.",
     anotherDevice: "another device",
     moved: "The timer of {key} changed on another device: here is how it is now.",
@@ -321,6 +323,7 @@ export const server = {
     maxDuration: "A single worklog can't exceed 24 hours.",
     invalidStart: "Invalid start date",
     timerLogged: "The timer time of {key} has already been logged.",
+    splitNotTimer: "Shares of time together only apply to a timer's log.",
     overlapHint: "{message}: move or shorten one of the two worklogs.",
   },
   placement: {

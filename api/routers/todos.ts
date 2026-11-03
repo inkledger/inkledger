@@ -9,7 +9,7 @@ import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
-import { act, epochOf, heldElsewhere, pauseTimer, refuse, roundToMinute, elapsedSeconds, startTimerIn, whoOf } from "./timers";
+import { act, epochOf, heldElsewhere, pauseTimer, refuse, roundToMinute, elapsedSeconds, startTimerIn, whoOf, type SwitchedFrom } from "./timers";
 import { beginSession, closeStaleSession, endSession, openSession } from "../queries/todoSessions";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
@@ -433,13 +433,13 @@ export const todosRouter = createRouter({
       return act(ctx.user.id, input.opId, async (tx) => {
         const running = await tx.select().from(timers).where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
         for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
-        let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
+        const switchedFromAll: SwitchedFrom[] = [];
         for (const o of running) {
-          switchedFrom = { issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now };
+          switchedFromAll.push({ issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now });
           await pauseTimer(tx, o, now);
         }
         await beginSession(tx, ctx.user.id, row, false, now);
-        return { ok: true, switchedFrom, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
+        return { ok: true, switchedFrom: switchedFromAll.at(-1) ?? null, switchedFromAll, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
       });
     }),
 

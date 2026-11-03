@@ -64,14 +64,9 @@ export function usePendingSeconds(shown: boolean): PendingTime | undefined {
   const now = useNow(shown && running);
   // Today's only: a timer stopped on an earlier day is that day's time.
   const today = new Date(now);
-  const pending = timers
-    .filter(t => timerOnDay(t, today, today))
-    .reduce(
-      (sum, t) =>
-        sum +
-        t.elapsedSeconds +
-        (t.state === "running" ? Math.max(0, now - fetchedAt) / 1000 : 0),
-      0
-    );
+  // Timers side by side: their time together counts once (each its default share), and the time since too.
+  const pending =
+    timers.filter(t => timerOnDay(t, today, today)).reduce((sum, t) => sum + t.defaultSeconds, 0) +
+    (running ? Math.max(0, now - fetchedAt) / 1000 : 0);
   return shown ? { pending, running } : undefined;
 }

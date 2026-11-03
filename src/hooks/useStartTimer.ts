@@ -6,9 +6,10 @@ import { toast } from "sonner";
 import { addDays, dayKey, startOfDay, type TimeSpan } from "@contracts/time";
 import { missingSpans, openGap, scheduleFor } from "@contracts/workSchedule";
 import { startChoice } from "@/lib/startChoice";
+import { startParallel, type StartMode } from "@/lib/startParallel";
 import { t } from "@/i18n";
 
-type StartInput = { issueKey: string; connectionId?: number; force?: boolean; from?: string };
+type StartInput = { issueKey: string; connectionId?: number; force?: boolean; from?: string; mode?: StartMode };
 type Utils = ReturnType<typeof trpc.useUtils>;
 
 /**
@@ -44,12 +45,13 @@ async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
 }
 
 /**
- * Start (or resume) a timer. Switching issue stops the previous timer, whose
- * time is queued for logging in the global "Log time" dialog. When another
- * device holds the running timer, the refusal says where and offers to take
- * it over (it keeps its time: nothing is counted twice). With a hole of today
- * still open, Play asks first: from now, or from the hole's start (`ask`:
- * false where nobody is there to answer, e.g. the tray).
+ * Start (or resume) a timer. While other timers run, Play asks first: switch
+ * (they stop, their time queued for logging in the global "Log time" dialog)
+ * or run it beside them. When another device holds a timer this would stop,
+ * the refusal says where and offers to take it over (it keeps its time:
+ * nothing is counted twice). With a hole of today still open, Play asks
+ * first: from now, or from the hole's start (`ask`: false where nobody is
+ * there to answer, e.g. the tray, which then switches).
  */
 export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) {
   const utils = trpc.useUtils();
@@ -58,10 +60,11 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
       void utils.timers.list.invalidate();
       if (r.tookOver) toast.success(t("ui.timer.tookOver", { key: issueKey }));
       else if (opts.announce) toast.success(t("ui.startTimer.started", { key: issueKey }));
-      if (r.switchedFrom) {
-        timerLog.push({ ...r.switchedFrom, end: r.switchedFrom.stoppedAt });
-        toast.info(t("ui.startTimer.switched", { key: r.switchedFrom.issueKey }));
-      }
+      // Every timer the switch stopped is asked to be logged.
+      const stopped = r.switchedFromAll ?? (r.switchedFrom ? [r.switchedFrom] : []);
+      for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
+      if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
+      else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
     },
     onError: (e, input) => {
       const c = timerConflictOf(e);
@@ -77,12 +80,23 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
   });
   const send = (input: StartInput) => m.mutate({ ...input, opId: newOpId(), device: thisDevice() });
   const mutate = (input: StartInput) => {
-    if (opts.ask === false || input.force || input.from) return send(input);
-    void openGapNow(utils).then(
-      gap => (gap ? startChoice.ask({ input: { issueKey: input.issueKey, connectionId: input.connectionId }, gap, announce: !!opts.announce }) : send(input)),
+    if (opts.ask === false || input.force || input.from || input.mode) return send(input);
+    const target = { issueKey: input.issueKey, connectionId: input.connectionId };
+    void utils.timers.list
+      .fetch(undefined, { staleTime: 0 })
+      .then(timers => {
+        // Others running: switch to it, or run it beside them (asked; its own timer running: nothing to ask).
+        const others = timers.filter(
+          tm => tm.state === "running" && !(tm.issueKey === input.issueKey && (input.connectionId === undefined || tm.connectionId === input.connectionId))
+        );
+        if (others.length > 0) {
+          startParallel.ask({ input: target, running: others.map(o => ({ issueKey: o.issueKey, connectionId: o.connectionId, elapsedSeconds: o.elapsedSeconds })), announce: !!opts.announce });
+          return;
+        }
+        return openGapNow(utils).then(gap => (gap ? startChoice.ask({ input: target, gap, announce: !!opts.announce }) : send(input)));
+      })
       // Unknown (offline): started now, as before.
-      () => send(input)
-    );
+      .catch(() => send(input));
   };
   return { mutate, isPending: m.isPending };
 }

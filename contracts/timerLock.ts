@@ -1,7 +1,8 @@
 /**
- * One timer runs per user, controlled by one device at a time (its owner).
- * The owner renews a lease with a heartbeat; another device sees who holds it
- * and since when, and takes it over only on purpose. A lease that runs out
+ * A user's timers (several may run side by side) are each controlled by one
+ * device at a time (its owner). The owner renews a lease with a heartbeat for
+ * every timer it runs; another device sees who holds one and since when, and
+ * takes it over only on purpose. A lease that runs out
  * (the device slept, closed, lost the network) leaves the timer running and
  * free to take: time is never lost, only control moves.
  */

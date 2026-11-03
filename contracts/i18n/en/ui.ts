@@ -131,6 +131,9 @@ export const ui = {
     activeOn: "Timer running on",
     pausedOn: "Timer paused on",
     activeOnLabel: "Timer running on {key} · {time}",
+    alsoRunning: "Also running",
+    moreRunning: "+{count}",
+    showAllRunning: "Show all {count} timers",
     pausedOnLabel: "Timer paused on {key} · {time}",
     discarded: "Timer discarded",
   },
@@ -183,6 +186,15 @@ export const ui = {
     calc: "Working out the time…",
     update: "Update",
     log: "Log",
+    split: {
+      title: "Time together with other timers",
+      alone: "Alone",
+      with: "With {keys}, {duration}",
+      shareFor: "Your share of the {duration} with {keys}, in percent",
+      toLog: "To log",
+      over: "Together with what is already logged, {percent} % of that time: it counts more than once.",
+      placed: "Where it ran, beside the others' part: {parts}.",
+    },
   },
   quickStart: {
     title: "Start timer",
@@ -346,6 +358,7 @@ export const ui = {
     title: "You were away {duration}",
     sinceBefore: "Since {time} the timer on",
     sinceAfter: "kept running. What should we do?",
+    alsoOn: "So did {keys}: the answer counts for them too.",
     removeFailed: "Time logged, but not removed from the timer on {key}: it would count twice",
     assignPlaceholder: "Assign the time to… (key or title)",
     assign: "Assign to another issue",
@@ -598,6 +611,16 @@ export const ui = {
     now: "From now",
     fromGap: "From {from}",
   },
+  startParallel: {
+    title: "Running: {list}",
+    body: "Start {key}?",
+    switch: "Switch",
+    switchHint: "The running timers stop, and their time is asked to be logged.",
+    runBoth: "Run both",
+    runAll: "Run all",
+    runHint: "Their time together is shared out when you log them.",
+    blocked: "Overlapping time is off (Settings, Time in parallel): only Switch.",
+  },
   pin: {
     existing: "{key} is already on “{board}”",
     added: "{key} pinned to “{board}”",
@@ -627,6 +650,7 @@ export const ui = {
   startTimer: {
     started: "Timer started on {key}",
     switched: "Timer on {key} stopped: log the time",
+    switchedMany: "{count} timers stopped: log their time",
   },
   mail: {
     title: "Mails",

@@ -18,6 +18,7 @@ import type {
 } from "./types";
 import { prefersReducedMotion } from "@/lib/dom";
 import { softwareRender } from "./render";
+import { runningTimers } from "@/lib/timerFocus";
 
 /**
  * The page side of the host API: one hub per app, fed by the React Query cache
@@ -123,7 +124,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
 
   // ---- Derived from the cache: what changed since the last look ----
   let lastStatus = new Map<string, { status: string; category: string }>();
-  let lastRunning: string | null = null;
+  let lastRunning = new Set<string>();
   let lastLogged: number | null = null;
   let goalDay = "";
 
@@ -133,7 +134,9 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     if (theme.get().night !== night) theme.set({ ...theme.get(), night });
     const timers = utils.timers.list.getData();
     if (timers) {
-      const running = timers.find(t => t.state === "running");
+      // Timers side by side: a module sees the one started last.
+      const runningNow = runningTimers(timers);
+      const running = runningNow[0];
       const paused = timers.find(t => t.state === "paused");
       timer.set(
         running
@@ -142,12 +145,13 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
             ? { state: "paused", issueKey: paused.issueKey }
             : { state: "idle", issueKey: null }
       );
-      // By identity, as the other events: the same key on two trackers is two timers.
-      const runningId = running ? `${running.connectionId ?? ""}:${running.issueKey}` : null;
-      if (running && runningId !== lastRunning) {
-        emit("timer-started", { issueKey: running.issueKey, ...(running.connectionId ? { ref: { connectionId: running.connectionId, key: running.issueKey } } : {}) });
+      // By identity, as the other events: the same key on two trackers is two timers. Each one that starts, once.
+      const ids = new Set(runningNow.map(r => `${r.connectionId ?? ""}:${r.issueKey}`));
+      for (const r of [...runningNow].reverse()) {
+        if (lastRunning.has(`${r.connectionId ?? ""}:${r.issueKey}`)) continue;
+        emit("timer-started", { issueKey: r.issueKey, ...(r.connectionId ? { ref: { connectionId: r.connectionId, key: r.issueKey } } : {}) });
       }
-      lastRunning = runningId;
+      lastRunning = ids;
     }
 
     const issues = utils.issues.all.getData();

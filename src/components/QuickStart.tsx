@@ -118,7 +118,7 @@ export function QuickStart() {
     i => i.key === typedKey && i.hidden === 1
   );
   const hiddenMatch = hiddenMatches.length > 0;
-  const running = timers.find(t => t.state === "running");
+  const running = timers.filter(t => t.state === "running");
 
   const close = () => {
     quickStart.set(false);
@@ -131,7 +131,7 @@ export function QuickStart() {
       onPick({ key, connectionId });
       return;
     }
-    if (running && idOf({ key: running.issueKey, connectionId: running.connectionId }) === idOf({ key, connectionId })) {
+    if (running.some(r => idOf({ key: r.issueKey, connectionId: r.connectionId }) === idOf({ key, connectionId }))) {
       toast.info(t("ui.quickStart.alreadyRunning", { key }));
       return;
     }
@@ -197,7 +197,8 @@ export function QuickStart() {
     else if (row) startOn(row);
   };
 
-  const runningId = running ? idOf({ key: running.issueKey, connectionId: running.connectionId }) : null;
+  // Timers side by side: every running one is marked.
+  const runningIds = new Set(running.map(x => idOf({ key: x.issueKey, connectionId: x.connectionId })));
   const renderOption = (o: CommandOption) => {
     if (o.id === "restore" || o.id === "import")
       return (
@@ -213,7 +214,7 @@ export function QuickStart() {
     if (!r) return null;
     return (
       <>
-        {runningId === o.id ? <TimerRing running className="mr-2" /> : <Play className="mr-2 h-4 w-4 text-muted-foreground" />}
+        {runningIds.has(o.id) ? <TimerRing running className="mr-2" /> : <Play className="mr-2 h-4 w-4 text-muted-foreground" />}
         <span className="mr-2 shrink-0 font-medium tabular">{r.key}</span>
         <span className="truncate text-muted-foreground">{r.summary}</span>
         {r.favorite && <Star className="ml-auto h-3.5 w-3.5 shrink-0 fill-current text-warning" aria-label={t("ui.quickStart.favorite")} />}

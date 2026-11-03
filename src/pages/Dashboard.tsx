@@ -104,6 +104,7 @@ import { gapNeighbours } from "@/lib/gapCuts";
 import { placePendingTimers } from "@/lib/pendingTimers";
 import { timerLog } from "@/lib/timerLog";
 import { topIssueTotals } from "@/lib/issueTotals";
+import { focusTimer, runningTimers } from "@/lib/timerFocus";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun; control: FlowControlAttributes }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun, control: flowControlProps("dashboard.period.day") },
@@ -169,7 +170,7 @@ const LIVE_CONTROLS = <ActiveTimerQuickControls compact />;
  */
 function HeaderTimer() {
   const { timers, fetchedAt } = useTimers();
-  const timer = timers.find(tm => tm.state === "running") ?? timers[0];
+  const timer = focusTimer(timers);
   if (!timer) return null;
   const running = timer.state === "running";
   const toLog = timers
@@ -183,6 +184,12 @@ function HeaderTimer() {
         <TimerRing running={running} />
         {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
         <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
+        {/* Timers side by side: how many more run beside it (their rows in the timers sheet). */}
+        {runningTimers(timers).length > 1 && (
+          <span className="text-caption text-muted-foreground tabular" title={t("ui.timer.alsoRunning")}>
+            {t("ui.timer.moreRunning", { count: runningTimers(timers).length - 1 })}
+          </span>
+        )}
         <ActiveTimerQuickControls />
       </span>
       {/* Stopped ones behind the running one ("Later"): still to log, never out of sight. */}
@@ -463,18 +470,22 @@ function DashboardContent() {
     start: new Date(w.started),
     seconds: w.timeSpentSeconds,
   }));
-  const running = timers.find(tm => tm.state === "running");
-  if (running && range.kind === "day" && range.isCurrent) {
-    // Approximation: a running timer is drawn as ending now.
-    timelineEntries.push({
-      id: "live",
-      issueKey: running.issueKey,
-      connectionId: running.connectionId,
-      summary: issueByKey.get(issueId(running))?.summary,
-      start: new Date(timerState.fetchedAt - running.elapsedSeconds * 1000),
-      seconds: running.elapsedSeconds,
-      live: true,
-    });
+  // Timers side by side: one live block each, in lanes; the one started last first (its Pause / Stop sit on it).
+  const runningNow = runningTimers(timers);
+  const running = runningNow[0];
+  if (range.kind === "day" && range.isCurrent) {
+    for (const tm of runningNow) {
+      // Approximation: a running timer is drawn as ending now.
+      timelineEntries.push({
+        id: tm === running ? "live" : `live:${issueId(tm)}`,
+        issueKey: tm.issueKey,
+        connectionId: tm.connectionId,
+        summary: issueByKey.get(issueId(tm))?.summary,
+        start: new Date(timerState.fetchedAt - tm.elapsedSeconds * 1000),
+        seconds: tm.elapsedSeconds,
+        live: true,
+      });
+    }
   }
 
   // Holes of the working day still to log: open weeks only, up to now.

@@ -625,6 +625,54 @@ export const timerOps = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.opId] }), index("idx_timer_ops_created").on(t.createdAt)],
 );
 
+/**
+ * When each timer actually ran: timers run side by side, and the time two ran
+ * together is shared out at their logs (contracts/timerSplit.ts). By issue, not
+ * by timer row: a run outlives its timer (gone once logged) while another timer
+ * that ran with it is still to be logged.
+ */
+export const timerRuns = pgTable(
+  "timer_runs",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: connectionRef(),
+    issueKey: text("issue_key").notNull(),
+    startedAt: ms("started_at").notNull(),
+    /** Null while it runs */
+    endedAt: ms("ended_at"),
+    /** Taken by a log: kept only while it shares time with a run not logged yet */
+    loggedAt: ms("logged_at"),
+  },
+  (t) => [
+    index("idx_timer_runs_user_start").on(t.userId, t.startedAt),
+    uniqueIndex("uq_timer_runs_open").on(t.userId, t.connectionId, t.issueKey).where(sql`${t.endedAt} IS NULL`),
+  ],
+);
+
+/** The share a timer's log took of a stretch it ran together with others: the next one's default is what is left. */
+export const timerShares = pgTable(
+  "timer_shares",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: connectionRef(),
+    issueKey: text("issue_key").notNull(),
+    startedAt: ms("started_at").notNull(),
+    endedAt: ms("ended_at").notNull(),
+    /** In basis points: 6000 = 60 % */
+    shareBp: integer("share_bp").notNull(),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [index("idx_timer_shares_user_start").on(t.userId, t.startedAt)],
+);
+
 export const settings = pgTable("settings", {
   userId: integer("user_id")
     .primaryKey()

@@ -102,7 +102,8 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
     connectionId: t.connectionId,
     // Only today's time is preselected: one stopped on an earlier day is logged from its timer.
     include: t.elapsedSeconds >= 60 && timerOnDay(t, today, new Date(nowMs())),
-    duration: formatSeconds(roundToMinute(t.elapsedSeconds), { days: false }),
+    // Run beside other timers: its default share of the time together, as its own log would offer.
+    duration: formatSeconds(roundToMinute(t.defaultSeconds), { days: false }),
     touched: false,
     comment: t.note,
   });
@@ -150,7 +151,9 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
   const liveSeconds = (id: string): number | null => {
     const t = timers.find(x => issueId(x) === id);
     if (!t || t.state !== "running") return null;
-    return roundToMinute(t.elapsedSeconds + (nowMs() - fetchedAt) / 1000);
+    // Timers running side by side share the time since: an equal part each.
+    const together = Math.max(1, timers.filter(x => x.state === "running").length);
+    return roundToMinute(t.defaultSeconds + (nowMs() - fetchedAt) / 1000 / together);
   };
   const [frozen, setFrozen] = useState<Map<string, number> | null>(null);
   const parsed = drafts.map(
@@ -268,6 +271,8 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
           comment: d.comment.trim(),
           fromTimer: true,
           parts: placed.parts && partsInput(placed.parts, d.seconds),
+          // Run beside others: its default shares of the time together (what is left by those logged).
+          ...(timer && timer.overlapSeconds > 0 ? { split: { until: at.toISOString(), shares: [] } } : {}),
         });
         ok++;
         for (const p of placed.parts ?? [{ start: placed.start, seconds: d.seconds }]) occupied.push({ ...p, label: d.issueKey });
@@ -276,7 +281,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
         // Not logged: the timer we paused keeps running as before.
         if (paused === issueId(d))
           await utils.client.timers.start
-            .mutate({ issueKey: d.issueKey, connectionId: timer?.connectionId })
+            .mutate({ issueKey: d.issueKey, connectionId: timer?.connectionId, mode: "alongside" })
             .catch(() => undefined);
         setStatus(s => ({ ...s, [issueId(d)]: "error" }));
         toast.error(

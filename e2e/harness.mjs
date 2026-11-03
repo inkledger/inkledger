@@ -68,15 +68,21 @@ async function syncSequences(client) {
 
 /**
  * Play on an issue. With a hole of today still open the app asks first (from its start, or
- * from now): answered "from now", so a test does the same at any hour of the day.
+ * from now): answered "from now", so a test does the same at any hour of the day. With
+ * another timer running it asks to switch or run both: answered "Switch" (`mode`: "both"
+ * runs it beside them).
  */
-export async function startTimer(page, key) {
+export async function startTimer(page, key, { mode = "switch" } = {}) {
   await page.getByRole("button", { name: `Start timer ${key}` }).first().click();
   const ask = page.getByRole("alertdialog", { name: `Start ${key}` });
+  const parallel = page.getByRole("alertdialog", { name: /^Running: / });
   const running = page.getByRole("button", { name: `Pause timer ${key}` }).first();
-  const asked = ask.waitFor().then(() => true, () => false);
-  const started = running.waitFor().then(() => false, () => false);
-  if (await Promise.race([asked, started])) await ask.getByRole("button", { name: "From now" }).click();
+  const asked = ask.waitFor().then(() => "gap", () => null);
+  const both = parallel.waitFor().then(() => "parallel", () => null);
+  const started = running.waitFor().then(() => null, () => null);
+  const which = await Promise.race([asked, both, started]);
+  if (which === "gap") await ask.getByRole("button", { name: "From now" }).click();
+  if (which === "parallel") await parallel.getByRole("button", { name: mode === "both" ? /^Run (both|all)$/ : "Switch" }).click();
   await running.waitFor();
 }
 

@@ -452,10 +452,22 @@ export const worklogsRouter = createRouter({
             .min(2)
             .max(5)
             .optional(),
+          /**
+           * A timer that ran beside others (contracts/timerSplit.ts): the time it
+           * counted up to `until` is all taken, its shares of the time together
+           * (by the others it ran with, in basis points) recorded for their logs.
+           */
+          split: z
+            .object({
+              until: z.iso.datetime({ offset: true }),
+              shares: z.array(z.object({ with: z.array(z.string().min(1).max(120)).min(1).max(8), bp: z.number().int().min(0).max(10000) })).max(20),
+            })
+            .optional(),
         })
         .refine(hasDuration, "seconds or timeSpent"),
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.split && !input.fromTimer) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.splitNotTimer") });
       const { seconds, started } = parseLogInput(input);
       const parts = input.parts
         ? input.parts.map((p) => ({ started: new Date(p.started), seconds: p.seconds }))
@@ -475,7 +487,8 @@ export const worklogsRouter = createRouter({
         // can't both succeed (gone means another flow logged it). A stopped
         // timer is cleared; one restarted meanwhile keeps running minus this
         // time. If the worklog then fails, the time goes back to the timer.
-        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId) : null;
+        const split = input.split ? { until: new Date(input.split.until), shares: input.split.shares } : undefined;
+        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId, new Date(), split) : null;
         if (input.fromTimer && !claim) {
           throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.timerLogged", { key: input.issueKey }) });
         }

@@ -1140,6 +1140,10 @@
     "type": "mutation"
   },
   {
+    "path": "timers.split",
+    "type": "query"
+  },
+  {
     "path": "timers.start",
     "type": "mutation"
   },

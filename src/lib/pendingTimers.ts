@@ -8,6 +8,8 @@ type PausedTimer = {
   state: string;
   pausedAt: string | Date | null;
   elapsedSeconds: number;
+  /** Its default share once it ran beside other timers (its whole time otherwise) */
+  defaultSeconds?: number;
   /** Stopped after a single run: one piece, over a break too */
   unbroken?: boolean;
   note?: string;
@@ -40,7 +42,7 @@ export function placePendingTimers<T extends PausedTimer>(opts: {
   const out: PendingBlock<T>[] = [];
   for (const timer of paused) {
     const end = new Date(timer.pausedAt ?? 0);
-    const seconds = timer.elapsedSeconds;
+    const seconds = timer.defaultSeconds ?? timer.elapsedSeconds;
     const place = (schedule: WorkSchedule) =>
       placeBlock({ day: opts.day, seconds, occupied, schedule, now: opts.now, endAt: end, tracked: seconds, unbroken: timer.unbroken });
     // Not within the working hours: the latest free stretch of the day, as it was tracked

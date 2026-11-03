@@ -54,11 +54,19 @@ export function IdleDialog() {
   const holding = known ? breakHolding(hours, awayFrom, awayTo) : null;
   const asBreak = known && !holding ? breakAt(hours, awayFrom, awayTo) : null;
   const moved = asBreak?.breaks.find(b => !hours.breaks.some(x => x.start === b.start && x.end === b.end));
+  // Timers side by side on this device: the time away leaves every one of them.
+  const trimOthers = (seconds: number) =>
+    Promise.all(away.alsoOn.map(o => utils.client.timers.trim.mutate({ ...o, seconds })))
+      .then(() => void utils.timers.list.invalidate())
+      .catch((e: unknown) => toastError(e));
   const remove = () =>
     trim.mutate(
       { issueKey: away.issueKey, connectionId: away.connectionId, seconds: away.seconds },
       {
-        onSuccess: () => dismiss(),
+        onSuccess: () => {
+          void trimOthers(away.seconds);
+          dismiss();
+        },
       }
     );
 
@@ -83,6 +91,7 @@ export function IdleDialog() {
             {t("ui.idle.sinceBefore", { time: timeOfDay(away.since) })}{" "}
             <span className="font-medium text-foreground">{away.issueKey}</span>{" "}
             {t("ui.idle.sinceAfter")}
+            {away.alsoOn.length > 0 && <> {t("ui.idle.alsoOn", { keys: away.alsoOn.map(o => o.issueKey).join(", ") })}</>}
           </DialogDescription>
         </DialogHeader>
         {/* A decision, so a list of choices (docs/design-system.md §7.1): each one a whole row, its
@@ -129,13 +138,12 @@ export function IdleDialog() {
             onPick={() => {
               // The running timer is trimmed only once the time is logged
               // elsewhere: backing out of the picker or the dialog loses nothing.
-              const { issueKey, connectionId, seconds, since } = away;
+              const { issueKey, connectionId, seconds, since, alsoOn } = away;
               dismiss();
               // Vanilla client: this dialog is gone by the time it is saved.
               // A failed trim would count the away time twice: say so, retry.
               const removeAway = (): Promise<void> =>
-                utils.client.timers.trim
-                  .mutate({ issueKey, connectionId, seconds })
+                Promise.all([{ issueKey, connectionId }, ...alsoOn].map(o => utils.client.timers.trim.mutate({ ...o, seconds })))
                   .then(() => void utils.timers.list.invalidate())
                   .catch((e: unknown) => {
                     toast.error(

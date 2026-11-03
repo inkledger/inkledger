@@ -20,7 +20,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
   const { timers } = useTimers();
   const start = useStartTimer({ announce: true });
   if (favorites.length === 0) return null;
-  const runningKey = timers.find(t => t.state === "running")?.issueKey;
+  const runningKeys = new Set(timers.filter(t => t.state === "running").map(t => t.issueKey));
 
   return (
     // The one part of the sidebar that grows: it scrolls inside, the rest
@@ -30,7 +30,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
       title={t("ui.sidebar.favorites")}
       className="min-h-0 flex-1"
       bodyClassName="cast-room-x cast-room-y min-h-0 flex-1 gap-0.5 overflow-y-auto overscroll-contain [--room-b:1rem]"
-      hint={favorites.some(i => i.unread || i.key === runningKey)}
+      hint={favorites.some(i => i.unread || runningKeys.has(i.key))}
       action={
         <Link
           to="/issues?favorites"
@@ -42,7 +42,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
       }
     >
       {favorites.map(i => {
-        const running = i.key === runningKey;
+        const running = runningKeys.has(i.key);
         return (
           <div key={issueId(i)} className="group relative">
             <NavLink

@@ -4,8 +4,10 @@ import { idleGap } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { useTimers } from "@/hooks/useTimers";
 import { isNative, onNativeEvent, showNativeWindow } from "@/lib/native";
+import { runningTimers } from "@/lib/timerFocus";
 
-export type AwayPeriod = { issueKey: string; connectionId?: number; seconds: number; since: Date };
+/** `alsoOn`: the other timers this device ran beside it (timers side by side): the time away leaves them too. */
+export type AwayPeriod = { issueKey: string; connectionId?: number; seconds: number; since: Date; alsoOn: { issueKey: string; connectionId: number }[] };
 
 const HEARTBEAT_MS = 30_000;
 /**
@@ -69,16 +71,20 @@ export function useIdleDetection(): {
   const threshold = settings.data?.idleMinutes ?? 10;
   const { timers } = useTimers();
   // Away from this device says nothing of a timer another device runs.
-  const running = timers.find(t => t.state === "running" && !t.heldElsewhere);
+  const mine = runningTimers(timers).filter(t => !t.heldElsewhere);
+  const running = mine[0];
   const runningKey = running?.issueKey ?? null;
   const runningConnection = running?.connectionId;
+  const alsoOn = mine.slice(1).map(t => `${t.connectionId}:${t.issueKey}`).join(" ");
   const [away, setAway] = useState<AwayPeriod | null>(null);
   const keyRef = useRef(runningKey);
   const connectionRef = useRef(runningConnection);
+  const alsoOnRef = useRef(alsoOn);
   useEffect(() => {
     keyRef.current = runningKey;
     connectionRef.current = runningConnection;
-  }, [runningKey, runningConnection]);
+    alsoOnRef.current = alsoOn;
+  }, [runningKey, runningConnection, alsoOn]);
   const covered = useRef(0);
   /**
    * A real away stretch noticed while this tab was in the background, kept as
@@ -111,7 +117,19 @@ export function useIdleDetection(): {
       // joins it, or that time would stay on the timer, never asked about.
       setAway(prev =>
         !prev
-          ? { issueKey: key, connectionId: connectionRef.current, seconds, since: new Date(from) }
+          ? {
+              issueKey: key,
+              connectionId: connectionRef.current,
+              seconds,
+              since: new Date(from),
+              alsoOn: alsoOnRef.current
+                .split(" ")
+                .filter(Boolean)
+                .map(id => {
+                  const at = id.indexOf(":");
+                  return { connectionId: Number(id.slice(0, at)), issueKey: id.slice(at + 1) };
+                }),
+            }
           : prev.issueKey === key
             ? { ...prev, seconds: prev.seconds + seconds }
             : prev

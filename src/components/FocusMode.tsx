@@ -19,6 +19,7 @@ import { issueId } from "@/lib/issues";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { t } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
+import { focusTimer } from "@/lib/timerFocus";
 
 type PipApi = {
   requestWindow(opts: { width: number; height: number }): Promise<Window>;
@@ -30,7 +31,7 @@ const pipApi = (): PipApi | null =>
 /** The timer worth focusing on: the running one, else the latest paused. */
 function useFocusTimer() {
   const { timers } = useTimers();
-  return timers.find(t => t.state === "running") ?? timers[0] ?? null;
+  return focusTimer(timers) ?? null;
 }
 
 /**

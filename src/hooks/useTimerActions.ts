@@ -80,7 +80,8 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
     pending:
       start.isPending || pause.isPending || stop.isPending || discard.isPending || move.isPending,
     start: () => start.mutate(on),
-    takeOver: () => start.mutate({ ...on, force: true }),
+    // Control moves only: the timers running beside it run on.
+    takeOver: () => start.mutate({ ...on, force: true, mode: "alongside" }),
     pause: () => pause.mutate(guarded()),
     stop: () => stop.mutate(guarded()),
     /** `then`: after it is gone (a dialog waiting on it closes only then: on a conflict it stays). */

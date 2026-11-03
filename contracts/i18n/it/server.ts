@@ -304,6 +304,8 @@ export const server: Shape<typeof en> = {
     fromToday: "Un timer può partire prima solo nella giornata di oggi.",
     fromWhileRunning: "C'è un altro timer in corso: fermalo prima di contare dall'inizio del buco.",
     fromBeforePause: "Un timer in pausa conta già quel tempo: parti da dopo.",
+    alongsideFrom: "Un timer avviato accanto a quelli in corso conta da adesso: per partire dal buco nessun timer deve essere in corso.",
+    parallelBlocked: "Il tempo sovrapposto è disattivato (Impostazioni, Tempo in parallelo): cambia timer invece di farli andare insieme.",
     held: "Il timer di {key} è in corso su {device}: prendine il controllo per agire da qui.",
     anotherDevice: "un altro dispositivo",
     moved: "Il timer di {key} è cambiato su un altro dispositivo: ecco com'è ora.",
@@ -322,6 +324,7 @@ export const server: Shape<typeof en> = {
     maxDuration: "Una singola registrazione non può superare le 24 ore.",
     invalidStart: "Data di inizio non valida",
     timerLogged: "Il tempo del timer di {key} è già stato registrato.",
+    splitNotTimer: "Le quote di tempo condiviso valgono solo per la registrazione di un timer.",
     overlapHint: "{message}: sposta o accorcia una delle due registrazioni.",
   },
   placement: {

@@ -3,7 +3,7 @@
 // actions (a linked stretch ends when its issue's timer stops) and by the TODO
 // list's own start and stop.
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { todoSessions } from "@db/schema";
+import { todoSessions, todos } from "@db/schema";
 import { startOfDay } from "@contracts/time";
 import type { getDb } from "./connection";
 
@@ -31,6 +31,28 @@ export async function endSession(db: Db | Tx, userId: number, at: Date, linked?:
     .where(and(openOf(userId), which));
 }
 
+/** An issue's timer, as a linked stretch knows it. */
+type IssueRef = { connectionId: number; issueKey: string };
+
+/**
+ * The open linked stretch, when it is the one worked on with this issue's
+ * timer (timers run side by side: pausing one never ends another's TODO). A
+ * stretch whose TODO is gone, or names no issue, goes with any of them.
+ */
+async function linkedTo(db: Db | Tx, userId: number, issue: IssueRef) {
+  const open = await openSession(db, userId);
+  if (!open || open.linked !== 1) return undefined;
+  if (open.todoId === null) return open;
+  const [todo] = await db.select({ connectionId: todos.connectionId, issueKey: todos.issueKey }).from(todos).where(eq(todos.id, open.todoId)).limit(1);
+  if (!todo || todo.issueKey === null) return open;
+  return todo.connectionId === issue.connectionId && todo.issueKey === issue.issueKey ? open : undefined;
+}
+
+/** The linked stretch of this issue's timer ends at `at` (its timer stopped). */
+export async function endLinkedSessionOf(db: Db | Tx, userId: number, at: Date, issue: IssueRef) {
+  if (await linkedTo(db, userId, issue)) await endSession(db, userId, at, true);
+}
+
 /** A new stretch on a TODO from `at`; whatever was open ends there first. */
 export async function beginSession(db: Db | Tx, userId: number, todo: { id: number; text: string }, linked: boolean, at: Date) {
   await endSession(db, userId, at);
@@ -42,9 +64,9 @@ export async function beginSession(db: Db | Tx, userId: number, todo: { id: numb
  * it ends where the user left and a new one starts now, so the TODO's time
  * leaves the same hole as the timer's.
  */
-export async function trimSession(db: Db | Tx, userId: number, seconds: number, now: Date) {
-  const open = await openSession(db, userId);
-  if (!open || open.linked !== 1) return;
+export async function trimSession(db: Db | Tx, userId: number, seconds: number, now: Date, issue: IssueRef) {
+  const open = await linkedTo(db, userId, issue);
+  if (!open) return;
   await endSession(db, userId, new Date(now.getTime() - seconds * 1000));
   if (open.todoId !== null) await db.insert(todoSessions).values({ userId, todoId: open.todoId, label: open.label, linked: 1, startedAt: now });
 }

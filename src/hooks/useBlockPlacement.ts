@@ -24,8 +24,11 @@ import { issueId } from "@/lib/issues";
  */
 export function useBlockPlacement(
   day?: Date,
-  /** excludeTimer: a timer's identity (issueId) whose own time is being placed */
-  opts: { excludeTimer?: string } = {}
+  /**
+   * excludeTimer: a timer's identity (issueId) whose own time is being placed;
+   * shared: the timers it ran beside, whose time together it shares (not a collision).
+   */
+  opts: { excludeTimer?: string; shared?: readonly string[] } = {}
 ) {
   const today = useToday();
   const from = useMemo(() => startOfDay(day ?? today), [day, today]);
@@ -35,6 +38,8 @@ export function useBlockPlacement(
   });
   const schedule = useWorkSchedule();
   const timerState = useTimers();
+  // As one string: a new array each render must not recompute the placement.
+  const sharedKey = ` ${(opts.shared ?? []).join(" ")} `;
   const { timers, query: timersQuery } = timerState;
   // Only a running timer (no pause time) is placed from the fetch time.
   const fetchedAt = timers.some(t => !t.pausedAt) ? timerState.fetchedAt : 0;
@@ -48,7 +53,7 @@ export function useBlockPlacement(
       label: w.issueKey,
     }));
     for (const t of timers) {
-      if (issueId(t) === opts.excludeTimer || t.elapsedSeconds <= 0) continue;
+      if (issueId(t) === opts.excludeTimer || sharedKey.includes(` ${issueId(t)} `) || t.elapsedSeconds <= 0) continue;
       // Real run segments are not stored: the tracked time is taken as the
       // stretch right before the stop (or before now while running).
       const end = t.pausedAt ? new Date(t.pausedAt).getTime() : fetchedAt;
@@ -60,7 +65,7 @@ export function useBlockPlacement(
       });
     }
     return out;
-  }, [logs.data, timers, fetchedAt, opts.excludeTimer]);
+  }, [logs.data, timers, fetchedAt, opts.excludeTimer, sharedKey]);
 
   /**
    * Place `seconds` (ending at `endAt` for a stopped timer), around the day's

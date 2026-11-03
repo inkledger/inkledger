@@ -7,6 +7,7 @@ import { and, eq, getTableColumns, inArray, isNull, notInArray, sql, type SQL } 
 import { issueNotes, issues, itemAliases, notifications, outbox, pinboardNotes, timers, todos, worklogs } from "@db/schema";
 import type { StatusCategory } from "@contracts/providers";
 import { getDb } from "../queries/connection";
+import { renameRuns } from "../queries/timerRuns";
 import { ensureContainer } from "../queries/containers";
 import type { BoundTracker } from "../providers/core/bind";
 import type { CallMeta } from "../providers/core/context";
@@ -142,6 +143,15 @@ async function moveDependents(from: { id: number; key: string }, to: { id: numbe
       await db.update(table).set({ itemId: to.id, issueKey: to.key }).where(eq(table.itemId, from.id));
     } catch (e) {
       console.warn(`[sync] transfer ${from.key} → ${to.key}: kept on the old issue (${e instanceof Error ? e.message : String(e)})`);
+    }
+  }
+  // Runs of its timers (kept by issue key, not by item) follow, or the timer would meet its own past as another timer's.
+  const [owner] = await db.select({ userId: issues.userId, connectionId: issues.connectionId }).from(issues).where(eq(issues.id, to.id)).limit(1);
+  if (owner) {
+    try {
+      await renameRuns(db, owner.userId, { connectionId: owner.connectionId, issueKey: from.key }, { connectionId: owner.connectionId, issueKey: to.key });
+    } catch (e) {
+      console.warn(`[sync] timer runs of ${from.key} → ${to.key}: kept on the old key (${e instanceof Error ? e.message : String(e)})`);
     }
   }
   await db.insert(itemAliases).values({ itemId: to.id, key: from.key }).onConflictDoNothing();

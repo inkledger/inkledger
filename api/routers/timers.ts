@@ -15,7 +15,10 @@ import { deviceLabel } from "@contracts/device";
 import { dayKey, roundToMinute } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
 import { withWriteLease } from "../queries/writeLease";
-import { endSession, openSession, trimSession } from "../queries/todoSessions";
+import { endLinkedSessionOf, endSession, openSession, trimSession } from "../queries/todoSessions";
+import { closeRun, consumeRuns, discardRuns, openRun, pruneOldRuns, pruneRuns, recordShares, renameRuns, splitInputs, trimRuns, unconsumeRuns, type TimerRef } from "../queries/timerRuns";
+import { groupKey, splitOf, stretchesOf, timerId, type SplitRun } from "@contracts/timerSplit";
+import { getSettings } from "./settings";
 import { t as tr } from "@contracts/i18n";
 
 /** The issue's connection, when a key lives on two. */
@@ -62,6 +65,9 @@ function withTimerLock<T>(userId: number, fn: (tx: Tx) => Promise<T>): Promise<T
 /** A timer by its issue, on the issue's connection. */
 const timerOf = (userId: number, connectionId: number, issueKey: string) =>
   and(eq(timers.userId, userId), eq(timers.connectionId, connectionId), eq(timers.issueKey, issueKey));
+
+/** A timer as its runs know it. */
+const refOf = (t: { userId: number; connectionId: number; issueKey: string }): TimerRef => ({ userId: t.userId, connectionId: t.connectionId, issueKey: t.issueKey });
 
 /** Who acts: the user, the device (x-device-id) and how that device is named. */
 export type Who = { userId: number; device: string | undefined; label: string };
@@ -149,12 +155,24 @@ async function clearPausedTimer(db: Db | Tx, userId: number, connectionId: numbe
   await db.delete(timers).where(and(timerOf(userId, connectionId, issueKey), eq(timers.state, "paused")));
 }
 
+/** A log's shares of the time its timer ran with others: by the others it ran with, in basis points. */
+export type ClaimSplit = { until: Date; shares: { with: string[]; bp: number }[] };
+
+/** Seconds a timer counted up to `until` (a running one's run cut there). */
+const trackedThrough = (t: Timer, until: Date) =>
+  t.state === "running" ? t.accumulatedSeconds + Math.max(0, Math.floor((until.getTime() - t.startedAt.getTime()) / 1000)) : t.accumulatedSeconds;
+
 /**
  * Takes `seconds` of a timer for a worklog, before the worklog is written,
  * under the lock: two devices logging the same timer at once can't both get
  * it (the second finds it gone: `null`). A stopped timer goes; one running
  * keeps running with the time removed. `undo` puts it back if the worklog
  * then fails.
+ *
+ * With `split` (it ran beside other timers), the log takes all the time the
+ * timer counted up to `until`, though it logs less: the rest of the time it
+ * shared is the others' part. Its shares are recorded, so the others' logs
+ * default to what is left.
  */
 export async function claimTimerSeconds(
   userId: number,
@@ -162,56 +180,82 @@ export async function claimTimerSeconds(
   seconds: number,
   connectionId?: number,
   now: Date = new Date(),
+  split?: ClaimSplit,
 ): Promise<{ undo: (back?: number) => Promise<void> } | null> {
   const conn = await issueConnection(userId, issueKey, connectionId);
   const claimed = await withTimerLock(userId, async (tx) => {
     const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
     if (!t) return null;
+    const ref = refOf(t);
+    // What earlier logs left behind goes first (never what this one may have to put back).
+    await pruneRuns(tx, userId, now);
+    const until = split && split.until.getTime() < now.getTime() ? split.until : now;
+    const taken = split ? trackedThrough(t, until) : seconds;
     if (t.state !== "running") {
       await clearPausedTimer(tx, userId, conn.id, issueKey);
     } else {
       await tx
         .update(timers)
-        .set({ accumulatedSeconds: Math.max(0, elapsedSeconds(t, now) - seconds), startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
+        .set({ accumulatedSeconds: Math.max(0, elapsedSeconds(t, now) - taken), startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
         .where(eq(timers.id, t.id));
     }
-    return t;
+    // The shares come from the runs as the database has them, never from the page's seconds.
+    let sharesTaken: { start: number; end: number; bp: number }[] = [];
+    if (split) {
+      const read = await splitInputs(tx, ref, until);
+      const runs: SplitRun[] = read.runs.filter((r) => r.start < until.getTime()).map((r) => ({ ...r, end: Math.min(r.end, until.getTime()) }));
+      const id = timerId(conn.id, issueKey);
+      const given = Object.fromEntries(split.shares.map((x) => [groupKey(x.with), x.bp]));
+      sharesTaken = stretchesOf(id, runs, read.shares).stretches.map((x) => ({ start: x.start, end: x.end, bp: given[groupKey(x.others)] ?? x.defaultBp }));
+    }
+    // A running timer's run is cut at `until`: what it ran since is still to log.
+    const consumed = await consumeRuns(tx, ref, until, now);
+    consumed.shares = await recordShares(tx, ref, sharesTaken);
+    return { t, taken, consumed };
   });
   if (!claimed) return null;
-  publish(userId, { type: "timers", epoch: claimed.epoch + 1 });
+  const { t: was, taken, consumed } = claimed;
+  publish(userId, { type: "timers", epoch: was.epoch + 1 });
   return {
     /** Put back `back` seconds (all of them by default; less when part of the time was logged). */
     undo: async (back: number = seconds) => {
-      const logged = seconds - back;
+      // A split log takes more than it logs: what goes back is that much of what it took.
+      const returned = split ? Math.round((back / Math.max(1, seconds)) * taken) : back;
+      const logged = taken - returned;
       await withTimerLock(userId, async (tx) => {
         const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
         if (!t) {
           await tx.insert(timers).values({
-            ...claimed,
+            ...was,
             id: undefined,
-            accumulatedSeconds: Math.max(0, claimed.accumulatedSeconds - logged),
-            epoch: claimed.epoch + 2,
+            accumulatedSeconds: Math.max(0, was.accumulatedSeconds - logged),
+            epoch: was.epoch + 2,
             updatedAt: new Date(),
           });
         } else {
           await tx
             .update(timers)
-            .set({ accumulatedSeconds: t.accumulatedSeconds + back, epoch: t.epoch + 1, updatedAt: new Date() })
+            .set({ accumulatedSeconds: t.accumulatedSeconds + returned, epoch: t.epoch + 1, updatedAt: new Date() })
             .where(eq(timers.id, t.id));
         }
+        // Nothing logged: the runs and shares are as they were.
+        if (returned >= taken) await unconsumeRuns(tx, consumed);
       });
-      publish(userId, { type: "timers", epoch: claimed.epoch + 2 });
+      publish(userId, { type: "timers", epoch: was.epoch + 2 });
     },
   };
 }
 
 /**
  * Pauses a running timer: its owner lets go, everyone's view moves on. The
- * TODO worked on with it (a linked stretch) stops there too.
+ * TODO worked on with it (a linked stretch) stops there too, and its run ends.
  */
 export async function pauseTimer(db: Db | Tx, t: Timer, now: Date): Promise<number> {
   const epoch = t.epoch + 1;
-  if (t.state === "running") await endSession(db, t.userId, now, true);
+  if (t.state === "running") {
+    await endLinkedSessionOf(db, t.userId, now, t);
+    await closeRun(db, refOf(t), now);
+  }
   await db
     .update(timers)
     .set({ state: "paused", accumulatedSeconds: elapsedSeconds(t, now), pausedAt: now, updatedAt: now, epoch, ...released })
@@ -219,9 +263,10 @@ export async function pauseTimer(db: Db | Tx, t: Timer, now: Date): Promise<numb
   return epoch;
 }
 
-/** Timer ops are answered again on a retry for a day, then forgotten. */
+/** Timer ops are answered again on a retry for a day, then forgotten; runs and shares a month after their log. */
 export async function purgeTimerOps(now = Date.now()) {
   await getDb().delete(timerOps).where(lt(timerOps.createdAt, new Date(now - 86_400_000)));
+  await pruneOldRuns(getDb(), new Date(now));
 }
 
 const issueInput = { issueKey: issueKeyInput, connectionId: connectionInput };
@@ -236,13 +281,38 @@ async function rowOf(tx: Tx, userId: number, connectionId: number, issueKey: str
  * `start`, shared with a TODO's start (which opens its stretch in the same
  * transaction). See `start` for what it does to the others.
  */
-export async function startTimerIn(tx: Tx, w: Who, userId: number, connectionId: number, issueKey: string, opts: { force?: boolean; from: Date | null }, now: Date) {
+/**
+ * How a timer starts while others run: `switch` pauses them (their time asked
+ * to be logged), `alongside` leaves them running (timers side by side, their
+ * time together shared out at their logs).
+ */
+export type StartMode = "switch" | "alongside";
+
+/** A timer a start paused: its time is asked to be logged. */
+export type SwitchedFrom = { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date };
+
+export async function startTimerIn(
+  tx: Tx,
+  w: Who,
+  userId: number,
+  connectionId: number,
+  issueKey: string,
+  opts: { force?: boolean; from: Date | null; mode?: StartMode; parallelOff?: boolean },
+  now: Date,
+) {
   const from = opts.from;
+  const mode = opts.mode ?? "switch";
   const running = await tx
     .select()
     .from(timers)
     .where(and(eq(timers.userId, userId), eq(timers.state, "running")));
-  for (const r of running) if (heldElsewhere(r, w, now) && !opts.force) refuse("held", r);
+  const isTarget = (o: Timer) => o.issueKey === issueKey && o.connectionId === connectionId;
+  // Overlapping time refused: nothing starts beside another running timer (a take-over of a lone one still does).
+  if (mode === "alongside" && opts.parallelOff && running.some((o) => !isTarget(o))) {
+    throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.parallelBlocked") });
+  }
+  // Alongside, the others are left alone: only the one started is checked.
+  for (const r of running) if ((mode === "switch" || isTarget(r)) && heldElsewhere(r, w, now) && !opts.force) refuse("held", r);
   if (from) {
     // Another timer's time covers it: one running (it would be paused now, its time
     // counted twice), or one paused after it.
@@ -258,15 +328,16 @@ export async function startTimerIn(tx: Tx, w: Who, userId: number, connectionId:
   const startedAt = from ?? now;
   // An issue timer takes the focus: a TODO worked on without one stops where this starts.
   await endSession(tx, userId, startedAt, false);
-  // Auto-pause any other running timers (single active timer per user).
-  const others = running.filter((o) => o.issueKey !== issueKey || o.connectionId !== connectionId);
-  let switchedFrom: { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date } | null = null;
+  // A switch pauses every other running timer; alongside they run on.
+  const others = mode === "switch" ? running.filter((o) => !isTarget(o)) : [];
+  const switchedFromAll: SwitchedFrom[] = [];
   let tookOver = false;
   for (const o of others) {
-    switchedFrom = { issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now };
+    switchedFromAll.push({ issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now });
     tookOver ||= heldElsewhere(o, w, now);
     await pauseTimer(tx, o, now);
   }
+  const switchedFrom = switchedFromAll.at(-1) ?? null;
   const existing = await rowOf(tx, userId, connectionId, issueKey);
   if (existing?.state === "running") {
     // Already running: this device takes control (or renews it); the time is untouched.
@@ -274,8 +345,9 @@ export async function startTimerIn(tx: Tx, w: Who, userId: number, connectionId:
     const moves = existing.ownerDevice !== (w.device ?? null);
     const epoch = moves ? existing.epoch + 1 : existing.epoch;
     await tx.update(timers).set({ ...ownedBy(w, now), epoch, updatedAt: now }).where(eq(timers.id, existing.id));
-    return { ok: true, switchedFrom, tookOver, epoch: Math.max(epoch, await epochOf(tx, userId)) };
+    return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: Math.max(epoch, await epochOf(tx, userId)) };
   }
+  await openRun(tx, { userId, connectionId, issueKey }, startedAt);
   if (existing) {
     await tx
       .update(timers)
@@ -293,7 +365,7 @@ export async function startTimerIn(tx: Tx, w: Who, userId: number, connectionId:
       ...ownedBy(w, now),
     });
   }
-  return { ok: true, switchedFrom, tookOver, epoch: await epochOf(tx, userId) };
+  return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: await epochOf(tx, userId) };
 }
 
 export const timersRouter = createRouter({
@@ -305,6 +377,18 @@ export const timersRouter = createRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await getDb().select().from(timers).where(eq(timers.userId, ctx.user.id));
     const now = new Date();
+    const split = new Map<number, { overlap: number; byDefault: number }>();
+    for (const t of rows) {
+      const read = await splitInputs(getDb(), refOf(t), now);
+      if (read.runs.length === 0) continue;
+      const id = timerId(t.connectionId, t.issueKey);
+      const s = splitOf(id, stretchesOf(id, read.runs, read.shares), {}, elapsedSeconds(t, now));
+      if (s.groups.length === 0) continue;
+      split.set(t.id, {
+        overlap: Math.round(s.groups.reduce((a, g) => a + g.seconds, 0)),
+        byDefault: Math.round(s.aloneSeconds + s.groups.reduce((a, g) => a + g.shareSeconds, 0)),
+      });
+    }
     return rows.map((t) => {
       const ownedHere = !!t.ownerDevice && t.ownerDevice === ctx.deviceId;
       const live = leaseLive(t, now);
@@ -336,15 +420,22 @@ export const timersRouter = createRouter({
         orphaned: t.state === "running" && !!t.ownerDevice && !live && !ownedHere,
         /** Last heartbeat's lease end (the owner was last heard a lease before) */
         leaseUntil: t.leaseUntil,
+        /** Of its time, how much ran together with other timers (shared out at the log) */
+        overlapSeconds: split.get(t.id)?.overlap ?? 0,
+        /** What its log takes with the default shares (its whole time when it ran alone) */
+        defaultSeconds: split.get(t.id)?.byDefault ?? elapsedSeconds(t, now),
       };
     });
   }),
 
   /**
-   * Start (or resume) the timer on an issue. A timer running on another
-   * issue is stopped (paused) and returned as `switchedFrom` so the client
-   * asks to log its time; it stays paused until logged or discarded. While
-   * another device holds the running timer, only `force` (a take-over) acts;
+   * Start (or resume) the timer on an issue. With `mode: "switch"` (the
+   * default) the timers running on other issues are stopped (paused) and
+   * returned as `switchedFromAll` (`switchedFrom`: the last of them) so the
+   * client asks to log their time; they stay paused until logged or
+   * discarded. With `alongside` they run on, side by side with it: refused
+   * while overlapping time is refused (overlap policy "block"). While another
+   * device holds a timer this would pause, only `force` (a take-over) acts;
    * taking over the same issue moves control only: the time runs on, once.
    */
   start: protectedProcedure
@@ -355,6 +446,8 @@ export const timersRouter = createRouter({
         device: z.string().max(60).optional(),
         /** Counted from this moment of today (the start of the gap it fills), not from now. */
         from: z.iso.datetime({ offset: true }).optional(),
+        /** What happens to the timers already running: paused (switch) or left running beside it */
+        mode: z.enum(["switch", "alongside"]).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -362,9 +455,12 @@ export const timersRouter = createRouter({
       const w = whoOf(ctx, input.device);
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       const from = input.from === undefined ? null : new Date(input.from);
+      const mode = input.mode ?? "switch";
+      if (mode === "alongside" && from) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.alongsideFrom") });
+      const parallelOff = mode === "alongside" && (await getSettings(ctx.user.id)).overlapPolicy === "block";
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.
-      const start = () => act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from }, now));
+      const start = () => act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from, mode, parallelOff }, now));
       if (!from) return start();
       if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
       if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
@@ -377,25 +473,22 @@ export const timersRouter = createRouter({
     }),
 
   /**
-   * The owner's heartbeat: renews its lease on the running timer. A device
+   * The owner's heartbeat: renews its lease on every timer it runs. A device
    * that lost control (taken over, paused elsewhere) learns it here: `owned`
-   * false. One back from sleep or offline whose timer nobody took gets its
+   * false. One back from sleep or offline whose timers nobody took gets its
    * lease again.
    */
   heartbeat: protectedProcedure.mutation(async ({ ctx }) => {
     const now = new Date();
     if (!ctx.deviceId) return { owned: false, epoch: 0 };
     return withTimerLock(ctx.user.id, async (tx) => {
-      const [mine] = await tx
-        .select()
-        .from(timers)
-        .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running"), eq(timers.ownerDevice, ctx.deviceId ?? "")));
-      if (!mine) return { owned: false, epoch: await epochOf(tx, ctx.user.id) };
-      await tx
+      const mine = await tx
         .update(timers)
         .set({ leaseUntil: new Date(now.getTime() + TIMER_LEASE_MS) })
-        .where(eq(timers.id, mine.id));
-      return { owned: true, epoch: mine.epoch };
+        .where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running"), eq(timers.ownerDevice, ctx.deviceId ?? "")))
+        .returning({ epoch: timers.epoch });
+      if (mine.length === 0) return { owned: false, epoch: await epochOf(tx, ctx.user.id) };
+      return { owned: true, epoch: Math.max(...mine.map((m) => m.epoch)) };
     });
   }),
 
@@ -458,7 +551,10 @@ export const timersRouter = createRouter({
         if (!t) return { found: false as const, elapsedSeconds: 0, epoch: await epochOf(tx, ctx.user.id) };
         mayAct(t, w, now, input);
         const remaining = Math.max(0, elapsedSeconds(t, now) - input.seconds);
-        if (t.state === "running") await trimSession(tx, ctx.user.id, input.seconds, now);
+        if (t.state === "running") await trimSession(tx, ctx.user.id, input.seconds, now, t);
+        // The away time leaves its runs too: the last of them, up to now (or its pause).
+        await trimRuns(tx, refOf(t), input.seconds, t.state === "running" ? now : (t.pausedAt ?? now));
+        if (t.state === "running") await openRun(tx, refOf(t), now);
         await tx
           .update(timers)
           .set({ accumulatedSeconds: remaining, startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
@@ -499,6 +595,12 @@ export const timersRouter = createRouter({
           .limit(1);
         const itemId = item?.id ?? null;
         const note = [b?.note, a.note].filter((n): n is string => !!n && n.trim() !== "").join(" · ").slice(0, 500);
+        // Its runs go along: closed here, one run from now if it runs on.
+        const target = { userId: ctx.user.id, connectionId: to.id, issueKey: input.toIssueKey };
+        await closeRun(tx, refOf(a), now);
+        if (b) await closeRun(tx, refOf(b), now);
+        await renameRuns(tx, ctx.user.id, { connectionId: from.id, issueKey: input.issueKey }, { connectionId: to.id, issueKey: input.toIssueKey });
+        if (running) await openRun(tx, target, now);
         if (!b) {
           await tx
             .update(timers)
@@ -544,6 +646,31 @@ export const timersRouter = createRouter({
       });
     }),
 
+  /**
+   * What a log of the timer splits: its time (`trackedSeconds`, up to `until`)
+   * and every run and share it ran beside, for contracts/timerSplit.ts to share
+   * out as the Log time dialog's percentages are edited. No other run beside
+   * it: nothing to split.
+   */
+  split: protectedProcedure
+    .input(z.object({ ...issueInput, until: z.iso.datetime({ offset: true }).optional() }))
+    .query(async ({ ctx, input }) => {
+      const now = new Date();
+      const until = input.until && new Date(input.until).getTime() < now.getTime() ? new Date(input.until) : now;
+      const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const [t] = await getDb().select().from(timers).where(timerOf(ctx.user.id, conn.id, input.issueKey)).limit(1);
+      const target = timerId(conn.id, input.issueKey);
+      if (!t) return { target, until, trackedSeconds: 0, runs: [] as SplitRun[], shares: [] as { timer: string; start: number; end: number; bp: number }[] };
+      const read = await splitInputs(getDb(), refOf(t), until);
+      return {
+        target,
+        until,
+        trackedSeconds: trackedThrough(t, until),
+        runs: read.runs.filter((r) => r.start < until.getTime()).map((r) => ({ ...r, end: Math.min(r.end, until.getTime()) })),
+        shares: read.shares,
+      };
+    }),
+
   /** Discard the timer without logging time. */
   discard: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
     const now = new Date();
@@ -553,8 +680,11 @@ export const timersRouter = createRouter({
       const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
       if (!t) return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
-      if (t.state === "running") await endSession(tx, ctx.user.id, now, true);
+      if (t.state === "running") await endLinkedSessionOf(tx, ctx.user.id, now, t);
       await tx.delete(timers).where(eq(timers.id, t.id));
+      // Its time never happened: the time it ran with others is theirs alone.
+      await discardRuns(tx, refOf(t));
+      await pruneRuns(tx, ctx.user.id, now);
       // Gone rows can't carry an epoch: the next one starts above it.
       return { ok: true, epoch: t.epoch + 1 };
     });

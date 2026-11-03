@@ -86,7 +86,7 @@ const allDay = db =>
     Date.now(),
   );
 
-test("Play with a hole open asks: from its start counts it, and with a timer running nothing is asked", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
+test("Play with a hole open asks: from its start counts it, and with a timer running never from the hole", { skip: minutesToday() < 3 || minutesToday() > 23 * 60 + 55 }, () =>
   withApp({ seed: allDay }, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-101");
     await page.getByRole("button", { name: "Start timer DEMO-101" }).first().click();
@@ -98,9 +98,11 @@ test("Play with a hole open asks: from its start counts it, and with a timer run
     midnight.setHours(0, 0, 0, 0);
     const [row] = await db.q("SELECT started_at FROM timers WHERE issue_key = 'DEMO-101'");
     assert.equal(Number(row.started_at), midnight.getTime(), "counted from the hole's start");
-    // A timer running covers up to now: no hole, nothing asked (the switch asks to log the first one).
+    // A timer running covers up to now: no hole, never "from its start". Asked only to switch or run
+    // both (timers side by side): switched, the first one asks to be logged.
     await page.goto(base + "/issues/DEMO-102");
     await page.getByRole("button", { name: "Start timer DEMO-102" }).first().click();
+    await page.getByRole("alertdialog", { name: /^Running: DEMO-101/ }).getByRole("button", { name: "Switch" }).click();
     await page.getByRole("dialog", { name: /DEMO-101/ }).waitFor();
     assert.equal(await page.getByRole("alertdialog", { name: /^Start DEMO-102/ }).count(), 0);
     const [next] = await db.q("SELECT state, started_at FROM timers WHERE issue_key = 'DEMO-102'");

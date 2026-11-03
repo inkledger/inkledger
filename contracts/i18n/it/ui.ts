@@ -132,6 +132,9 @@ export const ui: Shape<typeof en> = {
     activeOn: "Timer attivo su",
     pausedOn: "Timer in pausa su",
     activeOnLabel: "Timer attivo su {key} · {time}",
+    alsoRunning: "In corso anche",
+    moreRunning: "+{count}",
+    showAllRunning: "Mostra tutti i {count} timer",
     pausedOnLabel: "Timer in pausa su {key} · {time}",
     discarded: "Timer scartato",
   },
@@ -185,6 +188,15 @@ export const ui: Shape<typeof en> = {
     calc: "Calcolo orario…",
     update: "Aggiorna",
     log: "Registra",
+    split: {
+      title: "Tempo insieme ad altri timer",
+      alone: "Da solo",
+      with: "Con {keys}, {duration}",
+      shareFor: "La tua quota dei {duration} con {keys}, in percentuale",
+      toLog: "Da registrare",
+      over: "Con quanto già registrato, il {percent} % di quel tempo: conta più di una volta.",
+      placed: "Dove è stato fatto, accanto alla parte degli altri: {parts}.",
+    },
   },
   quickStart: {
     title: "Avvia timer",
@@ -348,6 +360,7 @@ export const ui: Shape<typeof en> = {
     title: "Eri via {duration}",
     sinceBefore: "Dalle {time} il timer su",
     sinceAfter: "ha continuato a contare. Cosa ne facciamo?",
+    alsoOn: "Anche {keys}: la risposta vale anche per loro.",
     removeFailed: "Tempo registrato, ma non tolto dal timer di {key}: risulterebbe due volte",
     assignPlaceholder: "Assegna il tempo a… (chiave o titolo)",
     assign: "Assegna ad altra issue",
@@ -600,6 +613,16 @@ export const ui: Shape<typeof en> = {
     now: "Da adesso",
     fromGap: "Dalle {from}",
   },
+  startParallel: {
+    title: "In corso: {list}",
+    body: "Avviare {key}?",
+    switch: "Cambia",
+    switchHint: "I timer in corso si fermano e ti viene chiesto di registrarne il tempo.",
+    runBoth: "Avvia entrambi",
+    runAll: "Avvia tutti",
+    runHint: "Il tempo passato insieme si divide quando li registri.",
+    blocked: "Il tempo sovrapposto è disattivato (Impostazioni, Tempo in parallelo): solo Cambia.",
+  },
   pin: {
     existing: "{key} è già su «{board}»",
     added: "{key} appesa a «{board}»",
@@ -629,6 +652,7 @@ export const ui: Shape<typeof en> = {
   startTimer: {
     started: "Timer avviato su {key}",
     switched: "Timer di {key} fermato: registra il tempo",
+    switchedMany: "{count} timer fermati: registra il loro tempo",
   },
   mail: {
     title: "Mail",

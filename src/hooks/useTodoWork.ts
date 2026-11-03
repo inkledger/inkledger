@@ -25,10 +25,10 @@ export function useTodoWork() {
       r => {
         void refresh();
         if (r.tookOver) toast.success(t("views.todos.workTookOver", { text: x.text }));
-        if (r.switchedFrom) {
-          timerLog.push({ ...r.switchedFrom, end: r.switchedFrom.stoppedAt });
-          toast.info(t("ui.startTimer.switched", { key: r.switchedFrom.issueKey }));
-        }
+        const stopped = r.switchedFromAll ?? (r.switchedFrom ? [r.switchedFrom] : []);
+        for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
+        if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
+        else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
       },
       (e: unknown) => {
         void refresh();
