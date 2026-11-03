@@ -574,7 +574,8 @@ function DashboardContent() {
   };
   // A stopped timer on the timeline asks to be logged again, as at its stop.
   const logPending = (entry: TimelineEntry) => {
-    const tm = timers.find(x => `pending:${issueId(x)}` === entry.id.split("#")[0]);
+    // Its pieces are "pending:<id>#<n>": a key may hold a "#" itself (acme/web#1).
+    const tm = timers.find(x => entry.id === `pending:${issueId(x)}` || entry.id.startsWith(`pending:${issueId(x)}#`));
     if (!tm?.pausedAt) return;
     timerLog.push({
       issueKey: tm.issueKey,
