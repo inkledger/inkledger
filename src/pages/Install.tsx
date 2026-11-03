@@ -112,10 +112,13 @@ export default function Install() {
               <Step n={3} title={t("pages.install.ios.openTitle")}>
                 {t("pages.install.ios.openText")}
               </Step>
-              <p className="rounded-lg bg-muted p-3 text-caption text-muted-foreground">
-                {t("pages.install.ios.note")}
-              </p>
             </Steps>
+          )}
+          {platform === "ios" && (
+            // After the list, not inside its <ol> (a list holds only its items).
+            <p className="mt-4 rounded-lg bg-muted p-3 text-caption text-muted-foreground">
+              {t("pages.install.ios.note")}
+            </p>
           )}
 
           {platform === "desktop" && (

@@ -158,7 +158,8 @@ export const ui: Shape<typeof en> = {
     titleNew: "Registra tempo · {key}",
     description: "Viene salvata su {provider}; se {provider} non risponde resta in coda e si sincronizza dopo.",
     timeSpent: "Tempo impiegato",
-    discardTimer: "Annulla timer",
+    // "Scarta", not "Annulla": it sits beside the dialog's plain Cancel, and it throws the time away.
+    discardTimer: "Scarta timer",
     timePlaceholder: "es. 2h 30m, 1d, 45m",
     presets: "Durate rapide",
     tooLong: "Una singola registrazione non può superare le 24 ore.",

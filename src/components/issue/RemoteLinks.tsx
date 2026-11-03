@@ -1,3 +1,4 @@
+import { hostOf } from "@/lib/hostOf";
 import { Link2 } from "lucide-react";
 import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
@@ -26,7 +27,7 @@ export function RemoteLinks({ issueKey, connectionId }: { issueKey: string; conn
                 {l.title}
               </ExternalLink>
               <p className="truncate text-caption text-muted-foreground">
-                {[l.app, new URL(l.url).hostname].filter(Boolean).join(" · ")}
+                {[l.app, hostOf(l.url)].filter(Boolean).join(" · ")}
                 {l.summary ? ` — ${l.summary}` : ""}
               </p>
             </div>

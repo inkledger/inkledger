@@ -1,3 +1,4 @@
+import { compare, SORT_DIRECTION, type SortKey } from "./activitySort";
 import { useState } from "react";
 import { Link } from "react-router";
 import { formatDurationLong } from "@contracts/time";
@@ -5,7 +6,7 @@ import { projectOf } from "@/lib/projectColors";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { EmptyState } from "@/components/app/States";
 import { StatusBadge } from "@/components/StatusBadge";
-import { t, dateFormat, currentLocale } from "@/i18n";
+import { t, dateFormat } from "@/i18n";
 import {
   SortableHead,
   Table,
@@ -27,22 +28,8 @@ export type ActivityRow = {
   seconds: number;
 };
 
-type SortKey = "issue" | "last" | "status" | "seconds";
 
 const when = () => dateFormat({ weekday: "short", day: "numeric", month: "short" });
-
-function compare(a: ActivityRow, b: ActivityRow, key: SortKey): number {
-  switch (key) {
-    case "issue":
-      return a.issueKey.localeCompare(b.issueKey, currentLocale(), { numeric: true });
-    case "status":
-      return (a.status ?? "").localeCompare(b.status ?? "", currentLocale());
-    case "seconds":
-      return b.seconds - a.seconds;
-    default:
-      return b.lastAt.getTime() - a.lastAt.getTime();
-  }
-}
 
 function Head({
   k,
@@ -59,7 +46,7 @@ function Head({
 }) {
   return (
     <SortableHead
-      sort={sort === k ? "descending" : "none"}
+      sort={sort === k ? SORT_DIRECTION[k] : "none"}
       onSort={() => onSort(k)}
       className={className}
     >
@@ -89,7 +76,7 @@ export function ActivityTable({ rows }: { rows: ActivityRow[] }) {
         <thead>
           <TableHeaderRow>
             <Head k="issue" sort={sort} onSort={setSort} className="pl-1">
-              Issue
+              {t("views.dashboard.activity.issue")}
             </Head>
             <Head k="last" sort={sort} onSort={setSort}>
               {t("views.dashboard.activity.lastActivity")}

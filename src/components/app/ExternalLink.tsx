@@ -1,3 +1,4 @@
+import { hostOf } from "@/lib/hostOf";
 import { toastError } from "@/lib/errorText";
 import { useState, type ReactNode } from "react";
 import { ExternalLink as ExternalIcon, Lock } from "lucide-react";
@@ -29,13 +30,7 @@ export function ExternalLink({
 }) {
   const { isAllowed, allow } = useAllowedLinks();
   const [open, setOpen] = useState(false);
-  const host = (() => {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return url;
-    }
-  })();
+  const host = hostOf(url) ?? url;
 
   if (OUTLOOK_MAIL.test(url) || isAllowed(url)) {
     return (

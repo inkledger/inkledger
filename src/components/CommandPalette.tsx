@@ -1,3 +1,4 @@
+import { DESK_MAX_PANES } from "@contracts/desk";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -427,7 +428,7 @@ function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () =
         ? t("pages.desk.already", { key: r.key })
         : r.parked
           ? t("pages.desk.addedParked", { key: r.key, parked: r.parked })
-          : t("pages.desk.added", { key: r.key, count: r.count });
+          : t("pages.desk.added", { key: r.key, count: r.count, max: DESK_MAX_PANES });
       toast(message, { action: { label: t("ui.palette.openDesk"), onClick: () => void navigate("/issues/desk") } });
     },
     onError: error => toastError(error),

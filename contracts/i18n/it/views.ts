@@ -89,6 +89,7 @@ export const views: Shape<typeof en> = {
       },
     },
     activity: {
+      issue: "Issue",
       empty: "Nessuna registrazione negli ultimi 14 giorni",
       lastActivity: "Ultima attività",
       status: "Stato",

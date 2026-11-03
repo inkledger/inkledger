@@ -86,7 +86,7 @@ test("on a phone: chips switch filters on and off in the box, field names comple
     await quick.getByRole("button", { name: "Watched", pressed: false }).waitFor();
     assert.equal(await box.inputValue(), "");
     await box.fill("cli");
-    await page.getByRole("option", { name: "client:" }).click();
+    await page.getByRole("group", { name: "Fields" }).getByRole("button", { name: "client:" }).click();
     await page.waitForFunction(() => document.querySelector('input[type="search"]')?.value === "client:");
     await box.fill("client:acme");
     await gone("Billing export is slow");

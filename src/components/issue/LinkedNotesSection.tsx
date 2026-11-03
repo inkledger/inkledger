@@ -259,7 +259,7 @@ function LinkExisting({
                   setConfirm(null);
                 }}
               >
-                {t("pages.notes.relinkConfirm")}
+                {t("pages.notes.relinkConfirm", { issue: issueKey })}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

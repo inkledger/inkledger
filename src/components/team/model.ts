@@ -22,7 +22,7 @@ export const STEP_CLASS: Record<CoverageStep, string> = {
   full: "bg-primary",
   high: "bg-primary/55",
   mid: "bg-primary/30",
-  low: "bg-primary/12",
+  low: "bg-primary/15",
   none: "bg-muted border border-dashed border-primary-strong/50",
   off: "",
   absent: "stripes-idle",

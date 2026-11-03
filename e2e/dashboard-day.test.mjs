@@ -30,11 +30,12 @@ test("while the next day's worklogs are on their way, the last day's holes can't
       return route.continue();
     });
     await page.getByRole("button", { name: "Next period" }).click();
-    await page.locator('section[aria-busy="true"]').waitFor();
+    const fadedDay = page.locator('section[data-workspace-anchor="dashboard.timeline"][aria-busy="true"]');
+    await fadedDay.waitFor();
     assert.equal(await holes.and(page.locator(":enabled")).count(), 0, "no hole offered on the faded day");
     holding = false;
     release();
-    await page.locator('section[aria-busy="true"]').waitFor({ state: "detached" });
+    await fadedDay.waitFor({ state: "detached" });
     await holes.and(page.locator(":enabled")).first().waitFor();
     await page.unrouteAll({ behavior: "ignoreErrors" });
   } finally {

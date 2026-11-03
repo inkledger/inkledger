@@ -430,7 +430,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col gap-3 py-4",
+        // A screen too short even for the fixed rows scrolls the whole column: no row is ever cut.
+        "flex h-full flex-col gap-3 overflow-y-auto overscroll-contain py-4 [scrollbar-width:thin]",
         // Room for the shadows of what it holds (the Shadow mod's reach), the same open and closed.
         "pl-[max(0.5rem,var(--surface-reach-l,0px))] pr-[max(0.5rem,var(--surface-reach-r,0px))]"
       )}
@@ -442,7 +443,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       </div>
 
       {/* What is left between the sections and the foot: the favorites, scrolling on their own. */}
-      <div className="flex min-h-0 flex-1 flex-col">{!collapsed && <SidebarFavorites />}</div>
+      {/* Clipped: short of room it shrinks to its title and never draws over the actions. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden [&:has(*)]:min-h-target">{!collapsed && <SidebarFavorites />}</div>
 
       {collapsed ? (
         <ModuleSlot id="sidebar-rail" frame={boxes => <div className="flex shrink-0 flex-col items-center gap-1 pb-2">{boxes}</div>} />
@@ -457,13 +459,17 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             <ActiveTimerQuickControls compact />
           </div>
         ) : (
-          <div className="grid gap-0.5">
-            <div className="flex items-center gap-1">
+          // One track no wider than the sidebar: the chip shrinks, the note never sticks out.
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
+            <div className="flex min-w-0 items-center gap-1">
               <ActiveTimerChip className="min-w-0 flex-1" />
               <ActiveTimerQuickControls />
+            </div>
+            {/* Focus beside the note: the chip keeps room for its key and time. */}
+            <div className="flex min-w-0 items-center gap-1">
+              <ActiveTimerNote className="min-w-0 flex-1" />
               <ActiveTimerFocusButton />
             </div>
-            <ActiveTimerNote />
           </div>
         )}</div></FlowControlHost.Provider>}
         {actionPlacements.filter(placement => placement.order >= quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
