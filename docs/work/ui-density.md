@@ -438,6 +438,8 @@ Rules in `docs/design-system.md` §7.1 (regions `@m/@l/@xl`, three page layouts,
 | targeted e2e after each later commit | touched files and neighbours | pass |
 | full `pnpm test:e2e`, isolated worktree at `7cef070` | e2e | 430/432 (5 skipped); the 2 failures (desk-snap Move to, flowmap Dashboard clicks) ran beside the audit and pass alone |
 | `e4f379d` (after that run) | dashboard-day, space-budget, ui-density, touch-targets, renders, flowmap | pass |
+| full `pnpm test:e2e`, clean worktree at `704d670`, nothing else running | e2e | 432/433 (5 skipped); the one failure was the install test's route still fetching a font at close (`route.fetch: Request context disposed`), fixed in `f768e8b` and passing 3/3 |
+| final screenshots, demo data, Italian, dark | Dashboard 1280/390, Reports Days, Timesheet week, issue on a phone, Ideas | as intended (`studio/out/ui-density/shots/section-final-*`) |
 
 ### Measured again after the non-list forms (3 Nov evening, same driver, full run: en + it, light, dark where it differs)
 261 captures, 0 failed; `studio/.session` backed up and restored. Page full height in px, en light, before (morning run) → after.
