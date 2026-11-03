@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { dayMonth, timeOfDay } from "@/lib/dates";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useSaveDayHours } from "@/components/dashboard/useDayHoursEdit";
@@ -5,7 +6,7 @@ import { breakAt, breakHolding } from "@/components/dashboard/dayHours";
 import { dayKey, startOfDay } from "@contracts/time";
 import { weekdayIndex } from "@contracts/workSchedule";
 import { toastError, failureText } from "@/lib/errorText";
-import { Coffee } from "lucide-react";
+import { ArrowRightLeft, Check, Coffee, Scissors, type LucideIcon } from "lucide-react";
 import { formatDuration } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { useIdleDetection } from "@/hooks/useIdleDetection";
@@ -15,11 +16,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { t } from "@/i18n";
 import { issueId } from "@/lib/issues";
@@ -86,44 +85,48 @@ export function IdleDialog() {
             {t("ui.idle.sinceAfter")}
           </DialogDescription>
         </DialogHeader>
-        {/* Its own line, with the break it makes: the footer keeps its three answers. */}
-        {holding && (
-          <Button
-            variant="outline"
-            className="justify-self-start"
-            disabled={trim.isPending}
-            title={t("ui.idle.myBreakInsideTitle", { duration: formatDuration(away.seconds), from: holding.start, to: holding.end })}
-            onClick={() => remove()}
-          >
-            <Coffee className="h-4 w-4" aria-hidden />
-            {t("ui.idle.myBreak")}
-            <span className="text-muted-foreground tabular">{holding.start}–{holding.end}</span>
-          </Button>
-        )}
-        {asBreak && moved && (
-          <Button
-            variant="outline"
-            className="justify-self-start"
-            disabled={trim.isPending}
-            title={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
-            onClick={() =>
+        {/* A decision, so a list of choices (docs/design-system.md §7.1): each one a whole row, its
+            name and what it does, in the order they are wanted; none written before it is picked. */}
+        <div role="group" aria-label={t("ui.idle.choices")} className="grid gap-1.5">
+          {holding && (
+            <Choice
+              icon={Coffee}
+              title={t("ui.idle.myBreak")}
+              detail={`${holding.start}–${holding.end} · ${t("ui.idle.myBreakInsideWhat")}`}
+              label={t("ui.idle.myBreakInsideTitle", { duration: formatDuration(away.seconds), from: holding.start, to: holding.end })}
+              disabled={trim.isPending}
+              onPick={() => remove()}
+            />
+          )}
+          {asBreak && moved && (
+            <Choice
+              icon={Coffee}
+              title={t("ui.idle.myBreak")}
+              detail={`${moved.start}–${moved.end} · ${t("ui.idle.myBreakWhat")}`}
+              label={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
+              disabled={trim.isPending}
+              onPick={() =>
               // The break first: when it can't be saved, the timer keeps its time.
               void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end })).then(ok => {
                 if (ok) remove();
               })
-            }
-          >
-            <Coffee className="h-4 w-4" aria-hidden />
-            {t("ui.idle.myBreak")}
-            <span className="text-muted-foreground tabular">{moved.start}–{moved.end}</span>
-          </Button>
-        )}
-        <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            data-idle-assign=""
+              }
+            />
+          )}
+          <Choice
+            icon={Scissors}
+            title={t("ui.idle.remove", { duration: formatDuration(away.seconds) })}
+            detail={t("ui.idle.removeWhat")}
             disabled={trim.isPending}
-            onClick={() => {
+            onPick={() => remove()}
+          />
+          <Choice
+            icon={ArrowRightLeft}
+            title={t("ui.idle.assign")}
+            detail={t("ui.idle.assignWhat")}
+            assign
+            disabled={trim.isPending}
+            onPick={() => {
               // The running timer is trimmed only once the time is logged
               // elsewhere: backing out of the picker or the dialog loses nothing.
               const { issueKey, connectionId, seconds, since } = away;
@@ -157,19 +160,35 @@ export function IdleDialog() {
                 });
               }, t("ui.idle.assignPlaceholder"));
             }}
-          >
-            {t("ui.idle.assign")}
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={dismiss}>
-              {t("ui.idle.keep")}
-            </Button>
-            <Button disabled={trim.isPending} onClick={() => remove()}>
-              {t("ui.idle.remove", { duration: formatDuration(away.seconds) })}
-            </Button>
-          </div>
-        </DialogFooter>
+          />
+          <Choice icon={Check} title={t("ui.idle.keep")} detail={t("ui.idle.keepWhat", { key: away.issueKey })} onPick={dismiss} />
+        </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One answer of the dialog: a whole row, its name and, under it, what it does. */
+function Choice({ icon: Icon, title, detail, label, disabled, assign, onPick }: { icon: LucideIcon; title: string; detail: string; label?: string; disabled?: boolean; assign?: boolean; onPick: () => void }) {
+  // Named by its answer, described by what it does: "Keep", then "It stays on APP-12".
+  const id = useId();
+  return (
+    <button
+      type="button"
+      aria-label={title}
+      aria-describedby={id}
+      disabled={disabled}
+      title={label}
+      data-idle-assign={assign ? "" : undefined}
+      onClick={onPick}
+      {...surface("control")}
+      className="flex w-full items-start gap-3 rounded-lg border bg-card px-3 py-2.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+    >
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="grid min-w-0">
+        <span className="text-body-sm font-medium">{title}</span>
+        <span id={id} className="text-caption text-muted-foreground">{detail}</span>
+      </span>
+    </button>
   );
 }
