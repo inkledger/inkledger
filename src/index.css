@@ -212,6 +212,35 @@
   html[data-density="comfortable"] {
     font-size: 16px;
   }
+  /* Focus is never left under the bars that stay put (WCAG 2.4.11, C43): the desktop's scroller is
+     #main under the page's sticky header and toolbar; a phone's is the window, under its top bar and
+     above the tab bar and the module dock. The heights come from usePublishChromeHeight. */
+  html {
+    scroll-padding-top: calc(var(--chrome-app-header-h, 0px) + 0.5rem);
+    scroll-padding-bottom: calc(var(--bottom-nav-h, 0px) + var(--dock-h, 0px) + 0.5rem);
+  }
+  @media (min-width: 1024px) {
+    #main {
+      scroll-padding-top: calc(var(--chrome-header-h, 0px) + var(--chrome-toolbar-h, 0px) + 0.5rem);
+      scroll-padding-bottom: 0.5rem;
+    }
+  }
+  /* Forced colors (Windows contrast themes) drop box-shadows, and the focus rings are box-shadows: a
+     real outline in the system's highlight takes their place, and a current or chosen item keeps a
+     mark that does not rely on its fill. */
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-offset: 2px;
+    }
+    [aria-current="page"],
+    [aria-pressed="true"],
+    [aria-checked="true"],
+    [aria-selected="true"] {
+      outline: 1px solid Highlight;
+      outline-offset: -1px;
+    }
+  }
   * {
     @apply border-border;
   }

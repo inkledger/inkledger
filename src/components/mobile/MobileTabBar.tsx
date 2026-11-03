@@ -81,7 +81,8 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
   // Raised by its offset, not a transform: a transform would make it its own
   // layer and a light's shadow would fall on its face.
   const round =
-    "relative -top-3 flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring";
+    // A finger's 44 px (12 × 3.5 = 42 px at the compact root fell short of the tabs' contract).
+    "relative -top-3 flex size-touch flex-col items-center justify-center gap-0.5 rounded-full shadow-sm ring-4 ring-canvas transition-colors focus-visible:outline-none focus-visible:ring-ring";
 
   if (!timer) {
     return (

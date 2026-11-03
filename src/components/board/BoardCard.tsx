@@ -132,7 +132,9 @@ export function BoardCard({
         onDragStart();
       }}
       onDragEnd={onDragEnd}
-      className="cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
+      // The card is the target: its key's link stretches over the whole card (a 15 px key was the only
+      // way in on a touch screen); the menu and ▶ sit above it.
+      className="relative cursor-grab rounded-xl border bg-card p-2.5 text-body-sm shadow-sm transition-[border-color] duration hover:border-foreground/15 hover:shadow-sm active:cursor-grabbing"
     >
       <div className="flex items-start gap-1.5">
         <p className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere] text-body-sm font-semibold leading-snug">
@@ -143,7 +145,7 @@ export function BoardCard({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="-mr-1 -mt-1 size-7 shrink-0"
+              className="relative z-10 -mr-1 -mt-1 size-7 shrink-0"
               aria-label={t("views.board.card.actions", { key: issue.key })}
               title={t("views.board.card.actionsHint")}
             >
@@ -200,7 +202,9 @@ export function BoardCard({
         <Link
           to={issuePath(issue)}
           {...flowControlProps("board.card.open")}
-          className="hover:text-foreground hover:underline"
+          // The card is what drags (to a column, the pinboard, the desk), never the link over it.
+          draggable={false}
+          className="rounded-xl after:absolute after:inset-0 after:rounded-xl after:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           {issue.key}
         </Link>
@@ -251,7 +255,7 @@ export function BoardCard({
               {priorityLabel(issue.priority)}
             </Chip>
           )}
-          <StartIssueButton issueKey={issue.key} connectionId={issue.connectionId ?? undefined} controlId="board.card.start" className="-my-1 size-6" />
+          <StartIssueButton issueKey={issue.key} connectionId={issue.connectionId ?? undefined} controlId="board.card.start" className="relative z-10 -my-1 size-6" />
         </span>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { usePublishChromeHeight } from "@/lib/layout/chrome";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
@@ -31,6 +32,7 @@ export function PageToolbar({
       page.style.removeProperty("--page-toolbar-h");
     };
   }, []);
+  usePublishChromeHeight(ref, "toolbar");
   return (
     <div
       ref={ref}

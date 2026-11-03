@@ -1,3 +1,4 @@
+import { nextIndex } from "@/lib/roving";
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
 import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
@@ -24,9 +25,8 @@ export function SegmentedControl<T extends string>({
   className?: string;
 }) {
   const hasValue = options.some(o => o.value === value);
-  const move = (group: HTMLElement, dir: 1 | -1 | "first" | "last") => {
-    const i = options.findIndex(o => o.value === value);
-    const n = dir === "first" ? 0 : dir === "last" ? options.length - 1 : (i + dir + options.length) % options.length;
+  // The app's one roving rule (src/lib/roving.ts): arrows, Home/End, wrap, modifiers left alone.
+  const move = (group: HTMLElement, n: number) => {
     onChange(options[n].value);
     // Roving tabindex: focus follows the selection, or it would stay on a -1 button.
     group.querySelectorAll<HTMLButtonElement>('[role="radio"]')[n]?.focus();
@@ -43,16 +43,10 @@ export function SegmentedControl<T extends string>({
         className
       )}
       onKeyDown={e => {
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-          e.preventDefault();
-          move(e.currentTarget, 1);
-        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-          e.preventDefault();
-          move(e.currentTarget, -1);
-        } else if (e.key === "Home" || e.key === "End") {
-          e.preventDefault();
-          move(e.currentTarget, e.key === "Home" ? "first" : "last");
-        }
+        const n = nextIndex(options.findIndex(o => o.value === value), options.length, e);
+        if (n === null) return;
+        e.preventDefault();
+        move(e.currentTarget, n);
       }}
     >
       {options.map(({ value: v, label: l, icon: Icon, control }, i) => {

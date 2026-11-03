@@ -23,9 +23,10 @@ const buttonVariants = cva(
         link: "text-primary-strong underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        // Text buttons too: a 44 px tall tap on a touch screen, the look unchanged.
+        default: "h-9 px-4 py-2 has-[>svg]:px-3 relative coarse:after:absolute coarse:after:inset-x-0 coarse:after:top-1/2 coarse:after:h-touch coarse:after:-translate-y-1/2 coarse:after:content-['']",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 relative coarse:after:absolute coarse:after:inset-x-0 coarse:after:top-1/2 coarse:after:h-touch coarse:after:-translate-y-1/2 coarse:after:content-['']",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4 relative coarse:after:absolute coarse:after:inset-x-0 coarse:after:top-1/2 coarse:after:h-touch coarse:after:-translate-y-1/2 coarse:after:content-['']",
         // A 44 px tap on a touch screen around the same icon (no layout change).
         icon: "size-9 relative coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",
         "icon-sm": "size-8 relative coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",

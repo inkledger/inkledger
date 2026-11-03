@@ -1,3 +1,4 @@
+import { usePublishChromeHeight } from "@/lib/layout/chrome";
 import { lazyPart } from "@/components/app/lazyPart";
 import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
@@ -230,8 +231,8 @@ const NavTile = memo(function NavTile({ to, name, Icon, collapsed, count, countT
         className={cn(
           "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
-          // Closed: a 28 px icon with a finger's 44 px around it on touch screens, its look unchanged.
-          collapsed ? "size-7 coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']" : "min-h-12 gap-1 px-1 py-1.5"
+          // Closed: a 28 px icon (WCAG's 24 px met as it is; a wider area would cover its neighbour).
+          collapsed ? "size-7" : "min-h-12 gap-1 px-1 py-1.5"
         )}
       >
         <Icon className={collapsed ? "h-4 w-4" : ICON} aria-hidden />
@@ -514,8 +515,9 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const quickPlacements = actionPlacements.filter(placement => SIDEBAR_QUICK.has(placement.anchorId));
   const QUICK = cn(
     "relative flex items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
-    // A finger's 44 px on touch screens, the look unchanged (as Button's icon sizes).
-    "coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",
+    // Open: a finger's 44 px on touch screens, the look unchanged, with room between the tiles so no
+    // tile's area covers its neighbour. Closed (the 2×2 block), the 28 px tiles meet WCAG's 24 px as they are.
+    !collapsed && "coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",
     collapsed ? "size-7" : "size-8"
   );
   const quick = (anchorId: string) => {
@@ -596,7 +598,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
           {placedRow("shell.account") && renderActionAnchor("shell.account")}
           {(services.length > 0 || toggleTile) && (
             // Theme, screensaver, sync, then the toggle: one row open; closed a 2×2 block, the toggle last.
-            <div className={cn(collapsed ? "mx-auto grid grid-cols-2 gap-0.5" : "flex items-center gap-0.5 pl-1.5")}>
+            <div className={cn(collapsed ? "mx-auto grid grid-cols-2 gap-0.5" : "flex items-center gap-0.5 pl-1.5 coarse:gap-3.5")}>
               {services}
               {!collapsed && <span className="flex-1" />}
               {toggleTile}
@@ -684,6 +686,9 @@ function ShellWatchers() {
 
 /** App shell: grouped sidebar on canvas, content in a single white panel. */
 export function AppLayout() {
+  const phoneHeader = useRef<HTMLElement>(null);
+  // The phone's top bar joins the root's scroll padding (it stays while the window scrolls).
+  usePublishChromeHeight(phoneHeader, "app-header");
   useHotkeys();
   useOpenBeside();
   useCommandPaletteShortcut();
@@ -735,7 +740,7 @@ export function AppLayout() {
 
         {/* Phones and tablets: sections and the timer live in the tab bar;
             the header keeps what is reached from anywhere. */}
-        <header {...surface("glass")} className="safe-top sticky top-0 z-30 flex items-center gap-1 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
+        <header ref={phoneHeader} {...surface("glass")} className="safe-top sticky top-0 z-30 flex items-center gap-4 border-b bg-canvas/90 px-3 py-1.5 backdrop-blur lg:hidden">
           <Link
             to="/"
             className="flex items-center gap-2 rounded-lg py-1 pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -177,5 +177,7 @@ module.exports = {
     require("tailwindcss-animate"),
     // coarse: a touch screen (a finger, not a mouse): bigger tap areas, same look.
     ({ addVariant }) => addVariant("coarse", "@media (pointer: coarse)"),
+    // forced: Windows contrast themes, a mark that does not rely on fill or shadow.
+    ({ addVariant }) => addVariant("forced", "@media (forced-colors: active)"),
   ],
 };

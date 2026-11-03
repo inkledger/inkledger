@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { usePublishChromeHeight } from "@/lib/layout/chrome";
 import {
   CheckCheck,
   Eye,
@@ -104,9 +106,12 @@ export function IssueFilters({
   unread?: number;
 }) {
   const hv = filters.hiddenView;
+  const ref = useRef<HTMLDivElement>(null);
+  // Its height joins the scroll padding: a focused row is never left under it.
+  usePublishChromeHeight(ref, "toolbar");
   return (
     // Sticks under the page header while the list scrolls (desktop).
-    <div {...surface("ground")} className="mb-4 grid gap-2.5 lg:sticky lg:top-[var(--page-header-h,0px)] lg:z-10 lg:-mt-2 lg:mb-1 lg:bg-card lg:pb-3 lg:pt-2">
+    <div ref={ref} {...surface("ground")} className="mb-4 grid gap-2.5 lg:sticky lg:top-[var(--page-header-h,0px)] lg:z-10 lg:-mt-2 lg:mb-1 lg:bg-card lg:pb-3 lg:pt-2">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-full flex-1 sm:min-w-56">
           <Search

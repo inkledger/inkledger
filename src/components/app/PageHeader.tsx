@@ -1,3 +1,4 @@
+import { usePublishChromeHeight } from "@/lib/layout/chrome";
 import { useEffect, useRef } from "react";
 import { surface } from "@/components/app/surface";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -68,6 +69,7 @@ export function PageHeader({
       page.style.removeProperty("--page-header-h");
     };
   }, [sticky]);
+  usePublishChromeHeight(ref, "header", sticky);
   return (
     <div
       ref={ref}

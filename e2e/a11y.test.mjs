@@ -37,3 +37,39 @@ test("key routes have no serious or critical accessibility violation", async () 
     await app.stop();
   }
 });
+
+// Windows contrast themes (forced colors): box-shadows are dropped, so the focus ring must be a real
+// outline; every route stays free of serious violations, and a focused control shows an outline.
+test("forced colors: no serious violation, and the focus is still drawn", async () => {
+  const app = await start({});
+  try {
+    const { page, base } = app;
+    await page.emulateMedia({ forcedColors: "active" });
+    const found = [];
+    for (const route of ["/", "/issues", "/issues/DEMO-101", "/timesheet", "/settings"]) {
+      await page.goto(base + route);
+      await page.waitForLoadState("load");
+      await page.waitForTimeout(1200);
+      await page.evaluate(AXE);
+      const result = await page.evaluate(async () =>
+        // Contrast is the system's here: forced colors replace text and background alike with the user's
+        // palette, while axe reads the author's colours. Every other rule still applies.
+        (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"] }, rules: { "color-contrast": { enabled: false } } })).violations
+          .filter(v => v.impact === "serious" || v.impact === "critical")
+          .map(v => `${v.id}: ${v.nodes.slice(0, 2).map(n => n.target.join(" ")).join(" | ")}`),
+      );
+      found.push(...result.map(r => `${route} ${r}`));
+      // Tab to a control past the skip link: its outline is drawn (not "none", not zero wide).
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      const outline = await page.evaluate(() => {
+        const style = getComputedStyle(document.activeElement);
+        return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+      });
+      assert.ok(outline.style !== "none" && outline.width >= 1, `${route}: the focus is drawn in forced colors (${JSON.stringify(outline)})`);
+    }
+    assert.deepEqual(found, [], found.join("\n"));
+  } finally {
+    await app.stop();
+  }
+});
