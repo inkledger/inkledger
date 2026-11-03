@@ -7,7 +7,7 @@
 // read first and sent again. Running timers are not entries of ours and are
 // left alone. Built on a simulator, not verified on a real account: SPIKES.md.
 import { z } from "zod";
-import { isoSecondsUtc } from "../core/time";
+import { addLocalDays, isoSecondsUtc } from "../core/time";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { instant, instantAtLocal, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
 import { tokenCreds } from "../core/context";
@@ -88,10 +88,7 @@ const isoOf = isoSecondsUtc;
 /** The instant a local day starts in a zone (a day may be 23 or 25 hours long). */
 export const dayStart = (date: LocalDate, zone: TimeZone): number => instantAtLocal(date, 0, zone);
 
-const nextDay = (date: LocalDate): LocalDate => {
-  const [y, m, d] = date.split("-").map(Number);
-  return localDate(new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10));
-};
+const nextDay = (date: LocalDate): LocalDate => localDate(addLocalDays(date, 1));
 
 // ---------- The note ----------
 

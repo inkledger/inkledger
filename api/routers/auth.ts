@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import { createRouter, protectedProcedure, publicQuery, signedInProcedure } from "../middleware";
 import { parseCookies, type TrpcContext } from "../context";
-import { getDb } from "../queries/connection";
+import { getDb, uniqueViolation } from "../queries/connection";
 import { connections, users, sessions, rememberedDevices, type User } from "@db/schema";
 import { storeSecret } from "../providers/connections";
 import { newSessionId } from "../lib/crypto";
@@ -16,7 +16,6 @@ import { confirmJiraLogin, jiraLoginInput } from "../lib/jiraLogin";
 import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
 import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
-import { uniqueViolation } from "../workspace/limits";
 
 export { normalizeSiteUrl };
 

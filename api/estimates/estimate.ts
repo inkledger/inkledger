@@ -5,6 +5,7 @@
 // status is (snapshots, synced issues) and whether it counts (work_statuses).
 import { TRPCError } from "@trpc/server";
 import { t } from "@contracts/i18n";
+import { isClosed } from "@contracts/categories";
 import {
   backtest,
   countsAsWork,
@@ -236,7 +237,7 @@ export async function estimateForIssue(
   const target = targets[0];
   if (!target) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
   let answer: IssueEstimate;
-  if (target.category === "done" || target.category === "cancelled") answer = { hidden: "closed" };
+  if (isClosed(target.category)) answer = { hidden: "closed" };
   else {
     const { samples, excluded } = samplesOf(row);
     const e = estimate(

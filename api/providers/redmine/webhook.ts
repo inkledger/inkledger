@@ -4,7 +4,7 @@
 // header. This models that: the secret header, compared in constant time, and
 // an id per delivery so a replay changes nothing. The body is only ever a
 // signal (which issue changed): the adapter reads the issue again.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../lib/hash";
 import { sameSecret } from "../core/webhooks";
 import type { WebhookRequest } from "../types";
 
@@ -23,7 +23,7 @@ export function verifyRedmineWebhook(req: WebhookRequest, secret: string): boole
 export function redmineDeliveryId(req: WebhookRequest): string | null {
   const given = req.headers[WEBHOOK_DELIVERY_HEADER];
   if (given) return given;
-  return req.body ? createHash("sha256").update(req.body).digest("hex") : null;
+  return req.body ? sha256Hex(req.body) : null;
 }
 
 /** When it was sent (epoch ms), when the body says so in a `timestamp` (seconds or milliseconds). */

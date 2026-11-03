@@ -9,6 +9,7 @@ import { clientContainers, clients, connections, containers } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { parseStringList } from "../lib/json";
 import { ensureContainer } from "../queries/containers";
 import { boundTracker } from "../sync/engine";
 import { providerCall } from "../providers/trpc";
@@ -33,22 +34,13 @@ async function userContainers(userId: number) {
     .orderBy(asc(containers.key));
 }
 
-const parseAliases = (raw: string): string[] => {
-  try {
-    const v = JSON.parse(raw) as unknown;
-    return Array.isArray(v) ? v.filter((a): a is string => typeof a === "string") : [];
-  } catch {
-    return [];
-  }
-};
-
 export const clientsRouter = createRouter({
   /** The user's clients with their containers, and every container to choose from. */
   list: protectedProcedure.query(async ({ ctx }) => {
     const rows = await getDb().select().from(clients).where(eq(clients.userId, ctx.user.id)).orderBy(asc(clients.name));
     const boxes = await userContainers(ctx.user.id);
     return {
-      clients: rows.map((c) => ({ id: c.id, name: c.name, aliases: parseAliases(c.aliases), color: c.color, containerIds: boxes.filter((b) => b.clientId === c.id).map((b) => b.id) })),
+      clients: rows.map((c) => ({ id: c.id, name: c.name, aliases: parseStringList(c.aliases), color: c.color, containerIds: boxes.filter((b) => b.clientId === c.id).map((b) => b.id) })),
       containers: boxes,
     };
   }),

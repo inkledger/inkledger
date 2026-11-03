@@ -5,7 +5,7 @@
 // header, compared in constant time, and an id per delivery so a replay
 // changes nothing. The body is only ever a signal (which issue changed): the
 // adapter reads the issue again.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../lib/hash";
 import { headerOf, sameSecretHashed } from "../core/webhooks";
 import { instant, type Instant } from "@contracts/values";
 
@@ -21,7 +21,7 @@ export function verifyYouTrackWebhook(headers: Headers | Record<string, string |
   const given = headerOf(headers, WEBHOOK_SECRET_HEADER);
   if (!given || !secret) return { ok: false, reason: "noSecret" };
   if (!sameSecretHashed(given, secret)) return { ok: false, reason: "wrongSecret" };
-  const deliveryId = headerOf(headers, WEBHOOK_DELIVERY_HEADER) || createHash("sha256").update(rawBody).digest("hex");
+  const deliveryId = headerOf(headers, WEBHOOK_DELIVERY_HEADER) || sha256Hex(rawBody);
   let sentAt: Instant | undefined;
   try {
     const stamp = (JSON.parse(rawBody) as { timestamp?: unknown }).timestamp;

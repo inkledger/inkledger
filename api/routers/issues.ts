@@ -1117,11 +1117,7 @@ export const issuesRouter = createRouter({
       const labelsSet = new Set<string>();
       for (const f of facets) {
         projectsMap.set(f.projectKey, f.projectName);
-        try {
-          for (const l of JSON.parse(f.labels) as string[]) labelsSet.add(l);
-        } catch {
-          /* ignore malformed label payloads */
-        }
+        for (const l of parseStringList(f.labels)) labelsSet.add(l);
       }
       const projects = [...projectsMap.entries()]
         .map(([key, name]) => ({ key, name }))

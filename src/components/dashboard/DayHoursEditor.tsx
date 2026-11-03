@@ -14,6 +14,7 @@ import { formatDurationLong } from "@contracts/time";
 import { minutesOf, sameWorkDay, workDaySeconds, type WorkDay } from "@contracts/workSchedule";
 import { workDaySchema } from "@contracts/workScheduleSchema";
 import { t } from "@/i18n";
+import { isTyping } from "@/lib/dom";
 import { addBreak, BIG_STEP, handleAt, moveHandle, removeBreak, saveChoice, snapTo, STEP, type Handle } from "./dayHours";
 import type { DayHoursEdit, EditAxis } from "./useDayHoursEdit";
 
@@ -255,8 +256,7 @@ export const DayHoursBar = memo(function DayHoursBar({
     const onKey = (e: globalThis.KeyboardEvent) => {
       // A dialog or sheet open over the page takes its own Escape.
       // Escape in a field on the page clears or leaves the field, not the draft.
-      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
-      if (e.key === "Escape" && !e.defaultPrevented && !typing && !document.querySelector("[role=dialog], [role=alertdialog]")) edit.cancel();
+      if (e.key === "Escape" && !e.defaultPrevented && !isTyping(e.target) && !document.querySelector("[role=dialog], [role=alertdialog]")) edit.cancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

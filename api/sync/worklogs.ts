@@ -9,7 +9,7 @@ import { and, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
 import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/values";
-import { getDb } from "../queries/connection";
+import { getDb, uniqueViolation } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import type { BoundTracker, CallMeta } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
@@ -77,7 +77,7 @@ export async function linkSink(worklogId: number, sinkConnectionId: number, remo
         set: { remoteId, state: "synced", version, lastError: null, syncedAt: new Date() },
       });
   } catch (e) {
-    if ((e as { cause?: { code?: string }; code?: string }).cause?.code !== "23505" && (e as { code?: string }).code !== "23505") throw e;
+    if (!uniqueViolation(e)) throw e;
   }
 }
 

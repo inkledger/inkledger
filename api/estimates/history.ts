@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import { connections, issueHistoryReads, issueStatusChanges, issues, statusSnapshots, type Connection } from "@db/schema";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerType } from "@contracts/providers";
 import { toStatusChanges, workStretches } from "@contracts/estimate";
+import { isClosed } from "@contracts/categories";
 import { getDb, q } from "../queries/connection";
 import { raiseEstimateRevision } from "../queries/estimateRevision";
 import { boundTracker } from "../sync/engine";
@@ -235,7 +236,7 @@ async function readOne(due: Due, conn: Connection, b: BoundTracker, known: Known
     readAt: now,
     statusNow: due.statusId ?? "",
     classify: (id) => (known.statuses.has(id) || snapped.has(id) ? false : null),
-    closed: due.category === "done" || due.category === "cancelled",
+    closed: isClosed(due.category),
   });
   await settle(due, { state: check.ok ? "available" : "invalid", reason: check.ok ? null : check.reason, steps, changes: converted.changes }, now);
 }

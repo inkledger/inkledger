@@ -5,7 +5,8 @@
 // payload carries the item's `updatedAt`, so a redelivery repeats it and a
 // new change does not) and the time is the payload's own. A delivery is only
 // ever a signal: the adapter reads the issue again.
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { sha256Hex } from "../../lib/hash";
 import { headerOf, sameSecret } from "../core/webhooks";
 
 const WEBHOOK_SIGNATURE_HEADER = "x-op-signature";
@@ -21,7 +22,7 @@ export function verifyOpenProjectWebhook(headers: Record<string, string | undefi
 }
 
 /** The delivery's id: a hash of the body (the same on a redelivery). */
-export const openProjectDeliveryId = (body: string) => createHash("sha256").update(body, "utf8").digest("hex");
+export const openProjectDeliveryId = (body: string) => sha256Hex(body);
 
 type Payload = {
   action?: unknown;

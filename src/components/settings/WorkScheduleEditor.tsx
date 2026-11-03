@@ -13,6 +13,7 @@ import {
   startOfWeek,
 } from "@contracts/time";
 import {
+  clockOf,
   expectedSeconds,
   minutesOf,
   scheduleFor,
@@ -44,9 +45,6 @@ import { toast } from "sonner";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
 
-const hhmm = (min: number) =>
-  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-
 
 /** A break that fits after the last one (lunch by default). */
 function nextBreak(day: WorkDay): { start: string; end: string } | null {
@@ -60,7 +58,7 @@ function nextBreak(day: WorkDay): { start: string; end: string } | null {
       ? lunch
       : after + 60;
   if (start + 15 > end) return null;
-  return { start: hhmm(start), end: hhmm(Math.min(start + 60, end)) };
+  return { start: clockOf(start), end: clockOf(Math.min(start + 60, end)) };
 }
 
 const versionLabel = (validFrom: string) => {

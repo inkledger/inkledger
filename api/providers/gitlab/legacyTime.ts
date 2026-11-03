@@ -5,6 +5,7 @@
 // day is all the server keeps (no clock time), and an entry is removed by
 // spending the same time back ("subtracted …"). A newer server reads and writes
 // timelogs instead (adapter.ts); which one a server is comes from its schema.
+import { dayKey } from "@contracts/time";
 import { instant, instantFrom } from "@contracts/values";
 import { ProviderError } from "../core/errors";
 import type { RemoteWorklog } from "../types";
@@ -78,10 +79,7 @@ export function parseSpendNote(body: string): SpendNote | null {
 }
 
 /** The local day of an instant, as YYYY-MM-DD (the server runs in the user's zone, api/lib/tz.ts). */
-const localDay = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+const localDay = (ms: number) => dayKey(new Date(ms));
 
 /** The clock time GitLab doesn't keep: the note's own when logged that day, else 9:00 (as for date-only services). */
 function startOn(date: string, noteAt: number, seconds: number): number {

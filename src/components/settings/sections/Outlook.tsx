@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { copyText } from "@/lib/issues";
 import { Copy, Download, KeyRound, LogOut, Mail } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
@@ -26,7 +27,7 @@ import {
 import { t } from "@/i18n";
 import { useDeviceFlow } from "@/hooks/useDeviceFlow";
 
-const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success(t("settings.outlook.copied")));
+const copy = (text: string) => void copyText(text).then(ok => ok && toast.success(t("settings.outlook.copied")));
 
 /** Settings → Outlook: searching the mailbox from inkledger, and the Outlook add-in. */
 export function OutlookSection() {

@@ -12,7 +12,7 @@ import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, type HtmlList } from "../core/richtext/toHtml";
 import { addLocalDays, wholeMinutes } from "../core/time";
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../lib/hash";
 import { z } from "zod";
 import { LruCache } from "../../lib/lruCache";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
@@ -176,7 +176,7 @@ export const basecampAccounts = new LruCache<string, string>({ maxEntries: 200 }
 
 async function accountOf(base: string, token: string, chosen: string | null): Promise<string> {
   if (chosen) return chosen;
-  const key = createHash("sha256").update(`${base}|${token}`).digest("hex");
+  const key = sha256Hex(`${base}|${token}`);
   const known = basecampAccounts.get(key);
   if (known) return known;
   const auth = await bcOk<BcAuthorization>({ apiBase: base, token }, "/authorization.json", { site: LAUNCHPAD });

@@ -1,4 +1,5 @@
 import { toastError, failureText } from "@/lib/errorText";
+import { copyText } from "@/lib/issues";
 import { QrCode } from "@/components/app/QrCode";
 import { useState } from "react";
 import { Copy, MoreHorizontal, UserPlus } from "lucide-react";
@@ -94,11 +95,7 @@ function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access
 
 /** Something to hand over once: an invite link or a temporary password. */
 function HandOver({ shown, onClose }: { shown: { title: string; hint: string; value: string; qr?: boolean } | null; onClose: () => void }) {
-  const copy = (value: string) =>
-    navigator.clipboard.writeText(value).then(
-      () => toast.success(t("settings.users.copied")),
-      () => undefined,
-    );
+  const copy = (value: string) => copyText(value).then(ok => ok && toast.success(t("settings.users.copied")));
   return (
     <Dialog open={shown !== null} onOpenChange={open => !open && onClose()}>
       <DialogContent>

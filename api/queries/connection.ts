@@ -101,6 +101,10 @@ export async function migrateDb(): Promise<void> {
   await remigrate?.();
 }
 
+/** A write a unique index refused (Postgres 23505, bare or wrapped by drizzle). */
+export const uniqueViolation = (error: unknown) =>
+  (error as { code?: string }).code === "23505" || (error as { cause?: { code?: string } }).cause?.code === "23505";
+
 export function getDb(): Db {
   if (!instance) throw new Error("Database not initialized: await initDb() at startup");
   return instance;

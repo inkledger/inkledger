@@ -6,18 +6,16 @@
  * modules are told (ThemeState.softwareRender) and keep to still pictures.
  * Asked once per page. For tests: localStorage "inkledger-render" = "gpu" | "software".
  */
+import { readStored } from "@/lib/storage";
+
 const SOFTWARE = /swiftshader|basic render|\bwarp\b|llvmpipe|softpipe|software/i;
 const OVERRIDE = "inkledger-render";
 
 let known: boolean | null = null;
 
 function forced(): boolean | null {
-  try {
-    const v = localStorage.getItem(OVERRIDE);
-    return v === "gpu" ? false : v === "software" ? true : null;
-  } catch {
-    return null;
-  }
+  const v = readStored(OVERRIDE);
+  return v === "gpu" ? false : v === "software" ? true : null;
 }
 
 function detect(): boolean {

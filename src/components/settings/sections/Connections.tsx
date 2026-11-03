@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../api/router";
 import { trpc } from "@/lib/trpc";
-import { relevanceText } from "@/lib/issues";
+import { copyText, relevanceText } from "@/lib/issues";
 import { emptyJiraLogin, jiraLoginPayload } from "@/lib/jiraLogin";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
 import { JiraLoginFields } from "@/components/auth/JiraLoginFields";
@@ -125,7 +125,7 @@ function GitHubForm({ reconnect = false, onDone }: { reconnect?: boolean; onDone
           </Button>
           <Button
             variant="outline"
-            onClick={() => void navigator.clipboard.writeText(flow.userCode).then(() => toast.success(t("settings.connections.githubCopied")))}
+            onClick={() => void copyText(flow.userCode).then(ok => ok && toast.success(t("settings.connections.githubCopied")))}
           >
             {t("settings.connections.githubCopy")}
           </Button>
@@ -494,7 +494,7 @@ function WebhookOption({ id }: { id: number }) {
     onError: e => toastError(e),
   });
   if (!hook.data?.available) return null;
-  const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success(t("settings.connections.webhook.copied")));
+  const copy = (text: string) => void copyText(text).then(ok => ok && toast.success(t("settings.connections.webhook.copied")));
   const url = hook.data.on ? `${window.location.origin}${hook.data.path}` : "";
   return (
     <div className="grid gap-2 border-t pt-3">
