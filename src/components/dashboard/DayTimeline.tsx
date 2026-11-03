@@ -27,6 +27,7 @@ import { quickStart } from "@/lib/quickStart";
 import type { PlannedEntry } from "@contracts/planned";
 import { plannedKindLabel, plannedSlicesForDay } from "@/lib/planned";
 import { PlannedEntryRow } from "@/components/PlannedEntryRow";
+import { Disclosure } from "@/components/app/Disclosure";
 
 export type TimelineEntry = {
   id: string;
@@ -558,14 +559,18 @@ export function DayTimeline({
           ))}
         </ul>
       )}
+      {/* The plans are drawn on the timeline (each block opens it); their notes and Delete fold under
+          one line, counted, rather than a second list of the same plans. */}
       {planned.length > 0 && onEditPlanned && (
-        <ul className="mt-3 grid gap-2" aria-label={t("views.dashboard.timeline.plannedList")}>
-          {planned.map(p => (
-            <li key={p.entry.id}>
-              <PlannedEntryRow entry={p.entry} seconds={p.seconds} onEdit={onEditPlanned} editControl={flowControlProps("dashboard.timeline.plannedEdit")} />
-            </li>
-          ))}
-        </ul>
+        <Disclosure title={t("views.dashboard.timeline.plannedList")} count={planned.length} className="mt-3 border-b-0">
+          <ul className="grid gap-2" aria-label={t("views.dashboard.timeline.plannedList")}>
+            {planned.map(p => (
+              <li key={p.entry.id}>
+                <PlannedEntryRow entry={p.entry} seconds={p.seconds} onEdit={onEditPlanned} editControl={flowControlProps("dashboard.timeline.plannedEdit")} />
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
       )}
       <figcaption className="sr-only">
         {entries.length === 0

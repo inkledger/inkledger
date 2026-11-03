@@ -32,7 +32,10 @@ test("a future day plans: vacation on the day, apart from logged time, edited an
 
     const rows = await db.q("SELECT kind, note, issue_key FROM planned_entries");
     assert.deepEqual(rows, [{ kind: "vacation", note: "Family trip", issue_key: null }]);
-    // On its day, listed apart from the logged entries.
+    // On its day, on the timeline; its note and Delete folded under one counted line.
+    const fold = page.getByRole("button", { name: /^Planned on this day/ });
+    assert.equal(await fold.getAttribute("aria-expanded"), "false");
+    await fold.click();
     const list = page.getByRole("list", { name: "Planned on this day" });
     await list.getByText("Vacation", { exact: true }).waitFor();
     await list.getByText("Family trip").waitFor();
