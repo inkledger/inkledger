@@ -436,6 +436,25 @@ Rules in `docs/design-system.md` §7.1 (regions `@m/@l/@xl`, three page layouts,
 | `pnpm test` | unit | 3094 pass |
 | full `pnpm test:e2e`, isolated worktree at `9353eae` | e2e | 427/430; the 3 mail-copies failures fixed in `3839adf` (test opened no tab) |
 | targeted e2e after each later commit | touched files and neighbours | pass |
+| full `pnpm test:e2e`, isolated worktree at `7cef070` | e2e | 430/432 (5 skipped); the 2 failures (desk-snap Move to, flowmap Dashboard clicks) ran beside the audit and pass alone |
+| `e4f379d` (after that run) | dashboard-day, space-budget, ui-density, touch-targets, renders, flowmap | pass |
+
+### Measured again after the non-list forms (3 Nov evening, same driver, full run: en + it, light, dark where it differs)
+261 captures, 0 failed; `studio/.session` backed up and restored. Page full height in px, en light, before (morning run) → after.
+
+| Page | 1280×800 | 390×844 |
+| --- | --- | --- |
+| Timesheet week | 2606 → 1308 ✓ | 6050 → 909 ✓ |
+| Timesheet month | 770 → 770 | 2189 → 878 ✓ |
+| Reports | 1906 → 1250 ✓ | 2776 → 1706 ✓ |
+| Issue detail | 800 → 800 | 3459 → 2736 ✓ |
+| Dashboard day | 1642 → 1498 ✓ | 3217 → 3886 ✗ → fixed in `e4f379d` (My issues stacked showed every card: 777 → 512 px for the block) |
+| Issues | 2129 → 2094 ✓ | 5390 → 5051 ✓ |
+| Desk | 800 → 800 | 2924 → 2265 ✓ |
+| Board, Notes, Ideas, Team, Settings, TODO | unchanged (they fit the screen) | unchanged or ✓ |
+
+- **Overflow:** the English cases are the same as before: the Board's lanes and the Team table are declared scrollers, and the timeline's weekday labels are clipped by 3–4 px at 1024. The Italian ones have no baseline, since the morning run was English only. They are the same kinds.
+- **Dark shots:** the driver re-shoots dark only at 1280/390 en, plus the overflow cases. An older dark Italian file (`reports__1280x800__it__dark.png`, 2 Nov) is stale, not a regression; the same page in Italian, light, today is correct.
 
 ## Next action
 - **Done** (3 Nov): B0 → B4, plus the sidebar redesign. Commits `92d09e1`, `5fe45c5`, `7a40fea`, `e48acb5`; not pushed.
