@@ -58,7 +58,17 @@ async function measure(page, route) {
       const style = getComputedStyle(element);
       return style.visibility !== "hidden" && style.display !== "none" && (rect.left < -1 || rect.right > window.innerWidth + 1);
     }).map(element => `${element.tagName.toLowerCase()}:${element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 60)}`);
-    return { rootOverflow, mainOverflow, actionRows, clampedText, controls };
+    // Screen-reader-only content takes no room: a sr-only table grew to its rows and hung below the page.
+    const hiddenRoom = [...document.querySelectorAll("main .sr-only")]
+      .filter(element => {
+        // Still hidden at this width (not undone by a not-sr-only), yet bigger than its 1 px.
+        const style = getComputedStyle(element);
+        const hidden = style.position === "absolute" && (style.clip !== "auto" || style.clipPath !== "none");
+        const box = element.getBoundingClientRect();
+        return hidden && (box.width > 1 || box.height > 1);
+      })
+      .map(element => `${element.tagName.toLowerCase()}:${element.textContent?.trim().slice(0, 40)}`);
+    return { rootOverflow, mainOverflow, actionRows, clampedText, controls, hiddenRoom };
   }, route);
 }
 
@@ -77,6 +87,7 @@ for (const width of VIEWPORTS) {
         assert.equal(result.actionRows, 0, `${route}: overflowing flexible rows`);
         assert.equal(result.clampedText, 0, `${route}: horizontally clipped text`);
         assert.deepEqual(result.controls, [], `${route}: controls outside viewport`);
+        assert.deepEqual(result.hiddenRoom, [], `${route}: screen-reader-only content taking room`);
       }
       assert.deepEqual(app.errors, [], "no page errors");
     } finally {
