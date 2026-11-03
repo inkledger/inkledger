@@ -427,7 +427,7 @@ Rules in `docs/design-system.md` §7.1 (regions `@m/@l/@xl`, three page layouts,
 - [x] Day review gaps on a strip; idle dialog as a list of choices; dialog/sheet close at 24 px.
 - [x] Reports Days as an issues × days matrix up to 31 days (cards past it).
 - [x] Shadows never move layout (constant `--surface-room`, clip margins; three-state e2e).
-- [ ] **Buckets drag board**: waits on a decision (may a status sit in two custom columns? the editor says no, the Board says yes).
+- [x] **Buckets drag board**: chips dragged into columns, a menu each for the keyboard; one column per status (user's decision, 3 Nov), the server and the Board aligned.
 - Dropped: TODO Upcoming as 7 day columns, Issues grouped by status (reasons in the plan).
 
 | Verification | Scope | Result |
