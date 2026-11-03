@@ -176,13 +176,15 @@ function HeaderTimer() {
     .filter(tm => tm.state !== "running" && tm.pausedAt && tm.elapsedSeconds > 0)
     .sort((a, b) => new Date(a.pausedAt ?? 0).getTime() - new Date(b.pausedAt ?? 0).getTime());
   return (
-    // The key gives way below 2xl (the sidebar shows it, the title too): the page's title keeps one line.
-    <span title={timer.issueKey} className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
-      <TimerRing running={running} />
-      <span className="hidden text-muted-foreground 2xl:inline">{timer.issueKey}</span>
-      {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
-      <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
-      <ActiveTimerQuickControls />
+    // The timer shows once (docs/design-system.md §7.1): on a laptop the sidebar's Now card holds it, so
+    // here only what the card does not say (the stopped ones still to log); on a phone all of it.
+    <span title={timer.issueKey} className={cn("mr-1 flex items-center gap-1.5 text-body-sm font-medium max-lg:border-r max-lg:pr-1", !(running && toLog.length > 0) && "lg:hidden")}>
+      <span className="contents lg:hidden">
+        <TimerRing running={running} />
+        {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
+        <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
+        <ActiveTimerQuickControls />
+      </span>
       {/* Stopped ones behind the running one ("Later"): still to log, never out of sight. */}
       {running && toLog.length > 0 && (
         <Button
@@ -320,14 +322,18 @@ function SectionRow({ items, renderAnchor }: { items: readonly (string | readonl
   const nodes = items.map(item => typeof item === "string"
     ? <Fragment key={item}>{renderAnchor(item)}</Fragment>
     : (
-      // Beside the summary, one cell of the same height (a bento row): My issues fills it, as many cards
-      // as fit, the rest fading towards "Open board". Never a column shorter than its neighbour with white
-      // space under it.
-      <div key="dashboard.tasks+activity" data-fill={summary || undefined} className={cn("group/row min-w-0", summary && "xl:relative xl:min-h-[26rem]")}>
+      // Beside the summary, one cell of the same height (a bento row): My issues fills it with as many
+      // cards as fit (the rest hidden, then "Show all N"). Never a column shorter than its neighbour with
+      // white space under it. From the row's own width (a region), not the window's.
+      <div key="dashboard.tasks+activity" data-fill={summary || undefined} className={cn("group/row min-w-0", summary && "@l:relative @l:min-h-[26rem]")}>
         {item.map(anchorId => <Fragment key={anchorId}>{renderAnchor(anchorId)}</Fragment>)}
       </div>
     ));
-  return <div className={cn("grid border-b", summary && items.some(item => typeof item !== "string") && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
+  return (
+    <div className="region border-b">
+      <div className={cn("grid", summary && items.some(item => typeof item !== "string") && "@l:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>
+    </div>
+  );
 }
 
 function DashboardContent() {
@@ -838,7 +844,7 @@ function DashboardContent() {
         "dashboard.summary": show.summary && (
           <PanelSection
             title={t("pages.dashboard.summary")}
-            className="border-b xl:border-b-0 xl:border-r"
+            className="border-b @l:border-b-0 @l:border-r"
             busy={logs.isPlaceholderData}
             actions={pending && (
               <Button variant="outline" size="sm" onClick={() => dayReview.set(true)} {...flowControlProps("dashboard.closeDay")}>
@@ -869,7 +875,7 @@ function DashboardContent() {
         "dashboard.tasks": show.tasks && (
           <PanelSection
             title={t("pages.dashboard.myIssues")}
-            className="xl:group-data-[fill]/row:absolute xl:group-data-[fill]/row:inset-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col"
+            className="@l:group-data-[fill]/row:absolute @l:group-data-[fill]/row:inset-0 @l:group-data-[fill]/row:flex @l:group-data-[fill]/row:flex-col"
             actions={<Button asChild variant="outline" size="sm"><Link to="/board" {...flowControlProps("dashboard.tasks.openBoard")}>{t("pages.dashboard.openBoard")}</Link></Button>}
           >
             {bucketIssues.isPending ? (

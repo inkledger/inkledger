@@ -159,7 +159,8 @@ const anchors: AnchorManifest[] = [
   { ...anchor("dashboard.stats", "dashboard", "StatStrip", "stateless", "pages.dashboard.widgets.stats"), semanticRevision: 2 },
   hideable(anchor("dashboard.summary", "dashboard", "PeriodSummary", "local", "pages.dashboard.widgets.summary")),
   anchor("dashboard.tasks", "dashboard", "TasksBoard", "external", "pages.dashboard.widgets.tasks"),
-  anchor("dashboard.activity", "dashboard", "ActivityTable", "stateless", "pages.dashboard.widgets.activity"),
+  // Revision 2: a bounded grid of tiles (was a table, then a sideways rail): maps from before no longer apply.
+  { ...anchor("dashboard.activity", "dashboard", "Collection", "stateless", "pages.dashboard.widgets.activity"), semanticRevision: 2 },
   anchor("dashboard.recap", "dashboard", "WeekRecapCard", "stateless", "pages.dashboard.widgets.recap"),
   anchor("dashboard.desk", "dashboard", "ModuleSlot", "external", "pages.dashboard.desk"),
   anchor("dashboard.period", "dashboard", "PeriodNav", "local", "pages.dashboard.period"),
@@ -215,6 +216,7 @@ const mobileAreas = [
 ];
 
 const controls: ControlDefinition[] = [
+  control("dashboard.tasks.more", "dashboard.tasks", "ui.collection.showAll", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("dashboard.activity.start", "dashboard.activity", "ui.timer.startFor", { kind: "mutation", outcome: true }),
   control("dashboard.activity.sort", "dashboard.activity", "views.dashboard.activity.sortBy", { kind: "toggle", role: "radio" }),
   control("dashboard.period.day", "dashboard.period", "pages.dashboard.periodDay", { kind: "toggle", role: "radio" }),

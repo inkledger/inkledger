@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { Link } from "react-router";
+import { useFitToHeight } from "@/lib/layout/fit";
 import {
   CalendarDays,
   ChevronsRightLeft,
@@ -91,7 +93,7 @@ export function TasksBoard({
   onToggle: (title: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1">
+    <div className="flex flex-col gap-3 sm:flex-row @l:group-data-[fill]/row:min-h-0 @l:group-data-[fill]/row:flex-1">
       {columns.map(col =>
         collapsed.has(col.title) ? (
           <CollapsedColumn
@@ -104,7 +106,7 @@ export function TasksBoard({
             control={flowControlProps("dashboard.tasks.collapse")}
           />
         ) : (
-          <div key={col.title} className="min-w-0 flex-1 basis-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col">
+          <div key={col.title} className="min-w-0 flex-1 basis-0 @l:group-data-[fill]/row:flex @l:group-data-[fill]/row:min-h-0 @l:group-data-[fill]/row:flex-col">
             <ColumnHeader
               className="mb-2"
               title={col.title}
@@ -134,20 +136,41 @@ export function TasksBoard({
                 </>
               }
             />
-            <div className="stagger cast-room-x cast-room-y relative max-h-[25rem] space-y-2 overflow-hidden xl:group-data-[fill]/row:max-h-none xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1 [--room-b:0.25rem] [--room-x:0.5rem] [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
-              {col.issues.length === 0 ? (
-                <p className="rounded-xl border border-dashed p-4 text-center text-body-sm text-muted-foreground" {...surface("glass")}>
-                  {t("views.dashboard.tasks.empty")}
-                </p>
-              ) : (
-                col.issues.map(issue => (
-                  <TaskCard key={issueId(issue)} issue={issue} />
-                ))
-              )}
-            </div>
+            <ColumnCards issues={col.issues} total={col.total} title={col.title} />
           </div>
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * A column's cards, as many as its room holds (the bento row's height; on a phone its first ones), then
+ * "Show all N" to the Board. Never a mask: the cards that do not fit are hidden, not cut in half while
+ * still focusable (docs/design-system.md §7.1).
+ */
+function ColumnCards({ issues, total, title }: { issues: TaskColumn["issues"]; total: number; title: string }) {
+  const list = useRef<HTMLUListElement>(null);
+  const more = useRef<HTMLAnchorElement>(null);
+  useFitToHeight(list, more, total > issues.length);
+  if (issues.length === 0)
+    return (
+      <p className="rounded-xl border border-dashed p-4 text-center text-body-sm text-muted-foreground" {...surface("glass")}>
+        {t("views.dashboard.tasks.empty")}
+      </p>
+    );
+  return (
+    <div className="flex min-h-0 flex-col gap-2 @l:group-data-[fill]/row:flex-1">
+      <ul ref={list} aria-label={title} className="stagger cast-room-x cast-room-y grid gap-2 [--room-b:0.25rem] [--room-x:0.5rem]">
+        {issues.map(issue => (
+          <li key={issueId(issue)}>
+            <TaskCard issue={issue} />
+          </li>
+        ))}
+      </ul>
+      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className="justify-self-start text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline">
+        {t("ui.collection.showAll", { count: total })} →
+      </Link>
     </div>
   );
 }

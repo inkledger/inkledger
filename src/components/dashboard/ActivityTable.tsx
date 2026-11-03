@@ -8,6 +8,7 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { EmptyState } from "@/components/app/States";
 import { t, dateFormat } from "@/i18n";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
+import { Collection } from "@/components/app/Collection";
 import { StartIssueButton } from "@/components/issue/StartIssueButton";
 import { surface } from "@/components/app/surface";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
@@ -47,10 +48,10 @@ export function ActivitySortControl({ value, onChange }: { value: ActivitySort; 
 }
 
 /**
- * Issues worked on recently, as a strip to pick work up again: one tile each (key and status, the title on
- * two lines, its hours with a bar against the busiest, ▶ to start it), side by side across the page and
- * scrolled sideways past the width. One row, whatever the count: never a list that grows the page. The
- * last activity is in the tile's tooltip and its accessible name.
+ * Issues worked on recently, to pick work up again: one tile each (key, title on two lines, status, its
+ * hours with a thread against the busiest, ▶ to start it). A bounded grid as wide as its block (a
+ * Collection, docs/design-system.md §7.1): two rows, then "Show all N" in place. Never scrolled sideways.
+ * The last activity is in the tile's tooltip and its accessible name.
  */
 export function ActivityTable({ rows, sort = "last" }: { rows: ActivityRow[]; sort?: ActivitySort }) {
   const sorted = [...rows].sort((a, b) => compare(a, b, sort));
@@ -67,17 +68,20 @@ export function ActivityTable({ rows, sort = "last" }: { rows: ActivityRow[]; so
   }
 
   return (
-    <ul
-      data-overflow-ok
-      aria-label={t("pages.dashboard.recentActivity")}
-      className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-1 md:-mx-6 md:scroll-px-6 md:px-6"
-    >
-      {sorted.map(r => {
+    <Collection
+      items={sorted}
+      keyOf={r => issueId(r)}
+      rows={2}
+      maxColumns={4}
+      label={t("pages.dashboard.recentActivity")}
+      itemClassName="relative"
+      render={r => {
         const last = `${r.lastComment || r.summary || "—"} · ${when().format(r.lastAt)}`;
         return (
-          <li key={issueId(r)} title={last} className="relative w-56 shrink-0 snap-start">
+          <>
             <Link
               to={issuePath({ key: r.issueKey, connectionId: r.connectionId, remoteId: r.remoteId })}
+              title={last}
               {...surface("card")}
               className="relative grid h-full content-between gap-1.5 overflow-hidden rounded-xl border bg-card p-3 pb-3.5 transition-[border-color] hover:border-foreground/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -100,9 +104,9 @@ export function ActivityTable({ rows, sort = "last" }: { rows: ActivityRow[]; so
               <span className="sr-only">{last}</span>
             </Link>
             <StartIssueButton issueKey={r.issueKey} connectionId={r.connectionId ?? undefined} controlId="dashboard.activity.start" className="absolute right-1.5 top-1.5" />
-          </li>
+          </>
         );
-      })}
-    </ul>
+      }}
+    />
   );
 }

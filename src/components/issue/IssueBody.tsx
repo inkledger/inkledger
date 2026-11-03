@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { createPortal } from "react-dom";
 import { Plus } from "lucide-react";
 import { surface } from "@/components/app/surface";
@@ -115,6 +116,9 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
   const body = useBody({ issueKey: key, connectionId, variant: "page", markSeen: true, hotkeys: true });
   const { data, act } = body;
   const { issue } = data;
+  // The bottom bar is a phone's (and a tablet's): mounted only there, or its ticking timer would redraw
+  // on a laptop for nothing (e2e/renders budgets).
+  const phone = useMediaQuery("(max-width: 1023px)", false);
   // To the Desk: the grip by the title (dragged to an edge), the Layout button, Alt+Shift+arrows, a long press on a phone.
   const [sendOpen, setSendOpen] = useState(false);
   const onConnection = issue.data?.connectionId ?? connectionId;
@@ -174,8 +178,8 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
       <Columns issue={i} body={body} scrollKeys={{ columns: "issue-page", left: "issue-left", right: "issue-right" }} />
       {/* A phone: the issue's two daily actions at the bottom, above the tab bar, where the thumb is
           (Hoober; Material's bottom app bar). The page keeps room for it. */}
-      <div aria-hidden className="h-16 lg:hidden" />
-      {createPortal(
+      {phone && <div aria-hidden className="h-16" />}
+      {phone && createPortal(
       // On the body: the page's entry animation (a transform) would otherwise hold it in the page.
       <div
         data-chrome="bottom"

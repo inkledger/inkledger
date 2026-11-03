@@ -326,11 +326,11 @@
       {
         "id": "dashboard.activity",
         "surfaceId": "dashboard",
-        "renderer": "ActivityTable",
+        "renderer": "Collection",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "studio": {
           "operations": [
             "move",
@@ -2328,6 +2328,28 @@
         ]
       },
       {
+        "id": "dashboard.tasks.more",
+        "anchorId": "dashboard.tasks",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.collection.showAll",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.tasks.more.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "dashboard.tasks.openBoard",
         "anchorId": "dashboard.tasks",
         "kind": "navigation",
@@ -4153,7 +4175,7 @@
       {
         "anchorId": "dashboard.activity",
         "kind": "core",
-        "renderer": "ActivityTable"
+        "renderer": "Collection"
       },
       {
         "anchorId": "dashboard.customize",
