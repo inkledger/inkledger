@@ -162,7 +162,7 @@ export const views = {
     },
   },
   timesheet: {
-    month: { noEntries: "no entries" },
+    month: { label: "Days of the month", noEntries: "no entries" },
     grid: {
       label: "Week by issue",
       issue: "Issue",

@@ -167,7 +167,7 @@ export const views: Shape<typeof en> = {
     },
   },
   timesheet: {
-    month: { noEntries: "nessuna registrazione" },
+    month: { label: "Giorni del mese", noEntries: "nessuna registrazione" },
     grid: {
       label: "Settimana per issue",
       issue: "Issue",

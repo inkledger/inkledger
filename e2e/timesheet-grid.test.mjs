@@ -77,3 +77,21 @@ test("the week on a phone: the days' strip and the chosen day's entries", { time
     assert.equal(overflow, 0, "nothing sideways");
   });
 });
+
+test("the month on a phone: one calendar, one Tab stop, arrows by day and week, on one screen", { timeout: 300_000 }, async () => {
+  await awayFromMidnight();
+  await withApp({ viewport: { width: 390, height: 844 }, seed: week }, async ({ page, base }) => {
+    await page.goto(base + "/timesheet?view=month");
+    const grid = page.getByRole("grid", { name: "Days of the month" });
+    await grid.waitFor();
+    assert.equal(await grid.locator("[role=gridcell][tabindex='0']").count(), 1, "one Tab stop");
+    const current = grid.locator("[role=gridcell][tabindex='0']");
+    await current.focus();
+    const before = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+    await page.keyboard.press("ArrowDown");
+    const after = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+    assert.notEqual(after, before, "a week down");
+    const box = await grid.boundingBox();
+    assert.ok(box.height < 420, `the month is short (${Math.round(box.height)} px)`);
+  });
+});
