@@ -71,3 +71,15 @@ Two independent reviews of 006f898 (server and frontend). Fixed, each with a tes
 - Keyboard and a11y pass: focus enters edit mode on the first break and comes back to "Hours of the day" after Save, Cancel, Escape, Enter and the fields sheet (it fell to the page); the idle dialog opens on "Assign to another issue", not on "It was my break". Every grip is at least a target (24 px; 44 px on touch) and none covers another (axe target-size). E2E asserts focus and axe in edit mode.
 - Measured: a 60-step drag has no long task (worst frame 10 ms); a save shows in a second tab at once (live `schedule` event); dark theme and the sheet have no axe violation.
 - The full e2e run at 00:xx failed `day-review` "never logged on guesses" and `desk-flow`, and timed out two `dashboard-day` tests that wait to be away from midnight; all three files pass when rerun alone after 01:00 (time of day, not this work, not proven further); the full suite rerun at 01:2x passed: 398 of 398 run, 0 failed.
+
+## Pending copy fixes (blocked: another session has uncommitted changes in these i18n files)
+| Key | en now → proposed | it now → proposed |
+| --- | --- | --- |
+| `ui.idle.myBreakTitle` | "…make {from}–{to} today's break" → "…make {from}–{to} that day's break" (the absence may be another day's) | "…la pausa di oggi" → "…la pausa di quel giorno" |
+| `views.dashboard.timeline.hours.ownOff` | "This day is off by its own hours" → "Day off: this day's own hours" | "Questo giorno è libero per orario proprio" → "Giorno libero: orario proprio di questo giorno" |
+| `server.worklogs.invalidParts` | "The pieces of this time must follow one another and add up to its duration." → "The parts must be in order, not overlap, and add up to the duration." | "I pezzi di questo tempo devono susseguirsi e sommare alla sua durata." → "Le parti devono essere in ordine, senza sovrapporsi, e sommare alla durata." |
+| `ui.logTime.overBreak` | "No room around your break: it covers it." → "No room outside your break: this time covers it." | "Non c'è spazio attorno alla pausa: la copre." → "Non c'è spazio fuori dalla pausa: questo tempo la copre." |
+| `settings.schedule.dropOwn` | keep "Follow the new week" | "Seguono la nuova settimana" → "Applica la nuova settimana" |
+
+## Midnight e2e failure, explained
+`e2e/day-review.test.mjs` "the day is never logged on guesses" seeds a timer paused 30 min before now: run between 00:00 and 00:30 that pause is yesterday's, "Close the day" preselects only today's timers (`DayReviewBody.tsx:104`, `timerOnDay`), so "Log 1 to …" never appears. A test seed limit near midnight, not this feature. `desk-flow` (desk drag) is unrelated and passed alone.
