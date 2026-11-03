@@ -219,6 +219,8 @@ export const ui: Shape<typeof en> = {
     discard: "Scarta",
   },
   dayReview: {
+    gapsTotal: "{count} buchi · mancano {duration}",
+    logSpan: "Registra {from}–{to}",
     placementFailed: "Non è stato possibile leggere il tempo di oggi",
     placementFailedHint: "Non si registra nulla finché non si legge: riprova.",
     otherDay: "Fermato in un altro giorno: registralo dal suo timer",

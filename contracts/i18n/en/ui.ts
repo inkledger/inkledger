@@ -217,6 +217,8 @@ export const ui = {
     discard: "Discard",
   },
   dayReview: {
+    gapsTotal: "{count} gaps · {duration} missing",
+    logSpan: "Log {from}–{to}",
     placementFailed: "Today's time couldn't be read",
     placementFailedHint: "Nothing is logged until it is: try again.",
     otherDay: "Stopped on another day: log it from its timer",

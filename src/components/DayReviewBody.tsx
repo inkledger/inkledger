@@ -56,7 +56,7 @@ import { surface } from "@/components/app/surface";
 import { BreakSuggestion } from "@/components/dashboard/BreakSuggestion";
 import { toast } from "sonner";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
-import { missingSpans, suggestBreakMove } from "@contracts/workSchedule";
+import { minutesOf, missingSpans, suggestBreakMove, weekdayIndex } from "@contracts/workSchedule";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { workedSeconds } from "@/lib/worked";
@@ -404,6 +404,29 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                 : t("ui.dayReview.noGaps")}
             </p>
           ) : (
+            <>
+            {/* The day's hours as a strip, its gaps where they fall: seen at a glance; the list below logs them. */}
+            {(() => {
+              const hours = forDay(today)[weekdayIndex(today)];
+              const from = minutesOf(hours.start);
+              const span = Math.max(1, minutesOf(hours.end) - from);
+              const total = gaps.reduce((sum, g) => sum + g.seconds, 0);
+              return (
+                <div className="mb-3 grid gap-1">
+                  <p className="text-body-sm">{t("ui.dayReview.gapsTotal", { count: gaps.length, duration: formatDuration(total) })}</p>
+                  <div aria-hidden className="relative h-3 overflow-hidden rounded-full bg-primary-soft/60">
+                    {gaps.map(g => {
+                      const at = g.start.getHours() * 60 + g.start.getMinutes() - from;
+                      return <span key={g.start.getTime()} className="stripes-idle absolute inset-y-0 rounded-sm" style={{ left: `${Math.max(0, (at / span) * 100)}%`, width: `${Math.max(1, (g.seconds / 60 / span) * 100)}%` }} />;
+                    })}
+                  </div>
+                  <div aria-hidden className="flex justify-between text-caption text-muted-foreground tabular">
+                    <span>{hours.start}</span>
+                    <span>{hours.end}</span>
+                  </div>
+                </div>
+              );
+            })()}
             <ul className="divide-y">
               {gaps.map(g => (
                 <li
@@ -424,6 +447,8 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                     variant="ghost"
                     size="sm"
                     className="ml-auto"
+                    // Named by its span: several "Log" buttons are told apart by ear too.
+                    aria-label={t("ui.dayReview.logSpan", { from: timeOfDay(g.start), to: timeOfDay(new Date(g.start.getTime() + g.seconds * 1000)) })}
                     onClick={() =>
                       logSpan(g.start, roundToMinute(g.seconds))
                     }
@@ -433,6 +458,7 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
                 </li>
               ))}
             </ul>
+            </>
           )}
         </section>
       </div>
