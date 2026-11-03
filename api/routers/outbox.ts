@@ -10,7 +10,7 @@ import { createRouter, protectedProcedure } from "../middleware";
 import { LIST_MAX_ROWS } from "../lib/inputs";
 import { getDb } from "../queries/connection";
 import { connections, issues, outbox, worklogs } from "@db/schema";
-import { PENDING_PREFIX } from "./worklogs";
+import { PENDING_PREFIX } from "@contracts/types";
 import { CLAIM_TTL_MS, replayContract } from "../sync/timeWrites";
 import { heldSinkDelete, pushSinks } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";

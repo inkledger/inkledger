@@ -2,6 +2,7 @@ import { ToggleChip } from "@/components/app/ToggleChip";
 import { useState } from "react";
 import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
+import { isPendingId } from "@contracts/types";
 import { errorText } from "@/lib/errorText";
 import type { IssueLogRow } from "@/lib/issueWorklogs";
 import { cn } from "@/lib/utils";
@@ -156,7 +157,7 @@ export function IssueWorklogs({
                 );
               }
               const w = row.log;
-              const pending = w.remoteId.startsWith("pending-");
+              const pending = isPendingId(w.remoteId);
               const started = new Date(w.started);
               return (
                 <li

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { AlertTriangle, CopyPlus, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatDuration, formatSeconds } from "@contracts/time";
+import { isPendingId } from "@contracts/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -42,7 +43,7 @@ type Props = {
 type Row = { id: string; key: string; connectionId?: number | null; remoteId: string | null; summary?: string; perDay: Map<string, TimesheetLog[]>; total: number };
 
 const weekday = () => dateFormat({ weekday: "short" });
-const isPending = (w: TimesheetLog) => w.remoteId.startsWith("pending-");
+const isPending = (w: TimesheetLog) => isPendingId(w.remoteId);
 
 /**
  * A week as a timesheet (Harvest's and Timely's week grid): one row per issue, the seven days and the

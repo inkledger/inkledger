@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { CopyPlus, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatDuration } from "@contracts/time";
+import { isPendingId } from "@contracts/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Chip } from "@/components/app/Chip";
@@ -32,7 +33,7 @@ export type TimesheetLog = {
 const weekday = () => dateFormat({ weekday: "short" });
 
 function isPending(w: TimesheetLog): boolean {
-  return w.remoteId.startsWith("pending-");
+  return isPendingId(w.remoteId);
 }
 
 function DayProgress({

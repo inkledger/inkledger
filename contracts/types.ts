@@ -18,5 +18,10 @@ export type JiraCredentials = {
 
 export const SESSION_COOKIE = "ikl_session";
 
+/** Local placeholder id of a worklog queued in the offline outbox ("pending-N" until replayed). */
+export const PENDING_PREFIX = "pending-";
+
+export const isPendingId = (remoteId: string): boolean => remoteId.startsWith(PENDING_PREFIX);
+
 /** Offline-queue entries failing this many times are no longer replayed. */
 export const MAX_OUTBOX_ATTEMPTS = 10;

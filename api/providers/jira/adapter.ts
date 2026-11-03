@@ -44,6 +44,7 @@ import {
   type JiraWorklog, fetchCreateFields, type JiraCreateField } from "../../jira/client";
 import { decodeCheckpoint, encodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
+import { secretOf } from "../core/context";
 import { trimTrailingSlash } from "../core/http";
 import { markdownWarnings } from "../core/richtext/toHtml";
 import type { CallContext, FieldReq, FieldValue, RemoteBody, RemoteComment, RemoteIssue, RemoteStatus, RemoteWorklog, TrackerProvider, WorklogInput } from "../types";
@@ -131,8 +132,7 @@ type X = CallContext<"jira", JiraOptions>;
 
 /** The Jira client's credentials for a call. */
 async function credsOf(x: X): Promise<JiraCredentials> {
-  const cred = await x.conn.credential();
-  const secret = cred.kind === "token" ? cred.token : cred.kind === "basic" ? cred.password : cred.accessToken;
+  const secret = secretOf(await x.conn.credential());
   return { siteUrl: x.conn.baseUrl, deployment: x.conn.options.deployment, authType: x.conn.options.authType, username: x.conn.options.username, secret };
 }
 

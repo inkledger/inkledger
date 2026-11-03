@@ -10,7 +10,6 @@ import { z } from "zod";
 
 export const DESK_MAX_PANES = 6;
 export const DESK_MAX_PARKED = 8;
-export const DESK_SAVED_MAX = 50;
 /** The smallest share of the desk a pane may take across (or down). */
 export const MIN_TRACK = 0.15;
 
@@ -257,12 +256,6 @@ export function resizeTracks(shares: readonly number[], index: number, delta: nu
 export function resizeDivider(desk: DeskLayout, axis: Divider["axis"], index: number, delta: number): DeskLayout {
   const current = tracksOf(desk);
   return { ...desk, tracks: { ...desk.tracks, [desk.preset]: { ...current, [axis]: resizeTracks(current[axis], index, delta, minTrackOf(desk.preset, axis)) } } };
-}
-
-export function resetTracks(desk: DeskLayout): DeskLayout {
-  const tracks = { ...desk.tracks };
-  delete tracks[desk.preset];
-  return { ...desk, tracks };
 }
 
 /**

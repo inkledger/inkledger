@@ -17,6 +17,7 @@ import { instant, instantFrom, jsonPayload, localDate, localDateOf, type JsonVal
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { connectionMapping } from "../core/categories";
 import { ProviderError } from "../core/errors";
+import { secretOf } from "../core/context";
 import { headerOf, verifySha256Header } from "../core/webhooks";
 import { markdownWarnings } from "../core/richtext/toHtml";
 import {
@@ -129,11 +130,8 @@ const OVERLAP_MS = 120_000;
 /** Ids kept in a checkpoint to find the deleted ones. */
 const MAX_IDS = 500;
 
-function credsOf(x: X, secret: Awaited<ReturnType<X["conn"]["credential"]>>): NotionCreds {
-  return { apiBase: x.conn.baseUrl, token: secret.kind === "token" ? secret.token : secret.kind === "oauth" ? secret.accessToken : secret.password };
-}
 async function creds(x: X): Promise<NotionCreds> {
-  return credsOf(x, await x.conn.credential());
+  return { apiBase: x.conn.baseUrl, token: secretOf(await x.conn.credential()) };
 }
 
 // ---------- Keys and links ----------

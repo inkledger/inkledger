@@ -10,8 +10,6 @@ import type { FlowModality, FlowTransition, FrictionPoint, HeatPoint } from "@co
  */
 export const LAYERS = ["edit", "use", "paths", "friction", "news"] as const;
 export type Layer = (typeof LAYERS)[number];
-/** The layers drawn from usage collection (FlowMap): they need it on, and a period to read. */
-export const DATA_LAYERS: readonly Layer[] = ["use", "paths", "friction"];
 
 /** What this device remembers: the layers chosen, and the period chosen per part of the app. */
 export type LayerView = { layers: readonly Layer[]; periods: Readonly<Record<string, string>> };

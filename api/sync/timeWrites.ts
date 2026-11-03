@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { connections, issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
+import { PENDING_PREFIX } from "@contracts/types";
 import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import type { TimeZone } from "@contracts/values";
@@ -300,7 +301,7 @@ async function landedOn(local: Worklog, conn: Connection, remoteId: string, vers
 async function queuedWorklog(entry: typeof outbox.$inferSelect, conn: Connection): Promise<Worklog | undefined> {
   const db = getDb();
   if (entry.worklogId !== null) return (await db.select().from(worklogs).where(eq(worklogs.id, entry.worklogId)))[0];
-  const id = entry.kind === "create" ? `${PENDING}${entry.id}` : entry.remoteId;
+  const id = entry.kind === "create" ? `${PENDING_PREFIX}${entry.id}` : entry.remoteId;
   if (!id) return undefined;
   return (
     await db
@@ -309,8 +310,6 @@ async function queuedWorklog(entry: typeof outbox.$inferSelect, conn: Connection
       .where(and(eq(worklogs.userId, entry.userId), eq(worklogs.connectionId, conn.id), eq(worklogs.issueKey, entry.issueKey), eq(worklogs.remoteId, id)))
   )[0];
 }
-
-const PENDING = "pending-";
 
 /**
  * The connection's queued changes, in order, once its tracker answers again.

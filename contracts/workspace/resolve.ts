@@ -71,6 +71,19 @@ export function resolve(input: ResolveInput): ResolveResult {
 
   const areaFor = (areaId: string): AreaDefinition | undefined => catalog.areas.find(area => area.id === areaId);
   const placementFor = (anchorId: string) => placements.find(placement => placement.anchorId === anchorId);
+  /** An anchor and its placement, its fallback and conflicts noted; null when either is missing. */
+  const locate = (anchorId: string) => {
+    const resolved = resolveAnchor(catalog, anchorId);
+    if (resolved.fallback) fallbacks.push(resolved.fallback);
+    if (resolved.conflict) conflicts.push(resolved.conflict);
+    if (!resolved.anchor) return null;
+    const placement = placementFor(resolved.anchor.id);
+    if (!placement) {
+      conflicts.push({ code: "unknown-anchor", anchorId: resolved.anchor.id, detail: `No placement for ${resolved.anchor.id}` });
+      return null;
+    }
+    return { anchor: resolved.anchor, placement };
+  };
 
   const addPlacement = (placement: Placement, origin: ResolvedPlacement["origin"], operationId?: string) => {
     const resolved = resolveAnchor(catalog, placement.anchorId);
@@ -157,27 +170,21 @@ export function resolve(input: ResolveInput): ResolveResult {
       return;
     }
 
-    const resolved = resolveAnchor(catalog, operation.anchorId);
-    if (resolved.fallback) fallbacks.push(resolved.fallback);
-    if (resolved.conflict) conflicts.push(resolved.conflict);
-    if (!resolved.anchor) return;
-    const placement = placementFor(resolved.anchor.id);
-    if (!placement) {
-      conflicts.push({ code: "unknown-anchor", anchorId: resolved.anchor.id, detail: `No placement for ${resolved.anchor.id}` });
-      return;
-    }
-    if (!allows(resolved.anchor, operation.type === "visibility" ? "hide" : operation.type)) {
-      conflicts.push({ code: "constraint-conflict", anchorId: resolved.anchor.id, detail: `${operation.type} is not allowed for ${resolved.anchor.id}` });
+    const located = locate(operation.anchorId);
+    if (!located) return;
+    const { anchor, placement } = located;
+    if (!allows(anchor, operation.type === "visibility" ? "hide" : operation.type)) {
+      conflicts.push({ code: "constraint-conflict", anchorId: anchor.id, detail: `${operation.type} is not allowed for ${anchor.id}` });
       return;
     }
     if (!byUser && placement.pinned) {
-      conflicts.push({ code: "constraint-conflict", anchorId: resolved.anchor.id, detail: `Pinned ${resolved.anchor.id} changes only by the user` });
+      conflicts.push({ code: "constraint-conflict", anchorId: anchor.id, detail: `Pinned ${anchor.id} changes only by the user` });
       return;
     }
 
     if (operation.type === "move") {
       const area = areaFor(operation.toAreaId);
-      if (resolved.anchor.statePolicy === "local" && operation.toAreaId !== placement.areaId) {
+      if (anchor.statePolicy === "local" && operation.toAreaId !== placement.areaId) {
         conflicts.push({ code: "incompatible-area", anchorId: placement.anchorId, areaId: operation.toAreaId, detail: `${placement.anchorId} requires a stable parent` });
         return;
       }
@@ -195,8 +202,8 @@ export function resolve(input: ResolveInput): ResolveResult {
       placement.variant = operation.variant;
     } else if (operation.type === "visibility") {
       placement.visible = operation.visible;
-      if (!operation.visible && resolved.anchor.critical) {
-        conflicts.push({ code: "critical-hidden", anchorId: resolved.anchor.id, detail: `${resolved.anchor.id} is critical` });
+      if (!operation.visible && anchor.critical) {
+        conflicts.push({ code: "critical-hidden", anchorId: anchor.id, detail: `${anchor.id} is critical` });
       }
     } else if (operation.type === "pin") {
       placement.pinned = operation.pinned;
@@ -232,31 +239,25 @@ export function resolve(input: ResolveInput): ResolveResult {
       blockedSuggestions.add(constraint.anchorId);
       return;
     }
-    const resolved = resolveAnchor(catalog, constraint.anchorId);
-    if (resolved.fallback) fallbacks.push(resolved.fallback);
-    if (resolved.conflict) conflicts.push(resolved.conflict);
-    if (!resolved.anchor) return;
-    const placement = placementFor(resolved.anchor.id);
-    if (!placement) {
-      conflicts.push({ code: "unknown-anchor", anchorId: resolved.anchor.id, detail: `No placement for ${resolved.anchor.id}` });
-      return;
-    }
-    if (constraint.kind === "pin" && !placement.pinned && !allows(resolved.anchor, "pin")) {
+    const located = locate(constraint.anchorId);
+    if (!located) return;
+    const { anchor, placement } = located;
+    if (constraint.kind === "pin" && !placement.pinned && !allows(anchor, "pin")) {
       conflicts.push({ code: "constraint-conflict", anchorId: placement.anchorId, detail: `${placement.anchorId} cannot be pinned` });
       return;
     }
-    if (constraint.kind === "hide" && !allows(resolved.anchor, "hide")) {
-      conflicts.push({ code: "critical-hidden", anchorId: resolved.anchor.id, detail: `${resolved.anchor.id} cannot be hidden` });
+    if (constraint.kind === "hide" && !allows(anchor, "hide")) {
+      conflicts.push({ code: "critical-hidden", anchorId: anchor.id, detail: `${anchor.id} cannot be hidden` });
       return;
     }
-    if (constraint.kind === "expectHere" && constraint.areaId && constraint.areaId !== placement.areaId && (resolved.anchor.statePolicy === "local" || !allows(resolved.anchor, "move"))) {
+    if (constraint.kind === "expectHere" && constraint.areaId && constraint.areaId !== placement.areaId && (anchor.statePolicy === "local" || !allows(anchor, "move"))) {
       conflicts.push({ code: "incompatible-area", anchorId: placement.anchorId, areaId: constraint.areaId, detail: `${placement.anchorId} cannot move to ${constraint.areaId}` });
       return;
     }
     if (constraint.kind === "pin") placement.pinned = true;
     if (constraint.kind === "hide") {
       placement.visible = false;
-      if (resolved.anchor.critical) conflicts.push({ code: "critical-hidden", anchorId: resolved.anchor.id, detail: `${resolved.anchor.id} is critical` });
+      if (anchor.critical) conflicts.push({ code: "critical-hidden", anchorId: anchor.id, detail: `${anchor.id} is critical` });
     }
     if (constraint.kind === "keepVisible") placement.visible = true;
     if (constraint.kind === "expectHere") {

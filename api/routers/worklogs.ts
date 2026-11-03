@@ -30,6 +30,7 @@ import { TRASH_DAYS, withDeleteReason } from "../queries/trash";
 import { syncWorklogs } from "../worklogSync";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { t } from "@contracts/i18n";
+import { isPendingId, PENDING_PREFIX } from "@contracts/types";
 import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
 import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
@@ -76,12 +77,6 @@ async function worklogRef(
   return row;
 }
 
-/** Local placeholder id for worklogs queued in the offline outbox. */
-export const PENDING_PREFIX = "pending-";
-
-function isPendingId(remoteId: string): boolean {
-  return remoteId.startsWith(PENDING_PREFIX);
-}
 
 /** Id of a worklog kept only in inkledger: its tracker keeps no time (GitHub). */
 const LOCAL_PREFIX = "local-";

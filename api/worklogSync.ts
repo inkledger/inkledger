@@ -11,7 +11,8 @@ import {
   searchIssues,
   type JiraWorklog,
 } from "./jira/client";
-import { PENDING_PREFIX, rowFromJira, upsertLocal } from "./routers/worklogs";
+import { PENDING_PREFIX } from "@contracts/types";
+import { rowFromJira, upsertLocal } from "./routers/worklogs";
 import { upsertIssue } from "./sync/jiraIssues";
 import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";

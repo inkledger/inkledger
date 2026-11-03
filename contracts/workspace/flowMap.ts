@@ -146,18 +146,7 @@ export function aggregateEvidence(
   areasByAnchor: Readonly<Record<string, string>> = {},
   semanticRevisions: SemanticRevisions = { controls: {}, anchors: {} },
 ): EvidenceSet {
-  const heat = new Map<string, {
-    controlId: string;
-    anchorId: string;
-    semanticRevision: number;
-    activations: number;
-    successes: number;
-    failures: number;
-    exposures: number;
-    activationRate: number;
-    modalities: Record<FlowModality, number>;
-    cells: number[][];
-  }>();
+  const heat = new Map<string, HeatPoint>();
   const flows = new Map<string, FlowTransition>();
   const friction = new Map<string, FrictionPoint>();
   const days = new Set<string>();
