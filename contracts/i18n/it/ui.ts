@@ -51,6 +51,7 @@ export const ui: Shape<typeof en> = {
     notificationsUnseen: "Notifiche, {count} da vedere",
     todosDue: { one: "Lista TODO, 1 per oggi", other: "Lista TODO, {count} per oggi" },
     mainNav: "Navigazione principale",
+    toolsNav: "Strumenti",
     issuesWithNews: { one: "{count} issue con novità", other: "{count} issue con novità" },
     withNews: " con novità",
     forToday: " per oggi",

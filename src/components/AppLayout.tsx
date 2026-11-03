@@ -8,8 +8,8 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import {
   Maximize2,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronsLeft,
+  ChevronsRight,
   Pin,
   Play,
   RefreshCw,
@@ -66,11 +66,10 @@ import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { PageSpinner } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
-import { SwitchLook } from "@/components/ui/switch";
 import {
   ActiveTimerChip,
   ActiveTimerNote,
-  ActiveTimerRailButton,
+  ActiveTimerRailPlayer,
   ActiveTimerQuickControls,
 } from "@/components/TimerControls";
 import { LiveTitle } from "@/components/LiveTitle";
@@ -177,8 +176,10 @@ function RailTip({
 // One row for both widths: the icon keeps its place while the width
 // animates, the label only shows open. Nothing moves on toggling.
 const ROW =
-  "relative flex h-8 w-full shrink-0 items-center gap-3 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "relative flex h-8 w-full shrink-0 items-center gap-3 [@media(max-height:820px)]:h-7 rounded-md pl-[21px] pr-2 text-body-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const ICON = "h-[18px] w-[18px] shrink-0";
+/** The sidebar's quick actions in its foot, the toggle last. */
+const SIDEBAR_QUICK: ReadonlySet<string> = new Set(["shell.theme", "shell.screensaver", "shell.sync", "shell.sidebar"]);
 const labelClass = (collapsed: boolean) => cn("min-w-0 truncate", collapsed && "sr-only");
 
 /** A count beside a row: a number open, a dot on the icon closed. */
@@ -202,6 +203,58 @@ function CountChip({ count, collapsed, title, sr, quiet = false }: { count: numb
     </span>
   );
 }
+
+/** The sidebar's daily destinations, drawn as rows; every other entry is a tile. */
+const DAILY_ROUTES: ReadonlySet<string> = new Set(["/", "/board", "/issues", "/issues/desk", "/timesheet"]);
+
+/**
+ * An entry as a tile: open, its icon over its name (two short lines at most); closed, an icon tile with
+ * its name as a tooltip. Current like a row: the primary's soft tint. A count is a badge in its corner.
+ */
+const NavTile = memo(function NavTile({ to, name, Icon, collapsed, count, countTitle, countSr }: {
+  to: string;
+  name: string;
+  Icon: LucideIcon;
+  collapsed: boolean;
+  count: number | null;
+  countTitle?: string;
+  countSr?: string;
+}) {
+  return (
+    <RailTip collapsed={collapsed} label={name}>
+      <NavLink
+        to={to}
+        aria-label={collapsed ? name : undefined}
+        {...surface("nav", { current: true, edge: false })}
+        {...(routeControlId(to) ? flowControlProps(routeControlId(to)!) : {})}
+        className={cn(
+          "relative flex flex-col items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "aria-[current=page]:bg-primary-soft aria-[current=page]:text-primary-strong",
+          // Closed: a 28 px icon with a finger's 44 px around it on touch screens, its look unchanged.
+          collapsed ? "size-7 coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']" : "min-h-12 gap-1 px-1 py-1.5"
+        )}
+      >
+        <Icon className={collapsed ? "h-4 w-4" : ICON} aria-hidden />
+        {/* Three columns leave room for every name's longest word ("Impostazioni"): it breaks between words,
+            and inside one only as the last resort. */}
+        <span className={collapsed ? "sr-only" : "line-clamp-2 w-full text-center text-2xs font-medium leading-tight [overflow-wrap:anywhere]"}>{name}</span>
+        {count !== null && (
+          <span
+            title={countTitle}
+            {...surface("chip")}
+            className={cn(
+              "absolute rounded-full bg-primary-soft text-2xs font-semibold text-primary-strong tabular",
+              collapsed ? "right-0 top-0 h-2 w-2 bg-primary-strong" : "right-1 top-1 px-1 leading-4"
+            )}
+          >
+            <span className={cn(collapsed && "sr-only")}>{count}</span>
+            {countSr && <span className="sr-only">{countSr}</span>}
+          </span>
+        )}
+      </NavLink>
+    </RailTip>
+  );
+});
 
 /**
  * A section of the menu: drawn again only when its own count or the width
@@ -245,6 +298,54 @@ const NavRow = memo(function NavRow({ to, name, Icon, collapsed, padForPin, coun
   );
 });
 
+/**
+ * The foot's "Now": the timer card (every control, two lines) when a timer is shown, and always the way to
+ * start one, its last line. Its own component: only it follows the timers (the sidebar does not redraw on
+ * every tick). Closed, the ring opens the same card as a player beside the rail.
+ */
+function SidebarNow({ collapsed, timerPlaced, start }: { collapsed: boolean; timerPlaced: boolean; start: React.ReactNode }) {
+  const { timers } = useTimers();
+  const shown = timerPlaced && timers.length > 0;
+  if (!shown && !start) return null;
+  if (collapsed)
+    return (
+      <div className="flex flex-col gap-0.5">
+        {shown && (
+          <FlowControlHost.Provider value="shell.timer.active">
+            <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">
+              <ActiveTimerRailPlayer extra={<ActiveTimerFocusButton />} />
+            </div>
+          </FlowControlHost.Provider>
+        )}
+        {start}
+      </div>
+    );
+  return (
+    <div {...surface("card")} className="grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl border bg-card p-1">
+      {shown ? (
+        <FlowControlHost.Provider value="shell.timer.active">
+          <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active" className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
+            {/* Pause and stop by the time; move, discard and focus by the note. */}
+            <div className="flex min-w-0 items-center gap-0.5">
+              <ActiveTimerChip className="min-w-0 flex-1 border-0 bg-transparent px-2" />
+              <ActiveTimerQuickControls compact part="main" />
+            </div>
+            <div className="flex min-w-0 items-center gap-0.5 border-t pt-0.5">
+              <ActiveTimerNote className="min-w-0 flex-1" />
+              <ActiveTimerQuickControls part="more" />
+              <ActiveTimerFocusButton />
+            </div>
+          </div>
+        </FlowControlHost.Provider>
+      ) : (
+        // A TODO being worked on with no timer: its chip, above the way to start one.
+        <ActiveTimerChip className="min-w-0 border-0 bg-transparent px-2" />
+      )}
+      {start && <div className={cn(shown && "border-t pt-0.5")}>{start}</div>}
+    </div>
+  );
+}
+
 function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const { pathname } = useLocation();
@@ -279,11 +380,61 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const label = labelClass(collapsed);
   const icon = ICON;
   const anchorOrder = (anchorId: string) => navigationPlacements.find(placement => placement.anchorId === anchorId)?.order ?? Number.MAX_SAFE_INTEGER;
-  const accessoryInline = (to: "/pinboard" | "/todos", name: string, Icon: LucideIcon) => {
+  // Every entry in its order (TODO and Pinboard only where the layout puts them in the navigation).
+  const inlineAccessory = (to: string) => {
     const anchorId = to === "/pinboard" ? "shell.pinboard" : "shell.todos";
-    if (!isVisible(anchorId, "shell.navigation") || anchorOrder(anchorId) < anchorOrder("shell.navigation")) return null;
+    return isVisible(anchorId, "shell.navigation") && anchorOrder(anchorId) >= anchorOrder("shell.navigation");
+  };
+  const entries = navItems.flatMap(({ items }) => {
+    const accessories = items.filter(item => item.to === "/pinboard" || item.to === "/todos").sort((a, b) => anchorOrder(a.to === "/pinboard" ? "shell.pinboard" : "shell.todos") - anchorOrder(b.to === "/pinboard" ? "shell.pinboard" : "shell.todos"));
+    return items
+      .map(item => (item.to === "/pinboard" || item.to === "/todos" ? accessories.shift()! : item))
+      .filter(item => (item.to !== "/pinboard" && item.to !== "/todos") || inlineAccessory(item.to));
+  });
+  const daily = entries.filter(item => DAILY_ROUTES.has(item.to));
+  // Every entry stays inside the navigation block: FlowMap measures a click on the block it is drawn in.
+  const tools = entries.filter(item => !DAILY_ROUTES.has(item.to));
+  const renderRow = ({ to, label: name, icon: Icon }: (typeof entries)[number]) => {
     const chip = chipOf(to);
-    return <NavRow key={to} to={to} name={name} Icon={Icon} collapsed={collapsed} padForPin={false} count={chip?.count ?? null} countTitle={chip?.title} countSr={chip?.sr} />;
+    const link = (
+      <NavRow
+        key={to}
+        to={to}
+        name={name}
+        Icon={Icon}
+        collapsed={collapsed}
+        padForPin={to === "/board" && !collapsed}
+        count={chip?.count ?? null}
+        countTitle={chip?.title}
+        countSr={chip?.sr}
+        countQuiet={chip?.quiet}
+        // The Desk lives under Issues but is its own entry: Issues is not current there.
+        end={to === "/" || (to === "/issues" && pathname.startsWith("/issues/desk"))}
+      />
+    );
+    if (to === "/issues/desk") return <DeskDropTarget key={to}>{link}</DeskDropTarget>;
+    if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page" || !isVisible("shell.pinboard", "shell.navigation")) return link;
+    // The pinboard, one tap away from any page: a sibling of the link, never inside it.
+    const panelOpen = pathname === "/board" && pinboard !== "closed";
+    return (
+      <div key={to} className="relative">
+        {link}
+        <button
+          type="button"
+          aria-label={t("ui.layout.openPinboard")}
+          title={t("ui.layout.openPinboardTitle")}
+          aria-pressed={panelOpen}
+          onClick={() => togglePinboard(pathname, true)}
+          {...flowControlProps("shell.pinboard.toggle")}
+          className={cn(
+            "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
+            panelOpen && "text-primary-strong"
+          )}
+        >
+          <Pin className="h-3.5 w-3.5 -rotate-12" aria-hidden />
+        </button>
+      </div>
+    );
   };
   const navigation = (
     <nav
@@ -293,60 +444,25 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       // the sidebar's own gap-3 apart from them (the area's rows sit at gap-0.5).
       className={cn("flex shrink-0 flex-col gap-1.5", navigationPlacements[0]?.anchorId !== "shell.navigation" && "mt-2.5")}
     >
-      {navItems.map(({ group, title, items }) => {
-        const accessories = items.filter(item => item.to === "/pinboard" || item.to === "/todos").sort((a, b) => anchorOrder(a.to === "/pinboard" ? "shell.pinboard" : "shell.todos") - anchorOrder(b.to === "/pinboard" ? "shell.pinboard" : "shell.todos"));
-        const links = items.map(item => item.to === "/pinboard" || item.to === "/todos" ? accessories.shift()! : item).map(({ to, label: name, icon: Icon }) => {
-          if (to === "/pinboard" || to === "/todos") return accessoryInline(to, name, Icon);
-          const chip = chipOf(to);
-          const link = (
-            <NavRow
-              key={to}
-              to={to}
-              name={name}
-              Icon={Icon}
-              collapsed={collapsed}
-              padForPin={to === "/board" && !collapsed}
-              count={chip?.count ?? null}
-              countTitle={chip?.title}
-              countSr={chip?.sr}
-              countQuiet={chip?.quiet}
-              // The Desk lives under Issues but is its own entry: Issues is not current there.
-              end={to === "/" || (to === "/issues" && pathname.startsWith("/issues/desk"))}
-            />
-          );
-          if (to === "/issues/desk") return <DeskDropTarget key={to}>{link}</DeskDropTarget>;
-          if (to !== "/board" || collapsed || pinTarget === null || pinTarget === "page" || !isVisible("shell.pinboard", "shell.navigation")) return link;
-          // The pinboard, one tap away from any page: a sibling of the
-          // link, never inside it.
-          const panelOpen = pathname === "/board" && pinboard !== "closed";
-          return (
-            <div key={to} className="relative">
-              {link}
-              <button
-                type="button"
-                aria-label={t("ui.layout.openPinboard")}
-                title={t("ui.layout.openPinboardTitle")}
-                aria-pressed={panelOpen}
-                onClick={() => togglePinboard(pathname, true)}
-                {...flowControlProps("shell.pinboard.toggle")}
-                className={cn(
-                  "absolute right-1.5 top-1/2 flex size-target -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-background hover:text-primary-strong focus-visible:ring-2 focus-visible:ring-ring",
-                  panelOpen && "text-primary-strong"
-                )}
-              >
-                <Pin className="h-3.5 w-3.5 -rotate-12" aria-hidden />
-              </button>
-            </div>
-          );
-        });
-        // No titles: a thin line between the sections, open or closed.
-        return (
-          <div key={group} role="group" aria-label={title} className="flex shrink-0 flex-col gap-0.5">
-            <div aria-hidden className="mx-2 mb-1 border-t" />
-            {links}
+      {/* Where the day is spent, as rows (read at a glance); the rest as tiles: open a 3-column grid with
+          icon and name (whole names, Italian included), closed a 2-column block of icons, the same order. */}
+      {daily.length > 0 && (
+        <div role="group" aria-label={navItems[0]?.title} className="flex shrink-0 flex-col gap-0.5">
+          <div aria-hidden className="mx-2 mb-1 border-t" />
+          {daily.map(renderRow)}
+        </div>
+      )}
+      {tools.length > 0 && (
+        <div role="group" aria-label={t("ui.layout.toolsNav")} className="shrink-0">
+          <div aria-hidden className="mx-2 mb-2 border-t" />
+          <div className={cn("grid", collapsed ? "mx-auto w-fit grid-cols-2 gap-0.5" : "grid-cols-3 gap-1")}>
+            {tools.map(({ to, label: name, icon: Icon }) => {
+              const chip = chipOf(to);
+              return <NavTile key={to} to={to} name={name} Icon={Icon} collapsed={collapsed} count={chip?.count ?? null} countTitle={chip?.title} countSr={chip?.sr} />;
+            })}
           </div>
-        );
-      })}
+        </div>
+      )}
     </nav>
   );
   const renderShellAnchor = (anchorId: string) => {
@@ -390,40 +506,56 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     return content ? <div className="contents" data-workspace-anchor={anchorId}>{content}</div> : null;
   };
   const actionPlacements = placementsIn("shell.actions");
-  const quickStartOrder = workspace.placements.find(placement => placement.anchorId === "shell.quick-start")?.order ?? Number.MAX_SAFE_INTEGER;
+  const placedRow = (anchorId: string) => actionPlacements.some(placement => placement.anchorId === anchorId);
+  /**
+   * Theme, screensaver and sync as quick tiles in the foot, with the sidebar's toggle last: one row open, a
+   * 2×2 block closed. Same order and same place in both states; the toggle is always the last control.
+   */
+  const quickPlacements = actionPlacements.filter(placement => SIDEBAR_QUICK.has(placement.anchorId));
+  const QUICK = cn(
+    "relative flex items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+    // A finger's 44 px on touch screens, the look unchanged (as Button's icon sizes).
+    "coarse:after:absolute coarse:after:left-1/2 coarse:after:top-1/2 coarse:after:size-touch coarse:after:-translate-x-1/2 coarse:after:-translate-y-1/2 coarse:after:content-['']",
+    collapsed ? "size-7" : "size-8"
+  );
+  const quick = (anchorId: string) => {
+    let content: React.ReactNode = null;
+    if (anchorId === "shell.theme") content = (
+      <button type="button" role="switch" aria-checked={resolvedTheme === "dark"} aria-label={t("ui.layout.darkTheme")} title={t("ui.layout.darkTheme")} onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} {...flowControlProps("shell.theme.toggle")} className={cn(QUICK, resolvedTheme === "dark" && "text-primary-strong")}>
+        <Moon className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+      </button>
+    );
+    else if (anchorId === "shell.screensaver") content = (
+      <button type="button" onClick={() => screensaver.set(true)} {...flowControlProps("shell.screensaver.open")} aria-label={t("ui.layout.screensaver")} title={t("ui.layout.screensaverTip")} className={QUICK}>
+        <Sparkles className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+      </button>
+    );
+    else if (anchorId === "shell.sync") content = (
+      <button type="button" onClick={() => sync.mutate()} {...flowControlProps("shell.sync.start")} disabled={sync.isPending} aria-label={t("ui.layout.syncJira", { provider })} title={[sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider }), syncError ?? syncHint].filter(Boolean).join(" · ")} className={QUICK}>
+        <RefreshCw className={cn("h-4 w-4", sync.isPending && "motion-safe:animate-spin")} aria-hidden />
+        {syncError && !sync.isPending && <span aria-hidden className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning" />}
+      </button>
+    );
+    else if (anchorId === "shell.sidebar") content = (
+      <button type="button" onClick={sidebar.toggle} {...flowControlProps("shell.sidebar.toggle")} aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")} title={collapsed ? t("ui.layout.expandTip") : `${t("ui.layout.collapse")} ([)`} className={QUICK}>
+        {collapsed ? <ChevronsRight className="h-4 w-4" aria-hidden /> : <ChevronsLeft className="h-4 w-4" aria-hidden />}
+      </button>
+    );
+    return content ? <div className="contents" key={anchorId} data-workspace-anchor={anchorId}>{content}</div> : null;
+  };
+  const services = quickPlacements.filter(placement => placement.anchorId !== "shell.sidebar").map(placement => quick(placement.anchorId));
+  const toggleTile = placedRow("shell.sidebar") ? quick("shell.sidebar") : null;
   const renderActionAnchor = (anchorId: string) => {
     if (anchorId === "shell.screensaver") return renderShellAnchor(anchorId);
     let content: React.ReactNode = null;
-    if (anchorId === "shell.theme") content = (
-      <RailTip collapsed={collapsed} label={t("ui.layout.darkTheme")}>
-        <button type="button" role="switch" aria-checked={resolvedTheme === "dark"} aria-label={t("ui.layout.darkTheme")} onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} {...flowControlProps("shell.theme.toggle")} className={row}>
-          <Moon className={icon} strokeWidth={1.75} aria-hidden /><span className={label} aria-hidden>{t("ui.layout.darkTheme")}</span>{!collapsed && <SwitchLook className="ml-auto" checked={resolvedTheme === "dark"} />}
-        </button>
-      </RailTip>
-    );
-    else if (anchorId === "shell.quick-start") content = (
+    if (anchorId === "shell.quick-start") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.startTimerTip")}>
         <button type="button" onClick={() => quickStart.set(true)} {...flowControlProps("shell.quickStart.open")} aria-label={collapsed ? t("ui.layout.startTimer") : undefined} className={cn(row, "text-foreground")}>
           <Play className={icon} aria-hidden /><span className={label}>{t("ui.layout.startTimer")}</span>{!collapsed && <Kbd className="ml-auto font-normal text-muted-foreground">T</Kbd>}
         </button>
       </RailTip>
     );
-    else if (anchorId === "shell.sync") content = (
-      <RailTip collapsed={collapsed} label={syncHint ? `${t("ui.layout.syncJira", { provider })} · ${syncHint}` : t("ui.layout.syncJira", { provider })}>
-        <button type="button" onClick={() => sync.mutate()} {...flowControlProps("shell.sync.start")} disabled={sync.isPending} aria-label={collapsed ? t("ui.layout.syncJira", { provider }) : undefined} title={collapsed ? undefined : (syncError ?? undefined)} className={cn(row, "disabled:opacity-60")}>
-          <RefreshCw className={cn(icon, sync.isPending && "motion-safe:animate-spin")} aria-hidden /><span className={label}>{sync.isPending ? t("ui.layout.syncing") : t("ui.layout.syncJira", { provider })}</span>
-          {!collapsed && syncHint && !sync.isPending && <span className={cn("ml-auto min-w-0 truncate text-2xs font-normal", syncError ? "text-warning" : "text-muted-foreground")}>{syncHint}</span>}
-        </button>
-      </RailTip>
-    );
     else if (anchorId === "shell.account") content = <AccountMenu collapsed={collapsed} side={collapsed ? "right" : "top"} settings controls={{ open: flowControlProps("shell.account.open"), settings: flowControlProps("shell.account.settings"), logout: flowControlProps("shell.account.logout") }} />;
-    else if (anchorId === "shell.sidebar") content = (
-      <RailTip collapsed={collapsed} label={t("ui.layout.expandTip")}>
-        <button type="button" onClick={sidebar.toggle} {...flowControlProps("shell.sidebar.toggle")} aria-label={collapsed ? t("ui.layout.expand") : t("ui.layout.collapse")} className={cn(row, "font-normal")}>
-          {collapsed ? <PanelLeftOpen className={icon} aria-hidden /> : <PanelLeftClose className={icon} aria-hidden />}<span className={label}>{t("ui.layout.collapseShort")}</span>{!collapsed && <Kbd className="ml-auto">[</Kbd>}
-        </button>
-      </RailTip>
-    );
     return content ? <div className="contents" data-workspace-anchor={anchorId}>{content}</div> : null;
   };
 
@@ -431,7 +563,8 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     <div
       className={cn(
         // A screen too short even for the fixed rows scrolls the whole column: no row is ever cut.
-        "flex h-full flex-col gap-3 overflow-y-auto overscroll-contain py-4 [scrollbar-width:thin]",
+        // A short laptop (≤ 820 px high): tighter rows and gaps, so the column still fits.
+        "flex h-full flex-col gap-3 overflow-y-auto overscroll-contain py-4 [scrollbar-width:thin] [@media(max-height:820px)]:gap-2 [@media(max-height:820px)]:py-3",
         // Room for the shadows of what it holds (the Shadow mod's reach), the same open and closed.
         "pl-[max(0.5rem,var(--surface-reach-l,0px))] pr-[max(0.5rem,var(--surface-reach-r,0px))]"
       )}
@@ -451,28 +584,25 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       ) : (
         <ModuleSlot id="sidebar-footer" />
       )}
-      <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.actions">
-        {actionPlacements.filter(placement => placement.order < quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
-        {isVisible("shell.timer.active", "shell.timer") && <FlowControlHost.Provider value="shell.timer.active"><div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">{collapsed ? (
-          <div className="flex flex-col items-center gap-0.5">
-            <ActiveTimerRailButton />
-            <ActiveTimerQuickControls compact />
-          </div>
-        ) : (
-          // One track no wider than the sidebar: the chip shrinks, the note never sticks out.
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
-            <div className="flex min-w-0 items-center gap-1">
-              <ActiveTimerChip className="min-w-0 flex-1" />
-              <ActiveTimerQuickControls />
+      {/* The foot, the same order open and closed: "Now" (the timer, or Start timer when none runs), then
+          under a hairline the account, then the quick tiles with the sidebar's toggle last. */}
+      <div className="flex shrink-0 flex-col gap-2" data-workspace-area="shell.actions">
+        <SidebarNow
+          collapsed={collapsed}
+          timerPlaced={isVisible("shell.timer.active", "shell.timer")}
+          start={placedRow("shell.quick-start") ? renderActionAnchor("shell.quick-start") : null}
+        />
+        <div className="grid gap-1 border-t pt-2">
+          {placedRow("shell.account") && renderActionAnchor("shell.account")}
+          {(services.length > 0 || toggleTile) && (
+            // Theme, screensaver, sync, then the toggle: one row open; closed a 2×2 block, the toggle last.
+            <div className={cn(collapsed ? "mx-auto grid grid-cols-2 gap-0.5" : "flex items-center gap-0.5 pl-1.5")}>
+              {services}
+              {!collapsed && <span className="flex-1" />}
+              {toggleTile}
             </div>
-            {/* Focus beside the note: the chip keeps room for its key and time. */}
-            <div className="flex min-w-0 items-center gap-1">
-              <ActiveTimerNote className="min-w-0 flex-1" />
-              <ActiveTimerFocusButton />
-            </div>
-          </div>
-        )}</div></FlowControlHost.Provider>}
-        {actionPlacements.filter(placement => placement.order >= quickStartOrder).map(placement => <div className="contents" key={placement.anchorId}>{renderActionAnchor(placement.anchorId)}</div>)}
+          )}
+        </div>
       </div>
       {placementsIn("shell.overlays").length > 0 && <div className="flex shrink-0 flex-col gap-0.5" data-workspace-area="shell.overlays">
         {placementsIn("shell.overlays").map(placement => <div className="contents" key={placement.anchorId}>{renderShellAnchor(placement.anchorId)}</div>)}

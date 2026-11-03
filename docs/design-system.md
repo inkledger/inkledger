@@ -231,6 +231,14 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
   - Overview pages show a bounded amount: a rail of tiles (one row), a board column that fades towards its full page, a list's first rows with a way to the page that holds them all.
   - Sections side by side are a bento row: one height for the row (the taller section's, or a floor), the other section fills it (`group-data-[fill]` on the Dashboard's row), and the row's hairline is the row's own, never a section's in mid-air.
   - Detail that is not looked for first is behind `Tabs` or a `Disclosure`, not under everything else.
+- **The sidebar never scrolls and is the same open and closed.**
+  - From top to bottom: brand (always visible), search, notifications, the sections, favorites (the only part that shrinks), then the foot.
+  - Sections: where the day is spent (Dashboard, Board, Issues, Desk, Timesheet) are rows; every other entry is a tile, icon over its whole name, 3 columns open and 2 closed, in the same order. Every entry stays inside the navigation block (FlowMap measures a click on the block it is drawn in).
+  - Icon-only tiles are 28–32 px with a 44 px touch area (`coarse:after:size-touch`), a tooltip and an accessible name.
+  - Foot: "Now" (the timer card, with Start timer always its last line), a hairline, the account, then the quick tiles (theme, screensaver, sync) with the sidebar's toggle last.
+  - Open, the timer card has every control on two lines (pause and stop by the time; move, discard and focus by the note). Closed, the ring opens a small player beside the rail with the same lines.
+  - Open, the quick tiles are one row; closed, a 2×2 block. No feature leaves the sidebar to save room, and no control is shown on hover only.
+  - Checked at 700–1000 px high, open and closed.
 - **Horizontal scroll only inside a declared scroller** (a table, the Board). The page itself never scrolls sideways, at 320 px included.
 - **Phones.**
   - The tab bar is Home, Board, ⏱, Issues and More, and `--bottom-nav-h` reserves its space.

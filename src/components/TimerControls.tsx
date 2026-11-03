@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
@@ -316,14 +317,17 @@ export function ActiveTimerChip({ className }: { className?: string }) {
  * stop asks to log its time as everywhere. Held by another device, nothing
  * here (its issue's page offers the take-over).
  */
-export function ActiveTimerQuickControls({ compact = false }: { compact?: boolean }) {
+/** Which of the controls: all, the main two (pause, stop) or the others (move, discard). */
+export type QuickControlsPart = "all" | "main" | "more";
+
+export function ActiveTimerQuickControls({ compact = false, part = "all" }: { compact?: boolean; part?: QuickControlsPart }) {
   const { timers } = useTimers();
   const shown = timers.find(t => t.state === "running") ?? timers[0];
   if (!shown) return null;
-  return <QuickControls key={issueId(shown)} issueKey={shown.issueKey} connectionId={shown.connectionId} compact={compact} />;
+  return <QuickControls key={issueId(shown)} issueKey={shown.issueKey} connectionId={shown.connectionId} compact={compact} part={part} />;
 }
 
-function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; connectionId: number; compact: boolean }) {
+function QuickControls({ issueKey, connectionId, compact, part }: { issueKey: string; connectionId: number; compact: boolean; part: QuickControlsPart }) {
   // Only what it draws: reading `fetchedAt` would re-render it on every poll.
   const { running, pending, heldElsewhere, pause, start, stop, move, discard } = useTimerActions(issueKey, connectionId);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -331,8 +335,11 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
   const stopTelemetry = useFlowControlProps("timer.stop");
   if (heldElsewhere) return null;
   const size = compact ? "h-7 w-7" : "h-8 w-8";
+  const main = part !== "more";
+  const more = part !== "main";
   return (
     <div className="flex shrink-0 items-center">
+      {main && <>
       <Button
         variant="ghost"
         size="icon-sm"
@@ -357,8 +364,9 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
       >
         <Square className="h-4 w-4" />
       </Button>
+      </>}
       {/* Started on the wrong issue: moved with its count (room for it only open). */}
-      {!compact && (
+      {more && !compact && (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -371,7 +379,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
           <MoveRight className="h-4 w-4" />
         </Button>
       )}
-      <Button
+      {more && <Button
         variant="ghost"
         size="icon-sm"
         className={size}
@@ -381,7 +389,7 @@ function QuickControls({ issueKey, connectionId, compact }: { issueKey: string; 
         onClick={() => setConfirmingDiscard(true)}
       >
         <X className="h-4 w-4" />
-      </Button>
+      </Button>}
       {confirmingDiscard && (
         <DiscardTimerDialog
           issueKey={issueKey}
@@ -452,38 +460,45 @@ export function TimerRing({
   );
 }
 
-/** Collapsed-sidebar version: ring + short elapsed time, links to the tracked issue. */
-export function ActiveTimerRailButton() {
+/**
+ * The closed sidebar's timer: its ring and time, and on a click a small player beside the rail with every
+ * control of the open sidebar's card (pause, stop, move, discard), its note and what `extra` adds (focus).
+ * The same controls in both states, never squeezed into a 76 px column.
+ */
+export function ActiveTimerRailPlayer({ extra }: { extra?: React.ReactNode }) {
   const { timers, fetchedAt } = useTimers();
   const timer = timers.find(t => t.state === "running") ?? timers[0];
-  const elapsed = useElapsed(
-    timer?.state ?? "paused",
-    timer?.elapsedSeconds ?? 0,
-    fetchedAt
-  );
+  const elapsed = useElapsed(timer?.state ?? "paused", timer?.elapsedSeconds ?? 0, fetchedAt);
   if (!timer) return null;
   const running = timer.state === "running";
   const hms = formatHMS(elapsed);
-  const label = t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", {
-    key: timer.issueKey,
-    time: hms,
-  });
+  const label = t(running ? "ui.timer.activeOnLabel" : "ui.timer.pausedOnLabel", { key: timer.issueKey, time: hms });
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Link
-          to={issuePath({ key: timer.issueKey, connectionId: timer.connectionId })}
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
           aria-label={label}
+          title={label}
           {...surface("control")}
-          className="mx-auto flex w-12 flex-col items-center gap-1 rounded-md border bg-background py-1.5 transition-colors hover:bg-accent"
+          className="mx-auto flex w-12 flex-col items-center gap-1 rounded-md border bg-background py-1.5 outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
         >
           <TimerRing running={running} />
-          <span className="text-2xs font-medium text-muted-foreground tabular">
-            {hms.slice(0, -3)}
-          </span>
-        </Link>
-      </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
+          <span className="text-2xs font-medium text-muted-foreground tabular">{hms.slice(0, -3)}</span>
+        </button>
+      </PopoverTrigger>
+      {/* The open sidebar's card, the same lines: pause and stop by the time, move and discard by the note. */}
+      <PopoverContent side="right" align="end" className="grid w-72 grid-cols-[minmax(0,1fr)] gap-0.5 p-1">
+        <div className="flex min-w-0 items-center gap-0.5">
+          <ActiveTimerChip className="min-w-0 flex-1 border-0 bg-transparent px-2" />
+          <ActiveTimerQuickControls compact part="main" />
+        </div>
+        <div className="flex min-w-0 items-center gap-0.5 border-t pt-0.5">
+          <ActiveTimerNote className="min-w-0 flex-1" />
+          <ActiveTimerQuickControls part="more" />
+          {extra}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

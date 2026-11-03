@@ -50,6 +50,7 @@ export const ui = {
     notificationsUnseen: "Notifications, {count} to review",
     todosDue: { one: "TODO list, 1 for today", other: "TODO list, {count} for today" },
     mainNav: "Main navigation",
+    toolsNav: "Tools",
     issuesWithNews: { one: "{count} issue with news", other: "{count} issues with news" },
     withNews: " with news",
     forToday: " for today",

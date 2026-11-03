@@ -683,7 +683,7 @@ test("settings: old Italian section URLs still land on the renamed ones", () =>
     await page.waitForURL(u => u.pathname === "/settings/schedule");
   }));
 
-test("sidebar: the same rows open and closed (nothing shifts), no section titles, the sections never scroll", () =>
+test("sidebar: the same rows open and closed (nothing shifts), the other sections as tiles in the same order, never scrolling", () =>
   withApp({}, async ({ page, base }) => {
     // A section folded in the old menu no longer hides anything.
     await page.addInitScript(() => localStorage.setItem("ikl-sidebar-sections", JSON.stringify(["analysis"])));
@@ -692,29 +692,41 @@ test("sidebar: the same rows open and closed (nothing shifts), no section titles
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     await nav.getByRole("link", { name: /Reports/ }).waitFor();
     assert.equal(await nav.locator("button[aria-expanded]").count(), 0, "no folding titles");
+    // The daily rows: each icon where it was, each row as tall.
     const rows = () =>
       page.evaluate(() =>
-        [...document.querySelectorAll("aside nav a, aside nav + * ~ * button:not([aria-haspopup])")].flatMap(a => {
+        [...document.querySelectorAll("aside nav [role=group]:first-child a")].flatMap(a => {
           const svg = a.querySelector("svg");
           if (!svg) return [];
           const r = svg.getBoundingClientRect();
           return [{ x: Math.round(r.left + r.width / 2), y: Math.round(r.top), h: Math.round(a.getBoundingClientRect().height) }];
         })
       );
+    // The other sections are tiles: the same entries in the same order, open (4 columns) and closed (2).
+    const tiles = () =>
+      page.evaluate(() => {
+        const links = [...document.querySelectorAll("aside nav [role=group]:last-child a")];
+        return { names: links.map(a => a.getAttribute("aria-label") || a.textContent?.trim()), columns: new Set(links.map(a => Math.round(a.getBoundingClientRect().left))).size };
+      });
     const open = await rows();
+    const openTiles = await tiles();
     const navBox = await nav.evaluate(n => ({ scroll: n.scrollHeight - n.clientHeight, overflow: getComputedStyle(n).overflowY }));
     assert.equal(navBox.overflow, "visible", "the sections don't scroll");
     await page.getByRole("button", { name: "Collapse sidebar" }).click();
     await page.getByRole("button", { name: "Expand sidebar" }).waitFor();
     await page.waitForTimeout(400);
     const closed = await rows();
-    assert.ok(open.length > 5);
+    const closedTiles = await tiles();
+    assert.ok(open.length >= 5);
     assert.deepEqual(
       closed.map(r => [r.x, r.y, r.h]),
       open.map(r => [r.x, r.y, r.h]),
-      "every icon at the same place, every row as tall"
+      "every row's icon at the same place, every row as tall"
     );
     assert.ok(open.filter(r => r.h > 0).every(r => r.h <= 40), "compact rows");
+    assert.ok(openTiles.names.length >= 6, "the other sections are tiles");
+    assert.deepEqual(closedTiles.names, openTiles.names, "the same tiles in the same order");
+    assert.deepEqual([openTiles.columns, closedTiles.columns], [3, 2], "three columns open, two closed");
   }));
 
 test("settings on a phone: the menu first, then the category with a way back", () =>
