@@ -618,6 +618,9 @@ export const pages = {
     scopeTrackers: "One tracker",
     cantGo:
       "{key} can’t go to {column}: its tracker offers no way there from its status.",
+    unmappedShow: "Show “In no column” ({count})",
+    unmappedHide: "Fold “In no column”",
+    mapStatuses: "Map statuses",
     unmapped: "In no column",
     chooseTitle: "Move {key} to…",
     chooseHint:

@@ -626,6 +626,9 @@ export const pages: Shape<typeof en> = {
     scopeTrackers: "Un solo tracker",
     cantGo:
       "{key} non può andare in {column}: dal suo stato il tracker non offre una strada fin lì.",
+    unmappedShow: "Mostra “In nessuna colonna” ({count})",
+    unmappedHide: "Ripiega “In nessuna colonna”",
+    mapStatuses: "Mappa gli stati",
     unmapped: "In nessuna colonna",
     chooseTitle: "Sposta {key} in…",
     chooseHint:

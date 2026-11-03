@@ -1,3 +1,4 @@
+import { CollapsedColumn, ColumnHeader } from "@/components/app/Columns";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { readStored, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
@@ -616,26 +617,72 @@ export default function Board() {
                 <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.laneEmpty", { name: lane.label })} className="flex-1" />
               )}
               {lane.columns.map(renderColumn)}
-              {mode === "custom" && unmapped.length > 0 && (
-                <section aria-label={t("pages.board.unmapped")} className="flex min-w-[16rem] flex-1 basis-0 flex-col rounded-xl opacity-80">
-                  <div {...surface("glass")} className="mb-2 rounded-lg border border-dashed px-2.5 py-1.5 text-body-sm font-medium text-muted-foreground">
-                    {t("pages.board.unmapped")} <span className="tabular">{unmapped.length}</span>
-                  </div>
-                  <div className="grid content-start gap-2">
-                    {unmapped.map(i => (
-                      <BoardCard
-                        key={issueId(i)}
-                        issue={i}
-                        columns={allColumns}
-                        onMove={columnId => void moveTo(i, columnId)}
-                        onDragStart={() => startDrag(i)}
-                        onDragEnd={() => setDragging(null)}
-                        onPrefetch={() => prefetch(i)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+              {mode === "custom" && (() => {
+                // The cards no column takes, of this lane only. Folded by default: what helps is mapping
+                // their status, not reading them; opened, by status, with the way to map them.
+                const rows = lane.connectionId === null ? unmapped : unmapped.filter(r => r.connectionId === lane.connectionId);
+                if (rows.length === 0) return null;
+                const open = collapsed.has("open-unmapped");
+                if (!open)
+                  return (
+                    <CollapsedColumn
+                      title={t("pages.board.unmapped")}
+                      count={rows.length}
+                      label={t("pages.board.unmappedShow", { count: rows.length })}
+                      onOpen={() => toggleCollapsed("open-unmapped")}
+                      className="snap-start border-dashed text-muted-foreground sm:w-11"
+                    />
+                  );
+                const byStatus = new Map<string, Row[]>();
+                for (const r of rows) byStatus.set(r.status, [...(byStatus.get(r.status) ?? []), r]);
+                return (
+                  // surface: none — a column of the board (its head and cards carry the surfaces), as the others.
+                  <section aria-label={t("pages.board.unmapped")} className="flex min-h-0 min-w-[16rem] flex-1 basis-0 snap-start flex-col">
+                    <ColumnHeader
+                      className="mb-2 border-dashed text-muted-foreground"
+                      title={t("pages.board.unmapped")}
+                      count={rows.length}
+                      actions={
+                        <>
+                          <Link to="/settings/buckets" className="inline-flex min-h-target items-center rounded px-1.5 text-caption font-medium text-primary-strong underline-offset-4 hover:underline">
+                            {t("pages.board.mapStatuses")}
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapsed("open-unmapped")}
+                            aria-expanded
+                            aria-label={t("pages.board.unmappedHide")}
+                            title={t("pages.board.unmappedHide")}
+                            className="inline-flex size-target items-center justify-center rounded text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <ChevronsRightLeft className="h-4 w-4" />
+                          </button>
+                        </>
+                      }
+                    />
+                    <div className="cast-room-x cast-room-y grid min-h-0 content-start gap-3 overflow-y-auto [--room-x:0.5rem]">
+                      {[...byStatus].map(([status, cards]) => (
+                        <section key={status} aria-label={`${status} · ${cards.length}`} className="grid gap-2">
+                          <h3 className="text-caption font-medium text-muted-foreground">
+                            {status} <span className="tabular">{cards.length}</span>
+                          </h3>
+                          {cards.map(i => (
+                            <BoardCard
+                              key={issueId(i)}
+                              issue={i}
+                              columns={allColumns}
+                              onMove={columnId => void moveTo(i, columnId)}
+                              onDragStart={() => startDrag(i)}
+                              onDragEnd={() => setDragging(null)}
+                              onPrefetch={() => prefetch(i)}
+                            />
+                          ))}
+                        </section>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
             </div>
           </div>
         ))}

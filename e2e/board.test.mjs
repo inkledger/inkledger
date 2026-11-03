@@ -256,8 +256,11 @@ test("custom columns made in Settings → Buckets, each tracker's statuses mappe
     await waiting.getByText("Login fails on Safari").waitFor();
     await waiting.getByText("Test task number 1", { exact: true }).waitFor();
     await page.getByRole("region", { name: "Finished" }).getByText("Old crash").waitFor();
-    // "In corso" is in no column: said apart.
-    await page.getByRole("region", { name: "In no column" }).getByText("Test task number 2", { exact: true }).waitFor();
+    // "In corso" is in no column: said apart, folded (what helps is mapping it), opened by its status.
+    await page.getByRole("button", { name: /^Show “In no column” \(\d+\)$/ }).click();
+    const unmapped = page.getByRole("region", { name: "In no column" });
+    await unmapped.getByRole("region", { name: /^In corso · \d+$/ }).getByText("Test task number 2", { exact: true }).waitFor();
+    await unmapped.getByRole("link", { name: "Map statuses" }).waitFor();
     // GitHub's open issue can go to Finished (closed), Jira's To Do can't (only "In corso", in no column).
     const gh = page.locator("[draggable=true]").filter({ hasText: "Login fails on Safari" });
     await gh.hover();
