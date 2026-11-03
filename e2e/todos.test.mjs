@@ -165,7 +165,8 @@ test("from a comment, a private note, a card's menu: each TODO tied to it, and i
       await page.keyboard.press("Enter");
       await page.getByText("TODO added: Can you check the logs?").waitFor();
       await page.getByRole("button", { name: "Make a TODO from this comment (1 TODO already)" }).waitFor();
-      // From the private note.
+      // From the private note (a tab of "Your work").
+      await page.getByRole("tab", { name: "Private notes" }).click();
       await page.getByRole("button", { name: "Make a TODO from this note" }).click();
       await page.getByRole("dialog").getByRole("radio", { name: "Tomorrow" }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Add TODO" }).click();
@@ -176,7 +177,8 @@ test("from a comment, a private note, a card's menu: each TODO tied to it, and i
         ["Try the staging DB first", "DEMO-101", null, true],
       ]);
       assert.equal(rows[0].comment_excerpt, "Can you check the logs?");
-      // The issue's own TODO list shows both.
+      // The issue's own TODO list shows both (the TODO tab of "Your work").
+      await page.getByRole("tab", { name: "TODO" }).click();
       const issueList = page.getByRole("list", { name: "This issue's TODOs" });
       await issueList.getByRole("listitem", { name: "Can you check the logs?" }).waitFor();
       await issueList.getByRole("listitem", { name: "Try the staging DB first" }).waitFor();

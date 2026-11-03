@@ -1,3 +1,7 @@
+import { createPortal } from "react-dom";
+import { Plus } from "lucide-react";
+import { surface } from "@/components/app/surface";
+import { TimerControls } from "@/components/TimerControls";
 import { useStartTimer } from "@/hooks/useStartTimer";
 import { useRef, useState, type ReactNode } from "react";
 import type { DeskPane } from "@contracts/desk";
@@ -19,7 +23,6 @@ import { IssueFields } from "@/components/issue/IssueFields";
 import { IssueTimeCard } from "@/components/issue/IssueTimeCard";
 import { IssueWorklogs } from "@/components/issue/IssueWorklogs";
 import { IssueAttachedSections, IssueTextSections } from "@/components/issue/IssueTextSections";
-import { descriptionSnippet } from "@/components/issue/issueFormat";
 import { usePaneSize, type PaneSize } from "@/components/issue/paneSize";
 import { useIssueData, type Issue, type IssueData } from "@/components/issue/useIssueData";
 import { useIssueHotkeys } from "@/components/issue/useIssueHotkeys";
@@ -111,7 +114,7 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
   useHashFlash();
   const body = useBody({ issueKey: key, connectionId, variant: "page", markSeen: true, hotkeys: true });
   const { data, act } = body;
-  const { issue, description, ownConnection } = data;
+  const { issue } = data;
   // To the Desk: the grip by the title (dragged to an edge), the Layout button, Alt+Shift+arrows, a long press on a phone.
   const [sendOpen, setSendOpen] = useState(false);
   const onConnection = issue.data?.connectionId ?? connectionId;
@@ -135,18 +138,9 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
     );
 
   const i = issue.data;
-  // Fixed header: who and where at a glance, plus the start of the
-  // description (same cached query as the Descrizione section).
-  const headerLine = [
-    i.key,
-    i.status,
-    !i.assigneeId
-      ? t("pages.issueDetail.unassigned")
-      : i.assigneeId === ownConnection?.remoteAccountId
-        ? t("pages.issueDetail.assignedToYou")
-        : (i.assigneeName ?? null),
-    descriptionSnippet(description.data?.text),
-  ]
+  // Fixed header: what the issue is (key, type, project). Its status and assignee are in its fields and
+  // its text in Description, each once (docs/design-system.md §7.1, one datum one place).
+  const headerLine = [i.key, i.issueType, i.projectName]
     .filter(Boolean)
     .join(" · ");
 
@@ -178,6 +172,26 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
         }
       />
       <Columns issue={i} body={body} scrollKeys={{ columns: "issue-page", left: "issue-left", right: "issue-right" }} />
+      {/* A phone: the issue's two daily actions at the bottom, above the tab bar, where the thumb is
+          (Hoober; Material's bottom app bar). The page keeps room for it. */}
+      <div aria-hidden className="h-16 lg:hidden" />
+      {createPortal(
+      // On the body: the page's entry animation (a transform) would otherwise hold it in the page.
+      <div
+        data-chrome="bottom"
+        role="group"
+        aria-label={t("pages.issueDetail.actionsBar")}
+        {...surface("ground")}
+        className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-h,0px)+var(--dock-h,0px))] z-20 flex items-center justify-between gap-2 border-t bg-card px-4 py-2 lg:hidden"
+      >
+        <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+        <Button onClick={body.openLog}>
+          <Plus className="h-4 w-4" />
+          {t("pages.issueDetail.logTime")}
+        </Button>
+      </div>,
+      document.body
+      )}
       {body.logDialog}
     </div>
   );

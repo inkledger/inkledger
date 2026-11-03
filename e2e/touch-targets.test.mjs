@@ -23,7 +23,17 @@ async function probe(page, min) {
       // Only what is on screen and uncovered at its centre (a control behind a sheet is not tappable now).
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      if (cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) continue;
+      // Only controls wholly in view: on screen and inside the box of every ancestor that clips (a list
+      // scrolled to its edge cuts a row in half; that is scrolling, not a small target).
+      if (rect.left < 0 || rect.top < 0 || rect.right > innerWidth || rect.bottom > innerHeight) continue;
+      let cut = false;
+      for (let parent = element.parentElement; parent && !cut; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+        const box = parent.getBoundingClientRect();
+        cut = rect.top < box.top || rect.bottom > box.bottom || rect.left < box.left || rect.right > box.right;
+      }
+      if (cut) continue;
       const atCentre = document.elementFromPoint(cx, cy);
       if (!atCentre || !(element === atCentre || element.contains(atCentre))) continue;
       const key = `${id}@${Math.round(cx)},${Math.round(cy)}`;

@@ -1,3 +1,5 @@
+import { Tabs, TabPanel } from "@/components/ui/tabs";
+import { deviceSetting } from "@/lib/storage";
 import { PanelSection } from "@/components/app/Panel";
 import { CommentsSection } from "@/components/issue/CommentsSection";
 import { PrivateNotesSection } from "@/components/issue/PrivateNotesSection";
@@ -39,29 +41,7 @@ export function IssueTextSections({
             connectionId={i.connectionId}
           />
         </PanelSection>
-        {i.connectionId ? (
-          <PanelSection title={t("pages.issueDetail.todos")} className="border-b">
-            <TodoList scope={{ issueKey: i.key, connectionId: i.connectionId }} />
-          </PanelSection>
-        ) : null}
-        <PanelSection
-          title={t("pages.issueDetail.privateNotes")}
-          className="border-b"
-        >
-          <PrivateNotesSection
-            issueKey={i.key}
-            connectionId={i.connectionId}
-            inputId={`private-note-${idScope}${i.key}`}
-          />
-        </PanelSection>
-        {i.connectionId && <PanelSection title={t("pages.notes.linkedNotes")} className="border-b"><LinkedNotesSection issueKey={i.key} connectionId={i.connectionId} /></PanelSection>}
-        {i.connectionId && (
-          <LazySection lazy={lazy}>
-            <PanelSection title={t("ui.mail.title")} className="border-b">
-              <IssueMails issueKey={i.key} connectionId={i.connectionId} />
-            </PanelSection>
-          </LazySection>
-        )}
+        <YourWork issue={i} idScope={idScope} />
         <LazySection lazy={lazy}>
           <PanelSection title={t("pages.issueDetail.comments")}>
             <CommentsSection
@@ -104,5 +84,42 @@ export function IssueAttachedSections({
         <RemoteLinks issueKey={i.key} connectionId={i.connectionId} />
       </LazySection>
     </>
+  );
+}
+
+type WorkTab = "todos" | "notes" | "linked" | "mail";
+/** Which of the issue's own parts was open last, remembered on this device. */
+const workTab = deviceSetting<WorkTab>("ikl-issue-work-tab", raw => (raw === "notes" || raw === "linked" || raw === "mail" ? raw : "todos"), tab => (tab === "todos" ? null : tab));
+
+/**
+ * What is the user's own on an issue (its TODOs, private notes, linked notes, mail) in one block behind
+ * tabs (docs/design-system.md §7.1): one shown at a time, every one a click away, instead of four stacked
+ * sections, most of them empty. Only the open one is drawn (and read).
+ */
+function YourWork({ issue: i, idScope }: { issue: Issue; idScope: string }) {
+  const chosen = workTab.use();
+  const items: { value: WorkTab; label: string }[] = [
+    ...(i.connectionId ? [{ value: "todos" as const, label: t("pages.issueDetail.todos") }] : []),
+    { value: "notes" as const, label: t("pages.issueDetail.privateNotes") },
+    ...(i.connectionId ? [{ value: "linked" as const, label: t("pages.notes.linkedNotes") }, { value: "mail" as const, label: t("ui.mail.title") }] : []),
+  ];
+  const tab = items.some(item => item.value === chosen) ? chosen : items[0].value;
+  const idBase = `issue-work-${idScope}${i.key}`.replace(/[^\w-]/g, "-");
+  return (
+    <PanelSection title={t("pages.issueDetail.yourWork")} className="border-b">
+      <Tabs idBase={idBase} label={t("pages.issueDetail.yourWork")} value={tab} onChange={next => workTab.set(next)} items={items} className="-mt-1 mb-3" />
+      <TabPanel idBase={idBase} value="todos" current={tab}>
+        {i.connectionId ? <TodoList scope={{ issueKey: i.key, connectionId: i.connectionId }} /> : null}
+      </TabPanel>
+      <TabPanel idBase={idBase} value="notes" current={tab}>
+        <PrivateNotesSection issueKey={i.key} connectionId={i.connectionId} inputId={`private-note-${idScope}${i.key}`} />
+      </TabPanel>
+      <TabPanel idBase={idBase} value="linked" current={tab}>
+        {i.connectionId ? <LinkedNotesSection issueKey={i.key} connectionId={i.connectionId} /> : null}
+      </TabPanel>
+      <TabPanel idBase={idBase} value="mail" current={tab}>
+        {i.connectionId ? <IssueMails issueKey={i.key} connectionId={i.connectionId} /> : null}
+      </TabPanel>
+    </PanelSection>
   );
 }

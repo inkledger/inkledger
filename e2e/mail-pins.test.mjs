@@ -16,6 +16,8 @@ const EML = [
 test("a pasted link and a dropped .eml pin to an issue; one goes on the board, one a TODO is about", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-101");
+    // The issue's own parts are tabs of "Your work" (one shown at a time).
+    await page.getByRole("tab", { name: "Mails" }).click();
     const pinButton = page.getByRole("button", { name: "Pin a mail" });
     await pinButton.waitFor();
 
@@ -54,7 +56,8 @@ test("a pasted link and a dropped .eml pin to an issue; one goes on the board, o
     await page.getByText(/^On the board /).waitFor();
     assert.equal((await db.q("SELECT count(*)::int AS n FROM pinboard_notes WHERE mail_id IS NOT NULL"))[0].n, 1);
 
-    // A TODO about the mail: its chip shows the subject.
+    // A TODO about the mail: its chip shows the subject (the TODO tab of "Your work").
+    await page.getByRole("tab", { name: "TODO" }).click();
     const capture = page.getByRole("textbox", { name: "New TODO" }).first();
     await capture.fill("Answer Giulia");
     await page.keyboard.press("Enter");

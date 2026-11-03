@@ -292,6 +292,8 @@ test("hierarchy, issue links, history, move and trash restore stay consistent", 
     assert.equal(child.parent_id, parent.id);
 
     await page.goto(base + "/issues/DEMO-101");
+    // The issue's own parts are tabs of "Your work" (one shown at a time).
+    await page.getByRole("tab", { name: "Linked notes" }).click();
     await page
       .getByRole("link", { name: "Project notebook", exact: true })
       .waitFor();

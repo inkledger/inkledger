@@ -288,9 +288,12 @@ export function IssueActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+      {/* On a phone the timer and Log time are the bottom bar's, in the thumb's reach (IssueBody). */}
+      <span className="contents max-lg:hidden">
+        <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+      </span>
       {deskButton}
-      {logTime}
+      <span className="contents max-lg:hidden">{logTime}</span>
     </>
   );
 }

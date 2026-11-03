@@ -198,6 +198,8 @@ test("the pinboard's search pins an issue with Enter, once, and checks the ones 
 test("a private note from the issue page hangs on the pinboard, tied by a red string that follows a drag", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-105");
+    // The issue's own parts are tabs of "Your work" (one shown at a time).
+    await page.getByRole("tab", { name: "Private notes" }).click();
     const notes = page.locator("[data-private-notes]");
     // The note by its text (not "the first": a list still settling may show another one first).
     const item = notes.locator("[data-private-note]").filter({ hasText: "Ask Luca about the budget" }).first();

@@ -899,6 +899,8 @@ export const pages = {
     due: "Due",
     description: "Description",
     todos: "TODO",
+    actionsBar: "Timer and Log time",
+    yourWork: "Your work",
     privateNotes: "Private notes",
     comments: "Comments",
     sync: "Sync",

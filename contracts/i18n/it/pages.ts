@@ -911,6 +911,8 @@ export const pages: Shape<typeof en> = {
     due: "Scadenza",
     description: "Descrizione",
     todos: "TODO",
+    actionsBar: "Timer e Registra tempo",
+    yourWork: "Il tuo lavoro",
     privateNotes: "Note private",
     comments: "Commenti",
     sync: "Sincronizza",

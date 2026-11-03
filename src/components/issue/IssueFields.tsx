@@ -83,11 +83,7 @@ export function IssueFields({
               </Chip>
             )}
           </div>
-          <p className="mb-5 text-body-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{i.key}</span>
-            {i.projectName ? ` · ${i.projectName}` : ""}
-            {i.issueType ? ` · ${i.issueType}` : ""}
-          </p>
+          {/* Key, project and type are the header's line: not again here. */}
         </>
       )}
       <dl className={gridClassName}>
