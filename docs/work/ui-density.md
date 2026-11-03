@@ -414,6 +414,29 @@ Reading:
 - **Overflow.** Unchanged: the Board's lanes and the Dashboard's tile rail are declared scrollers.
 - **Sidebar.** Never scrolls at 700–1000 px high, open and closed, en and it.
 
+## Spatial system and non-list forms (3 Nov, after the user's review)
+Rules in `docs/design-system.md` §7.1 (regions `@m/@l/@xl`, three page layouts, Collection, Toolbar, budgets enforced by `e2e/space-budget.test.mjs`), shadows as paint only (§5). One commit each, `e9d0ded` → HEAD, not pushed.
+
+- [x] Spatial primitives, accessibility measured (focus clear of bars, 24/44 px targets, forced colours).
+- [x] Timesheet week as an issues × days grid; month as one calendar, a phone too.
+- [x] Issues: one-line filters, preview beside the list at `@xl`; phone j/k selection shown and kept on screen.
+- [x] Issue: one datum once, Your work in tabs with counts; worklogs by person and bounded; comments latest 3; attachments by width; other fields as a sheet.
+- [x] Dashboard bento by region; Activity as a bounded Collection; Summary as project bands (`semanticRevision` 2); the day's plans folded.
+- [x] Board: cards in no column folded by status. Ideas list as a bounded grid per state.
+- [x] Notifications stacked per issue (`notifications.dismissMany`), filtered by kind.
+- [x] Day review gaps on a strip; idle dialog as a list of choices; dialog/sheet close at 24 px.
+- [x] Reports Days as an issues × days matrix up to 31 days (cards past it).
+- [x] Shadows never move layout (constant `--surface-room`, clip margins; three-state e2e).
+- [ ] **Buckets drag board**: waits on a decision (may a status sit in two custom columns? the editor says no, the Board says yes).
+- Dropped: TODO Upcoming as 7 day columns, Issues grouped by status (reasons in the plan).
+
+| Verification | Scope | Result |
+| --- | --- | --- |
+| `pnpm lint && pnpm check` | all | pass |
+| `pnpm test` | unit | 3094 pass |
+| full `pnpm test:e2e`, isolated worktree at `9353eae` | e2e | 427/430; the 3 mail-copies failures fixed in `3839adf` (test opened no tab) |
+| targeted e2e after each later commit | touched files and neighbours | pass |
+
 ## Next action
 - **Done** (3 Nov): B0 → B4, plus the sidebar redesign. Commits `92d09e1`, `5fe45c5`, `7a40fea`, `e48acb5`; not pushed.
 - **Done after:** the denser figures on phones, and Reports' table bounded.
