@@ -435,6 +435,9 @@ export const ui = {
   states: {
     loadFailed: "Could not load the data",
   },
+  command: {
+    results: { one: "1 result", other: "{count} results" },
+  },
   picker: {
     placeholder: "Key or title…",
     empty: "No issues found.",

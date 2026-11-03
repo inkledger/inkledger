@@ -437,6 +437,9 @@ export const ui: Shape<typeof en> = {
   states: {
     loadFailed: "Impossibile caricare i dati",
   },
+  command: {
+    results: { one: "1 risultato", other: "{count} risultati" },
+  },
   picker: {
     placeholder: "Chiave o titolo…",
     empty: "Nessuna issue trovata.",

@@ -72,6 +72,8 @@ test("ideas from the command palette", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.goto(base + "/");
     await page.keyboard.press("ControlOrMeta+k");
+    // The palette draws only the rows in view: the command is reached by its name, as a person types it.
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("New idea");
     await page.getByRole("option", { name: "New idea" }).click();
     const dialog = page.getByRole("dialog", { name: "New idea" });
     await dialog.getByRole("textbox", { name: "New ideas" }).fill("From anywhere");
@@ -81,6 +83,7 @@ test("ideas from the command palette", () =>
     assert.deepEqual(await db.q("SELECT title, state FROM ideas"), [{ title: "From anywhere", state: "raw" }]);
     // And "Ideas" goes to the page, where it is.
     await page.keyboard.press("ControlOrMeta+k");
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("Ideas");
     await page.getByRole("option", { name: "Ideas", exact: true }).click();
     await page.waitForURL(base + "/ideas");
     await page.getByRole("listitem", { name: "From anywhere" }).waitFor();

@@ -209,6 +209,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | Text typed in a field | `Input` / `Textarea` (their type is `text-field`: never under 16 px on a phone, where iOS would zoom in) | A field's own smaller text size |
 | A choice from a list | `Select` (Radix, themed) | `<select>` or `<datalist>` (they ignore the theme; datalist is refused) |
 | Picking an issue | `IssuePicker` | A custom search list |
+| Searching a long list (the catalogue: Quick start, ⌘K, the pickers) | `VirtualCommand` (only the rows in view drawn; cmdk's ranking and keys, plus PageUp/PageDown; each option says its place in the whole list) | cmdk with thousands of items (it mounts, scores and moves every row on each key) |
 | A link to another site | `ExternalLink` (asks before opening an unknown domain) | `<a target="_blank">` |
 | Copying text | `CopyButton` | Hand-written clipboard code |
 | Loading, empty, error | `PageSpinner`, `EmptyState`, `ErrorState` (with Retry) | Bare text |

@@ -1,14 +1,8 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { VirtualCommand } from "@/components/app/VirtualCommand";
+import type { CommandSection } from "@/lib/commandRows";
 import {
   Popover,
   PopoverContent,
@@ -78,28 +72,6 @@ export function IssuePicker({
   for (const i of issues) (seen.has(i.key) ? clashing : seen).add(i.key);
   const labelOf = (i: PickableIssue) =>
     clashing.has(i.key) ? connections.find(c => c.id === i.connectionId)?.name : undefined;
-  // Closed, no rows: a page may hold many pickers (a TODO list, one per row), and each built
-  // the whole catalog as rows on every render for a list nobody saw.
-  const favorites = open ? issues.filter(i => i.favorite === 1) : [];
-  const others = open ? issues.filter(i => i.favorite !== 1) : [];
-
-  const item = (i: PickableIssue) => (
-    <CommandItem
-      key={`${i.connectionId ?? ""}:${i.key}`}
-      value={`${i.key} ${i.summary} ${i.connectionId ?? ""}`}
-      onSelect={() => {
-        onChange({ key: i.key, connectionId: i.connectionId });
-        toggle(false);
-      }}
-      className="gap-2"
-    >
-      <ProjectAvatar project={projectOf(i.key)} size="xs" />
-      <span className="shrink-0 font-semibold">{i.key}</span>
-      <span className="truncate text-muted-foreground">{i.summary}</span>
-      {labelOf(i) && <span className="shrink-0 text-caption text-muted-foreground">{labelOf(i)}</span>}
-      {selected === i && <Check className="ml-auto h-4 w-4 shrink-0" />}
-    </CommandItem>
-  );
 
   return (
     <Popover open={open} onOpenChange={toggle}>
@@ -151,19 +123,76 @@ export function IssuePicker({
         align="start"
         className="w-[var(--radix-popover-trigger-width)] min-w-72 p-0"
       >
-        <Command>
-          <CommandInput autoFocus placeholder={placeholder} />
-          <CommandList>
-            <CommandEmpty>{t("ui.picker.empty")}</CommandEmpty>
-            {favorites.length > 0 && (
-              <CommandGroup heading={t("ui.picker.favorites")}>{favorites.map(item)}</CommandGroup>
-            )}
-            <CommandGroup heading={favorites.length > 0 ? t("ui.picker.others") : undefined}>
-              {others.map(item)}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        {/* Drawn only while open, only the rows in view: a page may hold many pickers (one per TODO row). */}
+        <PickerList
+          issues={issues}
+          selected={selected}
+          labelOf={labelOf}
+          placeholder={placeholder}
+          onPick={i => {
+            onChange({ key: i.key, connectionId: i.connectionId });
+            toggle(false);
+          }}
+        />
       </PopoverContent>
     </Popover>
+  );
+}
+
+const idOf = (i: PickableIssue) => `${i.connectionId ?? ""}:${i.key}`;
+
+/** The open picker's list: its own search (empty on every opening), favourites first. */
+function PickerList({
+  issues,
+  selected,
+  labelOf,
+  placeholder,
+  onPick,
+}: {
+  issues: PickableIssue[];
+  selected: PickableIssue | undefined;
+  labelOf: (i: PickableIssue) => string | undefined;
+  placeholder: string;
+  onPick: (i: PickableIssue) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const byId = useMemo(() => new Map(issues.map(i => [idOf(i), i])), [issues]);
+  const sections = useMemo((): CommandSection[] => {
+    const option = (i: PickableIssue) => ({ id: idOf(i), search: `${i.key} ${i.summary} ${i.connectionId ?? ""}` });
+    const favorites = issues.filter(i => i.favorite === 1).map(option);
+    const others = issues.filter(i => i.favorite !== 1).map(option);
+    return [
+      { id: "favorites", heading: t("ui.picker.favorites"), options: favorites },
+      { id: "others", heading: favorites.length > 0 ? t("ui.picker.others") : undefined, options: others },
+    ];
+  }, [issues]);
+  return (
+    <VirtualCommand
+      size="popover"
+      autoFocus
+      sections={sections}
+      query={query}
+      onQueryChange={setQuery}
+      placeholder={placeholder}
+      label={placeholder}
+      empty={t("ui.picker.empty")}
+      onSelect={id => {
+        const i = id ? byId.get(id) : undefined;
+        if (i) onPick(i);
+      }}
+      renderOption={o => {
+        const i = byId.get(o.id);
+        if (!i) return null;
+        return (
+          <>
+            <ProjectAvatar project={projectOf(i.key)} size="xs" />
+            <span className="shrink-0 font-semibold">{i.key}</span>
+            <span className="truncate text-muted-foreground">{i.summary}</span>
+            {labelOf(i) && <span className="shrink-0 text-caption text-muted-foreground">{labelOf(i)}</span>}
+            {selected === i && <Check className="ml-auto h-4 w-4 shrink-0" />}
+          </>
+        );
+      }}
+    />
   );
 }

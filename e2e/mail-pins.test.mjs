@@ -87,6 +87,8 @@ test("signed in to the mailbox: search a mail, choose the issue; a dropped .eml 
     await page.goto(base + "/");
     await page.getByRole("heading", { level: 1 }).first().waitFor();
     await page.keyboard.press("ControlOrMeta+k");
+    // The palette draws only the rows in view: the command is reached by its name, as a person types it.
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("Pin a mail");
     await page.getByRole("option", { name: "Pin a mail…" }).click();
     const dialog = page.getByRole("dialog", { name: "Pin a mail" });
     await dialog.getByRole("textbox", { name: "Search your mailbox" }).fill("budget");

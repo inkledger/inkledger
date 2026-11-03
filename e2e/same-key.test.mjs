@@ -246,7 +246,7 @@ test("the command palette tells one key on two trackers apart, even with the sam
       assert.equal(await items.count(), 2);
       await page.keyboard.press("ArrowDown");
       // One option highlighted at a time, never both twins.
-      assert.equal(await palette.locator('[cmdk-item][data-selected="true"]').count(), 1);
+      assert.equal(await palette.locator('[role=option][aria-selected=true]').count(), 1);
       await page.keyboard.press("Enter");
       await page.waitForURL(u => new URL(u).pathname === `/issues/${github}/I_9`);
     },

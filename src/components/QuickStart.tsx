@@ -15,14 +15,9 @@ import {
 } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useStartTimer } from "@/hooks/useStartTimer";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VirtualCommand } from "@/components/app/VirtualCommand";
+import type { CommandOption, CommandSection } from "@/lib/commandRows";
 import { TimerRing } from "@/components/TimerControls";
 import { toast } from "sonner";
 import { Kbd } from "@/components/app/Kbd";
@@ -51,7 +46,6 @@ export function QuickStart() {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
-  const [value, setValue] = useState("");
 
   const issues = trpc.issues.all.useQuery(undefined, {
     enabled: open,
@@ -70,7 +64,7 @@ export function QuickStart() {
   // Closed, nothing to list: it stays mounted (and re-renders on every navigation), and the
   // whole catalog as rows (thousands) was built each time for a dialog nobody saw.
   const groups = useMemo(() => {
-    if (!open) return { active: [], recent: [], favorites: [], rest: [], known: new Set<string>(), byValue: new Map<string, Row>() };
+    if (!open) return { active: [], recent: [], favorites: [], rest: [], known: new Set<string>(), byId: new Map<string, Row>() };
     const byKey = new Map(
       (issues.data ?? []).map(i => [
         idOf(i),
@@ -109,9 +103,9 @@ export function QuickStart() {
       recent,
       favorites,
       rest,
-      // Keys the catalog knows (on any connection), and rows by cmdk value.
+      // Keys the catalog knows (on any connection), and rows by their option id.
       known: new Set((issues.data ?? []).map(i => i.key)),
-      byValue: new Map(rows.map(r => [rowValue(r), r])),
+      byId: new Map(rows.map(r => [idOf(r), r])),
     };
   }, [open, issues.data, logs.data, timers]);
 
@@ -129,7 +123,6 @@ export function QuickStart() {
   const close = () => {
     quickStart.set(false);
     setSearch("");
-    setValue("");
   };
 
   const startOn = ({ key, connectionId }: PickedIssue) => {
@@ -167,125 +160,100 @@ export function QuickStart() {
     void navigate(issuePath({ key, connectionId }));
   };
 
-  const item = (r: Row) => (
-    <CommandItem
-      key={idOf(r)}
-      value={rowValue(r)}
-      onSelect={() => startOn(r)}
-    >
-      {running && idOf({ key: running.issueKey, connectionId: running.connectionId }) === idOf(r) ? (
-        <TimerRing running className="mr-2" />
-      ) : (
-        <Play className="mr-2 h-4 w-4 text-muted-foreground" />
-      )}
-      <span className="mr-2 shrink-0 font-medium tabular">{r.key}</span>
-      <span className="truncate text-muted-foreground">{r.summary}</span>
-      {r.favorite && (
-        <Star
-          className="ml-auto h-3.5 w-3.5 shrink-0 fill-current text-warning"
-          aria-label={t("ui.quickStart.favorite")}
-        />
-      )}
-    </CommandItem>
-  );
+  const restore = () => {
+    const key = typedKey;
+    // Hidden on two connections: key only, the server answers CONFLICT.
+    const connectionId = hiddenMatches.length === 1 ? hiddenMatches[0].connectionId : undefined;
+    void utils.client.issues.setHidden
+      .mutate({ key, connectionId, hidden: false })
+      .then(() => {
+        void utils.issues.invalidate();
+        startOn({ key, connectionId });
+      })
+      .catch((e: unknown) => toastError(e));
+  };
+
+  // Restoring a hidden key and importing a missing one are offered whatever the search finds.
+  const rows = (list: Row[]): CommandOption[] => list.map(r => ({ id: idOf(r), search: rowValue(r) }));
+  const sections: CommandSection[] = [
+    { id: "hidden", heading: t("ui.quickStart.hidden"), options: hiddenMatch ? [{ id: "restore", search: `restore ${typedKey}`, forceShow: true }] : [] },
+    { id: "import", heading: t("ui.quickStart.fromJira", { provider }), options: canImport ? [{ id: "import", search: `import ${typedKey}`, forceShow: true }] : [] },
+    { id: "timers", heading: t("ui.quickStart.timers"), options: rows(groups.active) },
+    { id: "recent", heading: t("ui.quickStart.recent"), options: rows(groups.recent) },
+    { id: "favorites", heading: t("ui.quickStart.favorites"), options: rows(groups.favorites) },
+    { id: "catalog", heading: t("ui.quickStart.catalog"), options: rows(groups.rest) },
+  ];
+
+  const select = (id: string | null, { alt }: { alt: boolean }) => {
+    const row = id ? groups.byId.get(id) : undefined;
+    if (alt) {
+      // ⌘Enter opens instead of starting: the active issue, else the key typed.
+      if (row) openIssue(row.key, row.connectionId);
+      else if (ISSUE_KEY.test(typedKey)) openIssue(typedKey);
+      return;
+    }
+    if (id === "restore") restore();
+    else if (id === "import") importAndStart(typedKey);
+    else if (row) startOn(row);
+  };
+
+  const runningId = running ? idOf({ key: running.issueKey, connectionId: running.connectionId }) : null;
+  const renderOption = (o: CommandOption) => {
+    if (o.id === "restore" || o.id === "import")
+      return (
+        <>
+          {o.id === "restore" ? <Eye className="mr-2 h-4 w-4 text-muted-foreground" /> : <Download className="mr-2 h-4 w-4 text-muted-foreground" />}
+          {o.id === "restore"
+            ? onPick ? t("ui.quickStart.restorePick") : t("ui.quickStart.restoreStart")
+            : onPick ? t("ui.quickStart.importPick") : t("ui.quickStart.importStart")}{" "}
+          <span className="font-medium">{typedKey}</span>
+        </>
+      );
+    const r = groups.byId.get(o.id);
+    if (!r) return null;
+    return (
+      <>
+        {runningId === o.id ? <TimerRing running className="mr-2" /> : <Play className="mr-2 h-4 w-4 text-muted-foreground" />}
+        <span className="mr-2 shrink-0 font-medium tabular">{r.key}</span>
+        <span className="truncate text-muted-foreground">{r.summary}</span>
+        {r.favorite && <Star className="ml-auto h-3.5 w-3.5 shrink-0 fill-current text-warning" aria-label={t("ui.quickStart.favorite")} />}
+      </>
+    );
+  };
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={o => (o ? quickStart.set(true) : close())}
-      title={t("ui.quickStart.title")}
-      description={t("ui.quickStart.description")}
-      commandProps={{
-        value,
-        onValueChange: setValue,
-        onKeyDown: e => {
-          if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
-          // ⌘Invio never falls through to Enter (start / import).
-          e.preventDefault();
-          const row = groups.byValue.get(value.toLowerCase());
-          if (row) openIssue(row.key, row.connectionId);
-          else if (ISSUE_KEY.test(typedKey)) openIssue(typedKey);
-        },
-      }}
-    >
-      <CommandInput
-        placeholder={placeholder ?? t("ui.quickStart.placeholder")}
-        value={search}
-        onValueChange={setSearch}
-      />
-      <CommandList>
-        {!canImport && !hiddenMatch && (
-          <CommandEmpty>{t("ui.quickStart.empty")}</CommandEmpty>
-        )}
-        {hiddenMatch && (
-          <CommandGroup heading={t("ui.quickStart.hidden")} forceMount>
-            <CommandItem
-              forceMount
-              value={`restore ${typedKey}`}
-              onSelect={() => {
-                const key = typedKey;
-                // Hidden on two connections: key only, the server answers CONFLICT.
-                const connectionId =
-                  hiddenMatches.length === 1 ? hiddenMatches[0].connectionId : undefined;
-                void utils.client.issues.setHidden
-                  .mutate({ key, connectionId, hidden: false })
-                  .then(() => {
-                    void utils.issues.invalidate();
-                    startOn({ key, connectionId });
-                  })
-                  .catch((e: unknown) =>
-                    toastError(e)
-                  );
-              }}
-            >
-              <Eye className="mr-2 h-4 w-4 text-muted-foreground" />
-              {onPick ? t("ui.quickStart.restorePick") : t("ui.quickStart.restoreStart")}{" "}
-              <span className="font-medium">{typedKey}</span>
-            </CommandItem>
-          </CommandGroup>
-        )}
-        {canImport && (
-          <CommandGroup heading={t("ui.quickStart.fromJira", { provider })} forceMount>
-            <CommandItem
-              forceMount
-              value={`import ${typedKey}`}
-              onSelect={() => importAndStart(typedKey)}
-            >
-              <Download className="mr-2 h-4 w-4 text-muted-foreground" />
-              {onPick ? t("ui.quickStart.importPick") : t("ui.quickStart.importStart")}{" "}
-              <span className="font-medium">{typedKey}</span>
-            </CommandItem>
-          </CommandGroup>
-        )}
-        {groups.active.length > 0 && (
-          <CommandGroup heading={t("ui.quickStart.timers")}>{groups.active.map(item)}</CommandGroup>
-        )}
-        {groups.recent.length > 0 && (
-          <CommandGroup heading={t("ui.quickStart.recent")}>
-            {groups.recent.map(item)}
-          </CommandGroup>
-        )}
-        {groups.favorites.length > 0 && (
-          <CommandGroup heading={t("ui.quickStart.favorites")}>
-            {groups.favorites.map(item)}
-          </CommandGroup>
-        )}
-        <CommandGroup heading={t("ui.quickStart.catalog")}>{groups.rest.map(item)}</CommandGroup>
-      </CommandList>
-      <div className="flex items-center gap-4 border-t px-3 py-2 text-caption text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Kbd>{t("ui.keys.enter")}</Kbd>{" "}
-          {onPick ? t("ui.quickStart.pick") : t("ui.quickStart.start")}
-        </span>
-        <span className="flex items-center gap-1">
-          <Kbd>{`${MOD_KEY} ${t("ui.keys.enter")}`}</Kbd>{" "}
-          {t("ui.quickStart.open")}
-        </span>
-        <span className="flex items-center gap-1">
-          <Kbd>Esc</Kbd>{" "}
-          {t("ui.quickStart.close")}
-        </span>
-      </div>
-    </CommandDialog>
+    <Dialog open={open} onOpenChange={o => (o ? quickStart.set(true) : close())}>
+      <DialogContent className="overflow-hidden p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t("ui.quickStart.title")}</DialogTitle>
+          <DialogDescription>{t("ui.quickStart.description")}</DialogDescription>
+        </DialogHeader>
+        {/* Only the rows in view are drawn: the whole catalog opens and filters at once. */}
+        <VirtualCommand
+          size="dialog"
+          sections={sections}
+          query={search}
+          onQueryChange={setSearch}
+          onSelect={select}
+          renderOption={renderOption}
+          placeholder={placeholder ?? t("ui.quickStart.placeholder")}
+          label={t("ui.quickStart.title")}
+          empty={!canImport && !hiddenMatch ? t("ui.quickStart.empty") : undefined}
+          footer={
+            <div className="flex items-center gap-4 border-t px-3 py-2 text-caption text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Kbd>{t("ui.keys.enter")}</Kbd> {onPick ? t("ui.quickStart.pick") : t("ui.quickStart.start")}
+              </span>
+              <span className="flex items-center gap-1">
+                <Kbd>{`${MOD_KEY} ${t("ui.keys.enter")}`}</Kbd> {t("ui.quickStart.open")}
+              </span>
+              <span className="flex items-center gap-1">
+                <Kbd>Esc</Kbd> {t("ui.quickStart.close")}
+              </span>
+            </div>
+          }
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

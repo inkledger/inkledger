@@ -1,5 +1,5 @@
 import { DESK_MAX_PANES } from "@contracts/desk";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   BarChart3,
@@ -37,14 +37,9 @@ import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
 import { useSync } from "@/hooks/useSync";
 import { visibleIssues, issuePath, issueId, parseIssuePath } from "@/lib/issues";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VirtualCommand } from "@/components/app/VirtualCommand";
+import type { CommandOption, CommandSection } from "@/lib/commandRows";
 import { commandPalette } from "@/lib/commandPalette";
 import { shortcutsHelp } from "@/lib/shortcuts";
 import { quickStart } from "@/lib/quickStart";
@@ -89,19 +84,34 @@ export function CommandPalette() {
   const query = useDebouncedValue(typed.trim(), 300);
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={commandPalette.set}
-      title={t("ui.palette.title")}
-      description={t("ui.palette.description")}
-    >
-      {/* Mounted only while the dialog shows: closed, the palette follows no timers, sync or buckets. */}
-      <PaletteBody open={open} typed={typed} setTyped={setTyped} query={query} onSelected={() => {
-        searchSelected.current = true;
-      }} />
-    </CommandDialog>
+    <Dialog open={open} onOpenChange={commandPalette.set}>
+      <DialogContent className="overflow-hidden p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t("ui.palette.title")}</DialogTitle>
+          <DialogDescription>{t("ui.palette.description")}</DialogDescription>
+        </DialogHeader>
+        {/* Mounted only while the dialog shows: closed, the palette follows no timers, sync or buckets. */}
+        <PaletteBody open={open} typed={typed} setTyped={setTyped} query={query} onSelected={() => {
+          searchSelected.current = true;
+        }} />
+      </DialogContent>
+    </Dialog>
   );
 }
+
+/**
+ * One choice of the palette: what a search matches (`search`, and `keywords` such as the
+ * shortcut shown beside it), how it is drawn and what it does.
+ */
+type Entry = CommandOption & { view: ReactNode; run: () => void };
+
+const entry = (id: string, search: string, view: ReactNode, run: () => void, extra: { keywords?: string[]; forceShow?: boolean } = {}): Entry => ({
+  id,
+  search,
+  view,
+  run,
+  ...extra,
+});
 
 function PaletteBody({ open, typed, setTyped, query, onSelected }: {
   open: boolean;
@@ -149,264 +159,210 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
     void navigate(path);
   };
 
-  return (
+  const close = () => setOpen(false);
+  // A shortcut beside a label is searched too (cmdk matched the item's whole text).
+  const nav = (id: string, path: string, icon: ReactNode, label: string, kbd?: string) =>
+    entry(id, label, <>{icon} {label}{kbd && <Kbd className="ml-auto text-muted-foreground">{kbd}</Kbd>}</>, () => go(path), kbd ? { keywords: [kbd] } : {});
+  const action = (id: string, icon: ReactNode, label: string, run: () => void, kbd?: string) =>
+    entry(id, label, <>{icon} {label}{kbd && <Kbd className="ml-auto text-muted-foreground">{kbd}</Kbd>}</>, () => {
+      close();
+      run();
+    }, kbd ? { keywords: [kbd] } : {});
+  const deskEntry = useAddToDeskEntry(pathname, close);
+  const timerEntries = useTimerEntries(close);
+  const issueView = (i: { key: string; summary: string; favorite?: number }) => (
     <>
-      <CommandInput placeholder={t("ui.palette.placeholder")} value={typed} onValueChange={setTyped} />
-      <CommandList>
-        <CommandEmpty>{t("ui.palette.empty")}</CommandEmpty>
-        {pasted && (opened.data ?? []).length > 0 && (
-          <CommandGroup heading={t("ui.palette.openPasted")} forceMount>
-            {(opened.data ?? []).map(i => (
-              <CommandItem key={`${i.connectionId}:${i.remoteId}`} value={`open ${query} ${i.key}`} forceMount onSelect={() => go(issuePath({ key: i.key, connectionId: i.connectionId, remoteId: i.remoteId }))}>
+      <span className="mr-2 text-caption text-muted-foreground">{i.key}</span>
+      <span className="truncate">{i.summary}</span>
+      {i.favorite === 1 && (
+        <span className="ml-2 text-warning" aria-label={t("ui.palette.favorite")}>
+          ★
+        </span>
+      )}
+    </>
+  );
+
+  const groups: { id: string; heading: string; entries: Entry[] }[] = [
+    {
+      id: "pasted",
+      heading: t("ui.palette.openPasted"),
+      entries: pasted
+        ? (opened.data ?? []).map(i =>
+            entry(
+              `open:${i.connectionId}:${i.remoteId}`,
+              `open ${query} ${i.key}`,
+              <>
                 <ExternalLink className="mr-2 h-4 w-4" />
                 <span className="truncate">{t("ui.palette.openKey", { key: i.key })}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        {(kept.data?.saved ?? []).length > 0 && (
-          <CommandGroup heading={t("ui.palette.savedSearches")}>
-            {(kept.data?.saved ?? []).map(s => (
-              <CommandItem key={s.id} value={`saved ${s.name} ${s.query}`} onSelect={() => go(`/issues?q=${encodeURIComponent(formatQuery(parseQuery(s.query).expr, lang) || s.query)}`)}>
-                <Search className="mr-2 h-4 w-4" />
-                <span className="mr-2">{s.name}</span>
-                <span className="truncate text-caption text-muted-foreground">{formatQuery(parseQuery(s.query).expr, lang) || s.query}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        {(noteResults.data?.results ?? []).length > 0 && (
-          <CommandGroup heading={t("ui.palette.noteResults")} forceMount>
-            {(noteResults.data?.results ?? []).map(note => (
-              <CommandItem key={note.id} value={`note ${note.title} ${note.snippet} ${note.id}`} forceMount onSelect={() => go(`/notes/${note.id}`)}>
-                <NotebookPen className="mr-2 h-4 w-4" />
-                <span className="min-w-0"><span className="block truncate">{note.title || t("pages.notes.untitled")}</span>{note.snippet && <span className="block truncate text-caption text-muted-foreground">{note.snippet}</span>}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        <CommandGroup heading={t("ui.palette.issues")}>
-          {visibleIssues(issues.data ?? []).map(i => (
-            <CommandItem
-              key={issueId(i)}
-              // Its connection too: one key and title on two trackers are two options, never one.
-              value={`${i.key} ${i.summary} ${issueId(i)}`}
-              onSelect={() => go(issuePath(i))}
-            >
-              <span className="mr-2 text-caption text-muted-foreground">
-                {i.key}
-              </span>
-              <span className="truncate">{i.summary}</span>
-              {i.favorite === 1 && (
-                <span className="ml-2 text-warning" aria-label={t("ui.palette.favorite")}>
-                  ★
-                </span>
-              )}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-        {extra.length > 0 && (
-          <CommandGroup heading={t("ui.palette.moreIssues")}>
-            {extra.map(i => (
-              <CommandItem key={issueId(i)} value={`${i.key} ${i.summary} ${issueId(i)}`} onSelect={() => go(issuePath(i))}>
-                <span className="mr-2 text-caption text-muted-foreground">{i.key}</span>
-                <span className="truncate">{i.summary}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        {buckets.buckets.length > 0 && (
-          <CommandGroup heading={t("ui.palette.buckets")}>
-            <CommandItem value={`bucket ${t("ui.buckets.everything")}`} onSelect={() => { buckets.choose(null); setOpen(false); }}>
-              <Layers className="mr-2 h-4 w-4" />
-              {t("ui.palette.showBucket", { name: t("ui.buckets.everything") })}
-              {buckets.active === null && <span className="ml-auto text-caption text-muted-foreground">✓</span>}
-            </CommandItem>
-            {buckets.buckets.map(b => (
-              <CommandItem key={b.id} value={`bucket ${b.name}`} onSelect={() => { buckets.choose(b.id); setOpen(false); }}>
-                <Layers className="mr-2 h-4 w-4" />
-                {t("ui.palette.showBucket", { name: b.name })}
-                {buckets.active?.id === b.id && <span className="ml-auto text-caption text-muted-foreground">✓</span>}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        <CommandGroup heading={t("ui.palette.navigation")}>
-          <CommandItem onSelect={() => go("/")}>
-            <LayoutDashboard className="mr-2 h-4 w-4" /> {t("ui.nav.dashboard")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/issues")}>
-            <ListTodo className="mr-2 h-4 w-4" /> {t("ui.nav.issues")}
-          </CommandItem>
-          <CommandItem value={`${t("ui.palette.openDesk")} ${t("ui.nav.desk")}`} onSelect={() => go("/issues/desk")}>
-            <LayoutPanelLeft className="mr-2 h-4 w-4" /> {t("ui.palette.openDesk")}
-            <Kbd className="ml-auto text-muted-foreground">G E</Kbd>
-          </CommandItem>
-          <CommandItem onSelect={() => go("/notes")}>
-            <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.nav.notes")}
-            <Kbd className="ml-auto text-muted-foreground">G N</Kbd>
-          </CommandItem>
-          <CommandItem onSelect={() => go("/timesheet")}>
-            <CalendarDays className="mr-2 h-4 w-4" /> {t("ui.nav.timesheet")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/ideas")}>
-            <Lightbulb className="mr-2 h-4 w-4" /> {t("ui.nav.ideas")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/board")}>
-            <KanbanSquare className="mr-2 h-4 w-4" /> {t("ui.nav.board")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/reports")}>
-            <BarChart3 className="mr-2 h-4 w-4" /> {t("ui.nav.reports")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/settings")}>
-            <SettingsIcon className="mr-2 h-4 w-4" /> {t("ui.nav.settings")}
-          </CommandItem>
-          <CommandItem onSelect={() => go("/info")}>
-            <InfoIcon className="mr-2 h-4 w-4" /> {t("ui.nav.info")}
-          </CommandItem>
-        </CommandGroup>
-        <CommandGroup heading={t("ui.palette.actions")}>
-          {open && <AddToDeskCommand pathname={pathname} onDone={() => setOpen(false)} />}
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              dayReview.set(true);
-            }}
-          >
-            <Sunset className="mr-2 h-4 w-4" /> {t("ui.palette.closeDay")}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              focusMode.set(true);
-            }}
-          >
-            <Maximize2 className="mr-2 h-4 w-4" /> {t("ui.palette.focusMode")}
-            <Kbd className="ml-auto text-muted-foreground">
-              F
-            </Kbd>
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              screensaver.set(true);
-            }}
-          >
-            <Sparkles className="mr-2 h-4 w-4" /> {t("ui.palette.screensaver")}
-            <Kbd className="ml-auto text-muted-foreground">Z</Kbd>
-          </CommandItem>
-          <CommandItem onSelect={() => go(`/notes/new?draft=${newDraftId()}`)}>
-            <NotebookPen className="mr-2 h-4 w-4" /> {t("ui.palette.newNote")}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              ideaCapture.set(true);
-            }}
-          >
-            <Lightbulb className="mr-2 h-4 w-4" /> {t("ui.palette.newIdea")}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              openPinMail();
-            }}
-          >
-            <MailPlus className="mr-2 h-4 w-4" /> {t("ui.palette.pinMail")}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              createIssueDialog.set(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" /> {t("ui.palette.newIssue")}
-            <Kbd className="ml-auto text-muted-foreground">I</Kbd>
-          </CommandItem>
-          {pinTarget !== null && (
-            <CommandItem
-              onSelect={() => {
-                setOpen(false);
-                requestAnimationFrame(() => togglePinboard());
-              }}
-            >
-              <Pin className="mr-2 h-4 w-4 -rotate-12" /> {t("ui.palette.pinboard")}
-              <Kbd className="ml-auto text-muted-foreground">P</Kbd>
-            </CommandItem>
-          )}
-          {todoTarget !== null && (
-            <CommandItem
-              onSelect={() => {
-                setOpen(false);
-                requestAnimationFrame(() => toggleTodos());
-              }}
-            >
-              <ListChecks className="mr-2 h-4 w-4" /> {t("ui.palette.todos")}
-              <Kbd className="ml-auto text-muted-foreground">D</Kbd>
-            </CommandItem>
-          )}
-          <MoveTimerCommand onDone={() => setOpen(false)} />
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              quickStart.set(true);
-            }}
-          >
-            <Play className="mr-2 h-4 w-4" /> {t("ui.palette.startTimer")}
-            <Kbd className="ml-auto text-muted-foreground">
-              T
-            </Kbd>
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              sync.mutate();
-            }}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" /> {t("ui.palette.syncJira", { provider })}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setOpen(false);
-              shortcutsHelp.set(true);
-            }}
-          >
-            <Keyboard className="mr-2 h-4 w-4" /> {t("ui.palette.shortcuts")}
-          </CommandItem>
-          <CommandItem
-            onSelect={() => {
-              setTheme(resolvedTheme === "dark" ? "light" : "dark");
-              setOpen(false);
-            }}
-          >
-            {resolvedTheme === "dark" ? (
-              <Sun className="mr-2 h-4 w-4" />
-            ) : (
-              <Moon className="mr-2 h-4 w-4" />
-            )}
+              </>,
+              () => go(issuePath({ key: i.key, connectionId: i.connectionId, remoteId: i.remoteId })),
+              { forceShow: true }
+            )
+          )
+        : [],
+    },
+    {
+      id: "saved",
+      heading: t("ui.palette.savedSearches"),
+      entries: (kept.data?.saved ?? []).map(sv => {
+        const shown = formatQuery(parseQuery(sv.query).expr, lang) || sv.query;
+        return entry(
+          `saved:${sv.id}`,
+          `saved ${sv.name} ${sv.query}`,
+          <>
+            <Search className="mr-2 h-4 w-4" />
+            <span className="mr-2">{sv.name}</span>
+            <span className="truncate text-caption text-muted-foreground">{shown}</span>
+          </>,
+          () => go(`/issues?q=${encodeURIComponent(shown)}`)
+        );
+      }),
+    },
+    {
+      id: "notes",
+      heading: t("ui.palette.noteResults"),
+      entries: (noteResults.data?.results ?? []).map(note =>
+        entry(
+          `note:${note.id}`,
+          `note ${note.title} ${note.snippet} ${note.id}`,
+          <>
+            <NotebookPen className="mr-2 h-4 w-4" />
+            <span className="min-w-0">
+              <span className="block truncate">{note.title || t("pages.notes.untitled")}</span>
+              {note.snippet && <span className="block truncate text-caption text-muted-foreground">{note.snippet}</span>}
+            </span>
+          </>,
+          () => go(`/notes/${note.id}`),
+          { forceShow: true }
+        )
+      ),
+    },
+    {
+      id: "issues",
+      heading: t("ui.palette.issues"),
+      // Its connection too: one key and title on two trackers are two options, never one.
+      entries: visibleIssues(issues.data ?? []).map(i => entry(`issue:${issueId(i)}`, `${i.key} ${i.summary} ${issueId(i)}`, issueView(i), () => go(issuePath(i)))),
+    },
+    {
+      id: "more",
+      heading: t("ui.palette.moreIssues"),
+      entries: extra.map(i => entry(`more:${issueId(i)}`, `${i.key} ${i.summary} ${issueId(i)}`, issueView({ key: i.key, summary: i.summary }), () => go(issuePath(i)))),
+    },
+    {
+      id: "buckets",
+      heading: t("ui.palette.buckets"),
+      entries:
+        buckets.buckets.length === 0
+          ? []
+          : [
+              { id: "bucket:all", name: t("ui.buckets.everything"), active: buckets.active === null, choose: null },
+              ...buckets.buckets.map(b => ({ id: `bucket:${b.id}`, name: b.name, active: buckets.active?.id === b.id, choose: b.id })),
+            ].map(b =>
+              entry(
+                b.id,
+                `bucket ${b.name}`,
+                <>
+                  <Layers className="mr-2 h-4 w-4" />
+                  {t("ui.palette.showBucket", { name: b.name })}
+                  {b.active && <span className="ml-auto text-caption text-muted-foreground">✓</span>}
+                </>,
+                () => {
+                  buckets.choose(b.choose);
+                  close();
+                }
+              )
+            ),
+    },
+    {
+      id: "navigation",
+      heading: t("ui.palette.navigation"),
+      entries: [
+        nav("nav:dashboard", "/", <LayoutDashboard className="mr-2 h-4 w-4" />, t("ui.nav.dashboard")),
+        nav("nav:issues", "/issues", <ListTodo className="mr-2 h-4 w-4" />, t("ui.nav.issues")),
+        {
+          ...nav("nav:desk", "/issues/desk", <LayoutPanelLeft className="mr-2 h-4 w-4" />, t("ui.palette.openDesk"), "G E"),
+          search: `${t("ui.palette.openDesk")} ${t("ui.nav.desk")}`,
+        },
+        nav("nav:notes", "/notes", <NotebookPen className="mr-2 h-4 w-4" />, t("ui.nav.notes"), "G N"),
+        nav("nav:timesheet", "/timesheet", <CalendarDays className="mr-2 h-4 w-4" />, t("ui.nav.timesheet")),
+        nav("nav:ideas", "/ideas", <Lightbulb className="mr-2 h-4 w-4" />, t("ui.nav.ideas")),
+        nav("nav:board", "/board", <KanbanSquare className="mr-2 h-4 w-4" />, t("ui.nav.board")),
+        nav("nav:reports", "/reports", <BarChart3 className="mr-2 h-4 w-4" />, t("ui.nav.reports")),
+        nav("nav:settings", "/settings", <SettingsIcon className="mr-2 h-4 w-4" />, t("ui.nav.settings")),
+        nav("nav:info", "/info", <InfoIcon className="mr-2 h-4 w-4" />, t("ui.nav.info")),
+      ],
+    },
+    {
+      id: "actions",
+      heading: t("ui.palette.actions"),
+      entries: [
+        ...(deskEntry ? [deskEntry] : []),
+        action("act:closeDay", <Sunset className="mr-2 h-4 w-4" />, t("ui.palette.closeDay"), () => dayReview.set(true)),
+        action("act:focus", <Maximize2 className="mr-2 h-4 w-4" />, t("ui.palette.focusMode"), () => focusMode.set(true), "F"),
+        action("act:screensaver", <Sparkles className="mr-2 h-4 w-4" />, t("ui.palette.screensaver"), () => screensaver.set(true), "Z"),
+        entry("act:newNote", t("ui.palette.newNote"), <><NotebookPen className="mr-2 h-4 w-4" /> {t("ui.palette.newNote")}</>, () => go(`/notes/new?draft=${newDraftId()}`)),
+        action("act:newIdea", <Lightbulb className="mr-2 h-4 w-4" />, t("ui.palette.newIdea"), () => ideaCapture.set(true)),
+        action("act:pinMail", <MailPlus className="mr-2 h-4 w-4" />, t("ui.palette.pinMail"), () => openPinMail()),
+        action("act:newIssue", <Plus className="mr-2 h-4 w-4" />, t("ui.palette.newIssue"), () => createIssueDialog.set(true), "I"),
+        ...(pinTarget !== null
+          ? [action("act:pinboard", <Pin className="mr-2 h-4 w-4 -rotate-12" />, t("ui.palette.pinboard"), () => requestAnimationFrame(() => togglePinboard()), "P")]
+          : []),
+        ...(todoTarget !== null
+          ? [action("act:todos", <ListChecks className="mr-2 h-4 w-4" />, t("ui.palette.todos"), () => requestAnimationFrame(() => toggleTodos()), "D")]
+          : []),
+        ...timerEntries,
+        action("act:startTimer", <Play className="mr-2 h-4 w-4" />, t("ui.palette.startTimer"), () => quickStart.set(true), "T"),
+        action("act:sync", <RefreshCw className="mr-2 h-4 w-4" />, t("ui.palette.syncJira", { provider }), () => sync.mutate()),
+        action("act:shortcuts", <Keyboard className="mr-2 h-4 w-4" />, t("ui.palette.shortcuts"), () => shortcutsHelp.set(true)),
+        entry(
+          "act:theme",
+          t("ui.palette.toggleTheme"),
+          <>
+            {resolvedTheme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
             {t("ui.palette.toggleTheme")}
-          </CommandItem>
-        </CommandGroup>
-      </CommandList>
-      <div className="flex items-center gap-4 border-t px-3 py-2 text-caption text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <Kbd className="px-1">↑</Kbd>
-          <Kbd className="px-1">↓</Kbd> {t("ui.palette.navigate")}
-        </span>
-        <span className="flex items-center gap-1">
-          <Kbd>{t("ui.keys.enter")}</Kbd>{" "}
-          {t("ui.palette.open")}
-        </span>
-        <span className="flex items-center gap-1">
-          <Kbd>Esc</Kbd>{" "}
-          {t("ui.palette.close")}
-        </span>
-        <span className="ml-auto flex items-center gap-1">
-          <Kbd>?</Kbd>{" "}
-          {t("ui.palette.shortcutsHint")}
-        </span>
-      </div>
-    </>
+          </>,
+          () => {
+            setTheme(resolvedTheme === "dark" ? "light" : "dark");
+            close();
+          }
+        ),
+      ],
+    },
+  ];
+  const byId = new Map(groups.flatMap(g => g.entries.map(e => [e.id, e] as const)));
+  const sections: CommandSection[] = groups.map(g => ({ id: g.id, heading: g.heading, options: g.entries }));
+
+  return (
+    <VirtualCommand
+      size="dialog"
+      sections={sections}
+      query={typed}
+      onQueryChange={setTyped}
+      onSelect={id => {
+        if (id) byId.get(id)?.run();
+      }}
+      renderOption={o => byId.get(o.id)?.view ?? null}
+      placeholder={t("ui.palette.placeholder")}
+      label={t("ui.palette.title")}
+      empty={t("ui.palette.empty")}
+      footer={
+        <div className="flex items-center gap-4 border-t px-3 py-2 text-caption text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Kbd className="px-1">↑</Kbd>
+            <Kbd className="px-1">↓</Kbd> {t("ui.palette.navigate")}
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd>{t("ui.keys.enter")}</Kbd> {t("ui.palette.open")}
+          </span>
+          <span className="flex items-center gap-1">
+            <Kbd>Esc</Kbd> {t("ui.palette.close")}
+          </span>
+          <span className="ml-auto flex items-center gap-1">
+            <Kbd>?</Kbd> {t("ui.palette.shortcutsHint")}
+          </span>
+        </div>
+      }
+    />
   );
 }
 
@@ -414,7 +370,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
  * On an issue's page: "Add KEY to desk". The server puts it there (a full desk parks
  * its last pane); a toast says what happened and goes to the desk.
  */
-function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () => void }) {
+function useAddToDeskEntry(pathname: string, onDone: () => void): Entry | null {
   const { search } = useLocation();
   const navigate = useNavigate();
   const utils = trpc.useUtils();
@@ -436,53 +392,32 @@ function AddToDeskCommand({ pathname, onDone }: { pathname: string; onDone: () =
   const target = !shown ? null : "key" in shown ? shown : located.data && !("ambiguous" in located.data) ? { key: located.data.key, connectionId: located.data.connectionId } : null;
   if (!target) return null;
   const label = t("ui.palette.addToDesk", { key: target.key });
-  return (
-    <CommandItem
-      value={label}
-      onSelect={() => {
-        onDone();
-        add.mutate(target);
-      }}
-    >
-      <LayoutPanelLeft className="mr-2 h-4 w-4" /> {label}
-    </CommandItem>
-  );
+  return entry("act:addToDesk", label, <><LayoutPanelLeft className="mr-2 h-4 w-4" /> {label}</>, () => {
+    onDone();
+    add.mutate(target);
+  });
 }
 
 /**
- * The timer at hand (running, else the last paused), moved to another issue
- * from here too. Its own component: only the open palette follows the timers.
+ * The timer at hand (running, else the last paused): its own commands, as its buttons have them:
+ * pause or resume, stop and log (the usual log dialog, with its issue and time), move to another
+ * issue. Keyboard first, from any page. None while another device holds it.
  */
-function MoveTimerCommand({ onDone }: { onDone: () => void }) {
+function useTimerEntries(onDone: () => void): Entry[] {
   const { timers } = useTimers();
   const current = timers.find(tm => tm.state === "running") ?? timers[0];
-  return current ? <MoveTimerItem key={issueId(current)} issueKey={current.issueKey} connectionId={current.connectionId} onDone={onDone} /> : null;
-}
-
-/**
- * The timer's own commands, as its buttons have them: pause or resume, stop and log (the usual
- * log dialog, with its issue and time), move to another issue. Keyboard first, from any page.
- */
-function MoveTimerItem({ issueKey, connectionId, onDone }: { issueKey: string; connectionId: number; onDone: () => void }) {
-  const { move, pause, start, stop, running, paused, heldElsewhere } = useTimerActions(issueKey, connectionId);
-  if (heldElsewhere) return null;
-  const item = (label: string, icon: React.ReactNode, act: () => void) => (
-    <CommandItem
-      value={label}
-      onSelect={() => {
-        onDone();
-        act();
-      }}
-    >
-      {icon} {label}
-    </CommandItem>
-  );
-  return (
-    <>
-      {running && item(t("ui.timer.pauseFor", { key: issueKey }), <Pause className="mr-2 h-4 w-4" />, pause)}
-      {paused && item(t("ui.timer.resumeFor", { key: issueKey }), <Play className="mr-2 h-4 w-4" />, start)}
-      {(running || paused) && item(t("ui.timer.stopAndLogFor", { key: issueKey }), <Square className="mr-2 h-4 w-4" />, stop)}
-      {item(t("ui.timer.moveToFor", { key: issueKey }), <MoveRight className="mr-2 h-4 w-4" />, move)}
-    </>
-  );
+  const issueKey = current?.issueKey ?? "";
+  const { move, pause, start, stop, running, paused, heldElsewhere } = useTimerActions(issueKey, current?.connectionId);
+  if (!current || heldElsewhere) return [];
+  const item = (id: string, label: string, icon: ReactNode, act: () => void) =>
+    entry(`timer:${id}`, label, <>{icon} {label}</>, () => {
+      onDone();
+      act();
+    });
+  return [
+    ...(running ? [item("pause", t("ui.timer.pauseFor", { key: issueKey }), <Pause className="mr-2 h-4 w-4" />, pause)] : []),
+    ...(paused ? [item("resume", t("ui.timer.resumeFor", { key: issueKey }), <Play className="mr-2 h-4 w-4" />, start)] : []),
+    ...(running || paused ? [item("stop", t("ui.timer.stopAndLogFor", { key: issueKey }), <Square className="mr-2 h-4 w-4" />, stop)] : []),
+    item("move", t("ui.timer.moveToFor", { key: issueKey }), <MoveRight className="mr-2 h-4 w-4" />, move),
+  ];
 }
