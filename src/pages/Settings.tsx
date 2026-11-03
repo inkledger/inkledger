@@ -70,7 +70,7 @@ export default function Settings() {
         <nav
           aria-label={t("pages.settings.categories")}
           data-scroll-key="settings-menu"
-          className={cn("min-w-0 border-b py-3 pl-[max(0.75rem,var(--surface-reach-l,0px))] pr-[max(0.75rem,var(--surface-reach-r,0px))] lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
+          className={cn("min-w-0 border-b py-3 px-3 lg:min-h-0 lg:overflow-y-auto lg:border-b-0 lg:border-r", chosen && "max-lg:hidden")}
         >
           <div className="relative mb-3">
             <Search

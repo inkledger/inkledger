@@ -71,12 +71,16 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
     const row = document.querySelector<HTMLElement>(`[data-issue-id="${CSS.escape(selected)}"]:not([hidden])`);
     if (!row) return;
     row.scrollIntoView({ block: "nearest" });
-    const cover = coveringBarBottom(row);
-    if (cover === null) return;
-    const delta = row.getBoundingClientRect().top - cover - 4;
+    // Bars stack (the page header, the filters under it): out from under one, the row can sit under the
+    // next, so it is checked again until none covers it.
     const scroller = row.closest<HTMLElement>("#main");
-    if (scroller && scroller.scrollHeight > scroller.clientHeight) scroller.scrollBy({ top: delta });
-    else window.scrollBy({ top: delta });
+    for (let i = 0; i < 3; i++) {
+      const cover = coveringBarBottom(row);
+      if (cover === null) return;
+      const delta = row.getBoundingClientRect().top - cover - 4;
+      if (scroller && scroller.scrollHeight > scroller.clientHeight) scroller.scrollBy({ top: delta });
+      else window.scrollBy({ top: delta });
+    }
   }, [selected]);
 
   // A row that left the list (hidden, filtered) drops the selection.

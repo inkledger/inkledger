@@ -12,7 +12,9 @@ type Tone = Parameters<typeof Dot>[0]["tone"];
  */
 export function ColumnHeader({ title, count, tone, actions, className }: { title: string; count: number; tone?: Tone; actions?: ReactNode; className?: string }) {
   return (
-    <div {...surface("card")} className={cn("flex min-h-9 items-center gap-2 rounded-lg border bg-card px-2.5 py-1 text-body-sm font-medium", className)}>
+    // Positioned: it stays above the room a card list under it reserves for shadows (whose box reaches up
+    // into it), so its own buttons keep their taps.
+    <div {...surface("card")} className={cn("relative flex min-h-9 items-center gap-2 rounded-lg border bg-card px-2.5 py-1 text-body-sm font-medium", className)}>
       {tone && <Dot tone={tone} />}
       <span className="min-w-0 truncate">{title}</span>
       <span className="text-muted-foreground tabular">{count}</span>

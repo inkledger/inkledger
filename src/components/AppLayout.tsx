@@ -47,7 +47,6 @@ import {
 } from "@/components/ui/tooltip";
 import { commandPalette, useCommandPaletteShortcut } from "@/lib/commandPalette";
 import { notificationCenter, screensaver } from "@/lib/flag";
-import { useShadowReach } from "@/hooks/useShadowReach";
 import { openTodosSheet, useTodoSurfacesNow, useTodoWiring } from "@/hooks/useTodoPanel";
 import { useTodoReminders, useTodoReminderToast } from "@/hooks/useTodoReminders";
 import { TodoWidget } from "@/components/todo/TodoWidget";
@@ -566,9 +565,11 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       className={cn(
         // A screen too short even for the fixed rows scrolls the whole column: no row is ever cut.
         // A short laptop (≤ 820 px high): tighter rows and gaps, so the column still fits.
-        "flex h-full flex-col gap-3 overflow-y-auto overscroll-contain py-4 [scrollbar-width:thin] [@media(max-height:820px)]:gap-2 [@media(max-height:820px)]:py-3",
+        "flex h-full flex-col gap-3 overflow-visible overscroll-contain py-4 [@media(max-height:699px)]:overflow-y-auto [scrollbar-width:thin] [@media(max-height:820px)]:gap-2 [@media(max-height:820px)]:py-3",
         // Room for the shadows of what it holds (the Shadow mod's reach), the same open and closed.
-        "pl-[max(0.5rem,var(--surface-reach-l,0px))] pr-[max(0.5rem,var(--surface-reach-r,0px))]"
+        // A constant padding: from 700 px high the column never scrolls, so it clips nothing and a shadow
+        // falls freely past it (a shadow is paint, never layout). Shorter, it scrolls as a last resort.
+        "px-2"
       )}
     >
       <Brand collapsed={collapsed} />
@@ -694,7 +695,6 @@ export function AppLayout() {
   useOpenBeside();
   useCommandPaletteShortcut();
   usePinboardWiring();
-  useShadowReach();
   useTodoWiring();
   useMouseHistoryButtons(isNative());
   useThemeSync();
@@ -732,7 +732,8 @@ export function AppLayout() {
           {...surface("ground")}
           className={cn(
             // Never scrolls: only the favorites list inside does.
-            "fixed inset-y-0 left-0 hidden overflow-hidden transition-[width] duration-slow lg:block",
+            // Clipped with a margin: its rows' shadows fall past its edge (a shadow is paint, never layout).
+            "fixed inset-y-0 left-0 hidden overflow-clip transition-[width] duration-slow [overflow-clip-margin:var(--surface-room)] lg:block",
             collapsed ? "w-[76px]" : "w-[264px]"
           )}
         >

@@ -76,7 +76,7 @@ export function EmptySlot({
         e.preventDefault();
         fill(issue);
       }}
-      className="relative min-h-0 min-w-0 overflow-y-auto bg-card p-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="relative min-h-0 min-w-0 overflow-y-auto bg-card p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {/* surface: none — the slot's outline drawn on the pane, not a box standing on it. */}
       <div

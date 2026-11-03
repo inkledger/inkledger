@@ -280,7 +280,7 @@ export function PostIt({
           aria-hidden
         />
       )}
-      <div className="note-paper grain flex h-full flex-col overflow-hidden rounded-sm">
+      <div className="note-paper grain flex h-full flex-col overflow-clip rounded-sm [overflow-clip-margin:var(--surface-room)]">
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 pb-2 pt-4">
           {mail ? (
             <div className="flex min-w-0 items-center gap-1.5">
@@ -453,8 +453,8 @@ export function PostIt({
           )}
         </div>
         {/* Always there, quiet: tone, status, make an issue, unpin (the status alone where it is read-only). */}
-        {/* The paper clips: its foot keeps room for the tape dots' shadows (the Shadow mod's reach). */}
-        <div className="flex shrink-0 items-center gap-1 border-t border-foreground/5 pb-[max(0.375rem,var(--surface-reach-b,0px))] pl-[max(0.625rem,var(--surface-reach-l,0px))] pr-[max(0.625rem,var(--surface-reach-r,0px))] pt-1.5">
+        {/* The paper clips with a margin (overflow-clip-margin): its controls' shadows fall past its edge, nothing moves. */}
+        <div className="flex shrink-0 items-center gap-1 border-t border-foreground/5 px-2.5 pb-1.5 pt-1.5">
           {isNote && n.noteCreatedAt && (
             <span className="truncate text-2xs opacity-70">
               {formatDate(new Date(n.noteCreatedAt), "short")}

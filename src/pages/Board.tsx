@@ -608,9 +608,9 @@ export default function Board() {
           >
             <div data-overflow-ok
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
-              // The gap grows with long shadows: a column's room on its left (drawn over the column before it)
-              // never reaches that column, so its cards keep their clicks and drops.
-              className="cast-room-x cast-room-y flex min-h-0 flex-1 snap-x snap-mandatory gap-[max(0.75rem,var(--surface-reach-l,0px))] overflow-x-auto [--room-x:0.25rem] [scrollbar-gutter:stable]"
+              // Twice the shadow room: two columns' rooms never overlap, so a card's edge always answers its
+              // own column (clicks, drops). Constant: a shadow never moves the columns.
+              className="cast-room-x cast-room-y flex min-h-0 flex-1 snap-x snap-mandatory gap-[calc(2*var(--surface-room))] overflow-x-auto [--room-x:0.25rem] [scrollbar-gutter:stable]"
             >
               {lane.columns.length === 0 && lane.connectionId !== null && (
                 <EmptyState art="inbox" title={t("pages.board.noIssues")} message={t("pages.board.laneEmpty", { name: lane.label })} className="flex-1" />

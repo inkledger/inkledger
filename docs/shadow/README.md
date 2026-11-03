@@ -64,10 +64,15 @@ In **Settings → Store**, Shadow's badge → **Settings**, saved for you on eve
 - See-through parts (the running timer's stripes, days without a goal) never cast a shadow,
   so no dark box shows through them.
 - Focus rings stay as they are.
-- Shadows are never cut by the edge of a list, a column or a scroller: inkledger reads how far
-  they reach (`--sh-1`) and keeps that much room free inside every clipping container
-  (`--surface-reach-*`, the `cast-room-x` / `cast-room-y` utilities), so a longer shadow
-  (settings, low sun) gets more room and nothing moves.
+- A shadow is paint, never layout: turning the module on, moving its sliders or the sun's course
+  never moves or resizes anything (`e2e/shadow-room.test.mjs` measures it with no shadow, a long
+  one and the longest the module casts). It falls where it can:
+  - Containers that clip without scrolling (the sidebar, a note's paper, a tile) clip with a margin
+    (`overflow: clip` + `overflow-clip-margin`), so the shadow is drawn past their edge. Safari cuts it there.
+  - Scrollers (a list, a column) keep a constant room, `--surface-room` (12 px, through the
+    `cast-room-x` / `cast-room-y` utilities). That holds the default shadow (at most 9 px), and only
+    the faint tail of an extreme setting under full cloud is cut at a scroller's edge.
+  - The sidebar does not scroll from 700 px high, so nothing clips it there.
 - Uninstalled or switched off, the interface is exactly as without it.
 
 ## Cost

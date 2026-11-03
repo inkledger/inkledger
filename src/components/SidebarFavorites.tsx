@@ -29,7 +29,7 @@ export function SidebarFavorites({ onNavigate }: { onNavigate?: () => void }) {
       name="favorites"
       title={t("ui.sidebar.favorites")}
       className="min-h-0 flex-1"
-      bodyClassName="cast-room-x cast-room-y min-h-0 flex-1 gap-0.5 overflow-y-auto overscroll-contain [--room-b:1rem] [mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]"
+      bodyClassName="cast-room-x cast-room-y min-h-0 flex-1 gap-0.5 overflow-y-auto overscroll-contain [--room-b:1rem]"
       hint={favorites.some(i => i.unread || i.key === runningKey)}
       action={
         <Link

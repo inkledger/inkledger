@@ -16,4 +16,12 @@ describe("how far a shadow reaches (room for the Shadow mod)", () => {
     expect(reachOf("inset 0 1px 0 hsl(0 0% 100% / 0.85)")).toEqual({ l: 0, r: 0, t: 0, b: 0 });
     expect(reachOf("var(--sh-1)")).toEqual({ l: 0, r: 0, t: 0, b: 0 });
   });
+
+  it("the room reserved in scrollers holds the mod's default shadow", () => {
+    // The Shadow mod at its defaults (length 1, softness 1), the sun low on one side, no cloud:
+    // dx = 1.2 × 3, blur = 4 × 1.6, spread −1 (packages/shadow/src/cast.ts).
+    const reach = reachOf("0.5px 1.25px 1px 0 hsl(0 0% 0% / 0.2), 3.6px 3px 6.4px -1px hsl(0 0% 0% / 0.2)");
+    expect(Math.max(reach.l, reach.r, reach.t, reach.b)).toBeLessThanOrEqual(12);
+  });
 });
+

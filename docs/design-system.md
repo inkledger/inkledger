@@ -160,6 +160,10 @@ The shadows are `shadow-xs`, `sm`, `md`, `lg` and `xl`: two soft layers tinted w
 - Pages and cards use `xs` or `sm` at most.
 - `md` and above are for popovers and dialogs, inside `components/ui` only (the lint enforces it).
 - Prefer hairlines to shadows for separating sections.
+- **A shadow is paint, never layout.** Nothing's position or size depends on a shadow, the Shadow mod's included.
+  - A clipping container that does not scroll uses `overflow: clip` + `[overflow-clip-margin:var(--surface-room)]`.
+  - A scroller reserves the constant `--surface-room` with `cast-room-x` / `cast-room-y`, and what stands right above such a list is `relative`, so the list's room never takes its clicks.
+  - Never a padding, gap or size that follows the light.
 
 ### 5.3 Motion
 
