@@ -408,14 +408,16 @@ Same driver, demo database on the test cluster, en, light, scroll 0. Values in p
 | Board | 200 → 200 | 800 → 800 | 263 → 225 ✓ | 353 → 316 ✓ |
 
 Reading:
-- **Dashboard.** The timeline starts lower because the figures are a band above it (it now has the whole width), and the page is 300–1080 px shorter. On a phone the 2×2 figures cost about 200 px above the timeline, the one regression worth a follow-up (a denser strip on phones).
-- **Reports.** The default grouping is now Issue, whose table is longer than the Days list; the Detail starts lower at 1280 under the tabs and the trend.
+- **Dashboard.** The timeline starts lower because the figures are a band above it (it now has the whole width), and the page is 300–1080 px shorter.
+- **Figures on phones.** Three to a row, two short rows for five. Primary top at 390×844: Dashboard 464 → 380, Timesheet 441 → 357, Reports 765 → 681.
+- **Reports.** The table shows its first 10 rows, then "Show all" (the CSV keeps every row). The Detail starts lower at 1280, under the tabs and the trend.
 - **Overflow.** Unchanged: the Board's lanes and the Dashboard's tile rail are declared scrollers.
 - **Sidebar.** Never scrolls at 700–1000 px high, open and closed, en and it.
 
 ## Next action
 - **Done** (3 Nov): B0 → B4, plus the sidebar redesign. Commits `92d09e1`, `5fe45c5`, `7a40fea`, `e48acb5`; not pushed.
-- **Open:**
-  - a denser StatStrip on phones (Dashboard);
-  - Reports' issue table bounded (first rows + all);
-  - FlowMap on, on dev :3000, so that real heat maps drive the next layout proposals.
+- **Done after:** the denser figures on phones, and Reports' table bounded.
+- **Verification (final):**
+  - lint, check and unit (3081/3081) pass;
+  - full e2e 413/415. Both failures pass alone (29/29): `dist/` was rebuilt by another process during the run.
+- **Open:** FlowMap on, on dev :3000, so that real heat maps drive the next layout proposals.

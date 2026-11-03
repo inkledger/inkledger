@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { surface } from "@/components/app/surface";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -88,6 +89,9 @@ function RowLabel({ groupBy, row }: { groupBy: GroupBy; row: ReportRow }) {
   );
 }
 
+/** Rows shown before "Show all": a report reads its top, never a page-long table. */
+const REPORT_FIRST = 10;
+
 /** Report detail table (same look as the dashboard activity table). */
 export function ReportRows({
   rows,
@@ -115,6 +119,9 @@ export function ReportRows({
       })
     : rows;
   const max = Math.max(1, ...rows.map(r => r.seconds));
+  // The first rows, ranked by the chosen order; all of them on request (the CSV always has every row).
+  const [all, setAll] = useState(false);
+  const shown = all ? sorted : sorted.slice(0, REPORT_FIRST);
 
   return (
     <>
@@ -134,7 +141,7 @@ export function ReportRows({
           </TableHeaderRow>
         </thead>
         <tbody>
-          {sorted.map(r => (
+          {shown.map(r => (
             <TableRow key={r.id ?? r.key}>
               <td className="max-w-0 py-3 pl-1 pr-4 sm:w-[34%]">
                 <RowLabel groupBy={groupBy} row={r} />
@@ -178,7 +185,7 @@ export function ReportRows({
         </select>
       </label>
       <ul className="divide-y border-t md:hidden">
-        {sorted.map(r => (
+        {shown.map(r => (
           <li key={r.id ?? r.key} className="grid grid-cols-[minmax(0,1fr)] gap-2 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -199,6 +206,11 @@ export function ReportRows({
           </li>
         ))}
       </ul>
+      {rows.length > REPORT_FIRST && (
+        <Button variant="ghost" size="sm" className="mt-2" aria-expanded={all} onClick={() => setAll(value => !value)}>
+          {all ? t("views.reports.rows.showFewer") : t("views.reports.rows.showAll", { count: rows.length })}
+        </Button>
+      )}
     </>
   );
 }

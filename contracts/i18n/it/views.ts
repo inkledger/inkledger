@@ -674,6 +674,8 @@ export const views: Shape<typeof en> = {
       sortHoursAsc: "Ore, prima le più basse",
       sortName: "Nome, dalla A alla Z",
       sortEntries: "Voci, prima le più numerose",
+      showAll: "Mostra tutte ({count})",
+      showFewer: "Mostra meno",
       entryCount: { one: "{count} voce", other: "{count} voci" },
       day: "Giorno",
       issue: "Issue",

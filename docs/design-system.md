@@ -186,7 +186,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | --- | --- | --- |
 | Page title row | `PageHeader` (breadcrumb, h1, description, actions; sets the tab title) | A custom `<h1>` row |
 | A block of the page panel | `PanelSection` / `PanelRow` (hairlines, not boxes) | Nested cards |
-| A page's figures | `StatStrip` (one row divided by hairlines, 2×2 on a phone, the cover's grainy sunset as a faint wash behind the row; the figure looked for first is `lead`: a step larger, in the primary colour; a figure can be a filter or carry a `meter` towards its target; `busy` while another period loads; variants compact/default/expanded) | A card with a cover and tiles (retired) |
+| A page's figures | `StatStrip` (one row divided by hairlines, three to a row under lg (two for four figures), the cover's grainy sunset as a faint wash behind the row; the figure looked for first is `lead`: a step larger, in the primary colour; a figure can be a filter or carry a `meter` towards its target; `busy` while another period loads; variants compact/default/expanded) | A card with a cover and tiles (retired) |
 | A collection on an overview page (recent issues, things to pick up) | A rail of tiles: one row, `snap-x`, scrolled sideways inside itself (`data-overflow-ok`), each tile a link with its own ▶ (`StartIssueButton`) and its data as a thread along the edge | A list that grows the page ("show all" stacks) |
 | ▶ on an issue shown as a card or tile | `StartIssueButton` (`controlId` for FlowMap; none while its timer runs; never the card's drag or link) | A per-page start button |
 | A date typed or picked to jump to | `DateJump` (the picker jumps at once, typing on Enter or blur) | An `onChange` on a date input (typing "2" jumped to the 2nd) |
@@ -227,7 +227,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
   - A grid track that holds text is `minmax(0,1fr)` (or `grid-cols-[minmax(0,1fr)]`).
   - Flexible flex children get `min-w-0`.
   - Never hide an overflowing child with the parent's `overflow`, and never add a global `overflow-x-hidden` to mask it.
-- **No long lists, no white space beside them.**
+- **No long lists, no white space beside them.** A report's table shows its first 10 rows, then "Show all" (the CSV has every row).
   - Overview pages show a bounded amount: a rail of tiles (one row), a board column that fades towards its full page, a list's first rows with a way to the page that holds them all.
   - Sections side by side are a bento row: one height for the row (the taller section's, or a floor), the other section fills it (`group-data-[fill]` on the Dashboard's row), and the row's hairline is the row's own, never a section's in mid-air.
   - Detail that is not looked for first is behind `Tabs` or a `Disclosure`, not under everything else.

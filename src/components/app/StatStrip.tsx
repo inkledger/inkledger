@@ -22,7 +22,7 @@ export type StatItem = {
   meter?: { value: number; max: number; label: string };
 };
 
-/** Static classes (Tailwind sees whole names): as many columns as figures on a wide screen, two on a phone. */
+/** Static classes (Tailwind sees whole names): as many columns as figures on a wide screen. */
 const COLUMNS: Record<number, string> = {
   1: "lg:grid-cols-1",
   2: "lg:grid-cols-2",
@@ -32,9 +32,20 @@ const COLUMNS: Record<number, string> = {
   6: "lg:grid-cols-6",
 };
 
-const PADDING = { compact: "px-4 py-2", default: "px-5 py-3", expanded: "px-6 py-4" } as const;
-const VALUE = { compact: "text-body font-semibold", default: "text-heading", expanded: "text-title" } as const;
-const LEAD = { compact: "text-heading", default: "text-title", expanded: "text-display" } as const;
+/** Under lg: three to a row (two for four figures), so five figures take two short rows, not three. */
+const PHONE: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-2",
+  5: "grid-cols-3",
+  6: "grid-cols-3",
+};
+
+// A phone: tighter cells and a figure a step smaller (it still leads in the primary colour).
+const PADDING = { compact: "px-3 py-2 lg:px-4", default: "px-3 py-2 lg:px-5 lg:py-3", expanded: "px-4 py-3 lg:px-6 lg:py-4" } as const;
+const VALUE = { compact: "text-body font-semibold", default: "text-body font-semibold lg:text-heading", expanded: "text-heading lg:text-title" } as const;
+const LEAD = { compact: "text-heading", default: "text-heading lg:text-title", expanded: "text-title lg:text-display" } as const;
 
 /**
  * A page's figures in one row divided by hairlines (2×2 on a phone), the reference of Team time's KPIs:
@@ -79,16 +90,9 @@ export function StatStrip({
     >
       {/* The cover's sunset, faint, behind the figures: warmth without a band that reads as a line. */}
       <div aria-hidden className="cover-sunset grain pointer-events-none absolute inset-0 -z-10 opacity-15 dark:opacity-20" />
-      <dl
-        className={cn(
-          "grid grid-cols-2 divide-border lg:divide-x",
-          COLUMNS[columns],
-          // A phone: two per row, a hairline under every full row and between the two columns.
-          "max-lg:[&>*:nth-child(2n)]:border-l max-lg:[&>*:not(:nth-last-child(-n+2))]:border-b",
-          // Wrapped rows on a wide screen keep a hairline between them.
-          shown.length > columns && "lg:[&>*]:border-b"
-        )}
-      >
+      {/* Hairlines whatever the columns: every cell draws its left and top line, and the list is pulled
+          one pixel up and left so the outer ones fall outside the section (which clips). */}
+      <dl className={cn("-ml-px -mt-px grid [&>*]:border-l [&>*]:border-t", PHONE[shown.length], COLUMNS[columns])}>
         {shown.map(item => (
           <Stat key={item.label} item={item} variant={variant} />
         ))}

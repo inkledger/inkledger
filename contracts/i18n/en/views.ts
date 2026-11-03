@@ -666,6 +666,8 @@ export const views = {
       sortHoursAsc: "Hours, least first",
       sortName: "Name, A to Z",
       sortEntries: "Entries, most first",
+      showAll: "Show all ({count})",
+      showFewer: "Show fewer",
       entryCount: { one: "{count} entry", other: "{count} entries" },
       day: "Day",
       issue: "Issue",
