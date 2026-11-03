@@ -82,4 +82,4 @@ Two independent reviews of 006f898 (server and frontend). Fixed, each with a tes
 | `settings.schedule.dropOwn` | keep "Follow the new week" | "Seguono la nuova settimana" → "Applica la nuova settimana" |
 
 ## Midnight e2e failure, explained
-`e2e/day-review.test.mjs` "the day is never logged on guesses" seeds a timer paused 30 min before now: run between 00:00 and 00:30 that pause is yesterday's, "Close the day" preselects only today's timers (`DayReviewBody.tsx:104`, `timerOnDay`), so "Log 1 to …" never appears. A test seed limit near midnight, not this feature. `desk-flow` (desk drag) is unrelated and passed alone.
+`e2e/day-review.test.mjs` "the day is never logged on guesses" seeds a timer paused 30 min before now: run between 00:00 and 00:30 that pause is yesterday's, "Close the day" preselects only today's timers (`DayReviewBody.tsx:104`, `timerOnDay`), so "Log 1 to …" never appears. A test seed limit near midnight, not this feature: fixed, the timer is now 2 min stopped a minute ago, after `awayFromMidnight(2 min, 4 min)`. `desk-flow` (desk drag) is unrelated and passed alone.

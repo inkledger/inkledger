@@ -57,12 +57,14 @@ test("while the day is being logged, the summary shows what is being logged", { 
 });
 
 test("the day is never logged on guesses: while today's worklogs can't be read, Log waits, says why, and retries", async () => {
+  // A short timer stopped a minute ago: today's (preselected) at any hour but the first minutes.
+  await awayFromMidnight(2 * 60_000, 4 * 60_000);
   const now = Date.now();
   const app = await start({
     seed: async db => {
       await db.q(
-        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 1800, ?, '', ?, ?)",
-        now - 3_600_000, now - 1_800_000, now, now,
+        "INSERT INTO timers (user_id, issue_key, state, started_at, accumulated_seconds, paused_at, note, created_at, updated_at) VALUES (1, 'DEMO-101', 'paused', ?, 120, ?, '', ?, ?)",
+        now - 180_000, now - 60_000, now, now,
       );
       await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
     },
