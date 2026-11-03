@@ -186,6 +186,10 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | --- | --- | --- |
 | Page title row | `PageHeader` (breadcrumb, h1, description, actions; sets the tab title) | A custom `<h1>` row |
 | A block of the page panel | `PanelSection` / `PanelRow` (hairlines, not boxes) | Nested cards |
+| A page's figures | `StatStrip` (one row divided by hairlines, 2×2 on a phone; a figure can be a filter; variants compact/default/expanded) | A card with a cover and tiles (`QuickStatsCard`, being retired page by page) |
+| A page's own controls under its header | `PageToolbar` (sticks under the sticky header on desktop, publishes `--page-toolbar-h`, opaque, wraps) | A search or filter row that scrolls away |
+| Sections of a page shown one at a time | `Tabs` + `TabPanel` (`components/ui/tabs.tsx`: one Tab stop, arrows without modifiers, value kept by the caller in the URL) | A long stack of sections |
+| A secondary part folded under its title | `Disclosure` (title and count; content drawn only while open) | Always-open blocks of detail |
 | Text with actions on a row | `ActionRow` (content `minmax(0,1fr)`, actions `shrink-0`) | Ad-hoc flex rows |
 | A button | `Button`: variants `default` (the one main action), `outline`, `ghost`, `secondary`, `link`, `destructive`; sizes `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-lg` | Raw `<button>` with its own styling |
 | A small label | `Chip`: tone `neutral`, `info`, `success`, `warning` or `danger`; variant `soft` for alerts, `dot` for status in lists | Coloured spans |
