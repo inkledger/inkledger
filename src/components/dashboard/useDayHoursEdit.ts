@@ -73,6 +73,9 @@ export function useDayHoursEdit(day: Date) {
   const base = schedule.baseForDay(day);
   const overridden = schedule.isOverridden(day);
   const { save, pending } = useSaveDayHours();
+  // The week's lock (the page's own query, shared): no editing until it is known.
+  const week = trpc.weeks.status.useQuery({ week: dayKey(day) });
+  const closed = !!week.data;
   const [draft, setDraft] = useState<WorkDay | null>(null);
   const [axis, setAxis] = useState<EditAxis | null>(null);
   const [draftDay, setDraftDay] = useState<string | null>(null);
@@ -116,12 +119,12 @@ export function useDayHoursEdit(day: Date) {
     if (await save(day, null)) cancel();
   }, [save, day, cancel]);
 
-  const ready = !schedule.isPending;
+  const ready = !schedule.isPending && week.isSuccess;
   const shownAxis = live ? axis : null;
   // One object while nothing changes: the bar above a ticking timeline doesn't render again.
   return useMemo(
-    () => ({ current, base, overridden, draft: live, setDraft, axis: shownAxis, dirty, start, cancel, commit, submit, reset, pending, ready }),
-    [current, base, overridden, live, shownAxis, dirty, start, cancel, commit, submit, reset, pending, ready]
+    () => ({ current, base, overridden, draft: live, setDraft, axis: shownAxis, dirty, start, cancel, commit, submit, reset, pending, ready, closed }),
+    [current, base, overridden, live, shownAxis, dirty, start, cancel, commit, submit, reset, pending, ready, closed]
   );
 }
 

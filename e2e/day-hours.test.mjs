@@ -3,7 +3,7 @@
 // fields (phones). The holes follow the day's own hours; a closed week can't change.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dayKey, lastWorkday, withApp } from "./harness.mjs";
+import { AXE, dayKey, lastWorkday, withApp } from "./harness.mjs";
 
 /** The last working day: no worklogs, its holes whole (9–13 and 14–18 with lunch). */
 const day = () => dayKey(lastWorkday());
@@ -30,6 +30,16 @@ test("a click on the timeline never edits; in edit mode the break moves by drag 
     await editButton(page).click();
     const brk = page.getByRole("slider", { name: /^Break 13:00–14:00/ });
     await brk.waitFor();
+    // Keyboard: in edit mode on the break; no serious accessibility violation there (target sizes included).
+    assert.match((await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) ?? "", /^Break 13:00–14:00/);
+    await page.waitForTimeout(400);
+    await page.evaluate(AXE);
+    const violations = await page.evaluate(async () =>
+      (await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } })).violations
+        .filter(v => v.impact === "serious" || v.impact === "critical")
+        .map(v => `${v.id}: ${v.nodes.map(n => n.target.join(" ")).join(" | ")}`)
+    );
+    assert.deepEqual(violations, []);
     // A press that moves under the threshold is a click: the break stays.
     const b = await brk.boundingBox();
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
@@ -58,6 +68,7 @@ test("a click on the timeline never edits; in edit mode the break moves by drag 
     await page.getByText(/^Hours of .* saved\.$/).waitFor();
     assert.deepEqual(await own(db, key), { enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "13:30", end: "14:30" }] });
     assert.equal(await sliders(page).count(), 0, "edit mode left");
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Hours of the day", "focus back where editing began");
     // The holes follow the day's own break.
     await page.getByRole("button", { name: /^Log missing time from 14:30 to 18:00/ }).waitFor();
     await page.getByRole("button", { name: /^Log missing time from 09:00 to 13:30/ }).waitFor();
@@ -214,6 +225,19 @@ test("on a phone the hours are fields, at 320 px, and a refused draft can't be s
     assert.equal(await sliders(page).count(), 0, "no dragging on a phone");
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(width <= 320, `no sideways scroll (${width})`);
+    // Every time whole, the locale's "06:00 PM" too: no field cuts its text.
+    // (a time field's scrollWidth never shows it: its width is compared with a copy's own, at width auto)
+    const clipped = await sheet.locator("input[type=time]").evaluateAll(els =>
+      els.filter(e => {
+        const c = e.cloneNode();
+        c.style.cssText = "position:absolute;width:auto;min-width:0";
+        document.body.append(c);
+        const own = c.getBoundingClientRect().width;
+        c.remove();
+        return e.getBoundingClientRect().width < own - 1;
+      }).length
+    );
+    assert.equal(clipped, 0, "no time field cut");
     // A break past the day's end: said, and Save stays off.
     await sheet.getByLabel("Break 1 from to").fill("19:00");
     await sheet.getByRole("alert").waitFor();
@@ -279,3 +303,22 @@ test("a closed week: no \"It was my break\", the timer keeps its time", () => {
     },
   );
 });
+
+test("on a touch tablet a short break keeps a finger's grip to move it, its edges a finger's grip each beside it", () =>
+  withApp(
+    {
+      viewport: { width: 820, height: 1180 },
+      userAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      seed: db => db.q("INSERT INTO work_day_overrides (user_id, day, work_day, created_at) VALUES (1, ?, ?, 1)", day(), JSON.stringify({ enabled: true, start: "09:00", end: "18:00", breaks: [{ start: "11:00", end: "11:10" }, { start: "13:00", end: "14:00" }] })),
+    },
+    async ({ page, base }) => {
+      await page.goto(`${base}/?period=day&from=${day()}`);
+      await editButton(page).click();
+      const box = name => page.getByRole("slider", { name }).boundingBox();
+      const move = await box(/^Break 11:00–11:10/);
+      const from = await box(/^Start of the break, 11:00/);
+      const to = await box(/^End of the break, 11:10/);
+      for (const b of [move, from, to]) assert.ok(b.width >= 44, `a finger wide (${b.width})`);
+      assert.ok(from.x + from.width <= move.x + 1 && move.x + move.width <= to.x + 1, "side by side, none over another");
+    }
+  ));

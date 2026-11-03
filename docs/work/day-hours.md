@@ -56,3 +56,18 @@ Two independent reviews of 006f898 (server and frontend). Fixed, each with a tes
 - Left as is: the hours button is enabled while the week's status loads (the server refuses a closed week's save); a short break (≲10 min) is covered by its edge grips on touch, so it is moved by its edges, keys or fields.
 - New e2e: past day with its own break (2 h after it), "It was my break" (saved + timer trimmed), closed week (no button). `e2e/day-hours.test.mjs`: 8 of 8.
 - Unrelated: `api/modules/modules.test.ts` "no private key is ever committed" failed on main at a954351 (a desk fixture); fixed on main by 12e4a80.
+
+## Deeper pass (2026-11-03)
+- Hours button disabled until the week's lock is known (`useDayHoursEdit` reads `weeks.status`, the page's own query), not only once it is known closed.
+- Touch: a break is at least a finger wide to move it, its edge grips (44 px) just outside it: a 10-minute break no longer hides its move area under its edges.
+- Break label written only where it fits ("13:00–14:00", then "13:00", then nothing), never cut to "14:…"; the break no longer lets the gap's label show through.
+- Time fields: `TimeInput` as wide as the locale's format needs (en-US cut "06:00 PM" to "06:00", so 18:00 read as 6:00); the hours sheet lays each break on two lines, Settings → Work schedule puts the times on their own line on phones (no overflow at 320 px).
+- Idle dialog: "It was my break 15:00–16:00" on its own line (the footer was a staircase of four buttons).
+- DST: split placement checked on 25 Oct and 29 Mar, and a break over the missing hour (unit, pass without change).
+- Checked, fine: Timesheet "duplicate day" over split parts (all boundaries whole minutes), "Close the day" uses the day's own hours.
+- Screenshots reviewed at 1280, 820 touch, 320 (dashboard edit, save choice, pending timer split, idle dialog, settings at 1024/768/390/320).
+- New e2e: tablet grips (44 px, side by side), no time field cut at 320 (fails with the old widths). `e2e/day-hours.test.mjs`: 9 of 9.
+- Not touched: the dashboard title cut ("Monday, 2 November…") when a timer sits in the header; it predates this work and the layout is another session's.
+- Keyboard and a11y pass: focus enters edit mode on the first break and comes back to "Hours of the day" after Save, Cancel, Escape, Enter and the fields sheet (it fell to the page); the idle dialog opens on "Assign to another issue", not on "It was my break". Every grip is at least a target (24 px; 44 px on touch) and none covers another (axe target-size). E2E asserts focus and axe in edit mode.
+- Measured: a 60-step drag has no long task (worst frame 10 ms); a save shows in a second tab at once (live `schedule` event); dark theme and the sheet have no axe violation.
+- The full e2e run at 00:xx failed `day-review` "never logged on guesses" and `desk-flow`, and timed out two `dashboard-day` tests that wait to be away from midnight; all three files pass when rerun alone after 01:00 (time of day, not this work, not proven further); the full suite rerun at 01:2x passed: 398 of 398 run, 0 failed.

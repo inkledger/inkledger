@@ -308,3 +308,29 @@ describe("placeBlock: split around breaks, edge cases", () => {
     }
   });
 });
+
+describe("placeBlock: split around breaks on DST days", () => {
+  // Sundays enabled 9–18 with lunch 13–14, as any weekday.
+  const sundays = sched.map((d, i) => (i === 6 ? { ...sched[0] } : d));
+  const parts = (r: ReturnType<typeof placeBlock>) => (r.ok ? (r.parts ?? [{ start: r.start, seconds: -1 }]) : null);
+  for (const [name, d] of [["25 Oct (25 h)", 25], ["29 Mar (23 h)", 29]] as const) {
+    const month = d === 25 ? 9 : 2;
+    const on = (h: number, m = 0) => new Date(2026, month, d, h, m);
+    it(`appends around lunch at wall-clock hours on ${name}`, () => {
+      const r = placeBlock({ day: on(0), occupied: [], schedule: sundays, now: new Date(2026, month, d + 2, 9), seconds: 6 * 3600 });
+      expect(parts(r)).toEqual([{ start: on(9), seconds: 4 * 3600 }, { start: on(14), seconds: 2 * 3600 }]);
+    });
+    it(`fills back from a stop around lunch on ${name}`, () => {
+      const r = placeBlock({ day: on(0), occupied: [], schedule: sundays, now: new Date(2026, month, d + 2, 9), endAt: on(18), tracked: 8 * 3600, seconds: 8 * 3600 });
+      expect(parts(r)).toEqual([{ start: on(9), seconds: 4 * 3600 }, { start: on(14), seconds: 4 * 3600 }]);
+    });
+  }
+  it("a break over the hour that doesn't exist (29 Mar, 02:00–03:00) never breaks the sum", () => {
+    const night = sched.map((d, i) => (i === 6 ? { enabled: true, start: "01:00", end: "06:00", breaks: [{ start: "02:00", end: "03:00" }] } : d));
+    const r = placeBlock({ day: new Date(2026, 2, 29), occupied: [], schedule: night, now: new Date(2026, 2, 31, 9), seconds: 3 * 3600 });
+    expect(r.ok).toBe(true);
+    const p = parts(r) ?? [];
+    expect(p.reduce((a, x) => a + (x.seconds < 0 ? 3 * 3600 : x.seconds), 0)).toBe(3 * 3600);
+    for (const x of p) if (x.seconds >= 0) expect(x.seconds).toBeGreaterThanOrEqual(60);
+  });
+});

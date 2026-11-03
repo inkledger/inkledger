@@ -204,7 +204,8 @@ export function WorkScheduleEditor() {
               <li
                 key={days[i]}
                 className={cn(
-                  "grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-lg px-2 py-2",
+                  // A phone: the day and its total on top, its times a whole line below (a 12 h locale is wider).
+                  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-lg px-2 py-2 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]",
                   !d.enabled && "text-muted-foreground"
                 )}
               >
@@ -217,7 +218,7 @@ export function WorkScheduleEditor() {
                   {days[i]}
                 </label>
                 {d.enabled ? (
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 sm:col-span-1 sm:row-start-auto">
                     <span className="flex items-center gap-1.5">
                       <TimeInput
                         value={d.start}
@@ -237,7 +238,7 @@ export function WorkScheduleEditor() {
                       <span
                         key={k}
                         {...surface("chip")}
-                        className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5"
+                        className="flex flex-wrap items-center gap-1 rounded-md bg-muted px-1.5 py-0.5"
                       >
                         <span className="text-caption text-muted-foreground">
                           {t("settings.schedule.break")}
@@ -289,11 +290,11 @@ export function WorkScheduleEditor() {
                     )}
                   </div>
                 ) : (
-                  <span className="flex h-8 items-center text-body-sm">
+                  <span className="col-span-2 row-start-2 flex h-8 items-center text-body-sm sm:col-span-1 sm:row-start-auto">
                     {t("settings.schedule.dayOff")}
                   </span>
                 )}
-                <span className="flex h-8 items-center justify-end text-body-sm tabular text-muted-foreground">
+                <span className="col-start-2 row-start-1 flex h-8 items-center justify-end text-body-sm tabular text-muted-foreground sm:col-start-auto sm:row-start-auto">
                   {d.enabled ? formatDuration(seconds) : "—"}
                 </span>
               </li>

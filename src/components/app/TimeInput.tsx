@@ -17,6 +17,7 @@ export function TimeInput({
   invalid?: boolean;
   className?: string;
 }) {
+  // As wide as the locale's format needs ("06:00 PM" whole), never narrower than 24 h's.
   return (
     <Input
       type="time"
@@ -26,7 +27,7 @@ export function TimeInput({
       aria-label={label}
       aria-invalid={invalid || undefined}
       onChange={e => e.target.value && onChange(e.target.value)}
-      className={cn("h-8 w-[6.5rem] px-2 tabular", className)}
+      className={cn("h-8 w-auto min-w-[6.5rem] px-2 tabular", className)}
     />
   );
 }

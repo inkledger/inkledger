@@ -64,7 +64,16 @@ export function IdleDialog() {
 
   return (
     <Dialog open onOpenChange={o => !o && dismiss()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // Focus first on "Assign to another issue", never on an answer that writes at once.
+        onOpenAutoFocus={e => {
+          const assign = document.querySelector<HTMLElement>("[data-idle-assign]");
+          if (!assign) return;
+          e.preventDefault();
+          assign.focus();
+        }}
+      >
         <DialogHeader>
           <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-strong" {...surface("picture")}>
             <Coffee className="h-5 w-5" aria-hidden />
@@ -76,9 +85,29 @@ export function IdleDialog() {
             {t("ui.idle.sinceAfter")}
           </DialogDescription>
         </DialogHeader>
+        {/* Its own line, with the break it makes: the footer keeps its three answers. */}
+        {asBreak && moved && (
+          <Button
+            variant="outline"
+            className="justify-self-start"
+            disabled={trim.isPending}
+            title={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
+            onClick={() =>
+              // The break first: when it can't be saved, the timer keeps its time.
+              void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end })).then(ok => {
+                if (ok) remove();
+              })
+            }
+          >
+            <Coffee className="h-4 w-4" aria-hidden />
+            {t("ui.idle.myBreak")}
+            <span className="text-muted-foreground tabular">{moved.start}–{moved.end}</span>
+          </Button>
+        )}
         <DialogFooter className="gap-2 sm:justify-between">
           <Button
             variant="ghost"
+            data-idle-assign=""
             disabled={trim.isPending}
             onClick={() => {
               // The running timer is trimmed only once the time is logged
@@ -121,21 +150,6 @@ export function IdleDialog() {
             <Button variant="outline" onClick={dismiss}>
               {t("ui.idle.keep")}
             </Button>
-            {asBreak && moved && (
-              <Button
-                variant="outline"
-                disabled={trim.isPending}
-                title={t("ui.idle.myBreakTitle", { duration: formatDuration(away.seconds), from: moved.start, to: moved.end })}
-                onClick={() =>
-                  // The break first: when it can't be saved, the timer keeps its time.
-                  void saveHours(awayDay, asBreak, t("views.dashboard.timeline.hours.moved", { day: dayMonth(awayDay), from: moved.start, to: moved.end })).then(ok => {
-                    if (ok) remove();
-                  })
-                }
-              >
-                {t("ui.idle.myBreak")}
-              </Button>
-            )}
             <Button disabled={trim.isPending} onClick={() => remove()}>
               {t("ui.idle.remove", { duration: formatDuration(away.seconds) })}
             </Button>
