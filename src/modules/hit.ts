@@ -15,6 +15,14 @@ type Area = { el: HTMLElement; test: HitTest; activate: () => void };
 /** Layers over the page: a point under one of these belongs to it, not to a module below. */
 const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 
+/**
+ * Page controls drawn over modules on purpose (the running timer's Pause and Stop, Play on the open hole: over
+ * the tree at the timeline's start), marked `data-above-modules`: a point on one is the control's, even where
+ * a module's shape lies under it. Not every control: a gap of the timeline is a button too, and a tap on the
+ * tree over it is the tree's.
+ */
+const ABOVE_MODULES = "[data-above-modules]";
+
 const POINTER_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "click"] as const;
 
 export function createHitAreas(win: Window = window) {
@@ -33,6 +41,8 @@ export function createHitAreas(win: Window = window) {
       // Something opened over the page here (a dialog, a menu): the point is its.
       const top = doc.elementFromPoint(x, y);
       if (top?.closest(OVERLAYS) && !a.el.closest(OVERLAYS)) continue;
+      // A control of the page is here, over the shape: it gets the gesture (the module's own buttons stay its).
+      if (top && !a.el.contains(top) && top.closest(ABOVE_MODULES)) continue;
       if (a.test(x - r.left, y - r.top, r.width, r.height)) return a;
     }
     return null;

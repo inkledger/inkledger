@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { createHitAreas } from "./hit";
 
 /** Just enough of a window: events on an EventTarget, an element under the point, the root's classes. */
-function page(overlay = false) {
+function page(overlay = false, control = false) {
   const classes = new Set<string>();
+  // Under the point: a dialog or menu (every closest() matches), a control marked above modules, or plain page.
+  const under = overlay ? { closest: () => ({}) } : control ? { closest: (selector: string) => (selector.includes("data-above-modules") ? {} : null) } : { closest: () => null };
   const win = Object.assign(new EventTarget(), {
     document: {
-      elementFromPoint: () => (overlay ? { closest: () => ({}) } : { closest: () => null }),
+      elementFromPoint: () => under,
       documentElement: {
         classList: {
           toggle: (c: string, on: boolean) => (on ? classes.add(c) : classes.delete(c)),
@@ -34,6 +36,7 @@ function box() {
     tabIndex: -1,
     getBoundingClientRect: () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }),
     closest: () => null,
+    contains: () => false,
     getAttribute: (k: string) => attrs.get(k) ?? null,
     setAttribute: (k: string, v: string) => attrs.set(k, v),
     removeAttribute: (k: string) => attrs.delete(k),
@@ -67,6 +70,19 @@ describe("module hit areas", () => {
     }
     expect(opened).toBe(0);
     expect(reached).toEqual(["pointerdown", "pointerup", "click", "pointerdown", "pointerup", "click"]);
+  });
+
+  // The tree at the timeline's left end lay under the running timer's Pause and Stop: they could not be pressed (3 Nov).
+  it("leaves a page control drawn over its shape to the page (Pause over the tree)", () => {
+    const { win, reached, fire, pageListens } = page(false, true);
+    let opened = 0;
+    createHitAreas(win).add(box(), leftHalf, () => opened++);
+    pageListens();
+    fire("pointerdown", 20, 20);
+    fire("pointerup", 20, 20);
+    fire("click", 20, 20);
+    expect(opened).toBe(0);
+    expect(reached).toEqual(["pointerdown", "pointerup", "click"]);
   });
 
   it("never takes a point under a dialog or a menu opened over the page", () => {

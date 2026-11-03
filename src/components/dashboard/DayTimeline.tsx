@@ -288,8 +288,12 @@ export function DayTimeline({
               onClick={() => quickStart.set(true)}
               aria-label={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
               title={t("views.dashboard.timeline.playHole", { from: timeOfDay(openHole.start) })}
-              className="absolute bottom-7 z-20 flex size-target -translate-x-full items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ left: `calc(${h.left + h.width}% - 2px)` }}
+              // Above a module drawn on the track (the tree), and its clicks never the module's (modules/hit.ts).
+              data-above-modules
+              className="absolute bottom-7 z-30 flex size-target items-center justify-center rounded-full border bg-card text-primary-strong outline-none transition-colors hover:bg-primary-soft focus-visible:ring-2 focus-visible:ring-ring"
+              // At the hole's right end (its size, 24 px, inside it), but never left of the track: a narrow hole at
+              // the start of the day put it past the edge, where the track's clip cut it in half (3 Nov).
+              style={{ left: `max(2px, calc(${h.left + h.width}% - 26px))` }}
             >
               <Play className="h-3 w-3 fill-current" aria-hidden />
             </button>
@@ -334,13 +338,6 @@ export function DayTimeline({
                 style={style}
               >
                 {body}
-                {liveControls && (
-                  // At the block's end, unless that is the axis' first stretch (just past midnight):
-                  // there they'd stick out of the chart, so they open rightwards from its start.
-                  <div {...surface("control")} className={cn("absolute bottom-1 z-30 rounded-md border bg-card", b.left + b.width < 8 ? "left-1" : "right-1")}>
-                    {liveControls}
-                  </div>
-                )}
               </div>
             );
           // A stopped timer: the same stripes, still (tracked, not logged yet); a tap logs it.
@@ -400,6 +397,30 @@ export function DayTimeline({
             </Link>
           );
         })}
+        {/* The running timer's Pause / Stop: a layer of the track (not inside its block, whose glass is a stacking
+            context of its own), above anything a module draws on the timeline (the tree at its start), and
+            marked so a module's shape under them never takes their clicks (modules/hit.ts). At the block's end,
+            unless that is the axis' first stretch (just past midnight): there they open rightwards from its start. */}
+        {liveControls && (() => {
+          const b = blocks.find(block => block.live);
+          if (!b) return null;
+          const atStart = b.left + b.width < 8;
+          const bottom = b.lanes > 1 ? `calc(0.75rem + (100% - 2.25rem) * ${(b.lane + 1) / b.lanes} - 2px - 0.25rem)` : "calc(100% - 1.75rem)";
+          return (
+            <div
+              data-above-modules
+              {...surface("control")}
+              className="absolute z-30 rounded-md border bg-card"
+              style={{
+                top: bottom,
+                left: atStart ? `calc(${b.left}% + 0.25rem)` : `calc(${b.left + b.width}% - 0.25rem)`,
+                transform: atStart ? "translateY(-100%)" : "translate(-100%, -100%)",
+              }}
+            >
+              {liveControls}
+            </div>
+          );
+        })()}
         {todoSpans.length > 0 && (
           <div className="absolute inset-x-0 top-0.5 h-1.5">
             {todoSpans.map(s => {
