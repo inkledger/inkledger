@@ -193,7 +193,9 @@ export function TeamMatrix({
   return (
     <div
       {...surface("ground")}
-      className="overflow-x-auto overscroll-x-contain lg:max-h-[calc(100dvh-var(--page-header-h,0px)-15rem)] lg:overflow-y-auto"
+      // A declared two-dimensional scroller (a heat map is a data table: WCAG 1.4.10's exception).
+      data-overflow-ok
+      className="overflow-x-auto overscroll-x-contain lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
       onMouseLeave={() => onRead(null)}
     >
       <table

@@ -4,8 +4,8 @@ import { start } from "./harness.mjs";
 
 // The spatial system's budgets (docs/design-system.md §7.1), page by page, on a phone and a laptop.
 // Enforced: no focusable control clipped out of sight by an ancestor that does not scroll, and no
-// sideways scroller outside a declared board or table. Reported (the baseline the redesign is measured
-// against): the chrome's share of the screen, how many screens a page is, and scrollers' hidden items.
+// sideways scroller outside a declared board or table. Reported (for the before/after): the chrome's
+// share of the screen, how many screens a page is, and scrollers' hidden items.
 const ROUTES = ["/", "/timesheet", "/reports", "/issues", "/issues/DEMO-101", "/board", "/team", "/notes", "/ideas", "/settings"];
 const VIEWPORTS = [
   { width: 1280, height: 800 },
@@ -91,8 +91,8 @@ for (const viewport of VIEWPORTS) {
     // The baseline, printed for the redesign's before/after (docs/work/ui-density.md).
     console.log(`space budget ${viewport.width}×${viewport.height}\n` + rows.map(r => `  ${r.route.padEnd(18)} chrome ${String(r.chromePct).padStart(3)}%  screens ${String(r.screens).padStart(5)}  offscreen ${r.offscreen}  sideways ${r.sideways.length}  clipped ${r.clipped.length}`).join("\n"));
     const problems = rows.flatMap(r => [...r.clipped.map(c => `${r.route}: clipped ${c}`), ...r.sideways.map(s => `${r.route}: sideways ${s}`)]);
-    // Report-only until the spatial system lands everywhere (batch 8 turns this on).
-    if (process.env.SPACE_BUDGET_ENFORCE === "1") assert.deepEqual(problems, [], problems.join("\n"));
-    else if (problems.length > 0) console.log("space budget (report only):\n  " + problems.join("\n  "));
+    // Enforced: no focusable control clipped by a mask, no sideways scroller that is not a declared
+    // board or table (data-overflow-ok). The figures above are reported for the before/after.
+    assert.deepEqual(problems, [], problems.join("\n"));
   });
 }

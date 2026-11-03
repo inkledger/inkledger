@@ -459,7 +459,7 @@ export default function Board() {
         aria-label={col.title}
         data-drop={dragging ? (allowed ? "on" : "off") : undefined}
         className={cn(
-          "flex min-h-0 min-w-[280px] flex-1 basis-0 snap-start flex-col rounded-xl transition-opacity",
+          "flex min-h-0 min-w-[16rem] flex-1 basis-0 snap-start flex-col rounded-xl transition-opacity",
           dragOver === col.id && "bg-muted/60",
           allowed && "ring-2 ring-inset ring-primary-strong/30",
           off && "opacity-40"
@@ -549,7 +549,7 @@ export default function Board() {
     body = (
       <div className="flex gap-3 overflow-hidden">
         {[0, 1, 2].map(i => (
-          <div key={i} className="grid min-w-[280px] flex-1 content-start gap-2">
+          <div key={i} className="grid min-w-[16rem] flex-1 content-start gap-2">
             <Skeleton className="h-9" />
             <Skeleton className="h-24" />
             <Skeleton className="h-24" />
@@ -606,7 +606,7 @@ export default function Board() {
             aria-label={several ? lane.label : undefined}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <div
+            <div data-overflow-ok
               data-scroll-key={`board-columns-${lane.connectionId ?? "all"}`}
               // The gap grows with long shadows: a column's room on its left (drawn over the column before it)
               // never reaches that column, so its cards keep their clicks and drops.
@@ -617,7 +617,7 @@ export default function Board() {
               )}
               {lane.columns.map(renderColumn)}
               {mode === "custom" && unmapped.length > 0 && (
-                <section aria-label={t("pages.board.unmapped")} className="flex min-w-[280px] flex-1 basis-0 flex-col rounded-xl opacity-80">
+                <section aria-label={t("pages.board.unmapped")} className="flex min-w-[16rem] flex-1 basis-0 flex-col rounded-xl opacity-80">
                   <div {...surface("glass")} className="mb-2 rounded-lg border border-dashed px-2.5 py-1.5 text-body-sm font-medium text-muted-foreground">
                     {t("pages.board.unmapped")} <span className="tabular">{unmapped.length}</span>
                   </div>

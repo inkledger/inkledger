@@ -335,7 +335,8 @@ export default function Team() {
   const dayRow = day ? day.person.days.find(d => d.day === dayKey(day.day)) : undefined;
 
   return (
-    <>
+    // The page fills the panel and the matrix takes what is left (no height guessed from a toolbar of one row).
+    <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       {header}
       {/* KPIs: one row divided by hairlines (2×2 on a phone); the two counts are filters. */}
       <div data-workspace-anchor="team.kpis" className="grid grid-cols-2 divide-border border-b lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l">
@@ -376,7 +377,7 @@ export default function Team() {
           </>
         )}
       </div>
-      <PanelSection variant="compact" className="grid gap-3 px-5 md:px-6" anchorId="team.matrix">
+      <PanelSection variant="compact" className="grid gap-3 px-5 md:px-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col" anchorId="team.matrix">
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-0 flex-1 basis-48 sm:max-w-64">
             <span className="sr-only">{t("pages.team.search")}</span>
@@ -423,7 +424,7 @@ export default function Team() {
             }
           />
         ) : (
-          <div aria-busy={overview.isPlaceholderData} className={cn("min-w-0 transition-opacity", overview.isPlaceholderData && "opacity-60")}>
+          <div aria-busy={overview.isPlaceholderData} className={cn("min-w-0 transition-opacity lg:flex lg:min-h-0 lg:flex-1 lg:flex-col", overview.isPlaceholderData && "opacity-60")}>
             <TeamMatrix
               rows={rows}
               team={team}
@@ -479,6 +480,6 @@ export default function Team() {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

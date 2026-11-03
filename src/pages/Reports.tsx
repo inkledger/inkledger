@@ -1,3 +1,5 @@
+import { Toolbar } from "@/components/app/Toolbar";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -224,26 +226,31 @@ export default function Reports() {
       title={t("pages.reports.title")}
       description={t("pages.reports.description")}
       actions={
-        <>
-          <PeriodPicker
-            from={from}
-            to={to}
-            preset={preset}
-            valid={rangeValid}
-            onPreset={applyPreset}
-            onFrom={setFrom}
-            onTo={setTo}
-          />
-          <Button
-            variant="outline"
-            onClick={exportCsv}
-            disabled={!exportable}
-            {...flowControlProps("reports.export")}
-          >
-            <Download className="h-4 w-4" />
-            {t("pages.reports.exportCsv")}
-          </Button>
-        </>
+        // The period stays in sight; the export folds behind ⋯ in a narrow header (docs/design-system.md §7.1).
+        <Toolbar
+          label={t("pages.reports.title")}
+          foldBelow="m"
+          groups={[
+            [{ key: "period", node: <PeriodPicker from={from} to={to} preset={preset} valid={rangeValid} onPreset={applyPreset} onFrom={setFrom} onTo={setTo} /> }],
+            [
+              {
+                key: "export",
+                node: (
+                  <Button variant="outline" onClick={exportCsv} disabled={!exportable} {...flowControlProps("reports.export")}>
+                    <Download className="h-4 w-4" />
+                    {t("pages.reports.exportCsv")}
+                  </Button>
+                ),
+                menu: (
+                  <DropdownMenuItem disabled={!exportable} onSelect={exportCsv} {...flowControlProps("reports.export")}>
+                    <Download className="h-4 w-4" />
+                    {t("pages.reports.exportCsv")}
+                  </DropdownMenuItem>
+                ),
+              },
+            ],
+          ]}
+        />
       }
     />
   );

@@ -151,7 +151,7 @@ export default function IdeasPage() {
         </section>
       );
     return (
-      <section key={s} aria-label={t(`pages.ideas.state.${s}`)} data-column={s} className="flex min-h-0 w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2" {...dropProps}>
+      <section key={s} aria-label={t(`pages.ideas.state.${s}`)} data-column={s} className="flex min-h-0 min-w-[16rem] flex-1 basis-0 flex-col gap-2 rounded-xl bg-muted/50 p-2" {...dropProps}>
         <header className="flex shrink-0 items-center justify-between gap-2 px-1">
           <h2 className="text-body-sm font-medium">
             {t(`pages.ideas.state.${s}`)} <span className="text-muted-foreground tabular">{items.length}</span>

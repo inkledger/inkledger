@@ -6,7 +6,7 @@ import {
   useNavigate,
   useParams,
 } from "react-router";
-import { BookOpen, ChevronLeft, FilePlus2, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, Plus, Search, Trash2 } from "lucide-react";
 import {
   NOTE_FILTERS,
   NOTE_SEARCH_MAX,
@@ -444,18 +444,14 @@ export default function NotesPage() {
                     onDeleted={ids => {
                       if (noteId && ids.has(noteId)) void navigate(`/notes${location.search}`);
                     }}
+                    // One empty state, one way to create (the header's New note): on a laptop the document
+                    // pane says it, so the tree says nothing more; on a phone the tree is all there is.
                     empty={
                       <EmptyState
                         art="inbox"
                         title={t("pages.notes.empty")}
                         message={t("pages.notes.emptyText")}
-                        action={
-                          <Button asChild size="sm">
-                            <Link to={newNotePath()}>
-                              {t("pages.notes.createFirst")}
-                            </Link>
-                          </Button>
-                        }
+                        className="lg:hidden"
                       />
                     }
                   />
@@ -479,20 +475,12 @@ export default function NotesPage() {
                 )}
               >
                 {!hasDocument ? (
-                  <EmptyState
-                    art="inbox"
-                    title={t("pages.notes.choose")}
-                    message={t("pages.notes.chooseText")}
-                    action={
-                      <Button asChild>
-                        <Link to={newNotePath()}>
-                          <FilePlus2 />
-                          {t("pages.notes.new")}
-                        </Link>
-                      </Button>
-                    }
-                    className="my-auto py-12"
-                  />
+                  // No notes yet: said once, here; some notes: which to open (New note is the header's).
+                  (tree.data ?? []).length === 0 ? (
+                    <EmptyState art="inbox" title={t("pages.notes.empty")} message={t("pages.notes.emptyText")} className="my-auto py-12" />
+                  ) : (
+                    <EmptyState art="inbox" title={t("pages.notes.choose")} message={t("pages.notes.chooseText")} className="my-auto py-12" />
+                  )
                 ) : openFolder ? (
                   <FolderView folder={openFolder} items={tree.data ?? []} search={location.search} />
                 ) : controller.isLoading ? (
