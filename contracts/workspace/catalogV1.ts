@@ -128,7 +128,7 @@ const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: re
     ["reports.forecast", "ForecastSections", "pages.reports.forecast.title"],
   ] },
   { surfaceId: "timesheet", route: "/timesheet", blocks: [
-    ["timesheet.summary", "PeriodSummary", "pages.timesheet.summary"],
+    ["timesheet.summary", "PeriodSummary", "pages.timesheet.summary", 2],
     ["timesheet.stats", "StatStrip", "pages.timesheet.summary"],
     // Revision 2: a grid of issues × days (was a card per day); maps from the cards no longer apply.
     ["timesheet.days", "WeekGrid", "pages.timesheet.days", 2],
@@ -157,7 +157,8 @@ const anchors: AnchorManifest[] = [
   hideable(anchor("dashboard.timeline", "dashboard", "DayTimeline", "local", "pages.dashboard.widgets.timeline")),
   // A strip across the page above the timeline since 3 Nov (was a card in a side column): another block, revision 2.
   { ...anchor("dashboard.stats", "dashboard", "StatStrip", "stateless", "pages.dashboard.widgets.stats"), semanticRevision: 2 },
-  hideable(anchor("dashboard.summary", "dashboard", "PeriodSummary", "local", "pages.dashboard.widgets.summary")),
+  // Revision 2: project bands (legend, bar and details merged); maps from before no longer apply.
+  { ...hideable(anchor("dashboard.summary", "dashboard", "PeriodSummary", "local", "pages.dashboard.widgets.summary")), semanticRevision: 2 },
   anchor("dashboard.tasks", "dashboard", "TasksBoard", "external", "pages.dashboard.widgets.tasks"),
   // Revision 2: a bounded grid of tiles (was a table, then a sideways rail): maps from before no longer apply.
   { ...anchor("dashboard.activity", "dashboard", "Collection", "stateless", "pages.dashboard.widgets.activity"), semanticRevision: 2 },

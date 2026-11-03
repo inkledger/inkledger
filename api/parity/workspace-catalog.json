@@ -642,7 +642,7 @@
         "statePolicy": "local",
         "critical": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "studio": {
           "operations": [
             "reorder",
@@ -1622,7 +1622,7 @@
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "studio": {
           "operations": [],
           "variants": [

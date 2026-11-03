@@ -6,16 +6,13 @@ import { toast } from "sonner";
 import { useCountUp } from "@/hooks/useCountUp";
 import { usePendingSeconds } from "@/hooks/useTimers";
 import { projectOf, type ProjectColor } from "@/lib/projectColors";
-import { Chip } from "@/components/app/Chip";
 import { SectionLabel } from "@/components/app/PageHeader";
-import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { cn } from "@/lib/utils";
 import { Meter } from "@/components/app/Meter";
 import { goalTone } from "@/lib/goalTone";
 import { t } from "@/i18n";
 import { issuePath, issueId } from "@/lib/issues";
-import { surface, surfaceFace } from "@/components/app/surface";
-import { ActionRow } from "@/components/app/ActionRow";
+import { surface } from "@/components/app/surface";
 
 export type IssueTotal = {
   issueKey: string;
@@ -36,7 +33,6 @@ export function PeriodSummary({
   targetSeconds,
   legend,
   issues,
-  colorOf,
   pending,
   celebrate = false,
   loggedSeconds,
@@ -49,7 +45,8 @@ export function PeriodSummary({
   targetSeconds: number;
   legend: { project: string; seconds: number; color: ProjectColor }[];
   issues: IssueTotal[];
-  colorOf: (project: string) => ProjectColor;
+  /** Kept for callers; the bands take their colours from the legend. */
+  colorOf?: (project: string) => ProjectColor;
   /** Timers not yet logged (only when the period includes now): hatched, live. */
   /** Shows the time tracked and not yet logged, live. */
   pending?: boolean;
@@ -76,94 +73,62 @@ export function PeriodSummary({
         celebrate={celebrate}
       />
 
-      {legend.length > 0 && (
-        <>
-          {/* Split by project: a slim segmented bar, same weight as the goal bar. */}
-          {/* The bar clips its segments: it stands on a wrapper. */}
-          <div {...surface("bar", { role: "wrap" })} className="mt-6 rounded-full">
-          <div
-            {...surfaceFace()}
-            className="flex h-2 gap-0.5 overflow-hidden rounded-full"
-            aria-hidden
-          >
-            {legend.map(l => (
-              <span
-                key={l.project}
-                className={cn("min-w-1.5", l.color.fill)}
-                style={{ flexGrow: l.seconds }}
-              />
-            ))}
-          </div>
-          </div>
-          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-body-sm">
-            {legend.map(l => (
-              <li key={l.project} className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
-                <span
-                  aria-hidden
-                  // "Other" is see-through: glass, no shadow.
-                  {...(l.color.fill.includes("/") ? surface("glass") : surface("chip"))}
-                  className={cn("h-3 w-3 rounded-xs", l.color.fill)}
-                />
-                {l.project}
-                <span className="text-muted-foreground tabular">
-                  {formatDurationLong(l.seconds)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <SectionLabel as="h3" className="mt-8 px-0">
+      {/* By project, once (docs/design-system.md §7.1): a band each, its bar the share of the period's logged
+          time, its issues under it with their own share. The legend, the segmented bar and the details
+          said the project three times; now once. "Other" holds the projects past the top ones. */}
+      <SectionLabel as="h3" className="mt-6 px-0">
         {t("views.dashboard.summary.details")}
       </SectionLabel>
-      {issues.length === 0 ? (
+      {issues.length === 0 && legend.length === 0 ? (
         <p className="mt-3 text-body-sm text-muted-foreground">
           {t("views.dashboard.summary.empty")}
         </p>
       ) : (
-        <ul className="stagger mt-2 divide-y">
-          {issues.map(i => {
-            const project = projectOf(i.issueKey);
-            return (
-              <li key={issueId(i)}>
-                <Link
-                  to={issuePath({ key: i.issueKey, connectionId: i.connectionId, remoteId: i.remoteId })}
-                  className="-mx-2 block rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/60"
-                >
-                  <ActionRow
-                    leading={
-                      <span className="relative">
-                        <ProjectAvatar project={project} className="h-10 w-10" />
-                        <span
-                          aria-hidden
-                          className={cn(
-                            "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-card",
-                            colorOf(project).fill
-                          )}
-                        />
+        <ul className="stagger mt-2 grid gap-3">
+          {(() => {
+            const logged = Math.max(1, legend.reduce((sum, l) => sum + l.seconds, 0));
+            const named = new Set(legend.map(l => l.project));
+            const other = legend.find(l => l.color.fill.includes("/"));
+            return legend.map(l => {
+              const own = issues.filter(i => {
+                const project = projectOf(i.issueKey);
+                return project === l.project || (l === other && !named.has(project));
+              });
+              const share = Math.round((l.seconds / logged) * 100);
+              return (
+                <li key={l.project}>
+                  <section aria-label={`${l.project}: ${formatDurationLong(l.seconds)}, ${share}%`}>
+                    <div className="flex min-w-0 items-center gap-2 text-body-sm">
+                      <span aria-hidden {...(l.color.fill.includes("/") ? surface("glass") : surface("chip"))} className={cn("h-3 w-3 shrink-0 rounded-xs", l.color.fill)} />
+                      <span className="min-w-0 truncate font-medium">{l.project}</span>
+                      <span className="ml-auto shrink-0 tabular text-muted-foreground">
+                        {formatDurationLong(l.seconds)} · {share}%
                       </span>
-                    }
-                    actions={
-                      <>
-                        <span className="shrink-0 text-body-sm text-muted-foreground tabular">
-                          {formatDurationLong(i.seconds)}
-                        </span>
-                        <Chip className="hidden shrink-0 sm:inline-flex">
-                          {project}
-                        </Chip>
-                      </>
-                    }
-                  >
-                    <span className="block font-medium">{i.issueKey}</span>
-                    <span className="block truncate text-body-sm text-muted-foreground">
-                      {i.summary ?? "—"}
-                    </span>
-                  </ActionRow>
-                </Link>
-              </li>
-            );
-          })}
+                    </div>
+                    <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <span className={cn("block h-full rounded-full", l.color.fill)} style={{ width: `${Math.max(2, share)}%` }} />
+                    </div>
+                    {own.length > 0 && (
+                      <ul className="mt-1">
+                        {own.map(i => (
+                          <li key={issueId(i)}>
+                            <Link
+                              to={issuePath({ key: i.issueKey, connectionId: i.connectionId, remoteId: i.remoteId })}
+                              className="-mx-2 grid min-h-target grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 rounded-md px-2 py-1 text-body-sm transition-colors hover:bg-accent/60 coarse:min-h-touch"
+                            >
+                              <span className="font-medium">{i.issueKey}</span>
+                              <span className="truncate text-muted-foreground">{i.summary ?? "—"}</span>
+                              <span className="tabular text-muted-foreground">{formatDurationLong(i.seconds)}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </li>
+              );
+            });
+          })()}
         </ul>
       )}
     </div>
