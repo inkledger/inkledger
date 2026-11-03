@@ -1464,7 +1464,7 @@ test("reconnecting GitHub asks no name: the connection keeps its own", () =>
     assert.equal(await dialog.getByLabel("Name in inkledger").count(), 0);
   }));
 
-test("Dashboard: the running timer paused, resumed and stopped from its header and from its block on the day", () =>
+test("Dashboard: the running timer paused from its block on the day, resumed and stopped from the sidebar's Now card", () =>
   withApp({}, async ({ page, base, db }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(base + "/issues");
@@ -1474,13 +1474,15 @@ test("Dashboard: the running timer paused, resumed and stopped from its header a
     const trend = main.getByRole("region", { name: "Period trend" });
     // On the block that runs.
     await trend.getByRole("button", { name: "Pause timer DEMO-101" }).click();
-    await main.getByRole("button", { name: "Resume timer DEMO-101" }).first().waitFor();
+    await page.getByRole("button", { name: "Resume timer DEMO-101" }).first().waitFor();
     assert.equal((await db.q("SELECT state FROM timers"))[0].state, "paused");
-    // From the header: still there while paused, resumed, then stopped: its time to log.
-    await main.getByRole("button", { name: "Resume timer DEMO-101" }).first().click();
-    await main.getByRole("button", { name: "Pause timer DEMO-101" }).first().waitFor();
+    // The timer shows once on a laptop (docs/design-system.md §7.1): the sidebar's Now card, still there
+    // while paused; resumed, then stopped from it: its time to log.
+    const now = page.locator('[data-workspace-anchor="shell.timer.active"]');
+    await now.getByRole("button", { name: "Resume timer DEMO-101" }).click();
+    await now.getByRole("button", { name: "Pause timer DEMO-101" }).waitFor();
     assert.equal((await db.q("SELECT state FROM timers"))[0].state, "running");
-    await main.getByRole("button", { name: "Stop and log time on DEMO-101" }).first().click();
+    await now.getByRole("button", { name: "Stop and log time on DEMO-101" }).click();
     await page.getByRole("dialog").getByText("DEMO-101").first().waitFor();
     assert.equal((await db.q("SELECT state FROM timers"))[0].state, "paused");
   }));

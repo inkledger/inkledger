@@ -1,3 +1,4 @@
+import { trpc } from "@/lib/trpc";
 import { Tabs, TabPanel } from "@/components/ui/tabs";
 import { deviceSetting } from "@/lib/storage";
 import { PanelSection } from "@/components/app/Panel";
@@ -98,10 +99,23 @@ const workTab = deviceSetting<WorkTab>("ikl-issue-work-tab", raw => (raw === "no
  */
 function YourWork({ issue: i, idScope }: { issue: Issue; idScope: string }) {
   const chosen = workTab.use();
-  const items: { value: WorkTab; label: string }[] = [
-    ...(i.connectionId ? [{ value: "todos" as const, label: t("pages.issueDetail.todos") }] : []),
-    { value: "notes" as const, label: t("pages.issueDetail.privateNotes") },
-    ...(i.connectionId ? [{ value: "linked" as const, label: t("pages.notes.linkedNotes") }, { value: "mail" as const, label: t("ui.mail.title") }] : []),
+  // Each tab says how much it holds, so a closed one with something in it is seen (the same queries as
+  // its section: one cache, nothing read twice).
+  const conn = i.connectionId ?? undefined;
+  const has = Boolean(i.connectionId);
+  const todos = trpc.todos.forIssue.useQuery({ issueKey: i.key, connectionId: i.connectionId ?? 0 }, { enabled: has, retry: false });
+  const notes = trpc.issueNotes.list.useQuery({ issueKey: i.key, connectionId: conn });
+  const linked = trpc.notes.forIssue.useQuery({ issueKey: i.key, connectionId: i.connectionId ?? 0 }, { enabled: has });
+  const mails = trpc.mails.forIssue.useQuery({ issueKey: i.key, connectionId: i.connectionId ?? 0 }, { enabled: has });
+  const items: { value: WorkTab; label: string; count?: number }[] = [
+    ...(has ? [{ value: "todos" as const, label: t("pages.issueDetail.todos"), count: todos.data?.length }] : []),
+    { value: "notes" as const, label: t("pages.issueDetail.privateNotes"), count: notes.data?.length },
+    ...(has
+      ? [
+          { value: "linked" as const, label: t("pages.notes.linkedNotes"), count: linked.data?.length },
+          { value: "mail" as const, label: t("ui.mail.title"), count: mails.data?.length },
+        ]
+      : []),
   ];
   const tab = items.some(item => item.value === chosen) ? chosen : items[0].value;
   const idBase = `issue-work-${idScope}${i.key}`.replace(/[^\w-]/g, "-");

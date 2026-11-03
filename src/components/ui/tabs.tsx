@@ -68,7 +68,10 @@ export function Tabs<T extends string>({
             )}
           >
             {item.label}
-            {item.count !== undefined && <span className="tabular text-caption text-muted-foreground">{item.count}</span>}
+            {/* What a tab holds, said on the tab: a closed tab with something in it stands out (a soft badge). */}
+            {item.count !== undefined && (
+              <span className={cn("rounded-full px-1.5 text-caption tabular", item.count > 0 ? "bg-primary-soft font-semibold text-primary-strong" : "text-muted-foreground")}>{item.count}</span>
+            )}
           </button>
         );
       })}
