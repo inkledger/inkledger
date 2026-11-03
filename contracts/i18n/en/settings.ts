@@ -707,6 +707,8 @@ export const settings = {
     columnDefault: "Column {n}",
     statusColumn: "Column for {status}",
     noColumn: "No column",
+    mapOf: "Columns of {name}",
+    moveTo: "Move to {name}",
     preview: "Preview of the board",
     moveUp: "Move up",
     moveDown: "Move down",

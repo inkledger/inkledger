@@ -98,3 +98,30 @@ test("D9: Timesheet and Report follow the bucket, All shows everything; the day'
     await page.getByRole("button", { name: /Log missing time from 0?9:00 to 10:00/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /Log missing time from 1[01]:00/ }).count(), 0);
   }));
+
+test("a bucket's own columns as a board: statuses dragged into a column or moved from their menu, one column each", () =>
+  withApp({ seed: secondJira }, async ({ page, base, db }) => {
+    await page.goto(base + "/settings/buckets");
+    await page.getByRole("button", { name: "New bucket" }).click();
+    const form = page.getByRole("dialog");
+    await form.getByLabel("Name").fill("Client B");
+    await form.getByRole("checkbox", { name: "Client B · all of Jira" }).check();
+    await form.getByLabel("Board layout").selectOption("custom");
+    await form.getByRole("button", { name: "Add column" }).click();
+    await form.getByRole("button", { name: "Add column" }).click();
+    const map = form.getByRole("region", { name: "Columns of Client B" });
+    const pool = map.getByRole("group", { name: /^No column/ });
+    const first = map.getByRole("group", { name: /^Column 1/ });
+    // Dragged: To Do into the first column.
+    await pool.getByText("To Do", { exact: true }).dragTo(first);
+    await map.getByRole("group", { name: "Column 1 (1)" }).getByText("To Do", { exact: true }).waitFor();
+    // By keyboard: its menu moves it to the second; it leaves the first (one column each).
+    await map.getByRole("button", { name: "Column for To Do" }).click();
+    await page.getByRole("menuitem", { name: "Move to Column 2" }).click();
+    await map.getByRole("group", { name: "Column 2 (1)" }).getByText("To Do", { exact: true }).waitFor();
+    await map.getByRole("group", { name: "Column 1 (0)" }).waitFor();
+    await form.getByRole("button", { name: "Save" }).click();
+    await page.getByText("Client B saved").waitFor();
+    const rows = await db.q("SELECT name, statuses FROM bucket_columns ORDER BY position");
+    assert.deepEqual(rows.map(r => [r.name, Object.values(JSON.parse(r.statuses)).flat()]), [["Column 1", []], ["Column 2", ["To Do"]]]);
+  }));

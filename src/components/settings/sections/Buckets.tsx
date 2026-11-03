@@ -15,6 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { cn } from "@/lib/utils";
+
+/** A status chip dragged between the editor's columns (only those; dropped text is ignored). */
+const STATUS_DRAG = "application/x-bucket-status";
 
 type Source = { connectionId: number; containerId: number | null };
 type BoardMode = "lanes" | "category" | "custom";
@@ -24,12 +28,13 @@ const EMPTY: Draft = { name: "", sources: [], query: "", boardMode: "lanes", col
 
 /**
  * The bucket's own board columns: a name each, and which statuses of each of
- * its trackers fall in it (a status in one column at most). The preview
- * shows where the statuses land.
+ * its trackers fall in it (a status in one column at most), set on a board
+ * of the columns by dragging the statuses or from each one's menu.
  */
 function ColumnsEditor({ connectionIds, columns, onChange }: { connectionIds: number[]; columns: Column[]; onChange: (c: Column[]) => void }) {
   const connections = useConnections().data ?? [];
   const statuses = trpc.buckets.statuses.useQuery(undefined, { staleTime: 60_000 }).data ?? [];
+  const [dragOver, setDragOver] = useState<string | null>(null);
   const set = (i: number, c: Column) => onChange(columns.map((x, j) => (j === i ? c : x)));
   const where = (conn: number, status: string) => columns.findIndex(c => (c.statuses[String(conn)] ?? []).includes(status));
   const assign = (conn: number, status: string, to: number) =>
@@ -68,48 +73,85 @@ function ColumnsEditor({ connectionIds, columns, onChange }: { connectionIds: nu
           {t("settings.buckets.columnAdd")}
         </Button>
       )}
+      {/* The board itself is the editor: each status a chip, dragged into its column; its menu moves it by
+          keyboard (or screen reader). A status sits in one column at most, as the Board draws it. */}
       {columns.length > 0 &&
         connectionIds.map(conn => {
           const own = statuses.filter(s => s.connectionId === conn);
           if (own.length === 0) return null;
           const c = connections.find(x => x.id === conn);
+          const name = c ? c.label || c.name : String(conn);
+          const targets = [{ index: -1, name: t("settings.buckets.noColumn") }, ...columns.map((col, index) => ({ index, name: col.name }))];
           return (
-            <div key={conn} className="grid gap-1">
-              <p className="text-caption font-medium text-muted-foreground">{c ? c.label || c.name : conn}</p>
-              {own.map(s => (
-                <label key={s.status} className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-2 text-body-sm">
-                  <span className="truncate">{s.status}</span>
-                  <select
-                    {...surface("control")}
-                    className="h-8 rounded-md border bg-background px-2 text-body-sm"
-                    aria-label={t("settings.buckets.statusColumn", { status: s.status })}
-                    value={where(conn, s.status)}
-                    onChange={e => assign(conn, s.status, Number(e.target.value))}
-                  >
-                    <option value={-1}>{t("settings.buckets.noColumn")}</option>
-                    {columns.map((col, j) => (
-                      <option key={j} value={j}>
-                        {col.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
+            <section key={conn} aria-label={t("settings.buckets.mapOf", { name })} className="region grid gap-1.5">
+              <p className="text-caption font-medium text-muted-foreground">{name}</p>
+              <div {...surface("ground")} className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2 rounded-lg border bg-muted/30 p-2">
+                {targets.map(target => {
+                  const inIt = own.filter(s => where(conn, s.status) === target.index);
+                  const over = dragOver === `${conn}:${target.index}`;
+                  return (
+                    <div
+                      key={target.index}
+                      role="group"
+                      aria-label={`${target.name} (${inIt.length})`}
+                      data-bucket-column={target.index}
+                      {...surface(target.index === -1 ? "glass" : "card")}
+                      className={cn("min-h-20 rounded-md border p-1.5 transition-colors", target.index === -1 ? "border-dashed bg-transparent" : "bg-card", over && "ring-2 ring-ring")}
+                      onDragOver={e => {
+                        if (!e.dataTransfer.types.includes(STATUS_DRAG)) return;
+                        e.preventDefault();
+                        setDragOver(`${conn}:${target.index}`);
+                      }}
+                      onDragLeave={() => setDragOver(v => (v === `${conn}:${target.index}` ? null : v))}
+                      onDrop={e => {
+                        setDragOver(null);
+                        const raw = e.dataTransfer.getData(STATUS_DRAG);
+                        if (!raw) return;
+                        e.preventDefault();
+                        const dropped: unknown = JSON.parse(raw);
+                        if (typeof dropped === "object" && dropped !== null && "conn" in dropped && "status" in dropped && dropped.conn === conn && typeof dropped.status === "string") assign(conn, dropped.status, target.index);
+                      }}
+                    >
+                      <p className="truncate px-1 text-caption font-semibold">
+                        {target.name} <span className="font-normal text-muted-foreground tabular">{inIt.length}</span>
+                      </p>
+                      <ul className="mt-1 flex flex-wrap gap-1">
+                        {inIt.map(st => (
+                          <li
+                            key={st.status}
+                            draggable
+                            onDragStart={e => {
+                              e.dataTransfer.setData(STATUS_DRAG, JSON.stringify({ conn, status: st.status }));
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            {...surface("chip")}
+                            className="flex max-w-full cursor-grab items-center rounded-md border bg-background pl-2 text-caption active:cursor-grabbing"
+                          >
+                            <span className="truncate">{st.status}</span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button type="button" variant="ghost" size="icon-sm" className="size-6 shrink-0" aria-label={t("settings.buckets.statusColumn", { status: st.status })}>
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                {targets.filter(x => x.index !== target.index).map(x => (
+                                  <DropdownMenuItem key={x.index} onSelect={() => assign(conn, st.status, x.index)}>
+                                    {t("settings.buckets.moveTo", { name: x.name })}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
-      {columns.length > 0 && (
-        <div aria-label={t("settings.buckets.preview")} {...surface("ground")} className="flex gap-2 overflow-x-auto rounded-lg border bg-muted/30 p-2">
-          {columns.map((col, i) => (
-            <div key={i} {...surface("card")} className="min-w-28 flex-1 rounded-md border bg-card p-1.5">
-              <p className="truncate text-caption font-semibold">{col.name}</p>
-              <ul className="mt-1 grid gap-0.5 text-caption text-muted-foreground">
-                {Object.entries(col.statuses).flatMap(([conn, list]) => list.map(s => <li key={`${conn}:${s}`} className="truncate">{s}</li>))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

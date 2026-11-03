@@ -708,6 +708,8 @@ export const settings: Shape<typeof en> = {
     columnDefault: "Colonna {n}",
     statusColumn: "Colonna per {status}",
     noColumn: "Nessuna colonna",
+    mapOf: "Colonne di {name}",
+    moveTo: "Sposta in {name}",
     preview: "Anteprima della board",
     moveUp: "Sposta su",
     moveDown: "Sposta giù",

@@ -239,10 +239,11 @@ test("custom columns made in Settings → Buckets, each tracker's statuses mappe
     await form.getByRole("button", { name: "Add column" }).click();
     await form.getByLabel("Name of column 1").fill("Waiting");
     await form.getByLabel("Name of column 2").fill("Finished");
-    await form.getByLabel("Column for To Do").selectOption({ label: "Waiting" });
-    await form.getByLabel("Column for open").selectOption({ label: "Waiting" });
-    await form.getByLabel("Column for closed").selectOption({ label: "Finished" });
-    await form.getByLabel("Column for Fatto").selectOption({ label: "Finished" });
+    // Each status's chip, moved from its menu (the keyboard's way; dragging is tested in buckets.test.mjs).
+    for (const [status, column] of [["To Do", "Waiting"], ["open", "Waiting"], ["closed", "Finished"], ["Fatto", "Finished"]]) {
+      await form.getByRole("button", { name: `Column for ${status}`, exact: true }).click();
+      await page.getByRole("menuitem", { name: `Move to ${column}` }).click();
+    }
     await form.getByRole("button", { name: "Save" }).click();
     await page.getByText("Work saved").waitFor();
     await page.getByRole("button", { name: "Account menu" }).click();

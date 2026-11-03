@@ -369,7 +369,8 @@ export default function Board() {
     go(d.card, targets.get(columnId) ?? []);
   };
 
-  // The cards of each column (custom columns may share a status: a card shows in each), in one pass.
+  // The cards of each column, in one pass: a card in the first column that takes it (a status sits in one
+  // column at most, as Settings → Buckets saves it; an older mapping that named it twice shows it once).
   // Custom columns: cards no column takes, said apart (they can't be dropped back there).
   const { byColumn, unmapped } = useMemo(() => {
     const byColumn = new Map<string, Row[]>();
@@ -383,6 +384,7 @@ export default function Board() {
         const list = byColumn.get(col.id);
         if (list) list.push(r);
         else byColumn.set(col.id, [r]);
+        break;
       }
       if (!taken && mode === "custom") unmapped.push(r);
     }

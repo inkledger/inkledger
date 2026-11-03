@@ -124,6 +124,22 @@ describe("buckets, per device", () => {
       ["Waiting", { [c2]: ["To Do"] }],
       ["Moving", { [c2]: ["In Progress"] }],
     ]);
+    // A status sits in one column at most: the first one keeps it.
+    await tab.buckets.save({
+      id,
+      name: "Two, ops",
+      sources: [{ connectionId: c2, containerId: null }],
+      query: "progetto:OPS",
+      boardMode: "custom",
+      columns: [
+        { name: "Waiting", statuses: { [c2]: ["To Do"] } },
+        { name: "Moving", statuses: { [c2]: ["In Progress", "To Do"] } },
+      ],
+    });
+    expect((await tab.buckets.list()).buckets.find((b) => b.id === id)!.columns.map((c) => [c.name, c.statuses])).toEqual([
+      ["Waiting", { [c2]: ["To Do"] }],
+      ["Moving", { [c2]: ["In Progress"] }],
+    ]);
     const ids = (await tab.buckets.list()).buckets.map((b) => b.id);
     await tab.buckets.reorder({ ids: [...ids].reverse() });
     expect((await tab.buckets.list()).buckets.map((b) => b.id)).toEqual([...ids].reverse());

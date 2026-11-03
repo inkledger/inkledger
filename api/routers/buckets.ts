@@ -103,12 +103,21 @@ export const bucketsRouter = createRouter({
           const inBucket = new Set(input.sources.map((s) => String(s.connectionId)));
           await tx.delete(bucketColumns).where(eq(bucketColumns.bucketId, id));
           if (input.columns.length > 0) {
+            // A status in one column at most (the Board draws each card once): the first column keeps it.
+            const taken = new Set<string>();
+            const own = (conn: string, list: string[]) =>
+              list.filter((status) => {
+                const key = `${conn}\u0000${status}`;
+                if (taken.has(key)) return false;
+                taken.add(key);
+                return true;
+              });
             await tx.insert(bucketColumns).values(
               input.columns.map((c, position) => ({
                 bucketId: id,
                 position,
                 name: c.name,
-                statuses: JSON.stringify(Object.fromEntries(Object.entries(c.statuses).filter(([conn]) => inBucket.has(conn)))),
+                statuses: JSON.stringify(Object.fromEntries(Object.entries(c.statuses).filter(([conn]) => inBucket.has(conn)).map(([conn, list]) => [conn, own(conn, list)]))),
               })),
             );
           }
