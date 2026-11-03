@@ -34,6 +34,12 @@ async function pinBudget(page, base) {
   await where.getByRole("button", { name: /DEMO-102/ }).click();
   await where.waitFor({ state: "detached" });
   await page.goto(base + "/issues/DEMO-102");
+  await mailsTab(page);
+}
+
+/** The issue's mails are a tab of "Your work" (one part shown at a time). */
+async function mailsTab(page) {
+  await page.getByRole("tab", { name: "Mails" }).click();
 }
 
 test("a pinned mail survives its deletion in Outlook", () =>
@@ -104,6 +110,7 @@ test("copies at 320 px", () =>
       await page.locator("#outlook-copies").getByRole("button", { name: "Delete all copies" }).waitFor();
       assert.equal(await overflow(), 0, `settings in ${scheme}`);
       await page.goto(base + "/issues/DEMO-102");
+      await mailsTab(page);
       await page.getByRole("button", { name: "Copy of Budget 2027" }).click();
       await page.getByRole("menuitem", { name: "Open the copy" }).click();
       const viewer = page.getByRole("dialog", { name: "Budget 2027" });
