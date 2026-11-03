@@ -78,8 +78,10 @@ export function IssuePicker({
   for (const i of issues) (seen.has(i.key) ? clashing : seen).add(i.key);
   const labelOf = (i: PickableIssue) =>
     clashing.has(i.key) ? connections.find(c => c.id === i.connectionId)?.name : undefined;
-  const favorites = issues.filter(i => i.favorite === 1);
-  const others = issues.filter(i => i.favorite !== 1);
+  // Closed, no rows: a page may hold many pickers (a TODO list, one per row), and each built
+  // the whole catalog as rows on every render for a list nobody saw.
+  const favorites = open ? issues.filter(i => i.favorite === 1) : [];
+  const others = open ? issues.filter(i => i.favorite !== 1) : [];
 
   const item = (i: PickableIssue) => (
     <CommandItem

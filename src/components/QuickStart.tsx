@@ -67,7 +67,10 @@ export function QuickStart() {
   const start = useStartTimer({ announce: true });
   const importIssue = trpc.issues.import.useMutation();
 
+  // Closed, nothing to list: it stays mounted (and re-renders on every navigation), and the
+  // whole catalog as rows (thousands) was built each time for a dialog nobody saw.
   const groups = useMemo(() => {
+    if (!open) return { active: [], recent: [], favorites: [], rest: [], known: new Set<string>(), byValue: new Map<string, Row>() };
     const byKey = new Map(
       (issues.data ?? []).map(i => [
         idOf(i),
@@ -110,7 +113,7 @@ export function QuickStart() {
       known: new Set((issues.data ?? []).map(i => i.key)),
       byValue: new Map(rows.map(r => [rowValue(r), r])),
     };
-  }, [issues.data, logs.data, timers]);
+  }, [open, issues.data, logs.data, timers]);
 
   const typedKey = search.trim().toUpperCase();
   // Only once the catalog is loaded: before that every key looks "missing".

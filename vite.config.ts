@@ -79,6 +79,9 @@ export default defineConfig({
     host: devEnv.DEV_HOST || "127.0.0.1",
     // Reached over the tailnet or the LAN too (the server checks hosts itself).
     allowedHosts: [".ts.net", ".local", ...csv(devEnv.DEV_ALLOWED_HOSTS)],
+    // The pages' modules transformed when the server starts, not on a page's first visit
+    // (dev serves modules one by one: Issues and Settings waited on ~70 of them).
+    warmup: { clientFiles: ["./src/main.tsx", "./src/pages/*.tsx"] },
   },
   resolve: {
     alias: {
