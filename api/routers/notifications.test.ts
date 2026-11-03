@@ -361,6 +361,18 @@ describe("notifications, incremental sync, watchers", () => {
     expect(await other.notifications.list()).toEqual([]);
   });
 
+  it("dismissMany archives a stack in one call, mine only", async () => {
+    await freshStart();
+    for (const [dedupe, at] of [["s1", 1000], ["s2", 2000], ["s3", 3000]] as const)
+      await raw("INSERT INTO notifications (user_id, kind, issue_key, detail, dedupe, created_at) VALUES (?, 'commented', 'AB-1', '', ?, ?)", userId, dedupe, Date.now() + at);
+    const ids = (await caller.notifications.list()).map((n) => n.id);
+    expect(ids).toHaveLength(3);
+    // Someone else's call takes nothing of mine.
+    expect(await other.notifications.dismissMany({ ids })).toEqual({ dismissed: 0 });
+    expect(await caller.notifications.dismissMany({ ids: ids.slice(0, 2) })).toEqual({ dismissed: 2 });
+    expect((await caller.notifications.list()).map((n) => n.id)).toEqual([ids[2]]);
+  });
+
   it("a watched issue reassigned to me is notified and unread", async () => {
     await freshStart({ watch: [jiraIssue("WW-1", { assignee: "someone" })] });
     const unread = async () => (await caller.issues.all()).filter((i) => i.unread).map((i) => i.key);

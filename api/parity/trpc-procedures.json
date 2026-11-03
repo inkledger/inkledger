@@ -856,6 +856,10 @@
     "type": "mutation"
   },
   {
+    "path": "notifications.dismissMany",
+    "type": "mutation"
+  },
+  {
     "path": "notifications.list",
     "type": "query"
   },

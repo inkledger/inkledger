@@ -255,6 +255,19 @@ export const notificationsRouter = createRouter({
       return { dismissed: res.length };
     }),
 
+  /** Several at once (a stack of one issue's notifications): one call, read in the tracker's inbox too. */
+  dismissMany: protectedProcedure
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      const res = await getDb()
+        .update(notifications)
+        .set({ dismissedAt: new Date() })
+        .where(and(undismissed(ctx.user.id), inArray(notifications.id, input.ids)))
+        .returning({ id: notifications.id, dedupe: notifications.dedupe });
+      await (await import("../sync/inboxRead")).markInboxRead(ctx.user.id, res.map((r) => r.dedupe));
+      return { dismissed: res.length };
+    }),
+
   dismissAll: protectedProcedure.mutation(async ({ ctx }) => {
     // On a device with a bucket, that bucket's only: the others were never shown here.
     const inBucket = await notificationsInBucket(ctx.user.id, ctx.deviceId);

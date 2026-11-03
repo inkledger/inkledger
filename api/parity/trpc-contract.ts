@@ -219,6 +219,7 @@ export interface FrozenIn {
   "notifications.createTest": { issueKey?: string | undefined; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "unassigned" | "watch_added" | "watch_removed" };
   "notifications.dismiss": { id: number };
   "notifications.dismissAll": void;
+  "notifications.dismissMany": { ids: number[] };
   "notifications.list": void;
   "outbox.discard": { id: number };
   "outbox.list": void;
@@ -565,6 +566,7 @@ export interface FrozenOut {
   "notifications.createTest": { issueKey: string };
   "notifications.dismiss": { dismissed: number };
   "notifications.dismissAll": { dismissed: number };
+  "notifications.dismissMany": { dismissed: number };
   "notifications.list": { connectionId: number; createdAt: Date; detail: string; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "unassigned" | "watch_added" | "watch_removed"; priority: null | string; projectKey: null | string; status: null | string; statusCategory: null | string; summary: null | string }[];
   "outbox.discard": { ok: boolean };
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date | null; timeSpentSeconds: number }[];

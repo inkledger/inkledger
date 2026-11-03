@@ -25,6 +25,15 @@ export function useNotificationList() {
     onError,
     onSettled: refresh,
   });
+  const dismissMany = trpc.notifications.dismissMany.useMutation({
+    onMutate: async ({ ids }) => {
+      await utils.notifications.list.cancel();
+      const gone = new Set(ids);
+      utils.notifications.list.setData(undefined, old => old?.filter(n => !gone.has(n.id)));
+    },
+    onError,
+    onSettled: refresh,
+  });
   const dismissAll = trpc.notifications.dismissAll.useMutation({
     onMutate: async () => {
       await utils.notifications.list.cancel();
@@ -37,6 +46,7 @@ export function useNotificationList() {
     query: list,
     items: list.data ?? [],
     dismiss: (id: number) => dismiss.mutate({ id }),
+    dismissMany: (ids: number[]) => dismissMany.mutate({ ids }),
     dismissAll: () => dismissAll.mutate(),
   };
 }
