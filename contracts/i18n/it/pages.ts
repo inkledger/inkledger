@@ -915,6 +915,7 @@ export const pages: Shape<typeof en> = {
     description: "Descrizione",
     todos: "TODO",
     actionsBar: "Timer e Registra tempo",
+    byPerson: "Tempo per persona",
     yourWork: "Il tuo lavoro",
     privateNotes: "Note private",
     comments: "Commenti",

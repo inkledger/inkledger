@@ -903,6 +903,7 @@ export const pages = {
     description: "Description",
     todos: "TODO",
     actionsBar: "Timer and Log time",
+    byPerson: "Time by person",
     yourWork: "Your work",
     privateNotes: "Private notes",
     comments: "Comments",

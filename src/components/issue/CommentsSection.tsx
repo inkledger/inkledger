@@ -19,6 +19,9 @@ import { useProviderName } from "@/hooks/useConnections";
 import { t, dateFormat } from "@/i18n";
 
 /** Jira comments of an issue with a composer (posts to Jira). */
+/** Comments shown before "Show all": the latest ones, read first. */
+const COMMENTS_FIRST = 3;
+
 export function CommentsSection({
   issueKey,
   connectionId,
@@ -29,6 +32,8 @@ export function CommentsSection({
   /** The new comment's field: unique where the same key is shown twice. */
   inputId?: string;
 }) {
+  // A link to a comment (#comment-…, from a TODO) opens them all, or it could be one of the hidden ones.
+  const [allComments, setAllComments] = useState(() => typeof location !== "undefined" && location.hash.startsWith("#comment-"));
   const provider = useProviderName(connectionId);
   const utils = trpc.useUtils();
   // On its own tracker: the same key may be on another one.
@@ -115,9 +120,11 @@ export function CommentsSection({
       ) : comments.data.length === 0 ? (
         <EmptyState art="chat" title={t("views.issue.comments.empty")} className="py-6" />
       ) : (
+        <>
         <ol className="grid gap-4">
-          {/* Newest first, under the composer: the latest word is the first one read. */}
-          {[...comments.data].sort((a, b) => Date.parse(b.created) - Date.parse(a.created)).map(c => {
+          {/* Newest first, under the composer: the latest word is the first one read. The latest few, then
+              all of them on request (a link to one further down opens them all). */}
+          {[...comments.data].sort((a, b) => Date.parse(b.created) - Date.parse(a.created)).slice(0, allComments ? undefined : COMMENTS_FIRST).map(c => {
             const created = new Date(c.created);
             return (
               // Its anchor: a TODO made from it links back here (#comment-…).
@@ -154,6 +161,12 @@ export function CommentsSection({
             );
           })}
         </ol>
+        {comments.data.length > COMMENTS_FIRST && (
+          <Button variant="ghost" size="sm" className="mt-3" aria-expanded={allComments} onClick={() => setAllComments(v => !v)}>
+            {allComments ? t("ui.collection.showFewer") : t("ui.collection.showAll", { count: comments.data.length })}
+          </Button>
+        )}
+        </>
       )}
     </div>
   );

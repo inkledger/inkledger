@@ -1,3 +1,4 @@
+import { ToggleChip } from "@/components/app/ToggleChip";
 import { useState } from "react";
 import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
@@ -28,6 +29,9 @@ import { dateTime } from "@/components/issue/issueFormat";
 import type { Issue, IssueData } from "@/components/issue/useIssueData";
 import { t } from "@/i18n";
 
+/** Worklogs shown before "Show all": the latest ones. */
+const WORKLOGS_FIRST = 8;
+
 /** The issue's worklogs, mine beside the team's, with edit, delete and a sync from its tracker. */
 export function IssueWorklogs({
   issue: i,
@@ -45,6 +49,14 @@ export function IssueWorklogs({
   const [deleting, setDeleting] = useState<string | null>(null);
   // Mine stand out only beside someone else's.
   const withOthers = logRows.some(r => r.kind === "other");
+  // Who logged how much: a chip each, which also narrows the list to that person (none pressed: all).
+  const [person, setPerson] = useState<string | null>(null);
+  const [allRows, setAllRows] = useState(false);
+  const personOf = (row: (typeof logRows)[number]) => (row.kind === "mine" ? "" : row.entry.authorName || t("pages.issueDetail.someoneElse"));
+  const secondsOf = (row: (typeof logRows)[number]) => (row.kind === "mine" ? row.log.timeSpentSeconds : row.entry.seconds);
+  const people = [...logRows.reduce((map, row) => map.set(personOf(row), (map.get(personOf(row)) ?? 0) + secondsOf(row)), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+  const narrowed = person === null ? logRows : logRows.filter(row => personOf(row) === person);
+  const visibleRows = allRows ? narrowed : narrowed.slice(0, WORKLOGS_FIRST);
   return (
     <>
       <PanelSection
@@ -98,8 +110,18 @@ export function IssueWorklogs({
               {t("pages.issueDetail.othersUnavailable")}
             </p>
           )}
+          {withOthers && people.length > 1 && (
+            <div role="group" aria-label={t("pages.issueDetail.byPerson")} className="mb-2 flex flex-wrap gap-1.5">
+              {people.map(([who, seconds]) => (
+                <ToggleChip key={who || "me"} size="sm" pressed={person === who} onClick={() => setPerson(p => (p === who ? null : who))}>
+                  {who || t("views.issue.comments.you")}
+                  <span className="tabular opacity-70">{formatDuration(seconds)}</span>
+                </ToggleChip>
+              ))}
+            </div>
+          )}
           <ul className="divide-y" data-testid="issue-worklogs">
-            {logRows.map(row => {
+            {visibleRows.map(row => {
               if (row.kind === "other") {
                 const e = row.entry;
                 return (
@@ -202,6 +224,12 @@ export function IssueWorklogs({
               );
             })}
           </ul>
+          {/* The latest ones, then all of them on request (a long-running issue has hundreds). */}
+          {narrowed.length > WORKLOGS_FIRST && (
+            <Button variant="ghost" size="sm" className="mt-2" aria-expanded={allRows} onClick={() => setAllRows(v => !v)}>
+              {allRows ? t("ui.collection.showFewer") : t("ui.collection.showAll", { count: narrowed.length })}
+            </Button>
+          )}
           </>
         )}
       </PanelSection>
