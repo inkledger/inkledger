@@ -86,14 +86,18 @@ function MakeTodoForm({ link, initial, onDone }: { link: TodoLink; initial: stri
  * "TODO" next to a comment, a note or an issue's title: a small form to make
  * one from it. With `count` (TODOs already made from it) it says so.
  */
-export function MakeTodoButton({ link, initial, count = 0, label, className }: { link: TodoLink; initial: string; count?: number; label: string; className?: string }) {
+export function MakeTodoButton({ link, initial, count = 0, label, className, iconOnly = false }: { link: TodoLink; initial: string; count?: number; label: string; className?: string; /** A crowded header: the icon (and a count), the words in its name and tooltip. */ iconOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button size="sm" variant="ghost" aria-label={count ? `${label} (${t("views.todos.already", { count })})` : label} title={label} className={cn(count > 0 && "text-primary-strong", className)}>
           <ListChecks className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{count ? t("views.todos.badge", { count }) : t("views.todos.short")}</span>
+          {iconOnly ? (
+            count > 0 && <span className="tabular text-caption">{count}</span>
+          ) : (
+            <span className="hidden sm:inline">{count ? t("views.todos.badge", { count }) : t("views.todos.short")}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">

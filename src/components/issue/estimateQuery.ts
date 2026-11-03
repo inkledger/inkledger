@@ -3,7 +3,7 @@ import type { AppRouter } from "../../../api/router";
 import { formatDuration } from "@contracts/time";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
-import type { Stat } from "@/components/dashboard/QuickStatsCard";
+import type { StatItem } from "@/components/app/StatStrip";
 
 export type EstimateAnswer = inferRouterOutputs<AppRouter>["estimates"]["forIssue"];
 export type ShownEstimate = Extract<EstimateAnswer, { none: false }>;
@@ -17,7 +17,7 @@ export function useIssueEstimate(issueKey: string, connectionId: number | null |
 export const shownEstimate = (a: EstimateAnswer | undefined): ShownEstimate | null => (a && "none" in a && !a.none ? a : null);
 
 /** "Likely: 3 h 30 – 5 h", beside the issue's time; nothing until there is a number. */
-export function likelyStat(a: EstimateAnswer | undefined): Stat | null {
+export function likelyStat(a: EstimateAnswer | undefined): StatItem | null {
   const e = shownEstimate(a);
   return e ? { label: t("ui.estimate.likely"), value: `${formatDuration(e.p20)} – ${formatDuration(e.p80)}` } : null;
 }

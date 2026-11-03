@@ -29,7 +29,7 @@ function Detail({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-1">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
       <dt className="text-caption text-muted-foreground">{label}</dt>
       <dd className="text-body-sm">{children}</dd>
     </div>
@@ -111,7 +111,7 @@ export function IssueFields({
           >
             <SelectTrigger
               size="sm"
-              className="w-full max-w-48"
+              className="w-full min-w-0 max-w-48 [&>span]:truncate"
               aria-label={t("pages.issueDetail.changeStatus")}
             >
               <SelectValue

@@ -77,13 +77,13 @@ The user picks one base colour (Settings → Appearance, stored as `settings.the
 | `success`, `warning`, `danger`, `info` (+ `-soft`) | State: text on its soft fill | `bg-success-soft text-success` |
 | `chart-*`, `project-1..6` | Data only: charts, project colours | `bg-chart-focus` |
 | `paper`, `tape-1..5`, `string` | The pinboard's notes, washi tape, the red string | pinboard only |
-| `cover-*`, `sunset-*` | Grainy covers on stat cards only | `cover-sunset` |
+| `cover-*`, `sunset-*` | Grainy covers: focus mode, avatars, illustrations, the sign-in page (never on a page's figures) | `cover-sunset` |
 
 ### 3.4 Rules that came from mistakes
 
 - **Project colours are stable per project.** A hash of the project key picks one of `--project-1..6`, never the project's rank in a period, which made colours jump around.
 - **Hatched stripes mean one thing only:** tracked but not yet logged (a live timer). Never use them for logged data.
-- **No decorative covers** on cards or on the issue page; covers are only on stat cards. A favourite-card banner was removed as wasted space.
+- **No decorative covers** on cards, figures or the issue page. A page's figures are a `StatStrip` (the stat card with a cover and tiles was retired on 3 Nov, as a favourite-card banner was before it: wasted space).
 - **No gradients** except the theme's own sunset band on covers and the brand mark. No purple, blue or "AI" gradients.
 - **Dark mode is not inverted light.** It has its own derived values. Check both themes, every time.
 
@@ -186,7 +186,10 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | --- | --- | --- |
 | Page title row | `PageHeader` (breadcrumb, h1, description, actions; sets the tab title) | A custom `<h1>` row |
 | A block of the page panel | `PanelSection` / `PanelRow` (hairlines, not boxes) | Nested cards |
-| A page's figures | `StatStrip` (one row divided by hairlines, 2×2 on a phone; a figure can be a filter; variants compact/default/expanded) | A card with a cover and tiles (`QuickStatsCard`, being retired page by page) |
+| A page's figures | `StatStrip` (one row divided by hairlines, 2×2 on a phone, the cover's grainy sunset as a faint wash behind the row; the figure looked for first is `lead`: a step larger, in the primary colour; a figure can be a filter or carry a `meter` towards its target; `busy` while another period loads; variants compact/default/expanded) | A card with a cover and tiles (retired) |
+| A collection on an overview page (recent issues, things to pick up) | A rail of tiles: one row, `snap-x`, scrolled sideways inside itself (`data-overflow-ok`), each tile a link with its own ▶ (`StartIssueButton`) and its data as a thread along the edge | A list that grows the page ("show all" stacks) |
+| ▶ on an issue shown as a card or tile | `StartIssueButton` (`controlId` for FlowMap; none while its timer runs; never the card's drag or link) | A per-page start button |
+| A date typed or picked to jump to | `DateJump` (the picker jumps at once, typing on Enter or blur) | An `onChange` on a date input (typing "2" jumped to the 2nd) |
 | A page's own controls under its header | `PageToolbar` (sticks under the sticky header on desktop, publishes `--page-toolbar-h`, opaque, wraps) | A search or filter row that scrolls away |
 | Sections of a page shown one at a time | `Tabs` + `TabPanel` (`components/ui/tabs.tsx`: one Tab stop, arrows without modifiers, value kept by the caller in the URL) | A long stack of sections |
 | A secondary part folded under its title | `Disclosure` (title and count; content drawn only while open) | Always-open blocks of detail |
@@ -194,6 +197,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | A button | `Button`: variants `default` (the one main action), `outline`, `ghost`, `secondary`, `link`, `destructive`; sizes `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-lg` | Raw `<button>` with its own styling |
 | A small label | `Chip`: tone `neutral`, `info`, `success`, `warning` or `danger`; variant `soft` for alerts, `dot` for status in lists | Coloured spans |
 | Two to five exclusive choices | `SegmentedControl` (one radio group, arrows move) | A row of toggled buttons |
+| Text typed in a field | `Input` / `Textarea` (their type is `text-field`: never under 16 px on a phone, where iOS would zoom in) | A field's own smaller text size |
 | A choice from a list | `Select` (Radix, themed) | `<select>` or `<datalist>` (they ignore the theme; datalist is refused) |
 | Picking an issue | `IssuePicker` | A custom search list |
 | A link to another site | `ExternalLink` (asks before opening an unknown domain) | `<a target="_blank">` |
@@ -223,6 +227,10 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
   - A grid track that holds text is `minmax(0,1fr)` (or `grid-cols-[minmax(0,1fr)]`).
   - Flexible flex children get `min-w-0`.
   - Never hide an overflowing child with the parent's `overflow`, and never add a global `overflow-x-hidden` to mask it.
+- **No long lists, no white space beside them.**
+  - Overview pages show a bounded amount: a rail of tiles (one row), a board column that fades towards its full page, a list's first rows with a way to the page that holds them all.
+  - Sections side by side are a bento row: one height for the row (the taller section's, or a floor), the other section fills it (`group-data-[fill]` on the Dashboard's row), and the row's hairline is the row's own, never a section's in mid-air.
+  - Detail that is not looked for first is behind `Tabs` or a `Disclosure`, not under everything else.
 - **Horizontal scroll only inside a declared scroller** (a table, the Board). The page itself never scrolls sideways, at 320 px included.
 - **Phones.**
   - The tab bar is Home, Board, ⏱, Issues and More, and `--bottom-nav-h` reserves its space.
@@ -269,7 +277,7 @@ These conventions are in `docs/dev/ux-patterns.md`, each with its e2e test. The 
   - The colour sits on a washi-tape strip (`--tape-1..5`), with a tiny static tilt.
   - Titles use the display font.
   - No hover movement.
-- **Covers** (stat cards only): grainy, with the sunset band derived from the theme.
+- **Covers** (focus mode, avatars, illustrations): grainy, with the sunset band derived from the theme.
 - **The Outlook add-in's pane** is a page of the app's build: `outlook.html` and `src/outlook/`.
   - It uses the same components, tokens, fonts, theme colour and language as the app, and nothing hand-styled.
   - Outlook's panes are narrow (320–480 px), so a section puts its selector and its short action button on one row; nothing may need a sideways scroll.

@@ -87,6 +87,7 @@ export const views = {
       },
     },
     activity: {
+      sortBy: "Order by",
       issue: "Issue",
       empty: "No entries in the last 14 days",
       lastActivity: "Last activity",

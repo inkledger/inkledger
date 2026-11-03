@@ -37,6 +37,17 @@ export function TriageButton({ issueKey, connectionId }: { issueKey: string; con
   );
 }
 
+/** Only the state, for a page header that sends from its menu: "In triage" while an idea is open for it, else nothing. */
+export function TriageChip({ issueKey, connectionId }: { issueKey: string; connectionId: number }) {
+  const { open } = useTriage(issueKey, connectionId);
+  if (!open.data) return null;
+  return (
+    <Link to={`/ideas?open=${open.data.id}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <Chip tone="info">{t("ui.ideas.inTriage")}</Chip>
+    </Link>
+  );
+}
+
 /** The same in an issue's menu: "In triage" opens the idea, else "Send to triage". */
 export function TriageMenuItem({ issueKey, connectionId }: { issueKey: string; connectionId: number }) {
   const { open, send } = useTriage(issueKey, connectionId);

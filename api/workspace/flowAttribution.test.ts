@@ -74,6 +74,7 @@ describe("server-side layout evidence", () => {
     await recordWorkspaceDiscovery(1, scope, "tab-a", "placed", "dashboard.stats");
     const events = await loadFlowEvents(1, scope, current.descriptor.effectiveRevision);
     expect(events.map(event => event.kind)).toEqual(["discovery.seen", "discovery.placed"]);
-    expect(events.every(event => event.anchorId === "dashboard.stats" && event.semanticRevision === 1)).toBe(true);
+    // The figures became a strip above the timeline on 3 Nov: another block, its revision 2 (kept apart from the card's).
+    expect(events.every(event => event.anchorId === "dashboard.stats" && event.semanticRevision === 2)).toBe(true);
   });
 });

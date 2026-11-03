@@ -1,3 +1,4 @@
+import { DateJump } from "@/components/app/DateJump";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { toastError, failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -22,7 +23,7 @@ import { day, flag, oneOf, text, type Fields } from "@/lib/urlCodecs";
 import { toast } from "sonner";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
-import { addDays, dayKey, formatDurationLong, formatDuration, parseDayKey, startOfWeek, hoursDecimal, roundToMinute, DAY_MS } from "@contracts/time";
+import { addDays, dayKey, formatDurationLong, formatDuration, startOfWeek, hoursDecimal, roundToMinute, DAY_MS } from "@contracts/time";
 import { layOver, partsInput } from "@contracts/placement";
 import { useInvalidateWorklogs } from "@/hooks/useInvalidateWorklogs";
 import { useWorklogSelection } from "@/hooks/useWorklogSelection";
@@ -30,7 +31,6 @@ import { downloadCsv } from "@/lib/csv";
 import { issueId } from "@/lib/issues";
 import { projectOf, rankProjects } from "@/lib/projectColors";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -59,9 +59,10 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { PeriodNav } from "@/components/app/PeriodNav";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
 import { QuickLog } from "@/components/QuickLog";
-import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
 import { PeriodSummary } from "@/components/dashboard/PeriodSummary";
-import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
+import { StatStrip } from "@/components/app/StatStrip";
+import { Disclosure } from "@/components/app/Disclosure";
+import { deviceSetting } from "@/lib/storage";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import { LogTimeDialog } from "@/components/LogTimeDialog";
 import { WeekView, type TimesheetLog } from "@/components/timesheet/WeekView";
@@ -96,9 +97,15 @@ const logDayFormat = () => dateFormat({ weekday: "short", day: "numeric", month:
 type Confirm =
   | { type: "delete"; log: TimesheetLog }
   | { type: "bulk" }
-  | { type: "duplicate"; key: string; date: Date };
+  | { type: "duplicate"; key: string; date: Date }
+  /** Closing a week with days under goal: said first (a closed week takes no more entries). */
+  | { type: "close"; under: number };
+
+/** The period's breakdown (projects, issues) open or folded, remembered on this device. */
+const breakdownPanel = deviceSetting<boolean>("ikl-timesheet-breakdown", raw => raw === "open", open => (open ? "open" : null));
 
 export default function Timesheet() {
+  const breakdownOpen = breakdownPanel.use();
   const [trashOpen, setTrashOpen] = useState(false);
   const provider = useProviderName();
   const today = useToday();
@@ -255,28 +262,6 @@ export default function Timesheet() {
   }, [periodLogs]);
 
   const issueTotals = useMemo(() => topIssueTotals(periodLogs, summaries), [periodLogs, summaries]);
-
-  const stacks = useMemo<DayStack[]>(
-    () =>
-      monthCells
-        .filter(c => c.inMonth)
-        .map(c => {
-          const parts = new Map<string, number>();
-          for (const w of byDay.get(c.key) ?? []) {
-            const p = projectOf(w.issueKey);
-            parts.set(p, (parts.get(p) ?? 0) + w.timeSpentSeconds);
-          }
-          return {
-            day: c.date,
-            parts: [...parts.entries()].map(([project, seconds]) => ({
-              project,
-              seconds,
-            })),
-            worked: workedSeconds(byDay.get(c.key) ?? []),
-          };
-        }),
-    [monthCells, byDay]
-  );
 
   const dayStats = useMemo(() => {
     const totals = periodDays.map(d => ({
@@ -437,6 +422,7 @@ export default function Timesheet() {
     if (!c) return;
     if (c.type === "delete") void deleteLogs([c.log]);
     else if (c.type === "bulk") void deleteLogs(selectedLogs);
+    else if (c.type === "close") closeMut.mutate({ week: weekKey });
     else void duplicateDay(c.key, new Date());
   };
 
@@ -500,6 +486,12 @@ export default function Timesheet() {
         body: t("pages.timesheet.bulkBody", { provider }),
         action: t("pages.timesheet.deleteAction"),
       };
+    if (confirm.type === "close")
+      return {
+        title: t("pages.timesheet.closeUnderTitle", { count: confirm.under }),
+        body: t("pages.timesheet.closeUnderBody"),
+        action: t("pages.timesheet.closeWeek"),
+      };
     const entries = byDay.get(confirm.key) ?? [];
     const total = workedSeconds(entries);
     return {
@@ -547,17 +539,13 @@ export default function Timesheet() {
                 >
                   {t("pages.timesheet.goToDay")}
                 </label>
-                <Input
+                <DateJump
                   id="ts-date"
-                  type="date"
-                  defaultValue={dayKey(period.from)}
+                  value={dayKey(period.from)}
                   className="w-auto"
-                  onChange={e => {
-                    const d = parseDayKey(e.target.value);
-                    if (d) {
-                      setAnchor(d);
-                      setPickOpen(false);
-                    }
+                  onPick={d => {
+                    setAnchor(d);
+                    setPickOpen(false);
                   }}
                 />
               </PopoverContent>
@@ -602,7 +590,8 @@ export default function Timesheet() {
                   ) : (
                     <DropdownMenuItem
                       disabled={closeMut.isPending}
-                      onSelect={() => closeMut.mutate({ week: weekKey })}
+                      // Days under goal: asked first; a complete week closes at once.
+                      onSelect={() => (dayStats.under > 0 ? setConfirm({ type: "close", under: dayStats.under }) : closeMut.mutate({ week: weekKey }))}
                     >
                       <Lock className="h-4 w-4" /> {t("pages.timesheet.closeWeek")}
                     </DropdownMenuItem>
@@ -635,79 +624,34 @@ export default function Timesheet() {
 
       <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} />
       <ViewScope all={shown.all} onAll={all => setShown({ all })} search={shown.search} onSearch={s => setShown({ search: s })} />
-      <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
-        <PanelSection
-          title={t("pages.timesheet.summary")}
-          className="border-b xl:border-b-0 xl:border-r"
-          anchorId="timesheet.summary"
+      {/* The period's figures in one row (Closed is said once, beside the title). */}
+      {logs.isPending ? (
+        <div className="border-b px-5 py-3 md:px-6"><Skeleton className="h-12 rounded-lg" /></div>
+      ) : logs.error ? null : (
+        <StatStrip
+          anchorId="timesheet.stats"
           busy={stale}
-        >
-          {logs.isPending ? (
-            <Skeleton className="h-80" />
-          ) : logs.error ? (
-            <ErrorState
-              message={errorText(logs.error)}
-              onRetry={() => logs.refetch()}
-            />
-          ) : (
-            <PeriodSummary
-              label={periodLabel}
-              totalSeconds={periodTotal}
-              loggedSeconds={periodLogged}
-              targetSeconds={target}
-              legend={legend}
-              issues={issueTotals}
-              colorOf={colorOf}
-              pending={pending}
-            />
-          )}
-        </PanelSection>
-        <div className="min-w-0 p-5 md:p-6">
-          {logs.isPending ? (
-            <Skeleton className="h-64 rounded-xl" />
-          ) : logs.error ? (
-            <ErrorState
-              message={errorText(logs.error)}
-              onRetry={() => logs.refetch()}
-            />
-          ) : (
-            <QuickStatsCard
-              anchorId="timesheet.stats"
-              title={view === "week" ? t("pages.timesheet.viewWeek") : t("pages.timesheet.viewMonth")}
-              stats={[
-                {
-                  label: t("pages.timesheet.underGoal"),
-                  value: stale ? "—" : String(dayStats.under),
-                  tone: !stale && dayStats.under > 0 ? "danger" : undefined,
-                },
-                { label: t("pages.timesheet.entries"), value: String(periodLogs.length) },
-              ]}
-              extra={[
-                {
-                  label: t("pages.timesheet.avgPerDay"),
-                  value:
-                    dayStats.active > 0
-                      ? formatDuration(periodTotal / dayStats.active)
-                      : "—",
-                },
-                {
-                  label: t("pages.timesheet.maxDay"),
-                  value: dayStats.longest
-                    ? formatDuration(dayStats.longest.seconds)
-                    : "—",
-                },
-                { label: t("pages.timesheet.projects"), value: String(projectCount) },
-                view === "week"
-                  ? {
-                      label: t("pages.timesheet.status"),
-                      value: weekStatus.data ? t("pages.timesheet.closed") : t("pages.timesheet.open"),
-                    }
-                  : { label: t("pages.timesheet.goal"), value: formatDuration(target) },
-              ]}
-            />
-          )}
-        </div>
-      </PanelRow>
+          label={view === "week" ? t("pages.timesheet.viewWeek") : t("pages.timesheet.viewMonth")}
+          items={[
+            {
+              label: t("pages.timesheet.total"),
+              lead: true,
+              value: stale ? "—" : formatDuration(periodTotal),
+              extra: target > 0 && !stale ? <span className="text-caption text-muted-foreground tabular">{t("pages.timesheet.ofGoal", { goal: formatDuration(target) })}</span> : undefined,
+              meter: target > 0 && !stale ? { value: periodTotal, max: target, label: t("pages.timesheet.ofGoal", { goal: formatDuration(target) }) } : undefined,
+            },
+            {
+              label: t("pages.timesheet.underGoal"),
+              value: stale ? "—" : String(dayStats.under),
+              tone: !stale && dayStats.under > 0 ? "danger" : undefined,
+            },
+            { label: t("pages.timesheet.entries"), value: stale ? "—" : String(periodLogs.length) },
+            { label: t("pages.timesheet.avgPerDay"), value: !stale && dayStats.active > 0 ? formatDuration(periodTotal / dayStats.active) : "—" },
+            { label: t("pages.timesheet.maxDay"), value: !stale && dayStats.longest ? formatDuration(dayStats.longest.seconds) : "—" },
+            { label: t("pages.timesheet.projects"), value: stale ? "—" : String(projectCount) },
+          ]}
+        />
+      )}
 
       <PanelRow>
         <PanelSection
@@ -790,27 +734,43 @@ export default function Timesheet() {
                   }}
                 />
               ) : (
-                <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-                  <MonthView
-                    cells={monthCells}
-                    byDay={byDay}
-                    targetFor={targetFor}
-                    todayKey={todayKey}
-                    onOpenDay={date => setShown({ view: "week", anchor: date })}
-                  />
-                  <PeriodBars
-                    dense
-                    stacks={stacks}
-                    colorOf={colorOf}
-                    targetFor={targetFor}
-                    pending={pending}
-                  />
-                </div>
+                // The calendar alone: each day already carries its hours and its meter.
+                <MonthView
+                  cells={monthCells}
+                  byDay={byDay}
+                  targetFor={targetFor}
+                  todayKey={todayKey}
+                  onOpenDay={date => setShown({ view: "week", anchor: date })}
+                />
               )}
             </>
           )}
         </PanelSection>
       </PanelRow>
+
+      {/* Projects and issues of the period: what the days above add up to, folded until wanted. */}
+      {!logs.isPending && !logs.error && periodLogs.length > 0 && (
+        <Disclosure
+          title={t("pages.timesheet.breakdown")}
+          count={issueTotals.length}
+          open={breakdownOpen}
+          onOpenChange={open => breakdownPanel.set(open)}
+          className="border-t"
+        >
+          <PanelSection anchorId="timesheet.summary" busy={stale} className="p-0 md:p-0">
+            <PeriodSummary
+              label={periodLabel}
+              totalSeconds={periodTotal}
+              loggedSeconds={periodLogged}
+              targetSeconds={target}
+              legend={legend}
+              issues={issueTotals}
+              colorOf={colorOf}
+              pending={pending}
+            />
+          </PanelSection>
+        </Disclosure>
+      )}
 
       {editing && (
         <LogTimeDialog
@@ -846,7 +806,7 @@ export default function Timesheet() {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("pages.timesheet.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              destructive={confirm?.type !== "duplicate"}
+              destructive={confirm?.type === "delete" || confirm?.type === "bulk"}
               onClick={runConfirm}
             >
               {confirmText.action}

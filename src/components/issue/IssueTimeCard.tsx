@@ -1,8 +1,6 @@
 import { formatDate, formatDuration, parseDayKey } from "@contracts/time";
-import { coverClass } from "@/lib/cover";
 import { PanelSection } from "@/components/app/Panel";
-import { Meter } from "@/components/app/Meter";
-import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
+import { StatStrip } from "@/components/app/StatStrip";
 import { EstimateLines } from "@/components/issue/IssueEstimate";
 import { likelyStat } from "@/components/issue/estimateQuery";
 import type { Issue, IssueData } from "@/components/issue/useIssueData";
@@ -33,64 +31,23 @@ export function IssueTimeCard({
   const pct =
     estimate > 0 ? Math.min(100, Math.round((spent / estimate) * 100)) : null;
   return (
-    <PanelSection className="order-2 border-b">
-      <QuickStatsCard
-        title={t("pages.issueDetail.timeOnIssue")}
-        cover={coverClass(i.key + "-time")}
-        stats={[
-          {
-            label: t("pages.issueDetail.myTime"),
-            value: logTotal !== undefined ? formatDuration(logTotal) : "—",
-          },
-          // No estimate: the number of entries instead.
-          hasEstimate
-            ? {
-                label: t("pages.issueDetail.estimate"),
-                value: formatDuration(estimate),
-              }
-            : {
-                label: t("pages.issueDetail.worklogs"),
-                value: String(logCount),
-              },
-        ]}
-        extra={[
+    <PanelSection className="order-2 border-b" title={t("pages.issueDetail.timeOnIssue")}>
+      {/* The issue's time in figures, three to a row in this column: mine, the estimate, the team's, the due day. */}
+      <StatStrip
+        label={t("pages.issueDetail.timeOnIssue")}
+        variant="compact"
+        maxColumns={3}
+        className="-mx-5 border-t md:-mx-6"
+        items={[
+          { label: t("pages.issueDetail.myTime"), value: logTotal !== undefined ? formatDuration(logTotal) : "—" },
+          ...(hasEstimate ? [{ label: t("pages.issueDetail.estimate"), value: formatDuration(estimate) }] : []),
           ...[likelyStat(estimateQuery.data)].filter(s => s !== null),
-          ...(hasEstimate
-            ? [
-                {
-                  label: t("pages.issueDetail.progress"),
-                  value: pct !== null ? `${pct}%` : "—",
-                },
-                {
-                  label: t("pages.issueDetail.worklogs"),
-                  value: String(logCount),
-                },
-              ]
-            : []),
-          ...(teamTotal === null
-            ? []
-            : [
-                {
-                  label: t("pages.issueDetail.teamTotal"),
-                  value: formatDuration(teamTotal),
-                },
-              ]),
-          {
-            label: t("pages.issueDetail.due"),
-            value: due ? formatDate(due, "long") : "—",
-          },
+          ...(hasEstimate ? [{ label: t("pages.issueDetail.progress"), value: pct !== null ? `${pct}%` : "—", ...(pct !== null ? { meter: { value: spent, max: estimate, label: t("pages.issueDetail.progress") } } : {}) }] : []),
+          { label: t("pages.issueDetail.worklogs"), value: String(logCount) },
+          ...(teamTotal === null ? [] : [{ label: t("pages.issueDetail.teamTotal"), value: formatDuration(teamTotal) }]),
+          { label: t("pages.issueDetail.due"), value: due ? formatDate(due, "long") : "—" },
         ]}
       />
-      {pct !== null && (
-        <Meter
-          lit
-          value={pct}
-          max={100}
-          tone={pct >= 100 ? "bg-danger" : "bg-primary"}
-          size="md"
-          className="mt-4"
-        />
-      )}
       <EstimateLines query={estimateQuery} trackerEstimate={i.timeEstimateSeconds ?? null} />
     </PanelSection>
   );

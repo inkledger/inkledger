@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useId, type ReactNode } from "react";
 import {
   Bot,
@@ -34,7 +35,7 @@ import { Chip } from "@/components/app/Chip";
 import { TimerControls } from "@/components/TimerControls";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { MakeTodoButton } from "@/components/todo/MakeTodo";
-import { TriageButton, TriageMenuItem } from "@/components/ideas/TriageButton";
+import { TriageChip, TriageMenuItem } from "@/components/ideas/TriageButton";
 import { EditIssueButton } from "@/components/issue/ManageIssue";
 import { PinButton, PinMenuItems } from "@/components/issue/PinMenu";
 import type { Issue, IssueData } from "@/components/issue/useIssueData";
@@ -234,13 +235,16 @@ export function IssueActions({
       </>
     );
 
+  // The page's header: the work (timer, Layout, Log time) in words; watching, pinning and a TODO as icons
+  // (their names in tooltips and for assistive tech); the rest in one menu. Twelve controls were a crowded bar.
   return (
     <>
       {offers.watch && (
         <Button
           variant={i.watching === 1 ? "secondary" : "ghost"}
-          size="sm"
+          size="icon"
           aria-pressed={i.watching === 1}
+          aria-label={i.watching === 1 ? t("pages.issueDetail.watching") : t("pages.issueDetail.watch")}
           disabled={act.pending}
           title={
             i.watching === 1
@@ -251,37 +255,40 @@ export function IssueActions({
             void act.setWatching(i.key, i.watching !== 1, i.connectionId)
           }
         >
-          <Eye className="h-4 w-4" />
-          {i.watching === 1
-            ? t("pages.issueDetail.watching")
-            : t("pages.issueDetail.watch")}
+          <Eye className={cn("h-4 w-4", i.watching === 1 && "fill-primary/20 text-primary-strong")} aria-hidden />
         </Button>
       )}
       <PinButton issueKey={i.key} connectionId={i.connectionId} />
-      <MakeTodoButton label={t("views.todos.onIssueLabel")} initial="" link={{ issueKey: i.key, connectionId: i.connectionId ?? undefined }} />
-      {!i.remote && i.connectionId && <TriageButton issueKey={i.key} connectionId={i.connectionId} />}
-      <TimerControls issueKey={i.key} connectionId={i.connectionId} />
+      <MakeTodoButton iconOnly label={t("views.todos.onIssueLabel")} initial="" link={{ issueKey: i.key, connectionId: i.connectionId ?? undefined }} />
+      {!i.remote && i.connectionId && <TriageChip issueKey={i.key} connectionId={i.connectionId} />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            aria-label={t("pages.issueDetail.copyMenu")}
-            title={t("pages.issueDetail.copyTitle")}
+            aria-label={t("views.issues.row.moreActionsOn", { key: i.key })}
+            title={t("views.issues.row.moreActions")}
           >
-            <Copy className="h-4 w-4" />
+            <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
+          {!i.remote && i.connectionId && (
+            <>
+              <TriageMenuItem issueKey={i.key} connectionId={i.connectionId} />
+              <DropdownMenuSeparator />
+            </>
+          )}
           {copyItems}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <a href={i.url} target="_blank" rel="noreferrer">
+              <ExternalLink className="h-4 w-4" /> {t("pages.issueDetail.openInJira", { provider })}
+            </a>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button asChild variant="outline">
-        <a href={i.url} target="_blank" rel="noreferrer">
-          {t("pages.issueDetail.openInJira", { provider })}
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      </Button>
+      <TimerControls issueKey={i.key} connectionId={i.connectionId} />
       {deskButton}
       {logTime}
     </>

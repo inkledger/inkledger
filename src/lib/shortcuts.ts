@@ -51,6 +51,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
     {
       group: t("ui.shortcuts.list"),
       items: [
+        { keys: ["/"], label: t("ui.shortcuts.searchList") },
         { keys: ["j", "k"], label: t("ui.shortcuts.nextRow") },
         { keys: [t("ui.keys.enter")], label: t("ui.shortcuts.openIssue") },
         { keys: ["t"], label: t("ui.shortcuts.startRow") },
@@ -62,6 +63,7 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
     {
       group: t("ui.shortcuts.issue"),
       items: [
+        { keys: ["t"], label: t("ui.shortcuts.startThis") },
         { keys: ["l"], label: t("ui.shortcuts.logTime") },
         { keys: ["s"], label: t("ui.shortcuts.toggleFav") },
         { keys: ["h"], label: t("ui.shortcuts.toggleHide") },

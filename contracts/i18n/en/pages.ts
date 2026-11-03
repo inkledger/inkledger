@@ -462,6 +462,9 @@ export const pages = {
     signOut: "Sign out",
   },
   reports: {
+    tabsLabel: "Report sections",
+    tabPeriod: "Period",
+    accuracyScope: "The last 90 days, whatever the period and the search above.",
     accuracy: {
       title: "Estimate accuracy",
       body: "{coverage}% within the range · typical error {mdape}% · {n} issues",
@@ -976,6 +979,11 @@ export const pages = {
     logPick: "Pick the issue and the duration: saved straight to {provider}.",
   },
   timesheet: {
+    closeUnderTitle: { one: "{count} day is under goal", other: "{count} days are under goal" },
+    closeUnderBody: "A closed week takes no more entries until it is reopened. Close it anyway?",
+    total: "Total",
+    ofGoal: "of {goal}",
+    breakdown: "Breakdown",
     selectAll: "Select all",
     selectNone: "Select none",
     deleting: "Deleting {done}/{total}…",

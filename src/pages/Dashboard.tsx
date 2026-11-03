@@ -1,3 +1,4 @@
+import { DateJump } from "@/components/app/DateJump";
 import { failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { realSecondsByDay } from "@contracts/placement";
@@ -18,7 +19,6 @@ import {
   dayKey,
   formatDuration,
   formatDurationLong,
-  parseDayKey,
   startOfDay,
   startOfWeek,
   findGaps,
@@ -58,7 +58,6 @@ import { projectOf, rankProjects } from "@/lib/projectColors";
 import { daysUntil, capitalize, dayMonth } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -74,7 +73,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
-import { PageHeader, SectionLabel } from "@/components/app/PageHeader";
+import { PageHeader } from "@/components/app/PageHeader";
 import { PeriodNav } from "@/components/app/PeriodNav";
 import { PanelSection } from "@/components/app/Panel";
 import { Link } from "react-router";
@@ -87,10 +86,12 @@ import {
 } from "@/components/dashboard/DayTimeline";
 import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
 import { PeriodSummary } from "@/components/dashboard/PeriodSummary";
-import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
+import { StatStrip } from "@/components/app/StatStrip";
 import { TasksBoard, type TaskColumn } from "@/components/dashboard/TasksBoard";
 import {
   ActivityTable,
+  ActivitySortControl,
+  type ActivitySort,
   type ActivityRow,
 } from "@/components/dashboard/ActivityTable";
 import { toast } from "sonner";
@@ -174,9 +175,10 @@ function HeaderTimer() {
     .filter(tm => tm.state !== "running" && tm.pausedAt && tm.elapsedSeconds > 0)
     .sort((a, b) => new Date(a.pausedAt ?? 0).getTime() - new Date(b.pausedAt ?? 0).getTime());
   return (
-    <span className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
+    // The key gives way below 2xl (the sidebar shows it, the title too): the page's title keeps one line.
+    <span title={timer.issueKey} className="mr-1 flex items-center gap-1.5 border-r pr-1 text-body-sm font-medium">
       <TimerRing running={running} />
-      <span className="text-muted-foreground">{timer.issueKey}</span>
+      <span className="hidden text-muted-foreground 2xl:inline">{timer.issueKey}</span>
       {running && <span className="sr-only">{t("pages.dashboard.timerRunning", { key: timer.issueKey })}</span>}
       <TickingElapsed state={timer.state} elapsedSeconds={timer.elapsedSeconds} fetchedAt={fetchedAt} className={running ? undefined : "text-warning"} />
       <ActiveTimerQuickControls />
@@ -274,7 +276,7 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
     const placement = workspace.placements.find(item => item.anchorId === anchorId);
     if (!isValidElement(node) || !placement) return node;
     if (node.type === PanelSection) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
-    if (node.type === QuickStatsCard) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
+    if (node.type === StatStrip) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
     if (anchorId === "dashboard.timeline") {
       const section = node as ReactElement<{ className?: string; "data-workspace-anchor"?: string; "data-workspace-variant"?: string }>;
       return cloneElement(section, {
@@ -290,21 +292,14 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
   const inArea = (areaId: string) => workspace.placements
     .filter(placement => placement.areaId === areaId && shown(placement))
     .sort((a, b) => a.order - b.order || (a.anchorId < b.anchorId ? -1 : 1));
-  const rail = inArea("dashboard.secondary");
-  // The secondary area is the rail beside the timeline when the timeline leads; else a band of its own on top.
-  // The same composition draws the Studio's picture of this page (dashboardSegments).
+  // The secondary area is a band across the page above the timeline (the figures strip by default): the
+  // timeline keeps the whole width. The same composition draws the Studio's picture of this page.
+  const top = inArea("dashboard.secondary");
   const { lead, segments } = dashboardSegments(inArea("dashboard.primary").map(placement => placement.anchorId));
-  const railNode = rail.length === 1
-    ? renderAnchor(rail[0].anchorId)
-    : rail.length > 1 ? <div className="grid min-w-0 gap-6">{rail.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}</div> : null;
   return (
     <>
-      {(lead || railNode) && (
-        <div className={cn("grid gap-6 border-b p-5 md:p-6", lead && railNode && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
-          {lead && renderAnchor(lead)}
-          {railNode}
-        </div>
-      )}
+      {top.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}
+      {lead && <div className="border-b p-5 md:p-6">{renderAnchor(lead)}</div>}
       {segments.map(segment => segment.kind === "band"
         ? <Fragment key={segment.anchorId}>{renderAnchor(segment.anchorId)}</Fragment>
         : <SectionRow key={String(segment.items[0])} items={segment.items} renderAnchor={renderAnchor} />)}
@@ -318,11 +313,18 @@ const CUSTOMIZABLE = new Set(DASHBOARD_WIDGETS.map(widget => `dashboard.${widget
 
 /** A row of sections: My issues and Recent activity stack in one column beside the summary. */
 function SectionRow({ items, renderAnchor }: { items: readonly (string | readonly string[])[]; renderAnchor: (anchorId: string) => ReactNode }) {
+  const summary = items.includes("dashboard.summary");
   const nodes = items.map(item => typeof item === "string"
     ? <Fragment key={item}>{renderAnchor(item)}</Fragment>
-    : <div key="dashboard.tasks+activity" className="min-w-0">{item.map(anchorId => <Fragment key={anchorId}>{renderAnchor(anchorId)}</Fragment>)}</div>);
-  const summary = items.includes("dashboard.summary");
-  return <div className={cn("grid", summary && items.some(item => typeof item !== "string") && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
+    : (
+      // Beside the summary, one cell of the same height (a bento row): My issues fills it, as many cards
+      // as fit, the rest fading towards "Open board". Never a column shorter than its neighbour with white
+      // space under it.
+      <div key="dashboard.tasks+activity" data-fill={summary || undefined} className={cn("group/row min-w-0", summary && "xl:relative xl:min-h-[26rem]")}>
+        {item.map(anchorId => <Fragment key={anchorId}>{renderAnchor(anchorId)}</Fragment>)}
+      </div>
+    ));
+  return <div className={cn("grid border-b", summary && items.some(item => typeof item !== "string") && "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.45fr)]")}>{nodes}</div>;
 }
 
 function DashboardContent() {
@@ -334,6 +336,7 @@ function DashboardContent() {
   const [planOpen, setPlanOpen] = useState(false);
   const [editingPlanned, setEditingPlanned] = useState<PlannedEntry | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [activitySort, setActivitySort] = useState<ActivitySort>("last");
 
   const title =
     range.kind === "day"
@@ -645,8 +648,9 @@ function DashboardContent() {
   const overdue = openIssues
     .filter(i => i.dueDate && (daysUntil(i.dueDate, today) ?? 0) < 0)
     .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1));
+  // Mine, as in My issues' "In progress" column (not everyone's I can see).
   const inProgress = openIssues.filter(
-    i => i.category === "doing"
+    i => i.category === "doing" && i.isMine
   ).length;
 
   // A short, rule-based note: what deserves attention right now.
@@ -715,17 +719,13 @@ function DashboardContent() {
                 >
                   {t("pages.dashboard.goToDay")}
                 </label>
-                <Input
+                <DateJump
                   id="dash-date"
-                  type="date"
-                  defaultValue={dayKey(range.from)}
+                  value={dayKey(range.from)}
                   className="w-auto"
-                  onChange={e => {
-                    const d = parseDayKey(e.target.value);
-                    if (d) {
-                      guarded(jumpTo)(d);
-                      setPickOpen(false);
-                    }
+                  onPick={d => {
+                    guarded(jumpTo)(d);
+                    setPickOpen(false);
                   }}
                 />
               </PopoverContent>
@@ -807,23 +807,27 @@ function DashboardContent() {
             )}
           </section>
         ),
+        // The figures across the page above the timeline: one row, no cover (B3, docs/work/ui-density.md).
         "dashboard.stats": show.stats && (stats.isPending ? (
-          <Skeleton className="h-64 rounded-xl" />
+          <div className="border-b px-5 py-3 md:px-6"><Skeleton className="h-12 rounded-lg" /></div>
         ) : stats.error ? (
-          <ErrorState message={errorText(stats.error)} onRetry={() => stats.refetch()} />
+          <div className="border-b p-5 md:p-6"><ErrorState message={errorText(stats.error)} onRetry={() => stats.refetch()} /></div>
         ) : (
-          <QuickStatsCard
-            stats={[
-              { label: t("pages.dashboard.overdue"), value: String(overdue.length), tone: overdue.length > 0 ? "danger" : undefined },
+          <StatStrip
+            label={t("views.dashboard.quickStats.title")}
+            items={[
+              { label: t("pages.dashboard.overdue"), value: String(overdue.length), tone: overdue.length > 0 ? "danger" : undefined, hint: note },
               { label: t("pages.dashboard.inProgress"), value: String(inProgress) },
-            ]}
-            extra={[
-              { label: t("pages.dashboard.week"), value: formatDuration(stats.data.weekSeconds) },
+              {
+                label: t("pages.dashboard.week"),
+                lead: true,
+                value: formatDuration(stats.data.weekSeconds),
+                extra: weeklyTarget > 0 ? <span className="text-caption text-muted-foreground tabular">{t("pages.timesheet.ofGoal", { goal: formatDuration(weeklyTarget) })}</span> : undefined,
+                meter: weeklyTarget > 0 ? { value: stats.data.weekSeconds, max: weeklyTarget, label: t("pages.timesheet.ofGoal", { goal: formatDuration(weeklyTarget) }) } : undefined,
+              },
               { label: t("pages.dashboard.month"), value: formatDuration(stats.data.monthSeconds) },
               { label: t("pages.dashboard.open"), value: String(stats.data.openIssueCount) },
-              { label: t("pages.dashboard.weeklyGoal"), value: formatDuration(weeklyTarget) },
             ]}
-            note={note}
           />
         )),
         "dashboard.summary": show.summary && (
@@ -855,25 +859,12 @@ function DashboardContent() {
                 celebrate={range.kind === "day" && pending}
               />
             )}
-            {stats.data && (
-              <div className="mt-8">
-                <SectionLabel as="h3" className="mb-3 px-0">{t("pages.dashboard.last14")}</SectionLabel>
-                <PeriodBars
-                  compact
-                  stacks={stats.data.perDay.map(d => ({ day: parseDayKey(d.date) ?? today, parts: [{ project: "_", seconds: d.seconds }] }))}
-                  colorOf={() => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" })}
-                  targetFor={targetFor}
-                  dense
-                  pending
-                />
-              </div>
-            )}
           </PanelSection>
         ),
         "dashboard.tasks": show.tasks && (
           <PanelSection
             title={t("pages.dashboard.myIssues")}
-            className="border-b"
+            className="xl:group-data-[fill]/row:absolute xl:group-data-[fill]/row:inset-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col"
             actions={<Button asChild variant="outline" size="sm"><Link to="/board" {...flowControlProps("dashboard.tasks.openBoard")}>{t("pages.dashboard.openBoard")}</Link></Button>}
           >
             {issues.isPending ? (
@@ -886,13 +877,16 @@ function DashboardContent() {
           </PanelSection>
         ),
         "dashboard.activity": show.activity && (
-          <PanelSection title={t("pages.dashboard.recentActivity")}>
+          <PanelSection
+            title={t("pages.dashboard.recentActivity")}
+            actions={activity.length > 1 && <ActivitySortControl value={activitySort} onChange={setActivitySort} />}
+          >
             {recent.isPending ? (
-              <Skeleton className="h-48" />
+              <Skeleton className="h-28" />
             ) : recent.error ? (
               <ErrorState message={errorText(recent.error)} onRetry={() => recent.refetch()} />
             ) : (
-              <ActivityTable rows={activity} />
+              <ActivityTable rows={activity} sort={activitySort} />
             )}
           </PanelSection>
         ),

@@ -466,7 +466,8 @@ export const IssueRow = memo(function IssueRow({
           {issue.summary}
         </span>
         {(activity || !issue.isMine) && (
-          <span className="mt-1 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+          // One line, cut short: the row keeps its height whatever the activity says.
+          <span className="mt-0.5 flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-caption text-muted-foreground [&>*]:truncate">
             {!issue.isMine && <Chip tone="warning">{t("views.issues.row.unassigned")}</Chip>}
             {activity && <HistoryLink issueKey={issue.key} connectionId={issue.connectionId}>{activity}</HistoryLink>}
           </span>
@@ -495,14 +496,16 @@ export const IssueRow = memo(function IssueRow({
         {due ?? "—"}
       </td>
       <td className="whitespace-nowrap py-3 text-right text-muted-foreground tabular">
-        <span className="text-foreground">{formatDuration(issue.mySpentSeconds)}</span>
+        {/* Nothing logged: empty, as on the phone's card (a column of zeros says nothing). */}
+        {issue.mySpentSeconds > 0 && <span className="text-foreground">{formatDuration(issue.mySpentSeconds)}</span>}
         <TeamTotal issue={issue} className="block text-caption" />
       </td>
       <td className="w-40 py-3 pl-3">
         <TimerControls issueKey={issue.key} connectionId={issue.connectionId} />
       </td>
       <td className="py-3 pr-1">
-        <div className="flex items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        {/* Shown on hover; always on a touch screen, which has none. */}
+        <div className="flex items-center justify-end opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 coarse:opacity-100">
           <Actions issue={issue} onLog={onLog} pin={pin} pick={pick} />
         </div>
       </td>

@@ -108,7 +108,7 @@ export function WeekView({
   onAdd,
 }: Props) {
   return (
-    <ol className="stagger grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-7">
+    <ol className="stagger grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
       {days.map(day => {
         const entries = byDay.get(day.key) ?? [];
         // The hours worked that day: parallel work once.
@@ -129,8 +129,9 @@ export function WeekView({
             )}
             aria-current={isToday ? "date" : undefined}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2">
+            {/* Narrow columns (four, seven): the day's name gives way (truncates) before its total and its actions. */}
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="flex min-w-0 items-start gap-2">
                 {!locked && entries.length > 0 && (
                   <Checkbox
                     className="mt-0.5"
@@ -139,17 +140,17 @@ export function WeekView({
                     onCheckedChange={() => onToggleDay(entries.map(w => w.id), !entries.every(w => selected.has(w.id)))}
                   />
                 )}
-              <div>
-                <h3 className="text-body-sm font-semibold capitalize">
+              <div className="min-w-0">
+                <h3 className="truncate text-body-sm font-semibold capitalize">
                   {weekday().format(day.date)}
                 </h3>
-                <p className="text-caption text-muted-foreground">
+                <p className="truncate text-caption text-muted-foreground">
                   {dayMonth(day.date)}
                   {isToday && t("views.timesheet.week.todaySuffix")}
                 </p>
               </div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 {/* One more on a day that has entries already (an empty day has its own big "+"). */}
                 {!locked && entries.length > 0 && onAdd && (
                   <Button

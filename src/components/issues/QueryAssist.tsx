@@ -53,7 +53,8 @@ export function QueryAssist({ value, onChange }: { value: string; onChange: (val
           ))}
         </div>
       )}
-      <div data-overflow-ok role="group" aria-label={t("views.issues.assist.quick")} className="cast-room-x cast-room-y flex snap-x gap-1.5 overflow-x-auto [--room-b:0.25rem] [--room-x:0.25rem] [scrollbar-width:none]">
+      <div data-overflow-ok role="group" aria-label={t("views.issues.assist.quick")} className="cast-room-x cast-room-y flex snap-x gap-1.5 overflow-x-auto [--room-b:0.25rem] [--room-x:0.25rem] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
+        {/* One scrolling row on a phone; from sm they wrap, so a mouse reaches every chip (none hidden past the edge). */}
         {PRESETS.map(p => (
           <ToggleChip key={p.id} size="sm" className="shrink-0 snap-start" pressed={parts.some(x => same(x, p.term))} onClick={() => toggle(p.term)}>
             {p.label()}

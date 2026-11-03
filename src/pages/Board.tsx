@@ -706,6 +706,7 @@ export default function Board() {
             <>
             <Button
               variant="outline"
+              title={t("pages.board.pinboard")}
               aria-pressed={panel !== "closed"}
               className={cn(
                 "max-lg:hidden",
@@ -718,7 +719,8 @@ export default function Board() {
               {...flowControlProps("board.pinboard.toggle")}
             >
               <Pin className="h-4 w-4 -rotate-12" />
-              {t("pages.board.pinboard")}
+              {/* Its name gives way below 2xl (the header is the board's controls' row): tooltip and screen readers keep it. */}
+              <span className="max-2xl:sr-only">{t("pages.board.pinboard")}</span>
             </Button>
             <Button
               variant="outline"
@@ -761,7 +763,7 @@ export default function Board() {
             )}
             {body}
           </div>
-          {/* Lavagna on the right: a rail when closed, 420px, or wide. */}
+          {/* Lavagna on the right: a rail when closed, at most two fifths of the board, or wide. */}
           {!onBoard ? null : panel === "closed" ? (
             <button
               type="button"
@@ -784,7 +786,8 @@ export default function Board() {
             <Pinboard
               className={cn(
                 "hidden shrink-0 lg:flex",
-                panel === "wide" ? "w-[62%]" : "w-[420px]"
+                // At most two fifths of the board: at 1024 px the columns keep room for more than one.
+                panel === "wide" ? "w-[62%]" : "w-[min(30rem,40%)]"
               )}
               connectionId={view.connection}
             />

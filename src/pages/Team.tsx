@@ -1,4 +1,4 @@
-import { flowControlProps } from "@/lib/workspace/instrumentation";
+import { flowControlProps, type FlowControlAttributes } from "@/lib/workspace/instrumentation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -70,7 +70,7 @@ function ReadoutLine({ store }: { store: ReturnType<typeof createReadout> }) {
 }
 
 /** A KPI: label, value, and what it adds; a filter when `onClick` is given. */
-function Kpi({ label, value, extra, hint, onClick, pressed }: { label: string; value: string; extra?: React.ReactNode; hint?: string; onClick?: () => void; pressed?: boolean }) {
+function Kpi({ label, value, extra, hint, onClick, pressed, control }: { label: string; value: string; extra?: React.ReactNode; hint?: string; onClick?: () => void; pressed?: boolean; control?: FlowControlAttributes }) {
   const body = (
     <>
       <span className="text-caption text-muted-foreground">{label}</span>
@@ -86,6 +86,7 @@ function Kpi({ label, value, extra, hint, onClick, pressed }: { label: string; v
       title={hint}
       aria-pressed={pressed}
       onClick={onClick}
+      {...control}
       className={cn("grid min-w-0 content-start gap-0.5 px-5 py-3 text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", pressed && "bg-primary-soft/60")}
     >
       {body}
@@ -362,6 +363,7 @@ export default function Team() {
               hint={t("pages.team.kpiBelowHint", { percent: percent(BELOW) })}
               pressed={show === "below"}
               onClick={() => setShown({ show: show === "below" ? "all" : "below" })}
+              control={flowControlProps("team.kpi.below")}
             />
             <Kpi
               label={t("pages.team.kpiCheck")}
@@ -369,6 +371,7 @@ export default function Team() {
               hint={t("pages.team.kpiCheckHint")}
               pressed={show === "check"}
               onClick={() => setShown({ show: show === "check" ? "all" : "check" })}
+              control={flowControlProps("team.kpi.check")}
             />
           </>
         )}
@@ -380,16 +383,7 @@ export default function Team() {
             <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input type="search" value={shown.q} onChange={e => setShown({ q: e.target.value })} placeholder={t("pages.team.search")} className="pl-8" />
           </label>
-          <SegmentedControl
-            label={t("pages.team.show")}
-            value={show}
-            onChange={v => setShown({ show: v })}
-            options={[
-              { value: "all", label: t("pages.team.showAll"), control: flowControlProps("team.show.all") },
-              { value: "below", label: t("pages.team.showBelow", { count: below.length }), control: flowControlProps("team.show.below") },
-              { value: "check", label: t("pages.team.showCheck", { count: check.length }), control: flowControlProps("team.show.check") },
-            ]}
-          />
+          {/* Who is shown: the two KPI figures above are the filter (pressed), never a second control here. */}
           <SegmentedControl
             label={t("pages.team.sort")}
             value={sort}
@@ -413,6 +407,8 @@ export default function Team() {
             ]}
           />
         </div>
+        {/* What the cells' fills mean, next to them (not under a long list). */}
+        <Legend />
         <ReadoutLine store={readout} />
         {!data ? (
           <Skeleton className="h-96 rounded-xl" />
@@ -441,7 +437,6 @@ export default function Team() {
             />
           </div>
         )}
-        <Legend />
         <p className="text-caption text-muted-foreground">{t("pages.team.limits")}</p>
       </PanelSection>
 

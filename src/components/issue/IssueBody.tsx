@@ -1,3 +1,4 @@
+import { useStartTimer } from "@/hooks/useStartTimer";
 import { useRef, useState, type ReactNode } from "react";
 import type { DeskPane } from "@contracts/desk";
 import { Link } from "react-router";
@@ -41,14 +42,15 @@ const LAYOUT = {
     columns: "flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto xl:grid xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:overflow-hidden",
     left: "contents xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto xl:border-r",
     right: "contents xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto",
-    text: "order-3 min-w-0 border-b xl:border-b-0",
+    // Below xl one column: the worklogs (order-3) come before the text sections, not after every comment.
+    text: "order-4 min-w-0 border-b xl:border-b-0",
     fields: "grid grid-cols-[repeat(2,minmax(0,1fr))] gap-x-6 gap-y-4 sm:grid-cols-3",
   },
   pane: {
     columns: "flex flex-col group-data-[pane-size=l]/pane:grid group-data-[pane-size=l]/pane:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]",
     left: "contents group-data-[pane-size=l]/pane:flex group-data-[pane-size=l]/pane:flex-col group-data-[pane-size=l]/pane:border-r",
     right: "contents group-data-[pane-size=l]/pane:flex group-data-[pane-size=l]/pane:flex-col",
-    text: "order-3 min-w-0 border-b group-data-[pane-size=l]/pane:border-b-0",
+    text: "order-4 min-w-0 border-b group-data-[pane-size=l]/pane:border-b-0",
     fields: "grid grid-cols-[repeat(2,minmax(0,1fr))] gap-x-6 gap-y-4 group-data-[pane-size=m]/pane:grid-cols-3 group-data-[pane-size=l]/pane:grid-cols-3",
   },
 } satisfies Record<Variant, Record<string, string>>;
@@ -163,6 +165,7 @@ function PageBody({ issueKey: key, connectionId }: BodyProps) {
         // A long press on a phone opens the desk's layouts, not the text's own menu.
         titleClassName="coarse:select-none coarse:[-webkit-touch-callout:none]"
         titleAddon={<IssueTitleAddon issue={i} data={data} connectionId={connectionId} act={act} />}
+        addonInline
         actions={
           <IssueActions
             issue={i}
@@ -242,6 +245,7 @@ function useBody({
   const [logOpen, setLogOpen] = useState(false);
   const act = useIssueActions();
   const i = data.issue.data;
+  const startTimer = useStartTimer({ announce: true });
   useIssueHotkeys({
     enabled: hotkeys,
     issueKey: key,
@@ -250,6 +254,7 @@ function useBody({
     named: i ? { key, summary: i.summary, issueType: i.issueType } : null,
     act,
     onLogTime: () => setLogOpen(true),
+    onStartTimer: i ? () => startTimer.mutate({ issueKey: key, connectionId: i.connectionId ?? undefined }) : undefined,
   });
   const logDialog = (
     <LogTimeDialog
@@ -327,7 +332,7 @@ function Columns({
       </div>
       <div className={layout.right} data-scroll-key={scrollKeys?.right}>
         <IssueTimeCard issue={i} data={data} logTotal={logTotal} logCount={logRows.length} />
-        <div className="order-4 min-w-0">
+        <div className="order-3 min-w-0">
           <IssueWorklogs issue={i} issueKey={key} data={data} logRows={logRows} />
           <IssueAttachedSections issue={i} data={data} lazy={lazy} />
         </div>

@@ -14,7 +14,7 @@ test("dev preview serves the built app with SSR, working APIs and a development 
     assert.match(html, /<meta name="app-build" content="[^"]+"/);
     assert.match(html, /id="inkledger-ssr-state"/);
     assert.match(html, /Quick stats/);
-    await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+    await app.page.getByRole("region", { name: "Quick stats", exact: true }).first().waitFor();
     assert.equal(await app.page.locator("#inkledger-ssr-state").count(), 0);
     assert.deepEqual(app.errors, []);
 

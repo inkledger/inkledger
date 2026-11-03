@@ -179,7 +179,7 @@ export function ReportRows({
       </label>
       <ul className="divide-y border-t md:hidden">
         {sorted.map(r => (
-          <li key={r.id ?? r.key} className="grid gap-2 py-3">
+          <li key={r.id ?? r.key} className="grid grid-cols-[minmax(0,1fr)] gap-2 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <RowLabel groupBy={groupBy} row={r} />

@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { addDays, dayKey, formatDuration, formatDurationLong, parseDayKey, hoursDecimal } from "@contracts/time";
 import { downloadCsv } from "@/lib/csv";
 import { PageHeader } from "@/components/app/PageHeader";
-import { PanelRow, PanelSection } from "@/components/app/Panel";
+import { PanelSection } from "@/components/app/Panel";
 import { EstimateAccuracy } from "@/components/reports/EstimateAccuracy";
 import { ForecastSections } from "@/components/reports/ForecastSections";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -18,10 +18,8 @@ import { EmptyState, ErrorState } from "@/components/app/States";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PeriodBars, type DayStack } from "@/components/dashboard/PeriodBars";
-import {
-  QuickStatsCard,
-  type Stat,
-} from "@/components/dashboard/QuickStatsCard";
+import { StatStrip, type StatItem } from "@/components/app/StatStrip";
+import { Tabs, TabPanel } from "@/components/ui/tabs";
 import { ReportRows } from "@/components/reports/ReportRows";
 import { ReportDays } from "@/components/reports/ReportDays";
 import { PeriodPicker } from "@/components/reports/PeriodPicker";
@@ -57,17 +55,7 @@ const groupOptions = (): {
 
 const REPORT_MAX_DAYS = 366;
 
-/** Row count of a grouping, or its loading / failed state. */
-function countStat(
-  label: string,
-  q: { data?: { rows: unknown[] }; error: unknown; refetch: () => unknown }
-): Stat {
-  if (q.data) return { label, value: String(q.data.rows.length) };
-  if (q.error) {
-    return { label, value: t("pages.reports.error"), tone: "danger", onRetry: () => q.refetch() };
-  }
-  return { label, value: "…" };
-}
+type Tab = "period" | "accuracy" | "forecast";
 
 const CHART_COLOR = () => ({ fill: "bg-chart-focus", soft: "", solid: "", stroke: "" });
 
@@ -75,14 +63,17 @@ export default function Reports() {
   const now = useToday();
   // Period and grouping live in the URL (Back from an issue finds them).
   const fields = useMemo(
-    (): Fields<{ from: string; to: string; groupBy: View; all: boolean; search: string }> => ({
+    (): Fields<{ from: string; to: string; groupBy: View; all: boolean; search: string; tab: Tab }> => ({
       // D9: the device's bucket, unless All is on; a search on the worklogs' issues.
       all: { key: "all", fallback: false, codec: flag },
       search: { key: "q", fallback: "", codec: text },
       // This month, the very range its preset picks (so the picker names it).
       from: { key: "from", fallback: dayKey(presetRange("month", now).from), codec: text },
       to: { key: "to", fallback: dayKey(presetRange("month", now).to), codec: text },
-      groupBy: { key: "group", fallback: "day", codec: oneOf(["day", "issue", "project", "client", "days"] as const) },
+      // By issue first: the days are the trend's own bars above.
+      groupBy: { key: "group", fallback: "issue", codec: oneOf(["day", "issue", "project", "client", "days"] as const) },
+      // Period, accuracy or forecast: one at a time, in the URL (Back and scroll restoration find it).
+      tab: { key: "tab", fallback: "period", codec: oneOf(["period", "accuracy", "forecast"] as const) },
     }),
     [now]
   );
@@ -93,6 +84,10 @@ export default function Reports() {
   const setFrom = (v: string) => setShown({ from: v });
   const setTo = (v: string) => setShown({ to: v });
   const setGroupBy = (v: View) => setShown({ groupBy: v });
+  const forecastAvailable = trpc.forecast.available.useQuery(undefined, { staleTime: 60_000, retry: false }).data?.available === true;
+  // A forecast asked for where the service is gone: the period instead.
+  const tab: Tab = shown.tab === "forecast" && !forecastAvailable ? "period" : shown.tab;
+  const setTab = (v: Tab) => setShown({ tab: v });
 
   const fromDate = parseDayKey(from);
   const toDate = parseDayKey(to);
@@ -302,107 +297,98 @@ export default function Reports() {
     );
   }
 
-  if (!loading && data?.rows.length === 0) {
-    return (
-      <>
-        {header}
-        <PanelSection>
-          <EmptyState
-            art="chart"
-            title={t("pages.reports.emptyTitle")}
-            message={t("pages.reports.emptyMessage")}
-          />
-        </PanelSection>
-        <PanelSection title={t("pages.reports.accuracy.title")} className="border-t" anchorId="reports.accuracy">
-          <EstimateAccuracy />
-        </PanelSection>
-        <ForecastSections />
-      </>
-    );
-  }
+  const empty = !loading && data?.rows.length === 0;
+  const stats: StatItem[] = !data
+    ? []
+    : [
+        { label: t("pages.reports.total"), value: formatDuration(data.totalSeconds), lead: true },
+        { label: t("pages.reports.entries"), value: String(data.totalEntries) },
+        // No day worked: no average (as Total says "—"), not "0 min".
+        { label: t("pages.reports.avgPerDay"), value: workedDays > 0 ? formatDurationLong(perWorkingDay) : "—" },
+        { label: t("pages.reports.daysWorked"), value: String(workedDays) },
+        countStat(t("pages.reports.issues"), byIssue),
+        countStat(t("pages.reports.projects"), byProject),
+      ];
+  // Parallel work: the entries add up to more than the hours worked.
+  const parallel = data && data.loggedSeconds > data.totalSeconds ? data.loggedSeconds - data.totalSeconds : 0;
 
   return (
     <>
       {header}
-      <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
-        <PanelSection title={t("pages.reports.trend")} anchorId="reports.trend">
-          {loading ? (
-            <Skeleton className="h-52 rounded-xl" />
-          ) : (
-            <PeriodBars
-              stacks={stacks}
-              colorOf={CHART_COLOR}
-              targetFor={targetFor}
-              dense={days.length > 10}
-            />
-          )}
-        </PanelSection>
-        <div className="min-w-0 p-5 md:p-6 xl:pl-0">
-          {loading || !data ? (
-            <Skeleton className="h-64 rounded-xl" />
-          ) : (
-            <QuickStatsCard
-              anchorId="reports.stats"
-              title={t("pages.reports.period")}
-              stats={[
-                {
-                  label: t("pages.reports.total"),
-                  value: formatDuration(data.totalSeconds),
-                },
-                { label: t("pages.reports.entries"), value: String(data.totalEntries) },
-              ]}
-              extra={[
-                {
-                  label: t("pages.reports.avgPerDay"),
-                  // No day worked: no average (as Total says "—"), not "0 min".
-                  value: workedDays > 0 ? formatDurationLong(perWorkingDay) : "—",
-                },
-                { label: t("pages.reports.daysWorked"), value: String(workedDays) },
-                countStat(t("pages.reports.issues"), byIssue),
-                countStat(t("pages.reports.projects"), byProject),
-                // Parallel work: the entries add up to more than the hours worked.
-                ...(data.loggedSeconds > data.totalSeconds
-                  ? [{ label: t("pages.reports.parallel"), value: formatDuration(data.loggedSeconds - data.totalSeconds) }]
-                  : []),
-              ]}
-            />
-          )}
-        </div>
-      </PanelRow>
-      <PanelSection
-        title={t("pages.reports.detail")}
-        anchorId="reports.detail"
-        actions={
-          <SegmentedControl
-            label={t("pages.reports.groupBy")}
-            value={groupBy}
-            onChange={setGroupBy}
-            options={groupOptions()}
-          />
-        }
-      >
-        {loading || !data || (groupBy === "days" && !daily.data) ? (
-          <div className="grid gap-2">
-            {[0, 1, 2, 3].map(i => (
-              <Skeleton key={i} className="h-10" />
-            ))}
-          </div>
-        ) : groupBy === "days" ? (
-          <ReportDays
-            days={daily.data?.days ?? []}
-            issues={daily.data?.issues ?? []}
-            targetFor={targetFor}
-          />
+      <div className="px-5 pt-3 md:px-6">
+        <Tabs
+          idBase="reports"
+          label={t("pages.reports.tabsLabel")}
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "period", label: t("pages.reports.tabPeriod"), control: flowControlProps("reports.tab.period") },
+            { value: "accuracy", label: t("pages.reports.accuracy.title"), control: flowControlProps("reports.tab.accuracy") },
+            ...(forecastAvailable ? [{ value: "forecast" as const, label: t("pages.reports.forecast.title"), control: flowControlProps("reports.tab.forecast") }] : []),
+          ]}
+        />
+      </div>
+      <TabPanel idBase="reports" value="period" current={tab}>
+        {empty ? (
+          <PanelSection>
+            <EmptyState art="chart" title={t("pages.reports.emptyTitle")} message={t("pages.reports.emptyMessage")} />
+          </PanelSection>
         ) : (
-          <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} />
+          <>
+            {loading || !data ? (
+              <div className="border-b px-5 py-3 md:px-6"><Skeleton className="h-12 rounded-lg" /></div>
+            ) : (
+              <StatStrip
+                anchorId="reports.stats"
+                label={t("pages.reports.period")}
+                items={parallel > 0 ? [...stats.slice(0, 5), { label: t("pages.reports.parallel"), value: formatDuration(parallel) }] : stats}
+              />
+            )}
+            <PanelSection title={t("pages.reports.trend")} anchorId="reports.trend" className="border-b">
+              {loading ? (
+                <Skeleton className="h-52 rounded-xl" />
+              ) : (
+                <PeriodBars stacks={stacks} colorOf={CHART_COLOR} targetFor={targetFor} dense={days.length > 10} />
+              )}
+            </PanelSection>
+            <PanelSection
+              title={t("pages.reports.detail")}
+              anchorId="reports.detail"
+              actions={<SegmentedControl label={t("pages.reports.groupBy")} value={groupBy} onChange={setGroupBy} options={groupOptions()} />}
+            >
+              {loading || !data || (groupBy === "days" && !daily.data) ? (
+                <div className="grid gap-2">
+                  {[0, 1, 2, 3].map(i => (
+                    <Skeleton key={i} className="h-10" />
+                  ))}
+                </div>
+              ) : groupBy === "days" ? (
+                <ReportDays days={daily.data?.days ?? []} issues={daily.data?.issues ?? []} targetFor={targetFor} />
+              ) : (
+                <ReportRows key={groupBy} rows={data.rows} groupBy={groupBy} />
+              )}
+            </PanelSection>
+          </>
         )}
-      </PanelSection>
-      {/* The last 90 days, whatever the period above: how the estimates would have done. */}
-      <PanelSection title={t("pages.reports.accuracy.title")} className="border-t" anchorId="reports.accuracy">
-        <EstimateAccuracy />
-      </PanelSection>
-      {/* Ahead: when the open work is done, and where my times are going (absent without its service). */}
-      <ForecastSections />
+      </TabPanel>
+      <TabPanel idBase="reports" value="accuracy" current={tab}>
+        <PanelSection title={t("pages.reports.accuracy.title")} anchorId="reports.accuracy">
+          {/* Its own window, said: the period and the search above do not apply here. */}
+          <p className="-mt-2 mb-4 text-body-sm text-muted-foreground">{t("pages.reports.accuracyScope")}</p>
+          <EstimateAccuracy />
+        </PanelSection>
+      </TabPanel>
+      <TabPanel idBase="reports" value="forecast" current={tab}>
+        {/* Ahead: when the open work is done, and where my times are going (absent without its service). */}
+        <ForecastSections />
+      </TabPanel>
     </>
   );
+}
+
+/** A grouping's row count as a figure: loading "…", or failed (tap to retry). */
+function countStat(label: string, q: { data?: { rows: unknown[] }; error: unknown; refetch: () => unknown }): StatItem {
+  if (q.data) return { label, value: String(q.data.rows.length) };
+  if (q.error) return { label, value: t("pages.reports.error"), tone: "danger", onClick: () => void q.refetch(), hint: t("common.retry") };
+  return { label, value: "…" };
 }

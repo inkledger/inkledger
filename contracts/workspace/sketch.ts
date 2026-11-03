@@ -55,10 +55,14 @@ export const SKETCHES: Record<string, Sketch> = {
   },
 };
 
-/** Sections that span the Dashboard's whole width, wherever they sit in the order. */
-const DASHBOARD_BANDS: ReadonlySet<string> = new Set(["dashboard.timeline", "dashboard.recap"]);
-/** My issues and Recent activity stack in one column beside the summary. */
-const DASHBOARD_STACKED: ReadonlySet<string> = new Set(["dashboard.tasks", "dashboard.activity"]);
+/**
+ * Sections that span the Dashboard's whole width, wherever they sit in the order. Recent activity is one:
+ * a strip of tiles to pick work up again, not a list stacked under My issues (it stretched that column and
+ * left the summary beside it in white space).
+ */
+const DASHBOARD_BANDS: ReadonlySet<string> = new Set(["dashboard.timeline", "dashboard.recap", "dashboard.activity"]);
+/** My issues sits in a column beside the summary. */
+const DASHBOARD_STACKED: ReadonlySet<string> = new Set(["dashboard.tasks"]);
 
 /**
  * How the Dashboard lays out its main area, for the page itself and for every drawing of it: the timeline,

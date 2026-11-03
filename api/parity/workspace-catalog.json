@@ -607,11 +607,11 @@
       {
         "id": "dashboard.stats",
         "surfaceId": "dashboard",
-        "renderer": "QuickStatsCard",
+        "renderer": "StatStrip",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "studio": {
           "operations": [
             "move",
@@ -773,7 +773,7 @@
       {
         "id": "issues.stats",
         "surfaceId": "issues",
-        "renderer": "QuickStatsCard",
+        "renderer": "StatStrip",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
@@ -1097,7 +1097,7 @@
       {
         "id": "reports.stats",
         "surfaceId": "reports",
-        "renderer": "QuickStatsCard",
+        "renderer": "StatStrip",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
@@ -1569,7 +1569,7 @@
       {
         "id": "timesheet.stats",
         "surfaceId": "timesheet",
-        "renderer": "QuickStatsCard",
+        "renderer": "StatStrip",
         "statePolicy": "stateless",
         "critical": false,
         "introducedIn": "1.0.0",
@@ -1639,6 +1639,38 @@
         ]
       },
       {
+        "id": "board.card.start",
+        "anchorId": "board.columns",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.startFor",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "board.card.start.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "board.card.start.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "board.card.start.succeed",
+            "kind": "succeed",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "board.pinboard.toggle",
         "anchorId": "board.columns",
         "kind": "toggle",
@@ -1656,6 +1688,60 @@
           {
             "eventId": "board.pinboard.toggle.activate",
             "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.activity.sort",
+        "anchorId": "dashboard.activity",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "views.dashboard.activity.sortBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.activity.sort.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "dashboard.activity.start",
+        "anchorId": "dashboard.activity",
+        "kind": "mutation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.timer.startFor",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "dashboard.activity.start.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.activity.start.fail",
+            "kind": "fail",
+            "telemetry": "allowed"
+          },
+          {
+            "eventId": "dashboard.activity.start.succeed",
+            "kind": "succeed",
             "telemetry": "allowed"
           }
         ]
@@ -2883,6 +2969,72 @@
         ]
       },
       {
+        "id": "reports.tab.accuracy",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "pages.reports.tabsLabel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.tab.accuracy.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.tab.forecast",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "pages.reports.tabsLabel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.tab.forecast.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.tab.period",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "tab",
+          "labelKey": "pages.reports.tabsLabel",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.tab.period.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "shell.account.logout",
         "anchorId": "shell.account",
         "kind": "command",
@@ -3615,6 +3767,50 @@
         ]
       },
       {
+        "id": "team.kpi.below",
+        "anchorId": "team.kpis",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.team.kpiBelow",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.kpi.below.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.kpi.check",
+        "anchorId": "team.kpis",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.team.kpiCheck",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.kpi.check.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "team.matrix.person",
         "anchorId": "team.matrix",
         "kind": "disclosure",
@@ -3631,72 +3827,6 @@
         "interactions": [
           {
             "eventId": "team.matrix.person.activate",
-            "kind": "activate",
-            "telemetry": "allowed"
-          }
-        ]
-      },
-      {
-        "id": "team.show.all",
-        "anchorId": "team.matrix",
-        "kind": "toggle",
-        "critical": false,
-        "sensitive": false,
-        "introducedIn": "1.0.0",
-        "semanticRevision": 1,
-        "accessibility": {
-          "role": "radio",
-          "labelKey": "pages.team.show",
-          "keyboard": "activation",
-          "minTouchTargetPx": 24
-        },
-        "interactions": [
-          {
-            "eventId": "team.show.all.activate",
-            "kind": "activate",
-            "telemetry": "allowed"
-          }
-        ]
-      },
-      {
-        "id": "team.show.below",
-        "anchorId": "team.matrix",
-        "kind": "toggle",
-        "critical": false,
-        "sensitive": false,
-        "introducedIn": "1.0.0",
-        "semanticRevision": 1,
-        "accessibility": {
-          "role": "radio",
-          "labelKey": "pages.team.show",
-          "keyboard": "activation",
-          "minTouchTargetPx": 24
-        },
-        "interactions": [
-          {
-            "eventId": "team.show.below.activate",
-            "kind": "activate",
-            "telemetry": "allowed"
-          }
-        ]
-      },
-      {
-        "id": "team.show.check",
-        "anchorId": "team.matrix",
-        "kind": "toggle",
-        "critical": false,
-        "sensitive": false,
-        "introducedIn": "1.0.0",
-        "semanticRevision": 1,
-        "accessibility": {
-          "role": "radio",
-          "labelKey": "pages.team.show",
-          "keyboard": "activation",
-          "minTouchTargetPx": 24
-        },
-        "interactions": [
-          {
-            "eventId": "team.show.check.activate",
             "kind": "activate",
             "telemetry": "allowed"
           }
@@ -3982,7 +4112,7 @@
       {
         "anchorId": "dashboard.stats",
         "kind": "core",
-        "renderer": "QuickStatsCard"
+        "renderer": "StatStrip"
       },
       {
         "anchorId": "dashboard.summary",
@@ -4012,7 +4142,7 @@
       {
         "anchorId": "issues.stats",
         "kind": "core",
-        "renderer": "QuickStatsCard"
+        "renderer": "StatStrip"
       },
       {
         "anchorId": "mobile.board",
@@ -4072,7 +4202,7 @@
       {
         "anchorId": "reports.stats",
         "kind": "core",
-        "renderer": "QuickStatsCard"
+        "renderer": "StatStrip"
       },
       {
         "anchorId": "reports.trend",
@@ -4157,7 +4287,7 @@
       {
         "anchorId": "timesheet.stats",
         "kind": "core",
-        "renderer": "QuickStatsCard"
+        "renderer": "StatStrip"
       },
       {
         "anchorId": "timesheet.summary",

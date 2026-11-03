@@ -120,7 +120,7 @@ test("Two quick ticks in Customize both stick, the first never undone by the sec
     assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_drafts WHERE status NOT IN ('applied', 'discarded', 'aborted')"))[0].n, 0, "no draft left behind to block the next tick");
   }));
 
-test("A section the Studio moved beside the timeline is drawn there", () =>
+test("A section the Studio moved above the timeline is drawn there", () =>
   withApp({
     seed: async db => {
       const move = JSON.stringify([{ operation: { type: "move", operationId: "move-activity", anchorId: "dashboard.activity", toAreaId: "dashboard.secondary", order: 1 }, origin: "user", acceptedByUser: true }]);
@@ -129,9 +129,11 @@ test("A section the Studio moved beside the timeline is drawn there", () =>
   }, async ({ page, base }) => {
     await page.goto(base + "/");
     await page.locator('[data-workspace-anchor="dashboard.activity"]').waitFor();
-    // The timeline's band holds the rail: Recent activity sits in it, after the quick numbers.
-    const band = await page.locator('[data-workspace-anchor="dashboard.timeline"]:not([data-workspace-control])').evaluate(timeline => [...timeline.parentElement.querySelectorAll("[data-workspace-anchor]:not([data-workspace-control])")].map(element => element.getAttribute("data-workspace-anchor")).filter(id => ["dashboard.timeline", "dashboard.stats", "dashboard.activity"].includes(id)));
-    assert.deepEqual(band, ["dashboard.timeline", "dashboard.stats", "dashboard.activity"]);
+    // The secondary area is the band above the timeline: Recent activity sits in it, after the quick numbers.
+    const box = anchorId => page.locator(`[data-workspace-anchor="${anchorId}"]:not([data-workspace-control])`).first().boundingBox();
+    const [timeline, stats, activity] = await Promise.all(["dashboard.timeline", "dashboard.stats", "dashboard.activity"].map(box));
+    assert.ok(stats.y < activity.y, "quick numbers first");
+    assert.ok(activity.y + activity.height <= timeline.y + 1, "Recent activity above the timeline");
   }));
 
 test("Starting a timer from the quick start with Enter does not hold the layout back", () =>
@@ -376,7 +378,7 @@ test("A tab left on an older layout moves to the one saved since when it loads, 
     assert.deepEqual(sources.map(row => row.source), ["saved-elsewhere"], "counted on the layout on screen, which the maps of the saved layout read");
   }));
 
-test("The Studio draws the Dashboard as it is laid out: the rail beside the timeline, the summary beside My issues", () =>
+test("The Studio draws the Dashboard as it is laid out: the numbers above the timeline, the summary beside My issues, Recent activity across", () =>
   withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);
     // Measure the settled canvas, not a frame from while the editor is still loading.
@@ -384,8 +386,8 @@ test("The Studio draws the Dashboard as it is laid out: the rail beside the time
     await quiet(page);
     const box = async anchorId => page.locator(`[data-anchor="${anchorId}"]`).boundingBox();
     const [timeline, stats, summary, tasks, activity, recap] = await Promise.all(["dashboard.timeline", "dashboard.stats", "dashboard.summary", "dashboard.tasks", "dashboard.activity", "dashboard.recap"].map(box));
-    assert.ok(Math.abs(stats.y - timeline.y) < 40 && stats.x > timeline.x + timeline.width, "Quick numbers beside the timeline");
+    assert.ok(stats.y + stats.height <= timeline.y + 1 && stats.width > timeline.width * 0.9, "Quick numbers above the timeline, as wide");
     assert.ok(Math.abs(tasks.y - summary.y) < 4 && tasks.x > summary.x + summary.width, "My issues beside the summary");
-    assert.ok(activity.y > tasks.y && Math.abs(activity.x - tasks.x) < 4, "Recent activity under My issues");
+    assert.ok(activity.y >= tasks.y + tasks.height - 1 && activity.width > tasks.width * 1.5, "Recent activity across the page, under the row");
     assert.ok(recap.y > activity.y + activity.height - 1 && recap.width > tasks.width * 1.5, "Your week across the page");
   }));

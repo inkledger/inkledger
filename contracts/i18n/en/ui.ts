@@ -351,6 +351,8 @@ export const ui = {
     current: "Current profile",
   },
   shortcuts: {
+    searchList: "Search the list",
+    startThis: "Start this issue's timer",
     pinboardSearch: "In the pinboard: search an issue to pin",
     pinboard: "Open or close the pinboard",
     todos: "Open or close the TODO list",

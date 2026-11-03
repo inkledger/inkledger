@@ -182,7 +182,7 @@ test("A private request is clarified, previewed and applied only after separate 
       await request.fill("Make statistics more prominent");
       await page.getByRole("button", { name: "Preview with local AI", exact: true }).click();
       await page.getByRole("heading", { name: "Request preview", exact: true }).waitFor();
-      await page.getByText(/Quick numbers: Side column · Expanded/).waitFor();
+      await page.getByText(/Quick numbers: Above the timeline · Expanded/).waitFor();
       assert.equal(await request.inputValue(), "", "the original text is discarded after translation");
       assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n, 0);
       await page.getByRole("button", { name: "Add selected changes to the draft", exact: true }).click();

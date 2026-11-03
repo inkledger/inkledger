@@ -26,7 +26,7 @@ export function ForecastSections() {
   if (!available.data?.available) return null;
   return (
     <>
-      <PanelSection title={t("pages.reports.forecast.title")} className="border-t" anchorId="reports.forecast">
+      <PanelSection title={t("pages.reports.forecast.title")} anchorId="reports.forecast">
         <Forecast />
       </PanelSection>
       <PanelSection title={t("pages.reports.forecastTrend.title")} className="border-t">

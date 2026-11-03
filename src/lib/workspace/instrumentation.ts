@@ -28,7 +28,7 @@ export function workspaceMutationPath(controlId: string): readonly string[] | un
   if (controlId === "dashboard.quickLog.save") return ["worklogs.create"];
   if (controlId === "dashboard.planned.save") return ["planned.create", "planned.update"];
   if (controlId === "dashboard.timer.pause" || controlId === "shell.timer.pause") return ["timers.pause"];
-  if (controlId === "dashboard.timer.resume" || controlId === "shell.timer.resume" || controlId === "shell.timer.start") return ["timers.start"];
+  if (controlId === "dashboard.timer.resume" || controlId === "shell.timer.resume" || controlId === "shell.timer.start" || controlId === "board.card.start" || controlId === "dashboard.activity.start") return ["timers.start"];
   if (controlId === "dashboard.timer.stop" || controlId === "shell.timer.stop") return ["timers.stop"];
   if (controlId === "shell.sync.start") return ["issues.sync"];
   // A gap cut logs its pieces as new worklogs, or grows a neighbouring one into the gap.

@@ -1,7 +1,7 @@
 // UI density audit (docs/work/ui-density.md): regressions found by the measured audit (B0) and fixed in BF0.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { holdRoute, withApp } from "./harness.mjs";
+import { holdRoute, lastWorkday, withApp } from "./harness.mjs";
 
 /** A running timer and three favourites: the sidebar at its fullest. */
 async function fullSidebar(db) {
@@ -213,5 +213,23 @@ test("another week loading never shows as an empty week, nor as days under goal"
     assert.equal(meanwhile.empty, false, "no empty week while it loads");
     assert.ok(meanwhile.busy >= 2, "summary and days said busy");
     assert.equal(meanwhile.underGoal, "—", "no under-goal count made of another week's days");
+  });
+});
+
+test("the Play on the open hole stays whole in the timeline right after the day starts", { timeout: 180_000 }, async () => {
+  await withApp({ viewport: { width: 1280, height: 800 } }, async ({ page, base }) => {
+    // Three minutes into a working day with nothing logged: the open hole is a sliver at the track's left edge.
+    await page.clock.install({ time: new Date(lastWorkday()).setHours(9, 3, 0, 0) });
+    await page.goto(base + "/?period=day");
+    const play = page.getByRole("button", { name: /^Start a timer: from/ });
+    await play.waitFor();
+    const { button, clip } = await play.evaluate(el => {
+      let track = el.parentElement;
+      while (track && getComputedStyle(track).overflow === "visible") track = track.parentElement;
+      const r = el.getBoundingClientRect(), c = track.getBoundingClientRect();
+      return { button: { left: r.left, right: r.right }, clip: { left: c.left, right: c.right } };
+    });
+    assert.ok(button.left >= clip.left - 0.5, `cut on the left: ${button.left} < ${clip.left}`);
+    assert.ok(button.right <= clip.right + 0.5, `cut on the right: ${button.right} > ${clip.right}`);
   });
 });

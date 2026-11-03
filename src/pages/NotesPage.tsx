@@ -260,7 +260,6 @@ export default function NotesPage() {
               breadcrumbTrail={trail}
               description={t("pages.notes.description")}
               titleClassName="truncate"
-              className="min-h-[10rem] sm:min-h-[8rem] xl:min-h-[5rem]"
               actions={
                 <>
                   {hasDocument && !openFolder && (
@@ -492,7 +491,7 @@ export default function NotesPage() {
                         </Link>
                       </Button>
                     }
-                    className="my-auto py-24"
+                    className="my-auto py-12"
                   />
                 ) : openFolder ? (
                   <FolderView folder={openFolder} items={tree.data ?? []} search={location.search} />
@@ -506,10 +505,11 @@ export default function NotesPage() {
                   />
                 ) : (
                   <>
-                    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2 md:px-6">
+                    {/* Back to the list on a phone or tablet; on a desktop the tree is beside it (no empty strip). */}
+                    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2 md:px-6 lg:hidden">
                       <Link
                         to={`/notes${location.search}`}
-                        className="inline-flex items-center gap-1 text-body-sm text-muted-foreground hover:text-foreground lg:hidden"
+                        className="inline-flex items-center gap-1 text-body-sm text-muted-foreground hover:text-foreground"
                       >
                         <ChevronLeft className="h-4 w-4" />
                         {t("pages.notes.title")}

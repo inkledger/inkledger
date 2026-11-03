@@ -202,7 +202,7 @@ test("by category, and from the card's menu (keyboard, long press): only where i
     assert.equal(await doing.getAttribute("data-drop"), "off");
     await page.mouse.up();
     // The menu lists only "Done" for the GitHub card.
-    await page.getByRole("button", { name: /acme\/web#1/ }).click();
+    await page.getByRole("button", { name: /^Actions for acme\/web#1/ }).click();
     const items = await page.getByRole("menuitem").allInnerTexts();
     assert.ok(items.includes("Done"), items.join("|"));
     assert.ok(!items.includes("In progress"), items.join("|"));

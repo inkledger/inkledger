@@ -18,7 +18,7 @@ test("dashboard arrives with data and hydrates without browser or server errors"
     assert.match(html, /Quick stats/, app.log());
     assert.doesNotMatch(html, /<div id="root"><\/div>/);
     assert.doesNotMatch(html, /\[\["timers","list"\]\]|\[\["notifications","count"\]\]/);
-    await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+    await app.page.getByRole("region", { name: "Quick stats", exact: true }).first().waitFor();
     assert.equal(await app.page.locator("#inkledger-ssr-state").count(), 0);
     assert.equal(new URL(app.page.url()).pathname, "/");
     assert.deepEqual(app.errors, []);
@@ -55,11 +55,11 @@ test("a local layout opts out before the first paint, without hydration errors o
     assert.ok(bootstrap);
     const hash = createHash("sha256").update(bootstrap).digest("base64");
     assert.match(response.headers()["content-security-policy"], new RegExp(`sha256-${hash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-    await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+    await app.page.getByRole("region", { name: "Quick stats", exact: true }).first().waitFor();
     assert.equal(await app.page.locator("aside").evaluate(aside => getComputedStyle(aside).width), "76px");
     for (let i = 0; i < 3; i++) {
       await app.page.reload();
-      await app.page.getByRole("heading", { name: "Quick stats", exact: true }).first().waitFor();
+      await app.page.getByRole("region", { name: "Quick stats", exact: true }).first().waitFor();
       assert.equal(await app.page.locator("aside").evaluate(aside => getComputedStyle(aside).width), "76px");
     }
     assert.equal(await app.page.evaluate(() => window.__ssrLayoutShifts), 0);

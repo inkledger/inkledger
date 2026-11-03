@@ -67,6 +67,9 @@ test("the statuses that count as work are chosen per connection", () =>
 test("Reports shows accuracy, forecast and trend", () =>
   withApp({ seed, env: { FORECAST_SIMULATOR: "1" } }, async ({ page, base }) => {
     await page.goto(base + "/reports");
+    // Accuracy and forecast are tabs of their own beside the period.
+    await page.getByRole("tab", { name: "Estimate accuracy" }).click();
+    assert.match(page.url(), /[?&]tab=accuracy/);
     const accuracy = page.getByTestId("estimate-accuracy");
     await accuracy.waitFor();
     // Six alike issues: the first five have too little before them, the sixth is predicted exactly.
@@ -74,6 +77,7 @@ test("Reports shows accuracy, forecast and trend", () =>
     await accuracy.getByText("5 without enough earlier history").waitFor();
     assert.equal(await page.getByRole("progressbar", { name: "Estimate accuracy" }).getAttribute("aria-valuenow"), "100");
     // The forecast: the next four weeks drawn, the open issue assigned to me, the bound explained.
+    await page.getByRole("tab", { name: "Forecast" }).click();
     const forecast = page.getByTestId("forecast");
     await forecast.getByRole("img", { name: "Hours you'll likely work, the next four weeks" }).waitFor();
     await forecast.getByText(/^14 open issues assigned to you: /).waitFor();
@@ -93,7 +97,7 @@ test("estimates at 320 px", () =>
       for (const [route, ready] of [
         ["/issues/EST-1", () => page.getByTestId("issue-estimate").waitFor()],
         ["/settings/estimates", () => page.getByRole("switch", { name: "Counts as work: Waiting for customer" }).waitFor()],
-        ["/reports", () => page.getByTestId("forecast").getByText(/open issues/).waitFor()],
+        ["/reports?tab=forecast", () => page.getByTestId("forecast").getByText(/open issues/).waitFor()],
       ]) {
         await page.goto(base + route);
         await ready();

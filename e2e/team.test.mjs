@@ -57,7 +57,9 @@ test("the heat map: a row per person, filters, search, sort and a day read only"
     assert.equal(belowRows.length, 2);
     assert.match(belowRows.join(" "), /Luca Verdi.*Mario Rossi/s);
     await page.getByRole("button", { name: /Below target\s*2/ }).waitFor();
-    await page.getByRole("radio", { name: /^All/ }).click();
+    // Everyone again: the pressed figure, pressed again (it is the only filter now).
+    await page.getByRole("button", { name: /Below target/, pressed: true }).click();
+    await page.waitForURL(url => new URL(url).searchParams.get("show") === null);
 
     // Search by name, accents and case aside.
     await page.getByRole("searchbox", { name: "Search person" }).fill("sara");
@@ -124,7 +126,8 @@ test("two quick changes never undo each other (the URL is read as it is now)", (
     await page.getByRole("table").waitFor();
     // Both in one task: the second change lands before the page has re-rendered from the first.
     await page.evaluate(() => {
-      const all = [...document.querySelectorAll('[role="radio"]')].find(r => /^All/.test(r.textContent ?? ""));
+      // The pressed "Below target" figure, pressed again: everyone.
+      const all = document.querySelector('button[aria-pressed="true"]');
       all.click();
       const box = document.querySelector('input[type="search"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, "sara");

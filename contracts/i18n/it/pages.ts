@@ -470,6 +470,9 @@ export const pages: Shape<typeof en> = {
     signOut: "Esci",
   },
   reports: {
+    tabsLabel: "Sezioni del report",
+    tabPeriod: "Periodo",
+    accuracyScope: "Gli ultimi 90 giorni, qualunque siano il periodo e la ricerca sopra.",
     accuracy: {
       title: "Precisione delle stime",
       body: "{coverage}% nell'intervallo · errore tipico {mdape}% · {n} issue",
@@ -989,6 +992,11 @@ export const pages: Shape<typeof en> = {
       "Scegli l'issue e la durata: viene salvato direttamente su {provider}.",
   },
   timesheet: {
+    closeUnderTitle: { one: "{count} giorno è sotto obiettivo", other: "{count} giorni sono sotto obiettivo" },
+    closeUnderBody: "Una settimana chiusa non accetta altre registrazioni finché non la riapri. Chiuderla comunque?",
+    total: "Totale",
+    ofGoal: "su {goal}",
+    breakdown: "Ripartizione",
     selectAll: "Seleziona tutto",
     selectNone: "Deseleziona tutto",
     deleting: "Eliminazione {done}/{total}…",

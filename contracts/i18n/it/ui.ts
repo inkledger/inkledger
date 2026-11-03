@@ -353,6 +353,8 @@ export const ui: Shape<typeof en> = {
     current: "Profilo attuale",
   },
   shortcuts: {
+    searchList: "Cerca nell'elenco",
+    startThis: "Avvia il timer di questa issue",
     pinboardSearch: "Nella lavagna: cerca una issue da appendere",
     pinboard: "Apri o chiudi la lavagna",
     todos: "Apri o chiudi la lista TODO",

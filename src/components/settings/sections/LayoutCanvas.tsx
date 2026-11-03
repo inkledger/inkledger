@@ -215,7 +215,6 @@ export function LayoutCanvas({ sketch, placements, applied, areas, anchors, rule
             </span>
           )}
         </div>
-        {sketch.frame === "phone-page" && area.areaId === "dashboard.secondary" && <p className="text-caption text-muted-foreground">{t(key("railOnPhone"))}</p>}
         <AreaBlocks area={area} sketch={sketch} anchorIds={blocks.map(placement => placement.anchorId)} tileFor={tileFor} nested={nested} />
         {targeted && drag && drag.index >= shown.length && slot}
         {blocks.length === 0 && !targeted && layers.edit && <p className="text-caption text-muted-foreground">{t(key("emptyArea"))}</p>}

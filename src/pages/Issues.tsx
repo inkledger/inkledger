@@ -1,3 +1,4 @@
+import { isDialogOpen, isTyping } from "@/lib/dom";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { readStoredJson, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
@@ -30,7 +31,7 @@ import { daysUntil } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { PageHeader, SectionLabel } from "@/components/app/PageHeader";
 import { PanelRow, PanelSection } from "@/components/app/Panel";
-import { QuickStatsCard } from "@/components/dashboard/QuickStatsCard";
+import { StatStrip } from "@/components/app/StatStrip";
 import { EmptyState, ErrorState } from "@/components/app/States";
 import {
   IssueFilters,
@@ -290,6 +291,19 @@ export default function Issues() {
     const panes = picked.map(([, pane]) => pane);
     void import("@/lib/desk/send").then(m => m.sendToDesk({ utils, navigate }, d => openTogether(d, panes)));
   };
+  // "/": the catalogue's search, from anywhere on the page but a field or a dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || isDialogOpen()) return;
+      const box = document.querySelector<HTMLInputElement>("main input[type=search]");
+      if (!box) return;
+      e.preventDefault();
+      box.focus();
+      box.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const { selected } = useListKeyboard(
     onScreen.map(i => issueId(i)),
     {
@@ -352,12 +366,27 @@ export default function Issues() {
 
       {trackerSearchOpen && <TrackerSearchPanel initialQuery={filters.search.trim()} />}
 
-      <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
-        <PanelSection
-          title={t("pages.issues.catalog")}
-          className="border-b xl:border-b-0 xl:border-r"
-          anchorId="issues.catalog"
-        >
+      {/* The catalogue's figures in one row (its total is in the header): the table keeps the page's width. */}
+      {all.isPending ? (
+        <div className="border-b px-5 py-2 md:px-6"><Skeleton className="h-9 rounded-lg" /></div>
+      ) : all.error ? (
+        <ErrorState message={errorText(all.error)} onRetry={() => all.refetch()} />
+      ) : (
+        <StatStrip
+          anchorId="issues.stats"
+          label={t("pages.issues.summary")}
+          variant="compact"
+          items={[
+            { label: t("pages.issues.inProgress"), value: String(summary.inProgress) },
+            { label: t("pages.issues.overdue"), value: String(summary.overdue), tone: summary.overdue > 0 ? "danger" : undefined },
+            { label: t("pages.issues.todo"), value: String(summary.todo) },
+            { label: t("pages.issues.done"), value: String(summary.done) },
+            { label: t("pages.issues.favorites"), value: String(summary.favorites) },
+          ]}
+        />
+      )}
+      <PanelRow>
+        <PanelSection title={t("pages.issues.catalog")} anchorId="issues.catalog">
           <BucketChip />
           <IssueFilters
             filters={filters}
@@ -526,43 +555,6 @@ export default function Issues() {
           <SelectionBar count={picked.length} onOpen={openPicked} onClear={() => setPicked([])} />
         </PanelSection>
 
-        <aside
-          aria-label={t("pages.issues.summary")}
-          className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-6 p-5 md:p-6"
-        >
-          {all.isPending ? (
-            <Skeleton className="h-64 rounded-xl" />
-          ) : all.error ? (
-            <ErrorState
-              message={errorText(all.error)}
-              onRetry={() => all.refetch()}
-            />
-          ) : (
-            <>
-              <QuickStatsCard
-                anchorId="issues.stats"
-                title={t("pages.issues.catalog")}
-                stats={[
-                  { label: t("pages.issues.inProgress"), value: String(summary.inProgress) },
-                  {
-                    label: t("pages.issues.overdue"),
-                    value: String(summary.overdue),
-                    tone: summary.overdue > 0 ? "danger" : undefined,
-                  },
-                ]}
-                extra={[
-                  { label: t("pages.issues.total"), value: String(summary.total) },
-                  {
-                    label: t("pages.issues.favorites"),
-                    value: String(summary.favorites),
-                  },
-                  { label: t("pages.issues.todo"), value: String(summary.todo) },
-                  { label: t("pages.issues.done"), value: String(summary.done) },
-                ]}
-              />
-            </>
-          )}
-        </aside>
       </PanelRow>
 
       {logging && (

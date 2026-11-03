@@ -8,8 +8,8 @@ type Flags = { favorite: boolean; hidden: boolean; summary: string } | null;
 type Named = Parameters<Actions["copyBranch"]>[0] | null;
 
 /**
- * The issue's hotkeys: "l" log time, "s" favorite, "h" hide / restore, "c" / "b" / "m" copy
- * key / branch name / commit message. Listened to only while `enabled` (the page; the
+ * The issue's hotkeys: "t" start its timer, "l" log time, "s" favorite, "h" hide / restore, "c" / "b" / "m"
+ * copy key / branch name / commit message. Listened to only while `enabled` (the page; the
  * active pane of a desk), so two issues on screen never both answer one key.
  */
 export function useIssueHotkeys({
@@ -20,6 +20,7 @@ export function useIssueHotkeys({
   named,
   act,
   onLogTime,
+  onStartTimer,
 }: {
   enabled: boolean;
   issueKey: string;
@@ -31,11 +32,28 @@ export function useIssueHotkeys({
   named: Named;
   act: Actions;
   onLogTime: () => void;
+  /** This issue's timer (the app-wide "t" opens an empty picker: here it is this issue). */
+  onStartTimer?: () => void;
 }) {
-  const keyRef = useRef({ key, connection, flags, act, named, onLogTime });
+  const keyRef = useRef({ key, connection, flags, act, named, onLogTime, onStartTimer });
   useEffect(() => {
-    keyRef.current = { key, connection, flags, act, named, onLogTime };
+    keyRef.current = { key, connection, flags, act, named, onLogTime, onStartTimer };
   });
+  // "t" before the app-wide listener (capture): on an issue it means this issue, not "pick one".
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "t" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (isTyping(e.target) || isDialogOpen() || inFloat(e.target)) return;
+      if (hotkeySequence.pending()) return; // "g t" goes to the timesheet
+      const start = keyRef.current.onStartTimer;
+      if (!start) return;
+      e.preventDefault();
+      start();
+    };
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [enabled]);
   useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {

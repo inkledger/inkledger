@@ -1,3 +1,4 @@
+import { StartIssueButton } from "@/components/issue/StartIssueButton";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { makeTodo } from "@/lib/makeTodo";
 import { errorText } from "@/lib/errorText";
@@ -244,11 +245,14 @@ export function BoardCard({
           />
           <ConnectionBadge connectionId={issue.connectionId} />
         </span>
-        {issue.priority && (
-          <Chip variant="dot" tone={priorityTone(issue.priority)}>
-            {priorityLabel(issue.priority)}
-          </Chip>
-        )}
+        <span className="flex shrink-0 items-center gap-1">
+          {issue.priority && (
+            <Chip variant="dot" tone={priorityTone(issue.priority)}>
+              {priorityLabel(issue.priority)}
+            </Chip>
+          )}
+          <StartIssueButton issueKey={issue.key} connectionId={issue.connectionId ?? undefined} controlId="board.card.start" className="-my-1 size-6" />
+        </span>
       </div>
     </div>
   );

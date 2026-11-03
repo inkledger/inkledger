@@ -151,8 +151,8 @@ export default function IdeasPage() {
         </section>
       );
     return (
-      <section key={s} aria-label={t(`pages.ideas.state.${s}`)} data-column={s} className="flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2" {...dropProps}>
-        <header className="flex items-center justify-between gap-2 px-1">
+      <section key={s} aria-label={t(`pages.ideas.state.${s}`)} data-column={s} className="flex min-h-0 w-72 shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2" {...dropProps}>
+        <header className="flex shrink-0 items-center justify-between gap-2 px-1">
           <h2 className="text-body-sm font-medium">
             {t(`pages.ideas.state.${s}`)} <span className="text-muted-foreground tabular">{items.length}</span>
           </h2>
@@ -160,7 +160,8 @@ export default function IdeasPage() {
             <Minus className="h-4 w-4" aria-hidden />
           </Button>
         </header>
-        {cards(items)}
+        {/* Its own scroll: a long column keeps its title in view and stays inside its background. */}
+        <div className="-mx-1 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto overscroll-contain px-1">{cards(items)}</div>
       </section>
     );
   };
@@ -198,7 +199,8 @@ export default function IdeasPage() {
           </div>
         }
       />
-      <PanelSection title={t("pages.ideas.captureLabel")} className="border-b">
+      {/* A compact block: the columns get the height (the label is the field's own). */}
+      <PanelSection variant="compact" className="border-b px-5 md:px-6">
         <IdeaCapture {...(project !== "all" && project !== "none" ? { containerId: Number(project) } : {})} />
       </PanelSection>
       <PanelSection className="flex min-h-0 flex-1 flex-col">
@@ -214,7 +216,7 @@ export default function IdeasPage() {
             {IDEA_STATES.map(column)}
           </div>
         ) : (
-          <div className="grid gap-5">
+          <div className="grid gap-4">
             {IDEA_STATES.filter(s => inState(s).length > 0).map(s => (
               <section key={s} aria-label={t(`pages.ideas.state.${s}`)}>
                 <h2 className="mb-2 text-body-sm font-medium">

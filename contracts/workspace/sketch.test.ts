@@ -70,14 +70,15 @@ describe("the Dashboard's composition, shared by the page and its drawings", () 
     expect(dashboardSegments(["dashboard.timeline", "dashboard.summary", "dashboard.tasks", "dashboard.activity", "dashboard.recap"])).toEqual({
       lead: "dashboard.timeline",
       segments: [
-        { kind: "row", items: ["dashboard.summary", ["dashboard.tasks", "dashboard.activity"]] },
+        { kind: "row", items: ["dashboard.summary", ["dashboard.tasks"]] },
+        { kind: "band", anchorId: "dashboard.activity" },
         { kind: "band", anchorId: "dashboard.recap" },
       ],
     });
     // Timeline not first: no lead, every band keeps its place.
     expect(dashboardSegments(["dashboard.summary", "dashboard.timeline", "dashboard.activity"])).toEqual({
       lead: null,
-      segments: [{ kind: "row", items: ["dashboard.summary"] }, { kind: "band", anchorId: "dashboard.timeline" }, { kind: "row", items: [["dashboard.activity"]] }],
+      segments: [{ kind: "row", items: ["dashboard.summary"] }, { kind: "band", anchorId: "dashboard.timeline" }, { kind: "band", anchorId: "dashboard.activity" }],
     });
   });
 });

@@ -61,6 +61,9 @@ export function PeriodBars({
     3600
   );
   const anyBeside = besides.some(b => b && b.linked + b.gap >= 60);
+  // A long range (a custom report up to a year): bars side by side with a hairline between them, and the
+  // months named under their first day. Fixed gaps left a year's bars no width, and 1–31 repeated.
+  const long = stacks.length > 60;
 
   return (
     <figure className="m-0">
@@ -71,7 +74,7 @@ export function PeriodBars({
           compact ? "h-24 pt-3" : "h-52 pt-6"
         )}
       >
-        <div className="relative flex h-full items-end gap-1 sm:gap-1.5">
+        <div className={cn("relative flex h-full items-end", long ? "gap-px" : "gap-1 sm:gap-1.5")}>
           {stacks.map((s, i) => {
             const total = totals[i];
             const isToday = dayKey(s.day) === today;
@@ -88,11 +91,12 @@ export function PeriodBars({
                 // A day with no goal is see-through: glass, no shadow.
                 {...(target > 0 ? surface("bar") : surface("glass"))}
                 className={cn(
-                  "relative h-full flex-1 rounded-md",
+                  "relative h-full min-w-0 flex-1",
+                  long ? "rounded-sm" : "rounded-md",
                   target > 0 ? "bg-muted" : "bg-muted/60"
                 )}
               >
-                <div className="absolute inset-0 flex flex-col-reverse overflow-hidden rounded-md">
+                <div className={cn("absolute inset-0 flex flex-col-reverse overflow-hidden", long ? "rounded-sm" : "rounded-md")}>
                   {target > 0 && (
                     <span
                       aria-hidden
@@ -137,11 +141,14 @@ export function PeriodBars({
       </div>
       <div
         aria-hidden
-        className="mt-2 flex gap-1 px-2 text-center text-caption text-muted-foreground sm:gap-1.5"
+        className={cn("mt-2 flex px-2 text-center text-caption text-muted-foreground", long ? "h-4 gap-px" : "gap-1 sm:gap-1.5")}
       >
         {stacks.map(s => {
           const key = dayKey(s.day);
-          const label = dense ? (
+          const label = long ? (
+            // The month, under its first day only (it may run on over the next ones).
+            s.day.getDate() === 1 ? <span className="absolute left-0 whitespace-nowrap">{dateFormat({ month: "short" }).format(s.day)}</span> : null
+          ) : dense ? (
             String(s.day.getDate())
           ) : (
             <>
@@ -155,7 +162,7 @@ export function PeriodBars({
             <span
               key={key}
               className={cn(
-                "flex-1 truncate tabular",
+                long ? "relative min-w-0 flex-1" : "flex-1 truncate tabular",
                 key === today && "font-semibold text-foreground",
                 dense && s.day.getDate() % 2 === 0 && "max-sm:invisible"
               )}

@@ -122,19 +122,19 @@ function observed(id: string, surfaceId: SurfaceId, renderer: string, labelKey: 
 const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: readonly (readonly [id: string, renderer: string, labelKey: string])[] }[] = [
   { surfaceId: "reports", route: "/reports", blocks: [
     ["reports.trend", "PeriodBars", "pages.reports.trend"],
-    ["reports.stats", "QuickStatsCard", "pages.reports.period"],
+    ["reports.stats", "StatStrip", "pages.reports.period"],
     ["reports.detail", "ReportRows", "pages.reports.detail"],
     ["reports.accuracy", "EstimateAccuracy", "pages.reports.accuracy.title"],
     ["reports.forecast", "ForecastSections", "pages.reports.forecast.title"],
   ] },
   { surfaceId: "timesheet", route: "/timesheet", blocks: [
     ["timesheet.summary", "PeriodSummary", "pages.timesheet.summary"],
-    ["timesheet.stats", "QuickStatsCard", "pages.timesheet.summary"],
+    ["timesheet.stats", "StatStrip", "pages.timesheet.summary"],
     ["timesheet.days", "WeekView", "pages.timesheet.days"],
   ] },
   { surfaceId: "issues", route: "/issues", blocks: [
     ["issues.catalog", "IssueCatalog", "pages.issues.catalog"],
-    ["issues.stats", "QuickStatsCard", "pages.issues.summary"],
+    ["issues.stats", "StatStrip", "pages.issues.summary"],
   ] },
   { surfaceId: "board", route: "/board", blocks: [
     ["board.columns", "BoardColumns", "pages.board.title"],
@@ -153,7 +153,8 @@ const observedAreas = OBSERVED_PAGES.map(page => area(`${page.surfaceId}.page`, 
 
 const anchors: AnchorManifest[] = [
   hideable(anchor("dashboard.timeline", "dashboard", "DayTimeline", "local", "pages.dashboard.widgets.timeline")),
-  anchor("dashboard.stats", "dashboard", "QuickStatsCard", "stateless", "pages.dashboard.widgets.stats"),
+  // A strip across the page above the timeline since 3 Nov (was a card in a side column): another block, revision 2.
+  { ...anchor("dashboard.stats", "dashboard", "StatStrip", "stateless", "pages.dashboard.widgets.stats"), semanticRevision: 2 },
   hideable(anchor("dashboard.summary", "dashboard", "PeriodSummary", "local", "pages.dashboard.widgets.summary")),
   anchor("dashboard.tasks", "dashboard", "TasksBoard", "external", "pages.dashboard.widgets.tasks"),
   anchor("dashboard.activity", "dashboard", "ActivityTable", "stateless", "pages.dashboard.widgets.activity"),
@@ -212,6 +213,8 @@ const mobileAreas = [
 ];
 
 const controls: ControlDefinition[] = [
+  control("dashboard.activity.start", "dashboard.activity", "ui.timer.startFor", { kind: "mutation", outcome: true }),
+  control("dashboard.activity.sort", "dashboard.activity", "views.dashboard.activity.sortBy", { kind: "toggle", role: "radio" }),
   control("dashboard.period.day", "dashboard.period", "pages.dashboard.periodDay", { kind: "toggle", role: "radio" }),
   control("dashboard.period.week", "dashboard.period", "pages.dashboard.periodWeek", { kind: "toggle", role: "radio" }),
   control("dashboard.period.month", "dashboard.period", "pages.dashboard.periodMonth", { kind: "toggle", role: "radio" }),
@@ -287,6 +290,7 @@ const controls: ControlDefinition[] = [
   control("mobile.dock.module", "mobile.dock", "ui.layout.moduleDock", { sensitive: true, telemetry: "disabled", minTouchTargetPx: 44 }),
   // Observed pages: the controls that drive them (searches and text fields are never counted).
   control("reports.export", "reports.stats", "pages.reports.exportCsv"),
+  ...(["period", "accuracy", "forecast"] as const).map(tab => control(`reports.tab.${tab}`, "reports.detail", "pages.reports.tabsLabel", { kind: "toggle", role: "tab" })),
   ...(["day", "issue", "project", "client", "days"] as const).map(group => control(`reports.groupBy.${group}`, "reports.detail", "pages.reports.groupBy", { kind: "toggle", role: "radio" })),
   control("timesheet.view.week", "timesheet.days", "pages.dashboard.periodWeek", { kind: "toggle", role: "radio" }),
   control("timesheet.view.month", "timesheet.days", "pages.dashboard.periodMonth", { kind: "toggle", role: "radio" }),
@@ -299,8 +303,10 @@ const controls: ControlDefinition[] = [
   control("issues.row.open", "issues.catalog", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("board.pinboard.toggle", "board.columns", "pages.board.pinboard", { kind: "toggle", role: "checkbox" }),
   control("board.card.open", "board.columns", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("board.card.start", "board.columns", "ui.timer.startFor", { kind: "mutation", outcome: true }),
   control("desk.layout", "desk.grid", "pages.desk.layout", { kind: "disclosure" }),
-  ...(["all", "below", "check"] as const).map(show => control(`team.show.${show}`, "team.matrix", "pages.team.show", { kind: "toggle", role: "radio" })),
+  control("team.kpi.below", "team.kpis", "pages.team.kpiBelow", { kind: "toggle", role: "button" }),
+  control("team.kpi.check", "team.kpis", "pages.team.kpiCheck", { kind: "toggle", role: "button" }),
   ...(["hours", "coverage", "name", "change"] as const).map(sort => control(`team.sort.${sort}`, "team.matrix", "pages.team.sort", { kind: "toggle", role: "radio" })),
   control("team.matrix.person", "team.matrix", "pages.team.title", { kind: "disclosure" }),
 ];

@@ -58,8 +58,8 @@ export default function Settings() {
       <PageHeader
         title={t("pages.settings.title")}
         description={t("pages.settings.autosave")}
-        // Saving: a small mark beside the title, never a different line (the page doesn't move).
-        actions={
+        // Saving: a small mark beside the title, never a line of its own (below xl actions take one).
+        titleAddon={
           <span role="status" aria-live="polite" className={cn("text-caption text-muted-foreground transition-opacity", !saving && "opacity-0")}>
             {t("pages.settings.saving")}
           </span>

@@ -174,7 +174,9 @@ test("an idea I will do becomes an issue and a TODO", () =>
 test("a vague issue goes to triage and back", () =>
   withApp({ seed: async db => void (await db.q("UPDATE issues SET connection_id = 1 WHERE key = 'DEMO-103'")) }, async ({ page, base, db }) => {
     await page.goto(base + "/issues/DEMO-103?c=1");
-    await page.getByRole("button", { name: "Send to triage" }).click();
+    // From the header's menu (the header shows only the state: "In triage").
+    await page.getByRole("button", { name: "More actions on DEMO-103" }).click();
+    await page.getByRole("menuitem", { name: "Send to triage" }).click();
     const chip = page.getByRole("link", { name: "In triage" });
     await chip.waitFor();
     // Made from the issue, nothing sent to its tracker; once only.

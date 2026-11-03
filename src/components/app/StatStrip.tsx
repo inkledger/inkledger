@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
 import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
+import { Meter } from "@/components/app/Meter";
 
 export type StatItem = {
   label: string;
@@ -10,11 +11,15 @@ export type StatItem = {
   /** Said on hover and to assistive tech: how the figure is made. */
   hint?: string;
   tone?: "danger";
-  /** A figure that is also a filter: pressed while it filters the page. */
+  /** A figure that is also a filter (or a retry): pressed while it filters the page. */
   onClick?: () => void;
   pressed?: boolean;
   /** Counted by FlowMap where the caller says so (flowControlProps). */
   control?: FlowControlAttributes;
+  /** The figure looked for first (a total): a step larger, in the theme's own colour. */
+  lead?: boolean;
+  /** How far the figure is towards its target (the week's hours of its goal): a thin meter under it. */
+  meter?: { value: number; max: number; label: string };
 };
 
 /** Static classes (Tailwind sees whole names): as many columns as figures on a wide screen, two on a phone. */
@@ -29,18 +34,24 @@ const COLUMNS: Record<number, string> = {
 
 const PADDING = { compact: "px-4 py-2", default: "px-5 py-3", expanded: "px-6 py-4" } as const;
 const VALUE = { compact: "text-body font-semibold", default: "text-heading", expanded: "text-title" } as const;
+const LEAD = { compact: "text-heading", default: "text-title", expanded: "text-display" } as const;
 
 /**
  * A page's figures in one row divided by hairlines (2×2 on a phone), the reference of Team time's KPIs:
- * no cover, no tiles, no count-up. A figure can be a filter (a toggle button). It sits on the page
- * panel (ground): never a card of its own. The variant is what a layout may choose (compact,
- * default, expanded): padding and the figure's size, the figures themselves never change.
+ * no tiles, no count-up. The theme's warmth stays: the stat card's grainy sunset cover, now a faint wash
+ * behind the whole row (texture, not a header), and the colour of the data itself (a figure's meter
+ * towards its target). Figures are a description list (term, value). A figure can be a
+ * filter: a toggle button laid over its whole cell. It sits on the page panel (ground), never a card of
+ * its own. The variant is what a layout may choose (compact, default, expanded): padding and the
+ * figure's size; the figures themselves never change.
  */
 export function StatStrip({
   items,
   label,
   anchorId,
   variant = "default",
+  maxColumns = 6,
+  busy = false,
   className,
 }: {
   items: readonly StatItem[];
@@ -49,55 +60,68 @@ export function StatStrip({
   /** The workspace block this strip is, where the page places it. */
   anchorId?: string;
   variant?: "compact" | "default" | "expanded";
+  /** At most this many on a row on a wide screen (a narrow column: 2 or 3). */
+  maxColumns?: number;
+  /** Another period loading: its figures are not this one's yet (said, and dimmed). */
+  busy?: boolean;
   className?: string;
 }) {
   const shown = items.slice(0, 6);
+  const columns = Math.max(1, Math.min(shown.length, maxColumns));
   return (
     <section
       aria-label={label}
       {...surface("ground")}
       data-workspace-anchor={anchorId}
       data-workspace-variant={anchorId ? variant : undefined}
-      className={cn(
-        "grid grid-cols-2 divide-border border-b lg:divide-x",
-        COLUMNS[Math.max(1, shown.length)],
-        // A phone: two per row, a hairline under the first row and between the two columns.
-        "max-lg:[&>*:nth-child(2n)]:border-l max-lg:[&>*:not(:nth-last-child(-n+2))]:border-b",
-        className
-      )}
+      aria-busy={busy || undefined}
+      className={cn("relative isolate overflow-hidden border-b transition-opacity", busy && "opacity-60", className)}
     >
-      {shown.map(item => (
-        <Stat key={item.label} item={item} variant={variant} />
-      ))}
+      {/* The cover's sunset, faint, behind the figures: warmth without a band that reads as a line. */}
+      <div aria-hidden className="cover-sunset grain pointer-events-none absolute inset-0 -z-10 opacity-15 dark:opacity-20" />
+      <dl
+        className={cn(
+          "grid grid-cols-2 divide-border lg:divide-x",
+          COLUMNS[columns],
+          // A phone: two per row, a hairline under every full row and between the two columns.
+          "max-lg:[&>*:nth-child(2n)]:border-l max-lg:[&>*:not(:nth-last-child(-n+2))]:border-b",
+          // Wrapped rows on a wide screen keep a hairline between them.
+          shown.length > columns && "lg:[&>*]:border-b"
+        )}
+      >
+        {shown.map(item => (
+          <Stat key={item.label} item={item} variant={variant} />
+        ))}
+      </dl>
     </section>
   );
 }
 
 function Stat({ item, variant }: { item: StatItem; variant: "compact" | "default" | "expanded" }) {
-  const body = (
-    <>
-      <span className="truncate text-caption text-muted-foreground">{item.label}</span>
-      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <span className={cn("font-display tabular", VALUE[variant], item.tone === "danger" && "text-danger")}>{item.value}</span>
-        {item.extra}
-      </span>
-    </>
-  );
-  const box = cn("grid min-w-0 content-start gap-0.5 text-left", PADDING[variant]);
-  return item.onClick ? (
-    <button
-      type="button"
-      title={item.hint}
-      aria-pressed={item.pressed ?? false}
-      onClick={item.onClick}
-      {...item.control}
-      className={cn(box, "outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", item.pressed && "bg-primary-soft/60")}
-    >
-      {body}
-    </button>
-  ) : (
-    <div title={item.hint} className={box}>
-      {body}
+  return (
+    <div title={item.hint} className={cn("relative grid min-w-0 content-start gap-0.5", PADDING[variant], item.pressed && "bg-primary-soft/60", item.onClick && "hover:bg-muted/40")}>
+      <dt className="truncate text-caption text-muted-foreground">{item.label}</dt>
+      {/* Only dt and dd in a group: the meter and the filter's button are the value's own. */}
+      <dd className="grid min-w-0 gap-1.5">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <span className={cn("font-display tabular", item.lead ? LEAD[variant] : VALUE[variant], item.tone === "danger" ? "text-danger" : item.lead && "text-primary-strong")}>{item.value}</span>
+          {item.extra}
+        </span>
+        {item.meter && (
+          <Meter value={item.meter.value} max={item.meter.max} size="xs" tone={item.meter.value >= item.meter.max ? "bg-primary-strong" : "bg-primary"} label={item.meter.label} />
+        )}
+        {item.onClick && (
+          <button
+            type="button"
+            aria-label={`${item.label}: ${item.value}`}
+            aria-pressed={item.pressed ?? false}
+            title={item.hint}
+            onClick={item.onClick}
+            {...item.control}
+            className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          />
+        )}
+      </dd>
     </div>
   );
 }

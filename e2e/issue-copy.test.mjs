@@ -46,7 +46,7 @@ async function copyForAgent(page, base, duration) {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
   await page.goto(`${base}/issues/DEMO-101`);
   await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
-  await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+  await page.getByRole("button", { name: "More actions on DEMO-101" }).click();
   await page.getByRole("group", { name: "Copy for an agent" }).getByRole("menuitem", { name: new RegExp(`^Links valid ${duration}`) }).click();
   await page.getByText(/Copied · links valid until/).waitFor();
   return page.evaluate(() => navigator.clipboard.readText());
@@ -87,7 +87,7 @@ test("copy for an agent at 320 px", async () => {
       const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       await page.goto(`${base}/issues/DEMO-101`);
       await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
-      await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+      await page.getByRole("button", { name: "More actions on DEMO-101" }).click();
       const item = page.getByRole("menuitem", { name: /^Links valid 24 h/ });
       await item.waitFor();
       const box = await item.boundingBox();
@@ -107,7 +107,7 @@ test("branch name and commit message: from the menu and with b / m, the key firs
     await page.goto(`${base}/issues/DEMO-101`);
     await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
     const read = () => page.evaluate(() => navigator.clipboard.readText());
-    await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+    await page.getByRole("button", { name: "More actions on DEMO-101" }).click();
     await page.getByRole("menuitem", { name: /^Copy commit message/ }).click();
     await page.getByText("Commit message copied").waitFor();
     assert.equal(await read(), "DEMO-101 Test task number 1");
@@ -143,7 +143,7 @@ test("Analyse: with the project's repositories set, the issue's menu copies a te
         // The issue's menu: Analyse.
         await page.goto(`${base}/issues/DEMO-101`);
         await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
-        await page.getByRole("button", { name: "Copy key, branch name or the issue" }).click();
+        await page.getByRole("button", { name: "More actions on DEMO-101" }).click();
         await page.getByRole("menuitem", { name: "Analyse in the code (1 repositories)" }).click();
         await page.getByText("Command copied: paste it in a terminal").waitFor();
         const cmd = await page.evaluate(() => navigator.clipboard.readText());

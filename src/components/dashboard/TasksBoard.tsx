@@ -91,7 +91,7 @@ export function TasksBoard({
   onToggle: (title: string) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row">
+    <div className="flex flex-col gap-3 sm:flex-row xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1">
       {columns.map(col =>
         collapsed.has(col.title) ? (
           <button
@@ -116,7 +116,7 @@ export function TasksBoard({
             </span>
           </button>
         ) : (
-          <div key={col.title} className="min-w-0 flex-1 basis-0">
+          <div key={col.title} className="min-w-0 flex-1 basis-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col">
             <div {...surface("card")} className="mb-2 flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-body-sm font-medium">
               <Dot tone={col.tone} />
               <span className="truncate">{col.title}</span>
@@ -143,7 +143,7 @@ export function TasksBoard({
                 </Link>
               </span>
             </div>
-            <div className="stagger cast-room-x cast-room-y relative max-h-[25rem] space-y-2 overflow-hidden [--room-b:0.25rem] [--room-x:0.5rem] [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
+            <div className="stagger cast-room-x cast-room-y relative max-h-[25rem] space-y-2 overflow-hidden xl:group-data-[fill]/row:max-h-none xl:group-data-[fill]/row:min-h-0 xl:group-data-[fill]/row:flex-1 [--room-b:0.25rem] [--room-x:0.5rem] [mask-image:linear-gradient(to_bottom,black_80%,transparent)]">
               {col.issues.length === 0 ? (
                 <p className="rounded-xl border border-dashed p-4 text-center text-body-sm text-muted-foreground" {...surface("glass")}>
                   {t("views.dashboard.tasks.empty")}
