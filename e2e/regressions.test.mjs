@@ -648,11 +648,20 @@ test("reports: the Days view merges each day's issues and totals the range by is
     },
     async ({ page, base }) => {
       await page.goto(base + "/reports?from=2020-03-02&to=2020-03-03&group=days");
-      const monday = page.getByRole("region", { name: /Mon.*2/ });
-      await monday.getByText("1 h 30 min").waitFor();
-      assert.equal(await monday.getByRole("link", { name: "DEMO-105" }).count(), 1, "one line per issue per day");
-      await page.getByRole("region", { name: /Tue.*3/ }).getByRole("link", { name: "DEMO-105" }).waitFor();
-      await page.getByText("Range total by issue").waitFor();
+      // Up to a month, one grid of issues × days: an issue's day merged in one cell, its row the range's total.
+      const grid = page.getByRole("grid", { name: "Hours by issue and day" });
+      await grid.waitFor();
+      assert.equal(await grid.getByRole("link", { name: "DEMO-105" }).count(), 1, "one row per issue");
+      const monday = grid.getByRole("gridcell", { name: /^DEMO-105, Monday .*: 1 h 30 min$/ });
+      await monday.waitFor();
+      await grid.getByRole("gridcell", { name: /^DEMO-105, Tuesday .*: 15 min$/ }).waitFor();
+      // One Tab stop, arrows between the cells.
+      assert.equal(await grid.locator("[data-cell][tabindex='0']").count(), 1);
+      await monday.focus();
+      await page.keyboard.press("ArrowRight");
+      assert.match(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? ""), /^DEMO-105, Tuesday/);
+      // Each row's total and entries at its end.
+      await grid.getByText("3 entries").waitFor();
     },
   ));
 

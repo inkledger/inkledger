@@ -706,6 +706,9 @@ export const views: Shape<typeof en> = {
       perDay: "Giorno per giorno",
       rangeTotal: "Totale periodo per issue",
       ofTarget: "su {target}",
+      matrix: "Ore per issue e giorno",
+      none: "niente",
+      entries: { one: "1 voce", other: "{count} voci" },
     },
   },
 };

@@ -698,6 +698,9 @@ export const views = {
       perDay: "Day by day",
       rangeTotal: "Range total by issue",
       ofTarget: "of {target}",
+      matrix: "Hours by issue and day",
+      none: "nothing",
+      entries: { one: "1 entry", other: "{count} entries" },
     },
   },
 } satisfies Tree;

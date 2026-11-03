@@ -9,6 +9,11 @@ import { ReportRows } from "@/components/reports/ReportRows";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 import { ActionRow } from "@/components/app/ActionRow";
+import { ReportMatrix } from "@/components/reports/ReportMatrix";
+import { matrixDays } from "@/lib/matrixDays";
+
+/** The longest range drawn as one grid (a month); past it the columns would be too many to read. */
+const MATRIX_MAX_DAYS = 31;
 
 export type ReportDay = {
   day: string;
@@ -103,6 +108,8 @@ export function ReportDays({
   issues: ReportRow[];
   targetFor: (d: Date) => number;
 }) {
+  // Up to a month: one grid of issues × days, its rows the range's totals too. Longer: a card per day.
+  if (matrixDays(days).length <= MATRIX_MAX_DAYS && issues.length > 0) return <ReportMatrix days={days} issues={issues} targetFor={targetFor} />;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <div className="grid gap-3">
