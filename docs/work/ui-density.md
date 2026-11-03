@@ -333,10 +333,23 @@ Left for BF (not BF0): C4, C5, C6, C7, C8, C9, C10, C11 and the rest of the plan
   - `StatStrip`, `PageToolbar`, `Tabs` + `TabPanel`, `Disclosure`, and `nextIndex` (roving, modifiers ignored, unit-tested).
   - Documented in design-system §6.1.
   - **Not mounted on any page**, so the baseline layout is unchanged.
-- [ ] **Baseline**: about one week of real use with FlowMap on (Settings → Workspace → "Collect interaction maps"). It starts on dev :3000; production still runs the old `jtt` stack. Planner thresholds: 5 active days and 30 activations per page.
-- [ ] **B3**: one page at a time, after the baseline, with a visual review after each page. In order: Reports → Timesheet → Issues → Issue detail → Dashboard (catalog bump for the side column) → Board → Notes/Ideas/Desk → Settings/sidebar → Team.
-- [ ] **BW**: the workflow changes in §4 of the plan, one at a time with review.
-- [ ] **B4**: retire `QuickStatsCard`, regenerate the design-system PDF, close this file.
+- [ ] **Baseline**: skipped by the user's choice (3 Nov: "everything now, no stops"). B3/BW/B4 were done on the audit's measures; the heat maps from real use still apply to later layout proposals.
+- [x] **B3** (all pages, no intermediate review, by the user's choice):
+  - **Reports**: StatStrip (Total leads, Entries, Avg/day, Days worked, Issues, Projects, Parallel) → Tabs Period · Estimate accuracy · Forecast (tab in the URL, forecast only when available, accuracy says it ignores the filters). Default grouping Issue. ViewScope inside a PageToolbar. Long ranges draw bars side by side with month names (PeriodBars).
+  - **Timesheet**: StatStrip (Total with goal meter, Under goal, Entries, Avg, Max day, Projects; "—" while stale), PeriodSummary in a "Breakdown" disclosure, month = MonthView only, week grid 2 → 4 (xl) → 7 (2xl) columns. Close week asks when days are under goal.
+  - **Issues**: no aside; compact StatStrip (filters) above a single-column list; rows on one line; actions visible on touch; `/` focuses the search; QueryAssist wraps.
+  - **Issue detail**: worklog before comments; header actions as icons (Watch, Pin, TODO) + ⋯ menu (triage, copy, open in tracker); star and edit run on after the title's last word; time card is a compact StatStrip with the progress meter.
+  - **Dashboard**: the side column is a band above the timeline (timeline full width); stats StatStrip (This week leads with meter); "Last 14 days" removed. Recent activity is a full-width rail of tiles ("pick up again": key, title, status, hours as a thread along the edge, ▶), one row whatever the count, its order in the section header; a band in the composition (`DASHBOARD_BANDS`), so the Studio draws it the same. Summary and My issues are a bento row: one height, My issues fills it (as many cards as fit, fading towards the board).
+  - **Board**: pinboard `min(30rem, 40%)`, its button icon-only below 2xl; ▶ on each card (`board.card.start`).
+  - **Notes / Ideas / Settings / Team**: header `min-h` gone, ideas columns scroll inside themselves, save state in the title row, Team's KPIs are the only filter.
+  - Shared: phone inputs at 16 px (`text-field`), breadcrumb hidden when it repeats the title, description one line on phones, dialog titles left-aligned clear of the close button, sticky dialog footer on phones, `interactive-widget=resizes-content`.
+- [x] **BW**: `t` on an issue starts its timer; ▶ on the timeline's open hole starts from it (clamped inside the track); ▶ on board cards; Close week confirmation; date popovers commit on Enter/blur while typing (`DateJump`); the issue edit dialog asks before discarding changes and its textarea is capped.
+- [x] **Sidebar** (after user review, 3 Nov):
+  - Daily destinations are rows; the other entries are tiles: 3 columns open, 2 closed, same order, every entry inside the navigation block.
+  - The foot is the Now card (every timer control on two lines, Start timer always), then the account, then the quick tiles with the toggle last. Closed, the ring opens a player with the same lines.
+  - It never scrolls from 700 px, and the timer is isolated, so the sidebar does not redraw on every tick.
+- [x] **B4**: `QuickStatsCard` deleted; catalog renderers → StatStrip, `dashboard.stats` `semanticRevision: 2` (catalog stays 1.0.0: the anchor id is kept); design-system rules on covers updated; PDF regenerated.
+- Fixes reported during B3: the hole's Play cut at the start of the day; Bonsai over the live block's Pause/Stop (page controls drawn over a mod are `data-above-modules`, `hit.ts` leaves them to the page); theme colour back on the strips (faint sunset wash + data meters + lead figure in the primary colour).
 
 - [x] **BF, the parts that keep the layout** (so the baseline stays valid). Each was shown failing first.
   - C4: the keyboard-selected row is brought out from under the sticky header and filters (`useListKeyboard`).
@@ -380,7 +393,29 @@ Flakiness found and fixed, with evidence:
 - **Effect.** `e2e/ui-density` ("observed pages") and `workspace-flows` #14 failed now and then in full runs.
 - **Fix.** Both now leave the page through its `pagehide`, with the page alive. The intent of each test is unchanged. A test that also ran into the tests' adjustments: `dashboard-day` (the timeline's own `aria-busy`) and `search-memory` (field completions are buttons now).
 
+## After B3–B4: measured again (3 Nov, same pipeline)
+Same driver, demo database on the test cluster, en, light, scroll 0. Values in px: y of the primary block, then the page's full height. The ✓ marks a better value.
+
+| Page | 1280×800 top | 1280×800 height | 1024×768 top | 390×844 top |
+| --- | --- | --- | --- | --- |
+| Timesheet week | 757 → 210 ✓ | 4114 → 2606 ✓ | 1055 → 269 ✓ | 1181 → 441 ✓ |
+| Timesheet month | 757 → 210 ✓ | 2182 → 770 ✓ | 1055 → 269 ✓ | 1142 → 441 ✓ |
+| Issue detail | 509 → 403 ✓ | 800 → 800 | 2322 → 692 ✓ | 2517 → 843 ✓ |
+| Issues | 395 → 380 ✓ | 2195 → 2129 ✓ | 407 → 460 | 670 → 810 |
+| Dashboard day | 140 → 232 | 1957 → 1642 ✓ | 195 → 276 | 266 → 464 |
+| Reports | 448 → 547 | 1154 → 1906 | 774 → 609 ✓ | 836 → 765 ✓ |
+| Ideas | 170 → 121 ✓ | 800 → 800 | 212 → 163 ✓ | 245 → 181 ✓ |
+| Board | 200 → 200 | 800 → 800 | 263 → 225 ✓ | 353 → 316 ✓ |
+
+Reading:
+- **Dashboard.** The timeline starts lower because the figures are a band above it (it now has the whole width), and the page is 300–1080 px shorter. On a phone the 2×2 figures cost about 200 px above the timeline, the one regression worth a follow-up (a denser strip on phones).
+- **Reports.** The default grouping is now Issue, whose table is longer than the Days list; the Detail starts lower at 1280 under the tabs and the trend.
+- **Overflow.** Unchanged: the Board's lanes and the Dashboard's tile rail are declared scrollers.
+- **Sidebar.** Never scrolls at 700–1000 px high, open and closed, en and it.
+
 ## Next action
-1. Turn FlowMap on, on dev :3000, and work normally for about a week.
-2. Then review the heat maps in Settings → Workspace, for the pages observed as they are.
-3. B3 then starts with Reports, followed by a visual review.
+- **Done** (3 Nov): B0 → B4, plus the sidebar redesign. Commits `92d09e1`, `5fe45c5`, `7a40fea`, `e48acb5`; not pushed.
+- **Open:**
+  - a denser StatStrip on phones (Dashboard);
+  - Reports' issue table bounded (first rows + all);
+  - FlowMap on, on dev :3000, so that real heat maps drive the next layout proposals.
