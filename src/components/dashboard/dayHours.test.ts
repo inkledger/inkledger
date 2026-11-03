@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultWorkSchedule, type WorkDay } from "@contracts/workSchedule";
 import { workDaySchema } from "@contracts/workScheduleSchema";
-import { addBreak, breakAt, handleAt, moveHandle, removeBreak, snapTo, targetChoice } from "./dayHours";
+import { addBreak, breakAt, breakHolding, handleAt, moveHandle, removeBreak, snapTo, targetChoice } from "./dayHours";
 
 const day: WorkDay = defaultWorkSchedule()[0]; // 9–18, lunch 13–14
 const m = (h: number, min = 0) => h * 60 + min;
@@ -67,6 +67,19 @@ describe("that was my break", () => {
     expect(breakAt(day, m(17, 30), m(19, 30))).toBeNull();
     expect(breakAt(day, m(17), m(18))).toBeNull();
     expect(breakAt({ ...day, enabled: false }, m(12), m(13))).toBeNull();
+  });
+});
+
+describe("the break that already holds the time away", () => {
+  it("is the day's own break when the time falls inside it, rounded out to 5", () => {
+    expect(breakHolding(day, m(13, 40), m(13, 58))).toEqual({ start: "13:00", end: "14:00" });
+    expect(breakHolding(day, m(13), m(14))).toEqual({ start: "13:00", end: "14:00" });
+  });
+  it("is none when the time reaches out of it, or the day has none", () => {
+    expect(breakHolding(day, m(12, 30), m(13, 30))).toBeNull();
+    expect(breakHolding(day, m(13, 40), m(14, 2))).toBeNull();
+    expect(breakHolding({ ...day, breaks: [] }, m(13, 10), m(13, 20))).toBeNull();
+    expect(breakHolding({ ...day, enabled: false }, m(13, 10), m(13, 20))).toBeNull();
   });
 });
 

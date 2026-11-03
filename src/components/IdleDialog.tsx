@@ -1,7 +1,7 @@
 import { dayMonth, timeOfDay } from "@/lib/dates";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useSaveDayHours } from "@/components/dashboard/useDayHoursEdit";
-import { breakAt } from "@/components/dashboard/dayHours";
+import { breakAt, breakHolding } from "@/components/dashboard/dayHours";
 import { dayKey, startOfDay } from "@contracts/time";
 import { weekdayIndex } from "@contracts/workSchedule";
 import { toastError, failureText } from "@/lib/errorText";
@@ -46,14 +46,15 @@ export function IdleDialog() {
   const awayDay = startOfDay(away.since);
   const awayEnd = new Date(away.since.getTime() + away.seconds * 1000);
   const sameDay = dayKey(awayEnd) === dayKey(away.since);
-  const asBreak = sameDay && !schedule.isPending && week.isSuccess && week.data === null
-    ? breakAt(
-        schedule.forDay(awayDay)[weekdayIndex(awayDay)],
-        away.since.getHours() * 60 + away.since.getMinutes(),
-        awayEnd.getHours() * 60 + awayEnd.getMinutes() + (awayEnd.getSeconds() > 0 ? 1 : 0)
-      )
-    : null;
-  const moved = asBreak?.breaks.find(b => !schedule.forDay(awayDay)[weekdayIndex(awayDay)].breaks.some(x => x.start === b.start && x.end === b.end));
+  const known = sameDay && !schedule.isPending && week.isSuccess && week.data === null;
+  const hours = schedule.forDay(awayDay)[weekdayIndex(awayDay)];
+  const awayFrom = away.since.getHours() * 60 + away.since.getMinutes();
+  const awayTo = awayEnd.getHours() * 60 + awayEnd.getMinutes() + (awayEnd.getSeconds() > 0 ? 1 : 0);
+  // Away inside the day's own break (lunch 13–14, away 13:40–13:57): that break stays as it is,
+  // the time only leaves the timer. Moving a break there would have shrunk it.
+  const holding = known ? breakHolding(hours, awayFrom, awayTo) : null;
+  const asBreak = known && !holding ? breakAt(hours, awayFrom, awayTo) : null;
+  const moved = asBreak?.breaks.find(b => !hours.breaks.some(x => x.start === b.start && x.end === b.end));
   const remove = () =>
     trim.mutate(
       { issueKey: away.issueKey, connectionId: away.connectionId, seconds: away.seconds },
@@ -86,6 +87,19 @@ export function IdleDialog() {
           </DialogDescription>
         </DialogHeader>
         {/* Its own line, with the break it makes: the footer keeps its three answers. */}
+        {holding && (
+          <Button
+            variant="outline"
+            className="justify-self-start"
+            disabled={trim.isPending}
+            title={t("ui.idle.myBreakInsideTitle", { duration: formatDuration(away.seconds), from: holding.start, to: holding.end })}
+            onClick={() => remove()}
+          >
+            <Coffee className="h-4 w-4" aria-hidden />
+            {t("ui.idle.myBreak")}
+            <span className="text-muted-foreground tabular">{holding.start}–{holding.end}</span>
+          </Button>
+        )}
         {asBreak && moved && (
           <Button
             variant="outline"

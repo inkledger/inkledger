@@ -353,6 +353,7 @@ export const ui: Shape<typeof en> = {
     remove: "Togli {duration}",
     myBreak: "Era la mia pausa",
     myBreakTitle: "Togli {duration} dal timer e fai di {from}–{to} la pausa di oggi",
+    myBreakInsideTitle: "Togli {duration} dal timer: è dentro la pausa di oggi {from}–{to}, che resta com'è",
   },
   server: {
     profiles: "Profili",

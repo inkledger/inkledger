@@ -351,6 +351,7 @@ export const ui = {
     remove: "Remove {duration}",
     myBreak: "It was my break",
     myBreakTitle: "Remove {duration} from the timer and make {from}–{to} today's break",
+    myBreakInsideTitle: "Remove {duration} from the timer: it falls in today's break {from}–{to}, which stays as it is",
   },
   server: {
     profiles: "Profiles",

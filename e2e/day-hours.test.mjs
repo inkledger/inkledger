@@ -281,6 +281,27 @@ test("away in the afternoon: \"It was my break\" makes it the day's break and ta
   });
 });
 
+test("away inside the day's own break: \"It was my break\" names that break, keeps the hours and only takes the time off the timer", () => {
+  const now = Date.now();
+  return withApp({ viewport: { width: 1280, height: 900 }, seed: awaySeed(now) }, async ({ page, base, db }) => {
+    // Lunch is 13–14 (the default week): away 13:40–13:57, the timer running.
+    await page.clock.install({ time: new Date(lastWorkday()).setHours(13, 40, 0, 0) });
+    await page.goto(`${base}/?period=day&from=${day()}`);
+    await editButton(page).waitFor();
+    await page.clock.fastForward("17:00");
+    const dialog = page.getByRole("dialog", { name: /^You were away/ });
+    await dialog.waitFor();
+    const mine = dialog.getByRole("button", { name: "It was my break" });
+    assert.match(await mine.innerText(), /13:00–14:00/, "the break it falls in, never a shorter one");
+    await mine.click();
+    // The dialog closes once the trim is saved.
+    await dialog.waitFor({ state: "detached" });
+    const [after] = await db.q("SELECT started_at FROM timers WHERE issue_key = 'DEMO-101'");
+    assert.ok(Number(after.started_at) >= now - 3 * 3_600_000 + 16 * 60_000, "the time away left the timer");
+    assert.equal(await own(db, day()), null, "the day's hours untouched: lunch stays 13–14");
+  });
+});
+
 test("a closed week: no \"It was my break\", the timer keeps its time", () => {
   const now = Date.now();
   const past = lastWorkday();

@@ -104,6 +104,18 @@ export function addBreak(d: WorkDay): WorkDay | null {
 export const removeBreak = (d: WorkDay, i: number): WorkDay => ({ ...d, breaks: d.breaks.filter((_, j) => j !== i) });
 
 /**
+ * The day's own break that already holds the time away from `from` to `to`
+ * (minutes, rounded out to 5 as breakAt does): there is nothing to move, the
+ * time only leaves the timer. Null when the day is off or no break holds it.
+ */
+export function breakHolding(d: WorkDay, from: number, to: number): WorkDay["breaks"][number] | null {
+  if (!d.enabled) return null;
+  const a = Math.floor(from / STEP) * STEP;
+  const b = Math.ceil(to / STEP) * STEP;
+  return d.breaks.find((x) => minutesOf(x.start) <= a && b <= minutesOf(x.end)) ?? null;
+}
+
+/**
  * "That was my break": the day's hours with the break taken from `from` to
  * `to` (minutes, rounded out to 5): it replaces the break it overlaps, or the
  * closest one, or is added (at most 4); breaks it covers merge into it.
