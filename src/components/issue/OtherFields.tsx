@@ -29,14 +29,18 @@ export function OtherFields({
           {t("views.issue.otherFields.stale")}
         </p>
       )}
-      <dl className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-body-sm">
-        {read.data.fields.map(f => (
-          <div key={f.name} className="contents">
-            <dt className="truncate text-muted-foreground">{f.name}</dt>
-            <dd className="[overflow-wrap:anywhere]">{f.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {/* Name over value, in as many columns as the section's width holds (docs/design-system.md §7.1):
+          a dozen custom fields read as a sheet, not a long two-column list. */}
+      <div className="region">
+        <dl className="grid grid-cols-[minmax(0,1fr)] gap-x-6 gap-y-2.5 text-body-sm @m:grid-cols-2 @xl:grid-cols-3">
+          {read.data.fields.map(f => (
+            <div key={f.name} className="min-w-0">
+              <dt className="truncate text-caption text-muted-foreground" title={f.name}>{f.name}</dt>
+              <dd className="[overflow-wrap:anywhere]">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </PanelSection>
   );
 }
