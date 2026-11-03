@@ -20,13 +20,15 @@ import { t } from "@/i18n";
 export type Idea = inferRouterOutputs<AppRouter>["ideas"]["list"][number];
 
 /** An idea on the board or in the list: its title opens it, it drags to another column, and its menu (or Alt+←/→) moves it by keyboard. */
-export function IdeaCard({ idea, onOpen, onMove, onDelete }: { idea: Idea; onOpen: () => void; onMove: (to: IdeaState) => void; onDelete: () => void }) {
+export function IdeaCard({ idea, onOpen, onMove, onDelete, as = "li" }: { idea: Idea; onOpen: () => void; onMove: (to: IdeaState) => void; onDelete: () => void; /** "div" inside a Collection, which gives the list item. */ as?: "li" | "div" }) {
+  const Tag = as;
   const openQuestions = idea.questions.filter(q => q.answer.trim() === "").length;
   const pictures = ideaFileIds(idea.body).length;
   const at = IDEA_STATES.indexOf(idea.state);
   return (
-    <li
+    <Tag
       {...surface("card")}
+      role={as === "div" ? "group" : undefined}
       aria-label={idea.title}
       draggable
       tabIndex={0}
@@ -97,6 +99,6 @@ export function IdeaCard({ idea, onOpen, onMove, onDelete }: { idea: Idea; onOpe
             ))}
         </div>
       )}
-    </li>
+    </Tag>
   );
 }

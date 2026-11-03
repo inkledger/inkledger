@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IdeaCapture } from "@/components/ideas/IdeaCapture";
 import { IdeaCard, type Idea } from "@/components/ideas/IdeaCard";
+import { Collection } from "@/components/app/Collection";
+import { CollapsedColumn, ColumnHeader } from "@/components/app/Columns";
 import { IdeaSheet } from "@/components/ideas/IdeaSheet";
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns";
 import { toastError } from "@/lib/errorText";
@@ -216,15 +218,34 @@ export default function IdeasPage() {
             {IDEA_STATES.map(column)}
           </div>
         ) : (
+          // Per state, a bounded grid as wide as the page holds (docs/design-system.md §7.1): two rows, then
+          // Show all N; the finished states (promoted, discarded) start folded.
           <div className="grid gap-4">
-            {IDEA_STATES.filter(s => inState(s).length > 0).map(s => (
-              <section key={s} aria-label={t(`pages.ideas.state.${s}`)}>
-                <h2 className="mb-2 text-body-sm font-medium">
-                  {t(`pages.ideas.state.${s}`)} <span className="text-muted-foreground tabular">{inState(s).length}</span>
-                </h2>
-                {cards(inState(s))}
-              </section>
-            ))}
+            {IDEA_STATES.filter(s => inState(s).length > 0).map(s =>
+              !isOpen(s) ? (
+                <CollapsedColumn
+                  key={s}
+                  title={t(`pages.ideas.state.${s}`)}
+                  count={inState(s).length}
+                  label={t("pages.ideas.showColumn", { state: t(`pages.ideas.state.${s}`), count: inState(s).length })}
+                  onOpen={() => toggleColumn(s)}
+                  row
+                  className="justify-self-start"
+                />
+              ) : (
+                <section key={s} aria-label={t(`pages.ideas.state.${s}`)} className="grid gap-2">
+                  <ColumnHeader title={t(`pages.ideas.state.${s}`)} count={inState(s).length} />
+                  <Collection
+                    items={inState(s)}
+                    keyOf={i => String(i.id)}
+                    rows={2}
+                    maxColumns={4}
+                    label={t(`pages.ideas.state.${s}`)}
+                    render={i => <IdeaCard as="div" idea={i} onOpen={() => setOpen(i.id)} onMove={to => moveTo(i, to)} onDelete={() => deleteIdea(i)} />}
+                  />
+                </section>
+              )
+            )}
           </div>
         )}
       </PanelSection>
