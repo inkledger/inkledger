@@ -141,7 +141,7 @@ export function PeriodBars({
       </div>
       <div
         aria-hidden
-        className={cn("mt-2 flex px-2 text-center text-caption text-muted-foreground", long ? "h-4 gap-px" : "gap-1 sm:gap-1.5")}
+        className={cn("mt-2 flex px-2 text-center text-caption text-muted-foreground", long ? "h-4 gap-px" : dense ? "h-4 gap-1 sm:gap-1.5" : "gap-1 sm:gap-1.5")}
       >
         {stacks.map(s => {
           const key = dayKey(s.day);
@@ -149,7 +149,9 @@ export function PeriodBars({
             // The month, under its first day only (it may run on over the next ones).
             s.day.getDate() === 1 ? <span className="absolute left-0 whitespace-nowrap">{dateFormat({ month: "short" }).format(s.day)}</span> : null
           ) : dense ? (
-            String(s.day.getDate())
+            // Centred on its bar and free to run past it: a bar is narrower than "13" on a phone, and a
+            // clipped label read "1". Only every few days on a phone, every other one wider.
+            <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap">{s.day.getDate()}</span>
           ) : (
             <>
               <span className="max-sm:hidden">
@@ -162,9 +164,10 @@ export function PeriodBars({
             <span
               key={key}
               className={cn(
-                long ? "relative min-w-0 flex-1" : "flex-1 truncate tabular",
+                long || dense ? "relative min-w-0 flex-1 tabular" : "flex-1 truncate tabular",
                 key === today && "font-semibold text-foreground",
-                dense && s.day.getDate() % 2 === 0 && "max-sm:invisible"
+                dense && s.day.getDate() !== 1 && s.day.getDate() % 5 !== 0 && key !== today && "max-sm:invisible",
+                dense && s.day.getDate() % 2 === 0 && "sm:max-lg:invisible"
               )}
             >
               {label}

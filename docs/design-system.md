@@ -187,7 +187,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 | Page title row | `PageHeader` (breadcrumb, h1, description, actions; sets the tab title) | A custom `<h1>` row |
 | A block of the page panel | `PanelSection` / `PanelRow` (hairlines, not boxes) | Nested cards |
 | A page's figures | `StatStrip` (one row divided by hairlines, three to a row under lg (two for four figures), the cover's grainy sunset as a faint wash behind the row; the figure looked for first is `lead`: a step larger, in the primary colour; a figure can be a filter or carry a `meter` towards its target; `busy` while another period loads; variants compact/default/expanded) | A card with a cover and tiles (retired) |
-| A collection on an overview page (recent issues, things to pick up) | A rail of tiles: one row, `snap-x`, scrolled sideways inside itself (`data-overflow-ok`), each tile a link with its own ▶ (`StartIssueButton`) and its data as a thread along the edge | A list that grows the page ("show all" stacks) |
+| A collection (recent issues, a board column's cards, a day's entries, attachments) | `Collection` (§7.1): a bounded adaptive grid of its container's width, a row budget, then "Show all N" (the same total at every width), expanded in place or on the full page | A rail scrolled sideways, a column clipped by a mask, a list that grows the page, a `slice` with no way to the rest |
 | ▶ on an issue shown as a card or tile | `StartIssueButton` (`controlId` for FlowMap; none while its timer runs; never the card's drag or link) | A per-page start button |
 | A date typed or picked to jump to | `DateJump` (the picker jumps at once, typing on Enter or blur) | An `onChange` on a date input (typing "2" jumped to the 2nd) |
 | A page's own controls under its header | `PageToolbar` (sticks under the sticky header on desktop, publishes `--page-toolbar-h`, opaque, wraps) | A search or filter row that scrolls away |
@@ -227,10 +227,7 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
   - A grid track that holds text is `minmax(0,1fr)` (or `grid-cols-[minmax(0,1fr)]`).
   - Flexible flex children get `min-w-0`.
   - Never hide an overflowing child with the parent's `overflow`, and never add a global `overflow-x-hidden` to mask it.
-- **No long lists, no white space beside them.** A report's table shows its first 10 rows, then "Show all" (the CSV has every row).
-  - Overview pages show a bounded amount: a rail of tiles (one row), a board column that fades towards its full page, a list's first rows with a way to the page that holds them all.
-  - Sections side by side are a bento row: one height for the row (the taller section's, or a floor), the other section fills it (`group-data-[fill]` on the Dashboard's row), and the row's hairline is the row's own, never a section's in mid-air.
-  - Detail that is not looked for first is behind `Tabs` or a `Disclosure`, not under everything else.
+- **No long lists, no white space beside them.** Every collection is bounded (§7.1). Sections side by side share one height and the shorter one fills it; the row's hairline is the row's own, never a section's in mid-air.
 - **The sidebar never scrolls and is the same open and closed.**
   - From top to bottom: brand (always visible), search, notifications, the sections, favorites (the only part that shrinks), then the foot.
   - Sections: where the day is spent (Dashboard, Board, Issues, Desk, Timesheet) are rows; every other entry is a tile, icon over its whole name, 3 columns open and 2 closed, in the same order. Every entry stays inside the navigation block (FlowMap measures a click on the block it is drawn in).
@@ -247,6 +244,49 @@ Before writing a component, look in `src/components/app/` and `src/components/ui
 - **At 320 px controls wrap** instead of overflowing. Tables that hide on a phone keep their sorting through a native control.
 
 ---
+
+### 7.1 Spatial system
+Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split views, toolbars), Fluent 2 (responsive techniques), WCAG 2.2 and NN/g research.
+
+**Container first: regions.** A block lays itself out by its own width, not the window's.
+- The sizes are in rem, so density moves them: `@s` < 28rem ≤ `@m` < 56rem ≤ `@l` < 80rem ≤ `@xl`. They are the same thresholds as a desk pane's.
+- Viewport breakpoints are only for the shell (sidebar, phone tab bar).
+
+**Three page layouts, nothing ad hoc.**
+| Layout | For | Rule |
+| --- | --- | --- |
+| Overview (bento) | Dashboard, Team | Regions in rows of one height. |
+| List-detail | Issues, Notes, Settings | Two panes from `@xl`. On a narrower container a choice replaces the list and Back returns. The selection stays highlighted. An empty selection shows a placeholder. |
+| Supporting pane | Issue detail, a Team person, a report drill-in | About 70/30 from `@l`. Below that, the supporting part goes under the main one or into a sheet. |
+
+**Collections are bounded, and nothing is hidden for good.**
+- A row budget, then "Show all N". Expanding happens in place (focus moves to the first new item, and the button becomes "Show fewer") or on the page that holds them all.
+- Never sideways: horizontal scroll is only for declared boards (Board, Ideas) and data tables (WCAG 1.4.10's two-dimensional exceptions). Their headings and filters still reflow.
+- Never a mask over focusable items, never an item off screen.
+
+**Budgets (checked by `e2e/space-budget.test.mjs`).**
+| | Desktop (≥ 1024) | Phone (390) |
+| --- | --- | --- |
+| Chrome (header + toolbar) | ≤ 15% of the viewport's height | ≤ 20% |
+| Primary block | starts in the first screen | starts in the first screen, above the tab bar |
+| Overview pages | ≤ 1.5 screens | ≤ 3 screens |
+| Working pages (Timesheet, issue detail) | ≤ 1.5 screens | ≤ 2.5 screens |
+
+**Toolbars.** A header toolbar has at most three groups: what the page shows, where it goes, its main action. Lower priorities fold into ⋯ as the container narrows, and the title never wraps because of controls.
+
+**One datum, one place.** A value is shown once per view: the timer, favorites, an issue's key, status and assignee.
+
+**Stability.** Expanding never moves what is above it. Open and closed states keep their footprint. No primary control appears on hover only.
+
+**Never remove to save space.** Budgets and variants change density and how much shows at once. What is folded stays one step away: "Show all N", ⋯, or Peek.
+
+**Accessibility is measured, not assumed.**
+- Focus is never covered, at the top or the bottom (2.4.11, through `scroll-padding`).
+- Targets are 24 px (2.5.8), and 44 px on coarse pointers, as the catalog's `minTouchTargetPx` declares.
+- Reflow at 320 px (1.4.10).
+- Text spacing (1.4.12): `min-height`, never a fixed row height.
+- Forced colors: the focus outline survives.
+- Both densities.
 
 ## 8. Interaction
 
