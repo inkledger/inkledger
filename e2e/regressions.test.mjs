@@ -1260,6 +1260,8 @@ test("install page opened on the Wi-Fi speaks of the local network, not Tailscal
     await page.goto("http://my-mac.local:" + port + "/install");
     await page.getByText("You're on the server's local network").waitFor();
     assert.equal(await page.getByText("Tailscale is on").count(), 0);
+    // A font or icon still in flight through the route when the context closes: let it go quietly.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   }));
 
 test("Settings → Backup: 'Back up now' writes a dump to the folder and lists it; the schedule saves", () => {
