@@ -92,7 +92,8 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      // Left-aligned, clear of the close button (a long title ran under it on a phone).
+      className={cn("flex flex-col gap-2 pr-8 text-left", className)}
       {...props}
     />
   );
@@ -104,6 +105,8 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="dialog-footer"
       className={cn(
         "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // A phone: the dialog scrolls (a keyboard takes half the screen), its buttons stay at its bottom edge.
+        "max-sm:sticky max-sm:-bottom-6 max-sm:-mx-6 max-sm:-mb-6 max-sm:border-t max-sm:bg-background max-sm:px-6 max-sm:pb-6 max-sm:pt-3",
         className
       )}
       {...props}

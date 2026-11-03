@@ -17,6 +17,7 @@ export function PageHeader({
   titleLead,
   titleProps,
   titleClassName,
+  addonInline = false,
   breadcrumbCurrent,
   breadcrumbTrail,
   actions,
@@ -34,6 +35,11 @@ export function PageHeader({
   /** The title's own handlers (an issue's long press). */
   titleProps?: React.HTMLAttributes<HTMLHeadingElement>;
   titleClassName?: string;
+  /**
+   * The addon runs on after the title's last word (an issue's star and edit), not at the row's end: a
+   * title on two lines fills the row, and an addon beside it ended up far from the text. No clamp then.
+   */
+  addonInline?: boolean;
   /** Extra breadcrumb level (e.g. the issue key on a detail page) */
   breadcrumbCurrent?: string;
   /** Steps between the section and the current item (the folders a note is in) */
@@ -83,6 +89,17 @@ export function PageHeader({
         ) : (
           <Breadcrumb current={breadcrumbCurrent} trail={breadcrumbTrail} />
         )}
+        {addonInline ? (
+          <div className="flex min-w-0 items-start gap-2">
+            {titleLead}
+            <div className="min-w-0 [overflow-wrap:anywhere]">
+              <h1 {...titleProps} className={cn("inline font-display text-heading sm:text-title", titleClassName)} aria-live="polite">
+                {title}
+              </h1>
+              {titleAddon && <span className="ml-2 inline-flex items-center gap-2 align-[0.15em]">{titleAddon}</span>}
+            </div>
+          </div>
+        ) : (
         <div className="flex min-w-0 items-center gap-2">
           {titleLead}
           <h1
@@ -97,8 +114,10 @@ export function PageHeader({
           </h1>
           {titleAddon}
         </div>
+        )}
         {description && (
-          <p className="mt-0.5 line-clamp-2 [overflow-wrap:anywhere] text-body-sm text-muted-foreground">
+          // One line on a phone (the page starts sooner), two from sm.
+          <p className="mt-0.5 line-clamp-1 [overflow-wrap:anywhere] text-body-sm text-muted-foreground sm:line-clamp-2">
             {description}
           </p>
         )}

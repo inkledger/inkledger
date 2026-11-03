@@ -43,6 +43,8 @@ module.exports = {
         body: ["1rem", { lineHeight: "1.5" }],
         "body-sm": ["0.875rem", { lineHeight: "1.45" }],
         caption: ["0.8125rem", { lineHeight: "1.35" }],
+        // Text in a field on a phone: never below 16px, or iOS Safari zooms the page in on focus.
+        field: ["max(1rem, 16px)", { lineHeight: "1.5" }],
         // Never below 11px, whatever the density (WCAG-friendly minimum).
         "2xs": ["max(11px, 0.625rem)", { lineHeight: "1", fontWeight: "600" }],
         overline: [

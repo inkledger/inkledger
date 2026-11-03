@@ -256,13 +256,22 @@ function LabelsForm({
 /** Title and description, written in Markdown. */
 export function EditIssueButton(target: Target & { title: string }) {
   const [open, setOpen] = useState(false);
+  // Changes typed: Escape, a click outside or Cancel ask first (they were lost without a word).
+  const [dirty, setDirty] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const close = () => {
+    setOpen(false);
+    setDirty(false);
+    setAsking(false);
+  };
+  const requestClose = () => (dirty ? setAsking(true) : close());
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Pencil />
         {t("views.issue.manage.edit")}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={next => (next ? setOpen(true) : requestClose())}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -272,7 +281,20 @@ export function EditIssueButton(target: Target & { title: string }) {
               {t("views.issue.manage.editHint")}
             </DialogDescription>
           </DialogHeader>
-          {open && <EditForm {...target} onDone={() => setOpen(false)} />}
+          {open && <EditForm {...target} onDone={close} onDirty={setDirty} onCancel={requestClose} />}
+          {asking && (
+            <div role="alertdialog" aria-label={t("views.issue.manage.discardAsk")} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+              <span className="text-body-sm">{t("views.issue.manage.discardAsk")}</span>
+              <span className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setAsking(false)} autoFocus>
+                  {t("views.issue.manage.keepEditing")}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={close}>
+                  {t("views.issue.manage.discard")}
+                </Button>
+              </span>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -284,7 +306,9 @@ function EditForm({
   connectionId,
   title,
   onDone,
-}: Target & { title: string; onDone: () => void }) {
+  onDirty,
+  onCancel,
+}: Target & { title: string; onDone: () => void; onDirty: (dirty: boolean) => void; onCancel: () => void }) {
   const where = { key: issueKey, connectionId: connectionId ?? undefined };
   const description = trpc.issues.description.useQuery(where);
   const [draft, setDraft] = useState<{ title: string; body: string | null }>({
@@ -331,7 +355,10 @@ function EditForm({
         <Input
           id="edit-issue-title"
           value={draft.title}
-          onChange={e => setDraft({ ...draft, title: e.target.value })}
+          onChange={e => {
+            setDraft({ ...draft, title: e.target.value });
+            onDirty(true);
+          }}
           required
         />
       </div>
@@ -339,19 +366,29 @@ function EditForm({
         <Label htmlFor="edit-issue-body">
           {t("views.issue.manage.bodyLabel")}
         </Label>
+        {/* Grows with the text up to half the screen, then scrolls: the dialog's buttons stay in reach. */}
         <Textarea
           id="edit-issue-body"
           rows={12}
           value={body}
-          onChange={e => setDraft({ ...draft, body: e.target.value })}
+          className="max-h-[50dvh] overflow-y-auto"
+          onChange={e => {
+            setDraft({ ...draft, body: e.target.value });
+            onDirty(true);
+          }}
         />
       </div>
-      <Button
-        type="submit"
-        disabled={save.isPending || draft.title.trim() === ""}
-      >
-        {t("common.save")}
-      </Button>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {t("common.cancel")}
+        </Button>
+        <Button
+          type="submit"
+          disabled={save.isPending || draft.title.trim() === ""}
+        >
+          {t("common.save")}
+        </Button>
+      </div>
     </form>
   );
 }
