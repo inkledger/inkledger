@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { start, APP } from "./harness.mjs";
+import { start, APP, withApp } from "./harness.mjs";
 
 // Every control FlowMap counts declares its minimum target (the catalog's accessibility contract,
 // minTouchTargetPx). On a touch screen its real hit area, the pseudo-element that widens a small icon
@@ -80,3 +80,23 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 800 
     }
   });
 }
+
+test("a dialog's and a sheet's close button is a 24 px target where the icon always was", { timeout: 180_000 }, () =>
+  withApp({ viewport: { width: 1280, height: 800 } }, async ({ page, base }) => {
+    // Measured at rest: the opening zoom would shrink it for a moment.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(base + "/");
+    const size = async scope => {
+      const box = await scope.getByRole("button", { name: "Close", exact: true }).last().boundingBox();
+      return box && Math.min(box.width, box.height);
+    };
+    await page.getByRole("button", { name: "Log time", exact: true }).first().click();
+    const dialog = page.getByRole("dialog").first();
+    await dialog.waitFor();
+    assert.ok((await size(dialog)) >= 24, "dialog close ≥ 24 px");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: /^Notifications/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Notifications" });
+    await sheet.waitFor();
+    assert.ok((await size(sheet)) >= 24, "sheet close ≥ 24 px");
+  }));
