@@ -3,7 +3,7 @@ import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import type { FlowEvent, FlowModality } from "@contracts/workspace/flowMap";
 import type { PresentationDescriptor, Scope } from "@contracts/workspace/model";
 import { workspaceMutationPath } from "./instrumentation";
-import { flowClickOf, type FlowClick } from "./flowClick";
+import { flowClickOf, flowKeyOf, type FlowClick } from "./flowClick";
 import { randomUUID } from "@/lib/randomId";
 
 export type FlowCollectionOptions = {
@@ -168,7 +168,10 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
       const anchor = anchorId ? anchors.get(anchorId) : undefined;
       if (!anchor) continue;
       cancelExposure(entry.target);
-      if (!entry.isIntersecting || entry.intersectionRatio < 0.5 || document.hidden || exposed.has(anchor.id)) continue;
+      // Seen: half of the block on screen, or a block taller than the screen filling half of it.
+      const rootHeight = entry.rootBounds?.height ?? window.innerHeight;
+      const seen = entry.intersectionRatio >= 0.5 || entry.intersectionRect.height >= rootHeight * 0.5;
+      if (!entry.isIntersecting || !seen || document.hidden || exposed.has(anchor.id)) continue;
       const startedAt = Date.now();
       pendingExposures.set(entry.target, setTimeout(() => {
         pendingExposures.delete(entry.target);
@@ -178,7 +181,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
         push("anchor.exposure", undefined, anchor.id, anchor.semanticRevision, undefined, Date.now() - startedAt);
       }, 1_000));
     }
-  }, { threshold: [0, 0.5, 1] });
+  }, { threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
   const observeAnchors = () => {
     // The blocks themselves: a control inside one carries its anchor too, but is not what is seen.
     for (const element of document.querySelectorAll("[data-workspace-anchor]:not([data-workspace-control])")) {
@@ -204,6 +207,11 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
     const control = controls.get(controlId);
     if (control) push(kind, control.id, control.anchorId, control.semanticRevision, undefined, undefined, detail.destinationControlId);
   };
+  /** A control used from the keyboard (a hotkey): counted like its click, with no spot in the block. */
+  const key = (event: Event) => {
+    const read = flowKeyOf(event);
+    if (read) activate(read);
+  };
   const pageHide = () => beacon();
   document.addEventListener("pointerdown", pointer, true);
   document.addEventListener("keydown", keyboard, true);
@@ -211,10 +219,20 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
   document.addEventListener("visibilitychange", visibility);
   window.addEventListener("workspace:search", search);
   window.addEventListener("workspace:mutation-result", mutationResult);
+  window.addEventListener("workspace:key", key);
   window.addEventListener("pagehide", pageHide);
   for (const read of early) activate(read, true);
   observeAnchors();
-  const mutations = new MutationObserver(observeAnchors);
+  // One scan per frame however many nodes change (typing, a drag, a long list): never per mutation.
+  let scan: number | undefined;
+  const scheduleScan = () => {
+    if (scan !== undefined) return;
+    scan = requestAnimationFrame(() => {
+      scan = undefined;
+      if (!stopped) observeAnchors();
+    });
+  };
+  const mutations = new MutationObserver(scheduleScan);
   mutations.observe(document.body, { childList: true, subtree: true });
   return ({ optedOut = false } = {}) => {
     // What was collected still goes when the page or layout changes; after an opt-out not even a request leaves.
@@ -223,6 +241,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
     clearSchedule();
     observer.disconnect();
     mutations.disconnect();
+    if (scan !== undefined) cancelAnimationFrame(scan);
     for (const element of pendingExposures.keys()) cancelExposure(element);
     document.removeEventListener("pointerdown", pointer, true);
     document.removeEventListener("keydown", keyboard, true);
@@ -230,6 +249,7 @@ export function startFlowCollection(options: FlowCollectionOptions): (stop?: { o
     document.removeEventListener("visibilitychange", visibility);
     window.removeEventListener("workspace:search", search);
     window.removeEventListener("workspace:mutation-result", mutationResult);
+    window.removeEventListener("workspace:key", key);
     window.removeEventListener("pagehide", pageHide);
     queue = [];
   };

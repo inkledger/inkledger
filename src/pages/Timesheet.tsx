@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { toastError, failureText, errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -82,8 +83,8 @@ import { capitalize } from "@/lib/dates";
 type View = "week" | "month";
 
 const viewOptions = () => [
-  { value: "week" as const, label: t("pages.timesheet.viewWeek"), icon: CalendarRange },
-  { value: "month" as const, label: t("pages.timesheet.viewMonth"), icon: CalendarDays },
+  { value: "week" as const, label: t("pages.timesheet.viewWeek"), icon: CalendarRange, control: flowControlProps("timesheet.view.week") },
+  { value: "month" as const, label: t("pages.timesheet.viewMonth"), icon: CalendarDays, control: flowControlProps("timesheet.view.month") },
 ];
 
 const shortDay = () => dateFormat({ day: "numeric", month: "long" });
@@ -516,7 +517,9 @@ export default function Timesheet() {
     view === "week"
       ? t("pages.timesheet.hoursWeek")
       : t("pages.timesheet.hoursMonth");
-  const isEmpty = !logs.isPending && !logs.error && periodLogs.length === 0;
+  // The previous period's worklogs while the new one loads (keepPreviousData): never read as this one's.
+  const stale = logs.isPlaceholderData;
+  const isEmpty = !logs.isPending && !logs.error && !stale && periodLogs.length === 0;
 
   return (
     <>
@@ -579,6 +582,7 @@ export default function Timesheet() {
               onNext={() => step(1)}
               onToday={() => setAnchor(today)}
               isCurrent={isCurrent}
+              controls={{ prev: flowControlProps("timesheet.period.previous"), today: flowControlProps("timesheet.period.today"), next: flowControlProps("timesheet.period.next") }}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -620,6 +624,7 @@ export default function Timesheet() {
                 setLogDay(today);
                 setLogOpen(true);
               }}
+              {...flowControlProps("timesheet.logToday")}
             >
               <Plus className="h-4 w-4" />
               {t("pages.timesheet.logTimeToday")}
@@ -634,6 +639,8 @@ export default function Timesheet() {
         <PanelSection
           title={t("pages.timesheet.summary")}
           className="border-b xl:border-b-0 xl:border-r"
+          anchorId="timesheet.summary"
+          busy={stale}
         >
           {logs.isPending ? (
             <Skeleton className="h-80" />
@@ -665,12 +672,13 @@ export default function Timesheet() {
             />
           ) : (
             <QuickStatsCard
+              anchorId="timesheet.stats"
               title={view === "week" ? t("pages.timesheet.viewWeek") : t("pages.timesheet.viewMonth")}
               stats={[
                 {
                   label: t("pages.timesheet.underGoal"),
-                  value: String(dayStats.under),
-                  tone: dayStats.under > 0 ? "danger" : undefined,
+                  value: stale ? "—" : String(dayStats.under),
+                  tone: !stale && dayStats.under > 0 ? "danger" : undefined,
                 },
                 { label: t("pages.timesheet.entries"), value: String(periodLogs.length) },
               ]}
@@ -704,6 +712,8 @@ export default function Timesheet() {
       <PanelRow>
         <PanelSection
           title={view === "week" ? t("pages.timesheet.days") : t("pages.timesheet.viewMonth")}
+          anchorId="timesheet.days"
+          busy={stale}
           actions={
             view === "week" && !locked && periodLogs.length > 0 ? (
               <span className="flex items-center gap-2">

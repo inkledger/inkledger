@@ -274,7 +274,7 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
     const placement = workspace.placements.find(item => item.anchorId === anchorId);
     if (!isValidElement(node) || !placement) return node;
     if (node.type === PanelSection) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
-    if (node.type === QuickStatsCard) return cloneElement(node as ReactElement<{ variant: typeof placement.variant }>, { variant: placement.variant });
+    if (node.type === QuickStatsCard) return cloneElement(node as ReactElement<{ anchorId: string; variant: typeof placement.variant }>, { anchorId, variant: placement.variant });
     if (anchorId === "dashboard.timeline") {
       const section = node as ReactElement<{ className?: string; "data-workspace-anchor"?: string; "data-workspace-variant"?: string }>;
       return cloneElement(section, {
@@ -703,6 +703,7 @@ function DashboardContent() {
                   size="icon-sm"
                   className="rounded-md"
                   aria-label={t("pages.dashboard.pickDate")}
+                  {...flowControlProps("dashboard.period.pickDate")}
                 >
                   <CalendarDays className="h-4 w-4" />
                 </Button>
@@ -829,8 +830,9 @@ function DashboardContent() {
           <PanelSection
             title={t("pages.dashboard.summary")}
             className="border-b xl:border-b-0 xl:border-r"
+            busy={logs.isPlaceholderData}
             actions={pending && (
-              <Button variant="outline" size="sm" onClick={() => dayReview.set(true)}>
+              <Button variant="outline" size="sm" onClick={() => dayReview.set(true)} {...flowControlProps("dashboard.closeDay")}>
                 <Sunset className="h-4 w-4" />
                 {t("pages.dashboard.closeDay")}
               </Button>

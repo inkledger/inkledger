@@ -624,8 +624,10 @@ test("#14 after Delete FlowMap data nothing derived is delivered again: no late 
       await waitUntil(async () => (await count(db, table)) === 0, `${table} emptied`);
     }
 
-    // The other tab leaves: its queued batch goes out now, after the deletion, and is refused.
-    await dashboard.goto(base + "/issues");
+    // The other tab leaves: its queued batch goes out now, after the deletion, and is refused. Leaving is its
+    // pagehide, with the page still alive: a beacon sent while a page navigates away is sometimes cut off in
+    // headless Chromium (net::ERR_ABORTED, seen 3 Nov), which made this step flaky under load.
+    await dashboard.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false })));
     await waitUntil(() => beacons.length > 0, "the queued batch to be sent");
     // One batch per collecting page part (the sidebar has its own): the Dashboard's holds the click made before the deletion.
     const holdsClick = body => JSON.parse(body ?? "{}").json?.events.some(event => event.controlId === "dashboard.customize.open");

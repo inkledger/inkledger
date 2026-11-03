@@ -100,6 +100,11 @@ async function inputFor(userId: number, scope: Scope, draftOverride?: Draft | nu
   };
 }
 
+function rendererBindingsOf(surfaceId: Scope["surfaceId"]) {
+  const anchors = new Set(CATALOG_V1.anchors.filter(anchor => anchor.surfaceId === surfaceId).map(anchor => anchor.id));
+  return CATALOG_V1.rendererBindings.filter(binding => anchors.has(binding.anchorId));
+}
+
 function descriptorFor(workspace: Extract<ResolveResult, { kind: "resolved" }>["workspace"], input: ResolveInput): PresentationDescriptor {
   const workspaceFingerprint = fingerprint("workspace", { ...workspace, sourceActiveRevision: undefined }).value;
   const base = {
@@ -111,7 +116,8 @@ function descriptorFor(workspace: Extract<ResolveResult, { kind: "resolved" }>["
     constraintsFingerprint: fingerprint("constraints", input.activeRevision.constraints).value,
     feedbackFingerprint: fingerprint("feedback", input.feedback).value,
     discoveryFingerprint: fingerprint("discovery", input.discoveryState).value,
-    rendererBindingsFingerprint: fingerprint("renderer-bindings", CATALOG_V1.rendererBindings).value,
+    // This surface's own blocks only: a block added to another page never changes this one's layout.
+    rendererBindingsFingerprint: fingerprint("renderer-bindings", rendererBindingsOf(input.activeRevision.scope.surfaceId)).value,
   };
   const presentationInput = {
     sourceActiveRevision: base.sourceActiveRevision,
@@ -197,9 +203,13 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
       draftWorkspace = preview.workspace;
     }
   }
+  // The layout a page load would show now: a tab presenting another one (saved elsewhere, or the same
+  // revision drawn differently since, e.g. a block seen) is moved by openPage, so its events keep counting.
+  const latest = active ? await resolvedFor(userId, scope, null) : resolved;
   return {
     ...resolved,
     descriptor: presentation?.presented?.descriptor ?? resolved.descriptor,
+    currentEffectiveRevision: latest.descriptor.effectiveRevision,
     committedRevision: state.committedRevision,
     presentation,
     ssr,

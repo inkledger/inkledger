@@ -6,8 +6,32 @@
     "resolverVersion": 1,
     "surfaces": [
       {
+        "id": "board",
+        "route": "/board",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
         "id": "dashboard",
         "route": "/",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
+        "id": "desk",
+        "route": "/issues/desk",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
+        "id": "issues",
+        "route": "/issues",
         "deviceClasses": [
           "desktop",
           "mobile"
@@ -21,14 +45,48 @@
         ]
       },
       {
+        "id": "reports",
+        "route": "/reports",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
         "id": "shell-desktop",
         "route": "*",
         "deviceClasses": [
           "desktop"
         ]
+      },
+      {
+        "id": "team",
+        "route": "/team",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
+      },
+      {
+        "id": "timesheet",
+        "route": "/timesheet",
+        "deviceClasses": [
+          "desktop",
+          "mobile"
+        ]
       }
     ],
     "areas": [
+      {
+        "id": "board.page",
+        "surfaceId": "board",
+        "role": "primary",
+        "capacity": 1,
+        "allowedAnchorIds": [
+          "board.columns"
+        ],
+        "introducedIn": "1.0.0"
+      },
       {
         "id": "dashboard.desk",
         "surfaceId": "dashboard",
@@ -91,6 +149,27 @@
         "introducedIn": "1.0.0"
       },
       {
+        "id": "desk.page",
+        "surfaceId": "desk",
+        "role": "primary",
+        "capacity": 1,
+        "allowedAnchorIds": [
+          "desk.grid"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "issues.page",
+        "surfaceId": "issues",
+        "role": "primary",
+        "capacity": 2,
+        "allowedAnchorIds": [
+          "issues.catalog",
+          "issues.stats"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
         "id": "mobile.dock",
         "surfaceId": "mobile-tabs",
         "role": "dock",
@@ -124,6 +203,20 @@
           "mobile.issues",
           "mobile.more",
           "mobile.timer.active"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "reports.page",
+        "surfaceId": "reports",
+        "role": "primary",
+        "capacity": 5,
+        "allowedAnchorIds": [
+          "reports.accuracy",
+          "reports.detail",
+          "reports.forecast",
+          "reports.stats",
+          "reports.trend"
         ],
         "introducedIn": "1.0.0"
       },
@@ -179,9 +272,56 @@
           "shell.timer.active"
         ],
         "introducedIn": "1.0.0"
+      },
+      {
+        "id": "team.page",
+        "surfaceId": "team",
+        "role": "primary",
+        "capacity": 2,
+        "allowedAnchorIds": [
+          "team.kpis",
+          "team.matrix"
+        ],
+        "introducedIn": "1.0.0"
+      },
+      {
+        "id": "timesheet.page",
+        "surfaceId": "timesheet",
+        "role": "primary",
+        "capacity": 3,
+        "allowedAnchorIds": [
+          "timesheet.days",
+          "timesheet.stats",
+          "timesheet.summary"
+        ],
+        "introducedIn": "1.0.0"
       }
     ],
     "anchors": [
+      {
+        "id": "board.columns",
+        "surfaceId": "board",
+        "renderer": "BoardColumns",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.board.title"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.board.title",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
       {
         "id": "dashboard.activity",
         "surfaceId": "dashboard",
@@ -583,6 +723,78 @@
         }
       },
       {
+        "id": "desk.grid",
+        "surfaceId": "desk",
+        "renderer": "Desk",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.desk.title"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.desk.title",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "issues.catalog",
+        "surfaceId": "issues",
+        "renderer": "IssueCatalog",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.issues.catalog"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.issues.catalog",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "issues.stats",
+        "surfaceId": "issues",
+        "renderer": "QuickStatsCard",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.issues.summary"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.issues.summary",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
         "id": "mobile.board",
         "surfaceId": "mobile-tabs",
         "renderer": "MobileBoardTab",
@@ -806,6 +1018,126 @@
         "accessibility": {
           "role": "region",
           "labelKey": "ui.todoFloat.open",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "reports.accuracy",
+        "surfaceId": "reports",
+        "renderer": "EstimateAccuracy",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.reports.accuracy.title"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.reports.accuracy.title",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "reports.detail",
+        "surfaceId": "reports",
+        "renderer": "ReportRows",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.reports.detail"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.reports.detail",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "reports.forecast",
+        "surfaceId": "reports",
+        "renderer": "ForecastSections",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.reports.forecast.title"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.reports.forecast.title",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "reports.stats",
+        "surfaceId": "reports",
+        "renderer": "QuickStatsCard",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.reports.period"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.reports.period",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "reports.trend",
+        "surfaceId": "reports",
+        "renderer": "PeriodBars",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.reports.trend"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.reports.trend",
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
@@ -1161,9 +1493,173 @@
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
+      },
+      {
+        "id": "team.kpis",
+        "surfaceId": "team",
+        "renderer": "TeamKpis",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.team.title"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.team.title",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "team.matrix",
+        "surfaceId": "team",
+        "renderer": "TeamMatrix",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.team.show"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.team.show",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "timesheet.days",
+        "surfaceId": "timesheet",
+        "renderer": "WeekView",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.timesheet.days"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.timesheet.days",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "timesheet.stats",
+        "surfaceId": "timesheet",
+        "renderer": "QuickStatsCard",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.timesheet.summary"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.timesheet.summary",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "timesheet.summary",
+        "surfaceId": "timesheet",
+        "renderer": "PeriodSummary",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.timesheet.summary"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.timesheet.summary",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
       }
     ],
     "controls": [
+      {
+        "id": "board.card.open",
+        "anchorId": "board.columns",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "common.open",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "board.card.open.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "board.pinboard.toggle",
+        "anchorId": "board.columns",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "checkbox",
+          "labelKey": "pages.board.pinboard",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "board.pinboard.toggle.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
       {
         "id": "dashboard.closeDay",
         "anchorId": "dashboard.quickActions",
@@ -1969,6 +2465,94 @@
         ]
       },
       {
+        "id": "desk.layout",
+        "anchorId": "desk.grid",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.desk.layout",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "desk.layout.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "issues.cleanup",
+        "anchorId": "issues.catalog",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.issues.cleanup",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "issues.cleanup.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "issues.new",
+        "anchorId": "issues.catalog",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.issues.new",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "issues.new.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "issues.row.open",
+        "anchorId": "issues.catalog",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "common.open",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "issues.row.open.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "mobile.dock.module",
         "anchorId": "mobile.dock",
         "kind": "command",
@@ -2125,11 +2709,11 @@
       {
         "id": "mobile.timer.start",
         "anchorId": "mobile.timer.active",
-        "kind": "mutation",
+        "kind": "disclosure",
         "critical": true,
         "sensitive": false,
         "introducedIn": "1.0.0",
-        "semanticRevision": 1,
+        "semanticRevision": 2,
         "accessibility": {
           "role": "button",
           "labelKey": "ui.layout.startTimer",
@@ -2140,16 +2724,6 @@
           {
             "eventId": "mobile.timer.start.activate",
             "kind": "activate",
-            "telemetry": "allowed"
-          },
-          {
-            "eventId": "mobile.timer.start.fail",
-            "kind": "fail",
-            "telemetry": "allowed"
-          },
-          {
-            "eventId": "mobile.timer.start.succeed",
-            "kind": "succeed",
             "telemetry": "allowed"
           }
         ]
@@ -2171,6 +2745,138 @@
         "interactions": [
           {
             "eventId": "mobile.todos.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.export",
+        "anchorId": "reports.stats",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.reports.exportCsv",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.export.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.groupBy.client",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.reports.groupBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.groupBy.client.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.groupBy.day",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.reports.groupBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.groupBy.day.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.groupBy.days",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.reports.groupBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.groupBy.days.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.groupBy.issue",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.reports.groupBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.groupBy.issue.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "reports.groupBy.project",
+        "anchorId": "reports.detail",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.reports.groupBy",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "reports.groupBy.project.activate",
             "kind": "activate",
             "telemetry": "allowed"
           }
@@ -2259,6 +2965,28 @@
         "interactions": [
           {
             "eventId": "shell.nav.board.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.desk",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.desk",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.desk.navigate",
             "kind": "navigate",
             "telemetry": "allowed"
           }
@@ -2435,6 +3163,28 @@
         "interactions": [
           {
             "eventId": "shell.nav.settings.navigate",
+            "kind": "navigate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "shell.nav.team",
+        "anchorId": "shell.navigation",
+        "kind": "navigation",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "link",
+          "labelKey": "ui.nav.team",
+          "keyboard": "navigation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "shell.nav.team.navigate",
             "kind": "navigate",
             "telemetry": "allowed"
           }
@@ -2863,9 +3613,322 @@
             "telemetry": "allowed"
           }
         ]
+      },
+      {
+        "id": "team.matrix.person",
+        "anchorId": "team.matrix",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.team.title",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.matrix.person.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.show.all",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.show",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.show.all.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.show.below",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.show",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.show.below.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.show.check",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.show",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.show.check.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.sort.change",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.sort",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.sort.change.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.sort.coverage",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.sort",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.sort.coverage.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.sort.hours",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.sort",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.sort.hours.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "team.sort.name",
+        "anchorId": "team.matrix",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.team.sort",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "team.sort.name.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.logToday",
+        "anchorId": "timesheet.days",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "pages.dashboard.logTime",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.logToday.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.period.next",
+        "anchorId": "timesheet.days",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.period.next",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.period.next.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.period.previous",
+        "anchorId": "timesheet.days",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "ui.period.prev",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.period.previous.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.period.today",
+        "anchorId": "timesheet.days",
+        "kind": "command",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "common.today",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.period.today.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.view.month",
+        "anchorId": "timesheet.days",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.dashboard.periodMonth",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.view.month.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
+        "id": "timesheet.view.week",
+        "anchorId": "timesheet.days",
+        "kind": "toggle",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "radio",
+          "labelKey": "pages.dashboard.periodWeek",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "timesheet.view.week.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
       }
     ],
     "rendererBindings": [
+      {
+        "anchorId": "board.columns",
+        "kind": "core",
+        "renderer": "BoardColumns"
+      },
       {
         "anchorId": "dashboard.activity",
         "kind": "core",
@@ -2937,6 +4000,21 @@
         "renderer": "DayTimeline"
       },
       {
+        "anchorId": "desk.grid",
+        "kind": "core",
+        "renderer": "Desk"
+      },
+      {
+        "anchorId": "issues.catalog",
+        "kind": "core",
+        "renderer": "IssueCatalog"
+      },
+      {
+        "anchorId": "issues.stats",
+        "kind": "core",
+        "renderer": "QuickStatsCard"
+      },
+      {
         "anchorId": "mobile.board",
         "kind": "core",
         "renderer": "MobileBoardTab"
@@ -2975,6 +4053,31 @@
         "anchorId": "mobile.todos",
         "kind": "core",
         "renderer": "MobileTodos"
+      },
+      {
+        "anchorId": "reports.accuracy",
+        "kind": "core",
+        "renderer": "EstimateAccuracy"
+      },
+      {
+        "anchorId": "reports.detail",
+        "kind": "core",
+        "renderer": "ReportRows"
+      },
+      {
+        "anchorId": "reports.forecast",
+        "kind": "core",
+        "renderer": "ForecastSections"
+      },
+      {
+        "anchorId": "reports.stats",
+        "kind": "core",
+        "renderer": "QuickStatsCard"
+      },
+      {
+        "anchorId": "reports.trend",
+        "kind": "core",
+        "renderer": "PeriodBars"
       },
       {
         "anchorId": "shell.account",
@@ -3035,11 +4138,178 @@
         "anchorId": "shell.todos",
         "kind": "core",
         "renderer": "TodoWidget"
+      },
+      {
+        "anchorId": "team.kpis",
+        "kind": "core",
+        "renderer": "TeamKpis"
+      },
+      {
+        "anchorId": "team.matrix",
+        "kind": "core",
+        "renderer": "TeamMatrix"
+      },
+      {
+        "anchorId": "timesheet.days",
+        "kind": "core",
+        "renderer": "WeekView"
+      },
+      {
+        "anchorId": "timesheet.stats",
+        "kind": "core",
+        "renderer": "QuickStatsCard"
+      },
+      {
+        "anchorId": "timesheet.summary",
+        "kind": "core",
+        "renderer": "PeriodSummary"
       }
     ],
     "tombstones": []
   },
   "productDefaults": {
+    "reports": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "reports.trend",
+          "areaId": "reports.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "reports.stats",
+          "areaId": "reports.page",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "reports.detail",
+          "areaId": "reports.page",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "reports.accuracy",
+          "areaId": "reports.page",
+          "order": 3,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "reports.forecast",
+          "areaId": "reports.page",
+          "order": 4,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
+    "timesheet": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "timesheet.summary",
+          "areaId": "timesheet.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "timesheet.stats",
+          "areaId": "timesheet.page",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "timesheet.days",
+          "areaId": "timesheet.page",
+          "order": 2,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
+    "issues": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "issues.catalog",
+          "areaId": "issues.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "issues.stats",
+          "areaId": "issues.page",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
+    "board": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "board.columns",
+          "areaId": "board.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
+    "desk": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "desk.grid",
+          "areaId": "desk.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
+    "team": {
+      "productDefaultVersion": "product-1",
+      "placements": [
+        {
+          "anchorId": "team.kpis",
+          "areaId": "team.page",
+          "order": 0,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "team.matrix",
+          "areaId": "team.page",
+          "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        }
+      ]
+    },
     "dashboard": {
       "productDefaultVersion": "product-1",
       "placements": [

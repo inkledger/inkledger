@@ -1,6 +1,7 @@
 import { sha256Hex } from "../lib/hash";
 import { z } from "zod";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
+import { SURFACE_IDS } from "@contracts/workspace/model";
 import { assertOpaqueEntries, base64UrlToBytes } from "@contracts/workspace/opaque";
 
 /** Ids and short labels: bounded, so a request cannot make resolve or storage work on megabytes (D-28). */
@@ -8,7 +9,7 @@ const id = z.string().min(1).max(128);
 const text = z.string().max(500);
 
 const scopeSchema = z.strictObject({
-  surfaceId: z.enum(["dashboard", "shell-desktop", "mobile-tabs"]),
+  surfaceId: z.enum(SURFACE_IDS),
   deviceClass: z.enum(["desktop", "mobile"]),
 }).refine(
   value => CATALOG_V1.surfaces.some(surface => surface.id === value.surfaceId && surface.deviceClasses.includes(value.deviceClass)),

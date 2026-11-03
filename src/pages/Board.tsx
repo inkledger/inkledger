@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { readStored, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -714,6 +715,7 @@ export default function Board() {
               onClick={() =>
                 pinboardPanel.set(panel === "closed" ? "open" : "closed")
               }
+              {...flowControlProps("board.pinboard.toggle")}
             >
               <Pin className="h-4 w-4 -rotate-12" />
               {t("pages.board.pinboard")}
@@ -745,7 +747,7 @@ export default function Board() {
           </>
         }
       />
-      <PanelSection className="flex min-h-0 flex-1 flex-col">
+      <PanelSection className="flex min-h-0 flex-1 flex-col" anchorId="board.columns">
         <div className="flex min-h-0 flex-1 gap-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The priority filter hides every card here: said, with the way back. */}

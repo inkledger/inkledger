@@ -182,6 +182,68 @@ describe("clicks before the collection has started", () => {
   });
 });
 
+describe("keys and tall blocks", () => {
+  const beaconEvents = (sent: FlowEvent[][]) => (_url: string, body: Blob) => {
+    void body.text().then(text => sent.push((JSON.parse(text) as { json: { events: FlowEvent[] } }).json.events));
+    return true;
+  };
+
+  it("counts a hotkey as its control, used from the keyboard, with no spot in a block", async () => {
+    const sent: FlowEvent[][] = [];
+    vi.stubGlobal("navigator", { sendBeacon: beaconEvents(sent) });
+    const { window, stop } = setup(async () => {});
+    window.emit("workspace:key", { detail: { controlId: "dashboard.logTime", path: "/" } });
+    window.emit("pagehide");
+    stop();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const activations = sent.flat().filter(event => event.kind === "control.activate");
+    expect(activations.map(event => [event.controlId, event.modality, event.cell])).toEqual([["dashboard.logTime", "keyboard", undefined]]);
+  });
+
+  it("counts a block taller than the screen as seen once it fills half the screen", async () => {
+    vi.useFakeTimers();
+    const sent: FlowEvent[][] = [];
+    vi.stubGlobal("navigator", { sendBeacon: beaconEvents(sent) });
+    let report: ((entries: unknown[]) => void) | undefined;
+    const block = { dataset: { workspaceAnchor: "dashboard.summary" } };
+    vi.stubGlobal("document", Object.assign(new EventTargetMock(), { hidden: false, body: {}, querySelectorAll: () => [block] }));
+    vi.stubGlobal("window", Object.assign(new EventTargetMock(), { innerHeight: 800 }));
+    vi.stubGlobal("location", { pathname: "/" });
+    vi.stubGlobal("IntersectionObserver", class { constructor(callback: (entries: unknown[]) => void) { report = callback; } observe() {} unobserve() {} disconnect() {} });
+    vi.stubGlobal("MutationObserver", class { observe() {} disconnect() {} });
+    const stop = startFlowCollection({
+      scope: { surfaceId: "dashboard", deviceClass: "desktop" },
+      descriptor: { effectiveRevision: "eff-test", sourceActiveRevision: "default", workspaceFingerprint: "fp", productDefaultVersion: "product-1", catalogVersion: "1.0.0", resolverVersion: 1, constraintsFingerprint: "constraints", feedbackFingerprint: "feedback", discoveryFingerprint: "discovery", rendererBindingsFingerprint: "renderers" },
+      clientInstanceId: "tab-a",
+      presentationEpoch: 1,
+      send: async () => {},
+    });
+    // 3000 px tall, 600 px of it on an 800 px screen: a fifth of the block, three quarters of the screen.
+    report?.([{ target: block, isIntersecting: true, intersectionRatio: 0.2, intersectionRect: { height: 600 }, rootBounds: { height: 800 } }]);
+    await vi.advanceTimersByTimeAsync(1_100);
+    (globalThis.window as unknown as EventTargetMock).emit("pagehide");
+    stop();
+    vi.useRealTimers();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(sent.flat().filter(event => event.kind === "anchor.exposure").map(event => event.anchorId)).toEqual(["dashboard.summary"]);
+  });
+
+  it("measures a click's spot on the part of the block on screen", () => {
+    const block = { getBoundingClientRect: () => ({ left: 0, top: -500, width: 200, height: 3000 }) };
+    const button = {
+      getAttribute: (name: string) => (name === "data-workspace-control" ? "dashboard.logTime" : "dashboard.quickActions"),
+      closest: () => button,
+      parentElement: { closest: () => block },
+      getBoundingClientRect: () => ({ left: 10, top: 100, width: 50, height: 20 }),
+    };
+    vi.stubGlobal("Element", Object);
+    vi.stubGlobal("location", { pathname: "/" });
+    vi.stubGlobal("window", { innerWidth: 1280, innerHeight: 800 });
+    const click = flowClickOf({ target: button, clientX: 20, clientY: 110, detail: 1, pointerType: "mouse" } as unknown as MouseEvent);
+    expect(click?.block).toEqual({ left: 0, top: 0, width: 200, height: 800 });
+  });
+});
+
 describe("where a click lands", () => {
   it("is measured on the block, not on the button that carries the block's name too", () => {
     const block = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 100 }) };

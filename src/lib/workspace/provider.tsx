@@ -65,8 +65,11 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
     retry: false,
   });
   const openPage = trpc.workspace.openPage.useMutation({ onSuccess: moved => { if (moved) void utils.workspace.get.invalidate({ scope }); } });
-  const behind = query.data?.presentation?.status === "stable" && !!query.data.committedRevision
-    && query.data.presentation.presented?.descriptor.sourceActiveRevision !== query.data.committedRevision;
+  // Behind: presenting a layout other than the one a load would show now (a newer save, or the same
+  // revision drawn differently since). Left there, its events would never count on the current map.
+  const presented = query.data?.presentation?.presented;
+  const behind = query.data?.presentation?.status === "stable" && !!presented
+    && presented.descriptor.effectiveRevision !== query.data.currentEffectiveRevision;
   const openKey = `${scope.surfaceId}:${scope.deviceClass}`;
   const opened = query.isFetchedAfterMount && clientInstanceId !== "ssr";
   useEffect(() => {

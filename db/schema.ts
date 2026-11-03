@@ -1913,6 +1913,9 @@ export const workspaceFlowEvents = pgTable("workspace_flow_events", {
 }, (t) => [
   primaryKey({ columns: [t.userId, t.id] }),
   index("idx_flow_events_scope_revision").on(t.userId, t.surfaceId, t.deviceClass, t.effectiveRevision, t.occurredAt),
+  // A user's oldest first (the cap prune), and every user's older than retention (purge, snapshots): more pages, more rows.
+  index("idx_flow_events_user_time").on(t.userId, t.occurredAt),
+  index("idx_flow_events_time").on(t.occurredAt),
   check("flow_events_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
 ]);
 

@@ -27,8 +27,24 @@ describe("workspace UI catalog", () => {
       expect(anchor.studio.variants.length).toBeGreaterThan(0);
       expect(anchor.accessibility.labelKey).not.toBe("");
     }
-    expect(CATALOG_V1.surfaces.map(surface => surface.id)).toEqual(["dashboard", "mobile-tabs", "shell-desktop"]);
+    expect(CATALOG_V1.surfaces.map(surface => surface.id)).toEqual(["board", "dashboard", "desk", "issues", "mobile-tabs", "reports", "shell-desktop", "team", "timesheet"]);
     expect(Object.keys(SURFACES).some(kind => CATALOG_V1.areas.some(area => area.id === kind))).toBe(false);
+  });
+
+  it("observes the other pages as they are: every block shown by default, none movable, hideable or resizable", () => {
+    const observed = ["board", "desk", "issues", "reports", "team", "timesheet"] as const;
+    for (const surfaceId of observed) {
+      const anchors = CATALOG_V1.anchors.filter(anchor => anchor.surfaceId === surfaceId);
+      expect(anchors.length, surfaceId).toBeGreaterThan(0);
+      for (const anchor of anchors) {
+        expect(anchor.studio.operations, anchor.id).toEqual([]);
+        expect(anchor.studio.variants.length, anchor.id).toBeGreaterThan(0);
+      }
+      const defaults = productDefaultFor(PRODUCT_DEFAULTS_V1, surfaceId);
+      expect(defaults.placements.map(placement => placement.anchorId).sort()).toEqual(anchors.map(anchor => anchor.id).sort());
+      expect(defaults.placements.every(placement => placement.visible)).toBe(true);
+      expect(CATALOG_V1.surfaces.find(surface => surface.id === surfaceId)?.deviceClasses).toEqual(["desktop", "mobile"]);
+    }
   });
 
   it("keeps every default placement compatible and every critical state policy explicit", () => {

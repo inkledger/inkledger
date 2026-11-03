@@ -13,6 +13,7 @@ export function PanelSection({
   children,
   anchorId,
   variant = "default",
+  busy = false,
 }: {
   title?: React.ReactNode;
   actions?: React.ReactNode;
@@ -20,14 +21,17 @@ export function PanelSection({
   children: React.ReactNode;
   anchorId?: string;
   variant?: "compact" | "default" | "expanded";
+  /** What it shows is about to be replaced (another period loading): dimmed and said busy, same size. */
+  busy?: boolean;
 }) {
   const id = useId();
   return (
     <section
       aria-labelledby={title ? id : undefined}
+      aria-busy={busy || undefined}
       data-workspace-anchor={anchorId}
       data-workspace-variant={variant}
-      className={cn("min-w-0", variant === "compact" ? "p-3" : variant === "expanded" ? "p-6 md:p-8" : "p-5 md:p-6", className)}
+      className={cn("min-w-0 transition-opacity", busy && "opacity-60", variant === "compact" ? "p-3" : variant === "expanded" ? "p-6 md:p-8" : "p-5 md:p-6", className)}
     >
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

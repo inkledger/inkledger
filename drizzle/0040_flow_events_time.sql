@@ -1,0 +1,2 @@
+CREATE INDEX "idx_flow_events_user_time" ON "workspace_flow_events" USING btree ("user_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "idx_flow_events_time" ON "workspace_flow_events" USING btree ("occurred_at");

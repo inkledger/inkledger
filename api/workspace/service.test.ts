@@ -373,6 +373,23 @@ describe("a page load", () => {
     expect(await openWorkspacePage(userId, scope, "tab-b")).toBeNull();
     expect((await getWorkspace(userId, scope, "tab-b")).presentation?.status).toBe("pendingActivation");
   });
+
+  it("moves a tab whose layout is drawn differently under the same revision, so its events keep counting", async () => {
+    const first = await getWorkspace(userId, scope, "tab-a");
+    const presented = first.presentation?.presented?.descriptor.effectiveRevision;
+    expect(presented).toBeTruthy();
+    expect(first.currentEffectiveRevision).toBe(presented);
+    // A block seen for the first time: the same (default) revision, drawn as another effective one.
+    await markWorkspaceDiscovery(userId, scope, { seenAnchorIds: [], placedAnchorIds: [], dismissedAnchorIds: [], seenAreaIds: ["dashboard.primary"], placedAreaIds: [], dismissedAreaIds: [] });
+    const read = await getWorkspace(userId, scope, "tab-a");
+    expect(read.presentation?.presented?.descriptor.effectiveRevision).toBe(presented);
+    expect(read.currentEffectiveRevision).not.toBe(presented);
+    // What the page does on load when it is behind: the tab moves, and from then on its events match the map.
+    const opened = await openWorkspacePage(userId, scope, "tab-a");
+    expect(opened?.presented?.descriptor.effectiveRevision).toBe(read.currentEffectiveRevision);
+    const after = await getWorkspace(userId, scope, "tab-a");
+    expect(after.currentEffectiveRevision).toBe(after.presentation?.presented?.descriptor.effectiveRevision);
+  });
 });
 
 describe("workspace apply under concurrency", () => {

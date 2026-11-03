@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { makeTodo } from "@/lib/makeTodo";
 import { errorText } from "@/lib/errorText";
 import { useRef, useState } from "react";
@@ -197,6 +198,7 @@ export function BoardCard({
       <p className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
         <Link
           to={issuePath(issue)}
+          {...flowControlProps("board.card.open")}
           className="hover:text-foreground hover:underline"
         >
           {issue.key}

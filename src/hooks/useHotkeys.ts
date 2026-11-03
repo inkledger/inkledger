@@ -8,6 +8,8 @@ import { createIssueDialog, focusMode, notificationCenter, screensaver } from "@
 import { hotkeySequence } from "@/lib/hotkeySequence";
 import { togglePinboard } from "@/hooks/usePinboardPanel";
 import { toggleTodos } from "@/hooks/useTodoPanel";
+import { emitFlowKey } from "@/lib/workspace/flowClick";
+import { routeControlId } from "@/lib/workspace/searchEvents";
 
 const SEQUENCES: Record<string, string> = {
   "g d": "/",
@@ -49,6 +51,7 @@ export function useHotkeys() {
       // "[" by physical key: on Italian layouts it needs Option / AltGr.
       if (e.code === "BracketLeft" && !e.metaKey) {
         e.preventDefault();
+        emitFlowKey("shell.sidebar.toggle");
         sidebar.toggle();
         return;
       }
@@ -61,6 +64,7 @@ export function useHotkeys() {
       if (e.key === "n" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.notifications.open");
         notificationCenter.set(true);
         return;
       }
@@ -74,18 +78,21 @@ export function useHotkeys() {
       if (e.key === "f" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.timer.focus");
         focusMode.set(true);
         return;
       }
       if (e.key === "z" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.screensaver.open");
         screensaver.set(true);
         return;
       }
       if (e.key === "p" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.pinboard.toggle");
         togglePinboard();
         return;
       }
@@ -93,6 +100,7 @@ export function useHotkeys() {
       if (e.key === "d" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.todos.open");
         toggleTodos();
         return;
       }
@@ -100,6 +108,7 @@ export function useHotkeys() {
       if (e.key === "t" && !buffer.endsWith("g")) {
         e.preventDefault();
         buffer = "";
+        emitFlowKey("shell.quickStart.open");
         quickStart.set(true);
         return;
       }
@@ -111,6 +120,7 @@ export function useHotkeys() {
         e.preventDefault();
         buffer = "";
         hotkeySequence.clear();
+        emitFlowKey(routeControlId(target));
         void navigate(target);
         return;
       }

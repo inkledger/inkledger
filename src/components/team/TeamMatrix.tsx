@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { memo, useEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Bucket, Granularity } from "@contracts/team";
@@ -64,6 +65,7 @@ const Row = memo(function Row({
           data-c={-1}
           tabIndex={activeCol === -1 ? 0 : -1}
           aria-label={`${t("pages.team.openPerson", { name: p.displayName })}${row.note ? ` (${row.note})` : ""}`}
+          {...flowControlProps("team.matrix.person")}
           className="flex h-7 w-28 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring sm:w-44"
         >
           <span aria-hidden className="w-5 shrink-0 text-right text-caption text-muted-foreground tabular max-sm:hidden">{rank}</span>

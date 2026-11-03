@@ -23,7 +23,15 @@ const DASHBOARD_AREAS: SketchArea[] = [
   { areaId: "dashboard.overlays", axis: "row", region: "tray" },
 ];
 
+const OBSERVED_SURFACES = ["reports", "timesheet", "issues", "board", "desk", "team"] as const;
+/** An observed page: its blocks one under the other, as on the page. */
+const observedSketches = Object.fromEntries(OBSERVED_SURFACES.flatMap(surfaceId => [
+  [`${surfaceId}:desktop`, { frame: "page", areas: [{ areaId: `${surfaceId}.page`, axis: "column", region: "main" }] }],
+  [`${surfaceId}:mobile`, { frame: "phone-page", areas: [{ areaId: `${surfaceId}.page`, axis: "column", region: "main" }] }],
+])) as Record<string, Sketch>;
+
 export const SKETCHES: Record<string, Sketch> = {
+  ...observedSketches,
   "dashboard:desktop": { frame: "page", areas: DASHBOARD_AREAS },
   // One column on a phone: the rail comes under the timeline.
   "dashboard:mobile": { frame: "phone-page", areas: DASHBOARD_AREAS },

@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -45,12 +46,13 @@ const groupOptions = (): {
   value: View;
   label: string;
   icon: typeof CalendarDays;
+  control: ReturnType<typeof flowControlProps>;
 }[] => [
-  { value: "day", label: t("pages.reports.groupDay"), icon: CalendarDays },
-  { value: "issue", label: t("pages.reports.groupIssue"), icon: ListChecks },
-  { value: "project", label: t("pages.reports.groupProject"), icon: FolderKanban },
-  { value: "client", label: t("pages.reports.groupClient"), icon: Briefcase },
-  { value: "days", label: t("pages.reports.groupDays"), icon: CalendarRange },
+  { value: "day", label: t("pages.reports.groupDay"), icon: CalendarDays, control: flowControlProps("reports.groupBy.day") },
+  { value: "issue", label: t("pages.reports.groupIssue"), icon: ListChecks, control: flowControlProps("reports.groupBy.issue") },
+  { value: "project", label: t("pages.reports.groupProject"), icon: FolderKanban, control: flowControlProps("reports.groupBy.project") },
+  { value: "client", label: t("pages.reports.groupClient"), icon: Briefcase, control: flowControlProps("reports.groupBy.client") },
+  { value: "days", label: t("pages.reports.groupDays"), icon: CalendarRange, control: flowControlProps("reports.groupBy.days") },
 ];
 
 const REPORT_MAX_DAYS = 366;
@@ -241,6 +243,7 @@ export default function Reports() {
             variant="outline"
             onClick={exportCsv}
             disabled={!exportable}
+            {...flowControlProps("reports.export")}
           >
             <Download className="h-4 w-4" />
             {t("pages.reports.exportCsv")}
@@ -310,7 +313,7 @@ export default function Reports() {
             message={t("pages.reports.emptyMessage")}
           />
         </PanelSection>
-        <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
+        <PanelSection title={t("pages.reports.accuracy.title")} className="border-t" anchorId="reports.accuracy">
           <EstimateAccuracy />
         </PanelSection>
         <ForecastSections />
@@ -322,7 +325,7 @@ export default function Reports() {
     <>
       {header}
       <PanelRow className="xl:grid-cols-[minmax(0,1fr)_340px]">
-        <PanelSection title={t("pages.reports.trend")}>
+        <PanelSection title={t("pages.reports.trend")} anchorId="reports.trend">
           {loading ? (
             <Skeleton className="h-52 rounded-xl" />
           ) : (
@@ -339,6 +342,7 @@ export default function Reports() {
             <Skeleton className="h-64 rounded-xl" />
           ) : (
             <QuickStatsCard
+              anchorId="reports.stats"
               title={t("pages.reports.period")}
               stats={[
                 {
@@ -350,7 +354,8 @@ export default function Reports() {
               extra={[
                 {
                   label: t("pages.reports.avgPerDay"),
-                  value: formatDurationLong(perWorkingDay),
+                  // No day worked: no average (as Total says "—"), not "0 min".
+                  value: workedDays > 0 ? formatDurationLong(perWorkingDay) : "—",
                 },
                 { label: t("pages.reports.daysWorked"), value: String(workedDays) },
                 countStat(t("pages.reports.issues"), byIssue),
@@ -366,6 +371,7 @@ export default function Reports() {
       </PanelRow>
       <PanelSection
         title={t("pages.reports.detail")}
+        anchorId="reports.detail"
         actions={
           <SegmentedControl
             label={t("pages.reports.groupBy")}
@@ -392,7 +398,7 @@ export default function Reports() {
         )}
       </PanelSection>
       {/* The last 90 days, whatever the period above: how the estimates would have done. */}
-      <PanelSection title={t("pages.reports.accuracy.title")} className="border-t">
+      <PanelSection title={t("pages.reports.accuracy.title")} className="border-t" anchorId="reports.accuracy">
         <EstimateAccuracy />
       </PanelSection>
       {/* Ahead: when the open work is done, and where my times are going (absent without its service). */}

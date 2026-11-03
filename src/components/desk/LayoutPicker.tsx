@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { LayoutPanelLeft } from "lucide-react";
 import { DESK_MAX_PANES, presetsFor, slotRects, type PresetId } from "@contracts/desk";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export function LayoutPicker({ count, value, drawn, onChange }: { count: number;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" title={t("pages.desk.layoutTitle")}>
+        <Button variant="outline" title={t("pages.desk.layoutTitle")} {...flowControlProps("desk.layout")}>
           <LayoutPanelLeft className="h-4 w-4" aria-hidden />
           {t("pages.desk.layout")}
         </Button>

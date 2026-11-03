@@ -19,7 +19,8 @@ describe("workspace mutation telemetry mapping", () => {
     expect(workspaceMutationPath("dashboard.planned.save")).toEqual(["planned.create", "planned.update"]);
     expect(workspaceMutationPath("shell.timer.pause")).toEqual(["timers.pause"]);
     expect(workspaceMutationPath("dashboard.timer.resume")).toEqual(["timers.start"]);
-    expect(workspaceMutationPath("mobile.timer.start")).toEqual(["timers.start"]);
+    // The tab bar's Play opens the picker: no mutation of its own to wait for.
+    expect(workspaceMutationPath("mobile.timer.start")).toBeUndefined();
     expect(workspaceMutationPath("shell.sync.start")).toEqual(["issues.sync"]);
     expect(workspaceMutationPath("dashboard.gapCutter.save")).toEqual(["worklogs.create", "worklogs.update"]);
   });

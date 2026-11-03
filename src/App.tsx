@@ -1,3 +1,4 @@
+import { ObservedPage } from "@/lib/workspace/ObservedPage";
 import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { t, useLocale } from "@/i18n";
@@ -158,12 +159,12 @@ export default function App() {
             </Route>
             <Route element={<RequireAuth />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/issues" element={<Issues />} />
-              <Route path="/issues/desk" element={<DeskPage />} />
+              <Route path="/issues" element={<ObservedPage surfaceId="issues"><Issues /></ObservedPage>} />
+              <Route path="/issues/desk" element={<ObservedPage surfaceId="desk"><DeskPage /></ObservedPage>} />
               <Route path="/issues/:connectionId/:remoteId" element={<IssueByRef />} />
               <Route path="/issues/:key" element={<IssueByKey />} />
-              <Route path="/timesheet" element={<Timesheet />} />
-              <Route path="/board" element={<Board />} />
+              <Route path="/timesheet" element={<ObservedPage surfaceId="timesheet"><Timesheet /></ObservedPage>} />
+              <Route path="/board" element={<ObservedPage surfaceId="board"><Board /></ObservedPage>} />
               <Route path="/pinboard" element={<PinboardPage />} />
               <Route path="/todos" element={<TodosPage />} />
               <Route path="/ideas" element={<IdeasPage />} />
@@ -172,8 +173,8 @@ export default function App() {
               <Route path="/notes/trash" element={<NotesPage />} />
               <Route path="/notes/diary" element={<NotesPage />} />
               <Route path="/notes/:noteId" element={<NotesPage />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/team" element={<Team />} />
+              <Route path="/reports" element={<ObservedPage surfaceId="reports"><Reports /></ObservedPage>} />
+              <Route path="/team" element={<ObservedPage surfaceId="team"><Team /></ObservedPage>} />
               <Route path="/settings/:section?" element={<Settings />} />
               <Route path="/info" element={<Info />} />
               <Route path="*" element={<NotFound />} />

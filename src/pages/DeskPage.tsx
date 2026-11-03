@@ -246,7 +246,7 @@ export default function DeskPage() {
       ) : showGrid ? (
         // The chat docks beside the desk, which stays in use (and refits to what is left).
         <div className="flex min-h-0 flex-1">
-          <div ref={fitRef} className="min-h-0 min-w-0 flex-1">
+          <div ref={fitRef} data-workspace-anchor="desk.grid" className="min-h-0 min-w-0 flex-1">
             <Desk
               desk={desk}
               drawn={drawn}

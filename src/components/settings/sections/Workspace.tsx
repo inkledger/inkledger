@@ -1,3 +1,5 @@
+import type { SurfaceId } from "@contracts/workspace/model";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Info, RotateCcw, TriangleAlert } from "lucide-react";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -44,9 +46,28 @@ const SCOPES = {
   "shell-desktop:desktop": { surfaceId: "shell-desktop", deviceClass: "desktop" },
   "mobile-tabs:mobile": { surfaceId: "mobile-tabs", deviceClass: "mobile" },
 } as const satisfies Record<string, Scope>;
-type ScopeKey = keyof typeof SCOPES;
+/** The pages observed as they are (their use shown, nothing to rearrange yet): chosen from a list. */
+const OBSERVED = [
+  ["reports", "ui.nav.reports"],
+  ["timesheet", "ui.nav.timesheet"],
+  ["issues", "ui.nav.issues"],
+  ["board", "ui.nav.board"],
+  ["desk", "ui.nav.desk"],
+  ["team", "ui.nav.team"],
+] as const satisfies readonly (readonly [SurfaceId, MessageKey])[];
+type ObservedKey = `${(typeof OBSERVED)[number][0]}:${"desktop" | "mobile"}`;
+type ScopeKey = keyof typeof SCOPES | ObservedKey;
+const scopeOf = (scopeKey: ScopeKey): Scope => {
+  if (scopeKey in SCOPES) return SCOPES[scopeKey as keyof typeof SCOPES];
+  const [surfaceId, deviceClass] = scopeKey.split(":") as [SurfaceId, "desktop" | "mobile"];
+  return { surfaceId, deviceClass };
+};
+const observedOptions = (): { value: ObservedKey; label: string }[] => OBSERVED.flatMap(([surfaceId, name]) => (["desktop", "mobile"] as const).map(device => ({
+  value: `${surfaceId}:${device}`,
+  label: t(key(device === "desktop" ? "pageOnDesktop" : "pageOnPhone"), { page: t(name) }),
+})));
 // Labels read when drawn, never at import: they follow the language the page is in.
-const scopeOptions = (): ScopeOption<ScopeKey>[] => [
+const scopeOptions = (): ScopeOption<keyof typeof SCOPES>[] => [
   { value: "dashboard:desktop", label: t(key("dashboardDesktop")), frame: SKETCHES["dashboard:desktop"].frame },
   { value: "dashboard:mobile", label: t(key("dashboardPhone")), frame: SKETCHES["dashboard:mobile"].frame },
   { value: "shell-desktop:desktop", label: t(key("shell")), frame: SKETCHES["shell-desktop:desktop"].frame },
@@ -75,9 +96,20 @@ export function WorkspaceSection() {
     // view under it (never laid over the page, so nothing hides behind it). On a phone, one page that scrolls.
     <div data-settings-pane className="flex flex-col lg:min-h-0 lg:flex-1">
       <div className="shrink-0 border-b px-5 py-3 md:px-6">
-        <ScopePicker label={t(key("scope"))} value={scopeKey} options={scopeOptions()} onChange={setScopeKey} />
+        <ScopePicker label={t(key("scope"))} value={scopeKey as keyof typeof SCOPES} options={scopeOptions()} onChange={setScopeKey} />
+        <label className="mt-2 flex flex-wrap items-center gap-2 text-body-sm text-muted-foreground">
+          {t(key("observedPages"))}
+          <Select value={scopeKey in SCOPES ? "" : scopeKey} onValueChange={value => setScopeKey(value as ObservedKey)}>
+            <SelectTrigger className="w-56" aria-label={t(key("observedPages"))}>
+              <SelectValue placeholder={t(key("pickPage"))} />
+            </SelectTrigger>
+            <SelectContent>
+              {observedOptions().map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </label>
       </div>
-      <WorkspaceScopeProvider key={scopeKey} scope={SCOPES[scopeKey]} live>
+      <WorkspaceScopeProvider key={scopeKey} scope={scopeOf(scopeKey)} live>
         <WorkspaceEditor scopeKey={scopeKey} />
       </WorkspaceScopeProvider>
     </div>

@@ -28,15 +28,17 @@ export function ScopePicker<T extends string>({ label, value, options, onChange 
         move(event.currentTarget, step);
       }}
     >
-      {options.map(option => {
+      {options.map((option, index) => {
         const checked = option.value === value;
+        // None chosen here (a page picked from the list beside): the first card keeps the group's Tab stop.
+        const tabStop = checked || (index === 0 && !options.some(item => item.value === value));
         return (
           <button
             key={option.value}
             type="button"
             role="radio"
             aria-checked={checked}
-            tabIndex={checked ? 0 : -1}
+            tabIndex={tabStop ? 0 : -1}
             onClick={() => onChange(option.value)}
             {...surface("control", { on: checked })}
             className={cn(

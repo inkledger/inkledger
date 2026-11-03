@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -336,7 +337,7 @@ export default function Team() {
     <>
       {header}
       {/* KPIs: one row divided by hairlines (2×2 on a phone); the two counts are filters. */}
-      <div className="grid grid-cols-2 divide-border border-b lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l">
+      <div data-workspace-anchor="team.kpis" className="grid grid-cols-2 divide-border border-b lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l">
         {!data ? (
           Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="px-5 py-3">
@@ -372,7 +373,7 @@ export default function Team() {
           </>
         )}
       </div>
-      <PanelSection variant="compact" className="grid gap-3 px-5 md:px-6">
+      <PanelSection variant="compact" className="grid gap-3 px-5 md:px-6" anchorId="team.matrix">
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-0 flex-1 basis-48 sm:max-w-64">
             <span className="sr-only">{t("pages.team.search")}</span>
@@ -384,9 +385,9 @@ export default function Team() {
             value={show}
             onChange={v => setShown({ show: v })}
             options={[
-              { value: "all", label: t("pages.team.showAll") },
-              { value: "below", label: t("pages.team.showBelow", { count: below.length }) },
-              { value: "check", label: t("pages.team.showCheck", { count: check.length }) },
+              { value: "all", label: t("pages.team.showAll"), control: flowControlProps("team.show.all") },
+              { value: "below", label: t("pages.team.showBelow", { count: below.length }), control: flowControlProps("team.show.below") },
+              { value: "check", label: t("pages.team.showCheck", { count: check.length }), control: flowControlProps("team.show.check") },
             ]}
           />
           <SegmentedControl
@@ -394,10 +395,10 @@ export default function Team() {
             value={sort}
             onChange={v => setShown({ sort: v })}
             options={[
-              { value: "hours", label: t("pages.team.sortHours") },
-              { value: "coverage", label: t("pages.team.sortCoverage") },
-              { value: "name", label: t("pages.team.sortName") },
-              { value: "change", label: t("pages.team.sortChange") },
+              { value: "hours", label: t("pages.team.sortHours"), control: flowControlProps("team.sort.hours") },
+              { value: "coverage", label: t("pages.team.sortCoverage"), control: flowControlProps("team.sort.coverage") },
+              { value: "name", label: t("pages.team.sortName"), control: flowControlProps("team.sort.name") },
+              { value: "change", label: t("pages.team.sortChange"), control: flowControlProps("team.sort.change") },
             ]}
           />
           <SegmentedControl

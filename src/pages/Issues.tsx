@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { readStoredJson, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -320,7 +321,7 @@ export default function Issues() {
         }
         actions={
           <>
-            <Button onClick={() => createIssueDialog.set(true)}>
+            <Button onClick={() => createIssueDialog.set(true)} {...flowControlProps("issues.new")}>
               <Plus className="h-4 w-4" />
               {t("pages.issues.new")}
             </Button>
@@ -340,6 +341,7 @@ export default function Issues() {
               variant="outline"
               onClick={() => setConfirmCleanup(true)}
               disabled={cleanup.isPending}
+              {...flowControlProps("issues.cleanup")}
             >
               <BrushCleaning className="h-4 w-4" />
               {t("pages.issues.cleanup")}
@@ -354,6 +356,7 @@ export default function Issues() {
         <PanelSection
           title={t("pages.issues.catalog")}
           className="border-b xl:border-b-0 xl:border-r"
+          anchorId="issues.catalog"
         >
           <BucketChip />
           <IssueFilters
@@ -537,6 +540,7 @@ export default function Issues() {
           ) : (
             <>
               <QuickStatsCard
+                anchorId="issues.stats"
                 title={t("pages.issues.catalog")}
                 stats={[
                   { label: t("pages.issues.inProgress"), value: String(summary.inProgress) },

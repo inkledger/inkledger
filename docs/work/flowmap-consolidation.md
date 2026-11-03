@@ -8,7 +8,7 @@ Close the Workspace/FlowMap work (studio/flowmap-adaptive-workspace.md, Phases 0
 - commits are grouped, with no push.
 
 ## Constraints and out of scope
-- No new surfaces (D-17).
+- No new surfaces (D-17), superseded on 2 Nov by D-64: see the end of this file.
 - No rewrite of existing migrations: new schema goes in 0035; renaming 0027–0034 changes only file name and journal tag.
 - Dev :3000 only; `PROVIDERS_READ_ONLY=1`.
 
@@ -146,3 +146,17 @@ Visual Layout editor (user request, 1 Nov), D-58:
 
 ## Status
 Complete: the full gate is green on the committed tree after review 2 and the editor (lint, check, 2700 unit, build, smoke 924.1/293.8 KiB within 925/295, 317/317 e2e, db:check). One unrelated e2e (timesheet dialog height) measured mid-animation under load; fixed in its own commit. The commits are local, not pushed.
+
+## Observed pages (2 Nov, docs/work/ui-density.md)
+- **D-64 (supersedes D-17).** FlowMap also covers Reports, Timesheet, Issues, Board, Desk and Team time, as surfaces of their own. They are observed as they are: their blocks are anchors with no Studio operation, so nothing on them can be moved, hidden or resized yet, and the planner proposes nothing for them. Their controls are counted like the Dashboard's. The issue detail page is not observed.
+- **D-65 (refines D-54).** An additive catalog change keeps `catalogVersion` 1.0.0: new surfaces, anchors and controls with `introducedIn: "1.0.0"`. A bump is kept for non-additive changes, such as retiring the Dashboard's side column, so periods already stored stay drawable and exportable.
+- **D-66.** `rendererBindingsFingerprint` covers the surface's own anchors only. A block added on another page never changes this one's effective revision.
+- **D-67.** A tab is behind whenever the layout it presents is not the one a page load would show now: another saved revision, or the same revision drawn differently (a block seen, a renderer changed). `workspace.get` returns `currentEffectiveRevision`, and the page load moves the tab (`openPage`). Before, such a tab kept sending events under an effective revision the map never read.
+- **D-68.** Hotkeys that stand for a shell control emit `workspace:key`, and the collector counts them as that control from the keyboard, with no spot in a block. Anchor scans are coalesced to one per frame. A block taller than the screen counts as seen once it fills half of it. A click's spot is measured on the visible part of its block.
+- **Ids.**
+  - `mobile.timer.start` is a disclosure, at semantic revision 2: it opens the picker.
+  - `dashboard.closeDay` and `dashboard.period.pickDate` are now marked.
+  - `shell.nav.desk` and `shell.nav.team` are new.
+  - An issue opened from search is no longer counted as going to the Issues list.
+- **Indexes.** `0040_flow_events_time` adds `(user_id, occurred_at)` and `(occurred_at)` for the cap prune and the retention purge.
+

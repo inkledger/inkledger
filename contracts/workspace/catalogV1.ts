@@ -109,6 +109,48 @@ function hideable(manifest: AnchorManifest): AnchorManifest {
   return { ...manifest, studio: { ...manifest.studio, operations: [...manifest.studio.operations, "hide"] } };
 }
 
+/**
+ * A block of a page FlowMap observes as it is: seen and used, never moved, hidden or resized yet
+ * (no Studio operation), so no layout can be proposed or applied to it. Its variants stay declared.
+ */
+function observed(id: string, surfaceId: SurfaceId, renderer: string, labelKey: string): AnchorManifest {
+  const base = anchor(id, surfaceId, renderer, "stateless", labelKey);
+  return { ...base, studio: { ...base.studio, operations: [] } };
+}
+
+/** The pages observed as they are, block by block in page order (each one area: the page). */
+const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: readonly (readonly [id: string, renderer: string, labelKey: string])[] }[] = [
+  { surfaceId: "reports", route: "/reports", blocks: [
+    ["reports.trend", "PeriodBars", "pages.reports.trend"],
+    ["reports.stats", "QuickStatsCard", "pages.reports.period"],
+    ["reports.detail", "ReportRows", "pages.reports.detail"],
+    ["reports.accuracy", "EstimateAccuracy", "pages.reports.accuracy.title"],
+    ["reports.forecast", "ForecastSections", "pages.reports.forecast.title"],
+  ] },
+  { surfaceId: "timesheet", route: "/timesheet", blocks: [
+    ["timesheet.summary", "PeriodSummary", "pages.timesheet.summary"],
+    ["timesheet.stats", "QuickStatsCard", "pages.timesheet.summary"],
+    ["timesheet.days", "WeekView", "pages.timesheet.days"],
+  ] },
+  { surfaceId: "issues", route: "/issues", blocks: [
+    ["issues.catalog", "IssueCatalog", "pages.issues.catalog"],
+    ["issues.stats", "QuickStatsCard", "pages.issues.summary"],
+  ] },
+  { surfaceId: "board", route: "/board", blocks: [
+    ["board.columns", "BoardColumns", "pages.board.title"],
+  ] },
+  { surfaceId: "desk", route: "/issues/desk", blocks: [
+    ["desk.grid", "Desk", "pages.desk.title"],
+  ] },
+  { surfaceId: "team", route: "/team", blocks: [
+    ["team.kpis", "TeamKpis", "pages.team.title"],
+    ["team.matrix", "TeamMatrix", "pages.team.show"],
+  ] },
+];
+
+const observedAnchors = OBSERVED_PAGES.flatMap(page => page.blocks.map(([id, renderer, labelKey]) => observed(id, page.surfaceId, renderer, labelKey)));
+const observedAreas = OBSERVED_PAGES.map(page => area(`${page.surfaceId}.page`, page.surfaceId, "primary", page.blocks.length, page.blocks.map(([id]) => id)));
+
 const anchors: AnchorManifest[] = [
   hideable(anchor("dashboard.timeline", "dashboard", "DayTimeline", "local", "pages.dashboard.widgets.timeline")),
   anchor("dashboard.stats", "dashboard", "QuickStatsCard", "stateless", "pages.dashboard.widgets.stats"),
@@ -145,6 +187,7 @@ const anchors: AnchorManifest[] = [
   anchor("mobile.todos", "mobile-tabs", "MobileTodos", "external", "ui.todoFloat.open"),
   anchor("mobile.notifications", "mobile-tabs", "MobileBell", "external", "ui.layout.notifications"),
   anchor("mobile.dock", "mobile-tabs", "ModuleDock", "external", "ui.layout.moduleDock"),
+  ...observedAnchors,
 ];
 
 const dashboardAreas = [
@@ -207,9 +250,11 @@ const controls: ControlDefinition[] = [
   control("shell.nav.todos", "shell.navigation", "ui.nav.todos", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.ideas", "shell.navigation", "ui.nav.ideas", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.issues", "shell.navigation", "ui.nav.issues", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("shell.nav.desk", "shell.navigation", "ui.nav.desk", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.notes", "shell.navigation", "ui.nav.notes", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.timesheet", "shell.navigation", "ui.nav.timesheet", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.reports", "shell.navigation", "ui.nav.reports", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("shell.nav.team", "shell.navigation", "ui.nav.team", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.settings", "shell.navigation", "ui.nav.settings", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.nav.info", "shell.navigation", "ui.nav.info", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("shell.search.open", "shell.search", "ui.layout.search", { kind: "disclosure" }),
@@ -234,11 +279,30 @@ const controls: ControlDefinition[] = [
   control("mobile.tabs.board", "mobile.board", "ui.nav.board", { kind: "navigation", role: "tab", keyboard: "navigation", minTouchTargetPx: 44 }),
   control("mobile.tabs.issues", "mobile.issues", "ui.nav.issues", { kind: "navigation", role: "tab", keyboard: "navigation", minTouchTargetPx: 44 }),
   control("mobile.tabs.more", "mobile.more", "ui.layout.more", { kind: "disclosure", role: "tab", minTouchTargetPx: 44 }),
-  control("mobile.timer.start", "mobile.timer.active", "ui.layout.startTimer", { kind: "mutation", critical: true, outcome: true, minTouchTargetPx: 44 }),
+  // It opens the issue picker (the timer starts there): a disclosure, not the start itself (revision 2).
+  control("mobile.timer.start", "mobile.timer.active", "ui.layout.startTimer", { kind: "disclosure", critical: true, minTouchTargetPx: 44, semanticRevision: 2 }),
   control("mobile.timer.open", "mobile.timer.active", "ui.timer.active", { kind: "disclosure", critical: true, minTouchTargetPx: 44 }),
   control("mobile.todos.open", "mobile.todos", "ui.todoFloat.open", { kind: "disclosure", minTouchTargetPx: 44 }),
   control("mobile.notifications.open", "mobile.notifications", "ui.layout.notifications", { kind: "disclosure", minTouchTargetPx: 44 }),
   control("mobile.dock.module", "mobile.dock", "ui.layout.moduleDock", { sensitive: true, telemetry: "disabled", minTouchTargetPx: 44 }),
+  // Observed pages: the controls that drive them (searches and text fields are never counted).
+  control("reports.export", "reports.stats", "pages.reports.exportCsv"),
+  ...(["day", "issue", "project", "client", "days"] as const).map(group => control(`reports.groupBy.${group}`, "reports.detail", "pages.reports.groupBy", { kind: "toggle", role: "radio" })),
+  control("timesheet.view.week", "timesheet.days", "pages.dashboard.periodWeek", { kind: "toggle", role: "radio" }),
+  control("timesheet.view.month", "timesheet.days", "pages.dashboard.periodMonth", { kind: "toggle", role: "radio" }),
+  control("timesheet.period.previous", "timesheet.days", "ui.period.prev"),
+  control("timesheet.period.today", "timesheet.days", "common.today"),
+  control("timesheet.period.next", "timesheet.days", "ui.period.next"),
+  control("timesheet.logToday", "timesheet.days", "pages.dashboard.logTime", { kind: "disclosure" }),
+  control("issues.new", "issues.catalog", "pages.issues.new", { kind: "disclosure" }),
+  control("issues.cleanup", "issues.catalog", "pages.issues.cleanup", { kind: "disclosure" }),
+  control("issues.row.open", "issues.catalog", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("board.pinboard.toggle", "board.columns", "pages.board.pinboard", { kind: "toggle", role: "checkbox" }),
+  control("board.card.open", "board.columns", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),
+  control("desk.layout", "desk.grid", "pages.desk.layout", { kind: "disclosure" }),
+  ...(["all", "below", "check"] as const).map(show => control(`team.show.${show}`, "team.matrix", "pages.team.show", { kind: "toggle", role: "radio" })),
+  ...(["hours", "coverage", "name", "change"] as const).map(sort => control(`team.sort.${sort}`, "team.matrix", "pages.team.sort", { kind: "toggle", role: "radio" })),
+  control("team.matrix.person", "team.matrix", "pages.team.title", { kind: "disclosure" }),
 ];
 
 export const CATALOG_V1: CatalogManifest = orderCatalogManifest({
@@ -250,8 +314,9 @@ export const CATALOG_V1: CatalogManifest = orderCatalogManifest({
     { id: "dashboard", route: "/", deviceClasses: ["desktop", "mobile"] },
     { id: "shell-desktop", route: "*", deviceClasses: ["desktop"] },
     { id: "mobile-tabs", route: "*", deviceClasses: ["mobile"] },
+    ...OBSERVED_PAGES.map(page => ({ id: page.surfaceId, route: page.route, deviceClasses: ["desktop", "mobile"] as const })),
   ],
-  areas: [...dashboardAreas, ...shellAreas, ...mobileAreas],
+  areas: [...dashboardAreas, ...shellAreas, ...mobileAreas, ...observedAreas],
   anchors,
   controls,
   rendererBindings: anchors.map(anchor => ({ anchorId: anchor.id, kind: "core", renderer: anchor.renderer })),
@@ -260,7 +325,14 @@ export const CATALOG_V1: CatalogManifest = orderCatalogManifest({
 
 export const PRODUCT_MIGRATIONS_V1: readonly ProductMigration[] = [];
 
+/** An observed page as it is drawn: its blocks in page order, all shown. */
+const observedDefaults = Object.fromEntries(OBSERVED_PAGES.map(page => [page.surfaceId, {
+  productDefaultVersion: "product-1",
+  placements: page.blocks.map(([anchorId], order) => ({ anchorId, areaId: `${page.surfaceId}.page`, order, visible: true, variant: "default" as const, pinned: false })),
+}]));
+
 export const PRODUCT_DEFAULTS_V1: ScopeDefaults = {
+  ...observedDefaults,
   dashboard: {
     productDefaultVersion: "product-1",
     placements: [

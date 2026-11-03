@@ -5,7 +5,12 @@ import type {
   RESOLVER_VERSION,
 } from "./versions";
 
-export type SurfaceId = "dashboard" | "shell-desktop" | "mobile-tabs";
+/**
+ * Every page FlowMap knows. The Dashboard, the sidebar and the tab bar can be rearranged; the others are
+ * observed as they are (blocks seen, controls used) until their layouts can move too (docs/work/ui-density.md).
+ */
+export const SURFACE_IDS = ["dashboard", "shell-desktop", "mobile-tabs", "reports", "timesheet", "issues", "board", "desk", "team"] as const;
+export type SurfaceId = (typeof SURFACE_IDS)[number];
 export type DeviceClass = "desktop" | "mobile";
 export type Scope = { surfaceId: SurfaceId; deviceClass: DeviceClass };
 export type StatePolicy = "stateless" | "external" | "local" | "dirty" | "critical";

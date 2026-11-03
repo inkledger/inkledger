@@ -1,3 +1,4 @@
+import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { makeTodo } from "@/lib/makeTodo";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
 import { memo } from "react";
@@ -273,6 +274,7 @@ function KeyLink({ issue }: { issue: IssueItem }) {
     <Link
       to={issuePath(issue)}
       viewTransition
+      {...flowControlProps("issues.row.open")}
       // Dragged (to the Desk, its sidebar entry): the issue goes along, not only its link.
       onDragStart={e => setIssueDragData(e.dataTransfer, issue)}
       className="flex min-w-0 items-center gap-3 underline-offset-4 hover:underline"

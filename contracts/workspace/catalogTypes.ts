@@ -60,7 +60,8 @@ export type AreaManifest = AreaDefinition & {
 
 export type SurfaceDefinition = {
   id: SurfaceId;
-  route: "/" | "*";
+  /** The page's path ("*": every page, the shell's own). */
+  route: string;
   deviceClasses: readonly DeviceClass[];
 };
 

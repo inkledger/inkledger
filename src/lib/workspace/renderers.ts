@@ -9,6 +9,13 @@ const RENDERERS: Readonly<Record<SurfaceId, () => Promise<unknown>>> = {
   dashboard: () => import("@/pages/Dashboard"),
   "shell-desktop": () => Promise.resolve(),
   "mobile-tabs": () => Promise.resolve(),
+  // Observed pages: never rearranged yet, their code is the page's own chunk.
+  reports: () => import("@/pages/Reports"),
+  timesheet: () => import("@/pages/Timesheet"),
+  issues: () => import("@/pages/Issues"),
+  board: () => import("@/pages/Board"),
+  desk: () => import("@/pages/DeskPage"),
+  team: () => import("@/pages/Team"),
 };
 
 /**

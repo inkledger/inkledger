@@ -104,7 +104,8 @@ function keepsFixed(current: readonly ResolvedPlacement[], anchorIds: readonly s
 export function requestOperationSeeds(workspace: ResolvedWorkspace, catalog: CatalogManifest): OperationSeed[] {
   const options: OperationSeed[] = [];
   const anchors = new Map(catalog.anchors.map(anchor => [anchor.id, anchor]));
-  const areas = new Map(catalog.areas.map(area => [area.id, area]));
+  // This page's areas only: a proposal never reaches into another page's.
+  const areas = new Map(catalog.areas.filter(area => area.surfaceId === workspace.scope.surfaceId).map(area => [area.id, area]));
   for (const placement of workspace.placements) {
     const anchor = anchors.get(placement.anchorId);
     if (!anchor || placement.pinned) continue;
