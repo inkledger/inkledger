@@ -22,8 +22,12 @@ function Loading() {
 export function IssueByRef() {
   const { connectionId = "", remoteId = "" } = useParams();
   const conn = Number(connectionId);
+  // Not in the catalogue (a tracker search hit): the key the link carries, live from its tracker.
+  const [params] = useSearchParams();
+  const key = params.get("k");
   const found = trpc.issues.locate.useQuery({ connectionId: conn, remoteId }, { enabled: conn > 0 && remoteId !== "" });
   if (found.isPending) return <Loading />;
+  if (!found.data && key && conn > 0) return <IssueDetail issueKey={key} connectionId={conn} />;
   if (!found.data || "ambiguous" in found.data) return <NotFound />;
   return <IssueDetail issueKey={found.data.key} connectionId={found.data.connectionId} />;
 }

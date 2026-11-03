@@ -58,8 +58,8 @@ test("a pasted link opens its issue, from Issues (Enter) and from ⌘K", () =>
     const box = page.getByRole("searchbox", { name: "Filter the local catalogue" });
     await box.fill("https://github.com/acme/web/issues/1");
     // Enter again if the first came before the page could act on it (as a person would).
-    const opened = new RegExp(`/issues/${github}/I_1$`);
-    for (let i = 0; i < 3 && !opened.test(page.url()); i++) {
+    const opened = url => new URL(url).pathname === `/issues/${github}/I_1`;
+    for (let i = 0; i < 3 && !opened(page.url()); i++) {
       await box.press("Enter");
       await page.waitForURL(opened, { timeout: 10_000 }).catch(() => {});
     }
@@ -68,7 +68,7 @@ test("a pasted link opens its issue, from Issues (Enter) and from ⌘K", () =>
     await page.keyboard.press("ControlOrMeta+k");
     await page.getByRole("combobox").fill("bigco/app#1");
     await page.getByRole("option", { name: "Open bigco/app#1" }).click();
-    await page.waitForURL(new RegExp(`/issues/${github}/I_2$`));
+    await page.waitForURL(url => url.pathname === `/issues/${github}/I_2`);
   }));
 
 test("on a phone: chips switch filters on and off in the box, field names complete as typed", () =>

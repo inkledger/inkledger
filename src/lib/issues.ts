@@ -142,7 +142,11 @@ export function issueId(i: { key?: string; issueKey?: string; connectionId?: num
  * included). The only place issue links are made (lint rule).
  */
 export function issuePath(issue: { key: string; connectionId?: number | null; remoteId?: string | null }): string {
-  if (issue.connectionId && issue.remoteId) return `/issues/${issue.connectionId}/${encodeURIComponent(issue.remoteId)}`;
+  // The key goes along: an issue not in the catalogue (a search hit) still opens live from its tracker.
+  if (issue.connectionId && issue.remoteId) {
+    const key = issue.key ? `?k=${encodeURIComponent(issue.key)}` : "";
+    return `/issues/${issue.connectionId}/${encodeURIComponent(issue.remoteId)}${key}`;
+  }
   // Its connection known, its id not (a timer, a notification): the key on that connection.
   const on = issue.connectionId ? `?c=${issue.connectionId}` : "";
   return `/issues/${encodeURIComponent(issue.key)}${on}`;
@@ -152,7 +156,7 @@ export function issuePath(issue: { key: string; connectionId?: number | null; re
 export type IssueLinkRef = { connectionId: number; remoteId: string } | { key: string; connectionId?: number };
 
 /**
- * The issue an in-app link (a path, with its ?c= and #anchor) opens: the inverse of issuePath.
+ * The issue an in-app link (a path, with its ?c= or ?k= and #anchor) opens: the inverse of issuePath.
  * Null for any other page (the list, the desk) or a link that can't be read.
  */
 export function parseIssuePath(href: string): IssueLinkRef | null {

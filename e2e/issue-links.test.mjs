@@ -1,6 +1,8 @@
 // Issue links: by identity, and old ones (a key, a key the issue had before) still arriving.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { networkInterfaces } from "node:os";
 import { dayKey, lastWorkday, start, withApp } from "./harness.mjs";
 
 test("an old link by key, or by a key the issue had before, lands on the issue's own link", () =>
@@ -19,9 +21,63 @@ test("an old link by key, or by a key the issue had before, lands on the issue's
       // From the list, the link is the issue's own already.
       await page.goto(base + "/issues");
       const href = await page.getByRole("link", { name: /DEMO-102/ }).first().getAttribute("href");
-      assert.equal(href, `/issues/${conn}/DEMO-102`);
+      assert.equal(href, `/issues/${conn}/DEMO-102?k=DEMO-102`);
     },
   ));
+
+/** This machine's private address: the app never lets a tracker resolve to loopback (api/lib/security.ts). */
+function privateAddress() {
+  const found = Object.values(networkInterfaces())
+    .flat()
+    .find(a => a && a.family === "IPv4" && !a.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address));
+  assert.ok(found, "a private IPv4 address on this machine");
+  return found.address;
+}
+
+/** A Jira Server with one issue the catalogue doesn't have (a tracker search hit). */
+async function fakeJira() {
+  const host = privateAddress();
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://x");
+    if (req.method === "GET" && url.pathname.endsWith("/issue/GEOC-16618")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({
+        id: "16618",
+        key: "GEOC-16618",
+        fields: {
+          summary: "Planner outside the catalogue",
+          status: { id: "1", name: "Aperto", statusCategory: { key: "new" } },
+          project: { key: "GEOC", name: "Geo" },
+          issuetype: { name: "Task" },
+          priority: { name: "Media" },
+          labels: [],
+          components: [],
+          assignee: null,
+          updated: "2026-11-01T10:00:00.000+0100",
+          created: "2026-10-01T10:00:00.000+0100",
+        },
+      }));
+    }
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ errorMessages: [`fake: ${req.method} ${url.pathname}${url.search}`] }));
+  });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  return { url: `http://${host}:${server.address().port}`, close: () => new Promise(resolve => server.close(resolve)) };
+}
+
+test("a link by identity to an issue not imported opens it live from its tracker, with Import", async () => {
+  const jira = await fakeJira();
+  try {
+    await withApp({ seed: db => db.q("UPDATE connections SET base_url = ? WHERE id = 1", jira.url) }, async ({ page, base }) => {
+      await page.goto(`${base}/issues/1/16618?k=GEOC-16618`);
+      await page.getByRole("heading", { name: /Planner outside the catalogue/ }).first().waitFor();
+      await page.getByRole("button", { name: /Import/ }).first().waitFor();
+      assert.equal(await page.getByText("Page not found").count(), 0);
+    });
+  } finally {
+    await jira.close();
+  }
+});
 
 /** 10:00 on the last working day (Monday to Friday), and that day as the Dashboard's `from`. */
 function lastWorkdayAt10() {

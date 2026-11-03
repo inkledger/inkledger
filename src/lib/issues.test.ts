@@ -74,11 +74,19 @@ describe("parseIssuePath", () => {
       { key: "repo#7" },
     ]) {
       const ref = parseIssuePath(issuePath(issue));
-      expect(issuePath({ key: "", ...ref })).toBe(issuePath(issue));
+      expect(ref).not.toBeNull();
+      expect(parseIssuePath(issuePath({ key: "", ...ref }))).toEqual(ref);
     }
     expect(parseIssuePath("/issues/3/10001")).toEqual({ connectionId: 3, remoteId: "10001" });
+    expect(parseIssuePath("/issues/3/10001?k=APP-1")).toEqual({ connectionId: 3, remoteId: "10001" });
     expect(parseIssuePath("/issues/APP-1?c=3#comment-4")).toEqual({ key: "APP-1", connectionId: 3 });
     expect(parseIssuePath("/issues/APP-1")).toEqual({ key: "APP-1" });
+  });
+
+  it("carries the key on a link by identity, so an issue not imported still opens", () => {
+    expect(issuePath({ key: "APP-1", connectionId: 3, remoteId: "10001" })).toBe("/issues/3/10001?k=APP-1");
+    expect(issuePath({ key: "repo#7", connectionId: 3, remoteId: "owner/repo#7" })).toBe("/issues/3/owner%2Frepo%237?k=repo%237");
+    expect(issuePath({ key: "", connectionId: 3, remoteId: "10001" })).toBe("/issues/3/10001");
   });
 
   it("is null for anything else: the list, the desk, other pages, broken escapes", () => {

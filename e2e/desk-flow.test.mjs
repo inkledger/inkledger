@@ -161,7 +161,7 @@ test("desk flow: Shift-click adds from a list (toast with the count), opens two 
 
     // From an issue page: the Desk with the two side by side (the one there before parked).
     await openIssue(page, base, "DEMO-101", "Test task number 1");
-    await shiftClick(page.locator('a[href="/issues/1/SHOP-7"]').first());
+    await shiftClick(page.locator('a[href="/issues/1/SHOP-7?k=SHOP-7"]').first());
     await onDesk(page);
     await page.locator('[data-desk-pane="1:SHOP-7"]').waitFor();
     assert.deepEqual(await onScreen(page), ["DEMO-101", "SHOP-7"]);
@@ -170,7 +170,7 @@ test("desk flow: Shift-click adds from a list (toast with the count), opens two 
     // On the desk: a layout with room for one more keeps an empty slot; Shift-click fills it.
     await chooseLayout(page, "Large on the left");
     assert.deepEqual(await onScreen(page), ["DEMO-101", "SHOP-7", "_"]);
-    await shiftClick(page.locator('a[href="/issues/1/DEMO-104"]').first());
+    await shiftClick(page.locator('a[href="/issues/1/DEMO-104?k=DEMO-104"]').first());
     await page.locator('[data-desk-pane="1:DEMO-104"]').waitFor();
     assert.equal(await page.locator("[data-empty-slot]").count(), 0);
     assert.deepEqual(await onScreen(page), ["DEMO-101", "SHOP-7", "DEMO-104"]);
