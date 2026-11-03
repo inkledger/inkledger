@@ -14,6 +14,7 @@ export interface FrozenIn {
   "auth.logout": void;
   "auth.me": void;
   "auth.remembered": void;
+  "auth.rename": { displayName: string; username: string };
   "auth.resume": void;
   "backup.get": void;
   "backup.restore": { name: string };
@@ -312,6 +313,7 @@ export interface FrozenIn {
   "users.invite": { displayName: string; modules?: string[] | undefined; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: string };
   "users.list": void;
   "users.reinvite": { id: number };
+  "users.rename": { displayName: string; id: number; username: string };
   "users.resetPassword": { id: number };
   "users.setAccess": { id: number; modules?: string[] | undefined; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member" };
   "users.setDisabled": { disabled: boolean; id: number };
@@ -362,6 +364,7 @@ export interface FrozenOut {
   "auth.logout": { ok: boolean };
   "auth.me": null | { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.remembered": null | { displayName: string; email: string; username: null | string };
+  "auth.rename": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.resume": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "backup.get": { dir: string; files: { at: number; name: string; size: number }[]; next: null | number; scheduled: boolean; settings: { keep: number; schedule: "daily" | "hourly" | "off" | "weekly"; time: string; weekday: number }; state: { lastError: null | string; lastErrorAt: null | number; lastOkAt: null | number }; writable: boolean };
   "backup.restore": { safety: string };
@@ -660,6 +663,7 @@ export interface FrozenOut {
   "users.invite": { expiresAt: Date; link: string; user: { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string } };
   "users.list": { connections: number; createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string }[];
   "users.reinvite": { expiresAt: Date; link: string };
+  "users.rename": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "users.resetPassword": { password: string };
   "users.setAccess": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "users.setDisabled": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };

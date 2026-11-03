@@ -88,6 +88,14 @@ describe("a manager's change races an admin's promotion", () => {
     expect(await q("SELECT password_hash FROM users WHERE id = ?", pending.id)).toEqual([{ password_hash: null }]);
   });
 
+  it("a rename of an account promoted since it was read writes nothing", async () => {
+    const [p] = await q<{ id: number }>("INSERT INTO users (username, display_name, role, created_at) VALUES ('raised', 'Raised', 'admin', 1) RETURNING id");
+    // Read as the member it was; an admin now, beyond the manager.
+    stale.user = { role: "member" };
+    await expect(manager.users.rename({ id: p.id, displayName: "Taken Over", username: "taken-over" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await q("SELECT username, display_name FROM users WHERE id = ?", p.id)).toEqual([{ username: "raised", display_name: "Raised" }]);
+  });
+
   it("an admin's write read on an account promoted since can't leave the server without an admin", async () => {
     // X, promoted meanwhile, has turned A off: X is the last active admin. A's request
     // (signed in before) read X as the member it was.

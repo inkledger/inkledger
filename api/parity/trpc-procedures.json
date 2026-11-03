@@ -36,6 +36,10 @@
     "type": "query"
   },
   {
+    "path": "auth.rename",
+    "type": "mutation"
+  },
+  {
     "path": "auth.resume",
     "type": "mutation"
   },
@@ -1225,6 +1229,10 @@
   },
   {
     "path": "users.reinvite",
+    "type": "mutation"
+  },
+  {
+    "path": "users.rename",
     "type": "mutation"
   },
   {

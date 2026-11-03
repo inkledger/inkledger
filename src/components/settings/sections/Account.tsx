@@ -2,7 +2,7 @@ import { failureText } from "@/lib/errorText";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useState } from "react";
-import { KeyRound, Link2, LogOut, RefreshCw, ShieldOff } from "lucide-react";
+import { KeyRound, Link2, LogOut, Pencil, RefreshCw, ShieldOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { initials } from "@/lib/initials";
@@ -24,15 +24,28 @@ import {
 } from "@/components/ui/dialog";
 import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
 import { surface, surfaceFace } from "@/components/app/surface";
+import { useDirtyClose } from "@/components/app/DirtyClose";
+import { RenameForm } from "@/components/settings/RenameForm";
 
 export function AccountSection() {
   const provider = useProviderName();
   const { user } = useAuth();
   const [changing, setChanging] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  // Closing over a changed name asks first (a saved or untouched one closes at once).
+  const renameGuard = useDirtyClose(() => setRenaming(false));
   const trackers = useConnections().data ?? [];
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const utils = trpc.useUtils();
+  const rename = trpc.auth.rename.useMutation({
+    onSuccess: () => {
+      void utils.auth.invalidate();
+      void utils.users.list.invalidate();
+      setRenaming(false);
+      toast.success(t("settings.users.renamed"));
+    },
+  });
   const reimport = trpc.worklogs.reimport.useMutation({
     onSuccess: r => {
       void utils.invalidate();
@@ -82,6 +95,38 @@ export function AccountSection() {
           </div>
         </div>
         <p className="text-body-sm text-muted-foreground">{t("settings.account.teamVisible")}</p>
+        <SettingsRow label={t("settings.account.rename")} hint={t("settings.account.renameHint")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              rename.reset();
+              renameGuard.markDirty(false);
+              setRenaming(true);
+            }}
+          >
+            <Pencil />
+            {t("settings.account.renameButton")}
+          </Button>
+        </SettingsRow>
+        {renameGuard.confirm}
+        <Dialog open={renaming} onOpenChange={renameGuard.onOpenChange}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("settings.account.rename")}</DialogTitle>
+              <DialogDescription>{t("settings.account.renameHint")}</DialogDescription>
+            </DialogHeader>
+            {renaming && user && (
+              <RenameForm
+                initial={{ displayName: user.displayName, username: user.username ?? "" }}
+                pending={rename.isPending}
+                error={rename.error}
+                onDirty={renameGuard.markDirty}
+                onSubmit={v => rename.mutate(v)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
         <SettingsRow
           label={t("settings.account.changePassword")}
           hint={t("settings.account.changePasswordHint")}

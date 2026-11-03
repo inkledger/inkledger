@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
-import { createRouter, publicQuery, signedInProcedure } from "../middleware";
+import { createRouter, protectedProcedure, publicQuery, signedInProcedure } from "../middleware";
 import { parseCookies, type TrpcContext } from "../context";
 import { getDb } from "../queries/connection";
 import { connections, users, sessions, rememberedDevices, type User } from "@db/schema";
@@ -16,6 +16,7 @@ import { confirmJiraLogin, jiraLoginInput } from "../lib/jiraLogin";
 import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
 import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
+import { uniqueViolation } from "../workspace/limits";
 
 export { normalizeSiteUrl };
 
@@ -60,9 +61,33 @@ function assertNewPassword(password: string) {
   }
 }
 
-export async function assertFreeUsername(username: string) {
+const usernameTaken = () => new TRPCError({ code: "CONFLICT", message: t("server.auth.usernameTaken") });
+
+/** A username nobody else holds (`exceptId`: the account it is for may keep its own). */
+export async function assertFreeUsername(username: string, exceptId?: number) {
   if (!USERNAME_RE.test(username)) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.usernameInvalid") });
-  if (await userByUsername(username)) throw new TRPCError({ code: "CONFLICT", message: t("server.auth.usernameTaken") });
+  const holder = await userByUsername(username);
+  if (holder && holder.id !== exceptId) throw usernameTaken();
+}
+
+/** A new name and username for an account (its own, or one managed in Settings › Users). */
+export const renameInput = z.object({ displayName: z.string().trim().min(1).max(80), username: z.string().min(1).max(64) });
+
+/** What a rename writes, checked: the username lowercase and free (the account's own may stay). */
+export async function renameValues(id: number, input: z.infer<typeof renameInput>) {
+  const username = input.username.trim().toLowerCase();
+  await assertFreeUsername(username, id);
+  return { displayName: input.displayName, username };
+}
+
+/** A rename's write: a username taken meanwhile (two renames at once) is refused as taken. */
+export async function renameWrite<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (uniqueViolation(error)) throw usernameTaken();
+    throw error;
+  }
 }
 
 async function startSession(ctx: Ctx, userId: number) {
@@ -277,6 +302,13 @@ export const authRouter = createRouter({
   }),
 
   me: publicQuery.query(({ ctx }) => (ctx.user ? publicUser(ctx.user) : null)),
+
+  /** One's own name and username. Sessions and remembered devices stay: they know the account, not its name. */
+  rename: protectedProcedure.input(renameInput).mutation(async ({ input, ctx }) => {
+    const values = await renameValues(ctx.user.id, input);
+    const [user] = await renameWrite(() => getDb().update(users).set(values).where(eq(users.id, ctx.user.id)).returning());
+    return publicUser(user);
+  }),
 
   /**
    * Public: works with an expired or missing session, always clears the

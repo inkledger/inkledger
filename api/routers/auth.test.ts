@@ -283,6 +283,50 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(appRouter.createCaller(s).issues.list()).rejects.toMatchObject({ message: "PASSWORD_CHANGE_REQUIRED" });
     });
 
+    it("an admin renames an account: the new username signs in, the old one doesn't, its sessions stay", async () => {
+      const a = await admin();
+      const target = await account("renameme");
+      const before = await session({ username: "renameme" });
+      const renamed = await appRouter.createCaller(a).users.rename({ id: target.id, displayName: "  Renamed One ", username: " Renamed.One " });
+      expect(renamed).toMatchObject({ id: target.id, displayName: "Renamed One", username: "renamed.one" });
+      const { userFromRequest } = await import("../context");
+      expect((await userFromRequest(before.req)).user?.id, "session kept").toBe(target.id);
+      expect(await login(anon(), { username: "renamed.one", password: PASSWORD })).toMatch(/ikl_session=/);
+      await expect(login(anon(), { username: "renameme", password: PASSWORD })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      // The name alone, its own username kept (any case): not "taken".
+      await expect(appRouter.createCaller(a).users.rename({ id: target.id, displayName: "Only Name", username: "Renamed.One" })).resolves.toMatchObject({ displayName: "Only Name", username: "renamed.one" });
+    });
+
+    it("a rename is refused for a taken or invalid username, an empty name, or oneself", async () => {
+      const a = await admin();
+      const target = await account("renamee");
+      await account("holder");
+      const c = appRouter.createCaller(a);
+      await expect(c.users.rename({ id: target.id, displayName: "X", username: "HOLDER" })).rejects.toMatchObject({ code: "CONFLICT" });
+      await expect(c.users.rename({ id: target.id, displayName: "X", username: "no spaces" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(c.users.rename({ id: target.id, displayName: "   ", username: "renamee" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(c.users.rename({ id: a.user!.id, displayName: "X", username: "admin2" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      const [still] = await q<{ username: string; display_name: string }>("SELECT username, display_name FROM users WHERE id = ?", target.id);
+      expect(still).toEqual({ username: "renamee", display_name: "renamee" });
+      // Without managing accounts, nobody else's.
+      await account("plainmember");
+      const m = appRouter.createCaller(await session({ username: "plainmember" }));
+      await expect(m.users.rename({ id: target.id, displayName: "X", username: "x6" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("anyone renames themself, within the same rules", async () => {
+      const me = await account("selfie");
+      await account("other1");
+      const c = appRouter.createCaller(await session({ username: "selfie" }));
+      await expect(c.auth.rename({ displayName: "Self", username: "other1" })).rejects.toMatchObject({ code: "CONFLICT" });
+      await expect(c.auth.rename({ displayName: "Self Ie", username: "Self.Ie" })).resolves.toMatchObject({ id: me.id, displayName: "Self Ie", username: "self.ie" });
+      expect(await login(anon(), { username: "self.ie", password: PASSWORD })).toMatch(/ikl_session=/);
+      // A reset password opens nothing but its change: no rename before it.
+      await q("UPDATE users SET must_change_password = 1 WHERE id = ?", me.id);
+      const forced = appRouter.createCaller(await session({ username: "self.ie" }));
+      await expect(forced.auth.rename({ displayName: "Y", username: "self.ie" })).rejects.toMatchObject({ message: "PASSWORD_CHANGE_REQUIRED" });
+    });
+
     it("an account manager who isn't an admin hands out no more than it holds, and can't take over a bigger account", async () => {
       await account("keeper", { permissions: '["manageUsers","useModules"]' });
       const k = appRouter.createCaller(await session({ username: "keeper" }));
@@ -304,6 +348,7 @@ describe("auth: sessions, cookies, login hardening", () => {
         await expect(k.users.reinvite({ id })).rejects.toMatchObject(forbidden);
         await expect(k.users.setAccess({ id, role: "member", permissions: [] })).rejects.toMatchObject(forbidden);
         await expect(k.users.setDisabled({ id, disabled: true })).rejects.toMatchObject(forbidden);
+        await expect(k.users.rename({ id, displayName: "Taken", username: `taken${id}` })).rejects.toMatchObject(forbidden);
       }
       const [still] = await q<{ password_hash: string; role: string; disabled_at: unknown }>("SELECT password_hash, role, disabled_at FROM users WHERE id = ?", boss.id);
       expect(still).toMatchObject({ password_hash: boss.passwordHash, role: "admin", disabled_at: null });

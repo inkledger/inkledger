@@ -26,6 +26,8 @@ import {
 import { dateFormat, getLocale, t } from "@/i18n";
 import { loc } from "./store/format";
 import { surface } from "@/components/app/surface";
+import { useDirtyClose } from "@/components/app/DirtyClose";
+import { RenameForm } from "@/components/settings/RenameForm";
 
 type Account = inferRouterOutputs<AppRouter>["users"]["list"][number];
 type Access = { role: Role; permissions: Permission[]; modules: string[] };
@@ -138,6 +140,9 @@ export function UsersSection() {
   const refresh = () => void utils.users.list.invalidate();
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
+  const [renaming, setRenaming] = useState<Account | null>(null);
+  // Closing over a changed name asks first (a saved or untouched one closes at once).
+  const renameGuard = useDirtyClose(() => setRenaming(null));
   const [shown, setShown] = useState<{ title: string; hint: string; value: string; qr?: boolean } | null>(null);
   const [form, setForm] = useState(newInvite);
   const [access, setAccess] = useState<Access>({ role: "member", permissions: [], modules: [] });
@@ -168,6 +173,13 @@ export function UsersSection() {
     onError: e => toastError(e),
   });
   const setDisabled = trpc.users.setDisabled.useMutation({ onSuccess: refresh, onError: e => toastError(e) });
+  const rename = trpc.users.rename.useMutation({
+    onSuccess: () => {
+      refresh();
+      setRenaming(null);
+      toast.success(t("settings.users.renamed"));
+    },
+  });
   const saveAccess = trpc.users.setAccess.useMutation({
     onSuccess: () => {
       refresh();
@@ -217,6 +229,15 @@ export function UsersSection() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      rename.reset();
+                      renameGuard.markDirty(false);
+                      setRenaming(u);
+                    }}
+                  >
+                    {t("settings.users.rename")}…
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       setError(null);
@@ -292,6 +313,26 @@ export function UsersSection() {
               {t("settings.users.saveAccess")}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {renameGuard.confirm}
+      <Dialog open={renaming !== null} onOpenChange={renameGuard.onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{renaming?.displayName}</DialogTitle>
+            <DialogDescription>{t("settings.users.renameHint")}</DialogDescription>
+          </DialogHeader>
+          {renaming && (
+            <RenameForm
+              key={renaming.id}
+              initial={{ displayName: renaming.displayName, username: renaming.username ?? "" }}
+              pending={rename.isPending}
+              error={rename.error}
+              onDirty={renameGuard.markDirty}
+              onSubmit={v => rename.mutate({ id: renaming.id, ...v })}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

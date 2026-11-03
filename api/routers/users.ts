@@ -1,5 +1,5 @@
 // Accounts on this server, for whoever may manage them: invite people with
-// what they may do, reset a password, turn an account off. Nobody sees
+// what they may do, rename them, reset a password, turn an account off. Nobody sees
 // anyone else's connections or time from here (everyone's logged hours are
 // the team report's, routers/team.ts, behind viewTeamTime).
 import { z } from "zod";
@@ -13,7 +13,7 @@ import { createRouter, permProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { can, createInvite, grantsOf, permissionsOf, roleOf, signOutEverywhere, storedGrants, storedPermissions, userById, within } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
-import { assertFreeUsername } from "./auth";
+import { assertFreeUsername, renameInput, renameValues, renameWrite } from "./auth";
 
 const manage = permProcedure("manageUsers");
 
@@ -162,6 +162,17 @@ export const usersRouter = createRouter({
         .where(asChecked(user, me))
         .returning();
     });
+    if (!updated) throw notAllowed();
+    return row(updated);
+  }),
+
+  /** Another account's name and username; it stays signed in (its sessions know the account, not its name). */
+  rename: manage.input(renameInput.extend({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
+    const user = await target(input.id, ctx.user);
+    const values = await renameValues(user.id, input);
+    const [updated] = await renameWrite(() =>
+      writeAccount(ctx.user, user, false, (db, me) => db.update(users).set(values).where(asChecked(user, me)).returning()),
+    );
     if (!updated) throw notAllowed();
     return row(updated);
   }),

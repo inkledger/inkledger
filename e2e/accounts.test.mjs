@@ -71,3 +71,38 @@ test("an invite gives no add-on module; the admin grants them one by one", () =>
     assert.deepEqual(JSON.parse(luca.permissions), ["useModules"], "a module granted brings the permission to run modules");
     assert.deepEqual(JSON.parse(luca.module_grants), ["kanbunny"], "only the module granted");
   }));
+
+// Names change (a typo at the invite, a new surname): an admin renames another account from its menu, anyone renames themself in Account.
+test("an admin renames an account from its menu; anyone renames themself in Account", () =>
+  withApp({}, async ({ page, base, db }) => {
+    await db.q("INSERT INTO users (id, username, display_name, created_at) VALUES (2, 'lucca', 'Luca Biachi', ?)", Date.now());
+    await page.goto(base + "/settings/users");
+    await page.getByRole("button", { name: "Actions for Luca Biachi" }).click();
+    await page.getByRole("menuitem", { name: "Rename…" }).click();
+    let dialog = page.getByRole("dialog");
+    // Taken: the username says so and takes the focus.
+    await dialog.getByLabel("Username").fill("mrossi");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await dialog.getByText("That username is taken.").waitFor();
+    assert.equal(await dialog.getByLabel("Username").evaluate(el => el === document.activeElement), true, "the refused field has the focus");
+    // Closing over a change asks first; keep editing keeps it.
+    await page.keyboard.press("Escape");
+    await page.getByRole("alertdialog").getByRole("button", { name: "Keep editing" }).click();
+    await dialog.getByLabel("Name", { exact: true }).fill("Luca Bianchi");
+    await dialog.getByLabel("Username").fill("Luca");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await dialog.waitFor({ state: "detached" });
+    await page.getByText("Luca Bianchi", { exact: true }).waitFor();
+    assert.deepEqual(await db.q("SELECT username, display_name FROM users WHERE id = 2"), [{ username: "luca", display_name: "Luca Bianchi" }]);
+
+    // Mario renames their own account; the account card shows it at once.
+    await page.goto(base + "/settings/account");
+    await page.getByRole("button", { name: "Edit…" }).click();
+    dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Name", { exact: true }).fill("Mario Rossini");
+    await dialog.getByLabel("Username").fill("mrossini");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await dialog.waitFor({ state: "detached" });
+    await page.getByText("Mario Rossini", { exact: true }).first().waitFor();
+    assert.deepEqual(await db.q("SELECT username, display_name FROM users WHERE id = 1"), [{ username: "mrossini", display_name: "Mario Rossini" }]);
+  }));
