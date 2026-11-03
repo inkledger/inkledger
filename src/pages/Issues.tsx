@@ -2,7 +2,7 @@ import { isDialogOpen, isTyping } from "@/lib/dom";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { readStoredJson, writeStored } from "@/lib/storage";
 import { toastError, errorText } from "@/lib/errorText";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useToday } from "@/hooks/useToday";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -52,6 +52,10 @@ import { useProviderName } from "@/hooks/useConnections";
 import { numberFormat, t } from "@/i18n";
 import { isClosed, isWaiting } from "@contracts/categories";
 import { BucketChip } from "@/components/BucketChip";
+import { Toolbar } from "@/components/app/Toolbar";
+import { DropdownMenuCheckboxItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { IssueBody } from "@/components/issue/IssueBody";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 const PAGE_SIZE = 25;
 
@@ -124,6 +128,9 @@ const PINNED_INPUT = {
   includeUnassigned: true,
   pageSize: 200,
 } as const;
+
+/** Favourites shown before "Show all": the list below stays in sight. */
+const PINNED_FIRST = 5;
 
 export default function Issues() {
   const provider = useProviderName();
@@ -260,6 +267,8 @@ export default function Issues() {
 
   // j / k over everything on screen: pinned favorites first, then the list.
   const navigate = useNavigate();
+  const [allPinned, setAllPinned] = useState(false);
+  const pinnedShown = allPinned ? pinned.ordered : pinned.ordered.slice(0, PINNED_FIRST);
   const act = useIssueActions();
   const start = useStartTimer({ announce: true });
   const onScreen = useMemo(
@@ -304,10 +313,17 @@ export default function Issues() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const { selected } = useListKeyboard(
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const { selected, select } = useListKeyboard(
     onScreen.map(i => issueId(i)),
     {
       open: id => onRow(id, i => void navigate(issuePath(i))),
+      // Space: a quick look. Beside the list (a wide region) the preview already shows it; elsewhere over the list.
+      peek: id => {
+        const pane = document.querySelector<HTMLElement>("[data-issues-preview]");
+        if (pane && pane.offsetParent !== null) pane.querySelector<HTMLElement>("h1, h2, [tabindex]")?.focus();
+        else setPeekId(id);
+      },
       s: id => onRow(id, i => void act.toggleFavorite(i.key, i.connectionId)),
       h: id => onRow(id, i => void (i.hidden === 1 ? act.restore(i.key, i.connectionId) : act.hide(i.key, i.connectionId))),
       t: id => onRow(id, i => start.mutate({ issueKey: i.key, connectionId: i.connectionId })),
@@ -318,6 +334,10 @@ export default function Issues() {
     }
   );
 
+  // The preview follows the selection a moment later (j held down does not load every issue on the way).
+  const previewId = useDeferredValue(selected);
+  const previewIssue = previewId ? byId(previewId) ?? null : null;
+  const peekIssue = peekId ? byId(peekId) ?? null : null;
   return (
     <>
       <PageHeader
@@ -334,33 +354,60 @@ export default function Issues() {
             : undefined
         }
         actions={
-          <>
-            <Button onClick={() => createIssueDialog.set(true)} {...flowControlProps("issues.new")}>
-              <Plus className="h-4 w-4" />
-              {t("pages.issues.new")}
-            </Button>
-            <Button
-              variant="outline"
-              className={cn(
-                trackerSearchOpen &&
-                  "border-primary-strong/40 bg-primary-soft text-primary-strong"
-              )}
-              aria-pressed={trackerSearchOpen}
-              onClick={() => setTrackerSearchOpen(v => !v)}
-            >
-              <Globe className="h-4 w-4" />
-              {t("pages.issues.trackerSearch", { provider })}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmCleanup(true)}
-              disabled={cleanup.isPending}
-              {...flowControlProps("issues.cleanup")}
-            >
-              <BrushCleaning className="h-4 w-4" />
-              {t("pages.issues.cleanup")}
-            </Button>
-          </>
+          // The main action stays; searching the trackers and the cleanup fold behind ⋯ in a narrow header.
+          <Toolbar
+            label={t("pages.issues.title")}
+            foldBelow="m"
+            groups={[
+              [
+                {
+                  key: "new",
+                  node: (
+                    <Button onClick={() => createIssueDialog.set(true)} {...flowControlProps("issues.new")}>
+                      <Plus className="h-4 w-4" />
+                      {t("pages.issues.new")}
+                    </Button>
+                  ),
+                },
+              ],
+              [
+                {
+                  key: "tracker-search",
+                  node: (
+                    <Button
+                      variant="outline"
+                      className={cn(trackerSearchOpen && "border-primary-strong/40 bg-primary-soft text-primary-strong")}
+                      aria-pressed={trackerSearchOpen}
+                      onClick={() => setTrackerSearchOpen(v => !v)}
+                    >
+                      <Globe className="h-4 w-4" />
+                      {t("pages.issues.trackerSearch", { provider })}
+                    </Button>
+                  ),
+                  menu: (
+                    <DropdownMenuCheckboxItem checked={trackerSearchOpen} onCheckedChange={() => setTrackerSearchOpen(v => !v)}>
+                      {t("pages.issues.trackerSearch", { provider })}
+                    </DropdownMenuCheckboxItem>
+                  ),
+                },
+                {
+                  key: "cleanup",
+                  node: (
+                    <Button variant="outline" onClick={() => setConfirmCleanup(true)} disabled={cleanup.isPending} {...flowControlProps("issues.cleanup")}>
+                      <BrushCleaning className="h-4 w-4" />
+                      {t("pages.issues.cleanup")}
+                    </Button>
+                  ),
+                  menu: (
+                    <DropdownMenuItem disabled={cleanup.isPending} onSelect={() => setConfirmCleanup(true)} {...flowControlProps("issues.cleanup")}>
+                      <BrushCleaning className="h-4 w-4" />
+                      {t("pages.issues.cleanup")}
+                    </DropdownMenuItem>
+                  ),
+                },
+              ],
+            ]}
+          />
         }
       />
 
@@ -385,6 +432,10 @@ export default function Issues() {
           ]}
         />
       )}
+      {/* List-detail (docs/design-system.md §7.1): from a wide region (80rem) the selected row reads
+          beside the list; narrower, Space opens it over the list and Enter opens its page. */}
+      <div className="region">
+      <div className="@xl:grid @xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
       <PanelRow>
         <PanelSection title={t("pages.issues.catalog")} anchorId="issues.catalog">
           <BucketChip />
@@ -422,19 +473,20 @@ export default function Issues() {
                 </span>
               </SectionLabel>
               <IssueTable>
-                {pinned.ordered.map((i, idx) => (
+                {pinnedShown.map((i, idx) => (
                   <IssueRow
                     key={issueId(i)}
                     issue={i}
                     onLog={openLog}
                     pin={pinned.pinFor(issueId(i), idx)}
                     selected={selected === issueId(i)}
+                    onSelect={select}
                     {...pickFor(i)}
                   />
                 ))}
               </IssueTable>
               <ul className="divide-y border-t md:hidden">
-                {pinned.ordered.map((i, idx) => (
+                {pinnedShown.map((i, idx) => (
                   <IssueCard
                     key={issueId(i)}
                     issue={i}
@@ -444,6 +496,12 @@ export default function Issues() {
                   />
                 ))}
               </ul>
+              {/* Bounded (§7.1): the first five, then all of them on request. */}
+              {pinned.ordered.length > PINNED_FIRST && (
+                <Button variant="ghost" size="sm" className="mt-1" aria-expanded={allPinned} onClick={() => setAllPinned(v => !v)}>
+                  {allPinned ? t("ui.collection.showFewer") : t("ui.collection.showAll", { count: pinned.ordered.length })}
+                </Button>
+              )}
             </section>
           )}
 
@@ -508,6 +566,7 @@ export default function Issues() {
                         issue={i}
                         onLog={openLog}
                         selected={selected === issueId(i)}
+                        onSelect={select}
                         {...pickFor(i)}
                       />
                     ))}
@@ -556,6 +615,27 @@ export default function Issues() {
         </PanelSection>
 
       </PanelRow>
+      <aside
+        data-issues-preview
+        data-workspace-anchor="issues.preview"
+        aria-label={t("pages.issues.preview")}
+        className="hidden min-h-0 border-l @xl:sticky @xl:top-[var(--page-header-h,0px)] @xl:block @xl:h-[calc(100dvh-2rem-var(--page-header-h,0px))]"
+      >
+        {previewIssue ? (
+          <IssueBody variant="pane" issueKey={previewIssue.key} connectionId={previewIssue.connectionId} maxSize="m" scrollKeyPrefix="preview" />
+        ) : (
+          <EmptyState className="py-16" title={t("pages.issues.preview")} message={t("pages.issues.previewEmpty")} />
+        )}
+      </aside>
+      </div>
+      </div>
+      <Dialog open={peekIssue !== null} onOpenChange={open => !open && setPeekId(null)}>
+        <DialogContent className="flex h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-3xl">
+          <DialogTitle className="sr-only">{t("pages.issues.peek", { key: peekIssue?.key ?? "" })}</DialogTitle>
+          <DialogDescription className="sr-only">{t("pages.issues.peekHint")}</DialogDescription>
+          {peekIssue && <IssueBody variant="pane" issueKey={peekIssue.key} connectionId={peekIssue.connectionId} maxSize="m" scrollKeyPrefix="peek" />}
+        </DialogContent>
+      </Dialog>
 
       {logging && (
         <LogTimeDialog

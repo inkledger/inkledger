@@ -1061,9 +1061,10 @@ test("issues: a new search or filter starts the list at its top", () =>
     await page.goto(base + "/issues");
     await page.getByRole("link", { name: /DEMO-2\d\d/ }).first().waitFor();
     const main = page.locator("#main");
-    await main.evaluate(el => (el.scrollTop = 1500));
+    // Far down the list (the denser filter bar made the page shorter: as far as it goes).
+    await main.evaluate(el => (el.scrollTop = el.scrollHeight));
     await page.waitForTimeout(200);
-    assert.ok((await main.evaluate(el => el.scrollTop)) > 1000);
+    assert.ok((await main.evaluate(el => el.scrollTop)) > 500);
     await page.getByRole("searchbox").first().fill("Work item 1");
     await page.waitForURL(u => u.searchParams.get("q") === "Work item 1");
     await page.waitForTimeout(500);

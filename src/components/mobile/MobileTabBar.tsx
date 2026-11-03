@@ -156,6 +156,8 @@ function MobileTabBarContent() {
       <nav
         aria-label={t("ui.layout.tabBar")}
         data-tab-bar
+        // A bar that stays put at the bottom: focus is never left under it (useFocusClearOfBars).
+        data-chrome="bottom"
         {...surface("glass")}
         className={cn(
           "fixed inset-x-0 bottom-0 z-30 border-t bg-canvas/90 backdrop-blur lg:hidden [html[data-keyboard]_&]:hidden",

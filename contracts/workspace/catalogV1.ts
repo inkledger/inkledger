@@ -136,6 +136,7 @@ const OBSERVED_PAGES: readonly { surfaceId: SurfaceId; route: string; blocks: re
   { surfaceId: "issues", route: "/issues", blocks: [
     ["issues.catalog", "IssueCatalog", "pages.issues.catalog"],
     ["issues.stats", "StatStrip", "pages.issues.summary"],
+    ["issues.preview", "IssuePreview", "pages.issues.preview"],
   ] },
   { surfaceId: "board", route: "/board", blocks: [
     ["board.columns", "BoardColumns", "pages.board.title"],
@@ -302,6 +303,7 @@ const controls: ControlDefinition[] = [
   control("timesheet.layout.grid", "timesheet.days", "views.timesheet.layout.grid", { kind: "toggle", role: "radio" }),
   control("timesheet.layout.cards", "timesheet.days", "views.timesheet.layout.cards", { kind: "toggle", role: "radio" }),
   control("issues.new", "issues.catalog", "pages.issues.new", { kind: "disclosure" }),
+  control("issues.filters.open", "issues.catalog", "views.issues.filters.filters", { kind: "disclosure" }),
   control("issues.cleanup", "issues.catalog", "pages.issues.cleanup", { kind: "disclosure" }),
   control("issues.row.open", "issues.catalog", "common.open", { kind: "navigation", role: "link", keyboard: "navigation" }),
   control("board.pinboard.toggle", "board.columns", "pages.board.pinboard", { kind: "toggle", role: "checkbox" }),

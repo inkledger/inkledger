@@ -162,9 +162,10 @@
         "id": "issues.page",
         "surfaceId": "issues",
         "role": "primary",
-        "capacity": 2,
+        "capacity": 3,
         "allowedAnchorIds": [
           "issues.catalog",
+          "issues.preview",
           "issues.stats"
         ],
         "introducedIn": "1.0.0"
@@ -766,6 +767,30 @@
         "accessibility": {
           "role": "region",
           "labelKey": "pages.issues.catalog",
+          "keyboard": "not-applicable",
+          "minTouchTargetPx": 24
+        }
+      },
+      {
+        "id": "issues.preview",
+        "surfaceId": "issues",
+        "renderer": "IssuePreview",
+        "statePolicy": "stateless",
+        "critical": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "studio": {
+          "operations": [],
+          "variants": [
+            "compact",
+            "default",
+            "expanded"
+          ],
+          "descriptionKey": "pages.issues.preview"
+        },
+        "accessibility": {
+          "role": "region",
+          "labelKey": "pages.issues.preview",
           "keyboard": "not-applicable",
           "minTouchTargetPx": 24
         }
@@ -2595,6 +2620,28 @@
         ]
       },
       {
+        "id": "issues.filters.open",
+        "anchorId": "issues.catalog",
+        "kind": "disclosure",
+        "critical": false,
+        "sensitive": false,
+        "introducedIn": "1.0.0",
+        "semanticRevision": 1,
+        "accessibility": {
+          "role": "button",
+          "labelKey": "views.issues.filters.filters",
+          "keyboard": "activation",
+          "minTouchTargetPx": 24
+        },
+        "interactions": [
+          {
+            "eventId": "issues.filters.open.activate",
+            "kind": "activate",
+            "telemetry": "allowed"
+          }
+        ]
+      },
+      {
         "id": "issues.new",
         "anchorId": "issues.catalog",
         "kind": "disclosure",
@@ -4184,6 +4231,11 @@
         "renderer": "IssueCatalog"
       },
       {
+        "anchorId": "issues.preview",
+        "kind": "core",
+        "renderer": "IssuePreview"
+      },
+      {
         "anchorId": "issues.stats",
         "kind": "core",
         "renderer": "StatStrip"
@@ -4431,6 +4483,14 @@
           "anchorId": "issues.stats",
           "areaId": "issues.page",
           "order": 1,
+          "visible": true,
+          "variant": "default",
+          "pinned": false
+        },
+        {
+          "anchorId": "issues.preview",
+          "areaId": "issues.page",
+          "order": 2,
           "visible": true,
           "variant": "default",
           "pinned": false

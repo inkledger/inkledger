@@ -13,6 +13,8 @@ async function sweep(page) {
   const covered = [];
   for (let step = 0; step < STEPS; step += 1) {
     await page.keyboard.press("Tab");
+    // The page brings a covered control out a frame after the focus lands (useFocusClearOfBars).
+    await page.waitForTimeout(80);
     const result = await page.evaluate(() => {
       const element = document.activeElement;
       if (!element || element === document.body) return null;
@@ -62,3 +64,30 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
     assert.deepEqual(problems, [], problems.join("\n"));
   });
 }
+
+// The padding that keeps focus clear of the bars must not move the page when the focus is in a bar:
+// focusing the Issues filter's own search once scrolled the list by 994 px to "uncover" it.
+test("focusing a control inside a sticky bar never scrolls the page", { timeout: 180_000 }, async () => {
+  const app = await start({
+    viewport: { width: 1440, height: 800 },
+    seed: async db => {
+      const now = Date.now();
+      for (let i = 200; i < 260; i++)
+        await db.q("INSERT INTO issues (user_id, jira_id, key, summary, status, status_category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at, favorite) VALUES (1, ?, ?, ?, 'To do', 'To Do', 'DEMO', 'Project', 'Task', 'Medium', '[]', 'mrossi', ?, ?, 0)", `DEMO-${i}`, `DEMO-${i}`, `Work item ${i}`, `https://jira.example.it/browse/DEMO-${i}`, now);
+    },
+  });
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/issues");
+    await page.getByRole("link", { name: /DEMO-2\d\d/ }).first().waitFor();
+    const main = page.locator("#main");
+    await main.evaluate(el => (el.scrollTop = 1200));
+    await page.waitForTimeout(200);
+    const before = await main.evaluate(el => el.scrollTop);
+    await page.getByRole("searchbox", { name: "Filter the local catalogue" }).focus();
+    await page.waitForTimeout(300);
+    assert.equal(await main.evaluate(el => el.scrollTop), before, "the list stays where it was");
+  } finally {
+    await app.stop();
+  }
+});

@@ -6,11 +6,11 @@ const isControl = (t: EventTarget | null) =>
   t instanceof HTMLElement && t.closest("button, a, [role=button]") !== null;
 
 export type ListKeyActions = Partial<
-  Record<"open" | "s" | "h" | "t" | "c" | "b" | "m" | "x", (key: string) => void>
+  Record<"open" | "peek" | "s" | "h" | "t" | "c" | "b" | "m" | "x", (key: string) => void>
 >;
 
 /**
- * Linear-style list keys: j / k move a selection over `keys`, Enter opens,
+ * Linear-style list keys: j / k move a selection over `keys`, Enter opens, Space peeks (a quick look),
  * single letters act on the selected row. Runs before the global shortcuts
  * (capture phase) so "t" means "timer on this row" while a row is selected.
  */
@@ -52,9 +52,9 @@ export function useListKeyboard(keys: string[], actions: ListKeyActions) {
       } else if (e.key === "Escape" && sel) {
         handle(() => setSelected(null));
       } else if (sel && at >= 0) {
-        // Enter on a focused control activates the control, not the row.
-        if (e.key === "Enter" && isControl(e.target)) return;
-        const name = e.key === "Enter" ? "open" : e.key;
+        // Enter and Space on a focused control activate the control, not the row.
+        if ((e.key === "Enter" || e.key === " ") && isControl(e.target)) return;
+        const name = e.key === "Enter" ? "open" : e.key === " " ? "peek" : e.key;
         const fn = act[name as keyof ListKeyActions];
         if (fn) handle(() => fn(sel));
       }

@@ -286,7 +286,7 @@ Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split vie
 **Never remove to save space.** Budgets and variants change density and how much shows at once. What is folded stays one step away: "Show all N", ⋯, or Peek.
 
 **Accessibility is measured, not assumed.**
-- Focus is never covered, at the top or the bottom (2.4.11, through `scroll-padding`).
+- Focus is never covered, at the top or the bottom (2.4.11). The bars that stay put mark themselves (`usePublishChromeHeight`, `data-chrome`), and `useFocusClearOfBars` scrolls a covered control into view. Not CSS `scroll-padding`: with it Chrome treated the bars' own controls as covered and scrolled the page.
 - Targets are 24 px (2.5.8), and 44 px on coarse pointers, as the catalog's `minTouchTargetPx` declares.
 - Reflow at 320 px (1.4.10).
 - Text spacing (1.4.12): `min-height`, never a fixed row height.

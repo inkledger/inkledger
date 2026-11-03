@@ -771,6 +771,10 @@ export const pages = {
     },
   },
   issues: {
+    preview: "Preview",
+    previewEmpty: "Choose an issue with a click or j / k to read it here; Space opens it over the list on a narrower screen.",
+    peek: "Quick look at {key}",
+    peekHint: "Esc closes it; Enter on the list opens its page.",
     staleError:
       "This list couldn't be refreshed, so it may be out of date ({reason}).",
     cleanupDone:

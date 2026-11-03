@@ -117,15 +117,17 @@ type RowProps = {
   /** With the issue's connection: its key may be on two trackers. */
   onLog: (key: string, connectionId?: number) => void;
   pin?: PinProps;
-  /** Keyboard selection (j / k). */
+  /** Keyboard selection (j / k), or a click on the row: the preview shows it. */
   selected?: boolean;
+  /** A click on the row outside its controls selects it (the list's preview follows). */
+  onSelect?: (id: string) => void;
   /** Picked for the desk (as plain values: a row redraws only when its own change). */
   picked?: boolean;
   picking?: boolean;
   onPick?: (id: string) => void;
 };
 
-const pickOf = ({ picked = false, picking = false, onPick }: Pick<RowProps, "picked" | "picking" | "onPick">): PickProps | undefined =>
+const pickOf = ({ picked = false, picking = false, onPick }: Pick<RowProps, "picked" | "picking" | "onPick"> & Partial<RowProps>): PickProps | undefined =>
   onPick ? { picked, picking, onPick } : undefined;
 
 /** The box that picks the row (or card) for the desk. */
@@ -398,6 +400,7 @@ export const IssueRow = memo(function IssueRow({
   onLog,
   pin,
   selected = false,
+  onSelect,
   ...picks
 }: RowProps) {
   const due = dueText(issue);
@@ -407,6 +410,10 @@ export const IssueRow = memo(function IssueRow({
   return (
     <tr
       data-issue-id={issueId(issue)}
+      onClick={onSelect && (event => {
+        if (event.target instanceof Element && event.target.closest("a, button, input, label, [role=checkbox], [role=menuitem]")) return;
+        onSelect(issueId(issue));
+      })}
       aria-selected={selected || undefined}
       data-picked={pick?.picked || undefined}
       className={cn(

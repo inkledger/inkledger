@@ -1,4 +1,4 @@
-import { usePublishChromeHeight } from "@/lib/layout/chrome";
+import { useFocusClearOfBars, usePublishChromeHeight } from "@/lib/layout/chrome";
 import { lazyPart } from "@/components/app/lazyPart";
 import { PinMailHost } from "@/components/mail/PinMailHost";
 import { FirstTrackerBanner } from "@/components/FirstTrackerBanner";
@@ -689,6 +689,7 @@ export function AppLayout() {
   const phoneHeader = useRef<HTMLElement>(null);
   // The phone's top bar joins the root's scroll padding (it stays while the window scrolls).
   usePublishChromeHeight(phoneHeader, "app-header");
+  useFocusClearOfBars();
   useHotkeys();
   useOpenBeside();
   useCommandPaletteShortcut();
