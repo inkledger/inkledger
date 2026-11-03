@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useRef } from "react";
 import { Link } from "react-router";
 import { useFitToHeight } from "@/lib/layout/fit";
@@ -149,6 +150,9 @@ export function TasksBoard({
  * "Show all N" to the Board. Never a mask: the cards that do not fit are hidden, not cut in half while
  * still focusable (docs/design-system.md §7.1).
  */
+/** Cards per column when the row is stacked (no height to fit): the rest a click away on the Board. */
+const STACKED_FIRST = 2;
+
 function ColumnCards({ issues, total, title }: { issues: TaskColumn["issues"]; total: number; title: string }) {
   const list = useRef<HTMLUListElement>(null);
   const more = useRef<HTMLAnchorElement>(null);
@@ -161,14 +165,15 @@ function ColumnCards({ issues, total, title }: { issues: TaskColumn["issues"]; t
     );
   return (
     <div className="flex min-h-0 flex-col gap-2 @l:group-data-[fill]/row:flex-1">
-      <ul ref={list} aria-label={title} className="stagger cast-room-x cast-room-y grid gap-2 [--room-b:0.25rem] [--room-x:0.5rem]">
+      {/* In a row, as many as its height holds; stacked (below @l, no height to fit), the first two each. */}
+      <ul ref={list} aria-label={title} className="stagger cast-room-x cast-room-y grid gap-2 [--room-b:0.25rem] [--room-x:0.5rem] max-@l:[&>li:nth-child(n+3)]:hidden">
         {issues.map(issue => (
           <li key={issueId(issue)}>
             <TaskCard issue={issue} />
           </li>
         ))}
       </ul>
-      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className="justify-self-start text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline">
+      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className={cn("justify-self-start text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline", issues.length > STACKED_FIRST && "max-@l:!inline")}>
         {t("ui.collection.showAll", { count: total })} →
       </Link>
     </div>

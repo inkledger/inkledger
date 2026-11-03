@@ -187,6 +187,8 @@ module.exports = {
       addVariant("@m", "@container region (min-width: 28rem)");
       addVariant("@l", "@container region (min-width: 56rem)");
       addVariant("@xl", "@container region (min-width: 80rem)");
+      // Below @l: a region stacked in one column (a phone, a narrow pane), where a budget replaces the row's height.
+      addVariant("max-@l", "@container region (max-width: 55.99rem)");
     },
   ],
 };

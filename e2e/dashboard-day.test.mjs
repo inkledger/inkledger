@@ -5,7 +5,7 @@
 // and its week's status travel in one batch, so none shows: this pins it.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, dayKey, start } from "./harness.mjs";
+import { awayFromMidnight, dayKey, start, withApp } from "./harness.mjs";
 
 /** Monday of last week, as the Dashboard's `from`: past, and the next day in the same week. */
 function lastMonday() {
@@ -117,3 +117,14 @@ test("on a phone a stopped timer to log is a row big enough to tap", { timeout: 
     await app.stop();
   }
 });
+
+test("My issues on a phone: two cards a column, then Show all to the Board", { timeout: 180_000 }, () =>
+  withApp({ viewport: { width: 390, height: 844 } }, async ({ page, base }) => {
+    await page.goto(base + "/");
+    const tasks = page.locator('[data-workspace-anchor="dashboard.tasks"]');
+    await tasks.locator("li").first().waitFor();
+    const shown = await tasks.locator("ul[aria-label]").evaluateAll(lists => lists.map(l => [...l.children].filter(li => li.offsetParent !== null).length));
+    assert.ok(shown.length > 0 && shown.every(n => n <= 2), `at most two a column (${shown})`);
+    const total = await tasks.locator("ul[aria-label] > li").count();
+    if (total > shown.reduce((a, b) => a + b, 0)) assert.ok(await tasks.getByRole("link", { name: /^Show all/ }).first().isVisible(), "the rest a click away");
+  }));

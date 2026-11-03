@@ -259,6 +259,7 @@ Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split vie
 
 **Container first: regions.** A block lays itself out by its own width, not the window's.
 - The sizes are in rem, so density moves them: `@s` < 28rem ≤ `@m` < 56rem ≤ `@l` < 80rem ≤ `@xl`. They are the same thresholds as a desk pane's.
+- `max-@l:` applies below `@l`, where a row is stacked in one column. A list that fits a row's height there gets a count budget instead (My issues: two per column, then "Show all N →").
 - Viewport breakpoints are only for the shell (sidebar, phone tab bar).
 
 **Three page layouts, nothing ad hoc.**
