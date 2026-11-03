@@ -9,7 +9,6 @@ import {
   fetchWorklogsByIds,
   isAuthor,
   searchIssues,
-  type JiraWorklog,
 } from "./jira/client";
 import { PENDING_PREFIX } from "@contracts/types";
 import { rowFromJira, upsertLocal } from "./routers/worklogs";
@@ -123,12 +122,10 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
 }
 
 async function incremental({ user, creds }: Ctx, since: number, queued: Set<string>): Promise<Pass> {
-  const updated = await fetchUpdatedWorklogIds(creds, since);
-  const removed = await fetchDeletedWorklogIds(creds, since);
+  const [updated, removed] = await Promise.all([fetchUpdatedWorklogIds(creds, since), fetchDeletedWorklogIds(creds, since)]);
   let imported = 0;
   if (updated.ids.length) {
-    const list: JiraWorklog[] = await fetchWorklogsByIds(creds, updated.ids);
-    const keyOf = await issueKeysById(user.id, user.connectionId);
+    const [list, keyOf] = await Promise.all([fetchWorklogsByIds(creds, updated.ids), issueKeysById(user.id, user.connectionId)]);
     for (const w of list) {
       if (!isAuthor(w.author, user.accountId) || queued.has(w.id) || !w.issueId) continue;
       let key = keyOf.get(w.issueId);

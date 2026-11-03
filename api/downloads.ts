@@ -36,11 +36,11 @@ export function registerDownloadRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     c.header("Cache-Control", "no-store");
     return c.json(readManifest());
   });
-  app.get(`${DOWNLOADS_PATH}/:file`, (c) => {
+  app.get(`${DOWNLOADS_PATH}/:file`, async (c) => {
     const android = readManifest().android;
     const file = c.req.param("file");
     if (!android || file !== android.file) return c.json({ error: "Not Found" }, 404);
-    const body = fs.readFileSync(path.join(env.downloadsDir, android.file));
+    const body = await fs.promises.readFile(path.join(env.downloadsDir, android.file));
     return c.body(body, 200, {
       "Content-Type": "application/vnd.android.package-archive",
       "Content-Disposition": `attachment; filename="${android.file}"`,

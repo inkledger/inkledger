@@ -23,8 +23,7 @@ async function rows(conn: Pick<Connection, "id" | "userId">) {
 /** Runs a pass of the connection, then records what it changed. */
 export async function observePass<R>(conn: Pick<Connection, "id" | "userId" | "remoteAccountId">, pass: () => Promise<R>): Promise<R> {
   const startedAt = Date.now();
-  const before = await rows(conn);
-  const snapshot = await snapshotIssues(conn.userId, conn.id);
+  const [before, snapshot] = await Promise.all([rows(conn), snapshotIssues(conn.userId, conn.id)]);
   const result = await pass();
   if (before.size === 0) return result;
   const after = await rows(conn);

@@ -172,7 +172,12 @@ export default function NotesPage() {
   }
 
   useEffect(() => {
-    const refresh = () => setDrafts(userId ? listDrafts(userId) : []);
+    // Polled: the same drafts keep the same array, so the page doesn't re-render for nothing.
+    const refresh = () =>
+      setDrafts(prev => {
+        const next = userId ? listDrafts(userId) : [];
+        return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+      });
     refresh();
     const timer = setInterval(refresh, 4000);
     window.addEventListener("focus", refresh);

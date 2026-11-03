@@ -64,15 +64,30 @@ export function instantFrom(text: string | null | undefined): Instant | null {
   return Number.isFinite(ms) && ms >= 0 ? instant(Math.trunc(ms)) : null;
 }
 
+/** One formatter per zone and kind: building one costs far more than using it, and adapters ask per item. */
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+function zoneFormat(kind: "day" | "clock", zone: TimeZone): Intl.DateTimeFormat {
+  const key = `${kind}|${zone}`;
+  let f = zoneFormats.get(key);
+  if (!f) {
+    f =
+      kind === "day"
+        ? new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" })
+        : new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    zoneFormats.set(key, f);
+  }
+  return f;
+}
+
 /** The day an instant falls on, in a time zone. */
 export function localDateOf(at: Instant, zone: TimeZone): LocalDate {
-  return localDate(new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at)));
+  return localDate(zoneFormat("day", zone).format(new Date(at)));
 }
 
 /** How far a zone's clocks are from UTC at an instant (Rome in summer: +2 h), in ms. */
 function zoneOffsetMs(at: number, zone: TimeZone): number {
   const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    zoneFormat("clock", zone)
       .formatToParts(new Date(at))
       .map((x) => [x.type, Number(x.value)]),
   ) as Record<string, number>;

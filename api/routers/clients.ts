@@ -37,8 +37,7 @@ async function userContainers(userId: number) {
 export const clientsRouter = createRouter({
   /** The user's clients with their containers, and every container to choose from. */
   list: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await getDb().select().from(clients).where(eq(clients.userId, ctx.user.id)).orderBy(asc(clients.name));
-    const boxes = await userContainers(ctx.user.id);
+    const [rows, boxes] = await Promise.all([getDb().select().from(clients).where(eq(clients.userId, ctx.user.id)).orderBy(asc(clients.name)), userContainers(ctx.user.id)]);
     return {
       clients: rows.map((c) => ({ id: c.id, name: c.name, aliases: parseStringList(c.aliases), color: c.color, containerIds: boxes.filter((b) => b.clientId === c.id).map((b) => b.id) })),
       containers: boxes,

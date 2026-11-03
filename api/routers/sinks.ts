@@ -46,14 +46,16 @@ export const sinksRouter = createRouter({
   mappings: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => {
     const { conn } = await ownSink(ctx.user.id, input.id);
     const db = getDb();
-    const rows = await db.select().from(sinkMappings).where(eq(sinkMappings.sinkConnectionId, conn.id));
-    const boxes = await db
-      .select({ id: containers.id, key: containers.key, name: containers.name, connectionId: containers.connectionId })
-      .from(containers)
-      .innerJoin(connections, eq(connections.id, containers.connectionId))
-      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
-      .orderBy(asc(containers.key));
-    const failed = await db.select({ n: worklogSinks.worklogId }).from(worklogSinks).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed")));
+    const [rows, boxes, failed] = await Promise.all([
+      db.select().from(sinkMappings).where(eq(sinkMappings.sinkConnectionId, conn.id)),
+      db
+        .select({ id: containers.id, key: containers.key, name: containers.name, connectionId: containers.connectionId })
+        .from(containers)
+        .innerJoin(connections, eq(connections.id, containers.connectionId))
+        .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+        .orderBy(asc(containers.key)),
+      db.select({ n: worklogSinks.worklogId }).from(worklogSinks).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed"))),
+    ]);
     return {
       mappings: rows.map((r) => ({ containerId: r.containerId, target: { remoteId: r.targetRemoteId, name: r.targetName }, activityId: r.activityId })),
       containers: boxes,

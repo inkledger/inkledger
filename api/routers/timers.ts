@@ -378,8 +378,9 @@ export const timersRouter = createRouter({
     const rows = await getDb().select().from(timers).where(eq(timers.userId, ctx.user.id));
     const now = new Date();
     const split = new Map<number, { overlap: number; byDefault: number }>();
-    for (const t of rows) {
-      const read = await splitInputs(getDb(), refOf(t), now);
+    const reads = await Promise.all(rows.map((t) => splitInputs(getDb(), refOf(t), now)));
+    for (const [i, t] of rows.entries()) {
+      const read = reads[i];
       if (read.runs.length === 0) continue;
       const id = timerId(t.connectionId, t.issueKey);
       const s = splitOf(id, stretchesOf(id, read.runs, read.shares), {}, elapsedSeconds(t, now));

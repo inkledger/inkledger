@@ -120,14 +120,16 @@ export async function splitInputs(db: Db | Tx, t: TimerRef, now: Date): Promise<
   if (own.length === 0) return { runs: [], shares: [] };
   const from = Math.min(...own.map((r) => r.startedAt.getTime()));
   const to = Math.max(...own.map((r) => (r.endedAt ?? now).getTime()));
-  const runs = await db
-    .select()
-    .from(timerRuns)
-    .where(and(eq(timerRuns.userId, t.userId), lt(timerRuns.startedAt, new Date(to)), or(isNull(timerRuns.endedAt), gt(timerRuns.endedAt, new Date(from)))));
-  const shares = await db
-    .select()
-    .from(timerShares)
-    .where(and(eq(timerShares.userId, t.userId), lt(timerShares.startedAt, new Date(to)), gt(timerShares.endedAt, new Date(from))));
+  const [runs, shares] = await Promise.all([
+    db
+      .select()
+      .from(timerRuns)
+      .where(and(eq(timerRuns.userId, t.userId), lt(timerRuns.startedAt, new Date(to)), or(isNull(timerRuns.endedAt), gt(timerRuns.endedAt, new Date(from))))),
+    db
+      .select()
+      .from(timerShares)
+      .where(and(eq(timerShares.userId, t.userId), lt(timerShares.startedAt, new Date(to)), gt(timerShares.endedAt, new Date(from)))),
+  ]);
   return {
     runs: runs.map((r) => ({
       timer: timerId(r.connectionId, r.issueKey),
