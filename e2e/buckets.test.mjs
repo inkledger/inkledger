@@ -34,6 +34,12 @@ test("a bucket narrows this device's board and lists; the chip goes back to ever
     await page.getByText("Client B onboarding").first().waitFor();
     await page.waitForFunction(() => !document.body.innerText.includes("Test task number 1"));
 
+    // The Dashboard's My issues: the bucket's too, not every tracker's.
+    await page.goto(base + "/");
+    const mine = page.locator('[data-workspace-anchor="dashboard.tasks"]');
+    await mine.getByText("Client B onboarding").first().waitFor();
+    assert.equal(await mine.getByText("Test task number 1").count(), 0);
+
     await page.goto(base + "/issues");
     const clear = page.getByRole("button", { name: "Show everything" });
     await clear.waitFor();

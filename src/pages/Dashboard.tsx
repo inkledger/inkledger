@@ -50,6 +50,7 @@ import type { PlannedEntry } from "@contracts/planned";
 import { GapCutter } from "@/components/dashboard/GapCutter";
 import { PlannedDialog } from "@/components/PlannedDialog";
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns";
+import { BUCKET_SCOPE } from "@/hooks/useBuckets";
 import { useTimers } from "@/hooks/useTimers";
 import { dayReview } from "@/lib/flag";
 import { weekRecap } from "@/lib/recap";
@@ -352,6 +353,8 @@ function DashboardContent() {
 
   const stats = trpc.stats.dashboard.useQuery();
   const issues = trpc.issues.all.useQuery();
+  // My work as this device's bucket shows it; time (the timeline, the totals) still counts everywhere.
+  const bucketIssues = trpc.issues.all.useQuery(BUCKET_SCOPE);
   // Another period keeps the last one on screen until its own arrives: no
   // skeleton between days, and what stands on the timeline (a module's tree) stays.
   const logs = trpc.worklogs.list.useQuery(
@@ -580,7 +583,7 @@ function DashboardContent() {
   // My issues by status category, for the mini board.
   const columns: TaskColumn[] = useMemo(() => {
     // My work only: what is assigned to me (favorites of others stay out).
-    const mine = visibleIssues(issues.data ?? []).filter(i => i.isMine);
+    const mine = visibleIssues(bucketIssues.data ?? []).filter(i => i.isMine);
     const pick = (keep: (category: string) => boolean) => mine.filter(i => keep(i.category));
     const byDue = (
       a: { dueDate: string | null },
@@ -609,7 +612,7 @@ function DashboardContent() {
         total: done.length,
       },
     ];
-  }, [issues.data]);
+  }, [bucketIssues.data]);
 
   const activity: ActivityRow[] = useMemo(() => {
     const rows = new Map<string, ActivityRow>();
@@ -644,7 +647,7 @@ function DashboardContent() {
     return [...rows.values()].slice(0, 10);
   }, [recent.data, issueByKey]);
 
-  const openIssues = visibleIssues(issues.data ?? []).filter(
+  const openIssues = visibleIssues(bucketIssues.data ?? []).filter(
     i => !isClosed(i.category)
   );
   const overdue = openIssues
@@ -869,10 +872,10 @@ function DashboardContent() {
             className="xl:group-data-[fill]/row:absolute xl:group-data-[fill]/row:inset-0 xl:group-data-[fill]/row:flex xl:group-data-[fill]/row:flex-col"
             actions={<Button asChild variant="outline" size="sm"><Link to="/board" {...flowControlProps("dashboard.tasks.openBoard")}>{t("pages.dashboard.openBoard")}</Link></Button>}
           >
-            {issues.isPending ? (
+            {bucketIssues.isPending ? (
               <Skeleton className="h-72" />
-            ) : issues.error ? (
-              <ErrorState message={errorText(issues.error)} onRetry={() => issues.refetch()} />
+            ) : bucketIssues.error ? (
+              <ErrorState message={errorText(bucketIssues.error)} onRetry={() => bucketIssues.refetch()} />
             ) : (
               <TasksBoard columns={columns} collapsed={tasksCollapsed.collapsed} onToggle={tasksCollapsed.toggle} />
             )}
