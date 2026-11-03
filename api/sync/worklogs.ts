@@ -12,7 +12,7 @@ import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/
 import { getDb, uniqueViolation } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
 import type { BoundTracker, CallMeta } from "../providers/core/bind";
-import { ProviderError } from "../providers/core/errors";
+import { goneIsDone, ProviderError } from "../providers/core/errors";
 import { providerTrpcError } from "../providers/trpc";
 import { eachPage } from "../providers/core/paging";
 import type { Checkpoint, IssueRef, RemoteWorklog, TimeInput, WorklogInput } from "../providers/types";
@@ -111,7 +111,6 @@ export async function dropOld(b: BoundTracker, conn: Pick<Connection, "id">, loc
   try {
     await deleteThere(b, meta, ref, old, { expectedVersion: version ?? undefined });
   } catch (err) {
-    if (err instanceof ProviderError && err.kind === "notFound") return;
     const refused = !(err instanceof ProviderError && err.transient);
     if (!(err instanceof ProviderError)) console.error(err);
     await getDb()
@@ -155,12 +154,12 @@ export async function pushUpdate(b: BoundTracker, conn: Pick<Connection, "id">, 
 }
 
 /**
- * An entry deleted on its service. A service that keeps no delete refuses in words ("invalid":
+ * An entry deleted on its service (already gone: "gone", done too). A service that keeps no delete refuses in words ("invalid":
  * shown to the user, never queued), not with a crash.
  */
-export async function deleteThere(b: BoundTracker, meta: CallMeta, ref: IssueRef, remoteId: string, m: { expectedVersion?: string } = {}): Promise<void> {
+export async function deleteThere(b: BoundTracker, meta: CallMeta, ref: IssueRef, remoteId: string, m: { expectedVersion?: string } = {}): Promise<"deleted" | "gone"> {
   if (!b.worklogs?.delete) throw cannotDoIt(b);
-  await b.worklogs.delete(meta, ref, remoteId, m);
+  return goneIsDone(b.worklogs.delete(meta, ref, remoteId, m));
 }
 
 /** Gone from the service (already gone counts as done); the registry row goes with it. */

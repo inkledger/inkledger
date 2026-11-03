@@ -15,7 +15,7 @@ import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts
 import { instant, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
 import { bindSink, type BoundSink } from "../providers/core/bind";
-import { ProviderError } from "../providers/core/errors";
+import { goneIsDone, ProviderError } from "../providers/core/errors";
 import { connectionOptions, connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
@@ -396,9 +396,7 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
               const total = left.get(group)!.filter((x) => localDateOf(instant(x.started.getTime()), zone) === day).reduce((a, x) => a + x.seconds, 0);
               await b.entries.setDayTotal!(meta(), ref, null, day, total, { idempotencyKey: `del:${g.id}` });
             } else if (b.entries.delete) {
-              await b.entries.delete(meta(), g.remoteId, {}).catch((e: unknown) => {
-                if (!(e instanceof ProviderError && e.kind === "notFound")) throw e;
-              });
+              await goneIsDone(b.entries.delete(meta(), g.remoteId, {}));
             }
             done.push(g.id);
             sent++;

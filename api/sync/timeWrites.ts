@@ -150,12 +150,9 @@ export async function deleteThrough(t: ContractTime, current: Worklog): Promise<
   const older = await claimQueuedUpdates(t.conn, current.id);
   if (remoteId) {
     try {
-      await deleteThere(t.b, meta(), t.ref, remoteId);
-      await bumpSpent(t.conn, current.issueKey, -current.timeSpentSeconds);
+      if ((await deleteThere(t.b, meta(), t.ref, remoteId)) === "deleted") await bumpSpent(t.conn, current.issueKey, -current.timeSpentSeconds);
     } catch (e) {
-      if (e instanceof ProviderError && e.kind === "notFound") {
-        // already gone there
-      } else if (!certainRefusal(e)) {
+      if (!certainRefusal(e)) {
         // Deleting again is safe (gone already: done), so anything but a refusal is tried later.
         logFault(e);
         await queue(t, current, "delete", remoteId);
@@ -354,9 +351,7 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
     try {
       if (entry.kind === "delete") {
         if (entry.remoteId) {
-          await deleteThere(t.b, meta(), t.ref, entry.remoteId).catch((e: unknown) => {
-            if (!(e instanceof ProviderError && e.kind === "notFound")) throw e;
-          });
+          await deleteThere(t.b, meta(), t.ref, entry.remoteId);
           // A sync between queueing and now may have read it back.
           await withDeleteReason("merged", (tx) =>
             tx.delete(worklogs).where(and(eq(worklogs.userId, conn.userId), eq(worklogs.connectionId, conn.id), eq(worklogs.issueKey, entry.issueKey), eq(worklogs.remoteId, entry.remoteId))),

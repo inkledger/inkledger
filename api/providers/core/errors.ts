@@ -58,6 +58,17 @@ export class ProviderError extends Error {
   }
 }
 
+/** A delete on a service: done now, or already gone there (not found counts as done). */
+export async function goneIsDone(call: Promise<unknown>): Promise<"deleted" | "gone"> {
+  try {
+    await call;
+    return "deleted";
+  } catch (e) {
+    if (e instanceof ProviderError && e.kind === "notFound") return "gone";
+    throw e;
+  }
+}
+
 /** The kind an HTTP answer means, for adapters of HTTP APIs. */
 export function kindOfStatus(status: number): ProviderErrorKind {
   if (status === 401) return "auth";

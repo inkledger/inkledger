@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { connections, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
-import { ProviderError } from "../providers/core/errors";
+import { goneIsDone, ProviderError } from "../providers/core/errors";
 import { certainRefusal } from "../providers/trpc";
 import { boundSink, pushOne, sinksSoon, trackerOfSink } from "./extraSinks";
 import { callMeta } from "../lib/callMeta";
@@ -112,11 +112,9 @@ export async function deleteViaCompanion(entry: { sink: Connection; remoteId: st
   if (entry.remoteId) {
     const b = bound(entry.sink);
     try {
-      await b.entries.delete!(meta(), entry.remoteId, {});
+      await goneIsDone(b.entries.delete!(meta(), entry.remoteId, {}));
     } catch (e) {
-      if (e instanceof ProviderError && e.kind === "notFound") {
-        // already gone there
-      } else if (!certainRefusal(e)) {
+      if (!certainRefusal(e)) {
         // Deleting again is safe, so anything but a refusal is tried later.
         if (!transient(e)) console.error(e);
         await getDb()
