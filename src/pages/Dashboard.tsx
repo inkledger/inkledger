@@ -313,6 +313,16 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
   );
 }
 
+/**
+ * Recent activity at its block's density (the workspace variant, docs/design-system.md §7.1): compact one
+ * row of tiles, default two, expanded three; what is past them stays one "Show all" away.
+ */
+function ActivityRows({ rows, sort }: { rows: ActivityRow[]; sort: ActivitySort }) {
+  const { workspace } = useWorkspace();
+  const variant = workspace.placements.find(placement => placement.anchorId === "dashboard.activity")?.variant;
+  return <ActivityTable rows={rows} sort={sort} budget={variant === "compact" ? 1 : variant === "expanded" ? 3 : 2} />;
+}
+
 /** The sections Customize shows and hides: their content is already empty when hidden. */
 const CUSTOMIZABLE = new Set(DASHBOARD_WIDGETS.map(widget => `dashboard.${widget.id}`));
 
@@ -897,7 +907,7 @@ function DashboardContent() {
             ) : recent.error ? (
               <ErrorState message={errorText(recent.error)} onRetry={() => recent.refetch()} />
             ) : (
-              <ActivityTable rows={activity} sort={activitySort} />
+              <ActivityRows rows={activity} sort={activitySort} />
             )}
           </PanelSection>
         ),

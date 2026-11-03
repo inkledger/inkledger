@@ -53,7 +53,7 @@ export function ActivitySortControl({ value, onChange }: { value: ActivitySort; 
  * Collection, docs/design-system.md §7.1): two rows, then "Show all N" in place. Never scrolled sideways.
  * The last activity is in the tile's tooltip and its accessible name.
  */
-export function ActivityTable({ rows, sort = "last" }: { rows: ActivityRow[]; sort?: ActivitySort }) {
+export function ActivityTable({ rows, sort = "last", budget = 2 }: { rows: ActivityRow[]; sort?: ActivitySort; budget?: 1 | 2 | 3 | 4 }) {
   const sorted = [...rows].sort((a, b) => compare(a, b, sort));
   const most = Math.max(1, ...rows.map(r => r.seconds));
 
@@ -71,7 +71,7 @@ export function ActivityTable({ rows, sort = "last" }: { rows: ActivityRow[]; so
     <Collection
       items={sorted}
       keyOf={r => issueId(r)}
-      rows={2}
+      rows={budget}
       maxColumns={4}
       label={t("pages.dashboard.recentActivity")}
       itemClassName="relative"

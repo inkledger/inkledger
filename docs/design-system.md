@@ -283,6 +283,8 @@ Grounded in Material 3 (window classes, canonical layouts), Apple HIG (split vie
 
 **Stability.** Expanding never moves what is above it. Open and closed states keep their footprint. No primary control appears on hover only.
 
+**Variants are density.** A block's workspace variant (compact, default, expanded) changes its padding and how much a collection shows at once (Recent activity: 1, 2 or 3 rows), never which controls or data exist.
+
 **Never remove to save space.** Budgets and variants change density and how much shows at once. What is folded stays one step away: "Show all N", ⋯, or Peek.
 
 **Accessibility is measured, not assumed.**
