@@ -32,8 +32,12 @@ async function axeViolations(page) {
   );
 }
 
-/** The active option as the input names it: its text, place and set size. */
-const activeOf = dialog =>
+/** The active option as the input names it: its text, place and set size (once its scroll has settled). */
+const activeOf = async dialog => {
+  await dialog.page().waitForTimeout(150);
+  return activeNow(dialog);
+};
+const activeNow = dialog =>
   dialog.evaluate(root => {
     const input = root.querySelector('[role="combobox"][aria-controls]');
     const option = document.getElementById(input?.getAttribute("aria-activedescendant") ?? "");

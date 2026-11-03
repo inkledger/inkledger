@@ -87,6 +87,9 @@ export function VirtualCommand({
     const heading = row > 0 && filtered.rows[row - 1]?.kind === "heading" ? row - 1 : row;
     virtualizer.scrollToIndex(heading, { align: "auto" });
     if (heading !== row) virtualizer.scrollToIndex(row, { align: "auto" });
+    // A long jump is placed from estimated row heights: once drawn and measured, the option itself
+    // comes into view (as cmdk did), whatever the density made its height.
+    requestAnimationFrame(() => document.getElementById(optionId(n))?.scrollIntoView({ block: "nearest" }));
   };
 
   const choose = (n: number, alt: boolean) => {
