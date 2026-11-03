@@ -296,15 +296,17 @@ function DashboardSections({ content }: { content: Record<string, ReactNode> }) 
   // timeline keeps the whole width. The same composition draws the Studio's picture of this page.
   const top = inArea("dashboard.secondary");
   const { lead, segments } = dashboardSegments(inArea("dashboard.primary").map(placement => placement.anchorId));
+  // On a phone (the "mobile" class, under 1024 px) the timeline comes first and the figures right after it:
+  // CSS order only, the same markup on the server and the client. The Studio draws the phone the same way.
   return (
-    <>
+    <div className="flex flex-col">
       {top.map(item => <Fragment key={item.anchorId}>{renderAnchor(item.anchorId)}</Fragment>)}
-      {lead && <div className="border-b p-5 md:p-6">{renderAnchor(lead)}</div>}
+      {lead && <div className="border-b p-5 max-lg:order-first md:p-6">{renderAnchor(lead)}</div>}
       {segments.map(segment => segment.kind === "band"
         ? <Fragment key={segment.anchorId}>{renderAnchor(segment.anchorId)}</Fragment>
         : <SectionRow key={String(segment.items[0])} items={segment.items} renderAnchor={renderAnchor} />)}
       {inArea("dashboard.desk").map(placement => <Fragment key={placement.anchorId}>{renderAnchor(placement.anchorId)}</Fragment>)}
-    </>
+    </div>
   );
 }
 

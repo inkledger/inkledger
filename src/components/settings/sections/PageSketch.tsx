@@ -118,12 +118,12 @@ export function AreaBlocks({ area, sketch, anchorIds, tileFor, nested }: {
   if (area.axis === "flow") {
     const wide = sketch.frame === "page";
     const { lead, segments } = dashboardSegments(anchorIds);
-    // The secondary area: a band above the timeline, as on the page.
+    // The secondary area: a band above the timeline, as on the page; on a phone right after it.
     const top = nested("dashboard.secondary");
+    const leadTile = lead && <div className="grid min-w-0 content-start">{tileFor(lead)}</div>;
     return (
       <div className={cn("grid", gap)}>
-        {top}
-        {lead && <div className="grid min-w-0 content-start">{tileFor(lead)}</div>}
+        {wide ? <>{top}{leadTile}</> : <>{leadTile}{top}</>}
         {segments.map(segment => segment.kind === "band"
           ? <Fragment key={segment.anchorId}>{tileFor(segment.anchorId)}</Fragment>
           : (

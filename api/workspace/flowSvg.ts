@@ -81,12 +81,13 @@ function layoutOf(sketch: Sketch, placements: readonly ResolvedPlacement[]): Box
     let child: Box | null = null;
     if (area.axis === "flow") {
       const { lead, segments } = dashboardSegments(ids);
-      // The secondary area is a band above the timeline (as on the page).
+      // The secondary area is a band above the timeline (as on the page); on a phone right after it.
       const top = nestedArea("dashboard.secondary");
       const wide = sketch.frame === "page";
       const parts: Box[] = [];
-      if (top) parts.push(top);
+      if (wide && top) parts.push(top);
       if (lead) parts.push(block(lead));
+      if (!wide && top) parts.push(top);
       for (const segment of segments) {
         if (segment.kind === "band") { parts.push(block(segment.anchorId)); continue; }
         const children = segment.items.map((item): Box => typeof item === "string" ? block(item) : { kind: "column", children: item.map(block) });
