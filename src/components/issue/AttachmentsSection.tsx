@@ -33,7 +33,11 @@ function iconFor(mime: string) {
 }
 
 /** Jira attachments: thumbnails, download through the server, drag & drop upload. */
+/** Attachments shown before "Show all": two rows at four columns. */
+const ATTACHMENTS_FIRST = 8;
+
 export function AttachmentsSection({ issueKey, connectionId }: { issueKey: string; connectionId?: number | null }) {
+  const [allShown, setAllShown] = useState(false);
   const provider = useProviderName(connectionId);
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +65,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
   };
 
   return (
-    <div className="grid gap-4">
+    <div className="region grid gap-4">
       <div
         {...surface("glass")}
         onDragOver={e => {
@@ -124,7 +128,7 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
       </div>
 
       {list.isPending ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 @m:grid-cols-3">
           {[0, 1, 2].map(n => (
             <Skeleton key={n} className="h-32" />
           ))}
@@ -137,8 +141,10 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
       ) : list.data.length === 0 ? (
         <EmptyState icon={Paperclip} title={t("views.issue.attachments.empty")} className="py-6" />
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {list.data.map((a, index) => {
+        <>
+        {/* Thumbnails by the section's own width (docs/design-system.md §7.1), the first ones then all. */}
+        <ul className="grid grid-cols-2 gap-3 @m:grid-cols-3 @l:grid-cols-4 @xl:grid-cols-5">
+          {list.data.slice(0, allShown ? undefined : ATTACHMENTS_FIRST).map((a, index) => {
             const Icon = iconFor(a.mimeType);
             const isImage = a.mimeType.startsWith("image/") && a.hasThumbnail;
             return (
@@ -182,6 +188,12 @@ export function AttachmentsSection({ issueKey, connectionId }: { issueKey: strin
             );
           })}
         </ul>
+        {list.data.length > ATTACHMENTS_FIRST && (
+          <Button variant="ghost" size="sm" className="justify-self-start" aria-expanded={allShown} onClick={() => setAllShown(v => !v)}>
+            {allShown ? t("ui.collection.showFewer") : t("ui.collection.showAll", { count: list.data.length })}
+          </Button>
+        )}
+        </>
       )}
       <AttachmentViewer
         connectionId={connectionId}
