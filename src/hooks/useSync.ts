@@ -30,6 +30,10 @@ export function useSync() {
       invalidateJiraData(utils);
     },
     onError: e => toast.error(t("ui.sync.failed", { message: failureText(e) })),
-    onSettled: () => void utils.issues.syncStatus.invalidate(),
+    onSettled: () => {
+      void utils.issues.syncStatus.invalidate();
+      // A connection out of reach (or refused) is "ok" again once its sync went through.
+      void utils.connections.list.invalidate();
+    },
   });
 }

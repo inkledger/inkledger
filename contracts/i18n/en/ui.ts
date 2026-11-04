@@ -333,6 +333,8 @@ export const ui = {
     refused: "{provider} ({host}) no longer accepts the saved credentials: syncing and logging time wait for you to reconnect it.",
     unreadable: "The saved credentials for {provider} ({host}) can't be read on this server any more: reconnect it to go on syncing.",
     action: "Reconnect",
+    unreachable: "{provider} ({host}) hasn't answered for {count} attempts: background sync is paused until you retry.",
+    retry: "Retry",
   },
   outbox: {
     create: "Create",

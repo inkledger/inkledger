@@ -66,7 +66,8 @@ export async function timeFreshness(userIds: number[], now: number = Date.now())
     const reads = mine.map(readAt);
     const known = reads.filter((r): r is number => r !== null);
     const oldest = known.length > 0 ? Math.min(...known) : null;
-    const state: Freshness["state"] = mine.some((c) => c.status !== "ok")
+    // Out of reach (paused for its user) is not theirs to reconnect: its reads just age.
+    const state: Freshness["state"] = mine.some((c) => c.status !== "ok" && c.status !== "unreachable")
       ? "reconnect"
       : known.length < reads.length
         ? "never"

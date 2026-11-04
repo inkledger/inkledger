@@ -335,6 +335,8 @@ export const ui: Shape<typeof en> = {
     refused: "{provider} ({host}) non accetta più le credenziali salvate: sync e registrazione del tempo aspettano che lo ricolleghi.",
     unreadable: "Le credenziali salvate per {provider} ({host}) non sono più leggibili su questo server: ricollegalo per continuare a sincronizzare.",
     action: "Ricollega",
+    unreachable: "{provider} ({host}) non risponde da {count} tentativi: il sync automatico è in pausa finché non riprovi.",
+    retry: "Riprova",
   },
   outbox: {
     create: "Creazione",

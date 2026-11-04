@@ -195,4 +195,27 @@ describe("worklogs from Jira", () => {
     await q("DELETE FROM worklogs WHERE comment = 'via tempo'");
     await q("DELETE FROM connections WHERE id IN (?, ?)", tempo.id, harvest.id);
   });
+
+  it("in the background, a Jira out of reach waits: paused for the user, or in its backoff; the user's own sync reads it", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const fetched = vi.mocked(fetch);
+    const [jc] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    try {
+      await q("UPDATE connections SET status = 'unreachable' WHERE id = ?", jc.id);
+      fetched.mockClear();
+      expect(await syncWorklogs(user, { background: true })).toEqual({ imported: 0, deleted: 0, initial: false });
+      expect(fetched).not.toHaveBeenCalled();
+      await syncWorklogs(user);
+      expect(fetched).toHaveBeenCalled();
+
+      await q("UPDATE connections SET status = 'ok' WHERE id = ?", jc.id);
+      await q("INSERT INTO connection_sync (connection_id, stream, retry_after) VALUES (?, 'issues', ?) ON CONFLICT (connection_id, stream) DO UPDATE SET retry_after = excluded.retry_after", jc.id, Date.now() + 60_000);
+      fetched.mockClear();
+      await syncWorklogs(user, { background: true });
+      expect(fetched).not.toHaveBeenCalled();
+    } finally {
+      await q("UPDATE connections SET status = 'ok' WHERE id = ?", jc.id);
+      await q("UPDATE connection_sync SET retry_after = NULL WHERE connection_id = ?", jc.id);
+    }
+  });
 });

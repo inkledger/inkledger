@@ -53,3 +53,64 @@ describe("a sync stream's lease across processes", () => {
     expect(Number(until1)).toBeGreaterThan(Number(until0));
   });
 });
+
+describe("a connection out of reach too many times in a row", () => {
+  let connId = 0;
+
+  beforeAll(async () => {
+    await (await import("../queries/connection")).resetDbForTests();
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('gu', 'Gu', 1) RETURNING id");
+    const [c] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'gitlab', 'https://fake.example', 'me', '{}', 'x', 1) RETURNING id", u.id);
+    connId = c.id;
+  });
+
+  beforeEach(async () => {
+    await q("DELETE FROM connection_sync");
+    await q("UPDATE connections SET status = 'ok' WHERE id = ?", connId);
+  });
+
+  const fail = async (times: number, error: unknown = new TypeError("fetch failed")) => {
+    const { acquire, failed } = await import("./state");
+    for (let i = 0; i < times; i++) {
+      const got = await acquire(connId, "issues", Date.now(), { ignoreWait: true });
+      expect(got.ok).toBe(true);
+      await failed(connId, "issues", error);
+    }
+  };
+  const status = async () => (await q<{ status: string }>("SELECT status FROM connections WHERE id = ?", connId))[0].status;
+
+  it("keeps trying (with its backoff) until SYNC_GIVE_UP_AFTER, then waits for the user", async () => {
+    const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      await fail(SYNC_GIVE_UP_AFTER - 1);
+      expect(await status()).toBe("ok");
+      await fail(1);
+      expect(await status()).toBe("unreachable");
+      // Said once, on the way in: a later failure (the user's own Sync) adds no line.
+      await fail(1);
+      expect(warn.mock.calls.filter(([m]) => String(m).includes("unreachable after")).length).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("never covers refused credentials", async () => {
+    const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
+    await q("UPDATE connections SET status = 'auth_failed' WHERE id = ?", connId);
+    await fail(SYNC_GIVE_UP_AFTER + 1);
+    expect(await status()).toBe("auth_failed");
+  });
+
+  it("is ok again once a pass goes through", async () => {
+    const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
+    const { acquire, succeeded } = await import("./state");
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await fail(SYNC_GIVE_UP_AFTER);
+    expect(await status()).toBe("unreachable");
+    expect((await acquire(connId, "issues", Date.now(), { ignoreWait: true })).ok).toBe(true);
+    await succeeded(connId, "issues", { full: false });
+    expect(await status()).toBe("ok");
+    vi.mocked(console.warn).mockRestore();
+  });
+});

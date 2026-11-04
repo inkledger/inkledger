@@ -29,15 +29,23 @@ export type WorklogSyncResult = { imported: number; deleted: number; initial: bo
  * and /worklog/deleted feeds). Read only: nothing is written to Jira.
  * Queued offline edits/deletes (outbox) win over Jira's copy until replayed.
  */
-export async function syncWorklogs(user: User, opts: { reimport?: boolean } = {}): Promise<WorklogSyncResult> {
+export async function syncWorklogs(user: User, opts: { reimport?: boolean; background?: boolean } = {}): Promise<WorklogSyncResult> {
   const total: WorklogSyncResult = { imported: 0, deleted: 0, initial: false };
   for (const conn of await jiraConnections(user.id)) {
+    // In the background, a connection out of reach waits like its issues: paused for the user, or in its backoff.
+    if (opts.background && (conn.status !== "ok" || (await waiting(conn.id)))) continue;
     const r = await syncConnectionWorklogs(user, conn, opts);
     total.imported += r.imported;
     total.deleted += r.deleted;
     total.initial ||= r.initial;
   }
   return total;
+}
+
+/** The connection's issue stream waits (a backoff or a rate limit): its worklogs wait too. */
+async function waiting(connectionId: number, now = Date.now()): Promise<boolean> {
+  const at = (await streamState(connectionId, "issues"))?.retryAfter;
+  return !!at && at.getTime() > now;
 }
 
 /**

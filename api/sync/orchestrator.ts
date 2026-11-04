@@ -118,7 +118,7 @@ export function syncUser(user: User, opts: { full?: boolean; background?: boolea
     // Then the user's worklogs (time logged in Jira itself too). A failure
     // here doesn't undo the issues: the next pass picks up from the same point.
     try {
-      await syncWorklogs(user);
+      await syncWorklogs(user, { background: opts.background ?? false });
     } catch (e) {
       console.warn(`[sync] worklogs of user ${user.id} not synced: ${String(e)}`);
     }

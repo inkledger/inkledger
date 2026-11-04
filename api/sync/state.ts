@@ -3,10 +3,11 @@
 // stream at once, the checkpoint, and the wait after a rate limit or a
 // failure.
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { connections, connectionSync } from "@db/schema";
 import type { Stream } from "../providers/types";
 import { ProviderError } from "../providers/core/errors";
+import { SYNC_GIVE_UP_AFTER } from "@contracts/sync";
 import { getDb } from "../queries/connection";
 
 /** This process, as a lease holder. */
@@ -102,7 +103,10 @@ export async function succeeded(connectionId: number, stream: Stream, outcome: {
     .returning({ id: connectionSync.connectionId });
   // Another process holds it now: its checkpoint stands, this pass is not the stream's.
   if (done.length === 0) throw new LeaseLostError(connectionId, stream);
-  await getDb().update(connections).set({ status: "ok" }).where(and(eq(connections.id, connectionId), eq(connections.status, "auth_failed")));
+  await getDb()
+    .update(connections)
+    .set({ status: "ok" })
+    .where(and(eq(connections.id, connectionId), inArray(connections.status, ["auth_failed", "unreachable"])));
 }
 
 /**
@@ -135,4 +139,13 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
     })
     .where(mine(connectionId, stream));
   if (kind === "auth") await getDb().update(connections).set({ status: "auth_failed" }).where(eq(connections.id, connectionId));
+  if ((kind === "unavailable" || kind === "timeout") && failures >= SYNC_GIVE_UP_AFTER) {
+    // Only a working connection: refused or unreadable credentials say more than "out of reach".
+    const paused = await getDb()
+      .update(connections)
+      .set({ status: "unreachable" })
+      .where(and(eq(connections.id, connectionId), eq(connections.status, "ok")))
+      .returning({ id: connections.id });
+    if (paused.length > 0) console.warn(`[sync] connection ${connectionId}: unreachable after ${failures} attempts, waiting for the user`);
+  }
 }

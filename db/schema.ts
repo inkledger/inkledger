@@ -112,7 +112,7 @@ export const connections = pgTable(
     /** Provider options, JSON (Jira: deployment, authType, username) */
     options: text("options").notNull().default("{}"),
     encryptedSecret: text("encrypted_secret").notNull(),
-    /** "ok" | "auth_failed" | "unreadable" */
+    /** "ok" | "auth_failed" | "unreadable" | "unreachable" (out of reach SYNC_GIVE_UP_AFTER times: background sync paused until the user's own Sync) */
     status: text("status").notNull().default("ok"),
     /** What the last test found (TrackerProbe as JSON): plan, active sources, call budget */
     probe: text("probe"),
