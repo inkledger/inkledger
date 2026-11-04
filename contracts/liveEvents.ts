@@ -8,18 +8,20 @@
  *   schedule   — the work schedule or a day's hours changed
  *   bucket     — a device switched its bucket
  *   notes      — a Markdown note changed
+ *   decisions  — a question to the user opened, its draft typed, or answered
  * Every event but hello may carry `origin`: the page (x-client-id) that caused it.
  */
 export type UserEvent =
   | { type: "timers"; epoch: number }
   | { type: "schedule" }
   | { type: "bucket"; deviceId: string }
-  | { type: "notes"; id: string; change: "create" | "content" | "move" | "issue" | "delete" | "restore" | "version" };
+  | { type: "notes"; id: string; change: "create" | "content" | "move" | "issue" | "delete" | "restore" | "version" }
+  | { type: "decisions"; id: string; revision: number; state: string; fields?: string[] };
 
 export type LiveEventType = UserEvent["type"] | "hello";
 
 /** Every event a page listens to (EventSource needs each name). */
-export const LIVE_EVENTS: readonly LiveEventType[] = ["hello", "timers", "schedule", "bucket", "notes"];
+export const LIVE_EVENTS: readonly LiveEventType[] = ["hello", "timers", "schedule", "bucket", "notes", "decisions"];
 
 /** The first event of a stream. */
 export type Hello = { build: string | null; serverNow: number; resync: boolean };

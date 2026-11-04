@@ -1,3 +1,4 @@
+import { decisionsRouter } from "./routers/decisions";
 import { createRouter, publicQuery } from "./middleware";
 import { authRouter } from "./routers/auth";
 import { issuesRouter } from "./routers/issues";
@@ -44,6 +45,7 @@ export const appRouter = createRouter({
   worklogs: worklogsRouter,
   stats: statsRouter,
   timers: timersRouter,
+  decisions: decisionsRouter,
   settings: settingsRouter,
   reports: reportsRouter,
   outbox: outboxRouter,

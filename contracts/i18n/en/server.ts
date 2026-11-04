@@ -296,6 +296,9 @@ export const server = {
     boardFull: "The board is full.",
     nameRequired: "Give the board a name",
   },
+  decisions: {
+    notStopped: "The timer of {key} is not stopped: nothing to log yet.",
+  },
   timers: {
     moveSame: "The timer is already on that issue.",
     moveNone: "No timer on {key} to move.",

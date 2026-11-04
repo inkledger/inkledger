@@ -163,6 +163,7 @@ describe("migrations over a draft of 0010", () => {
     await query('ALTER TABLE "settings" DROP COLUMN "agent_command"');
     await query('DROP TABLE "idea_files"');
     await query('DROP TABLE "ideas"');
+    await query('DROP TABLE "decisions"');
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
     await query('DROP TABLE "egress_hosts"');

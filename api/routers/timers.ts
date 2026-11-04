@@ -10,6 +10,8 @@ import { issues, timerOps, timers, todos, type Timer } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { publish } from "../lib/userEvents";
+import { endTimerLogIn, openTimerLogIn, told } from "../decisions/store";
+import type { Decision } from "@db/schema";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
@@ -71,11 +73,11 @@ const timerOf = (userId: number, connectionId: number, issueKey: string) =>
 const refOf = (t: { userId: number; connectionId: number; issueKey: string }): TimerRef => ({ userId: t.userId, connectionId: t.connectionId, issueKey: t.issueKey });
 
 /** Who acts: the user, the device (x-device-id) and how that device is named. */
-export type Who = { userId: number; device: string | undefined; label: string };
+export type Who = { userId: number; device: string | undefined; client?: string; label: string };
 
-export function whoOf(ctx: { user: { id: number }; deviceId?: string; req: Request }, label?: string): Who {
+export function whoOf(ctx: { user: { id: number }; deviceId?: string; clientId?: string; req: Request }, label?: string): Who {
   const named = label?.trim().slice(0, 60);
-  return { userId: ctx.user.id, device: ctx.deviceId, label: named || deviceLabel(ctx.req.headers.get("user-agent")) };
+  return { userId: ctx.user.id, device: ctx.deviceId, client: ctx.clientId, label: named || deviceLabel(ctx.req.headers.get("user-agent")) };
 }
 
 /** A running timer whose owner still renews its lease. */
@@ -135,10 +137,15 @@ async function once<T>(tx: Tx, userId: number, opId: string | undefined, run: ()
   return result;
 }
 
-/** A timer action under the user's lock, then everyone's pages told (the timer's new epoch). */
-export async function act<T extends { epoch: number }>(userId: number, opId: string | undefined, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  const r = await withTimerLock(userId, (tx) => once(tx, userId, opId, () => fn(tx)));
-  publish(userId, { type: "timers", epoch: r.epoch });
+/** Decisions a timer write changed, told once it is committed. */
+export type Decided = (d: Decision | null) => void;
+
+/** A timer action under the user's lock, then everyone's pages told (the timer's new epoch, the decisions it changed). */
+export async function act<T extends { epoch: number }>(userId: number, opId: string | undefined, fn: (tx: Tx, decided: Decided) => Promise<T>, origin?: string): Promise<T> {
+  const changed: Decision[] = [];
+  const r = await withTimerLock(userId, (tx) => once(tx, userId, opId, () => fn(tx, (d) => d && changed.push(d))));
+  publish(userId, { type: "timers", epoch: r.epoch }, origin);
+  for (const d of changed) told(userId, d, origin);
   return r;
 }
 
@@ -156,6 +163,9 @@ async function clearPausedTimer(db: Db | Tx, userId: number, connectionId: numbe
   await db.delete(timers).where(and(timerOf(userId, connectionId, issueKey), eq(timers.state, "paused")));
 }
 
+/** Less than this left on a stopped timer once logged is rounding (whole minutes), not time to keep. */
+const MIN_LEFT_SECONDS = 60;
+
 /** A log's shares of the time its timer ran with others: by the others it ran with, in basis points. */
 export type ClaimSplit = { until: Date; shares: { with: string[]; bp: number }[] };
 
@@ -166,9 +176,11 @@ const trackedThrough = (t: Timer, until: Date) =>
 /**
  * Takes `seconds` of a timer for a worklog, before the worklog is written,
  * under the lock: two devices logging the same timer at once can't both get
- * it (the second finds it gone: `null`). A stopped timer goes; one running
- * keeps running with the time removed. `undo` puts it back if the worklog
- * then fails.
+ * it (the second finds it gone: `null`). A stopped timer goes once all its
+ * time is logged; logged in part, the rest stays paused, to log later (less
+ * than a minute left is rounding, not time: it goes). One running keeps
+ * running with the time removed. `undo` puts it back if the worklog then
+ * fails.
  *
  * With `split` (it ran beside other timers), the log takes all the time the
  * timer counted up to `until`, though it logs less: the rest of the time it
@@ -184,6 +196,7 @@ export async function claimTimerSeconds(
   split?: ClaimSplit,
 ): Promise<{ undo: (back?: number) => Promise<void> } | null> {
   const conn = await issueConnection(userId, issueKey, connectionId);
+  let ended: Decision | null = null;
   const claimed = await withTimerLock(userId, async (tx) => {
     const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
     if (!t) return null;
@@ -193,7 +206,14 @@ export async function claimTimerSeconds(
     const until = split && split.until.getTime() < now.getTime() ? split.until : now;
     const taken = split ? trackedThrough(t, until) : seconds;
     if (t.state !== "running") {
-      await clearPausedTimer(tx, userId, conn.id, issueKey);
+      const left = t.accumulatedSeconds - taken;
+      if (left >= MIN_LEFT_SECONDS) {
+        await tx.update(timers).set({ accumulatedSeconds: left, updatedAt: now, epoch: t.epoch + 1 }).where(eq(timers.id, t.id));
+      } else {
+        await clearPausedTimer(tx, userId, conn.id, issueKey);
+      }
+      // Logged another way (not by answering it): the open question to log it ends.
+      ended = await endTimerLogIn(tx, userId, conn.id, issueKey, "logged", { label: "" });
     } else {
       await tx
         .update(timers)
@@ -217,6 +237,7 @@ export async function claimTimerSeconds(
   if (!claimed) return null;
   const { t: was, taken, consumed } = claimed;
   publish(userId, { type: "timers", epoch: was.epoch + 1 });
+  if (ended) told(userId, ended);
   return {
     /** Put back `back` seconds (all of them by default; less when part of the time was logged). */
     undo: async (back: number = seconds) => {
@@ -285,12 +306,12 @@ async function rowOf(tx: Tx, userId: number, connectionId: number, issueKey: str
 function onTimer<T extends { epoch: number }>(
   ctx: Parameters<typeof whoOf>[0],
   input: { issueKey: string; connectionId?: number; opId?: string },
-  fn: (tx: Tx, t: Timer | undefined, c: { now: Date; w: Who; conn: Awaited<ReturnType<typeof issueConnection>> }) => Promise<T>,
+  fn: (tx: Tx, t: Timer | undefined, c: { now: Date; w: Who; conn: Awaited<ReturnType<typeof issueConnection>>; decided: Decided }) => Promise<T>,
 ): Promise<T> {
   const now = new Date();
   const w = whoOf(ctx);
   return issueConnection(ctx.user.id, input.issueKey, input.connectionId).then((conn) =>
-    act(ctx.user.id, input.opId, async (tx) => fn(tx, await rowOf(tx, ctx.user.id, conn.id, input.issueKey), { now, w, conn })),
+    act(ctx.user.id, input.opId, async (tx, decided) => fn(tx, await rowOf(tx, ctx.user.id, conn.id, input.issueKey), { now, w, conn, decided }), w.client),
   );
 }
 
@@ -326,6 +347,7 @@ export async function startTimerIn(
   issueKey: string,
   opts: { force?: boolean; from: Date | null; mode?: StartMode; parallelOff?: boolean },
   now: Date,
+  decided: Decided = () => undefined,
 ) {
   const from = opts.from;
   const mode = opts.mode ?? "switch";
@@ -360,9 +382,13 @@ export async function startTimerIn(
   const switchedFromAll: SwitchedFrom[] = [];
   let tookOver = false;
   for (const o of others) {
-    switchedFromAll.push(switchedOf(o, now));
+    const switched = switchedOf(o, now);
+    switchedFromAll.push(switched);
     tookOver ||= heldElsewhere(o, w, now);
     await pauseTimer(tx, o, now);
+    // Switched away from: its time is asked to be logged, on every page.
+    const [paused] = await tx.select().from(timers).where(eq(timers.id, o.id));
+    decided(await openTimerLogIn(tx, paused, { end: now, seconds: switched.seconds }, { client: w.client, label: w.label }));
   }
   const switchedFrom = switchedFromAll.at(-1) ?? null;
   const existing = await rowOf(tx, userId, connectionId, issueKey);
@@ -375,6 +401,8 @@ export async function startTimerIn(
     return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: Math.max(epoch, await epochOf(tx, userId)) };
   }
   await openRun(tx, { userId, connectionId, issueKey }, startedAt);
+  // Resumed: the question to log its time no longer stands.
+  if (existing) decided(await endTimerLogIn(tx, userId, connectionId, issueKey, "resumed", { client: w.client, label: w.label }));
   if (existing) {
     await tx
       .update(timers)
@@ -488,7 +516,7 @@ export const timersRouter = createRouter({
       const parallelOff = mode === "alongside" && (await getSettings(ctx.user.id)).overlapPolicy === "block";
       // One transaction under the user's lock: two concurrent starts (two tabs,
       // two devices) can't both see "nothing running" and leave two timers going.
-      const start = () => act(ctx.user.id, input.opId, (tx) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from, mode, parallelOff }, now));
+      const start = () => act(ctx.user.id, input.opId, (tx, decided) => startTimerIn(tx, w, ctx.user.id, conn.id, input.issueKey, { force: input.force, from, mode, parallelOff }, now, decided), w.client);
       if (!from) return start();
       if (from.getTime() > now.getTime()) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromFuture") });
       if (dayKey(from) !== dayKey(now)) throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.fromToday") });
@@ -534,14 +562,18 @@ export const timersRouter = createRouter({
    * (worklogs.create with fromTimer), so cancelling the log loses nothing.
    */
   stop: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
-    return onTimer(ctx, input, async (tx, t, { now, w }) => {
+    return onTimer(ctx, input, async (tx, t, { now, w, conn, decided }) => {
       if (!t) return { found: false as const, seconds: 0, note: "", stoppedAt: null, epoch: await epochOf(tx, ctx.user.id) };
       if (t.state === "running") mayAct(t, w, now, input);
       const seconds = roundToMinute(elapsedSeconds(t, now));
       const epoch = t.state === "running" ? await pauseTimer(tx, t, now) : t.epoch;
       // Already paused: its time ended at the pause, not now.
       const stoppedAt = t.state === "running" ? now : (t.pausedAt ?? t.updatedAt);
-      return { found: true as const, seconds, note: t.note, stoppedAt, epoch };
+      // Stopped (not just paused): every page of the user asks to log it, until one does.
+      const paused = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
+      const d = paused ? await openTimerLogIn(tx, paused, { end: stoppedAt, seconds }, { client: w.client, label: w.label }) : null;
+      decided(d);
+      return { found: true as const, seconds, note: t.note, stoppedAt, epoch, decision: d ? { id: d.id, revision: d.revision } : null };
     });
   }),
 

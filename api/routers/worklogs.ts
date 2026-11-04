@@ -1,3 +1,5 @@
+import { answer } from "../decisions/store";
+import { whoOf } from "./timers";
 import { companionOf, dropHeldSinkDeletes, holdSinkDeletes, markForSinks, sinksSoon } from "../sync/extraSinks";
 import { companionEntry, createViaCompanion, deleteViaCompanion, updateViaCompanion } from "../sync/companion";
 import { ProviderError } from "../providers/core/errors";
@@ -434,6 +436,8 @@ export const worklogsRouter = createRouter({
           ...timeFields,
           /** Logging the time of a stopped timer: clear it once saved (if still stopped). */
           fromTimer: z.boolean().default(false),
+          /** The question this log answers (contracts/decisions): the first page to answer it wins. */
+          decision: z.object({ id: z.uuid(), revision: z.number().int().nonnegative() }).optional(),
           /**
            * The same time split around the day's breaks (contracts/placement.ts):
            * one worklog per part, in order, adding up to `seconds`. The timer's
@@ -468,7 +472,7 @@ export const worklogsRouter = createRouter({
       if (parts.reduce((a, p) => a + p.seconds, 0) !== seconds || !inOrder) {
         throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.invalidParts") });
       }
-      return withWriteLease(ctx.user.id, async () => {
+      const write = () => withWriteLease(ctx.user.id, async () => {
         // Every part checked before anything is written or taken from the timer.
         for (const p of parts) {
           await assertWeekOpen(ctx.user.id, p.started);
@@ -500,6 +504,9 @@ export const worklogsRouter = createRouter({
         sinksSoon(ctx.user.id);
         return saved[0];
       });
+      if (!input.decision) return write();
+      const w = whoOf(ctx);
+      return answer(ctx.user.id, input.decision, { client: w.client, label: w.label }, "logged", write, (r) => ({ worklogId: r.id }));
     }),
 
   update: protectedProcedure

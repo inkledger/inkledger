@@ -62,9 +62,8 @@ export const timerLog = {
   },
 };
 
-/** Timers a start switched off: each is asked to be logged, and the switch is announced. */
-export function announceSwitched(stopped: (PendingTimerLog & { stoppedAt: Date })[]) {
-  for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
+/** Timers a start switched off are announced; the server asks each to be logged, on every page (DecisionHost). */
+export function announceSwitched(stopped: { issueKey: string }[]) {
   if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
   else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
 }

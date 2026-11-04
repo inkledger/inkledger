@@ -33,6 +33,8 @@ export function MobileTimerSheet({
   const issues = trpc.issues.all.useQuery(undefined, { enabled: open, staleTime: 60_000 });
   const summaryOf = new Map((issues.data ?? []).map(i => [issueId(i), i.summary]));
   const logQueue = useTimerLogQueue();
+  // A question to log a timer, asked on any page, shows here too (DecisionHost).
+  const asked = trpc.decisions.list.useQuery(undefined, { enabled: open }).data?.some(d => (d.state === "open" || d.state === "resolving") && d.kind === "timer-log");
   // Running first, the one started last on top (timers side by side), then the ones stopped last.
   const sorted = [...timers].sort(
     (a, b) =>
@@ -43,7 +45,7 @@ export function MobileTimerSheet({
 
   // Nothing left to show, or a stopped timer asks to be logged: give way.
   const empty = timers.length === 0;
-  const logging = logQueue.length > 0;
+  const logging = logQueue.length > 0 || !!asked;
   useEffect(() => {
     if (open && (empty || logging)) onOpenChange(false);
   }, [open, empty, logging, onOpenChange]);

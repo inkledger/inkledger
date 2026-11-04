@@ -478,6 +478,15 @@ export const ui: Shape<typeof en> = {
     later: "Più tardi",
     spanPlaceholder: "Registra lo spazio vuoto su… (chiave o titolo)",
   },
+  decisions: {
+    loggedElsewhere: "Registrato su {device}",
+    laterElsewhere: "Rimandato su {device}",
+    resumed: "Non serve più: il timer è stato ripreso su {device}",
+    gone: "Non serve più: il tempo è stato registrato altrove",
+    waiting: "In attesa: registra il tempo di {key}",
+    open: "Apri",
+    close: "Chiudi",
+  },
   timerNote: {
     notSaved: "Nota non salvata: resta qui e viene inviata di nuovo alla prossima modifica.",
     label: "Cosa stai facendo su {key}?",

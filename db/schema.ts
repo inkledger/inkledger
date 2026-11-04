@@ -2027,3 +2027,46 @@ export const workspaceImports = pgTable("workspace_imports", {
   uniqueIndex("uq_workspace_import_draft").on(t.userId, t.draftId),
   check("workspace_import_device", sql`${t.deviceClass} IN ('desktop','mobile')`),
 ]);
+
+/**
+ * A question the app owes the user an answer to (log a stopped timer, away
+ * time, …), held here so every page and device of theirs shows the same one
+ * and the first answer wins (contracts/decisions.ts). One open per
+ * `dedupeKey`. JSON fields as text, like the rest of the schema.
+ */
+export const decisions = pgTable(
+  "decisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    dedupeKey: text("dedupe_key").notNull(),
+    state: text("state").notNull().default("open"),
+    payload: text("payload").notNull().default("{}"),
+    premise: text("premise").notNull().default("{}"),
+    draft: text("draft").notNull().default("{}"),
+    /** Who wrote each draft field last: {field: {client, at}} */
+    draftBy: text("draft_by").notNull().default("{}"),
+    revision: integer("revision").notNull().default(0),
+    busyBy: text("busy_by"),
+    busyLabel: text("busy_label").notNull().default(""),
+    busyUntil: ms("busy_until"),
+    resolution: text("resolution").notNull().default("{}"),
+    createdLabel: text("created_label").notNull().default(""),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ms("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("uq_decisions_open").on(t.userId, t.dedupeKey).where(sql`${t.state} IN ('open','resolving')`),
+    index("idx_decisions_user_state").on(t.userId, t.state, t.updatedAt),
+    check("decisions_state", sql`${t.state} IN ('open','resolving','resolved','dismissed','superseded','obsolete','expired')`),
+  ],
+);
+
+export type Decision = typeof decisions.$inferSelect;

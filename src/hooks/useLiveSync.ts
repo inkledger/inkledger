@@ -12,21 +12,24 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 type Utils = ReturnType<typeof trpc.useUtils>;
 
 /** What each event makes this page refetch, by name (several in one frame refetch once). */
-const refetches: Record<"timers" | "schedule" | "notesLists", (u: Utils) => Promise<unknown>> = {
+const refetches: Record<"timers" | "schedule" | "notesLists" | "decisions", (u: Utils) => Promise<unknown>> = {
   // The TODO worked on follows its timer.
   timers: u => Promise.all([u.timers.list.invalidate(), u.todos.working.invalidate()]),
   // Hours changed on another page or device: holes, placement and targets follow at once.
   schedule: u => u.workSchedule.invalidate(),
   notesLists: u => Promise.all([u.notes.tree.invalidate(), u.notes.trash.invalidate(), u.notes.search.invalidate()]),
+  decisions: u => u.decisions.list.invalidate(),
 };
 type Refetch = keyof typeof refetches;
 
 /** Which refetches an event asks for ("hello": a reconnect may have missed any of them). */
 const asks: Partial<Record<LiveEventType, Refetch[]>> = {
-  hello: ["timers", "schedule", "notesLists"],
+  hello: ["timers", "schedule", "notesLists", "decisions"],
   timers: ["timers"],
   schedule: ["schedule"],
   notes: ["notesLists"],
+  // A question asked, typed or answered on any page (this one's own echo too: the list is the truth).
+  decisions: ["decisions"],
 };
 
 /**

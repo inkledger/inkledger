@@ -56,17 +56,8 @@ export function useTimerActions(issueKey: string, connectionId?: number | null) 
     onError,
   });
   const stop = trpc.timers.stop.useMutation({
-    onSuccess: r => {
-      void invalidate();
-      if (r.found)
-        timerLog.push({
-          issueKey,
-          connectionId: on.connectionId,
-          seconds: r.seconds,
-          note: r.note,
-          end: r.stoppedAt ?? undefined,
-        });
-    },
+    // The question to log it comes from the server, on every page (DecisionHost).
+    onSuccess: () => void invalidate(),
     onError,
   });
 

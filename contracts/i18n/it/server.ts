@@ -297,6 +297,9 @@ export const server: Shape<typeof en> = {
     boardFull: "La lavagna è piena.",
     nameRequired: "Dai un nome alla lavagna",
   },
+  decisions: {
+    notStopped: "Il timer di {key} non è fermo: ancora niente da registrare.",
+  },
   timers: {
     moveSame: "Il timer è già su quella issue.",
     moveNone: "Nessun timer su {key} da spostare.",

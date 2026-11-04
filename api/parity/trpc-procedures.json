@@ -180,6 +180,22 @@
     "type": "query"
   },
   {
+    "path": "decisions.askTimerLog",
+    "type": "mutation"
+  },
+  {
+    "path": "decisions.dismiss",
+    "type": "mutation"
+  },
+  {
+    "path": "decisions.list",
+    "type": "query"
+  },
+  {
+    "path": "decisions.patchDraft",
+    "type": "mutation"
+  },
+  {
     "path": "desks.add",
     "type": "mutation"
   },

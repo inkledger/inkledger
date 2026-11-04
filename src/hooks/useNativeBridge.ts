@@ -4,7 +4,6 @@ import { trpc } from "@/lib/trpc";
 import { useTimers } from "@/hooks/useTimers";
 import { useStartTimer } from "@/hooks/useStartTimer";
 import { quickStart } from "@/lib/quickStart";
-import { timerLog } from "@/lib/timerLog";
 import { issueId } from "@/lib/issues";
 import {
   isNative,
@@ -82,11 +81,8 @@ export function useNativeBridge() {
     onError: e => toastError(e),
   });
   const stop = trpc.timers.stop.useMutation({
-    onSuccess: (r, { issueKey, connectionId }) => {
-      void invalidate();
-      if (r.found)
-        timerLog.push({ issueKey, connectionId, seconds: r.seconds, note: r.note, end: r.stoppedAt ?? undefined });
-    },
+    // Asked to be logged by the server, on every page (DecisionHost).
+    onSuccess: () => void invalidate(),
     onError: e => toastError(e),
   });
 

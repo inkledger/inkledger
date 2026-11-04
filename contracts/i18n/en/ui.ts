@@ -476,6 +476,15 @@ export const ui = {
     later: "Later",
     spanPlaceholder: "Log the gap on… (key or title)",
   },
+  decisions: {
+    loggedElsewhere: "Logged on {device}",
+    laterElsewhere: "Put off on {device}",
+    resumed: "No longer needed: the timer was resumed on {device}",
+    gone: "No longer needed: the time was logged elsewhere",
+    waiting: "Waiting for you: log time on {key}",
+    open: "Open",
+    close: "Close",
+  },
   timerNote: {
     notSaved: "Note not saved: it is kept here and sent again with your next change.",
     label: "What are you working on in {key}?",

@@ -84,6 +84,21 @@ type Props = {
   title?: string;
   /** Label of the dismiss button (default: "Cancel") */
   cancelLabel?: string;
+  /**
+   * The question this dialog answers, shown on every page of the user
+   * (contracts/decisions): its draft is theirs, the first answer wins.
+   */
+  shared?: SharedLog;
+};
+
+/** A log dialog shown on every page: one draft for all, opened at the same moment. */
+export type SharedLog = {
+  decision: { id: string; revision: number };
+  /** When it was asked (server time): placement is the same on every page. */
+  openedAt: Date;
+  /** The comment as typed on any page; `onComment` sends this page's typing. */
+  comment: string;
+  onComment: (comment: string) => void;
 };
 
 export function LogTimeDialog({
@@ -124,6 +139,7 @@ function LogTimeForm({
   onClose,
   title,
   cancelLabel,
+  shared,
 }: Omit<Props, "trigger" | "open" | "onOpenChange"> & { onClose: () => void }) {
   const id = useId();
   const invalidate = useInvalidateWorklogs();
@@ -149,7 +165,7 @@ function LogTimeForm({
   // Otherwise the block is placed by the shared rule: it ends now (or at the
   // timer stop), never over time already logged. Frozen at opening, so the
   // field does not move while typing.
-  const [openedAt] = useState(() => new Date());
+  const [openedAt] = useState(() => shared?.openedAt ?? new Date());
   // A timer run beside others: their time together is shared out by the percentages given here
   // (contracts/timerSplit.ts), each defaulting to what the others' logs left.
   const splitRead = trpc.timers.split.useQuery(
@@ -181,9 +197,12 @@ function LogTimeForm({
   const [startedTouched, setStartedTouched] = useState(
     !!worklog || !!prefillStart
   );
-  const [comment, setComment] = useState(
+  const [ownComment, setOwnComment] = useState(
     worklog?.comment ?? prefillComment ?? ""
   );
+  // Shared: the comment is the question's draft, typed on any page.
+  const comment = shared ? shared.comment : ownComment;
+  const setComment = shared ? shared.onComment : setOwnComment;
   // A stopped timer's dialog closed without logging (Later, Esc, outside): what was
   // typed stays as the timer's note, so the next opening has it back.
   const utils = trpc.useUtils();
@@ -192,7 +211,8 @@ function LogTimeForm({
   useEffect(
     () => () => {
       const note = typed.current.slice(0, 500);
-      if (!fromTimer || settled.current || note === (prefillComment ?? "")) return;
+      // Shared, the draft stays with the question on the server: nothing to keep here.
+      if (shared || !fromTimer || settled.current || note === (prefillComment ?? "")) return;
       void utils.client.timers.setNote
         .mutate({ issueKey, connectionId: connectionId ?? undefined, note })
         .then(() => utils.timers.list.invalidate())
@@ -338,6 +358,7 @@ function LogTimeForm({
         issueKey,
         connectionId,
         fromTimer,
+        ...(shared ? { decision: shared.decision } : {}),
         parts: parts && partsInput(parts, parsed),
         ...(sharing && splitRead.data
           ? { split: { until: new Date(splitRead.data.until).toISOString(), shares: sharing.groups.map(g => ({ with: g.others, bp: Math.round(g.bp) })) } }

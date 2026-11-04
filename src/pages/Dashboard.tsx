@@ -102,7 +102,7 @@ import { ModuleSlot } from "@/modules/ModuleHost";
 import { isClosed, isWaiting } from "@contracts/categories";
 import { gapNeighbours } from "@/lib/gapCuts";
 import { placePendingTimers } from "@/lib/pendingTimers";
-import { timerLog } from "@/lib/timerLog";
+import { useAskTimerLog } from "@/hooks/useAskTimerLog";
 import { topIssueTotals } from "@/lib/issueTotals";
 import { focusTimer, runningTimers } from "@/lib/timerFocus";
 
@@ -170,6 +170,7 @@ const LIVE_CONTROLS = <ActiveTimerQuickControls compact />;
  */
 function HeaderTimer() {
   const { timers, fetchedAt } = useTimers();
+  const askTimerLog = useAskTimerLog();
   const timer = focusTimer(timers);
   if (!timer) return null;
   const running = timer.state === "running";
@@ -202,8 +203,7 @@ function HeaderTimer() {
           {...flowControlProps("dashboard.timer.logStopped")}
           onClick={() => {
             const [oldest] = toLog;
-            if (oldest.pausedAt)
-              timerLog.push({ issueKey: oldest.issueKey, connectionId: oldest.connectionId ?? undefined, seconds: oldest.elapsedSeconds, note: oldest.note, end: new Date(oldest.pausedAt) });
+            if (oldest.pausedAt) askTimerLog(oldest);
           }}
         >
           {t("pages.dashboard.toLog", { count: toLog.length })}
@@ -408,6 +408,7 @@ function DashboardContent() {
   const todoByDay = useMemo(() => todoTimeByDay(todoSpans), [todoSpans]);
   const timerState = useTimers();
   const { timers } = timerState;
+  const askTimerLog = useAskTimerLog();
   // Today on screen: its parts show the time tracked and not yet logged (they tick, not the page).
   const pending = range.from <= today && today < range.to;
 
@@ -588,13 +589,7 @@ function DashboardContent() {
     // Its pieces are "pending:<id>#<n>": a key may hold a "#" itself (acme/web#1).
     const tm = timers.find(x => entry.id === `pending:${issueId(x)}` || entry.id.startsWith(`pending:${issueId(x)}#`));
     if (!tm?.pausedAt) return;
-    timerLog.push({
-      issueKey: tm.issueKey,
-      connectionId: tm.connectionId ?? undefined,
-      seconds: tm.elapsedSeconds,
-      note: tm.note,
-      end: new Date(tm.pausedAt),
-    });
+    askTimerLog(tm);
   };
 
   const stacks: DayStack[] = range.days.map(day => ({

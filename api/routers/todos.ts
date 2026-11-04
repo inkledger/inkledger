@@ -10,6 +10,7 @@ import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
+import { openTimerLogIn } from "../decisions/store";
 import { act, epochOf, heldElsewhere, pauseTimer, refuse, startTimerIn, switchedOf, whoOf, type SwitchedFrom } from "./timers";
 import { beginSession, closeStaleSession, endSession, openSession } from "../queries/todoSessions";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
@@ -428,23 +429,27 @@ export const todosRouter = createRouter({
       const issueKey = row.issueKey;
       if (issueKey !== null && row.connectionId !== null) {
         const connectionId = row.connectionId;
-        return act(ctx.user.id, input.opId, async (tx) => {
-          const r = await startTimerIn(tx, w, ctx.user.id, connectionId, issueKey, { force: input.force, from: null }, now);
+        return act(ctx.user.id, input.opId, async (tx, decided) => {
+          const r = await startTimerIn(tx, w, ctx.user.id, connectionId, issueKey, { force: input.force, from: null }, now, decided);
           await beginSession(tx, ctx.user.id, row, true, now);
           return { ...r, linked: true };
-        });
+        }, w.client);
       }
-      return act(ctx.user.id, input.opId, async (tx) => {
+      return act(ctx.user.id, input.opId, async (tx, decided) => {
         const running = await tx.select().from(timers).where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
         for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
         const switchedFromAll: SwitchedFrom[] = [];
         for (const o of running) {
-          switchedFromAll.push(switchedOf(o, now));
+          const switched = switchedOf(o, now);
+          switchedFromAll.push(switched);
           await pauseTimer(tx, o, now);
+          // Switched away from: asked to be logged on every page, as by a timer start.
+          const [paused] = await tx.select().from(timers).where(eq(timers.id, o.id));
+          decided(await openTimerLogIn(tx, paused, { end: now, seconds: switched.seconds }, { client: w.client, label: w.label }));
         }
         await beginSession(tx, ctx.user.id, row, false, now);
         return { ok: true, switchedFrom: switchedFromAll.at(-1) ?? null, switchedFromAll, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
-      });
+      }, w.client);
     }),
 
   /**

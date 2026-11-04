@@ -5,7 +5,7 @@ import { z } from "zod";
 import { env } from "./lib/env";
 import { getServerSetting, setServerSetting } from "./lib/serverSettings";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { rememberedDevices, sessions, users } from "@db/schema";
+import { decisions, rememberedDevices, sessions, users } from "@db/schema";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { enterMaintenance, leaveMaintenance } from "./lib/maintenance";
 import { t } from "@contracts/i18n";
@@ -327,6 +327,8 @@ async function signOutAfterRestore(keep?: Keep, device?: { expiresAt: Date; last
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
+  // Questions open then are not questions now: the restored data says what is to log.
+  await db.delete(decisions);
   if (!keep) return;
   const [still] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, keep.userId), eq(users.username, keep.username), isNull(users.disabledAt)));
   if (!still) return;

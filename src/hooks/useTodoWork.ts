@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { announceSwitched, timerLog } from "@/lib/timerLog";
+import { announceSwitched } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
 import { toastError } from "@/lib/errorText";
 import { t } from "@/i18n";
@@ -36,9 +36,9 @@ export function useTodoWork() {
     );
   const stop = (w: Working): Promise<void> =>
     w.linked && w.issueKey
-      ? utils.client.timers.stop.mutate({ issueKey: w.issueKey, connectionId: w.connectionId ?? undefined, opId: newOpId() }).then(r => {
+      ? utils.client.timers.stop.mutate({ issueKey: w.issueKey, connectionId: w.connectionId ?? undefined, opId: newOpId() }).then(() => {
+          // Asked to be logged by the server, on every page (DecisionHost).
           void refresh();
-          if (r.found) timerLog.push({ issueKey: w.issueKey ?? "", connectionId: w.connectionId ?? undefined, seconds: r.seconds, note: r.note, end: r.stoppedAt ?? undefined });
         }, toastError)
       : utils.client.todos.stopWork.mutate().then(() => void refresh(), toastError);
   return { start, stop };

@@ -112,6 +112,20 @@ describe("nobody reaches another user's things by id", () => {
     expect(await ann.worklogs.trash()).toEqual([]);
   });
 
+  it("decisions: someone else's question can't be read, typed into or answered", async () => {
+    const [d] = await q<{ id: string }>(
+      "INSERT INTO decisions (user_id, kind, dedupe_key, payload, created_at, updated_at) SELECT id, 'timer-log', 'timer-log:1:BOB-1', '{\"issueKey\":\"BOB-1\"}', 1, 1 FROM users WHERE username = 'bob' RETURNING id",
+    );
+    expect(await ann.decisions.list()).toEqual([]);
+    for (const call of [
+      () => ann.decisions.patchDraft({ id: d.id, fields: { comment: "mine" } }),
+      () => ann.decisions.dismiss({ id: d.id, revision: 0 }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    expect(await q("SELECT state, draft FROM decisions WHERE id = ?", d.id)).toEqual([{ state: "open", draft: "{}" }]);
+  });
+
   it("TODOs: someone else's by id, on someone else's issue, comment or private note", async () => {
     const [todo] = await q<{ id: number }>("INSERT INTO todos (user_id, text, position, created_at, updated_at) SELECT id, 'Bob''s', 0, 1, 1 FROM users WHERE username = 'bob' RETURNING id");
     const [note] = await q<{ id: number }>("INSERT INTO issue_notes (user_id, connection_id, issue_key, body, created_at, updated_at) SELECT id, ?, 'BOB-1', 'n', 1, 1 FROM users WHERE username = 'bob' RETURNING id", bob.conn);

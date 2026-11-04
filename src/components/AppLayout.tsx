@@ -111,6 +111,7 @@ const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistor
 // The palette's body: its ⌘K stays in the first load (useCommandPaletteShortcut), so a key pressed at once is never lost.
 const CommandPalette = lazyPart(() => import("@/components/CommandPalette").then(m => m.CommandPalette));
 const TimerLogHost = lazyPart(() => import("@/components/TimerLogHost").then(m => m.TimerLogHost));
+const DecisionHost = lazyPart(() => import("@/components/decisions/DecisionHost").then(m => m.DecisionHost));
 const MakeTodoHost = lazyPart(() => import("@/components/todo/MakeTodo").then(m => m.MakeTodoHost));
 
 /** Opens the focus view; shown only while a timer exists. */
@@ -843,7 +844,7 @@ export function AppLayout() {
         <Screensaver />
         <LiveTitle />
         <ShortcutsDialog />
-        <WorkspaceInteractionBoundary><TimerLogHost /></WorkspaceInteractionBoundary>
+        <WorkspaceInteractionBoundary><TimerLogHost /><DecisionHost /></WorkspaceInteractionBoundary>
         <NotificationCenter />
         <PinboardWidget />
         <TodoWidget />

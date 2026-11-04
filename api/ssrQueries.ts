@@ -32,6 +32,8 @@ export async function prefetchSSR(helpers: SSRHelpers, url: URL, mustChangePassw
     helpers.todos.working.prefetch(),
     helpers.outbox.list.prefetch(),
     helpers.modules.list.prefetch(),
+    // A question open on another page shows on this one's first paint.
+    helpers.decisions.list.prefetch(),
   ];
   if (mustChangePassword) {
     await Promise.all([helpers.auth.me.prefetch(), ...common]);
