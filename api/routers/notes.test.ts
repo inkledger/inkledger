@@ -349,7 +349,7 @@ describe("notes tRPC router", () => {
     const { subscribe } = await import("../lib/userEvents");
     const events: unknown[] = [];
     const close = () => {};
-    const unsubscribe = subscribe(userId, event => events.push(event), close);
+    const unsubscribe = subscribe(userId, s => events.push(s.e), close);
     try {
       const note = await me.notes.create({
         title: "event",

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { LIVE_EVENTS, type LiveEventType } from "@contracts/liveEvents";
 
 /**
  * The page's line to /api/events: what changed for the user elsewhere (a
@@ -16,6 +17,8 @@ const listeners = new Set<Listener>();
 let state: LiveState = "connecting";
 /** When the server was last heard from (event or open), epoch ms. */
 let heardAt = 0;
+/** Server clock minus this device's, from the last hello (ms): moments asked by the server read the same everywhere. */
+let offset = 0;
 
 const set = (next: LiveState) => {
   if (next === "live") heardAt = Date.now();
@@ -35,22 +38,24 @@ const parsed = (data: unknown): unknown => {
 export const liveEvents = {
   get: () => state,
   heardAt: () => heardAt,
+  /** Now on the server's clock (epoch ms). */
+  serverNow: () => Date.now() + offset,
   /** Opens the stream; `on` gets each event's name and data. Returns the closer. */
-  open(on: (type: string, data: unknown) => void): () => void {
+  open(on: (type: LiveEventType, data: unknown) => void): () => void {
     if (typeof EventSource === "undefined") {
       set("offline");
       return () => undefined;
     }
     const src = new EventSource("/api/events");
-    const heard = (type: string) => (e: MessageEvent) => {
+    const heard = (type: LiveEventType) => (e: MessageEvent) => {
       set("live");
-      on(type, parsed(e.data));
+      const data = parsed(e.data);
+      if (type === "hello" && typeof data === "object" && data !== null && "serverNow" in data && typeof data.serverNow === "number") {
+        offset = data.serverNow - Date.now();
+      }
+      on(type, data);
     };
-    src.addEventListener("hello", heard("hello"));
-    src.addEventListener("timers", heard("timers"));
-    src.addEventListener("bucket", heard("bucket"));
-    src.addEventListener("notes", heard("notes"));
-    src.addEventListener("schedule", heard("schedule"));
+    for (const type of LIVE_EVENTS) src.addEventListener(type, heard(type));
     src.onopen = () => set("live");
     src.onerror = () => set(navigator.onLine === false ? "offline" : "connecting");
     const offline = () => set("offline");

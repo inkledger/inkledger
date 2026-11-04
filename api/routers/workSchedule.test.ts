@@ -140,7 +140,7 @@ describe("hours of a single day", () => {
   it("tells the user's other pages", async () => {
     const { subscribe } = await import("../lib/userEvents");
     const seen: string[] = [];
-    const stop = subscribe(userId, (e) => seen.push(e.type), () => undefined);
+    const stop = subscribe(userId, (s) => seen.push(s.e.type), () => undefined);
     await caller.workSchedule.saveDay({ day: "2026-12-02", workDay: lateLunch });
     await caller.workSchedule.removeDay({ day: "2026-12-02" });
     stop();

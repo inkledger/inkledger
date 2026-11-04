@@ -81,4 +81,45 @@ describe("GET /api/events", () => {
     expect(got).not.toContain('"epoch":42');
     expect(streamCount()).toBe(0);
   });
+
+  it("a page reconnecting with its last event id gets what it missed; one too far behind is told to resync", async () => {
+    const { publish, closeAllStreams, RUN } = await import("./lib/userEvents");
+    const { userFromRequest } = await import("./context");
+    const { user } = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+    const open = async (lastId?: string) => {
+      const res = await app.request("/api/events", { headers: { cookie, ...(lastId ? { "last-event-id": lastId } : {}) } });
+      const reader = res.body!.getReader();
+      const text = new TextDecoder();
+      let got = "";
+      const until = async (needle: string) => {
+        while (!got.includes(needle)) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          got += text.decode(value);
+        }
+        return got;
+      };
+      return until;
+    };
+    publish(user!.id, { type: "timers", epoch: 100 });
+    const first = await open();
+    const hello = await first("event: hello");
+    const id = /id: (\S+)/.exec(hello)![1];
+    closeAllStreams();
+    publish(user!.id, { type: "timers", epoch: 101 });
+    publish(user!.id, { type: "schedule" });
+    const again = await (await open(id))("event: schedule");
+    expect(again).toContain('"epoch":101');
+    expect(again).not.toContain('"epoch":100');
+    expect(again).toContain('"resync":false');
+    // The page that caused an event is named: its own echo is known as such.
+    publish(user!.id, { type: "schedule" }, "client-page-0001");
+    const echoed = await (await open(id))("client-page-0001");
+    expect(echoed).toContain('"origin":"client-page-0001"');
+    closeAllStreams();
+    const lost = await (await open("another-run:3"))("event: hello");
+    expect(lost).toContain('"resync":true');
+    expect(lost).toContain(`id: ${RUN}:`);
+    closeAllStreams();
+  });
 });

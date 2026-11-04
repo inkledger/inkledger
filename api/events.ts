@@ -2,7 +2,8 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { streamSSE } from "hono/streaming";
 import { restUser } from "./context";
-import { subscribe, type UserEvent } from "./lib/userEvents";
+import type { Hello } from "@contracts/liveEvents";
+import { RUN, lastSeq, missedSince, subscribe, type Sent } from "./lib/userEvents";
 import { isShuttingDown } from "./lib/shutdown";
 import { serverBuild } from "./lib/appBuild";
 
@@ -27,7 +28,7 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
       let done: () => void = () => undefined;
       const ended = new Promise<void>((resolve) => (done = resolve));
       const end = ended.then(() => "end" as const);
-      const queue: UserEvent[] = [];
+      const queue: Sent[] = [];
       let wake: () => void = () => undefined;
       const unsubscribe = subscribe(
         userId,
@@ -45,12 +46,24 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
         return "user" in now && now.user.id === userId;
       };
       try {
-        await stream.writeSSE({ event: "hello", data: JSON.stringify({ build: serverBuild() ?? null }) });
+        // A page reconnecting with the id of the last event it got catches up on what it missed;
+        // when that can't be told, `resync` tells it to refetch everything it shows.
+        const lastId = c.req.header("last-event-id");
+        const missed = lastId ? missedSince(userId, lastId) : [];
+        await stream.writeSSE({
+          event: "hello",
+          // Caught up from its own id: until the missed events arrive, that is where it is.
+          id: lastId && missed ? lastId : `${RUN}:${lastSeq(userId)}`,
+          data: JSON.stringify({ build: serverBuild() ?? null, serverNow: Date.now(), resync: missed === null } satisfies Hello),
+        });
+        const queued = new Set(queue.map(s => s.seq));
+        queue.push(...(missed ?? []).filter(s => !queued.has(s.seq)));
+        queue.sort((a, b) => a.seq - b.seq);
         while (!stream.aborted && !stream.closed) {
           // What arrived while writing goes out before waiting again.
           if (queue.length > 0) {
             if (!(await signedIn())) break;
-            for (const e of queue.splice(0)) await stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
+            for (const s of queue.splice(0)) await stream.writeSSE({ event: s.e.type, id: `${RUN}:${s.seq}`, data: JSON.stringify(s.origin ? { ...s.e, origin: s.origin } : s.e) });
           }
           let keepalive: ReturnType<typeof setTimeout> | undefined;
           const next = await Promise.race([

@@ -18,3 +18,10 @@ export function deviceId(): string {
   writeStored(KEY, fallback);
   return fallback;
 }
+
+/**
+ * This page load's id: which of the user's open pages acted (its own echo is
+ * known as such). In memory, never stored: a duplicated tab gets its own.
+ */
+const client = randomUUID();
+export const clientId = (): string => client;

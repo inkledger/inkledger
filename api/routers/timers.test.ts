@@ -241,7 +241,7 @@ describe("timers across devices: one owner, take-over on purpose, never counted 
     const { subscribe } = await import("../lib/userEvents");
     const ids = async () => (await q<{ id: number }>("SELECT id FROM users LIMIT 1"))[0].id;
     const seen: string[] = [];
-    const off = subscribe(await ids(), (e) => seen.push(e.type), () => undefined);
+    const off = subscribe(await ids(), (s) => seen.push(s.e.type), () => undefined);
     const laptop = on("device-laptop-1");
     await laptop.timers.start({ issueKey: "PRJ-1" });
     await laptop.timers.setNote({ issueKey: "PRJ-1", note: "x" });

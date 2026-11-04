@@ -254,7 +254,7 @@ describe("pinboards for one bucket, or for every bucket", () => {
     const { subscribe } = await import("../lib/userEvents");
     const [me] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'scoped'");
     const heard: unknown[] = [];
-    const stop = subscribe(me.id, (e) => heard.push(e), () => undefined);
+    const stop = subscribe(me.id, (s) => heard.push(s.e), () => undefined);
     await device.buckets.setActive({ id: null });
     stop();
     expect(heard).toEqual([{ type: "bucket", deviceId: "device-scope-1" }]);

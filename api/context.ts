@@ -18,6 +18,8 @@ export type TrpcContext = {
   remoteAddress?: string;
   /** The device asking (x-device-id): what it remembers for itself, its active bucket */
   deviceId?: string;
+  /** This page load (x-client-id): which of the user's open pages acted. */
+  clientId?: string;
 };
 
 export function parseCookies(header: string | null): Record<string, string> {
@@ -95,13 +97,20 @@ export async function createContext(
   if (user && sessionId && cookie && expiresAt) {
     await renewIfHalfSpent(opts, sessionId, cookie, expiresAt);
   }
-  const device = opts.req.headers.get("x-device-id")?.trim();
+  const device = idHeader(opts.req, "x-device-id");
   return {
     req: opts.req,
     resHeaders: opts.resHeaders,
     user,
     sessionId,
     remoteAddress,
-    deviceId: device && /^[\w-]{8,64}$/.test(device) ? device : undefined,
+    deviceId: device,
+    clientId: idHeader(opts.req, "x-client-id"),
   };
+}
+
+/** A device's or page's id from its header (x-device-id, x-client-id), when well formed. */
+export function idHeader(req: Request, name: string): string | undefined {
+  const v = req.headers.get(name)?.trim();
+  return v && /^[\w-]{8,64}$/.test(v) ? v : undefined;
 }
