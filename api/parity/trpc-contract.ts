@@ -217,7 +217,7 @@ export interface FrozenIn {
   "notes.updateContent": { body: string; expectedRevision: number; id: string; title: string };
   "notes.versions": { id: string };
   "notifications.count": void;
-  "notifications.createTest": { issueKey?: string | undefined; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "unassigned" | "watch_added" | "watch_removed" };
+  "notifications.createTest": { issueKey?: string | undefined; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed" };
   "notifications.dismiss": { id: number };
   "notifications.dismissAll": void;
   "notifications.dismissMany": { ids: number[] };
@@ -571,7 +571,7 @@ export interface FrozenOut {
   "notifications.dismiss": { dismissed: number };
   "notifications.dismissAll": { dismissed: number };
   "notifications.dismissMany": { dismissed: number };
-  "notifications.list": { connectionId: number; createdAt: Date; detail: string; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "unassigned" | "watch_added" | "watch_removed"; priority: null | string; projectKey: null | string; status: null | string; statusCategory: null | string; summary: null | string }[];
+  "notifications.list": { connectionId: number; createdAt: Date; detail: string; id: number; issueKey: string; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed"; priority: null | string; projectKey: null | string; status: null | string; statusCategory: null | string; summary: null | string }[];
   "outbox.discard": { ok: boolean };
   "outbox.list": { attempts: number; comment: string; createdAt: Date; id: number; issueKey: string; issueSummary: null | string; kind: string; lastError: string; remoteId: string; started: Date | null; timeSpentSeconds: number }[];
   "outbox.retry": { failed: number; remaining: number; synced: number };

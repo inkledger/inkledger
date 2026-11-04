@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { AtSign, CalendarClock, Eye, EyeOff, Flame, GitPullRequest, MessageSquare, Play, RefreshCw, UserMinus, UserPlus, X } from "lucide-react";
+import { ArrowRightLeft, AtSign, CalendarClock, Eye, EyeOff, Flame, GitPullRequest, MessageSquare, Play, RefreshCw, UserMinus, UserPlus, X } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { parseDayKey } from "@contracts/time";
@@ -70,6 +70,11 @@ const KIND_STYLE: Record<
     tone: "bg-muted text-muted-foreground",
     canStart: false,
   },
+  status: {
+    icon: ArrowRightLeft,
+    tone: "bg-muted text-muted-foreground",
+    canStart: false,
+  },
 };
 
 function ago(date: Date): string {
@@ -85,6 +90,7 @@ function ago(date: Date): string {
 /** The reason line: what happened, and when. */
 function reason(kind: string, detail: string, createdAt: Date): string {
   if (kind === "priority") return t("settings.notifications.nowPriority", { detail, ago: ago(createdAt) });
+  if (kind === "status" && detail) return t("settings.notifications.statusFromTo", { detail, ago: ago(createdAt) });
   if (kind === "due") {
     const d = parseDayKey(detail);
     return d

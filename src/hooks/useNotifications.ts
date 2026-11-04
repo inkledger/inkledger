@@ -40,13 +40,16 @@ const KIND_TITLE: Record<string, string> = {
   get changed() {
     return t("ui.notify.changed");
   },
+  get status() {
+    return t("ui.notify.status");
+  },
 };
 
 type NotificationLike = { kind: string; issueKey: string; detail: string };
 
 /** Toast / browser title for one notification ("Assigned to you: AB-1"). */
 export function notificationTitle(n: NotificationLike): string {
-  const what = `${KIND_TITLE[n.kind] ?? t("ui.notify.news")}${n.kind === "priority" ? ` ${n.detail}` : ""}`;
+  const what = `${KIND_TITLE[n.kind] ?? t("ui.notify.news")}${(n.kind === "priority" || n.kind === "status") && n.detail ? ` ${n.detail}` : ""}`;
   return `${what}: ${n.issueKey}`;
 }
 

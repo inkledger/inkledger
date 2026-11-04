@@ -20,10 +20,11 @@ import {
   componentNames,
   parseJiraDate,
   fetchOpenIssueActivity,
+  type IssueActivity,
   JiraApiError,
   type JiraSearchedIssue,
 } from "../jira/client";
-import { detectNotifications, insertNotifications, snapshotIssues } from "../routers/notifications";
+import { activityNotifications, detectNotifications, insertNotifications, snapshotIssues } from "../routers/notifications";
 import { connectionOptions, contextFor, type JiraUser } from "../providers/connections";
 
 /**
@@ -286,6 +287,9 @@ function incrementalWindowMin(): number {
   return Math.max(7, env.syncIntervalMin + 2);
 }
 
+/** How far before the last pass others' comments and status changes are still news (Jira's clock vs ours). */
+const EVENTS_MARGIN_MS = 10 * 60_000;
+
 type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 type UpsertContext = {
@@ -461,14 +465,11 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
       watchersSynced = await syncWatchers(ctx, creds, remoteKeys);
     }
     // Latest comment / status change (anyone) drive the "Activity" order,
-    // the ones by others the unread mark; best effort, the between-syncs
-    // estimate remains as fallback.
+    // the ones by others the unread mark and the news; best effort, the
+    // between-syncs estimate remains as fallback.
+    let activity = new Map<string, IssueActivity>();
     try {
-      const activity = await fetchOpenIssueActivity(
-        creds,
-        user.accountId,
-        full ? undefined : windowMin,
-      );
+      activity = await fetchOpenIssueActivity(creds, user.accountId, { mine, windowMin, incremental: !full });
       await getDb().transaction(async (tx) => {
         for (const [key, a] of activity) {
           // A null comment time is news too (comments deleted).
@@ -496,9 +497,15 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     } else {
       // The first full sync only records the watched set: no watcher news.
       const watch = watchersSynced && (state?.lastFullSyncAt ?? null) !== null;
+      const after = await snapshotIssues(user.id, user.connectionId);
+      // What others did since the last pass (a margin for the clocks; repeats are deduplicated).
+      const since = (lastSyncAt?.getTime() ?? syncStart) - EVENTS_MARGIN_MS;
       await insertNotifications(
         user.id,
-        detectNotifications(before, await snapshotIssues(user.id, user.connectionId), user.accountId, user.connectionId, syncStart, { watch }),
+        [
+          ...detectNotifications(before, after, user.accountId, user.connectionId, syncStart, { watch }),
+          ...activityNotifications(activity, after, user.connectionId, since),
+        ],
         Date.now(),
       );
     }

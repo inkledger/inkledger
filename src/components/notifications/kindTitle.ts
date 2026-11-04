@@ -23,6 +23,8 @@ export function kindTitle(kind: string): string {
       return t("settings.notifications.kinds.review");
     case "changed":
       return t("settings.notifications.kinds.changed");
+    case "status":
+      return t("settings.notifications.kinds.status");
     default:
       return t("settings.notifications.kinds.unknown");
   }

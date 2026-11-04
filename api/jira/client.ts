@@ -158,6 +158,7 @@ export type JiraSearchedIssue = {
     statuscategorychangedate?: string | null;
     comment?: {
       comments?: {
+        id?: string;
         created?: string;
         author?: { accountId?: string; name?: string; key?: string };
       }[];
@@ -166,9 +167,10 @@ export type JiraSearchedIssue = {
   /** Present with expand=changelog */
   changelog?: {
     histories?: {
+      id?: string;
       created?: string;
       author?: { accountId?: string; name?: string; key?: string };
-      items?: { field?: string }[];
+      items?: { field?: string; fromString?: string | null; toString?: string | null }[];
     }[];
   };
 };
@@ -347,7 +349,14 @@ export type IssueActivity = {
   /** Same two, by someone other than the user (drives "unread") */
   othersCommentAt: number | null;
   othersStatusChangedAt: number | null;
+  /** Each comment and status change by someone else (the notifications' news), oldest first */
+  events: IssueEvent[];
 };
+
+/** Something someone else did on an issue: a comment, or a status change (`from` → `to`, in Jira's words). */
+export type IssueEvent =
+  | { kind: "comment"; id: string; at: number }
+  | { kind: "status"; id: string; at: number; from: string; to: string };
 
 type JiraAuthor = { accountId?: string; name?: string; key?: string } | undefined;
 
@@ -357,19 +366,27 @@ export function isAuthor(author: JiraAuthor, me: string): boolean {
 }
 
 /**
- * Latest comment and latest status change of the open assigned issues, from
- * comments and the changelog: by anyone (ordering) and by others than `me`
- * (unread). Kept to open issues: both are heavy and done work is quiet.
+ * Latest comment and latest status change of my open issues and the ones I
+ * watch, from comments and the changelog: by anyone (ordering), by others than
+ * `me` (unread), and each thing others did (notifications). Kept to open issues,
+ * and the ones closed within the window (closed by someone is news): both are
+ * heavy and done work is quiet.
  */
 export async function fetchOpenIssueActivity(
   creds: JiraCredentials,
   me: string,
-  /** Incremental sync: only issues updated in the last N minutes */
-  updatedWithinMin?: number,
+  opts: {
+    mine: JiraMine;
+    /** Minutes back a closed issue is still read (closed by someone meanwhile) */
+    windowMin: number;
+    /** Incremental sync: only issues updated within the window */
+    incremental: boolean;
+  },
 ): Promise<Map<string, IssueActivity>> {
+  const recent = updatedWindow(opts.windowMin);
   const open = await searchIssues(
     creds,
-    `assignee = currentUser() AND statusCategory != done${updatedWithinMin ? ` AND ${updatedWindow(updatedWithinMin)}` : ""}`,
+    `(${mineJql(opts.mine)} OR watcher = currentUser()) AND (statusCategory != done OR ${recent})${opts.incremental ? ` AND ${recent}` : ""}`,
     1000,
     "comment",
     "changelog",
@@ -394,9 +411,30 @@ export async function fetchOpenIssueActivity(
       othersStatusChangedAt: latest(
         statusChanges.filter((h) => !isAuthor(h.author, me)).map((h) => h.created),
       ),
+      events: othersEvents(comments, statusChanges, me),
     });
   }
   return out;
+}
+
+type SearchedComment = NonNullable<NonNullable<JiraSearchedIssue["fields"]["comment"]>["comments"]>[number];
+type SearchedHistory = NonNullable<NonNullable<JiraSearchedIssue["changelog"]>["histories"]>[number];
+
+/** What others did on an issue, oldest first: each comment, each status change (one per status item). */
+function othersEvents(comments: SearchedComment[], histories: SearchedHistory[], me: string): IssueEvent[] {
+  const events: IssueEvent[] = [];
+  for (const c of comments) {
+    const at = parseJiraDate(c.created);
+    if (c.id && at !== null && !isAuthor(c.author, me)) events.push({ kind: "comment", id: c.id, at });
+  }
+  for (const h of histories) {
+    const at = parseJiraDate(h.created);
+    if (!h.id || at === null || isAuthor(h.author, me)) continue;
+    for (const it of h.items ?? []) {
+      if (it.field === "status") events.push({ kind: "status", id: h.id, at, from: it.fromString ?? "", to: it.toString ?? "" });
+    }
+  }
+  return events.sort((a, b) => a.at - b.at);
 }
 
 /** JQL clause: issues updated in the last `minutes` minutes. */

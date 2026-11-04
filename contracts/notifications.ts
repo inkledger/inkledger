@@ -1,7 +1,8 @@
 /**
  * Kinds of persistent in-app notifications: what a sync sees change (the
- * first six), and what a tracker's own inbox says (mentioned, commented,
- * review asked, changed by someone).
+ * first six), what a tracker's own inbox says (mentioned, commented, review
+ * asked, changed by someone), and a status changed by someone (Jira reads
+ * it, and others' comments, from the issue's own history).
  */
 export const NOTIFICATION_KINDS = [
   "assigned",
@@ -14,6 +15,7 @@ export const NOTIFICATION_KINDS = [
   "commented",
   "review",
   "changed",
+  "status",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

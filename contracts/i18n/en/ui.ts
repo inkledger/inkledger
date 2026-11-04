@@ -503,6 +503,7 @@ export const ui = {
     commented: "New comment",
     review: "Your review is asked",
     changed: "Changed by someone",
+    status: "Status changed",
     news: "News",
     newsCount: { one: "{count} update on your issues", other: "{count} updates on your issues" },
     open: "Open",

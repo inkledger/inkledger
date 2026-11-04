@@ -505,6 +505,7 @@ export const ui: Shape<typeof en> = {
     commented: "Nuovo commento",
     review: "Ti chiedono una review",
     changed: "Modificata da qualcuno",
+    status: "Cambio di stato",
     news: "Novità",
     newsCount: { one: "{count} novità sulle tue issue", other: "{count} novità sulle tue issue" },
     open: "Apri",

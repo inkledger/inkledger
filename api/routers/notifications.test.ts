@@ -48,6 +48,13 @@ const byKey = new Map<string, JiraIssue>();
 /** Every JQL asked, in order */
 let jqls: string[] = [];
 
+type Who = { accountId: string };
+type Comment = { id: string; created: string; author: Who };
+type History = { id: string; created: string; author: Who; items: { field: string; fromString: string; toString: string }[] };
+/** The activity search (comments and changelog of my and watched issues), by key */
+let activity: { key: string; comments?: Comment[]; histories?: History[] }[] = [];
+const jiraTime = (ms: number) => new Date(ms).toISOString().replace("Z", "+0000");
+
 vi.stubGlobal(
   "fetch",
   vi.fn(async (input: string | URL | Request) => {
@@ -72,7 +79,9 @@ vi.stubGlobal(
       const params = new URL(url).searchParams;
       const jql = params.get("jql") ?? "";
       jqls.push(jql);
-      if (params.get("fields") === "comment") return json({ isLast: true, issues: [] });
+      if (params.get("fields") === "comment") {
+        return json({ isLast: true, issues: activity.map((a) => ({ id: a.key, key: a.key, fields: { comment: { comments: a.comments ?? [] } }, changelog: { histories: a.histories ?? [] } })) });
+      }
       const keys = /^key in \((.*)\)$/.exec(jql);
       if (keys) {
         const wanted = keys[1].split(",");
@@ -129,6 +138,7 @@ describe("notifications, incremental sync, watchers", () => {
     assigned = opts.mine ?? [jiraIssue("AB-1"), jiraIssue("AB-2")];
     watched = opts.watch ?? [];
     recent = [];
+    activity = [];
     byKey.clear();
     await caller.issues.sync();
   };
@@ -284,7 +294,7 @@ describe("notifications, incremental sync, watchers", () => {
     expect(r.full).toBe(false);
     expect(jqls).toEqual([
       '(assignee = currentUser() OR assignee was currentUser()) AND updated >= "-7m" ORDER BY updated DESC',
-      'assignee = currentUser() AND statusCategory != done AND updated >= "-7m"',
+      '(assignee = currentUser() OR watcher = currentUser()) AND (statusCategory != done OR updated >= "-7m") AND updated >= "-7m"',
     ]);
     expect(await kinds()).toEqual(["assigned:AB-3", "unassigned:AB-2"]);
     expect(await raw("SELECT key FROM issues ORDER BY key")).toEqual([{ key: "AB-1" }, { key: "AB-2" }, { key: "AB-3" }]);
@@ -303,7 +313,7 @@ describe("notifications, incremental sync, watchers", () => {
       "assignee = currentUser() ORDER BY updated DESC",
       "key in (AB-2)",
       "watcher = currentUser() ORDER BY updated DESC",
-      "assignee = currentUser() AND statusCategory != done",
+      '(assignee = currentUser() OR watcher = currentUser()) AND (statusCategory != done OR updated >= "-7m")',
     ]);
   });
 
@@ -414,5 +424,74 @@ describe("notifications, incremental sync, watchers", () => {
     await caller.notifications.dismissAll();
     expect((await caller.notifications.count()).count).toBe(0);
     await expect(caller.notifications.createTest({ kind: "due", issueKey: "nope" })).rejects.toThrow();
+  });
+
+  describe("what others did: comments and status changes (Jira has no inbox)", () => {
+    const someone = { accountId: "tester" };
+    const me = { accountId: "acc-1" };
+    const comment = (id: string, author: Who, at = Date.now()): Comment => ({ id, created: jiraTime(at), author });
+    const status = (id: string, from: string, to: string, author: Who, at = Date.now()): History => ({ id, created: jiraTime(at), author, items: [{ field: "status", fromString: from, toString: to }] });
+
+    it("a comment by someone else: one notification per issue, however many comments", async () => {
+      await freshStart();
+      activity = [{ key: "AB-1", comments: [comment("10", someone), comment("11", someone)] }];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["commented:AB-1"]);
+      // read again by the next pass: nothing new
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["commented:AB-1"]);
+      // a later comment is news again
+      activity = [{ key: "AB-1", comments: [comment("10", someone), comment("11", someone), comment("12", someone)] }];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["commented:AB-1", "commented:AB-1"]);
+    });
+
+    it("reopened by someone else (Risolto → In lavorazione): a status notification with the transition", async () => {
+      await freshStart();
+      activity = [{ key: "AB-1", histories: [status("20", "Risolto", "In lavorazione", someone)] }];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["status:AB-1:Risolto → In lavorazione"]);
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["status:AB-1:Risolto → In lavorazione"]);
+    });
+
+    it("every transition counts, also one that ends where it started; closed by someone too", async () => {
+      await freshStart();
+      activity = [{ key: "AB-2", histories: [status("30", "Risolto", "In lavorazione", someone, Date.now() - 2000), status("31", "In lavorazione", "Risolto", someone)] }];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["status:AB-2:In lavorazione → Risolto", "status:AB-2:Risolto → In lavorazione"]);
+    });
+
+    it("what I did myself, and what happened before the last pass, is not news", async () => {
+      await freshStart();
+      const old = Date.now() - 3600_000;
+      activity = [
+        { key: "AB-1", comments: [comment("40", me), comment("41", someone, old)], histories: [status("42", "To Do", "In lavorazione", me)] },
+        { key: "AB-2", histories: [status("43", "To Do", "Risolto", someone, old)] },
+      ];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual([]);
+    });
+
+    it("first sync: nothing, whatever the history says", async () => {
+      await raw("DELETE FROM issues");
+      await raw("DELETE FROM notifications");
+      await raw("DELETE FROM sync_state");
+      assigned = [jiraIssue("AB-1")];
+      watched = [];
+      activity = [{ key: "AB-1", comments: [comment("50", someone)], histories: [status("51", "Risolto", "In lavorazione", someone)] }];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual([]);
+    });
+
+    it("a watched issue that isn't mine is covered; one outside the catalog is not", async () => {
+      await freshStart({ watch: [jiraIssue("WW-1", { assignee: "someone" })] });
+      activity = [
+        { key: "WW-1", comments: [comment("60", someone)], histories: [status("61", "Risolto", "Riaperto", someone)] },
+        { key: "ZZ-9", comments: [comment("62", someone)] },
+      ];
+      await caller.issues.sync();
+      expect(await kinds()).toEqual(["commented:WW-1", "status:WW-1:Risolto → Riaperto"]);
+    });
   });
 });

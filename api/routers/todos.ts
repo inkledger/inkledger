@@ -56,7 +56,7 @@ const detailsOf = (input: { priority?: 0 | 1; estimateSeconds?: number | null; s
 /** Why an issue is suggested as a TODO. */
 type SuggestionKind = "assigned" | "mention" | "review" | "comment" | "status" | "news" | "watched" | "doing";
 /** The tracker's news that may become a TODO (the rest, a priority or a watch, is just news). */
-const NOTICE_KINDS = ["assigned", "mentioned", "commented", "review", "changed"] as const;
+const NOTICE_KINDS = ["assigned", "mentioned", "commented", "review", "changed", "status"] as const;
 const SUGGEST_DAYS = 7;
 const MAX_SUGGESTIONS = 12;
 /** How long done TODOs stay in "Done". */
@@ -515,7 +515,7 @@ export const todosRouter = createRouter({
     for (const { n, summary, status, category } of notes) {
       if (isClosed(category)) continue;
       const kind: SuggestionKind =
-        n.kind === "assigned" ? "assigned" : n.kind === "mentioned" ? "mention" : n.kind === "review" ? "review" : n.kind === "commented" ? "comment" : "news";
+        n.kind === "assigned" ? "assigned" : n.kind === "mentioned" ? "mention" : n.kind === "review" ? "review" : n.kind === "commented" ? "comment" : n.kind === "status" ? "status" : "news";
       offer({ source: `n:${n.dedupe}`, kind, issueKey: n.issueKey, connectionId: n.connectionId, summary, status, at: n.createdAt });
     }
     // Mine or watched, with news by someone else since I last looked.

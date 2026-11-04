@@ -16,6 +16,7 @@ import {
 import { addDays, dayKey } from "@contracts/time";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
+import type { IssueActivity } from "../jira/client";
 
 /** What the sync compares before / after to raise notifications. */
 export type IssueSnapshotRow = {
@@ -111,6 +112,31 @@ export function detectNotifications(
         add("watch_added", key, `watch_added:${key}:${syncStart}`);
       if (!watching && wasWatching) add("watch_removed", key, `watch_removed:${key}:${syncStart}`);
     }
+  }
+  return out;
+}
+
+/**
+ * What others did since `since`, on issues in the catalog: each status change
+ * ("Risolto → In lavorazione"), and new comments, one per issue (several in a
+ * row are one piece of news). Keyed by Jira's own ids: a pass that reads the
+ * same event again adds nothing.
+ */
+export function activityNotifications(
+  activity: ReadonlyMap<string, Pick<IssueActivity, "events">>,
+  catalog: IssueSnapshot,
+  connectionId: number,
+  since: number,
+): NewNotification[] {
+  const out: NewNotification[] = [];
+  for (const [key, a] of activity) {
+    if (!catalog.has(key)) continue;
+    const news = a.events.filter((e) => e.at > since);
+    for (const e of news) {
+      if (e.kind === "status") out.push({ connectionId, kind: "status", issueKey: key, detail: `${e.from} → ${e.to}`, dedupe: `status:${key}:${e.id}` });
+    }
+    const comment = news.filter((e) => e.kind === "comment").at(-1);
+    if (comment) out.push({ connectionId, kind: "commented", issueKey: key, detail: "", dedupe: `commented:${key}:${comment.id}` });
   }
   return out;
 }
