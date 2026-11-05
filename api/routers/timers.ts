@@ -5,6 +5,7 @@ import superjson from "superjson";
 import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { issues, timerOps, timers, todos, type Timer } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
@@ -16,7 +17,7 @@ import { dayKey, roundToMinute } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
 import { withWriteLease } from "../queries/writeLease";
 import { endLinkedSessionOf, endSession, openSession, trimSession } from "../queries/todoSessions";
-import { closeRun, consumeRuns, discardRuns, openRun, pruneOldRuns, pruneRuns, recordShares, renameRuns, splitInputs, trimRuns, unconsumeRuns, type TimerRef } from "../queries/timerRuns";
+import { closeRun, consumeRuns, discardRuns, openRun, pruneOldRuns, pruneRuns, recordShares, renameRuns, splitInputs, splitInputsOf, trimRuns, unconsumeRuns, type TimerRef } from "../queries/timerRuns";
 import { groupKey, splitOf, stretchesOf, timerId, type SplitRun } from "@contracts/timerSplit";
 import { getSettings } from "./settings";
 import { t as tr } from "@contracts/i18n";
@@ -277,6 +278,23 @@ async function rowOf(tx: Tx, userId: number, connectionId: number, issueKey: str
 }
 
 /**
+ * An action on one timer: the issue's connection resolved before the lock,
+ * then the timer's row (or nothing) read under it. Each action answers its
+ * own not-found.
+ */
+function onTimer<T extends { epoch: number }>(
+  ctx: Parameters<typeof whoOf>[0],
+  input: { issueKey: string; connectionId?: number; opId?: string },
+  fn: (tx: Tx, t: Timer | undefined, c: { now: Date; w: Who; conn: Awaited<ReturnType<typeof issueConnection>> }) => Promise<T>,
+): Promise<T> {
+  const now = new Date();
+  const w = whoOf(ctx);
+  return issueConnection(ctx.user.id, input.issueKey, input.connectionId).then((conn) =>
+    act(ctx.user.id, input.opId, async (tx) => fn(tx, await rowOf(tx, ctx.user.id, conn.id, input.issueKey), { now, w, conn })),
+  );
+}
+
+/**
  * Starts (or resumes) an issue's timer inside the user's lock: the body of
  * `start`, shared with a TODO's start (which opens its stretch in the same
  * transaction). See `start` for what it does to the others.
@@ -290,6 +308,15 @@ export type StartMode = "switch" | "alongside";
 
 /** A timer a start paused: its time is asked to be logged. */
 export type SwitchedFrom = { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date };
+
+/** What a timer being paused by a switch leaves behind for the client. */
+export const switchedOf = (o: Timer, now: Date): SwitchedFrom => ({
+  issueKey: o.issueKey,
+  connectionId: o.connectionId,
+  seconds: roundToMinute(elapsedSeconds(o, now)),
+  note: o.note,
+  stoppedAt: now,
+});
 
 export async function startTimerIn(
   tx: Tx,
@@ -333,7 +360,7 @@ export async function startTimerIn(
   const switchedFromAll: SwitchedFrom[] = [];
   let tookOver = false;
   for (const o of others) {
-    switchedFromAll.push({ issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now });
+    switchedFromAll.push(switchedOf(o, now));
     tookOver ||= heldElsewhere(o, w, now);
     await pauseTimer(tx, o, now);
   }
@@ -378,11 +405,11 @@ export const timersRouter = createRouter({
     const rows = await getDb().select().from(timers).where(eq(timers.userId, ctx.user.id));
     const now = new Date();
     const split = new Map<number, { overlap: number; byDefault: number }>();
-    const reads = await Promise.all(rows.map((t) => splitInputs(getDb(), refOf(t), now)));
-    for (const [i, t] of rows.entries()) {
-      const read = reads[i];
-      if (read.runs.length === 0) continue;
+    const reads = await splitInputsOf(getDb(), ctx.user.id, rows, now);
+    for (const t of rows) {
       const id = timerId(t.connectionId, t.issueKey);
+      const read = reads.get(id);
+      if (!read || read.runs.length === 0) continue;
       const s = splitOf(id, stretchesOf(id, read.runs, read.shares), {}, elapsedSeconds(t, now));
       if (s.groups.length === 0) continue;
       split.set(t.id, {
@@ -494,11 +521,7 @@ export const timersRouter = createRouter({
   }),
 
   pause: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
-    const now = new Date();
-    const w = whoOf(ctx);
-    const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
-    return act(ctx.user.id, input.opId, async (tx) => {
-      const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
+    return onTimer(ctx, input, async (tx, t, { now, w }) => {
       if (!t || t.state !== "running") return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
       return { ok: true, epoch: await pauseTimer(tx, t, now) };
@@ -511,11 +534,7 @@ export const timersRouter = createRouter({
    * (worklogs.create with fromTimer), so cancelling the log loses nothing.
    */
   stop: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
-    const now = new Date();
-    const w = whoOf(ctx);
-    const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
-    return act(ctx.user.id, input.opId, async (tx) => {
-      const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
+    return onTimer(ctx, input, async (tx, t, { now, w }) => {
       if (!t) return { found: false as const, seconds: 0, note: "", stoppedAt: null, epoch: await epochOf(tx, ctx.user.id) };
       if (t.state === "running") mayAct(t, w, now, input);
       const seconds = roundToMinute(elapsedSeconds(t, now));
@@ -544,11 +563,7 @@ export const timersRouter = createRouter({
   trim: protectedProcedure
     .input(z.object({ ...issueInput, ...control, seconds: z.number().int().min(1).max(7 * 24 * 3600) }))
     .mutation(async ({ ctx, input }) => {
-      const now = new Date();
-      const w = whoOf(ctx);
-      const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
-      return act(ctx.user.id, input.opId, async (tx) => {
-        const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
+      return onTimer(ctx, input, async (tx, t, { now, w }) => {
         if (!t) return { found: false as const, elapsedSeconds: 0, epoch: await epochOf(tx, ctx.user.id) };
         mayAct(t, w, now, input);
         const remaining = Math.max(0, elapsedSeconds(t, now) - input.seconds);
@@ -592,7 +607,7 @@ export const timersRouter = createRouter({
         const [item] = await tx
           .select({ id: issues.id })
           .from(issues)
-          .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, to.id), eq(issues.key, input.toIssueKey)))
+          .where(issueAt(ctx.user.id, to.id, input.toIssueKey))
           .limit(1);
         const itemId = item?.id ?? null;
         const note = [b?.note, a.note].filter((n): n is string => !!n && n.trim() !== "").join(" · ").slice(0, 500);
@@ -674,11 +689,7 @@ export const timersRouter = createRouter({
 
   /** Discard the timer without logging time. */
   discard: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
-    const now = new Date();
-    const w = whoOf(ctx);
-    const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
-    return act(ctx.user.id, input.opId, async (tx) => {
-      const t = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
+    return onTimer(ctx, input, async (tx, t, { now, w }) => {
       if (!t) return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
       if (t.state === "running") await endLinkedSessionOf(tx, ctx.user.id, now, t);

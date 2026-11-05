@@ -7,6 +7,7 @@ import { formatQuery, parseQuery } from "@contracts/query";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ofLiveConnection } from "../queries/liveConnections";
 import { ownBucket } from "../queries/owned";
 import { activeBucket } from "../queries/buckets";
 import { publish } from "../lib/userEvents";
@@ -57,7 +58,7 @@ export const bucketsRouter = createRouter({
       .select({ id: containers.id, connectionId: containers.connectionId, key: containers.key, name: containers.name })
       .from(containers)
       .innerJoin(connections, eq(connections.id, containers.connectionId))
-      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+      .where(ofLiveConnection(ctx.user.id))
       .orderBy(asc(containers.connectionId), asc(containers.key)),
   ),
 

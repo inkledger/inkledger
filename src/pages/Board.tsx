@@ -21,6 +21,7 @@ import { trpc } from "@/lib/trpc";
 import { byRelevance, visibleIssues, issueId } from "@/lib/issues";
 import { levelKey, statusCategoryDotTone } from "@/lib/jira";
 import { priorityLevel } from "@contracts/query";
+import { isWorking } from "@contracts/sync";
 import { PriorityFilter } from "@/components/board/PriorityFilter";
 import { cn } from "@/lib/utils";
 import { ConnectionBadge } from "@/components/app/ConnectionBadge";
@@ -262,7 +263,7 @@ export default function Board() {
   const sourceIds = useMemo(() => {
     const ids = new Set<number>((rows ?? []).map(r => r.connectionId));
     for (const s of active?.sources ?? []) ids.add(s.connectionId);
-    if (!active) for (const c of connections) if (c.role === "tracker" && c.status === "ok") ids.add(c.id);
+    if (!active) for (const c of connections) if (c.role === "tracker" && isWorking(c.status)) ids.add(c.id);
     if (view.connection) return [view.connection];
     return [...ids].filter(id => connections.some(c => c.id === id)).sort((a, b) => a - b);
   }, [rows, active, view.connection, connections]);

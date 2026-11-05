@@ -3,7 +3,6 @@ import type {
   AreaDefinition,
   Catalog,
   DeviceClass,
-  Scope,
   SurfaceId,
   Variant,
 } from "./model";
@@ -105,4 +104,3 @@ export type ScopeDefaults = Readonly<Partial<Record<SurfaceId, {
   }[];
 }>>>;
 
-export type ScopeWithCatalog = Scope & { surfaceId: SurfaceId };

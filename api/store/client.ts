@@ -2,6 +2,7 @@ import { HOST_API_VERSION, SLOT_IDS } from "@contracts/modules";
 import { type PaymentMethod, type StoreItem } from "@contracts/store";
 import { storeCatalogSchema } from "@contracts/storeSchema";
 import { env } from "../lib/env";
+import { readCapped } from "./body";
 import { getServerSetting, setServerSetting } from "../lib/serverSettings";
 
 /**
@@ -37,29 +38,9 @@ const MAX_ANSWER_BYTES = 1024 * 1024;
 
 /** The answer's body, read up to the limit (declared or not): over it, refused. */
 async function bounded(res: Response): Promise<Uint8Array<ArrayBuffer>> {
-  const declared = Number(res.headers.get("content-length") ?? "0");
-  if (declared > MAX_ANSWER_BYTES) throw new StoreError("rejected", res.status, "too large");
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader();
-  if (!reader) return new Uint8Array(new ArrayBuffer(0));
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_ANSWER_BYTES) {
-      await reader.cancel().catch(() => undefined);
-      throw new StoreError("rejected", res.status, "too large");
-    }
-    chunks.push(value);
-  }
-  const out = new Uint8Array(new ArrayBuffer(size));
-  let at = 0;
-  for (const c of chunks) {
-    out.set(c, at);
-    at += c.byteLength;
-  }
-  return out;
+  const body = await readCapped(res, MAX_ANSWER_BYTES);
+  if (!body) throw new StoreError("rejected", res.status, "too large");
+  return body;
 }
 
 async function call(path: string, init?: RequestInit): Promise<Response> {

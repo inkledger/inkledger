@@ -4,11 +4,12 @@
 // groups (a Jira project category, a GitHub owner), never made unasked.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { clientContainers, clients, connections, containers } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { liveConnections, ofLiveConnection } from "../queries/liveConnections";
 import { parseStringList } from "../lib/json";
 import { ensureContainer } from "../queries/containers";
 import { boundTracker } from "../sync/engine";
@@ -30,7 +31,7 @@ async function userContainers(userId: number) {
     .from(containers)
     .innerJoin(connections, eq(connections.id, containers.connectionId))
     .leftJoin(clientContainers, eq(clientContainers.containerId, containers.id))
-    .where(and(eq(connections.userId, userId), isNull(connections.archivedAt)))
+    .where(ofLiveConnection(userId))
     .orderBy(asc(containers.key));
 }
 
@@ -50,10 +51,7 @@ export const clientsRouter = createRouter({
    * containers again, so groups are fresh.
    */
   suggestions: protectedProcedure.query(async ({ ctx }) => {
-    const conns = await getDb()
-      .select()
-      .from(connections)
-      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)));
+    const conns = await liveConnections(ctx.user.id);
     // Every tracker at once (each its own service); one that doesn't answer suggests from what is known.
     await Promise.all(
       conns.map(async (conn) => {

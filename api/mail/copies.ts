@@ -9,7 +9,7 @@ import type { HttpBindings } from "@hono/node-server";
 import { mailCopies, mailCopyReads, mailLinks, mails, pinboardNotes, settings, todos } from "@db/schema";
 import { mailCopyBodySchema } from "@contracts/mail";
 import { openBytesFor } from "../lib/crypto";
-import { attachmentHeaders, contentDisposition } from "../attachments";
+import { asSandboxedDownload, attachmentHeaders, contentDisposition } from "../attachments";
 import { t } from "@contracts/i18n";
 import { dateFormat } from "@contracts/i18n/core";
 import { MAIL_COPY_MODES, type MailCopyBody, type MailCopyMode } from "@contracts/mail";
@@ -321,11 +321,8 @@ export function registerCopyRoutes(app: App) {
       const n = Number(c.req.param("n"));
       const a = Number.isInteger(n) && n >= 0 ? (await PostalMime.parse(o.plain)).attachments?.[n] : undefined;
       if (!a) return c.json({ error: t("server.mails.notFound") }, 404);
-      const headers = attachmentHeaders(a.mimeType ?? "application/octet-stream", a.filename ?? "attachment");
       // Always a download from here, sandboxed, never kept by a cache.
-      headers.set("Content-Disposition", contentDisposition("attachment", a.filename ?? "attachment"));
-      headers.set("Content-Security-Policy", "sandbox; default-src 'none'");
-      headers.set("Cache-Control", "private, no-store");
+      const headers = asSandboxedDownload(attachmentHeaders(a.mimeType ?? "application/octet-stream", a.filename ?? "attachment"));
       const bytes = typeof a.content === "string" ? Buffer.from(a.content) : new Uint8Array(a.content);
       return new Response(bytes, { headers });
     }),

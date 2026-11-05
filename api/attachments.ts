@@ -1,9 +1,9 @@
-import { discardBody } from "./providers/core/http";
+import { discardBody, trimTrailingSlash } from "./providers/core/http";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { connections, issues, users, type Connection } from "@db/schema";
+import { and, eq, isNotNull } from "drizzle-orm";
+import { issues, users, type Connection } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { restUser } from "./context";
 import { verifyShare } from "./lib/shareLinks";
@@ -20,7 +20,7 @@ import {
   uploadAttachments,
 } from "./jira/client";
 import { t } from "@contracts/i18n";
-import { connOf, contextFor, jiraContextFor, jiraCredentials, ownConnection } from "./providers/connections";
+import { connOf, contextFor, jiraContextFor, jiraConnections, jiraCredentials, ownConnection } from "./providers/connections";
 import { fetchGitHubAttachment } from "./providers/github/attachments";
 
 type App = Hono<{ Bindings: HttpBindings }>;
@@ -89,6 +89,15 @@ export function attachmentHeaders(mimeType: string, filename: string): Headers {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": preview ?? SANDBOXED,
   });
+}
+
+/** Whatever the headers said, force a download: sandboxed, never kept by a cache, no referrer. */
+export function asSandboxedDownload(headers: Headers): Headers {
+  headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));
+  headers.set("Content-Security-Policy", SANDBOXED);
+  headers.set("Cache-Control", "private, no-store");
+  headers.set("Referrer-Policy", "no-referrer");
+  return headers;
 }
 
 export function contentDisposition(kind: "inline" | "attachment", filename: string): string {
@@ -174,11 +183,7 @@ export function registerAttachmentRoutes(app: App) {
         // A picture in an idea handed to an agent: the user's own bytes, never a tracker's.
         const file = /^\d+$/.test(grant.a) ? await ownIdeaFile(user.id, Number(grant.a)) : null;
         if (!file) return notShared();
-        const headers = attachmentHeaders(file.contentType, file.name);
-        headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));
-        headers.set("Content-Security-Policy", SANDBOXED);
-        headers.set("Cache-Control", "private, no-store");
-        headers.set("Referrer-Policy", "no-referrer");
+        const headers = asSandboxedDownload(attachmentHeaders(file.contentType, file.name));
         return new Response(new Uint8Array(file.bytes), { status: 200, headers });
       }
       const conn = await ownConnection(user.id, grant.c).catch(() => null);
@@ -190,11 +195,7 @@ export function registerAttachmentRoutes(app: App) {
             ? await githubFile(conn, grant.k, grant.a)
             : null;
       if (!res) return notShared();
-      const headers = new Headers(res.headers);
-      headers.set("Content-Disposition", (headers.get("Content-Disposition") ?? "attachment").replace(/^inline/, "attachment"));
-      headers.set("Content-Security-Policy", SANDBOXED);
-      headers.set("Cache-Control", "private, no-store");
-      headers.set("Referrer-Policy", "no-referrer");
+      const headers = asSandboxedDownload(new Headers(res.headers));
       headers.set("X-Content-Type-Options", "nosniff");
       return new Response(res.body, { status: 200, headers });
     } catch {
@@ -230,9 +231,7 @@ export function registerAttachmentRoutes(app: App) {
     if (!user.avatarUrl) return c.json({ error: t("server.attachments.noAvatar") }, 404);
     try {
       // The avatar is served by the site it lives on: the connection on that site.
-      const site = (await getDb().select().from(connections).where(and(eq(connections.userId, user.id), isNull(connections.archivedAt)))).find(
-        (conn) => conn.type === "jira" && user.avatarUrl!.startsWith(conn.baseUrl.replace(/\/+$/, "")),
-      );
+      const site = (await jiraConnections(user.id)).find((conn) => user.avatarUrl!.startsWith(trimTrailingSlash(conn.baseUrl)));
       if (!site) return c.json({ error: t("server.attachments.noAvatar") }, 404);
       const res = await fetchFromSite(contextFor(user, site).creds, user.avatarUrl);
       const type = res.headers.get("content-type") ?? "image/png";

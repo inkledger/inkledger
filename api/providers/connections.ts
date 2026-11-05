@@ -6,6 +6,7 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { connections, issues, type Connection, type User } from "@db/schema";
 import type { JiraCredentials } from "@contracts/types";
 import type { TrackerType } from "@contracts/providers";
+import type { SyncState } from "@contracts/sync";
 import { instant, timeZone } from "@contracts/values";
 import type { StoredConn } from "./core/bind";
 import { originate } from "./core/origin";
@@ -428,7 +429,7 @@ export async function myRemoteIds(userId: number): Promise<string[]> {
 export async function markConnection(
   userId: number,
   connectionId: number,
-  status: "ok" | "auth_failed" | "unreadable"
+  status: SyncState
 ): Promise<string | null> {
   const [row] = await getDb()
     .update(connections)
@@ -448,7 +449,7 @@ export async function markConnection(
  */
 export async function markJiraConnection(
   userId: number,
-  status: "ok" | "auth_failed" | "unreadable"
+  status: SyncState
 ) {
   await getDb()
     .update(connections)

@@ -45,7 +45,12 @@ export function useLiveSync() {
   );
 
   useEffect(() => {
+    // Coming back to a tab fires both visibilitychange and focus (an OS window switch only focus): once is enough.
+    let last = 0;
     const refresh = () => {
+      const now = performance.now();
+      if (last && now - last < 250) return;
+      last = now;
       void utils.notes.tree.invalidate();
       void utils.notes.trash.invalidate();
       void utils.notes.search.invalidate();

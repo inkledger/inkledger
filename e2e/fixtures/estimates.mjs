@@ -1,4 +1,6 @@
 // Estimates seed (e2e/estimates.test.mjs): closed issues with proven histories, one never read, an open one with a TODO.
+import { dayKey } from "../harness.mjs";
+
 const H = 3_600_000;
 
 /**
@@ -36,7 +38,6 @@ export async function seed(db) {
   const unread = await issue("EST-20", "done", "31", now - 5 * 24 * H);
   await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, item_id, jira_worklog_id, time_spent_seconds, started, synced_at) VALUES (1, 1, 'EST-20', ?, 'w-20', 3600, ?, ?)", unread, now - 5 * 24 * H, now);
   await issue("EST-1", "doing", "21", now - 2 * 24 * H);
-  const today = new Date();
-  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const day = dayKey(new Date());
   await db.q("INSERT INTO todos (user_id, text, due_on, issue_key, connection_id, position, created_at, updated_at) VALUES (1, 'Finish EST-1', ?, 'EST-1', 1, 0, ?, ?)", day, now, now);
 }

@@ -2,13 +2,13 @@
 // description, attachments as signed links through this app. Shared by
 // issues.copyForAgent and the triage prompt (ideas.handoff).
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
 import { issues, type User } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { issueMarkdown } from "@contracts/issueCopy";
 import { mapUrls } from "@contracts/richtext";
 import { bodyAttachments } from "../providers/github/attachments";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { boundTracker } from "../sync/engine";
 import { contextFor, issueConnection } from "../providers/connections";
 import { providerCall } from "../providers/trpc";
@@ -34,7 +34,7 @@ export async function agentCopy(
   const [row] = await getDb()
     .select({ remoteId: issues.remoteId, summary: issues.summary, status: issues.status, issueType: issues.issueType, url: issues.url })
     .from(issues)
-    .where(and(eq(issues.userId, user.id), eq(issues.connectionId, conn.id), eq(issues.key, key)))
+    .where(issueAt(user.id, conn.id, key))
     .limit(1);
   if (!b || !row) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
   const prefs = await getSettings(user.id);

@@ -130,15 +130,69 @@ export async function splitInputs(db: Db | Tx, t: TimerRef, now: Date): Promise<
       .from(timerShares)
       .where(and(eq(timerShares.userId, t.userId), lt(timerShares.startedAt, new Date(to)), gt(timerShares.endedAt, new Date(from)))),
   ]);
-  return {
-    runs: runs.map((r) => ({
-      timer: timerId(r.connectionId, r.issueKey),
-      start: r.startedAt.getTime(),
-      end: Math.max(r.startedAt.getTime(), (r.endedAt ?? now).getTime()),
-      logged: r.loggedAt !== null,
-    })),
-    shares: shares.map((s) => ({ timer: timerId(s.connectionId, s.issueKey), start: s.startedAt.getTime(), end: s.endedAt.getTime(), bp: s.shareBp })),
-  };
+  return splitRows(runs, shares, now);
+}
+
+type RunRow = typeof timerRuns.$inferSelect;
+type ShareRow = typeof timerShares.$inferSelect;
+type SplitRead = { runs: SplitRun[]; shares: SplitShare[] };
+
+const splitRows = (runs: RunRow[], shares: ShareRow[], now: Date): SplitRead => ({
+  runs: runs.map((r) => ({
+    timer: timerId(r.connectionId, r.issueKey),
+    start: r.startedAt.getTime(),
+    end: Math.max(r.startedAt.getTime(), (r.endedAt ?? now).getTime()),
+    logged: r.loggedAt !== null,
+  })),
+  shares: shares.map((s) => ({ timer: timerId(s.connectionId, s.issueKey), start: s.startedAt.getTime(), end: s.endedAt.getTime(), bp: s.shareBp })),
+});
+
+/**
+ * `splitInputs` for all of the user's timers at once (their list): the same
+ * answer per timer, in a fixed number of reads. One read for every unlogged
+ * run, one each for the runs and shares over the span they all cover; each
+ * timer then takes its own window from those, by the same tests as above.
+ */
+export async function splitInputsOf(db: Db | Tx, userId: number, timers: Omit<TimerRef, "userId">[], now: Date): Promise<Map<string, SplitRead>> {
+  const out = new Map<string, SplitRead>();
+  const keyOf = (r: { connectionId: number; issueKey: string }) => timerId(r.connectionId, r.issueKey);
+  for (const t of timers) out.set(keyOf(t), { runs: [], shares: [] });
+  if (timers.length === 0) return out;
+  const unloggedRuns = await db.select().from(timerRuns).where(and(eq(timerRuns.userId, userId), unlogged));
+  const windows = new Map<string, { from: number; to: number }>();
+  for (const r of unloggedRuns) {
+    const key = keyOf(r);
+    if (!out.has(key)) continue;
+    const w = windows.get(key);
+    windows.set(key, {
+      from: Math.min(w?.from ?? Infinity, r.startedAt.getTime()),
+      to: Math.max(w?.to ?? -Infinity, (r.endedAt ?? now).getTime()),
+    });
+  }
+  if (windows.size === 0) return out;
+  const from = Math.min(...[...windows.values()].map((w) => w.from));
+  const to = Math.max(...[...windows.values()].map((w) => w.to));
+  const [runs, shares] = await Promise.all([
+    db
+      .select()
+      .from(timerRuns)
+      .where(and(eq(timerRuns.userId, userId), lt(timerRuns.startedAt, new Date(to)), or(isNull(timerRuns.endedAt), gt(timerRuns.endedAt, new Date(from))))),
+    db
+      .select()
+      .from(timerShares)
+      .where(and(eq(timerShares.userId, userId), lt(timerShares.startedAt, new Date(to)), gt(timerShares.endedAt, new Date(from)))),
+  ]);
+  for (const [key, w] of windows) {
+    out.set(
+      key,
+      splitRows(
+        runs.filter((r) => r.startedAt.getTime() < w.to && (r.endedAt === null || r.endedAt.getTime() > w.from)),
+        shares.filter((x) => x.startedAt.getTime() < w.to && x.endedAt.getTime() > w.from),
+        now,
+      ),
+    );
+  }
+  return out;
 }
 
 const KEEP_MS = 30 * 24 * 3600_000;

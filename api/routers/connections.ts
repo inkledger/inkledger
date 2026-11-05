@@ -39,6 +39,7 @@ import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { callMeta } from "../lib/callMeta";
 import { liveConnections } from "../queries/liveConnections";
 import {
   confirmJiraLogin,
@@ -90,7 +91,7 @@ const jiraColumns = (identity: JiraIdentity) => ({
     authType: identity.authType,
     username: identity.email,
   }),
-  status: "ok",
+  status: "ok" as const,
 });
 
 /** A connection's changeable options (its adapter's settings), each with its value now (the default when unset). */
@@ -161,7 +162,8 @@ async function shown(c: Connection, syncs?: Awaited<ReturnType<typeof issueSyncs
     displayName: c.displayName,
     /** The user's own id on it ("me" in its issues) */
     remoteAccountId: c.remoteAccountId,
-    status: c.status,
+    // Plain text on the wire (the tRPC contract), whatever the column is typed as.
+    status: c.status as string,
     legacy: c.legacy === 1,
     lastSyncAt: sync?.lastOkAt ?? null,
     lastError: freshError(sync?.lastError, sync?.lastErrorAt ?? null, sync?.lastOkAt ?? null),
@@ -343,10 +345,7 @@ export const connectionsRouter = createRouter({
             provider: providerName(conn.type),
           }),
         });
-      const meta = () => ({
-        signal: AbortSignal.timeout(30_000),
-        correlationId: `test-${conn.id}-${Date.now()}`,
-      });
+      const meta = () => callMeta(`test-${conn.id}`);
       const me = await providerCall(() => b.verify(meta()));
       const probe = await providerCall(() => b.probe(meta()));
       const [saved] = await getDb()
@@ -655,7 +654,7 @@ export const connectionsRouter = createRouter({
         remoteAccountId: String(me.id),
         displayName: me.name || me.login,
         avatarUrl: me.avatar_url ?? null,
-        status: "ok",
+        status: "ok" as const,
       };
       const [mine] = await db
         .select()

@@ -5,7 +5,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@db/schema";
-import { closeRun, consumeRuns, discardRuns, openRun, pruneRuns, recordShares, renameRuns, splitInputs, trimRuns, unconsumeRuns } from "./timerRuns";
+import { closeRun, consumeRuns, discardRuns, openRun, pruneRuns, recordShares, renameRuns, splitInputs, splitInputsOf, trimRuns, unconsumeRuns } from "./timerRuns";
 
 const at = (h: number, m = 0) => new Date(Date.UTC(2026, 10, 3, h, m));
 
@@ -89,6 +89,25 @@ describe("timer runs", () => {
       { timer: `${connectionId}:B-1`, start: at(10, 20).getTime(), end: at(11, 30).getTime(), logged: false },
     ]);
     expect(read.shares).toEqual([{ timer: `${connectionId}:A-1`, start: at(10, 20).getTime(), end: at(11).getTime(), bp: 6000 }]);
+    await close();
+  });
+
+  it("the list's one read gives each timer what its own read would", async () => {
+    const { db, connectionId, close } = await database();
+    const a = { userId: 1, connectionId, issueKey: "A-1" };
+    const b = { userId: 1, connectionId, issueKey: "B-1" };
+    const c = { userId: 1, connectionId, issueKey: "C-1" };
+    await openRun(db, a, at(9));
+    await closeRun(db, a, at(11));
+    await openRun(db, b, at(10, 20));
+    await consumeRuns(db, a, at(11), at(11));
+    await recordShares(db, a, [{ start: at(10, 20).getTime(), end: at(11).getTime(), bp: 6000 }]);
+    await openRun(db, c, at(15));
+    await closeRun(db, c, at(16));
+    const now = at(11, 30);
+    const all = await splitInputsOf(db, 1, [a, b, c, { connectionId, issueKey: "D-1" }], now);
+    for (const t of [a, b, c]) expect(all.get(`${connectionId}:${t.issueKey}`)).toEqual(await splitInputs(db, t, now));
+    expect(all.get(`${connectionId}:D-1`)).toEqual({ runs: [], shares: [] });
     await close();
   });
 

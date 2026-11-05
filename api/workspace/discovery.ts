@@ -38,10 +38,7 @@ export async function getDiscoveryState(userId: number, scope: Scope, db: Execut
 }
 
 export async function saveDiscoveryState(userId: number, scope: Scope, state: DiscoveryState, db: Executor = getDb()): Promise<void> {
-  await db.insert(workspaceDiscovery).values({
-    userId,
-    surfaceId: scope.surfaceId,
-    deviceClass: scope.deviceClass,
+  const fields = {
     seenAnchorIds: JSON.stringify(normalized(state.seenAnchorIds)),
     placedAnchorIds: JSON.stringify(normalized(state.placedAnchorIds)),
     dismissedAnchorIds: JSON.stringify(normalized(state.dismissedAnchorIds)),
@@ -49,17 +46,15 @@ export async function saveDiscoveryState(userId: number, scope: Scope, state: Di
     placedAreaIds: JSON.stringify(normalized(state.placedAreaIds ?? [])),
     dismissedAreaIds: JSON.stringify(normalized(state.dismissedAreaIds ?? [])),
     updatedAt: Date.now(),
+  };
+  await db.insert(workspaceDiscovery).values({
+    userId,
+    surfaceId: scope.surfaceId,
+    deviceClass: scope.deviceClass,
+    ...fields,
   }).onConflictDoUpdate({
     target: [workspaceDiscovery.userId, workspaceDiscovery.surfaceId, workspaceDiscovery.deviceClass],
-    set: {
-      seenAnchorIds: JSON.stringify(normalized(state.seenAnchorIds)),
-      placedAnchorIds: JSON.stringify(normalized(state.placedAnchorIds)),
-      dismissedAnchorIds: JSON.stringify(normalized(state.dismissedAnchorIds)),
-      seenAreaIds: JSON.stringify(normalized(state.seenAreaIds ?? [])),
-      placedAreaIds: JSON.stringify(normalized(state.placedAreaIds ?? [])),
-      dismissedAreaIds: JSON.stringify(normalized(state.dismissedAreaIds ?? [])),
-      updatedAt: Date.now(),
-    },
+    set: fields,
   });
 }
 

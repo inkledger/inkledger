@@ -3,8 +3,7 @@
 // team's workflow state, categorized by the state's `type` (never its name,
 // which is the team's own words). Linear keeps no time inkledger can use
 // (estimates are points): the time stays in inkledger's own register.
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { headerOf, type DeliveryHeaders } from "../core/webhooks";
+import { hmacHex, headerOf, sameSecret, type DeliveryHeaders } from "../core/webhooks";
 import { z } from "zod";
 import type { StatusCategory, TrackerCapabilities, TrackerTraits } from "@contracts/providers";
 import { instant, instantFrom, localDate, type Instant, type JsonValue } from "@contracts/values";
@@ -429,9 +428,7 @@ export const linearWebhook = {
   verify(a: { secret: string; rawBody: string; headers: DeliveryHeaders; now?: number }): boolean {
     const given = headerOf(a.headers, "linear-signature");
     if (!given || !/^[0-9a-f]{64}$/i.test(given)) return false;
-    const expected = createHmac("sha256", a.secret).update(a.rawBody).digest();
-    const got = Buffer.from(given, "hex");
-    if (got.length !== expected.length || !timingSafeEqual(got, expected)) return false;
+    if (!sameSecret(given.toLowerCase(), hmacHex(a.secret, a.rawBody))) return false;
     const sent = linearWebhook.sentAt(a.rawBody);
     return sent !== null && Math.abs((a.now ?? Date.now()) - sent) <= WEBHOOK_MAX_AGE_MS;
   },

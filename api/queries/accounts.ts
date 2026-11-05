@@ -9,6 +9,7 @@ import { invites, rememberedDevices, sessions, users, type User } from "@db/sche
 import { DEFAULT_ADMIN, INVITE_DAYS, PERMISSIONS, type Permission, type Role } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { env } from "../lib/env";
+import { parseStringList } from "../lib/json";
 import { hashPassword } from "../lib/password";
 import { getDb } from "./connection";
 
@@ -17,12 +18,8 @@ const isPermission = (x: unknown): x is Permission => typeof x === "string" && (
 /** What the user may do on the server: everything for an admin, what was granted otherwise. */
 export function permissionsOf(user: Pick<User, "role" | "permissions">): Permission[] {
   if (user.role === "admin") return [...PERMISSIONS];
-  try {
-    const granted = JSON.parse(user.permissions) as unknown;
-    return Array.isArray(granted) ? PERMISSIONS.filter((p) => granted.includes(p)) : [];
-  } catch {
-    return [];
-  }
+  const granted = parseStringList(user.permissions);
+  return PERMISSIONS.filter((p) => granted.includes(p));
 }
 
 export const can = (user: Pick<User, "role" | "permissions">, permission: Permission) => permissionsOf(user).includes(permission);
@@ -31,12 +28,7 @@ type Access = Pick<User, "role" | "permissions" | "moduleGrants">;
 
 /** The module ids granted to the account, as stored (an admin's don't matter: it runs every module). */
 export function grantsOf(user: Pick<User, "moduleGrants">): string[] {
-  try {
-    const granted = JSON.parse(user.moduleGrants) as unknown;
-    return Array.isArray(granted) ? granted.filter((g): g is string => moduleIdSchema.safeParse(g).success) : [];
-  } catch {
-    return [];
-  }
+  return parseStringList(user.moduleGrants).filter((g) => moduleIdSchema.safeParse(g).success);
 }
 
 /** Whether the account runs this module: an admin runs every one; anyone else needs useModules and the module granted. */

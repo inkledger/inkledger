@@ -14,6 +14,8 @@ import { connections, issues, outbox, sinkMappings, worklogs, worklogSinks, type
 import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
 import { instant, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
+import { liveConnections } from "../queries/liveConnections";
+import { issueAt } from "../queries/issueAt";
 import { bindSink, type BoundSink } from "../providers/core/bind";
 import { goneIsDone, ProviderError } from "../providers/core/errors";
 import { connectionOptions, connOf } from "../providers/connections";
@@ -36,16 +38,9 @@ const BESIDE = (type: string) => SINKS.has(type) && !COMPANIONS[type as TimeSink
 /** Unverified sinks write only once the user allowed it. */
 const mayWrite = (c: Connection) => sinkStatus(c.type as TimeSinkType) !== "experimental" || c.writesAllowed === 1;
 
-async function liveConnections(userId: number): Promise<Connection[]> {
-  return getDb()
-    .select()
-    .from(connections)
-    .where(and(eq(connections.userId, userId), isNull(connections.archivedAt), eq(connections.status, "ok")));
-}
-
 /** The user's live sink connections beside their trackers. */
 async function sinkConnections(userId: number): Promise<Connection[]> {
-  return (await liveConnections(userId)).filter((c) => BESIDE(c.type));
+  return (await liveConnections(userId, { okOnly: true })).filter((c) => BESIDE(c.type));
 }
 
 /** The tracker connection a sink stands in for, or null (a sink beside every tracker). */
@@ -57,11 +52,11 @@ export function trackerOfSink(c: Connection): number | null {
 
 /** The live sink standing in for this tracker connection and allowed to write, if any: its new worklogs go there. */
 export async function companionOf(tracker: Connection): Promise<Connection | null> {
-  return (await liveConnections(tracker.userId)).find((c) => trackerOfSink(c) === tracker.id && mayWrite(c)) ?? null;
+  return (await liveConnections(tracker.userId, { okOnly: true })).find((c) => trackerOfSink(c) === tracker.id && mayWrite(c)) ?? null;
 }
 
 async function companionConnections(userId: number): Promise<Connection[]> {
-  return (await liveConnections(userId)).filter((c) => trackerOfSink(c) !== null);
+  return (await liveConnections(userId, { okOnly: true })).filter((c) => trackerOfSink(c) !== null);
 }
 
 /** A sink connection bound (unverified integrations write only once allowed). */
@@ -100,7 +95,7 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
     .innerJoin(connections, eq(connections.id, worklogSinks.sinkConnectionId))
     .where(and(eq(worklogSinks.worklogId, w.id), sql`${worklogSinks.remoteId} IS NOT NULL`, inArray(connections.type, TIME_SINK_TYPES.filter(BESIDE))));
   // Its issue, so a day-totals sink recounts its own tracker's day only (a key may be on two trackers).
-  const [item] = w.connectionId === null ? [] : await db.select({ id: issues.id }).from(issues).where(and(eq(issues.userId, w.userId), eq(issues.connectionId, w.connectionId), eq(issues.key, w.issueKey))).limit(1);
+  const [item] = w.connectionId === null ? [] : await db.select({ id: issues.id }).from(issues).where(issueAt(w.userId, w.connectionId, w.issueKey)).limit(1);
   const values = rows.flatMap((r) =>
     !r.remoteId || r.sink === w.connectionId
       ? []
@@ -289,7 +284,8 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
   let failed = 0;
   try {
     const db = getDb();
-    for (const sink of [...(await sinkConnections(userId)), ...(await companionConnections(userId))]) {
+    const [beside, companions] = await Promise.all([sinkConnections(userId), companionConnections(userId)]);
+    for (const sink of [...beside, ...companions]) {
       const b = boundSink(sink);
       if (!b || !mayWrite(sink)) continue;
       const leaseOver = () => or(isNull(worklogSinks.claimedAt), lt(worklogSinks.claimedAt, now() - CLAIM_TTL_MS));

@@ -145,9 +145,12 @@ export function isExpectedDraft(current: RowDraft | undefined, expected: Draft |
   return !!current && current.id === expected.draftId && current.draftRevision === expected.draftRevision && current.status === expected.status && samePatches(current.patches, expected.patches);
 }
 
+/** Drafts still being worked on; an applied, discarded or aborted one is history and never resolved again. */
+export const isOpenDraft = (status: string): boolean => !["applied", "discarded", "aborted"].includes(status);
+
 /** Another draft still open that `draft` does not supersede (an older or equal revision of a different draft). */
 export function supersededBy(current: RowDraft | undefined, draft: Pick<Draft, "draftId" | "draftRevision">): boolean {
-  return !!current && !["applied", "discarded", "aborted"].includes(current.status) && current.id !== draft.draftId && draft.draftRevision <= current.draftRevision;
+  return !!current && isOpenDraft(current.status) && current.id !== draft.draftId && draft.draftRevision <= current.draftRevision;
 }
 
 export async function upsertDraft(userId: number, draft: Draft, expected?: Draft | null): Promise<void> {
@@ -333,7 +336,7 @@ export async function commitRevision(input: {
     ]);
     const preparedDescriptor = preparedRow[0] ? presentationDescriptorSchema.parse(parseJson(preparedRow[0].descriptor)) : null;
     // A draft discarded or applied meanwhile is not the one this commit was prepared from.
-    const openDraft = draftRow[0] && !["applied", "discarded", "aborted"].includes(draftRow[0].status) ? draftRow[0] : undefined;
+    const openDraft = draftRow[0] && isOpenDraft(draftRow[0].status) ? draftRow[0] : undefined;
     if ((current[0]?.id ?? "default") !== input.baseRevision || !preparedRow[0] || preparedRow[0].baseRevision !== input.baseRevision || preparedRow[0].clientInstanceId !== presentation.clientInstanceId || preparedRow[0].draftRevision !== input.draftRevision || preparedRow[0].expiresAt <= Date.now() || preparedDescriptor?.workspaceFingerprint !== descriptor.workspaceFingerprint || (openDraft?.id ?? null) !== input.draftId || (input.draftId !== null && openDraft?.draftRevision !== input.draftRevision)) {
       throw new WorkspaceApplyError("stale-base");
     }
@@ -358,25 +361,31 @@ export async function commitRevision(input: {
       .where(and(eq(workspaceRevisions.userId, userId), scopeWhere(scope)(workspaceRevisions), eq(workspaceRevisions.status, "committed")));
     const previousNumbers = await tx.select({ revisionNumber: workspaceRevisions.revisionNumber }).from(workspaceRevisions).where(and(eq(workspaceRevisions.userId, userId), scopeWhere(scope)(workspaceRevisions)));
     const revisionNumber = validatedRevision.revisionId === "default" ? 0 : previousNumbers.reduce((max, row) => Math.max(max, row.revisionNumber), 0) + 1;
-    await tx.insert(workspaceRevisions).values({
-      id: validatedRevision.revisionId,
-      userId,
-      surfaceId: scope.surfaceId,
-      deviceClass: scope.deviceClass,
-      revisionNumber,
-      catalogVersion: validatedRevision.catalogVersion,
-      productDefaultVersion: validatedRevision.productDefaultVersion,
-      committedAt: validatedRevision.committedAt,
-      operations: JSON.stringify(validatedRevision.operations),
-      constraints: JSON.stringify(validatedRevision.constraints),
-      opaque: JSON.stringify(validatedRevision.opaque),
-      causedByRevision: validatedRevision.causedByRevision ?? null,
-      status: "committed",
-    });
+    await tx.insert(workspaceRevisions).values(revisionRow(userId, scope, validatedRevision, revisionNumber, validatedRevision.causedByRevision ?? null));
+
     await swapPresentation(tx, userId, scope, input.expectedPresentation, validatedPresentation);
     await tx.delete(workspacePrepared).where(and(eq(workspacePrepared.userId, userId), scopeWhere(scope)(workspacePrepared), eq(workspacePrepared.prepareId, input.prepareId)));
     return true;
   });
+}
+
+/** A committed revision as stored; `causedBy` is the revision it came from, if any. */
+function revisionRow(userId: number, scope: Scope, revision: ActiveRevision, revisionNumber: number, causedBy: string | null): typeof workspaceRevisions.$inferInsert {
+  return {
+    id: revision.revisionId,
+    userId,
+    surfaceId: scope.surfaceId,
+    deviceClass: scope.deviceClass,
+    revisionNumber,
+    catalogVersion: revision.catalogVersion,
+    productDefaultVersion: revision.productDefaultVersion,
+    committedAt: revision.committedAt,
+    operations: JSON.stringify(revision.operations),
+    constraints: JSON.stringify(revision.constraints),
+    opaque: JSON.stringify(revision.opaque),
+    causedByRevision: causedBy,
+    status: "committed",
+  };
 }
 
 /** The scope's saved layouts, oldest first: when each was saved and how many changes it holds (the Studio's history). */
@@ -399,21 +408,8 @@ export async function insertSeedRevision(userId: number, scope: Scope, revision:
       .where(and(eq(workspaceRevisions.userId, userId), scopeWhere(scope)(workspaceRevisions))).limit(1);
     if (existing.length > 0) return false;
     await insertDescriptor(tx, userId, scope, descriptor);
-    await tx.insert(workspaceRevisions).values({
-      id: validatedRevision.revisionId,
-      userId,
-      surfaceId: scope.surfaceId,
-      deviceClass: scope.deviceClass,
-      revisionNumber: 1,
-      catalogVersion: validatedRevision.catalogVersion,
-      productDefaultVersion: validatedRevision.productDefaultVersion,
-      committedAt: validatedRevision.committedAt,
-      operations: JSON.stringify(validatedRevision.operations),
-      constraints: JSON.stringify(validatedRevision.constraints),
-      opaque: JSON.stringify(validatedRevision.opaque),
-      causedByRevision: null,
-      status: "committed",
-    });
+    await tx.insert(workspaceRevisions).values(revisionRow(userId, scope, validatedRevision, 1, null));
+
     return true;
   });
 }

@@ -582,7 +582,6 @@ export function useNoteDocument(options: Options) {
 }
 
 export type NoteDocumentController = ReturnType<typeof useNoteDocument>;
-export type NoteMetadata = NoteTreeItem;
 
 export function NoteController({
   options,

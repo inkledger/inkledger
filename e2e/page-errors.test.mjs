@@ -6,7 +6,7 @@
 // this lives in the bundle.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { holdRoute, start } from "./harness.mjs";
+import { holdRoute, start, trpcProcs } from "./harness.mjs";
 
 const sidebarLink = (page, href) => page.locator(`nav a[href="${href}"]`).first();
 
@@ -57,7 +57,7 @@ test("a page that throws while drawing: the shell stays, retry draws it again, l
     await page.route(u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("info.get"), async route => {
       const res = await route.fetch();
       if (!bend) return route.fulfill({ response: res });
-      const procs = decodeURIComponent(new URL(route.request().url()).pathname.slice("/api/trpc/".length)).split(",");
+      const procs = trpcProcs(route.request().url());
       const body = await res.json();
       const i = procs.indexOf("info.get");
       body[i].result.data.json.tailnetOrigins = 42;

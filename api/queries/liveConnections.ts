@@ -15,6 +15,9 @@ export function liveConnections(userId: number, opts: { okOnly?: boolean } = {})
     .orderBy(asc(connections.id));
 }
 
+/** The row's connection (joined in the query) belongs to the user and is live (not archived). */
+export const ofLiveConnection = (userId: number): SQL | undefined => and(eq(connections.userId, userId), isNull(connections.archivedAt));
+
 /**
  * The issue is still there, on a live (not archived) connection, and shown
  * once: the same issue reached by two connections of one service (two

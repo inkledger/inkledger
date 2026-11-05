@@ -6,10 +6,10 @@ import { QrCode } from "@/components/app/QrCode";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { dateFormat, t } from "@/i18n";
+import { t } from "@/i18n";
+import { mediumDate } from "@/lib/dates";
 import { surface } from "@/components/app/surface";
 
-const day = () => dateFormat({ dateStyle: "medium" });
 
 /**
  * A licence's servers (WP-19): whether it is active on this one, how many it
@@ -53,9 +53,9 @@ export function ActivationDialog({ product, name, open, onOpenChange }: { produc
           <div className="grid gap-3 text-body-sm">
             <p>
               {state?.state === "active"
-                ? t("settings.store.activation.activeUntil", { date: day().format(state.exp) })
+                ? t("settings.store.activation.activeUntil", { date: mediumDate(state.exp) })
                 : state?.state === "grace"
-                  ? t("settings.store.activation.grace", { date: day().format(state.until) })
+                  ? t("settings.store.activation.grace", { date: mediumDate(state.until) })
                   : t("settings.store.activation.notActive")}
             </p>
             {servers && (

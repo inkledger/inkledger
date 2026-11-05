@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { getLocale } from "@/i18n";
+import { currentLocale } from "@/i18n";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { lazyPart } from "@/components/app/lazyPart";
 import { ModulesContext } from "./context";
@@ -16,7 +16,7 @@ export function ModuleSettingsSheet() {
   const [id, setId] = useState<string | null>(null);
   useEffect(() => ctx?.hub.settingsOpen(setId), [ctx]);
   const loaded = id ? ctx?.modules.find(m => m.entry.id === id && m.module.mount.settings) : undefined;
-  const name = loaded ? loaded.entry.name[getLocale() === "it" ? "it" : "en"] : "";
+  const name = loaded ? loaded.entry.name[currentLocale() === "it" ? "it" : "en"] : "";
   return (
     <Sheet open={loaded !== undefined} onOpenChange={o => !o && ctx?.hub.closeSettings()}>
       <SheetContent className="w-full gap-0 p-0 sm:max-w-md">

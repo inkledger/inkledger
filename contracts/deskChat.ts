@@ -10,9 +10,6 @@ export const DESK_CHAT_PATH = "/api/desk/chat";
 /** What the chat can reach for the issues shown: the projects' repositories, the model's tools. */
 export const DESK_CHAT_REACH_PATH = "/api/desk/chat/reach";
 
-/** A turn of the conversation as the page sends it back. */
-export type DeskChatTurn = { role: "user" | "assistant"; content: string };
-
 /** A tool the model asked for; the page runs it on the user's machine. */
 export type DeskChatToolCall = { name: CodeToolName; arguments: Record<string, unknown> };
 

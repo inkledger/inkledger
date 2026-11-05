@@ -3,7 +3,7 @@
 // never an empty form whose Save would unassign everyone or blank the text.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start } from "./harness.mjs";
+import { start, trpcProcs } from "./harness.mjs";
 
 const MANAGE = { assign: true, create: false, edit: true, labels: false, types: false };
 
@@ -21,10 +21,9 @@ async function withFailing(names, body) {
     let failing = true;
     const writes = [];
     await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
-      const path = decodeURIComponent(new URL(route.request().url()).pathname.split("/api/trpc/")[1] ?? "");
-      const procs = path.split(",");
+      const procs = trpcProcs(route.request().url());
       if (procs.some(p => p === "issues.assign" || p === "issues.edit")) {
-        writes.push(path);
+        writes.push(procs.join(","));
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(procs.map(() => ({ result: { data: { json: { assignees: [], key: "DEMO-101", labels: [], title: null } } } }))) });
       }
       const fails = failing && procs.some(p => names.includes(p));

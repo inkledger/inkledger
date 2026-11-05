@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { insertionIndex, type SketchAxis } from "./sketch";
+import { listenPointerSession } from "@/lib/pointerSession";
 
 /** A block being moved: where it came from, and where it would land now (index among the target's other blocks). */
 export type BlockDrag = { anchorId: string; sourceAreaId: string; targetAreaId: string | null; index: number; mode: "pointer" | "keyboard" };
@@ -110,40 +111,28 @@ export function useBlockDrag({ root, areas, countIn, indexOf, onDrop, announce }
       announce(next, "picked");
       place();
     };
-    const move = (moveEvent: globalThis.PointerEvent) => {
-      if (moveEvent.pointerId !== event.pointerId) return;
-      point = { x: moveEvent.clientX, y: moveEvent.clientY };
-      if (!started && Math.hypot(point.x - start.x, point.y - start.y) < START_DISTANCE) return;
-      if (!started) begin();
-      place();
-      if (!frame) frame = requestAnimationFrame(edgeScroll);
-    };
-    const finish = (drop: boolean) => {
-      const last = current.current;
-      cleanup.current?.();
-      if (!started || !last) return;
-      update(null);
-      if (drop && last.targetAreaId) {
-        onDrop(last);
-        announce(last, "dropped");
-      } else announce(last, "cancelled");
-    };
-    const up = (upEvent: globalThis.PointerEvent) => { if (upEvent.pointerId === event.pointerId) finish(true); };
-    const cancel = (cancelEvent: globalThis.PointerEvent) => { if (cancelEvent.pointerId === event.pointerId) finish(false); };
-    const key = (keyEvent: globalThis.KeyboardEvent) => {
-      if (keyEvent.key !== "Escape") return;
-      keyEvent.preventDefault();
-      finish(false);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("keydown", key, true);
+    const remove = listenPointerSession(event.pointerId, {
+      move: moveEvent => {
+        point = { x: moveEvent.clientX, y: moveEvent.clientY };
+        if (!started && Math.hypot(point.x - start.x, point.y - start.y) < START_DISTANCE) return;
+        if (!started) begin();
+        place();
+        if (!frame) frame = requestAnimationFrame(edgeScroll);
+      },
+      finish: drop => {
+        const last = current.current;
+        cleanup.current?.();
+        if (!started || !last) return;
+        update(null);
+        if (drop && last.targetAreaId) {
+          onDrop(last);
+          announce(last, "dropped");
+        } else announce(last, "cancelled");
+      },
+      escape: {},
+    });
     cleanup.current = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("keydown", key, true);
+      remove();
       if (frame) cancelAnimationFrame(frame);
       ghost.current?.remove();
       ghost.current = null;

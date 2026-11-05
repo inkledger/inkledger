@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { AlertTriangle, CopyPlus, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { formatDuration, formatSeconds } from "@contracts/time";
@@ -13,7 +13,8 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { projectOf } from "@/lib/projectColors";
 import { goalTone } from "@/lib/goalTone";
 import { issueId, issuePath } from "@/lib/issues";
-import { nextIndex } from "@/lib/roving";
+import { nextIndex, useGridFocus } from "@/lib/roving";
+import { allSelected, selectionOf } from "@/lib/selection";
 import { workedSeconds } from "@/lib/worked";
 import { dayMonth } from "@/lib/dates";
 import { cn } from "@/lib/utils";
@@ -86,31 +87,13 @@ export function WeekGrid(props: Props) {
 
 function Grid({ days, todayKey, targetFor, locked, selected, busy, onToggle, onToggleDay, onEdit, onDelete, onDuplicate, onAdd, rows, dayTotals }: Props & { rows: Row[]; dayTotals: number[] }) {
   const table = useRef<HTMLTableElement>(null);
-  // The one cell in the Tab order (row, column; column 0 is the issue's link).
-  const [active, setActive] = useState<[number, number]>([0, 1]);
+  // The one cell in the Tab order (row, column; column 0 is the issue's link), kept inside the grid
+  // when the rows change (another week, a deleted entry).
   const columns = days.length + 1;
-  const move = (event: KeyboardEvent<HTMLTableElement>) => {
-    const [r, c] = at;
-    let next: [number, number] | null = null;
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      const to = r + (event.key === "ArrowDown" ? 1 : -1);
-      if (to >= 0 && to < rows.length) next = [to, c];
-    } else {
-      const to = nextIndex(c, columns, event);
-      if (to !== null) next = [r, to];
-    }
-    if (!next) return;
-    event.preventDefault();
-    setActive(next);
-    table.current?.querySelector<HTMLElement>(`[data-cell="${next[0]},${next[1]}"]`)?.focus();
-  };
-  // Kept inside the grid when the rows change (another week, a deleted entry).
-  const at: [number, number] = [Math.min(active[0], Math.max(0, rows.length - 1)), Math.min(active[1], columns - 1)];
-  const tab = (r: number, c: number) => (at[0] === r && at[1] === c ? 0 : -1);
+  const { tab, onKeyDown, setActive } = useGridFocus(table, rows.length, columns, [0, 1]);
   return (
     <div data-overflow-ok className="overflow-x-auto">
-      <table ref={table} role="grid" aria-label={t("views.timesheet.grid.label")} onKeyDown={move} className="w-full min-w-[34rem] table-fixed border-separate border-spacing-0 text-body-sm">
+      <table ref={table} role="grid" aria-label={t("views.timesheet.grid.label")} onKeyDown={onKeyDown} className="w-full min-w-[34rem] table-fixed border-separate border-spacing-0 text-body-sm">
         <colgroup>
           <col className="w-[30%]" />
           {days.map(day => <col key={day.key} />)}
@@ -191,8 +174,8 @@ function Grid({ days, todayKey, targetFor, locked, selected, busy, onToggle, onT
                         <Checkbox
                           className="m-1.5"
                           aria-label={t("views.timesheet.week.selectDay", { label })}
-                          checked={entries.every(w => selected.has(w.id)) ? true : entries.some(w => selected.has(w.id)) ? "indeterminate" : false}
-                          onCheckedChange={() => onToggleDay(entries.map(w => w.id), !entries.every(w => selected.has(w.id)))}
+                          checked={selectionOf(entries.map(w => w.id), selected)}
+                          onCheckedChange={() => onToggleDay(entries.map(w => w.id), !allSelected(entries.map(w => w.id), selected))}
                         />
                       )}
                       {onAdd && (
@@ -397,8 +380,8 @@ function DayStrip({ days, byDay, todayKey, targetFor, locked, selected, busy, on
               <Checkbox
                 className="m-1.5"
                 aria-label={t("views.timesheet.week.selectDay", { label })}
-                checked={entries.every(w => selected.has(w.id)) ? true : entries.some(w => selected.has(w.id)) ? "indeterminate" : false}
-                onCheckedChange={() => onToggleDay(entries.map(w => w.id), !entries.every(w => selected.has(w.id)))}
+                checked={selectionOf(entries.map(w => w.id), selected)}
+                onCheckedChange={() => onToggleDay(entries.map(w => w.id), !allSelected(entries.map(w => w.id), selected))}
               />
             )}
             {!locked && onAdd && (

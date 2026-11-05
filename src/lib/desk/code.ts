@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESK_CHAT_REACH_PATH, type DeskChatReach, type DeskChatToolCall } from "@contracts/deskChat";
 import { deskIssues, paneId, type DeskSlot } from "@contracts/desk";
 import { CODE_TOOLS, FILE_TOOLS, formatToolResult, parseToolArgs, type CodeToolName, type ToolResults } from "@contracts/codeTools";
-import { getLocale, t } from "@/i18n";
+import { currentLocale, t } from "@/i18n";
 import { codeAllowRoot, codeFind, codeGitLog, codeGitShow, codeGrep, codeLs, codeRead, codeRoots, isNative, nativeInfo } from "@/lib/native";
 import { browserTool } from "./browserCode";
 import { canConnectFolders, connectFolder, forgetFolder, readable, useFolders, type Folder } from "./folders";
@@ -65,7 +65,7 @@ async function fetchReach(panes: readonly DeskSlot[]): Promise<DeskChatReach> {
   const res = await fetch(DESK_CHAT_REACH_PATH, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json", "x-locale": getLocale() },
+    headers: { "Content-Type": "application/json", "x-locale": currentLocale() },
     body: JSON.stringify({ panes }),
   });
   if (!res.ok) throw new Error(String(res.status));

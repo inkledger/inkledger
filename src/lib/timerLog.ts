@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { quickStart } from "@/lib/quickStart";
 import { issueId } from "@/lib/issues";
 import { t } from "@contracts/i18n";
+import { toast } from "sonner";
 
 /** A stopped timer whose time still has to be logged. */
 export type PendingTimerLog = {
@@ -60,6 +61,13 @@ export const timerLog = {
     emit();
   },
 };
+
+/** Timers a start switched off: each is asked to be logged, and the switch is announced. */
+export function announceSwitched(stopped: (PendingTimerLog & { stoppedAt: Date })[]) {
+  for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
+  if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
+  else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
+}
 
 export function useTimerLogQueue(): PendingTimerLog[] {
   return useSyncExternalStore(

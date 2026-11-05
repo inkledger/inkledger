@@ -13,7 +13,7 @@ import {
 import superjson from "superjson";
 import { useState, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
-import { getLocale } from "@/i18n";
+import { currentLocale } from "@/i18n";
 import { deviceId } from "@/lib/device";
 import { pageQueriesOf } from "@/lib/pageQueries";
 import { logFault } from "@/lib/errorText";
@@ -116,7 +116,7 @@ function createTRPCContext(existing?: QueryClient) {
       httpBatchLink({
         url: "/api/trpc",
         transformer: superjson,
-        headers: () => ({ "x-locale": getLocale(), "x-device-id": deviceId(), ...(pageBuild ? { [APP_BUILD_HEADER]: pageBuild } : {}) }),
+        headers: () => ({ "x-locale": currentLocale(), "x-device-id": deviceId(), ...(pageBuild ? { [APP_BUILD_HEADER]: pageBuild } : {}) }),
         fetch(input, init) {
           return globalThis.fetch(input, { ...(init ?? {}), credentials: "include" });
         },

@@ -8,6 +8,7 @@ import { desks, issues, itemAliases } from "@db/schema";
 import { addPane, deskIssues, DESK_MAX_PANES, isIssue, normalizeDesk, paneId, type DeskLayout, type DeskPane, type DeskSlot } from "@contracts/desk";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { issueConnection } from "../providers/connections";
 import { issueKeyInput } from "../lib/inputs";
 
@@ -68,7 +69,7 @@ async function paneFor(userId: number, key: string, connectionId: number | undef
   const [byKey] = await db
     .select(pick)
     .from(issues)
-    .where(and(eq(issues.userId, userId), eq(issues.connectionId, connection.id), eq(issues.key, key)))
+    .where(issueAt(userId, connection.id, key))
     .limit(1);
   // An old key (the issue moved since): the issue it names now.
   const [byAlias] = byKey

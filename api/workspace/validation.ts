@@ -160,7 +160,6 @@ export const workspaceInputSchemas = {
   variant: variantSchema,
 };
 
-export type ValidatedScope = z.infer<typeof scopeSchema>;
 export type ValidatedActiveRevision = z.infer<typeof activeRevisionSchema>;
 export type ValidatedDraft = z.infer<typeof draftSchema>;
 export type ValidatedDescriptor = z.infer<typeof descriptorSchema>;

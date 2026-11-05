@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type { ModuleListEntry } from "@contracts/modules";
 import { LICENSE_FILE_EXTENSION, type StoreEntry } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
-import { getLocale, t, useLocale } from "@/i18n";
+import { currentLocale, t, useLocale } from "@/i18n";
 import { modulesDisabled, setModulesDisabled } from "@/modules/loader";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { EmptyState, ErrorState } from "@/components/app/States";
@@ -298,7 +298,7 @@ function RestoreLicence() {
   const restore = trpc.store.restoreLicense.useMutation({
     onSuccess: r => {
       const entry = utils.store.catalog.getData()?.entries.find(e => e.product === r.product);
-      toast.success(t("settings.store.restore.done", { product: entry ? loc(entry.name, getLocale()) : r.product }));
+      toast.success(t("settings.store.restore.done", { product: entry ? loc(entry.name, currentLocale()) : r.product }));
       void utils.store.catalog.invalidate();
       void utils.modules.list.invalidate();
     },

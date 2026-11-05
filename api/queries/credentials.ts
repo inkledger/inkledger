@@ -31,7 +31,7 @@ export async function resealCredentials(db: Db): Promise<number> {
       continue;
     }
     // Unreadable only because no key opened it: it opens now. A refused login stays refused.
-    const readable = row.status === "unreadable" ? { status: "ok" } : {};
+    const readable = row.status === "unreadable" ? { status: "ok" as const } : {};
     if (opened.fresh) {
       if (row.status === "unreadable") await db.update(connections).set(readable).where(eq(connections.id, row.id));
       continue;

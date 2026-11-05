@@ -9,6 +9,7 @@ import { TIME_SINK_TYPES } from "@contracts/providers";
 import { createRouter, protectedProcedure } from "../middleware";
 import { LIST_MAX_ROWS } from "../lib/inputs";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { connections, issues, outbox, worklogs } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
 import { CLAIM_TTL_MS, replayContract } from "../sync/timeWrites";
@@ -42,7 +43,7 @@ export const outboxRouter = createRouter({
       .from(outbox)
       .leftJoin(
         issues,
-        and(eq(issues.userId, outbox.userId), eq(issues.connectionId, outbox.connectionId), eq(issues.key, outbox.issueKey)),
+        issueAt(outbox.userId, outbox.connectionId, outbox.issueKey),
       )
       // A sink delete held while its worklog's own delete is under way isn't queued yet.
       .where(and(eq(outbox.userId, ctx.user.id), not(heldSinkDelete)))

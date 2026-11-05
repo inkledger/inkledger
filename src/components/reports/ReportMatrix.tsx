@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { dayKey, formatDuration, formatSeconds } from "@contracts/time";
 import { matrixDays } from "@/lib/matrixDays";
@@ -8,7 +8,7 @@ import { ProjectAvatar } from "@/components/app/ProjectAvatar";
 import { projectOf } from "@/lib/projectColors";
 import { goalTone } from "@/lib/goalTone";
 import { issuePath } from "@/lib/issues";
-import { nextIndex } from "@/lib/roving";
+import { useGridFocus } from "@/lib/roving";
 import { dayMonth } from "@/lib/dates";
 import { splitLabel, type ReportRow } from "@/lib/reportLabel";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,6 @@ const weekday = () => dateFormat({ weekday: "narrow" });
  */
 export function ReportMatrix({ days, issues, targetFor }: { days: ReportDay[]; issues: ReportRow[]; targetFor: (d: Date) => number }) {
   const table = useRef<HTMLTableElement>(null);
-  const [active, setActive] = useState<[number, number]>([0, 0]);
   const [all, setAll] = useState(false);
   const dates = matrixDays(days);
   const byDay = new Map(days.map(d => [d.day, d]));
@@ -35,29 +34,12 @@ export function ReportMatrix({ days, issues, targetFor }: { days: ReportDay[]; i
   const rows = [...issues].sort((a, b) => b.seconds - a.seconds);
   const shown = all ? rows : rows.slice(0, MATRIX_FIRST);
   const columns = dates.length + 1;
-  const at: [number, number] = [Math.min(active[0], Math.max(0, shown.length - 1)), Math.min(active[1], columns - 1)];
-  const tab = (r: number, c: number) => (at[0] === r && at[1] === c ? 0 : -1);
-  const move = (event: KeyboardEvent<HTMLTableElement>) => {
-    const [r, c] = at;
-    let next: [number, number] | null = null;
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      const to = r + (event.key === "ArrowDown" ? 1 : -1);
-      if (to >= 0 && to < shown.length) next = [to, c];
-    } else {
-      const to = nextIndex(c, columns, event);
-      if (to !== null) next = [r, to];
-    }
-    if (!next) return;
-    event.preventDefault();
-    setActive(next);
-    table.current?.querySelector<HTMLElement>(`[data-cell="${next[0]},${next[1]}"]`)?.focus();
-  };
+  const { tab, onKeyDown, setActive } = useGridFocus(table, shown.length, columns, [0, 0]);
   const today = dayKey(new Date());
   return (
     <div className="grid gap-2">
       <div data-overflow-ok className="overflow-x-auto">
-        <table ref={table} role="grid" aria-label={t("views.reports.days.matrix")} onKeyDown={move} className="w-full table-fixed border-separate border-spacing-0 text-body-sm" style={{ minWidth: `${14 + dates.length * 3.5 + 6}rem` }}>
+        <table ref={table} role="grid" aria-label={t("views.reports.days.matrix")} onKeyDown={onKeyDown} className="w-full table-fixed border-separate border-spacing-0 text-body-sm" style={{ minWidth: `${14 + dates.length * 3.5 + 6}rem` }}>
           <colgroup>
             {/* The days a fixed width, the issue's column the rest: a short range reads more of each summary. */}
             <col />

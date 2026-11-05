@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { timerLog } from "@/lib/timerLog";
+import { announceSwitched, timerLog } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
 import { toastError } from "@/lib/errorText";
 import { t } from "@/i18n";
@@ -25,10 +25,7 @@ export function useTodoWork() {
       r => {
         void refresh();
         if (r.tookOver) toast.success(t("views.todos.workTookOver", { text: x.text }));
-        const stopped = r.switchedFromAll ?? (r.switchedFrom ? [r.switchedFrom] : []);
-        for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
-        if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
-        else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
+        announceSwitched(r.switchedFromAll);
       },
       (e: unknown) => {
         void refresh();

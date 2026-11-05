@@ -7,8 +7,7 @@ import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { quickStart } from "@/lib/quickStart";
 import { navEntryFor, navItems, TAB_ROUTES } from "@/lib/nav";
 import { TimerRing } from "@/components/TimerControls";
-import { MobileTimerSheet } from "@/components/mobile/MobileTimerSheet";
-import { MobileMoreSheet } from "@/components/mobile/MobileMoreSheet";
+import { lazyPart } from "@/components/app/lazyPart";
 import { ModuleSlot } from "@/modules/ModuleHost";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -20,6 +19,9 @@ import { WorkspaceInteractionBoundary } from "@/lib/workspace/interaction";
 import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 import { prefersReducedMotion } from "@/lib/dom";
 import { focusTimer, runningTimers } from "@/lib/timerFocus";
+
+const MobileTimerSheet = lazyPart(() => import("@/components/mobile/MobileTimerSheet").then(m => m.MobileTimerSheet));
+const MobileMoreSheet = lazyPart(() => import("@/components/mobile/MobileMoreSheet").then(m => m.MobileMoreSheet));
 
 const CELL =
   "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -143,6 +145,11 @@ function MobileTabBarContent() {
   const { workspace } = useWorkspace();
   const [timersOpen, setTimersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Mounted at first open (their clocks and queries stay off until then), kept after so closing animates.
+  const [timersSeen, setTimersSeen] = useState(false);
+  const [moreSeen, setMoreSeen] = useState(false);
+  if (timersOpen && !timersSeen) setTimersSeen(true);
+  if (moreOpen && !moreSeen) setMoreSeen(true);
   const entry = navEntryFor(pathname);
   // A page under a tab's section (the Desk under Issues) stays on that tab.
   const inMore =
@@ -220,8 +227,8 @@ function MobileTabBarContent() {
           })}
         </div>
       </nav>
-      <MobileTimerSheet open={timersOpen} onOpenChange={setTimersOpen} />
-      <MobileMoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
+      {timersSeen && <MobileTimerSheet open={timersOpen} onOpenChange={setTimersOpen} />}
+      {moreSeen && <MobileMoreSheet open={moreOpen} onOpenChange={setMoreOpen} />}
     </>
   );
 }

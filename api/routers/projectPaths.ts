@@ -1,13 +1,14 @@
 // Where each project's code is on the user's computer (contracts/analyze.ts):
 // only kept to be put in the "Analyse" command, never read or opened here.
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { connections, containerPaths, containers } from "@db/schema";
 import { isRepoPath } from "@contracts/analyze";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ofLiveConnection } from "../queries/liveConnections";
 
 const REPO_PATHS_MAX = 10;
 
@@ -34,7 +35,7 @@ export const projectPathsRouter = createRouter({
         .select({ id: containers.id, key: containers.key, name: containers.name, connection: connections.label })
         .from(containers)
         .innerJoin(connections, eq(connections.id, containers.connectionId))
-        .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+        .where(ofLiveConnection(ctx.user.id))
         .orderBy(asc(containers.key))
         .limit(500),
       db
@@ -55,7 +56,7 @@ export const projectPathsRouter = createRouter({
         .select({ id: containers.id })
         .from(containers)
         .innerJoin(connections, eq(connections.id, containers.connectionId))
-        .where(and(eq(containers.id, input.containerId), eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+        .where(and(eq(containers.id, input.containerId), ofLiveConnection(ctx.user.id)))
         .limit(1);
       if (!own) throw new TRPCError({ code: "NOT_FOUND", message: t("server.ideas.noContainer") });
       const unique = input.paths.filter((p, i) => input.paths.findIndex((q) => q.path === p.path) === i);

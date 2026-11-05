@@ -8,8 +8,6 @@ export const DASHBOARD_WIDGETS = [
   { id: "recap" },
 ] as const;
 
-export type DashboardWidgetId = (typeof DASHBOARD_WIDGETS)[number]["id"];
-
 export interface DashboardLayoutItem {
   id: string;
   visible: boolean;

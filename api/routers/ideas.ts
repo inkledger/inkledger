@@ -10,6 +10,8 @@ import { t } from "@contracts/i18n";
 import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, ideaSuggestionSchema, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ofLiveConnection } from "../queries/liveConnections";
+import { issueAt } from "../queries/issueAt";
 import { TRASH_DAYS } from "../queries/trash";
 import { issueKeyInput } from "../lib/inputs";
 import { agentCopy } from "../issues/agentCopy";
@@ -110,7 +112,7 @@ async function ownContainer(userId: number, containerId: number): Promise<void> 
     .select({ id: containers.id })
     .from(containers)
     .innerJoin(connections, eq(connections.id, containers.connectionId))
-    .where(and(eq(containers.id, containerId), eq(connections.userId, userId), isNull(connections.archivedAt)))
+    .where(and(eq(containers.id, containerId), ofLiveConnection(userId)))
     .limit(1);
   if (!found) throw new TRPCError({ code: "NOT_FOUND", message: t("server.ideas.noContainer") });
 }
@@ -198,7 +200,7 @@ export const ideasRouter = createRouter({
       .select({ id: containers.id, key: containers.key, name: containers.name })
       .from(containers)
       .innerJoin(connections, eq(connections.id, containers.connectionId))
-      .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+      .where(ofLiveConnection(ctx.user.id))
       .orderBy(asc(containers.key))
       .limit(500),
   ),
@@ -328,7 +330,7 @@ export const ideasRouter = createRouter({
     const [issue] = await getDb()
       .select({ id: issues.id, key: issues.key })
       .from(issues)
-      .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, input.connectionId), eq(issues.key, input.issueKey), isNull(issues.goneAt)))
+      .where(and(issueAt(ctx.user.id, input.connectionId, input.issueKey), isNull(issues.goneAt)))
       .limit(1);
     if (!issue) throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
     await getDb()

@@ -39,6 +39,7 @@ import {
   writePresentation,
   insertSeedRevision,
   revisionSummaries,
+  isOpenDraft,
 } from "./store";
 import type {
   ActiveRevision,
@@ -76,12 +77,9 @@ async function discoveryFor(userId: number, scope: Scope): Promise<ResolveInput[
   return getDiscoveryState(userId, scope);
 }
 
-/** Drafts still being worked on; an applied, discarded or aborted one is history and never resolved again. */
-const OPEN_DRAFT: readonly Draft["status"][] = ["editing", "ready", "applying", "conflict", "stale"];
-
 async function openDraft(userId: number, scope: Scope): Promise<Draft | null> {
   const draft = await latestDraft(userId, scope);
-  return draft && OPEN_DRAFT.includes(draft.status) ? draft : null;
+  return draft && isOpenDraft(draft.status) ? draft : null;
 }
 
 async function inputFor(userId: number, scope: Scope, draftOverride?: Draft | null, activeOverride?: ActiveRevision): Promise<ResolveInput> {
@@ -191,8 +189,7 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
       presentation = (await loadApplyState(userId, scope)).presentations[clientInstanceId] ?? presentation;
     }
   }
-  const storedDraft = await latestDraft(userId, scope);
-  const draft = storedDraft && !["applied", "discarded", "aborted"].includes(storedDraft.status) ? storedDraft : null;
+  const draft = await openDraft(userId, scope);
   let draftDescriptor: PresentationDescriptor | null = null;
   let draftWorkspace: ResolvedWorkspace | null = null;
   if (draft) {
@@ -252,7 +249,7 @@ export async function saveWorkspaceDraft(userId: number, scope: Scope, draft: Dr
   if (previous?.draftId === draft.draftId && (draft.draftRevision < previous.draftRevision || (draft.draftRevision === previous.draftRevision && fingerprint("input", previous.patches).value !== fingerprint("input", draft.patches).value))) {
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
-  if (previous && !["applied", "discarded", "aborted"].includes(previous.status) && previous.draftId !== draft.draftId && draft.draftRevision <= previous.draftRevision) {
+  if (previous && isOpenDraft(previous.status) && previous.draftId !== draft.draftId && draft.draftRevision <= previous.draftRevision) {
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
   const active = await inputFor(userId, scope, null);
@@ -293,7 +290,7 @@ export async function reproposeWorkspaceDraft(userId: number, scope: Scope, draf
   const current = await inputFor(userId, scope, null);
   if (draft.baseRevision === current.activeRevision.revisionId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.changed") });
   const previous = await latestDraft(userId, scope);
-  if (previous && OPEN_DRAFT.includes(previous.status) && previous.draftId !== draft.draftId) {
+  if (previous && isOpenDraft(previous.status) && previous.draftId !== draft.draftId) {
     throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.changed") });
   }
   const { patches, operations, dropped } = await reproposalFor(userId, scope, draft, current);

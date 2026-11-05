@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gt, isNull, lt } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { issues, plannedEntries, worklogs, type Connection, type PlannedEntry } from "@db/schema";
 import { PLANNED_KINDS, plannedSeconds, type PlannedKind } from "@contracts/planned";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
@@ -70,7 +71,7 @@ async function normalizeFields(userId: number, value: PlannedFields, explicitVac
   const [issue] = await getDb()
     .select({ id: issues.id })
     .from(issues)
-    .where(and(eq(issues.userId, userId), eq(issues.connectionId, conn.id), eq(issues.key, value.issueKey)))
+    .where(issueAt(userId, conn.id, value.issueKey))
     .limit(1);
   if (!issue) throw new TRPCError({ code: "NOT_FOUND", message: t("server.planned.issueNotFound") });
   return { ...value, connectionId: conn.id };

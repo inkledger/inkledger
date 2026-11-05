@@ -1,8 +1,9 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { SquarePlus, X } from "lucide-react";
 import { paneId, type DeskLayout, type DeskPane } from "@contracts/desk";
 import { trpc } from "@/lib/trpc";
-import { ISSUE_DRAG_TYPE, readIssueDragData, visibleIssues } from "@/lib/issues";
+import { visibleIssues } from "@/lib/issues";
+import { useIssueDrop } from "@/hooks/useIssueDrop";
 import { projectOf } from "@/lib/projectColors";
 import { IssuePicker } from "@/components/app/IssuePicker";
 import { ProjectAvatar } from "@/components/app/ProjectAvatar";
@@ -35,7 +36,6 @@ export function EmptySlot({
   onFocusPane: (id: string) => void;
 }) {
   const issues = trpc.issues.all.useQuery(undefined, { staleTime: 60_000 });
-  const [over, setOver] = useState(false);
   const onDesk = useMemo(() => new Set(desk.panes.map(paneId)), [desk.panes]);
   const choices = useMemo(() => visibleIssues(issues.data ?? []).filter(i => !onDesk.has(paneId(i))), [issues.data, onDesk]);
   const recent = useMemo(
@@ -47,6 +47,7 @@ export function EmptySlot({
     [choices]
   );
   const fill = (issue: { connectionId: number; key: string; remoteId: string | null }) => onFill({ connectionId: issue.connectionId, key: issue.key, remoteId: issue.remoteId });
+  const { over, drop } = useIssueDrop(fill);
   const titleId = `desk-slot-title-${id}`;
 
   return (
@@ -60,22 +61,7 @@ export function EmptySlot({
       style={style}
       onPointerDownCapture={() => onFocusPane(id)}
       onFocusCapture={() => onFocusPane(id)}
-      onDragOver={e => {
-        if (!e.dataTransfer.types.includes(ISSUE_DRAG_TYPE)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-        setOver(true);
-      }}
-      onDragLeave={e => {
-        if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setOver(false);
-      }}
-      onDrop={e => {
-        setOver(false);
-        const issue = readIssueDragData(e.dataTransfer);
-        if (!issue) return;
-        e.preventDefault();
-        fill(issue);
-      }}
+      {...drop}
       className="relative min-h-0 min-w-0 overflow-y-auto bg-card p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {/* surface: none — the slot's outline drawn on the pane, not a box standing on it. */}

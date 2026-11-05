@@ -1,15 +1,8 @@
 // Helpers for adapters checking webhook deliveries (TrackerProvider.webhook).
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { hmacHex, sameSecret } from "../../lib/secrets";
 
-/** HMAC-SHA256 of the body with the secret, hex: what GitHub-style "sha256=…" signatures carry. */
-export const hmacHex = (secret: string, body: string | Uint8Array) => createHmac("sha256", secret).update(body).digest("hex");
-
-/** Equal strings, in constant time. */
-export function sameSecret(a: string, b: string): boolean {
-  const x = Buffer.from(a, "utf8");
-  const y = Buffer.from(b, "utf8");
-  return x.length === y.length && timingSafeEqual(x, y);
-}
+export { hmacHex, sameSecret };
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
 

@@ -18,6 +18,7 @@
 //   - a mutation can answer success: false with HTTP 200
 //   - an integration's comment has no user, only a botActor
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 import type { LinearComment, LinearIssue, LinearState, LinearStateType, LinearTeam, LinearUser } from "./client";
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -330,12 +331,11 @@ export function linearSimulator(apiBase = "https://api.linear.app", me: LinearUs
   }
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method, headers } = simRequest(input, init);
     const base = new URL(apiBase);
     if (url.origin !== base.origin || url.pathname !== `${base.pathname.replace(/\/$/, "")}/graphql`) return json({ errors: [{ message: "Not Found" }] }, 404);
-    if ((init?.method ?? "GET").toUpperCase() !== "POST") return json({ errors: [{ message: "Method not allowed" }] }, 405);
+    if (method !== "POST") return json({ errors: [{ message: "Method not allowed" }] }, 405);
 
-    const headers = new Headers(init?.headers);
     const auth = headers.get("authorization");
     const authorized = !auth ? false : auth.startsWith("Bearer lin_api_") ? false : auth.startsWith("Bearer ") ? oauthTokens.has(auth.slice(7)) : tokens.has(auth);
     if (!authorized) return fail("Authentication required, not authenticated", "authentication error", "AUTHENTICATION_ERROR", 401);

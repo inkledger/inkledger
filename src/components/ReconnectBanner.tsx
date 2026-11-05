@@ -1,6 +1,6 @@
 import { KeyRound, WifiOff } from "lucide-react";
 import { Link } from "react-router";
-import { SYNC_GIVE_UP_AFTER } from "@contracts/sync";
+import { SYNC_GIVE_UP_AFTER, isPaused, isWorking } from "@contracts/sync";
 import { useConnections } from "@/hooks/useConnections";
 import { useSync } from "@/hooks/useSync";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,11 @@ import { t } from "@/i18n";
  * times in a row has its background sync paused: one click tries it again.
  */
 export function ReconnectBanner() {
-  const broken = (useConnections().data ?? []).filter(c => c.status !== "ok");
+  const broken = (useConnections().data ?? []).filter(c => !isWorking(c.status));
   const sync = useSync();
   if (broken.length === 0) return null;
   const c = broken[0];
-  const unreachable = c.status === "unreachable";
+  const unreachable = isPaused(c.status);
   const Icon = unreachable ? WifiOff : KeyRound;
   return (
     <div className="border-b bg-warning-soft" role="status">

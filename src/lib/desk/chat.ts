@@ -3,7 +3,7 @@ import { DESK_CHAT_PATH, type DeskChatEvent, type DeskChatIssue, type DeskChatRe
 import type { DeskSlot } from "@contracts/desk";
 import type { RichDoc } from "@contracts/richtext";
 import type { CodeToolName } from "@contracts/codeTools";
-import { getLocale, t } from "@/i18n";
+import { currentLocale, t } from "@/i18n";
 import { randomUUID } from "@/lib/randomId";
 import { runAgent, type AgentStep } from "./agent";
 import { describeCall, runCodeTool, type Repo } from "./code";
@@ -105,7 +105,7 @@ async function* post(body: DeskChatRequest, signal?: AbortSignal): AsyncGenerato
   const res = await fetch(DESK_CHAT_PATH, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json", "x-locale": getLocale() },
+    headers: { "Content-Type": "application/json", "x-locale": currentLocale() },
     body: JSON.stringify(body),
     signal,
   });

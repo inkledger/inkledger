@@ -1,6 +1,3 @@
-export const WORKSPACE_SCHEMA_VERSION = 1;
-export const PATCH_SCHEMA_VERSION = 1;
-export const LAYOUT_SCHEMA_VERSION = 1;
 export const RESOLVER_VERSION = 1;
 export const CANONICALIZATION_VERSION = 1;
 export const FINGERPRINT_FIELDS_VERSION = 1;

@@ -24,6 +24,7 @@
 //     runs out and says in how many seconds it comes back; plain 429s too
 //   - updates (comments) are HTML, newest first, with replies inside
 import { createHmac } from "node:crypto";
+import { simRequest } from "../core/simulator";
 import { API_VERSION, type MondayBoardType, type MondayUser } from "./client";
 
 export const SINGLE_QUERY_LIMIT = 5_000_000;
@@ -356,12 +357,11 @@ export function mondaySimulator(apiBase = "https://api.monday.com/v2", me: Monda
   const page = <T>(list: T[], limit: number, p: number) => list.slice((p - 1) * limit, p * limit);
 
   async function handle(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method, headers } = simRequest(input, init);
     const base = new URL(apiBase);
     if (url.origin !== base.origin || url.pathname.replace(/\/$/, "") !== base.pathname.replace(/\/$/, "")) return json({ errors: [{ message: "Not Found" }] }, 404);
-    if ((init?.method ?? "GET").toUpperCase() !== "POST") return json({ errors: [{ message: "Method not allowed" }] }, 405);
+    if (method !== "POST") return json({ errors: [{ message: "Method not allowed" }] }, 405);
 
-    const headers = new Headers(init?.headers);
     const auth = headers.get("authorization");
     const version = headers.get("api-version");
     const authorized = !auth ? false : auth.startsWith("Bearer ") ? oauthTokens.has(auth.slice(7)) : tokens.has(auth);

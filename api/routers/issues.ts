@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, getTableColumns, inArray, notInArray, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { activity, containers, issues, itemAliases, type Connection, syncState, timers, worklogs, type User, type Issue } from "@db/schema";
 import { boundTracker, freshError, syncConnectionEntries, syncConnectionIssues, withStream } from "../sync/engine";
 import { toRichDoc } from "../providers/core/richtext";
@@ -48,7 +49,7 @@ async function markSeen(userId: number, key: string, connectionId: number) {
   await getDb()
     .update(issues)
     .set({ seenAt: Date.now() })
-    .where(and(eq(issues.userId, userId), eq(issues.connectionId, connectionId), eq(issues.key, key)));
+    .where(issueAt(userId, connectionId, key));
 }
 
 /** Others' activity newer than the last visit (my own actions are never news). */
@@ -137,7 +138,7 @@ async function boundOn(user: User, key: string, conn: Connection) {
   const [row] = await getDb()
     .select({ remoteId: issues.remoteId, projectKey: issues.projectKey })
     .from(issues)
-    .where(and(eq(issues.userId, user.id), eq(issues.connectionId, conn.id), eq(issues.key, key)))
+    .where(issueAt(user.id, conn.id, key))
     .limit(1);
   return { conn, b, ref: { remoteId: row?.remoteId ?? key, key }, projectKey: row?.projectKey ?? null };
 }
@@ -369,7 +370,7 @@ export const issuesRouter = createRouter({
         const [row] = await getDb()
           .select({ id: issues.id, createdAt: issues.remoteCreatedAt, reporter: issues.reporterName })
           .from(issues)
-          .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, other.conn.id), eq(issues.key, input.key)))
+          .where(issueAt(ctx.user.id, other.conn.id, input.key))
           .limit(1);
         const seen = row ? await getDb().select().from(activity).where(eq(activity.itemId, row.id)).orderBy(desc(activity.at)).limit(200) : [];
         return buildTimeline({
@@ -398,7 +399,7 @@ export const issuesRouter = createRouter({
         await getDb()
           .update(issues)
           .set({ watching: input.watch ? 1 : 0 })
-          .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, other.conn.id), eq(issues.key, input.key)));
+          .where(issueAt(ctx.user.id, other.conn.id, input.key));
         return { key: input.key, watching: input.watch };
       }
       const { user, creds } = contextFor(ctx.user, conn);
@@ -406,7 +407,7 @@ export const issuesRouter = createRouter({
       const known = await db
         .select({ id: issues.id })
         .from(issues)
-        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, user.connectionId), eq(issues.key, input.key)));
+        .where(issueAt(ctx.user.id, user.connectionId, input.key));
       await setWatching(creds, input.key, user.accountId, input.watch);
       if (!known[0] && input.watch) {
         const remote = await fetchIssueByKey(creds, input.key);
@@ -419,7 +420,7 @@ export const issuesRouter = createRouter({
       await db
         .update(issues)
         .set({ watching: input.watch ? 1 : 0 })
-        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, user.connectionId), eq(issues.key, input.key)));
+        .where(issueAt(ctx.user.id, user.connectionId, input.key));
       return { key: input.key, watching: input.watch };
     }),
 
@@ -456,7 +457,7 @@ export const issuesRouter = createRouter({
         const row = (await tx
           .select({ id: issues.id, favorite: issues.favorite })
           .from(issues)
-          .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.key))).limit(1))[0];
+          .where(issueAt(ctx.user.id, conn.id, input.key)).limit(1))[0];
         if (!row) {
           throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
         }
@@ -489,7 +490,7 @@ export const issuesRouter = createRouter({
       const rows = await db
         .select({ id: issues.id, favorite: issues.favorite, rank: issues.favoriteRank })
         .from(issues)
-        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.key)))
+        .where(issueAt(ctx.user.id, conn.id, input.key))
         .limit(1);
       if (!rows[0]) {
         throw new TRPCError({ code: "NOT_FOUND", message: t("server.issues.notFound") });
@@ -595,7 +596,7 @@ export const issuesRouter = createRouter({
     .query(async ({ ctx, input }) => {
       const found = await boundFor(ctx.user, input.key, input.connectionId);
       if (!found.b.otherFields) return { fields: [], stale: false };
-      const where = and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, found.conn.id), eq(issues.key, input.key));
+      const where = issueAt(ctx.user.id, found.conn.id, input.key);
       try {
         const fields = await providerCall(() => found.b.otherFields!(callMeta(), found.ref));
         const raw = JSON.stringify(fields);
@@ -689,7 +690,7 @@ export const issuesRouter = createRouter({
       const [row] = await getDb()
         .select({ containerId: issues.containerId })
         .from(issues)
-        .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.key)))
+        .where(issueAt(ctx.user.id, conn.id, input.key))
         .limit(1);
       const repos = row?.containerId ? await pathsOf(ctx.user.id, row.containerId) : [];
       if (!repos.length) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.projectPaths.none") });

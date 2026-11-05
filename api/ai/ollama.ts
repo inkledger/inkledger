@@ -11,8 +11,6 @@ import { env } from "../lib/env";
 import { isPrivateAddress } from "../lib/security";
 
 export type OllamaMessage = { role: "system" | "user"; content: string };
-/** A turn of a conversation (the Desk's chat): the model's own answers sent back as `assistant`. */
-export type OllamaChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 /** Why the model isn't offered, or null when it is. */
 export type OllamaRefusal = "unset" | "public" | "unresolved";
@@ -361,11 +359,6 @@ export async function* streamChatPieces(messages: OllamaWireMessage[], o: Stream
     if (signal.aborted) return;
     throw e instanceof OllamaError ? e : new OllamaError("unreachable", String(e));
   }
-}
-
-/** A plain-text answer to a conversation, streamed (no tools). */
-export async function* streamChat(messages: OllamaChatMessage[], o: Omit<StreamOptions, "tools" | "simulated"> & { simulated?: string } = {}): AsyncGenerator<string> {
-  for await (const piece of streamChatPieces(messages, o)) if ("text" in piece) yield piece.text;
 }
 
 /** Whether a model can call tools, by model and address: asked once in a while, not each question. */

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { t } from "@/i18n";
+import { listenPointerSession } from "@/lib/pointerSession";
 
 /** The screen's edge bands while the title is dragged (a share of the window): narrower than the desk's, the grip starts near the top. */
 const EDGE_BAND = 0.1;
@@ -203,35 +204,22 @@ export function TitleGrip({ pane }: { pane: DeskPane }) {
       current = { target };
       setDrag(current);
     };
-    const move = (e: globalThis.PointerEvent) => {
-      if (e.pointerId !== event.pointerId) return;
-      point = { x: e.clientX, y: e.clientY };
-      if (!current && Math.hypot(point.x - origin.x, point.y - origin.y) < START_DISTANCE) return;
-      if (!current) document.documentElement.style.cursor = "grabbing";
-      place();
-    };
-    const finish = (drop: boolean) => {
-      const target = current?.target;
-      cleanup.current?.();
-      if (drop && target?.kind === "slot") latest.current.send(target.preset, target.slot);
-    };
-    const up = (e: globalThis.PointerEvent) => e.pointerId === event.pointerId && finish(true);
-    const cancel = (e: globalThis.PointerEvent) => e.pointerId === event.pointerId && finish(false);
-    const key = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      finish(false);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("keydown", key, true);
+    const remove = listenPointerSession(event.pointerId, {
+      move: e => {
+        point = { x: e.clientX, y: e.clientY };
+        if (!current && Math.hypot(point.x - origin.x, point.y - origin.y) < START_DISTANCE) return;
+        if (!current) document.documentElement.style.cursor = "grabbing";
+        place();
+      },
+      finish: drop => {
+        const target = current?.target;
+        cleanup.current?.();
+        if (drop && target?.kind === "slot") latest.current.send(target.preset, target.slot);
+      },
+      escape: { stop: true },
+    });
     cleanup.current = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("keydown", key, true);
+      remove();
       document.documentElement.style.cursor = "";
       setDrag(null);
       cleanup.current = null;

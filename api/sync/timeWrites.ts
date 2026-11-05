@@ -11,6 +11,7 @@ import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import type { TimeZone } from "@contracts/values";
 import { getDb, type Db } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { withDeleteReason } from "../queries/trash";
 import { connOf } from "../providers/connections";
 import type { BoundTracker } from "../providers/core/bind";
@@ -45,7 +46,7 @@ export async function contractTime(userId: number, conn: Connection, issueKey: s
   const [row] = await getDb()
     .select({ remoteId: issues.remoteId, projectKey: issues.projectKey })
     .from(issues)
-    .where(and(eq(issues.userId, userId), eq(issues.connectionId, conn.id), eq(issues.key, issueKey)))
+    .where(issueAt(userId, conn.id, issueKey))
     .limit(1);
   const ref: IssueRef = { remoteId: row?.remoteId ?? issueKey, key: issueKey, ...(row?.projectKey ? { container: { remoteId: row.projectKey, key: row.projectKey } } : {}) };
   return { conn, b, ref, zone: connOf(conn).timeZone };
@@ -436,5 +437,5 @@ async function bumpSpent(conn: Pick<Connection, "id" | "userId">, issueKey: stri
   await db
     .update(issues)
     .set({ timeSpentSeconds: sql`greatest(0, coalesce(${issues.timeSpentSeconds}, 0) + ${delta})` })
-    .where(and(eq(issues.userId, conn.userId), eq(issues.connectionId, conn.id), eq(issues.key, issueKey)));
+    .where(issueAt(conn.userId, conn.id, issueKey));
 }

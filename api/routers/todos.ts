@@ -3,13 +3,14 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { ownIssueNote, ownMail, ownTodo } from "../queries/owned";
 import { issueNotes, issues, mails, notifications, timers, todoSessions, todos, type Todo } from "@db/schema";
 import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
-import { act, epochOf, heldElsewhere, pauseTimer, refuse, roundToMinute, elapsedSeconds, startTimerIn, whoOf, type SwitchedFrom } from "./timers";
+import { act, epochOf, heldElsewhere, pauseTimer, refuse, startTimerIn, switchedOf, whoOf, type SwitchedFrom } from "./timers";
 import { beginSession, closeStaleSession, endSession, openSession } from "../queries/todoSessions";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
@@ -55,6 +56,9 @@ const detailsOf = (input: { priority?: 0 | 1; estimateSeconds?: number | null; s
 });
 /** Why an issue is suggested as a TODO. */
 type SuggestionKind = "assigned" | "mention" | "review" | "comment" | "status" | "news" | "watched" | "doing";
+
+/** A notification kind as the suggestion it makes; any other is plain news. */
+const NOTE_SUGGESTION: Partial<Record<string, SuggestionKind>> = { assigned: "assigned", mentioned: "mention", review: "review", commented: "comment" };
 /** The tracker's news that may become a TODO (the rest, a priority or a watch, is just news). */
 const NOTICE_KINDS = ["assigned", "mentioned", "commented", "review", "changed", "status"] as const;
 const SUGGEST_DAYS = 7;
@@ -435,7 +439,7 @@ export const todosRouter = createRouter({
         for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
         const switchedFromAll: SwitchedFrom[] = [];
         for (const o of running) {
-          switchedFromAll.push({ issueKey: o.issueKey, connectionId: o.connectionId, seconds: roundToMinute(elapsedSeconds(o, now)), note: o.note, stoppedAt: now });
+          switchedFromAll.push(switchedOf(o, now));
           await pauseTimer(tx, o, now);
         }
         await beginSession(tx, ctx.user.id, row, false, now);
@@ -496,7 +500,7 @@ export const todosRouter = createRouter({
       db
         .select({ n: notifications, summary: issues.summary, status: issues.status, category: issues.category })
         .from(notifications)
-        .innerJoin(issues, and(eq(issues.userId, notifications.userId), eq(issues.connectionId, notifications.connectionId), eq(issues.key, notifications.issueKey)))
+        .innerJoin(issues, issueAt(notifications.userId, notifications.connectionId, notifications.issueKey))
         .where(and(eq(notifications.userId, ctx.user.id), isNull(notifications.dismissedAt), gte(notifications.createdAt, since), inArray(notifications.kind, [...NOTICE_KINDS]), visible))
         .orderBy(desc(notifications.createdAt))
         .limit(100),
@@ -514,8 +518,7 @@ export const todosRouter = createRouter({
     };
     for (const { n, summary, status, category } of notes) {
       if (isClosed(category)) continue;
-      const kind: SuggestionKind =
-        n.kind === "assigned" ? "assigned" : n.kind === "mentioned" ? "mention" : n.kind === "review" ? "review" : n.kind === "commented" ? "comment" : n.kind === "status" ? "status" : "news";
+      const kind = NOTE_SUGGESTION[n.kind] ?? "news";
       offer({ source: `n:${n.dedupe}`, kind, issueKey: n.issueKey, connectionId: n.connectionId, summary, status, at: n.createdAt });
     }
     // Mine or watched, with news by someone else since I last looked.

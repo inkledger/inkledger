@@ -9,8 +9,6 @@ import { whenWorkspaceIdle, workspaceInteractionEpoch, workspaceTaskActive } fro
 import { renderersReady } from "./renderers";
 import { randomUUID } from "@/lib/randomId";
 
-export type WorkspaceActions = ReturnType<typeof useWorkspaceActions>;
-
 /** A draft refused because it was made on an older layout: how many of its changes can be kept, else null. */
 export function staleDraftOf(error: unknown): StaleDraftInfo | null {
   if (!(error instanceof TRPCClientError)) return null;

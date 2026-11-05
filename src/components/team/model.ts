@@ -7,6 +7,7 @@ import { coverageStep, type Bucket, type CoverageStep } from "@contracts/team";
 import { formatDurationLong } from "@contracts/time";
 import { relativeTime } from "@/lib/initials";
 import { dateFormat, t } from "@/i18n";
+import { dayMonth } from "@/lib/dates";
 
 export type Overview = inferRouterOutputs<AppRouter>["team"]["overview"];
 export type Person = Overview["people"][number];
@@ -71,8 +72,8 @@ export function bucketLabel(b: Bucket): string {
   if (b.kind === "day") return dateFormat({ weekday: "short", day: "numeric", month: "short" }).format(b.from);
   if (b.kind === "week") {
     const span = b.days.length === 1
-      ? dateFormat({ day: "numeric", month: "short" }).format(b.from)
-      : `${b.from.getDate()}–${dateFormat({ day: "numeric", month: "short" }).format(b.to)}`;
+      ? dayMonth(b.from)
+      : `${b.from.getDate()}–${dayMonth(b.to)}`;
     return `${t("pages.team.weekShort", { n: b.n })} · ${span}`;
   }
   return dateFormat({ month: "long", year: "numeric" }).format(b.from);

@@ -2,9 +2,10 @@ import { notificationsInBucket } from "../queries/buckets";
 import { notificationOnLiveConnection } from "../queries/liveConnections";
 import { isClosed } from "@contracts/categories";
 import { z } from "zod";
-import { and, desc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, notInArray, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { CLOSED } from "../queries/issueQuery";
 import { issues, notifications } from "@db/schema";
 import {
@@ -163,6 +164,17 @@ export async function insertNotifications(userId: number, items: NewNotification
 const undismissed = (userId: number) =>
   and(eq(notifications.userId, userId), isNull(notifications.dismissedAt));
 
+/** Dismiss what `where` matches; from a tracker's inbox, they are read there too. */
+async function dismissWhere(userId: number, where: SQL | undefined): Promise<{ dismissed: number }> {
+  const res = await getDb()
+    .update(notifications)
+    .set({ dismissedAt: new Date() })
+    .where(where)
+    .returning({ id: notifications.id, dedupe: notifications.dedupe });
+  await (await import("../sync/inboxRead")).markInboxRead(userId, res.map((r) => r.dedupe));
+  return { dismissed: res.length };
+}
+
 /** What list and count show: known kinds, issue not hidden (or not in the catalog). */
 const visible = (userId: number) =>
   and(
@@ -172,11 +184,7 @@ const visible = (userId: number) =>
     notificationOnLiveConnection,
   );
 
-const joinIssue = and(
-  eq(issues.userId, notifications.userId),
-  eq(issues.connectionId, notifications.connectionId),
-  eq(issues.key, notifications.issueKey),
-);
+const joinIssue = issueAt(notifications.userId, notifications.connectionId, notifications.issueKey);
 
 /** Dismissed notifications are kept this long, then purged. */
 const KEEP_DISMISSED_MS = 30 * 24 * 3600 * 1000;
@@ -271,46 +279,28 @@ export const notificationsRouter = createRouter({
   dismiss: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const res = await getDb()
-        .update(notifications)
-        .set({ dismissedAt: new Date() })
-        .where(and(undismissed(ctx.user.id), eq(notifications.id, input.id)))
-        .returning({ id: notifications.id, dedupe: notifications.dedupe });
-      // From a tracker's inbox: read there too.
-      await (await import("../sync/inboxRead")).markInboxRead(ctx.user.id, res.map((r) => r.dedupe));
-      return { dismissed: res.length };
+      return dismissWhere(ctx.user.id, and(undismissed(ctx.user.id), eq(notifications.id, input.id)));
     }),
 
   /** Several at once (a stack of one issue's notifications): one call, read in the tracker's inbox too. */
   dismissMany: protectedProcedure
     .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }))
     .mutation(async ({ ctx, input }) => {
-      const res = await getDb()
-        .update(notifications)
-        .set({ dismissedAt: new Date() })
-        .where(and(undismissed(ctx.user.id), inArray(notifications.id, input.ids)))
-        .returning({ id: notifications.id, dedupe: notifications.dedupe });
-      await (await import("../sync/inboxRead")).markInboxRead(ctx.user.id, res.map((r) => r.dedupe));
-      return { dismissed: res.length };
+      return dismissWhere(ctx.user.id, and(undismissed(ctx.user.id), inArray(notifications.id, input.ids)));
     }),
 
   dismissAll: protectedProcedure.mutation(async ({ ctx }) => {
     // On a device with a bucket, that bucket's only: the others were never shown here.
     const inBucket = await notificationsInBucket(ctx.user.id, ctx.deviceId);
     const db = getDb();
-    const res = await db
-      .update(notifications)
-      .set({ dismissedAt: new Date() })
-      .where(
-        inBucket
-          ? inArray(
-              notifications.id,
-              db.select({ id: notifications.id }).from(notifications).leftJoin(issues, joinIssue).where(and(undismissed(ctx.user.id), inBucket)),
-            )
-          : undismissed(ctx.user.id),
-      )
-      .returning({ id: notifications.id, dedupe: notifications.dedupe });
-    await (await import("../sync/inboxRead")).markInboxRead(ctx.user.id, res.map((r) => r.dedupe));
-    return { dismissed: res.length };
+    return dismissWhere(
+      ctx.user.id,
+      inBucket
+        ? inArray(
+            notifications.id,
+            db.select({ id: notifications.id }).from(notifications).leftJoin(issues, joinIssue).where(and(undismissed(ctx.user.id), inBucket)),
+          )
+        : undismissed(ctx.user.id),
+    );
   }),
 });

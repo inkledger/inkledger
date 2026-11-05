@@ -2,7 +2,7 @@
 // the picker says so, and choosing it changes nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { start, trpcProcs } from "./harness.mjs";
+import { dayKey, start, trpcProcs } from "./harness.mjs";
 
 test("Reports open on \"This month\", the preset's own range", async () => {
   const app = await start();
@@ -18,10 +18,9 @@ test("Reports open on \"This month\", the preset's own range", async () => {
     await page.getByRole("button", { name: "This month", exact: true }).click();
     await page.waitForTimeout(300);
     const url = new URL(page.url());
-    const pad = n => String(n).padStart(2, "0");
-    const first = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    const first = dayKey(new Date(now.getFullYear(), now.getMonth(), 1));
     const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const end = `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`;
+    const end = dayKey(last);
     // Either still the default (no params) or the preset's range, never anything else.
     assert.ok(!url.searchParams.has("from") || url.searchParams.get("from") === first, url.search);
     assert.ok(!url.searchParams.has("to") || url.searchParams.get("to") === end, url.search);

@@ -1,5 +1,6 @@
 import { and, eq, getTableColumns, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import type { ReplayResult } from "./outboxLocks";
 import { issues, type Connection, syncState, type User } from "@db/schema";
 import { replayContract } from "./timeWrites";
@@ -100,7 +101,7 @@ const othersActivityUpTo = (at: number) =>
   sql`greatest(coalesce(${issues.othersActivityAt}, 0), ${at})`;
 
 /** activity_at = latest of comment, status change, creation (only rows that differ). */
-async function refreshActivity(userId: number) {
+export async function refreshActivity(userId: number) {
   await getDb().execute(
     sql`UPDATE issues SET activity_at = ${sql.raw(ACTIVITY_EXPR)}
       WHERE user_id = ${userId} AND activity_at IS DISTINCT FROM ${sql.raw(ACTIVITY_EXPR)}`,
@@ -144,6 +145,30 @@ export function toRow(userId: number, siteUrl: string, connectionId: number, i: 
   };
 }
 
+/**
+ * Latest comment / status change per issue key, in one statement per batch.
+ * Others' activity only goes up when there is some (never NULL to 0), the
+ * status change only when known.
+ */
+async function writeActivity(db: Pick<Tx, "execute">, userId: number, connectionId: number, activity: Map<string, IssueActivity>) {
+  const entries = [...activity];
+  for (let i = 0; i < entries.length; i += UPSERT_BATCH) {
+    const vals = sql.join(
+      entries.slice(i, i + UPSERT_BATCH).map(([key, a]) => {
+        // A null comment time is news too (comments deleted).
+        const others = Math.max(a.othersCommentAt ?? 0, a.othersStatusChangedAt ?? 0);
+        return sql`(${key}::text, ${a.lastCommentAt}::bigint, ${others}::bigint, ${a.statusChangedAt}::bigint)`;
+      }),
+      sql`, `,
+    );
+    await db.execute(sql`UPDATE ${issues} SET last_comment_at = v.lc,
+      others_activity_at = CASE WHEN v.o > 0 THEN greatest(coalesce(${issues.othersActivityAt}, 0), v.o) ELSE ${issues.othersActivityAt} END,
+      status_changed_at = CASE WHEN v.sc IS NOT NULL THEN greatest(coalesce(${issues.statusChangedAt}, 0), v.sc) ELSE ${issues.statusChangedAt} END
+      FROM (VALUES ${vals}) AS v(key, lc, o, sc)
+      WHERE ${issues.userId} = ${userId} AND ${issues.connectionId} = ${connectionId} AND ${issues.key} = v.key`);
+  }
+}
+
 /** followMove for many rows, in one statement. */
 async function followMoves(db: Pick<Tx, "execute">, userId: number, connectionId: number, rows: { remoteId: string; key: string }[]) {
   if (rows.length === 0) return;
@@ -164,12 +189,13 @@ async function followMove(db: Pick<Tx, "update">, userId: number, connectionId: 
     .where(and(eq(issues.userId, userId), eq(issues.connectionId, connectionId), eq(issues.remoteId, remoteId), ne(issues.key, key)));
 }
 
-export async function upsertIssue(userId: number, siteUrl: string, connectionId: number, i: JiraSearchedIssue) {
+/** `refresh: false`: the caller upserts many and runs refreshActivity once after them. */
+export async function upsertIssue(userId: number, siteUrl: string, connectionId: number, i: JiraSearchedIssue, o: { refresh?: boolean } = {}) {
   const db = getDb();
   const stored = (await db
     .select({ status: issues.status })
     .from(issues)
-    .where(and(eq(issues.userId, userId), eq(issues.connectionId, connectionId), eq(issues.key, i.key))).limit(1))[0];
+    .where(issueAt(userId, connectionId, i.key)).limit(1))[0];
   const previous = new Map<string, string>(stored ? [[i.key, stored.status]] : []);
   const row = withStatusChange(toRow(userId, siteUrl, connectionId, i), previous, Date.now());
   await followMove(db, userId, connectionId, row.remoteId, row.key);
@@ -177,7 +203,7 @@ export async function upsertIssue(userId: number, siteUrl: string, connectionId:
     .insert(issues)
     .values(row)
     .onConflictDoUpdate({ target: [issues.userId, issues.connectionId, issues.remoteId], set: conflictSet(row) });
-  await refreshActivity(userId);
+  if (o.refresh !== false) await refreshActivity(userId);
 }
 
 /**
@@ -471,22 +497,7 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     try {
       activity = await fetchOpenIssueActivity(creds, user.accountId, { mine, windowMin, incremental: !full });
       await getDb().transaction(async (tx) => {
-        for (const [key, a] of activity) {
-          // A null comment time is news too (comments deleted).
-          const others = Math.max(a.othersCommentAt ?? 0, a.othersStatusChangedAt ?? 0);
-          const set = {
-            lastCommentAt: a.lastCommentAt,
-            ...(others > 0 ? { othersActivityAt: othersActivityUpTo(others) } : {}),
-            ...(a.statusChangedAt !== null
-              ? {
-                  statusChangedAt: sql`greatest(coalesce(${issues.statusChangedAt}, 0), ${a.statusChangedAt})`,
-                }
-              : {}),
-          };
-          await tx.update(issues)
-            .set(set)
-            .where(and(eq(issues.userId, user.id), eq(issues.connectionId, user.connectionId), eq(issues.key, key)));
-        }
+        await writeActivity(tx, user.id, user.connectionId, activity);
       });
     } catch (e) {
       console.warn(`[sync] activity skipped: ${e instanceof Error ? e.message : String(e)}`);

@@ -18,23 +18,21 @@ export const statsRouter = createRouter({
     const todayStart = startOfDay(now);
     const tomorrowStart = addDays(todayStart, 1);
 
-    // The hours worked: each day's entries, parallel work counted once (realSeconds).
-    const entriesBetween = (from: Date, to: Date) =>
-      db
-        .select({ start: worklogs.started, seconds: worklogs.timeSpentSeconds })
-        .from(worklogs)
-        .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, from), lt(worklogs.started, to)));
-    const totalBetween = async (from: Date, to: Date) => realSecondsTotal(await entriesBetween(from, to));
-
     // Hours per local day over the last 14 days
     const rangeStart = addDays(startOfDay(now), -13);
 
+    // The hours worked: each day's entries, parallel work counted once (realSeconds).
+    // One read over the span all four periods share, sliced in memory.
+    const spanStart = new Date(Math.min(todayStart.getTime(), weekStart.getTime(), monthStart.getTime(), rangeStart.getTime()));
+    const spanEnd = new Date(Math.max(tomorrowStart.getTime(), weekEnd.getTime(), monthEnd.getTime()));
+    const entriesInSpan = db
+      .select({ start: worklogs.started, seconds: worklogs.timeSpentSeconds })
+      .from(worklogs)
+      .where(and(eq(worklogs.userId, ctx.user.id), gte(worklogs.started, spanStart), lt(worklogs.started, spanEnd)));
+
     // All independent reads: one round trip of the pool, not one after another.
-    const [todaySec, weekSec, monthSec, rangeEntries, perProject, byCategory] = await Promise.all([
-      totalBetween(todayStart, tomorrowStart),
-      totalBetween(weekStart, weekEnd),
-      totalBetween(monthStart, monthEnd),
-      entriesBetween(rangeStart, tomorrowStart),
+    const [spanEntries, perProject, byCategory] = await Promise.all([
+      entriesInSpan,
       // Hours per project (this month); worklogs on issues not synced locally
       // count under their issue-key prefix, as in reports.
       db
@@ -68,7 +66,11 @@ export const statsRouter = createRouter({
         .groupBy(issues.category),
     ]);
 
-    const byDay = realSecondsByDay(rangeEntries);
+    const between = (from: Date, to: Date) => spanEntries.filter((e) => e.start >= from && e.start < to);
+    const todaySec = realSecondsTotal(between(todayStart, tomorrowStart));
+    const weekSec = realSecondsTotal(between(weekStart, weekEnd));
+    const monthSec = realSecondsTotal(between(monthStart, monthEnd));
+    const byDay = realSecondsByDay(between(rangeStart, tomorrowStart));
     const perDay = Array.from({ length: 14 }, (_, i) => {
       const key = dayKey(addDays(rangeStart, i));
       return { date: key, seconds: byDay.get(key) ?? 0 };

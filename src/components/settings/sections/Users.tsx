@@ -24,7 +24,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { dateFormat, getLocale, t } from "@/i18n";
+import { currentLocale, t } from "@/i18n";
+import { mediumDate } from "@/lib/dates";
 import { loc } from "./store/format";
 import { surface } from "@/components/app/surface";
 import { useDirtyClose } from "@/components/app/DirtyClose";
@@ -49,7 +50,7 @@ function ModuleGrants({ value, onChange, admin }: { value: Access; onChange: (v:
       {installed.map(m => (
         <label key={m.id} className="flex items-center gap-2 text-body-sm">
           <Checkbox checked={admin || value.modules.includes(m.id)} disabled={admin} onCheckedChange={on => set(m.id, on === true)} />
-          {loc(m.name, getLocale())}
+          {loc(m.name, currentLocale())}
         </label>
       ))}
     </div>
@@ -128,7 +129,7 @@ function HandOver({ shown, onClose }: { shown: { title: string; hint: string; va
 const newInvite = (): { username: string; displayName: string; access: Access } => ({ username: "", displayName: "", access: { role: "member", permissions: [...DEFAULT_PERMISSIONS], modules: [] } });
 
 const absolute = (path: string) => new URL(path, window.location.origin).toString();
-const linkHint = (expiresAt: Date) => t("settings.users.linkHint", { date: dateFormat({ dateStyle: "medium" }).format(expiresAt) });
+const linkHint = (expiresAt: Date) => t("settings.users.linkHint", { date: mediumDate(expiresAt) });
 
 export function UsersSection() {
   const { user: me } = useAuth();

@@ -155,17 +155,14 @@ export function rowFromJira(
   };
 }
 
-export async function upsertLocal(row: ReturnType<typeof rowFromJira>) {
-  const db = getDb();
-  const saved = await db
+export async function upsertLocal(row: ReturnType<typeof rowFromJira>): Promise<void> {
+  await getDb()
     .insert(worklogs)
     .values(row)
     .onConflictDoUpdate({
       target: [worklogs.userId, worklogs.connectionId, worklogs.issueKey, worklogs.remoteId],
       set: row,
-    })
-    .returning();
-  return saved[0];
+    });
 }
 
 /** A worklog by issue and remote id, on its connection when known (a key may live on two). */

@@ -1,6 +1,7 @@
 // Tests only: a small Jira Cloud (REST v3) in memory, answering the calls the
 // Jira client makes, so the provider contract runs against the real adapter
 // and client code end to end. Install it as `fetch`.
+import { simRequest } from "../core/simulator";
 type Issue = {
   id: string;
   key: string;
@@ -84,9 +85,8 @@ export function jiraSimulator(site = "https://sim.atlassian.net", me = "acc-sim"
     if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : new DOMException("aborted", "AbortError");
     const fault = injected.shift();
     if (fault) return new Response(JSON.stringify({ errorMessages: [`injected ${fault.status}`] }), { status: fault.status, headers: { "Content-Type": "application/json", ...fault.headers } });
-    const url = new URL(String(input instanceof Request ? input.url : input));
+    const { url, method } = simRequest(input, init);
     if (url.origin !== site) return json({ errorMessages: ["unknown site"] }, 404);
-    const method = (init?.method ?? "GET").toUpperCase();
     const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
     const path = url.pathname.replace(/^\/rest\/api\/3/, "");
     let m: RegExpExecArray | null;

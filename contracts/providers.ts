@@ -165,8 +165,6 @@ export const limitsSchema = z
     maxAgeDays: z.number().int().nonnegative().optional(),
   })
   .refine((l) => l.minSeconds === undefined || l.maxSeconds === undefined || l.minSeconds <= l.maxSeconds, "minSeconds above maxSeconds");
-export type EntryLimits = z.infer<typeof limitsSchema>;
-
 /**
  * Changed entries, read through `changed`: since a checkpoint (incremental:
  * removals included or not), or by re-reading a window back from now: by
@@ -351,8 +349,6 @@ export type TrackerTraits = z.infer<typeof trackerTraitsSchema>;
  * - description: only words in the description (kept, not resolvable by the service)
  */
 export const SINK_REFERENCES = ["external", "issueId", "projectTask", "description"] as const;
-export type SinkReference = (typeof SINK_REFERENCES)[number];
-
 /** A call budget, requests per hour and/or per second: at least one, both whole and positive. */
 const rateFigureFields = {
   perHour: z.number().int().positive().optional(),

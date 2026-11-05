@@ -2,6 +2,7 @@ import { toastError, errorText } from "@/lib/errorText";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../api/router";
 import { useState } from "react";
+import { isWorking } from "@contracts/sync";
 import { Link } from "react-router";
 import { Check, Eye, Plus, Search } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -35,7 +36,7 @@ export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: strin
   const query = useDebouncedValue(input.trim(), 300);
   const enabled = query.length >= 2;
   // One question per tracker: each answer shows as it arrives.
-  const trackers = (useConnections().data ?? []).filter(c => c.role === "tracker" && c.status === "ok");
+  const trackers = (useConnections().data ?? []).filter(c => c.role === "tracker" && isWorking(c.status));
   const answers = trpc.useQueries(q => trackers.map(c => q.issues.searchOn({ connectionId: c.id, query }, { enabled, retry: false, staleTime: 60_000 })));
   const search = {
     data: answers.some(a => a.data) ? { results: answers.flatMap(a => a.data?.results ?? []), failed: answers.flatMap(a => (a.data?.failed ? [a.data.failed] : [])) } : undefined,

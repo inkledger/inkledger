@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, 
 import { moveTargets, paneId, PRESETS, sameTarget, slotRects, tracksOf, zoneAt, type DeskLayout, type PresetId, type Rect, type SnapTarget } from "@contracts/desk";
 import { slotNames, targetName } from "@/lib/desk/targetName";
 import { t } from "@/i18n";
+import { listenPointerSession } from "@/lib/pointerSession";
 
 /**
  * A pane being moved: which, and where it would land now (null: nowhere, it goes back). `places`:
@@ -172,36 +173,23 @@ export function useSnapDrag(options: Options): SnapHandle {
         store.set(started.drag);
         return true;
       };
-      const move = (moveEvent: globalThis.PointerEvent) => {
-        if (moveEvent.pointerId !== event.pointerId) return;
-        point = { x: moveEvent.clientX, y: moveEvent.clientY };
-        if (!store.get()) {
-          if (Math.hypot(point.x - origin.x, point.y - origin.y) < START_DISTANCE || !begin()) return;
-        }
-        place();
-      };
-      const finish = (drop: boolean) => {
-        const drag = store.get();
-        cleanup.current?.();
-        if (drag?.mode === "pointer") end(drag, drop);
-      };
-      const up = (upEvent: globalThis.PointerEvent) => upEvent.pointerId === event.pointerId && finish(true);
-      const cancel = (cancelEvent: globalThis.PointerEvent) => cancelEvent.pointerId === event.pointerId && finish(false);
-      const key = (keyEvent: globalThis.KeyboardEvent) => {
-        if (keyEvent.key !== "Escape" || !store.get()) return;
-        keyEvent.preventDefault();
-        keyEvent.stopPropagation();
-        finish(false);
-      };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-      window.addEventListener("pointercancel", cancel);
-      window.addEventListener("keydown", key, true);
+      const remove = listenPointerSession(event.pointerId, {
+        move: moveEvent => {
+          point = { x: moveEvent.clientX, y: moveEvent.clientY };
+          if (!store.get()) {
+            if (Math.hypot(point.x - origin.x, point.y - origin.y) < START_DISTANCE || !begin()) return;
+          }
+          place();
+        },
+        finish: drop => {
+          const drag = store.get();
+          cleanup.current?.();
+          if (drag?.mode === "pointer") end(drag, drop);
+        },
+        escape: { when: () => store.get() !== null, stop: true },
+      });
       cleanup.current = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        window.removeEventListener("pointercancel", cancel);
-        window.removeEventListener("keydown", key, true);
+        remove();
         ghost?.remove();
         ghost = null;
         document.documentElement.style.cursor = "";

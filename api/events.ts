@@ -26,6 +26,7 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     return streamSSE(c, async (stream) => {
       let done: () => void = () => undefined;
       const ended = new Promise<void>((resolve) => (done = resolve));
+      const end = ended.then(() => "end" as const);
       const queue: UserEvent[] = [];
       let wake: () => void = () => undefined;
       const unsubscribe = subscribe(
@@ -51,14 +52,19 @@ export function registerEventRoutes(app: Hono<{ Bindings: HttpBindings }>) {
             if (!(await signedIn())) break;
             for (const e of queue.splice(0)) await stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
           }
+          let keepalive: ReturnType<typeof setTimeout> | undefined;
           const next = await Promise.race([
-            ended.then(() => "end" as const),
-            new Promise<"tick">((resolve) => setTimeout(() => resolve("tick"), KEEPALIVE_MS).unref()),
+            end,
+            new Promise<"tick">((resolve) => {
+              keepalive = setTimeout(() => resolve("tick"), KEEPALIVE_MS);
+              keepalive.unref();
+            }),
             new Promise<"event">((resolve) => {
               wake = () => resolve("event");
               if (queue.length > 0) resolve("event");
             }),
           ]);
+          clearTimeout(keepalive);
           if (next === "end") break;
           if (next === "tick") {
             if (!(await signedIn())) break;

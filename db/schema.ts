@@ -16,6 +16,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { PlannedKind } from "../contracts/planned";
+import type { SyncState as ConnectionStatus } from "../contracts/sync";
 import { sql } from "drizzle-orm";
 
 /**
@@ -113,7 +114,7 @@ export const connections = pgTable(
     options: text("options").notNull().default("{}"),
     encryptedSecret: text("encrypted_secret").notNull(),
     /** "ok" | "auth_failed" | "unreadable" | "unreachable" (out of reach SYNC_GIVE_UP_AFTER times: background sync paused until the user's own Sync) */
-    status: text("status").notNull().default("ok"),
+    status: text("status").$type<ConnectionStatus>().notNull().default("ok"),
     /** What the last test found (TrackerProbe as JSON): plan, active sources, call budget */
     probe: text("probe"),
     probedAt: ms("probed_at"),

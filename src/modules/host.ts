@@ -3,7 +3,7 @@ import type { trpc } from "@/lib/trpc";
 import { focusMode, screensaver } from "@/lib/flag";
 import { expectedSeconds, scheduleFor, workBounds } from "@contracts/workSchedule";
 import { onAppEvent } from "./appEvents";
-import { getLocale } from "@/i18n";
+import { currentLocale } from "@/i18n";
 import { hitAreas } from "./hit";
 import { SURFACES } from "@/components/app/surface";
 import type {
@@ -279,7 +279,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         version: 1,
         moduleId,
         slot,
-        locale: getLocale() === "it" ? "it" : "en",
+        locale: currentLocale() === "it" ? "it" : "en",
         timer: sub(timer),
         today: sub(today),
         theme: sub(theme),
@@ -288,7 +288,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         history: { daily: (since?: number) => read(() => utils.modules.historyDaily.fetch({ moduleId, ...(since === undefined ? {} : { since }) }, { staleTime: 60_000 })) },
         weather: ({ lat, lon }) => read(() => utils.modules.weather.fetch({ moduleId, lat, lon }, { staleTime: 10 * 60_000 })),
         geocode: query =>
-          read(() => utils.modules.geocode.fetch({ moduleId, query, language: getLocale() === "it" ? "it" : "en" })),
+          read(() => utils.modules.geocode.fetch({ moduleId, query, language: currentLocale() === "it" ? "it" : "en" })),
         // Since the Shadow module the host draws no light: kept so older modules still load.
         ambient() {},
         surfaces: { catalog: () => SURFACES },

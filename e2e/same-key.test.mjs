@@ -3,7 +3,7 @@
 // "on more than one tracker").
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, dayKey, mockNative, start, withApp } from "./harness.mjs";
+import { awayFromMidnight, dayKey, mockNative, start, trpcProcs, withApp } from "./harness.mjs";
 
 let github = 0;
 /** DEMO-101 on GitHub too (which keeps no time: its entries stay in inkledger), with one entry at `started`. */
@@ -203,7 +203,7 @@ test("an issue's page reads its comments, attachments and history on its own tra
       page.on("request", r => {
         const u = new URL(r.url());
         if (!u.pathname.startsWith("/api/trpc/")) return;
-        const procs = decodeURIComponent(u.pathname.slice("/api/trpc/".length)).split(",");
+        const procs = trpcProcs(r.url());
         const input = JSON.parse(u.searchParams.get("input") ?? "{}");
         procs.forEach((p, i) => asked.push({ p, connectionId: input[i]?.json?.connectionId }));
       });

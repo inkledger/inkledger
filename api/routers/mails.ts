@@ -133,6 +133,13 @@ async function withLink(userId: number, input: z.infer<typeof headers>): Promise
 /** The add-in's key: shown once, kept as its hash. */
 export const addinKeyHash = (key: string) => sha256Hex(key);
 
+/** The ways one mail is known: by Message-ID, by Exchange id (any of them matches). */
+const sameMailWhere = (input: { internetMessageId?: string | null; exchangeId?: string | null }): SQL[] =>
+  [
+    input.internetMessageId ? eq(mails.internetMessageId, input.internetMessageId) : undefined,
+    input.exchangeId ? eq(mails.exchangeId, input.exchangeId) : undefined,
+  ].filter((c): c is SQL => c !== undefined);
+
 /**
  * Saves a mail: a new one, or the one already kept with the same Message-ID or
  * Exchange id, completed with what this copy knows (a subject typed by hand
@@ -140,10 +147,7 @@ export const addinKeyHash = (key: string) => sha256Hex(key);
  */
 async function saveMail(userId: number, given: z.infer<typeof headers>): Promise<MailRow> {
   const input = await withLink(userId, given);
-  const same = [
-    input.internetMessageId ? eq(mails.internetMessageId, input.internetMessageId) : undefined,
-    input.exchangeId ? eq(mails.exchangeId, input.exchangeId) : undefined,
-  ].filter((c): c is SQL => c !== undefined);
+  const same = sameMailWhere(input);
   const now = new Date();
   const values = {
     ...(input.subject ? { subject: input.subject } : {}),
@@ -330,10 +334,7 @@ export const mailsRouter = createRouter({
   placesOf: protectedProcedure
     .input(z.object({ internetMessageId: z.string().trim().min(1).max(998).nullish(), exchangeId: z.string().trim().min(1).max(1000).nullish() }))
     .query(async ({ ctx, input }) => {
-      const same = [
-        input.internetMessageId ? eq(mails.internetMessageId, input.internetMessageId) : undefined,
-        input.exchangeId ? eq(mails.exchangeId, input.exchangeId) : undefined,
-      ].filter((c): c is SQL => c !== undefined);
+      const same = sameMailWhere(input);
       const none = { issues: [] as string[], todos: [] as string[], boards: [] as string[] };
       if (!same.length) return none;
       const db = getDb();

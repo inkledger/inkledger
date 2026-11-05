@@ -5,6 +5,7 @@ import { restUser } from "../context";
 import { fetchCatalog } from "./client";
 import { LruCache } from "../lib/lruCache";
 import { env } from "../lib/env";
+import { readCapped } from "./body";
 import { safeFetch } from "../providers/core/http";
 
 /**
@@ -34,35 +35,6 @@ async function requestPicture(url: string, signal: AbortSignal): Promise<Respons
   }
   if (target.protocol !== "https:") return null;
   return safeFetch({ site: target.origin, url: target.toString(), init: { signal }, intent: "read", allowCrossOrigin: true, fail: (_, message) => new Error(message) });
-}
-
-/** The body, read up to `max` bytes: null past it (a declared length too big is refused before any byte). */
-async function readCapped(res: Response, max: number): Promise<Uint8Array<ArrayBuffer> | null> {
-  if (Number(res.headers.get("content-length") ?? 0) > max) {
-    await res.body?.cancel().catch(() => undefined);
-    return null;
-  }
-  const reader: ReadableStreamDefaultReader<Uint8Array> | undefined = res.body?.getReader();
-  if (!reader) return new Uint8Array(0);
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel().catch(() => undefined);
-      return null;
-    }
-    chunks.push(value);
-  }
-  const body = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    body.set(c, at);
-    at += c.byteLength;
-  }
-  return body;
 }
 
 /** A catalog picture, fetched once (requests for the same one at once share it); null when it isn't one we show. */

@@ -3,6 +3,7 @@
 // schedules (the target its hours are judged against). Read only.
 import { and, inArray, isNull } from "drizzle-orm";
 import { connections, connectionSync, syncState, workDayOverrides, workSchedules, type Connection } from "@db/schema";
+import { needsReconnect } from "@contracts/sync";
 import { EPOCH_DAY, type DayOverrides, type ScheduleVersion } from "@contracts/workSchedule";
 import { normalizeWorkSchedule, type WorkDay } from "@contracts/workScheduleSchema";
 import { getDb } from "./connection";
@@ -67,7 +68,7 @@ export async function timeFreshness(userIds: number[], now: number = Date.now())
     const known = reads.filter((r): r is number => r !== null);
     const oldest = known.length > 0 ? Math.min(...known) : null;
     // Out of reach (paused for its user) is not theirs to reconnect: its reads just age.
-    const state: Freshness["state"] = mine.some((c) => c.status !== "ok" && c.status !== "unreachable")
+    const state: Freshness["state"] = mine.some((c) => needsReconnect(c.status))
       ? "reconnect"
       : known.length < reads.length
         ? "never"

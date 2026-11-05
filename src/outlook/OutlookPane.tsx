@@ -7,7 +7,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { applyTheme } from "@/lib/theme/apply";
-import { addDays, dayKey } from "@contracts/time";
+import { DueSelect } from "@/components/mail/DueSelect";
+import { dueOnOf, type Due } from "@/components/mail/due";
 import { cn } from "@/lib/utils";
 import { surface } from "@/components/app/surface";
 import { BrandMark } from "@/components/app/BrandMark";
@@ -20,7 +21,6 @@ type Places = { issues: string[]; todos: string[]; boards: string[] };
 type IssueHit = { key: string; summary: string; connectionId: number };
 type Board = { id: number; name: string };
 type Buckets = { buckets: { id: number; name: string }[]; active: number | null };
-type Due = "none" | "today" | "tomorrow" | "pick";
 
 const KEY_SHAPE = /^ikl_ol_[\w-]{20,}$/;
 
@@ -394,21 +394,12 @@ function IssuePicker({ scope, pinned, busy, onPick, onFailed }: { scope: number;
 function TodoPicker({ busy, onPin }: { busy: boolean; onPin: (dueOn: string | null) => void }) {
   const [due, setDue] = useState<Due>("none");
   const [picked, setPicked] = useState("");
-  const dueOn = () => (due === "today" ? dayKey(new Date()) : due === "tomorrow" ? dayKey(addDays(new Date(), 1)) : due === "pick" ? picked || null : null);
+  // The clock of the click, not of the render: a pane left open past midnight.
+  const dueOn = () => dueOnOf(due, picked, new Date());
   return (
     <Panel title={t("ui.outlook.todoTitle")}>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-        <Select value={due} onValueChange={v => setDue(v as Due)}>
-          <SelectTrigger size="sm" className="w-full min-w-0" aria-label={t("ui.mail.due")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">{t("ui.mail.noDue")}</SelectItem>
-            <SelectItem value="today">{t("ui.mail.today")}</SelectItem>
-            <SelectItem value="tomorrow">{t("ui.mail.tomorrow")}</SelectItem>
-            <SelectItem value="pick">{t("ui.mail.pickDay")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <DueSelect value={due} onChange={setDue} className="w-full min-w-0" />
         <Button variant="outline" size="sm" className="min-w-0" disabled={busy || (due === "pick" && !picked)} onClick={() => onPin(dueOn())}>
           <ClipboardList />
           {t("ui.outlook.todoAdd")}

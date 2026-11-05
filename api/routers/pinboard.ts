@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, count, eq, inArray, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { ownBucket, ownIssueNote, ownMail, ownTodo } from "../queries/owned";
 import { buckets, connections, issueNotes, issues, mails, pinboardNotes, pinboards, todos, type Pinboard, type PinboardNote } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
@@ -55,7 +56,7 @@ async function pinScope(userId: number, deviceId: string | undefined, connection
   return issueShown ? or(isNull(pinboardNotes.issueKey), issueShown) : undefined;
 }
 
-const pinnedIssue = and(eq(issues.userId, pinboardNotes.userId), eq(issues.connectionId, pinboardNotes.connectionId), eq(issues.key, pinboardNotes.issueKey));
+const pinnedIssue = issueAt(pinboardNotes.userId, pinboardNotes.connectionId, pinboardNotes.issueKey);
 
 /** The user's boards, creating the first one on demand. */
 async function boardsOf(userId: number) {
@@ -734,7 +735,7 @@ export const pinboardRouter = createRouter({
             await getDb()
               .select({ id: issues.id })
               .from(issues)
-              .where(and(eq(issues.userId, ctx.user.id), eq(issues.connectionId, conn.id), eq(issues.key, input.issueKey), inBucket))
+              .where(and(issueAt(ctx.user.id, conn.id, input.issueKey), inBucket))
               .limit(1)
           ).length > 0
         : true;

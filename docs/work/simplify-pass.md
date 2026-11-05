@@ -109,3 +109,78 @@ The Studio geometry test measured the canvas while it was still loading, so it f
 ## Status
 
 Complete. Nothing is pushed; the user pushes.
+
+---
+
+# Second pass (2026-11-05)
+
+Same goal, rules and out-of-scope list as above. Four read-only reviewers (reuse, simplification, efficiency, altitude) over the whole repository. Then three slices, each in its own worktree, were merged into the `main` working tree with a 3-way apply. Nothing is committed.
+
+## Applied
+
+- **A — sync and connections:**
+  - `contracts/sync.ts` holds the sync-state vocabulary (`SYNC_STATES`, `needsReconnect`, `isPaused`, `isWorking`). It has no imports, because the app's first load uses it. `connections.status` is typed with `$type`; the column itself does not change and needs no migration.
+  - `extraSinks` and `clients` use the shared `liveConnections`. `ofLiveConnection(userId)` is shared across 5 routers.
+  - The avatar route uses `jiraConnections` and `trimTrailingSlash`.
+  - Jira activity is written in one `UPDATE … FROM (VALUES)` per 500 keys, not one per issue.
+  - Worklog import loops run `refreshActivity` once instead of once per issue, and preload known keys and local worklogs.
+  - Independent reads now run together in `worklogSync`, `pushSinks` and the estimates history.
+  - The SSE loop no longer piles up reactions and timers.
+- **B — server:**
+  - `issueAt(userId, connectionId, key)` replaces 27 hand-written where clauses.
+  - New shared helpers: `isOpenDraft`, `switchedOf`, `onTimer` (pause, stop, trim and discard), `dismissWhere`, `revisionRow`, `asSandboxedDownload`, `sameMailWhere`.
+  - `timers.list` makes a constant 3 queries; it was 1+3n.
+  - `stats` makes one worklog read where it made four.
+  - `readCapped` lives in `api/store/body.ts`, and `hmacHex`/`sameSecret` in `api/lib/secrets.ts`.
+  - Three more simulators use `simRequest`.
+  - Also reused: `parseStringList`, `callMeta`, and `hexOf` in `randomId`. `contracts/ots.ts` keeps its own `toHex`: e2e loads it straight in Node, where an import without an extension does not resolve.
+  - Dead exports removed.
+- **C — client and e2e:**
+  - The notification center body and the mobile More/Timer sheets are lazy and mount on first open. The closed center no longer polls `notifications.list`. The kind filter stays in the shell, so it survives closing.
+  - New shared helpers: `announceSwitched`, `useGridFocus`, `selectionOf`/`allSelected`, `DueSelect`/`dueOnOf`, `listenPointerSession`, `useIssueDrop`.
+  - One locale getter (`currentLocale`).
+  - Date helpers from `src/lib/dates.ts`.
+  - `useLiveSync` refreshes once per tab return.
+  - The e2e tests use `trpcProcs` and `dayKey` from the harness.
+
+First-load JS: 926.8 / 292.6 KiB before, 897.4 / 284.9 KiB after (budget 925 / 295). Smoke is green again.
+
+## Behaviour notes (accepted)
+
+- Mail-copy attachment downloads now also send `Referrer-Policy: no-referrer`.
+- `mediumDate` on an invalid date returns `String(d)`, where the old code threw. Every input is a valid date.
+- The notification list shows a skeleton or cached data on its first open after load. Its code is prefetched when the app is idle.
+
+## Skipped
+
+- **Altitude:**
+  - One refusal predicate for the middleware and the scheduler: their checks differ.
+  - `writable` computed in `connOf`.
+  - Hiding the legacy sync-state rows.
+  - Attachments as a provider capability.
+  - A `reconnect` error flag: it is a contract change.
+  - Dropping `providerCall` at 39 sites.
+  - A per-type form table.
+- **Efficiency:**
+  - Splitting the i18n dictionaries: risky.
+  - `acquire` as a single upsert: lease semantics.
+  - `activeBucket` as a subquery.
+  - `needsFullSync` joined into `activeUsers`.
+  - Worklog stream reads merged, and worklog upserts batched (see slice A).
+- **Other:**
+  - `ItemCard` (`docs/design-system.md` names it, so this is a UI decision).
+  - `keyedLock` moved to `contracts/`.
+
+## Checks
+
+| Command | Scope | Result |
+|---|---|---|
+| `pnpm lint && pnpm check` | A+B+C on main | pass |
+| `pnpm test` | A+B+C on main | 3148/3148 |
+| `pnpm build && pnpm test:smoke` | A+B+C on main | pass (897.4 / 284.9) |
+| `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | A+B+C on main | 441/445 |
+| the 4 failures, alone | A+B+C on main | 2 pass. `store` failed on the `ots` import; reverted, then 8/8. `touch-targets` 1280px fails on clean HEAD too (`dashboard.tasks.more` 17 px < 24); not from this pass |
+
+## Status
+
+Done, apart from one open issue: the `touch-targets` failure, which was already there before this pass. Nothing is committed.

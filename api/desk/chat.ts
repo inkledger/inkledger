@@ -19,6 +19,7 @@ import { t } from "@contracts/i18n";
 import { currentLocale } from "@contracts/i18n/core";
 import { restUser } from "../context";
 import { getDb } from "../queries/connection";
+import { issueAt } from "../queries/issueAt";
 import { ownConnection } from "../providers/connections";
 import { fromMarkdown } from "../providers/core/richtext";
 import { agentCopy } from "../issues/agentCopy";
@@ -75,7 +76,7 @@ export async function deskChatContext(
       const [row] = await getDb()
         .select({ summary: issues.summary, status: issues.status, issueType: issues.issueType, url: issues.url })
         .from(issues)
-        .where(and(eq(issues.userId, user.id), eq(issues.connectionId, pane.connectionId), eq(issues.key, pane.key)))
+        .where(issueAt(user.id, pane.connectionId, pane.key))
         .limit(1);
       if (!row) throw notFound();
       return { pane, row };

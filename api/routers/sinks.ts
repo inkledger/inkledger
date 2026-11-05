@@ -8,6 +8,7 @@ import { containers, connections, sinkMappings, worklogSinks } from "@db/schema"
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { ofLiveConnection } from "../queries/liveConnections";
 import { ownConnection } from "../providers/connections";
 import { providerCall } from "../providers/trpc";
 import { boundSink, pushSinks, sinksSoon } from "../sync/extraSinks";
@@ -52,7 +53,7 @@ export const sinksRouter = createRouter({
         .select({ id: containers.id, key: containers.key, name: containers.name, connectionId: containers.connectionId })
         .from(containers)
         .innerJoin(connections, eq(connections.id, containers.connectionId))
-        .where(and(eq(connections.userId, ctx.user.id), isNull(connections.archivedAt)))
+        .where(ofLiveConnection(ctx.user.id))
         .orderBy(asc(containers.key)),
       db.select({ n: worklogSinks.worklogId }).from(worklogSinks).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed"))),
     ]);

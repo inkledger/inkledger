@@ -17,15 +17,14 @@ import {
 import { toastError } from "@/lib/errorText";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useToday } from "@/hooks/useToday";
-import { addDays, dayKey } from "@contracts/time";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { MailCard, type MailView } from "./MailCard";
+import { DueSelect } from "./DueSelect";
+import { dueOnOf, type Due } from "./due";
 import { draftFromFile, draftFromLink, type MailDraft } from "./readMail";
 import { sendCopy } from "./mailCopy";
-
-type Due = "none" | "today" | "tomorrow" | "pick";
 
 /** A mail chosen: one kept already (its id), or one still to save. */
 type Chosen = { view: MailView; kept: true; id: number } | { view: MailView; kept: false; draft: MailDraft };
@@ -315,7 +314,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
   const today = useToday();
   const [due, setDue] = useState<Due>("none");
   const [pickedDay, setPickedDay] = useState("");
-  const dueOn = () => (due === "today" ? dayKey(today) : due === "tomorrow" ? dayKey(addDays(today, 1)) : due === "pick" ? pickedDay || null : null);
+  const dueOn = () => dueOnOf(due, pickedDay, today);
   const boards = trpc.pinboard.boards.useQuery(undefined, { staleTime: 60_000 });
   // The board in use unless another is chosen; "new" makes one with the name typed.
   const [board, setBoard] = useState("");
@@ -347,17 +346,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
             <ClipboardList />
             {t("ui.mail.newTodo")}
           </Button>
-          <Select value={due} onValueChange={v => setDue(v as Due)}>
-            <SelectTrigger size="sm" aria-label={t("ui.mail.due")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("ui.mail.noDue")}</SelectItem>
-              <SelectItem value="today">{t("ui.mail.today")}</SelectItem>
-              <SelectItem value="tomorrow">{t("ui.mail.tomorrow")}</SelectItem>
-              <SelectItem value="pick">{t("ui.mail.pickDay")}</SelectItem>
-            </SelectContent>
-          </Select>
+          <DueSelect value={due} onChange={setDue} />
           {due === "pick" && <Input type="date" value={pickedDay} aria-label={t("ui.mail.pickDay")} onChange={e => setPickedDay(e.target.value)} />}
         </div>
         <div className="grid gap-1.5">

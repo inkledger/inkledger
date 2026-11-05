@@ -2,6 +2,7 @@ import { toastError, failureText } from "@/lib/errorText";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { providerName } from "@contracts/providerNames";
+import { isPaused, needsReconnect } from "@contracts/sync";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { MoreHorizontal, Plug, Plus } from "lucide-react";
@@ -597,9 +598,9 @@ function ConnectionCard({ c, onReconnect }: { c: Shown; onReconnect: () => void 
           {[
             c.label ? c.host : null,
             c.displayName,
-            c.status === "unreachable"
+            isPaused(c.status)
               ? t("settings.connections.syncPaused")
-              : c.status !== "ok"
+              : needsReconnect(c.status)
               ? t("settings.connections.needsReconnect")
               : c.lastError
                 ? t("settings.connections.lastError", { message: c.lastError })
@@ -705,7 +706,7 @@ export function ConnectionsSection() {
   const [adding, setAdding] = useState(() => params.get("add") === "1");
   const asked = Number(params.get("reconnect"));
   const [reconnecting, setReconnecting] = useState<number | null>(() => (asked > 0 ? asked : null));
-  const target = list.data?.find(c => c.id === reconnecting) ?? (reconnecting !== null ? list.data?.find(c => c.status !== "ok" && c.status !== "unreachable") : undefined);
+  const target = list.data?.find(c => c.id === reconnecting) ?? (reconnecting !== null ? list.data?.find(c => needsReconnect(c.status)) : undefined);
   const closeReconnect = () => {
     setReconnecting(null);
     if (params.has("reconnect")) {

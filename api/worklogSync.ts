@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull, like, not } from "drizzle-orm";
 import { connectionSync, issues, outbox, syncState, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
 import { getDb } from "./queries/connection";
+import { issueAt } from "./queries/issueAt";
 import {
   fetchDeletedWorklogIds,
   fetchIssueById,
@@ -12,10 +13,11 @@ import {
 } from "./jira/client";
 import { PENDING_PREFIX } from "@contracts/types";
 import { rowFromJira, upsertLocal } from "./routers/worklogs";
-import { upsertIssue } from "./sync/jiraIssues";
+import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
 import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
 import { creationInFlight } from "./sync/timeWrites";
+import { isWorking } from "@contracts/sync";
 
 /** How far back the first import reaches. */
 const WORKLOG_HISTORY_DAYS = 365;
@@ -33,7 +35,7 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
   const total: WorklogSyncResult = { imported: 0, deleted: 0, initial: false };
   for (const conn of await jiraConnections(user.id)) {
     // In the background, a connection out of reach waits like its issues: paused for the user, or in its backoff.
-    if (opts.background && (conn.status !== "ok" || (await waiting(conn.id)))) continue;
+    if (opts.background && (!isWorking(conn.status) || (await waiting(conn.id)))) continue;
     const r = await syncConnectionWorklogs(user, conn, opts);
     total.imported += r.imported;
     total.deleted += r.deleted;
@@ -62,22 +64,19 @@ async function syncConnectionWorklogs(account: User, conn: Connection, opts: { r
       ? new Date(streamCheckpoint)
       : null;
   const since = opts.reimport ? null : saved;
-  const queued = new Set([
-    ...(
-      await db
-        .select({ id: outbox.remoteId })
-        .from(outbox)
-        .where(and(eq(outbox.userId, account.id), eq(outbox.connectionId, conn.id), inArray(outbox.kind, ["update", "delete"])))
-    ).map((o) => o.id),
+  const [queuedOps, trashed] = await Promise.all([
+    db
+      .select({ id: outbox.remoteId })
+      .from(outbox)
+      .where(and(eq(outbox.userId, account.id), eq(outbox.connectionId, conn.id), inArray(outbox.kind, ["update", "delete"]))),
     // Deleted here while Jira still has it (its delete on the way, through
     // Jira or the sink standing in for it): never read back as new.
-    ...(
-      await db
-        .select({ id: worklogTrash.remoteId })
-        .from(worklogTrash)
-        .where(and(eq(worklogTrash.userId, account.id), eq(worklogTrash.connectionId, conn.id), eq(worklogTrash.reason, "user"), isNotNull(worklogTrash.remoteId)))
-    ).flatMap((o) => (o.id ? [o.id] : [])),
+    db
+      .select({ id: worklogTrash.remoteId })
+      .from(worklogTrash)
+      .where(and(eq(worklogTrash.userId, account.id), eq(worklogTrash.connectionId, conn.id), eq(worklogTrash.reason, "user"), isNotNull(worklogTrash.remoteId))),
   ]);
+  const queued = new Set([...queuedOps.map((o) => o.id), ...trashed.flatMap((o) => (o.id ? [o.id] : []))]);
   const startedAt = Date.now();
   const ctx = contextFor(account, conn);
   const result = since ? await incremental(ctx, since.getTime(), queued) : await initial(ctx, queued);
@@ -112,10 +111,15 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
   const seen = new Set<string>();
   let imported = 0;
   let deleted = 0;
+  if (found.length === 0) return { imported, deleted };
+  // Known issues and local worklogs read once, not once per issue.
+  const [keys, local] = await Promise.all([issueKeysById(user.id, user.connectionId), localWorklogs(user.id, user.connectionId)]);
+  const known = new Set(keys.values());
+  let added = false;
   for (const issue of found) {
     if (seen.has(issue.key)) continue;
     seen.add(issue.key);
-    await ensureIssue(user, issue.key, () => Promise.resolve(issue));
+    added = (await ensureIssue(user, issue.key, () => Promise.resolve(issue), known)) || added;
     const mine = (await fetchWorklogs(creds, issue.key)).filter(
       (w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from,
     );
@@ -124,14 +128,16 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
       await upsertLocal(rowFromJira(user.id, issue.key, w, user.connectionId));
       imported++;
     }
-    deleted += await dropMissing(user.id, user.connectionId, issue.key, mine.map((w) => w.id), queued, from);
+    deleted += await dropMissing(user.id, user.connectionId, issue.key, local.get(issue.key) ?? [], mine.map((w) => w.id), queued, from);
   }
+  if (added) await refreshActivity(user.id);
   return { imported, deleted };
 }
 
 async function incremental({ user, creds }: Ctx, since: number, queued: Set<string>): Promise<Pass> {
   const [updated, removed] = await Promise.all([fetchUpdatedWorklogIds(creds, since), fetchDeletedWorklogIds(creds, since)]);
   let imported = 0;
+  let added = false;
   if (updated.ids.length) {
     const [list, keyOf] = await Promise.all([fetchWorklogsByIds(creds, updated.ids), issueKeysById(user.id, user.connectionId)]);
     for (const w of list) {
@@ -140,7 +146,7 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
       if (!key) {
         const remote = await fetchIssueById(creds, w.issueId);
         if (!remote) continue;
-        await ensureIssue(user, remote.key, () => Promise.resolve(remote));
+        added = (await ensureIssue(user, remote.key, () => Promise.resolve(remote))) || added;
         key = remote.key;
         keyOf.set(w.issueId, key);
       }
@@ -148,6 +154,7 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
       imported++;
     }
   }
+  if (added) await refreshActivity(user.id);
   const gone = removed.ids.filter((id) => !queued.has(id));
   let deleted = 0;
   if (gone.length) {
@@ -170,29 +177,48 @@ async function issueKeysById(userId: number, connectionId: number): Promise<Map<
   return new Map(rows.map((r) => [r.id, r.key]));
 }
 
-/** Worklogs need their issue in the catalog (summary, project): import it if missing. */
-async function ensureIssue(user: JiraUser, key: string, load: () => Promise<Parameters<typeof upsertIssue>[3]>) {
-  const [known] = await getDb()
-    .select({ key: issues.key })
-    .from(issues)
-    .where(and(eq(issues.userId, user.id), eq(issues.connectionId, user.connectionId), eq(issues.key, key)))
-    .limit(1);
-  if (!known) await upsertIssue(user.id, user.siteUrl, user.connectionId, await load());
+/**
+ * Worklogs need their issue in the catalog (summary, project): import it if missing.
+ * `known`: the keys already read, kept up to date here. True when it was imported (the
+ * caller runs refreshActivity once after the loop).
+ */
+async function ensureIssue(user: JiraUser, key: string, load: () => Promise<Parameters<typeof upsertIssue>[3]>, known?: Set<string>): Promise<boolean> {
+  const here =
+    known?.has(key) ??
+    (
+      await getDb()
+        .select({ key: issues.key })
+        .from(issues)
+        .where(issueAt(user.id, user.connectionId, key))
+        .limit(1)
+    ).length > 0;
+  if (here) return false;
+  await upsertIssue(user.id, user.siteUrl, user.connectionId, await load(), { refresh: false });
+  known?.add(key);
+  return true;
+}
+
+/** The imported (not pending) local worklogs of a connection, by issue key. */
+async function localWorklogs(userId: number, connectionId: number): Promise<Map<string, { id: string; started: Date }[]>> {
+  const rows = await getDb()
+    .select({ key: worklogs.issueKey, id: worklogs.remoteId, started: worklogs.started })
+    .from(worklogs)
+    .where(and(eq(worklogs.userId, userId), eq(worklogs.connectionId, connectionId), not(like(worklogs.remoteId, `${PENDING_PREFIX}%`))));
+  const byKey = new Map<string, { id: string; started: Date }[]>();
+  for (const r of rows) byKey.set(r.key, [...(byKey.get(r.key) ?? []), { id: r.id, started: r.started }]);
+  return byKey;
 }
 
 /** Local copies of Jira worklogs no longer there (inside the imported window). */
-async function dropMissing(userId: number, connectionId: number, issueKey: string, keep: string[], queued: Set<string>, from: number): Promise<number> {
-  const local = await getDb()
-    .select({ id: worklogs.remoteId, started: worklogs.started })
-    .from(worklogs)
-    .where(
-      and(
-        eq(worklogs.userId, userId),
-        eq(worklogs.connectionId, connectionId),
-        eq(worklogs.issueKey, issueKey),
-        not(like(worklogs.remoteId, `${PENDING_PREFIX}%`)),
-      ),
-    );
+async function dropMissing(
+  userId: number,
+  connectionId: number,
+  issueKey: string,
+  local: { id: string; started: Date }[],
+  keep: string[],
+  queued: Set<string>,
+  from: number,
+): Promise<number> {
   const gone = local
     .filter((w) => !keep.includes(w.id) && !queued.has(w.id) && w.started.getTime() >= from)
     .map((w) => w.id);

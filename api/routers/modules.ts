@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, count, eq, gte, not, like } from "drizzle-orm";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { sameSecret } from "../lib/secrets";
 import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can, mayRunModule } from "../queries/accounts";
 import type { User } from "@db/schema";
@@ -313,9 +314,7 @@ export const modulesRouter = createRouter({
       })());
     if (!file.success) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.modules.badProgress") });
     const { module, since, data, sig } = file.data;
-    const want = Buffer.from(progressSig(progressBody(module, since, data)));
-    const got = Buffer.from(sig);
-    if (want.length !== got.length || !timingSafeEqual(want, got)) {
+    if (!sameSecret(progressSig(progressBody(module, since, data)), sig)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: t("server.modules.badProgress") });
     }
     await requireActive(ctx.user, module);

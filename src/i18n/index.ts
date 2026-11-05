@@ -53,10 +53,6 @@ applyToDocument();
 // After the imports have settled (native.ts may import this module too).
 queueMicrotask(tellNativeShell);
 
-export function getLocale(): Locale {
-  return currentLocale();
-}
-
 export function setLocale(next: Locale): void {
   if (next === currentLocale()) return;
   // Its texts first (fetched once, when not in the bundle): never a page half in English.

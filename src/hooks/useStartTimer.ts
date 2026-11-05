@@ -1,6 +1,6 @@
 import { toastError } from "@/lib/errorText";
 import { trpc } from "@/lib/trpc";
-import { timerLog } from "@/lib/timerLog";
+import { announceSwitched } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
 import { toast } from "sonner";
 import { addDays, dayKey, startOfDay, type TimeSpan } from "@contracts/time";
@@ -60,11 +60,7 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
       void utils.timers.list.invalidate();
       if (r.tookOver) toast.success(t("ui.timer.tookOver", { key: issueKey }));
       else if (opts.announce) toast.success(t("ui.startTimer.started", { key: issueKey }));
-      // Every timer the switch stopped is asked to be logged.
-      const stopped = r.switchedFromAll ?? (r.switchedFrom ? [r.switchedFrom] : []);
-      for (const s of stopped) timerLog.push({ ...s, end: s.stoppedAt });
-      if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));
-      else if (stopped.length > 1) toast.info(t("ui.startTimer.switchedMany", { count: stopped.length }));
+      announceSwitched(r.switchedFromAll);
     },
     onError: (e, input) => {
       const c = timerConflictOf(e);

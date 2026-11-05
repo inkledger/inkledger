@@ -17,6 +17,7 @@ import { issuePath, issueId } from "@/lib/issues";
 import { workedSeconds } from "@/lib/worked";
 import { ActionRow } from "@/components/app/ActionRow";
 import { dayMonth } from "@/lib/dates";
+import { allSelected, selectionOf } from "@/lib/selection";
 
 export type TimesheetLog = {
   id: number;
@@ -137,8 +138,8 @@ export function WeekView({
                   <Checkbox
                     className="mt-0.5"
                     aria-label={t("views.timesheet.week.selectDay", { label })}
-                    checked={entries.every(w => selected.has(w.id)) ? true : entries.some(w => selected.has(w.id)) ? "indeterminate" : false}
-                    onCheckedChange={() => onToggleDay(entries.map(w => w.id), !entries.every(w => selected.has(w.id)))}
+                    checked={selectionOf(entries.map(w => w.id), selected)}
+                    onCheckedChange={() => onToggleDay(entries.map(w => w.id), !allSelected(entries.map(w => w.id), selected))}
                   />
                 )}
               <div className="min-w-0">

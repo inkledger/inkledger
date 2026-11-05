@@ -91,8 +91,6 @@ export type TodoRepeat = (typeof TODO_REPEATS)[number];
 
 /** High first; normal is the default. */
 export const TODO_PRIORITIES = [0, 1] as const;
-export type TodoPriority = (typeof TODO_PRIORITIES)[number];
-
 /** A step inside a TODO: a small checklist, kept with it. */
 export type TodoStep = { id: string; text: string; done: boolean };
 export const MAX_TODO_STEPS = 20;

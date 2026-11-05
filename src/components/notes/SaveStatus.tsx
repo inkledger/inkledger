@@ -1,5 +1,6 @@
 import { CloudOff } from "lucide-react";
-import { t, dateFormat } from "@/i18n";
+import { t } from "@/i18n";
+import { timeOfDay } from "@/lib/dates";
 import type { SaveState } from "./useNoteDocument";
 
 export function SaveStatus({
@@ -17,11 +18,7 @@ export function SaveStatus({
       ? t("pages.notes.saving")
       : status === "saved"
         ? savedAt
-          ? t("pages.notes.savedAt", {
-              time: dateFormat({ hour: "2-digit", minute: "2-digit" }).format(
-                new Date(savedAt)
-              ),
-            })
+          ? t("pages.notes.savedAt", { time: timeOfDay(savedAt) })
           : t("pages.notes.saved")
         : status === "offline"
           ? t("pages.notes.offline")
