@@ -101,10 +101,12 @@ test("Quick start over 2000 issues: only the rows in view, every key, Enter star
     assert.ok(key, `an issue is active (${reached?.text})`);
     assert.deepEqual(await axeViolations(page), [], "Quick start open");
     await input.press("Enter");
-    // An open hole of the day asks first: from now.
+    // An open hole of the day (only during work hours) asks first: from now.
     const ask = page.getByRole("alertdialog", { name: `Start ${key}` });
-    if (await ask.isVisible({ timeout: 1500 }).catch(() => false)) await ask.getByRole("button", { name: "From now" }).click();
-    for (let i = 0; i < 50 && !(await db.q("SELECT 1 FROM timers WHERE issue_key = ?", key)).length; i++) await page.waitForTimeout(100);
+    for (let i = 0; i < 50 && !(await db.q("SELECT 1 FROM timers WHERE issue_key = ?", key)).length; i++) {
+      if (await ask.isVisible()) await ask.getByRole("button", { name: "From now" }).click();
+      await page.waitForTimeout(100);
+    }
     assert.equal((await db.q("SELECT issue_key FROM timers WHERE state = 'running'"))[0]?.issue_key, key);
   }));
 
