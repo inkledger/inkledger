@@ -180,7 +180,8 @@ First-load JS: 926.8 / 292.6 KiB before, 897.4 / 284.9 KiB after (budget 925 / 2
 | `pnpm build && pnpm test:smoke` | A+B+C on main | pass (897.4 / 284.9) |
 | `PROVIDERS_READ_ONLY=1 pnpm test:e2e` | A+B+C on main | 441/445 |
 | the 4 failures, alone | A+B+C on main | 2 pass. `store` failed on the `ots` import; reverted, then 8/8. `touch-targets` 1280px fails on clean HEAD too (`dashboard.tasks.more` 17 px < 24); not from this pass |
+| `pnpm build && node --test e2e/touch-targets.test.mjs`, lint, check | after the TasksBoard fix | 3/3, pass |
 
 ## Status
 
-Done, apart from one open issue: the `touch-targets` failure, which was already there before this pass. Nothing is committed.
+Complete. Committed as `0da6811`. The `touch-targets` failure, which was there before this pass, is fixed afterwards: the dashboard's "Show all" link gets `py-1` with `-my-1`, a 25 px hit area with the same layout.

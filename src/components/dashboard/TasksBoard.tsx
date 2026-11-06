@@ -173,7 +173,7 @@ function ColumnCards({ issues, total, title }: { issues: TaskColumn["issues"]; t
           </li>
         ))}
       </ul>
-      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className={cn("justify-self-start text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline", issues.length > STACKED_FIRST && "max-@l:!inline")}>
+      <Link ref={more} to="/board" {...flowControlProps("dashboard.tasks.more")} className={cn("-my-1 justify-self-start py-1 text-body-sm font-medium text-primary-strong underline-offset-4 hover:underline", issues.length > STACKED_FIRST && "max-@l:!inline")}>
         {t("ui.collection.showAll", { count: total })} →
       </Link>
     </div>
