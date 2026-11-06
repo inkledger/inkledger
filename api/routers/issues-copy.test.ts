@@ -1,4 +1,4 @@
-// Copying an issue for an agent (docs/work/ideas/issue-copy.md R-6.1, R-6.4): ownership and the duration.
+// Copying an issue for an agent (docs/work/ideas/issue-copy.md R-6.1, R-6.4, R-6.10): ownership, the duration, the comments.
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { jiraSignIn } from "../testing/signIn";
 
@@ -15,7 +15,21 @@ const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit
   const auth = new Headers(init?.headers).get("authorization") ?? "";
   if (url.endsWith("/rest/api/3/myself")) return json({ accountId: `acc-${auth}`, displayName: "Mario" });
   if (url.includes("?fields=description")) return json({ fields: { description: null } });
-  if (url.includes("?fields=attachment")) return json({ fields: { attachment: [] } });
+  if (url.includes("?fields=attachment"))
+    return json({ fields: { attachment: url.includes("/PRJ-7?") ? [{ id: "10001", filename: "shot.png", mimeType: "image/png", size: 4 }] : [] } });
+  if (url.includes("/issue/PRJ-7/comment?")) {
+    // Two pages: every comment is copied, not only the newest page.
+    const startAt = Number(new URL(url).searchParams.get("startAt"));
+    const adf = (content: unknown[]) => ({ type: "doc", version: 1, content });
+    const all = [
+      { id: "3", author: { displayName: "Luca" }, created: "2026-11-05T10:00:00.000+0000", body: adf([{ type: "mediaSingle", content: [{ type: "media", attrs: { type: "file", id: "m1", alt: "shot.png" } }] }]) },
+      { id: "2", author: { displayName: "Anna" }, created: "2026-11-04T10:00:00.000+0000", body: adf([{ type: "paragraph", content: [{ type: "text", text: "Second" }] }]) },
+      { id: "1", author: { displayName: "Anna" }, created: "2026-11-03T10:00:00.000+0000", body: adf([{ type: "paragraph", content: [{ type: "text", text: "First" }] }]) },
+    ];
+    return json({ startAt, total: all.length, comments: startAt === 0 ? all.slice(0, 2) : all.slice(startAt) });
+  }
+  if (url.includes("/issue/PRJ-8/comment?")) return new Response("{}", { status: 503 });
+  if (url.includes("/comment?")) return json({ comments: [], total: 0 });
   return new Response(JSON.stringify({ errorMessages: [`unmocked ${url}`] }), { status: 500 });
 });
 
@@ -68,5 +82,24 @@ describe("issues.copyForAgent", () => {
     await expect(u.caller.settings.update({ shareLinkMinutes: 1441 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     // No description: said plainly.
     expect((await u.caller.issues.copyForAgent({ key: "PRJ-6" })).markdown).toContain("(no description)");
+  });
+
+  it("comments come oldest first, their images through signed links", async () => {
+    const u = await signedIn("d@x.it");
+    await issueOf(u.user.id, "PRJ-7");
+    const { markdown } = await u.caller.issues.copyForAgent({ key: "PRJ-7" });
+    const first = markdown.indexOf("First");
+    expect(first).toBeGreaterThan(markdown.indexOf("## Comments"));
+    expect(markdown.indexOf("Second")).toBeGreaterThan(first);
+    expect(markdown).toMatch(/### Luca · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n\n!\[shot\.png\]\(http:\/\/localhost\/api\/shared\/[\w.-]+\)/);
+    expect(markdown.indexOf("## Attachments")).toBeGreaterThan(markdown.indexOf("### Luca"));
+  });
+
+  it("comments the tracker can't give now don't stop the copy", async () => {
+    const u = await signedIn("e@x.it");
+    await issueOf(u.user.id, "PRJ-8");
+    const { markdown } = await u.caller.issues.copyForAgent({ key: "PRJ-8" });
+    expect(markdown).toContain("# PRJ-8: Mine");
+    expect(markdown).toContain("## Comments\n\n(comments unavailable)");
   });
 });

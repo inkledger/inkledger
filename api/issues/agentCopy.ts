@@ -1,11 +1,11 @@
 // An issue as an agent gets it (docs/work/ideas/issue-copy.md): header,
-// description, attachments as signed links through this app. Shared by
+// description, comments, attachments as signed links through this app. Shared by
 // issues.copyForAgent and the triage prompt (ideas.handoff).
 import { TRPCError } from "@trpc/server";
 import { issues, type User } from "@db/schema";
 import { t } from "@contracts/i18n";
-import { issueMarkdown } from "@contracts/issueCopy";
-import { mapUrls } from "@contracts/richtext";
+import { issueMarkdown, type IssueCopyComments } from "@contracts/issueCopy";
+import { mapUrls, type RichDoc } from "@contracts/richtext";
 import { bodyAttachments } from "../providers/github/attachments";
 import { getDb } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
@@ -42,19 +42,33 @@ export async function agentCopy(
   const exp = now + (o.minutes ?? prefs.shareLinkMinutes) * 60_000;
   const ref = { remoteId: row.remoteId ?? key, key };
   const body = b.description ? await providerCall(() => b.description!(callMeta(), ref)) : null;
-  const link = (a: string, k?: string) =>
-    `${o.origin}/api/shared/${signShare({ u: user.id, c: conn.id, a, iat: now, exp, g: prefs.shareLinkGeneration, ...(k ? { k } : {}) })}`;
+  const link = (a: string, k?: string, m?: string) =>
+    `${o.origin}/api/shared/${signShare({ u: user.id, c: conn.id, a, iat: now, exp, g: prefs.shareLinkGeneration, ...(k ? { k } : {}), ...(m ? { m } : {}) })}`;
+  // Extra context: a tracker that can't list them now still lets the issue be copied (R-6.10).
+  const remoteComments = b.comments
+    ? await providerCall(() => b.comments!.list(callMeta(), ref)).catch(() => null)
+    : [];
+  const chronological = [...(remoteComments ?? [])].sort((x, y) => (x.createdAt ?? 0) - (y.createdAt ?? 0));
   let doc = toRichDoc(body);
+  let commentDocs: RichDoc[] = chronological.map((c) => toRichDoc(c.body));
   let attachments: { name: string; url: string }[] = [];
   if (conn.type === "jira") {
+    // Files in comments are the issue's attachments too, named the same way.
     attachments = (await fetchAttachments(contextFor(user, conn).creds, key)).map((f) => ({ name: f.filename, url: link(f.id) }));
-  } else if (conn.type === "github" && body?.kind === "text") {
-    // Pasted into the body: found by their github.com link, served through the issue (R-6.9).
-    const pasted = bodyAttachments(body.text).map((p) => ({ ...p, shared: link(p.url, key) }));
-    const byUrl = new Map(pasted.map((p) => [p.url, p.shared]));
-    doc = mapUrls(doc, (url) => byUrl.get(url) ?? null);
-    attachments = pasted.map((p) => ({ name: p.name, url: p.shared }));
+  } else if (conn.type === "github") {
+    // Pasted into the body or a comment: found by their github.com link, served through it (R-6.9).
+    const shared = (text: string, commentId?: string) => {
+      const pasted = bodyAttachments(text).map((p) => ({ ...p, shared: link(p.url, key, commentId) }));
+      attachments.push(...pasted.map((p) => ({ name: p.name, url: p.shared })));
+      const byUrl = new Map(pasted.map((p) => [p.url, p.shared]));
+      return (d: RichDoc) => mapUrls(d, (url) => byUrl.get(url) ?? null);
+    };
+    if (body?.kind === "text") doc = shared(body.text)(doc);
+    commentDocs = chronological.map((c, i) => (c.body.kind === "text" ? shared(c.body.text, c.id)(commentDocs[i]) : commentDocs[i]));
   }
-  const markdown = issueMarkdown({ key, title: row.summary, url: row.url, status: row.status, type: row.issueType || null }, doc, attachments, o.depth);
+  const comments: IssueCopyComments = remoteComments
+    ? chronological.map((c, i) => ({ author: c.author.name || "—", created: c.createdAt, doc: commentDocs[i] }))
+    : "unavailable";
+  const markdown = issueMarkdown({ key, title: row.summary, url: row.url, status: row.status, type: row.issueType || null }, doc, attachments, o.depth, comments);
   return { markdown, expiresAt: new Date(exp) };
 }

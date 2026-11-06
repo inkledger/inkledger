@@ -1,13 +1,13 @@
 # Copy an issue for an agent
 
 ## 1. Status
-2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1–C4 done; C4's check on a real GitHub issue pending (Q3).
+2026-10-30: specified, answers in §14. **First in the loop's order**, before every other doc. C1–C4 done; C4's check on a real GitHub issue pending (Q3). 2026-11-06: comments added (R-6.10, D-6.13).
 
 ## 2. Problem
 The user passes issues to an AI agent by hand: copy, paste into the agent. The issue page can copy the key and the branch, not the issue. Attachments make it worse: their tracker links need the tracker login, and the app's own links (`/api/attachments/:id/content`, `api/attachments.ts:127`) need the app's session cookie, so an agent opening them gets 401. Triage (`docs/work/ideas/triage.md`) needs the same text to hand an idea's issue to an agent.
 
 ## 3. Requirements
-- **R-6.1** The issue page MUST offer "Copy for an agent", which puts Markdown on the clipboard: a header (title, KEY, tracker link, status, type), the description, and `## Attachments` listing every attachment of the issue (also those not named in the text). No comments.
+- **R-6.1** The issue page MUST offer "Copy for an agent", which puts Markdown on the clipboard: a header (title, KEY, tracker link, status, type), the description, and `## Attachments` listing every attachment of the issue (also those not named in the text), and the comments (R-6.10).
 - **R-6.2** The description MUST be serialized by `toMarkdown(doc, link)` in `contracts/richtext.ts`, covering every node of `RichDoc`: GFM tables, panels as `> **Note:**`-style quotes, mentions `@name`, code blocks fenced longer than any backtick run inside, Markdown characters in text escaped. An attachment image → `![name](link)` when `link(name)` resolves, else `[attachment: name]`; an outside image → `![alt](url)`; inline `attachment{name}` → `[name](link)` or `[attachment: name]`.
 - **R-6.3** Every attachment link MUST point at this app (`<origin>/api/shared/<token>`), signed and expiring, so it downloads **without** any login. The origin is the request's (`ctx.req`, already filtered by `ALLOWED_HOSTS`).
 - **R-6.4** The duration MUST be chosen at copy time among 15 min · 1 h · 4 h · 24 h, with a default in Settings; never more than 24 h (server-enforced on sign and on verify).
@@ -15,10 +15,11 @@ The user passes issues to an AI agent by hand: copy, paste into the agent. The i
 - **R-6.6** A refused link (bad signature, expired, over 24 h, revoked, user/connection gone or archived, attachment gone) MUST answer 404 with no detail.
 - **R-6.7** The token MUST be HMAC-SHA256 with a key derived by HKDF (info `inkledger:share-link`) from `credentialKeys()` (`api/lib/crypto.ts:56`); verify tries every known key, so `CREDENTIALS_KEY` rotation keeps unexpired links working.
 - **R-6.8** Triage: `ideas.handoff` MUST add `## Issue` built with `issueMarkdown` and signed links when the idea has a source or promoted issue.
+- **R-6.10** The copy MUST include `## Comments` between Description and Attachments: every comment, oldest first, each under `### <author> · YYYY-MM-DD HH:mm` (local time), serialized like the description, so files in comments link through the same signed route. It applies wherever the issue is copied (Copy for an agent, ideas.handoff, Analyse, desk chat). Comments the tracker can't give now → `(comments unavailable)`, the rest still copied. Jira reads every page of comments (up to 2000).
 - **R-6.9** GitHub (batch C4): images and files in the body (`github.com/user-attachments/…`, `*.githubusercontent.com`) MUST become attachments served through the same signed route with the connection's token; the token never appears in the text.
 
 ## 4. Out of scope
-Comments; other trackers than Jira and GitHub; uploading anything to the agent; per-link revocation; a public base URL setting.
+Other trackers than Jira and GitHub for attachments (their comments are copied, as text); uploading anything to the agent; per-link revocation; a public base URL setting.
 
 ## 5. Decisions
 - **D-6.1** Stateless signed tokens + a per-user generation counter. *Why:* no table of links to grow and purge; revoke-all is one increment (user answer 2026-10-30).
@@ -35,6 +36,8 @@ Comments; other trackers than Jira and GitHub; uploading anything to the agent; 
 - **D-6.11 (C3, to review)** The prompt's issue is the one the idea became, else the one it came from, under `## Issue` before `## Constraints`, its headings two levels deeper (`### KEY: title`, `#### Description`). When its tracker can't give it now, the prompt comes without it rather than failing. The shared code moved to `api/issues/agentCopy.ts` (used by `issues.copyForAgent` and `ideas.handoff`). "Copy prompt" uses the Settings default duration (no `minutes` sent).
 - **D-6.12 (C4, user's choice 2026-10-30: body_html)** GitHub pastes (`github.com/user-attachments/assets|files/…`, the older `*user-images.githubusercontent.com`) are found in the body and listed as attachments (images named `image-<id>`, files by their name); in the copied text their URLs become the app's signed links (`mapUrls`, `contracts/richtext.ts`). On download the route reads the issue with `Accept: application/vnd.github.full+json` (no ETag cache: its signed links last minutes), takes the signed link with the same asset id from `body_html` and fetches it **without** the token (only the API call carries it); a public repository's link is fetched as it is. A link no longer in the issue (edited away) is 404. Hosts allowed: github.com, private-user-images, user-images, objects.githubusercontent.com (GitHub Enterprise not covered). The payload gains `k` (the issue key). The adapter's `attachments.read` capability stays false: it drives the issue page's attachment list, which GitHub still doesn't have.
 
+- **D-6.13 (user's choice 2026-11-06: everywhere, all, oldest first)** Jira files in comments are issue attachments, found by name as in the description. A GitHub paste in a comment is signed with `m` (the comment id) in the payload; the download reads `GET …/issues/comments/{m}` (`full+json`), refuses it unless its `issue_url` is the issue `k`'s and its body still holds the link, then takes the signed link from its `body_html` as for the body. Comments are fail-soft (extra context), unlike the description.
+
 ## 6. Data model (`0020_share_links.sql`)
 ```ts
 // settings: +
@@ -44,7 +47,7 @@ shareLinkGeneration: integer("share_link_generation").notNull().default(0),
 ```
 Token payload (base64url JSON, then `.` + base64url HMAC):
 ```ts
-type SharePayload = { v: 1; u: number /* user */; c: number /* connection */; a: string /* attachment id (Jira numeric, GitHub url hash) */; iat: number; exp: number /* epoch ms */; g: number /* generation */ };
+type SharePayload = { v: 1; u: number /* user */; c: number /* connection */; a: string /* attachment id (Jira numeric, GitHub url hash) */; iat: number; exp: number /* epoch ms */; g: number /* generation */; k?: string /* issue (GitHub) */; m?: string /* comment id (GitHub, R-6.10) */ };
 ```
 `api/lib/shareLinks.ts`: `signShare(p: Omit<SharePayload, "v">): string`, `verifyShare(token: string, now: number): SharePayload | null` (signature, `exp ≥ now`, `exp − iat ≤ 24 h`); the route then checks `g`, user, connection.
 

@@ -35,20 +35,24 @@ export function bodyAttachments(body: string): GitHubPasted[] {
 
 const fail = (status: number, message: string) => new ProviderError(status === 404 ? "notFound" : "invalid", message);
 
-/** A pasted file's bytes, by its github.com link in the issue `key`. */
-export async function fetchGitHubAttachment(c: GitHubCreds, key: string, url: string): Promise<Response> {
-  const res = await safeFetch({
-    site: c.apiBase,
-    url: `${trimTrailingSlash(c.apiBase)}${issuePath(key)}`,
-    init: { headers: { Accept: "application/vnd.github.full+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${c.token}` } },
-    fail,
-  });
-  if (!res.ok) throw fail(res.status, `GitHub: issue ${key} not readable (${res.status})`);
-  const issue = (await res.json()) as { body?: string | null; body_html?: string | null };
-  // Still in the issue: a link copied before an edit removed it opens nothing.
-  if (!(issue.body ?? "").includes(url)) throw fail(404, "GitHub: no longer in the issue");
+const GITHUB_HEADERS = { Accept: "application/vnd.github.full+json", "X-GitHub-Api-Version": "2022-11-28" };
+
+/**
+ * A pasted file's bytes, by its github.com link in the issue `key`, or in its
+ * comment `commentId` (R-6.10): the link must still be there.
+ */
+export async function fetchGitHubAttachment(c: GitHubCreds, key: string, url: string, commentId?: string): Promise<Response> {
+  const issueUrl = `${trimTrailingSlash(c.apiBase)}${issuePath(key)}`;
+  const at = commentId ? `${issueUrl.replace(/\/\d+$/, "")}/comments/${encodeURIComponent(commentId)}` : issueUrl;
+  const res = await safeFetch({ site: c.apiBase, url: at, init: { headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${c.token}` } }, fail });
+  if (!res.ok) throw fail(res.status, `GitHub: ${commentId ? "comment" : "issue"} of ${key} not readable (${res.status})`);
+  const read = (await res.json()) as { body?: string | null; body_html?: string | null; issue_url?: string | null };
+  // A comment of another issue: the link was signed for this one only.
+  if (commentId && read.issue_url !== issueUrl) throw fail(404, "GitHub: comment not in the issue");
+  // Still there: a link copied before an edit removed it opens nothing.
+  if (!(read.body ?? "").includes(url)) throw fail(404, "GitHub: no longer in the issue");
   const id = assetId(url);
-  const html = (issue.body_html ?? "").replace(/&amp;/g, "&");
+  const html = (read.body_html ?? "").replace(/&amp;/g, "&");
   const signed = (html.match(/https:\/\/[^\s"'<>]+/g) ?? []).find((u) => u !== url && FILE_HOSTS.has(new URL(u).hostname) && u.includes(id));
   const target = signed ?? url;
   if (!FILE_HOSTS.has(new URL(target).hostname)) throw fail(400, "GitHub: not a GitHub file host");

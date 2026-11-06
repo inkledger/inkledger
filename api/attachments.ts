@@ -152,10 +152,10 @@ async function streamAttachment(creds: Parameters<typeof fetchAttachmentMeta>[0]
 }
 
 /** A file pasted into a GitHub issue, as a download (docs/work/ideas/issue-copy.md R-6.9). */
-async function githubFile(conn: Connection, key: string, url: string): Promise<Response> {
+async function githubFile(conn: Connection, key: string, url: string, commentId?: string): Promise<Response> {
   const cred = await connOf(conn).credential();
   const token = cred.kind === "oauth" ? cred.accessToken : cred.kind === "token" ? cred.token : "";
-  const res = await fetchGitHubAttachment({ apiBase: conn.baseUrl, token }, key, url);
+  const res = await fetchGitHubAttachment({ apiBase: conn.baseUrl, token }, key, url, commentId);
   const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "file");
   const headers = attachmentHeaders(res.headers.get("content-type") ?? "application/octet-stream", name);
   return new Response(res.body, { status: 200, headers });
@@ -192,7 +192,7 @@ export function registerAttachmentRoutes(app: App) {
         conn.type === "jira"
           ? await streamAttachment(contextFor(user, conn).creds, grant.a, "content")
           : conn.type === "github" && grant.k
-            ? await githubFile(conn, grant.k, grant.a)
+            ? await githubFile(conn, grant.k, grant.a, grant.m)
             : null;
       if (!res) return notShared();
       const headers = asSandboxedDownload(new Headers(res.headers));

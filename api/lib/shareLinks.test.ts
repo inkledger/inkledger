@@ -25,6 +25,9 @@ describe("share links", () => {
     expect(verifyShare(`${other}.${sig}`, NOW)).toBeNull();
     expect(verifyShare(`${payload}.${sig.slice(0, -2)}AA`, NOW)).toBeNull();
     expect(verifyShare("garbage", NOW)).toBeNull();
+    // A file in a GitHub comment: the comment's numeric id travels with it.
+    expect(verifyShare(signShare({ ...base, k: "o/r#1", m: "42" }), NOW)?.m).toBe("42");
+    expect(verifyShare(signShare({ ...base, k: "o/r#1", m: "../x" }), NOW)).toBeNull();
     expect(verifyShare(`${payload}`, NOW)).toBeNull();
     // Longer than 24 h: refused when signing and when reading.
     expect(() => signShare({ ...base, exp: NOW + SHARE_MAX_MS + 1 })).toThrow();

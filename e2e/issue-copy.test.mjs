@@ -17,7 +17,7 @@ function privateAddress() {
   return found.address;
 }
 
-/** A Jira Server on this machine with one issue, its description and one image attachment. */
+/** A Jira Server on this machine with one issue, its description, a comment and one image attachment. */
 async function fakeJira() {
   const host = privateAddress();
   const server = createServer((req, res) => {
@@ -30,6 +30,8 @@ async function fakeJira() {
     if (url.pathname.endsWith("/issue/DEMO-101") && url.searchParams.get("fields") === "description") return send({ fields: { description: "It breaks here:\n\n!shot.png!" } });
     if (url.pathname.endsWith("/issue/DEMO-101") && url.searchParams.get("fields") === "attachment")
       return send({ fields: { attachment: [{ id: "500", filename: "shot.png", mimeType: "image/png", size: PNG.length, content: `${base}/secure/attachment/500/shot.png` }] } });
+    if (url.pathname.endsWith("/issue/DEMO-101/comment"))
+      return send({ startAt: 0, total: 1, comments: [{ id: "900", author: { displayName: "Anna" }, created: "2026-11-05T09:00:00.000+0000", body: "Seen again:\n\n!shot.png!" }] });
     if (url.pathname.endsWith("/attachment/500")) return send({ id: "500", filename: "shot.png", mimeType: "image/png", content: `${base}/secure/attachment/500/shot.png` });
     if (url.pathname === "/secure/attachment/500/shot.png") {
       res.writeHead(200, { "Content-Type": "image/png", "Content-Length": PNG.length });
@@ -63,6 +65,9 @@ test("an issue is copied for an agent with working links", async () => {
       const link = /!\[shot\.png\]\((http[^)]+\/api\/shared\/[^)]+)\)/.exec(md)?.[1];
       assert.ok(link, md);
       assert.ok(md.includes(`- [shot.png](${link})`), "listed under Attachments");
+      // The comments too, the image in one through the same signed link.
+      assert.match(md, /## Comments\n\n### Anna · \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n\nSeen again:\n\n!\[shot\.png\]\(/);
+      assert.ok(md.indexOf("## Comments") < md.indexOf("## Attachments"), "comments before attachments");
       // Outside the browser, no cookie: the link alone opens it.
       const res = await fetch(link);
       assert.equal(res.status, 200);

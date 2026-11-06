@@ -230,6 +230,16 @@ export function githubSimulator(apiBase = "https://api.github.com", me: GitHubUs
       const full = new Headers(init?.headers).get("Accept")?.includes("full+json");
       return json(full ? { ...shown(i), body_html: bodyHtml(i.body ?? "") } : shown(i));
     }
+    m = /^\/repos\/([^/]+)\/([^/]+)\/issues\/comments\/(\d+)$/.exec(path);
+    if (m && method === "GET") {
+      const [, owner, repo, id] = m;
+      const i = issues.find((x) => x.owner === owner && x.repo === repo && x.comments.some((c) => c.id === Number(id)));
+      const c = i?.comments.find((x) => x.id === Number(id));
+      if (!i || !c) return json({ message: "Not Found" }, 404);
+      const issueUrl = `${apiBase}/repos/${i.owner}/${i.repo}/issues/${i.number}`;
+      const full = new Headers(init?.headers).get("Accept")?.includes("full+json");
+      return json(full ? { ...c, issue_url: issueUrl, body_html: bodyHtml(c.body ?? "") } : { ...c, issue_url: issueUrl });
+    }
     m = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)\/comments$/.exec(path);
     if (m) {
       const i = find(m[1], m[2], Number(m[3]));

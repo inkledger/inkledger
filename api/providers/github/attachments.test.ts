@@ -49,4 +49,28 @@ describe("GitHub attachments", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("images pasted into a comment download through that comment, only for its issue", async () => {
+    const sim = githubSimulator();
+    const pasted = sim.upload("0b1c2d3e-2222-4222-8333-444455556666", PNG);
+    const mine = sim.add("acme/web", "Broken", {});
+    const other = sim.add("acme/web", "Other", {});
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => sim.fetch(input, init));
+    try {
+      const creds = { apiBase: sim.apiBase, token: "gho_secret" };
+      const post = async (n: number, body: string) =>
+        (await (await sim.fetch(`${sim.apiBase}/repos/acme/web/issues/${n}/comments`, { method: "POST", body: JSON.stringify({ body }) })).json()) as { id: number };
+      const c = await post(mine.number, `See <img alt="shot" src="${pasted}">`);
+      const key = `acme/web#${mine.number}`;
+      const res = await fetchGitHubAttachment(creds, key, pasted, String(c.id));
+      expect(new Uint8Array(await res.arrayBuffer())).toEqual(PNG);
+      // Not in the body: without the comment it opens nothing.
+      await expect(fetchGitHubAttachment(creds, key, pasted)).rejects.toMatchObject({ kind: "notFound" });
+      // A comment of another issue, under this issue's link: refused.
+      const elsewhere = await post(other.number, `Also <img alt="shot" src="${pasted}">`);
+      await expect(fetchGitHubAttachment(creds, key, pasted, String(elsewhere.id))).rejects.toMatchObject({ kind: "notFound" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

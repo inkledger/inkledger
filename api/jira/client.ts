@@ -853,13 +853,20 @@ export type JiraComment = {
   updated?: string;
 };
 
+/** Every comment of the issue, newest first (up to 20 pages of 100, as GitHub's). */
 export async function fetchComments(creds: JiraCredentials, issueKey: string): Promise<JiraComment[]> {
-  const params = new URLSearchParams({ orderBy: "-created", maxResults: "50" });
-  const res = await jiraFetch<{ comments?: JiraComment[] }>(
-    creds,
-    `${apiBase(creds)}/issue/${encodeURIComponent(issueKey)}/comment?${params.toString()}`,
-  );
-  return res.comments ?? [];
+  const out: JiraComment[] = [];
+  for (let n = 0; n < 20; n++) {
+    const params = new URLSearchParams({ orderBy: "-created", maxResults: "100", startAt: String(out.length) });
+    const res = await jiraFetch<{ comments?: JiraComment[]; total?: number }>(
+      creds,
+      `${apiBase(creds)}/issue/${encodeURIComponent(issueKey)}/comment?${params.toString()}`,
+    );
+    const page = res.comments ?? [];
+    out.push(...page);
+    if (page.length === 0 || out.length >= (res.total ?? out.length)) break;
+  }
+  return out;
 }
 
 // ---------- Statuses ----------
