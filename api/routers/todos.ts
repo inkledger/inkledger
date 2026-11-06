@@ -10,8 +10,7 @@ import { myRemoteIds } from "../providers/connections";
 import { isClosed } from "@contracts/categories";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
-import { openTimerLogIn } from "../decisions/store";
-import { act, epochOf, heldElsewhere, pauseTimer, refuse, startTimerIn, switchedOf, whoOf, type SwitchedFrom } from "./timers";
+import { act, epochOf, heldElsewhere, refuse, startTimerIn, switchAway, whoOf, type SwitchedFrom } from "./timers";
 import { beginSession, closeStaleSession, endSession, openSession } from "../queries/todoSessions";
 import { addDays, dayKey, parseDayKey } from "@contracts/time";
 import { MAX_STEP_TEXT, MAX_TODO_STEPS, TODO_REPEATS, nextOccurrence, parseSteps } from "@contracts/todo";
@@ -439,16 +438,15 @@ export const todosRouter = createRouter({
         const running = await tx.select().from(timers).where(and(eq(timers.userId, ctx.user.id), eq(timers.state, "running")));
         for (const r of running) if (heldElsewhere(r, w, now) && !input.force) refuse("held", r);
         const switchedFromAll: SwitchedFrom[] = [];
+        let gone = 0;
         for (const o of running) {
-          const switched = switchedOf(o, now);
-          switchedFromAll.push(switched);
-          await pauseTimer(tx, o, now);
           // Switched away from: asked to be logged on every page, as by a timer start.
-          const [paused] = await tx.select().from(timers).where(eq(timers.id, o.id));
-          decided(await openTimerLogIn(tx, paused, { end: now, seconds: switched.seconds }, { client: w.client, label: w.label }));
+          const away = await switchAway(tx, o, now, w, decided);
+          if (away.switched) switchedFromAll.push(away.switched);
+          gone = Math.max(gone, away.gone);
         }
         await beginSession(tx, ctx.user.id, row, false, now);
-        return { ok: true, switchedFrom: switchedFromAll.at(-1) ?? null, switchedFromAll, tookOver: false, linked: false, epoch: await epochOf(tx, ctx.user.id) };
+        return { ok: true, switchedFrom: switchedFromAll.at(-1) ?? null, switchedFromAll, tookOver: false, linked: false, epoch: Math.max(await epochOf(tx, ctx.user.id), gone) };
       }, w.client);
     }),
 

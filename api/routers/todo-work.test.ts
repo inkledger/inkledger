@@ -50,6 +50,7 @@ describe("working on a TODO", () => {
   it("without an issue: only the TODO's time, the issue timer pauses (its time to log), and an issue timer takes the focus back", async () => {
     await q("DELETE FROM todo_sessions");
     await me.timers.start({ issueKey: "APP-2" });
+    await q("UPDATE timers SET accumulated_seconds = 600 WHERE issue_key = 'APP-2'");
     const todo = await me.todos.add({ text: "read the RFC" });
     const r = await me.todos.startWork({ id: todo.id });
     expect(r).toMatchObject({ linked: false, switchedFrom: { issueKey: "APP-2" } });

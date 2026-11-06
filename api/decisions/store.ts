@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { decisions, timers, type Decision, type Timer } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { publish } from "../lib/userEvents";
-import { roundToMinute } from "@contracts/time";
+import { stopSpan } from "@contracts/time";
 
 type Db = ReturnType<typeof getDb>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -234,5 +234,5 @@ export async function dismiss(userId: number, ref: { id: string; revision: numbe
  * timeline): the open question if there is one, else a new one on every page.
  */
 export async function askTimerLogIn(tx: Tx, t: Timer, by: Actor): Promise<Decision> {
-  return openTimerLogIn(tx, t, { end: t.pausedAt ?? t.updatedAt, seconds: roundToMinute(t.accumulatedSeconds) }, by);
+  return openTimerLogIn(tx, t, stopSpan(t.pausedAt ?? t.updatedAt, t.accumulatedSeconds), by);
 }

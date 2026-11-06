@@ -99,6 +99,27 @@ describe("placeBlock: a stopped timer ends at the stop", () => {
   });
 });
 
+describe("placeBlock: switches in a row (each timer started where the last stopped)", () => {
+  // 5 Nov 2026: the switches of a morning, as the server stopped them.
+  const THU = new Date(2026, 10, 5);
+  const t = (h: number, m: number, s = 0) => new Date(2026, 10, 5, h, m, s);
+  const stops = [t(9, 0), t(9, 29, 40), t(10, 2, 26), t(11, 39, 27), t(11, 58, 6), t(12, 2, 57)];
+
+  it("every block ends at its stop's minute, right after the one before: none moved, none over the next", async () => {
+    const { minuteSpan } = await import("@contracts/time");
+    const occupied: Occupied[] = [];
+    for (let i = 1; i < stops.length; i++) {
+      const span = minuteSpan(stops[i], (stops[i].getTime() - stops[i - 1].getTime()) / 1000);
+      // The timer started at the switch, on its minute as the placement reads timers.
+      const next = { start: span.end, seconds: 5, label: "timer B" };
+      const r = placeBlock({ day: THU, seconds: span.seconds, occupied: [...occupied, next], schedule: sched, now: t(12, 10), endAt: span.end, tracked: span.seconds });
+      expect(r).toEqual({ ok: true, start: span.start });
+      occupied.push(wl(span.start, span.seconds / MIN));
+    }
+    expect(occupied.at(-1)).toMatchObject({ start: t(11, 58), seconds: 300 });
+  });
+});
+
 describe("placeBlock: around the day's breaks (lunch 13–14)", () => {
   const THU = FRI - 1;
   const parts = (...p: [Date, number][]) => p.map(([start, minutes]) => ({ start, seconds: minutes * MIN }));

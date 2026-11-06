@@ -46,6 +46,7 @@ describe("timers: note and trim", () => {
     await caller.timers.start({ issueKey: "PRJ-1" });
     await caller.timers.setNote({ issueKey: "PRJ-1", note: "Bug analysis" });
     expect((await caller.timers.list())[0].note).toBe("Bug analysis");
+    await setAccumulated("PRJ-1", 600, "running");
     const r = await caller.timers.start({ issueKey: "PRJ-2" });
     expect(r.switchedFrom?.note).toBe("Bug analysis");
     expect((await caller.timers.stop({ issueKey: "PRJ-1" })).note).toBe("Bug analysis");
@@ -75,6 +76,42 @@ describe("timers: note and trim", () => {
     const running = (await caller.timers.list()).filter((t) => t.state === "running");
     expect(running).toHaveLength(1);
     await expect(caller.timers.start({ issueKey: "not a key" })).rejects.toThrow();
+  });
+
+  it("a switch asks its time on whole minutes: the stop's minute, rounded moments (not the length)", async () => {
+    await caller.timers.start({ issueKey: "SW-1" });
+    await setAccumulated("SW-1", 291, "running");
+    const r = await caller.timers.start({ issueKey: "SW-2" });
+    const away = r.switchedFrom;
+    expect(away?.issueKey).toBe("SW-1");
+    expect(away && away.stoppedAt.getTime() % 60_000).toBe(0);
+    expect(away && away.seconds % 60).toBe(0);
+    expect(Math.abs((away?.seconds ?? 0) - 291)).toBeLessThan(60);
+    const asked = (await caller.decisions.list()).find((d) => d.kind === "timer-log" && d.payload.issueKey === "SW-1");
+    expect(asked?.payload).toMatchObject({ seconds: away?.seconds, end: away?.stoppedAt.toISOString() });
+    // The one started there begins on the moment the switched one stopped.
+    const sw2 = (await caller.timers.list()).find((x) => x.issueKey === "SW-2");
+    expect(Math.abs((sw2?.trackedFrom.getTime() ?? 0) - Date.now())).toBeLessThan(5_000);
+    await caller.timers.discard({ issueKey: "SW-1" });
+  });
+
+  it("a switch after a passing click (nothing on whole minutes) leaves nothing to log: the timer goes", async () => {
+    await setAccumulated("SW-2", 0, "running");
+    const before = (await caller.timers.list()).find((x) => x.issueKey === "SW-2")?.epoch ?? 0;
+    const r = await caller.timers.start({ issueKey: "SW-3" });
+    expect(r.switchedFromAll.some((x) => x.issueKey === "SW-2")).toBe(false);
+    expect(r.epoch).toBeGreaterThan(before);
+    const list = await caller.timers.list();
+    expect(list.find((x) => x.issueKey === "SW-2")).toBeUndefined();
+    expect((await caller.decisions.list()).some((d) => d.state === "open" && d.payload.issueKey === "SW-2")).toBe(false);
+  });
+
+  it("a stop asks at least a minute, ending on the minute", async () => {
+    await setAccumulated("SW-3", 18, "running");
+    const r = await caller.timers.stop({ issueKey: "SW-3" });
+    expect(r.seconds).toBe(60);
+    expect(r.stoppedAt && r.stoppedAt.getTime() % 60_000).toBe(0);
+    await caller.timers.discard({ issueKey: "SW-3" });
   });
 });
 

@@ -1,5 +1,6 @@
 import { jiraSignIn } from "../testing/signIn";
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { onMinute } from "@contracts/time";
 
 process.env.DATABASE_URL = ":memory:";
 
@@ -331,7 +332,8 @@ describe("worklogs and stats", () => {
       const again = await caller.timers.stop({ issueKey: "STP-1" });
       expect(Date.now() - again.stoppedAt!.getTime()).toBeGreaterThan(4 * 3600_000);
       const [t] = await caller.timers.list();
-      expect(t.pausedAt?.getTime()).toBe(again.stoppedAt!.getTime());
+      // The stop asks its time on whole minutes: it ends on the pause's minute.
+      expect(onMinute(t.pausedAt?.getTime() ?? 0)).toBe(again.stoppedAt!.getTime());
     });
 
     it("a timer already logged elsewhere is refused, not logged twice", async () => {

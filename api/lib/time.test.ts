@@ -200,3 +200,24 @@ describe("hoursDecimal", () => {
     expect([hoursDecimal(5400), hoursDecimal(18), hoursDecimal(17)]).toEqual([1.5, 0.01, 0]);
   });
 });
+
+describe("minuteSpan: a timer's stretch on whole minutes", () => {
+  const at = (h: number, m: number, s = 0) => new Date(2026, 10, 5, h, m, s);
+  it("rounds the moments, not the length: 4m51s stopped at 12:02:57 is 11:58–12:03", async () => {
+    const { minuteSpan } = await import("@contracts/time");
+    expect(minuteSpan(at(12, 2, 57), 291)).toEqual({ start: at(11, 58), end: at(12, 3), seconds: 300 });
+  });
+
+  it("under half a minute between rounded moments is nothing", async () => {
+    const { minuteSpan } = await import("@contracts/time");
+    expect(minuteSpan(at(12, 3, 15), 18).seconds).toBe(0);
+  });
+
+  it("switches in a row share their moments: no drift, the lengths add up to the rounded whole", async () => {
+    const { minuteSpan } = await import("@contracts/time");
+    const stops = [at(9, 0), at(9, 29, 40), at(10, 2, 26), at(11, 39, 27), at(11, 58, 6), at(12, 2, 57)];
+    const spans = stops.slice(1).map((end, i) => minuteSpan(end, (end.getTime() - stops[i].getTime()) / 1000));
+    spans.slice(1).forEach((s, i) => expect(s.start).toEqual(spans[i].end));
+    expect(spans.reduce((a, s) => a + s.seconds, 0)).toBe((at(12, 3).getTime() - at(9, 0).getTime()) / 1000);
+  });
+});

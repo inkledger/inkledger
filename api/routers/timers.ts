@@ -15,7 +15,7 @@ import type { Decision } from "@db/schema";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
-import { dayKey, roundToMinute } from "@contracts/time";
+import { dayKey, minuteSpan, roundToMinute, stopSpan } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
 import { withWriteLease } from "../queries/writeLease";
 import { endLinkedSessionOf, endSession, openSession, trimSession } from "../queries/todoSessions";
@@ -330,14 +330,32 @@ export type StartMode = "switch" | "alongside";
 /** A timer a start paused: its time is asked to be logged. */
 export type SwitchedFrom = { issueKey: string; connectionId: number; seconds: number; note: string; stoppedAt: Date };
 
-/** What a timer being paused by a switch leaves behind for the client. */
-export const switchedOf = (o: Timer, now: Date): SwitchedFrom => ({
-  issueKey: o.issueKey,
-  connectionId: o.connectionId,
-  seconds: roundToMinute(elapsedSeconds(o, now)),
-  note: o.note,
-  stoppedAt: now,
-});
+/** What a timer being paused by a switch leaves behind for the client: its time on whole minutes (minuteSpan), maybe none. */
+const switchedOf = (o: Timer, now: Date): SwitchedFrom => {
+  const span = minuteSpan(now, elapsedSeconds(o, now));
+  return { issueKey: o.issueKey, connectionId: o.connectionId, seconds: span.seconds, note: o.note, stoppedAt: span.end };
+};
+
+/**
+ * A running timer switched away from (a start, a TODO's): paused, its time
+ * asked to be logged on every page. With nothing on whole minutes (a passing
+ * click, its moments rounded to the same minute), it goes as a discard does.
+ * `gone`: the epoch the removed row reached, for the next one to start above.
+ */
+export async function switchAway(tx: Tx, o: Timer, now: Date, w: Who, decided: Decided): Promise<{ switched: SwitchedFrom | null; gone: number }> {
+  const switched = switchedOf(o, now);
+  if (switched.seconds === 0) {
+    await endLinkedSessionOf(tx, o.userId, now, o);
+    await tx.delete(timers).where(eq(timers.id, o.id));
+    await discardRuns(tx, refOf(o));
+    await pruneRuns(tx, o.userId, now);
+    return { switched: null, gone: o.epoch + 1 };
+  }
+  await pauseTimer(tx, o, now);
+  const [paused] = await tx.select().from(timers).where(eq(timers.id, o.id));
+  decided(await openTimerLogIn(tx, paused, { end: switched.stoppedAt, seconds: switched.seconds }, { client: w.client, label: w.label }));
+  return { switched, gone: 0 };
+}
 
 export async function startTimerIn(
   tx: Tx,
@@ -381,14 +399,13 @@ export async function startTimerIn(
   const others = mode === "switch" ? running.filter((o) => !isTarget(o)) : [];
   const switchedFromAll: SwitchedFrom[] = [];
   let tookOver = false;
+  // The epoch a timer gone in the switch reached: what comes next starts above it.
+  let gone = 0;
   for (const o of others) {
-    const switched = switchedOf(o, now);
-    switchedFromAll.push(switched);
     tookOver ||= heldElsewhere(o, w, now);
-    await pauseTimer(tx, o, now);
-    // Switched away from: its time is asked to be logged, on every page.
-    const [paused] = await tx.select().from(timers).where(eq(timers.id, o.id));
-    decided(await openTimerLogIn(tx, paused, { end: now, seconds: switched.seconds }, { client: w.client, label: w.label }));
+    const away = await switchAway(tx, o, now, w, decided);
+    if (away.switched) switchedFromAll.push(away.switched);
+    gone = Math.max(gone, away.gone);
   }
   const switchedFrom = switchedFromAll.at(-1) ?? null;
   const existing = await rowOf(tx, userId, connectionId, issueKey);
@@ -396,7 +413,7 @@ export async function startTimerIn(
     // Already running: this device takes control (or renews it); the time is untouched.
     tookOver ||= heldElsewhere(existing, w, now);
     const moves = existing.ownerDevice !== (w.device ?? null);
-    const epoch = moves ? existing.epoch + 1 : existing.epoch;
+    const epoch = moves || gone > existing.epoch ? Math.max(existing.epoch + 1, gone) : existing.epoch;
     await tx.update(timers).set({ ...ownedBy(w, now), epoch, updatedAt: now }).where(eq(timers.id, existing.id));
     return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: Math.max(epoch, await epochOf(tx, userId)) };
   }
@@ -406,7 +423,7 @@ export async function startTimerIn(
   if (existing) {
     await tx
       .update(timers)
-      .set({ state: "running", startedAt, pausedAt: null, updatedAt: now, epoch: existing.epoch + 1, ...ownedBy(w, now) })
+      .set({ state: "running", startedAt, pausedAt: null, updatedAt: now, epoch: Math.max(existing.epoch, gone) + 1, ...ownedBy(w, now) })
       .where(eq(timers.id, existing.id));
   } else {
     await tx.insert(timers).values({
@@ -416,11 +433,11 @@ export async function startTimerIn(
       state: "running",
       startedAt,
       accumulatedSeconds: 0,
-      epoch: (await epochOf(tx, userId)) + 1,
+      epoch: Math.max(await epochOf(tx, userId), gone) + 1,
       ...ownedBy(w, now),
     });
   }
-  return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: await epochOf(tx, userId) };
+  return { ok: true, switchedFrom, switchedFromAll, tookOver, epoch: Math.max(await epochOf(tx, userId), gone) };
 }
 
 export const timersRouter = createRouter({
@@ -460,6 +477,8 @@ export const timersRouter = createRouter({
         epoch: t.epoch,
         /** Running: when this run began (server clock) */
         runningSince: t.state === "running" ? t.startedAt : null,
+        /** Where its time is taken to begin (server clock): right before this run, or before the pause, with what it counted earlier */
+        trackedFrom: new Date((t.state === "running" ? t.startedAt : (t.pausedAt ?? t.updatedAt)).getTime() - t.accumulatedSeconds * 1000),
         /**
          * Paused/stopped after a single run (never paused before): its time ran
          * without a break, so it is placed in one piece, over a lunch break too.
@@ -565,10 +584,9 @@ export const timersRouter = createRouter({
     return onTimer(ctx, input, async (tx, t, { now, w, conn, decided }) => {
       if (!t) return { found: false as const, seconds: 0, note: "", stoppedAt: null, epoch: await epochOf(tx, ctx.user.id) };
       if (t.state === "running") mayAct(t, w, now, input);
-      const seconds = roundToMinute(elapsedSeconds(t, now));
-      const epoch = t.state === "running" ? await pauseTimer(tx, t, now) : t.epoch;
       // Already paused: its time ended at the pause, not now.
-      const stoppedAt = t.state === "running" ? now : (t.pausedAt ?? t.updatedAt);
+      const { end: stoppedAt, seconds } = stopSpan(t.state === "running" ? now : (t.pausedAt ?? t.updatedAt), elapsedSeconds(t, now));
+      const epoch = t.state === "running" ? await pauseTimer(tx, t, now) : t.epoch;
       // Stopped (not just paused): every page of the user asks to log it, until one does.
       const paused = await rowOf(tx, ctx.user.id, conn.id, input.issueKey);
       const d = paused ? await openTimerLogIn(tx, paused, { end: stoppedAt, seconds }, { client: w.client, label: w.label }) : null;

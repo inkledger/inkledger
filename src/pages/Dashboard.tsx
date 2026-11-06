@@ -406,8 +406,7 @@ function DashboardContent() {
   );
   const todoSpans = useMemo(() => todoSessions.data ?? [], [todoSessions.data]);
   const todoByDay = useMemo(() => todoTimeByDay(todoSpans), [todoSpans]);
-  const timerState = useTimers();
-  const { timers } = timerState;
+  const { timers } = useTimers();
   const askTimerLog = useAskTimerLog();
   // Today on screen: its parts show the time tracked and not yet logged (they tick, not the page).
   const pending = range.from <= today && today < range.to;
@@ -482,7 +481,7 @@ function DashboardContent() {
         issueKey: tm.issueKey,
         connectionId: tm.connectionId,
         summary: issueByKey.get(issueId(tm))?.summary,
-        start: new Date(timerState.fetchedAt - tm.elapsedSeconds * 1000),
+        start: new Date(tm.trackedFrom),
         seconds: tm.elapsedSeconds,
         live: true,
       });

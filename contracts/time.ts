@@ -244,3 +244,26 @@ export function wallHours(ms: number, dayStart: number): number {
 export function roundToMinute(seconds: number): number {
   return Math.max(60, Math.round(seconds / 60) * 60);
 }
+
+/** A moment (epoch ms) on the nearest whole minute. */
+export function onMinute(ms: number): number {
+  return Math.round(ms / 60_000) * 60_000;
+}
+
+/**
+ * What a timer tracked up to `end`, on whole minutes: its moments are rounded,
+ * not its length, so a timer started where another stopped begins on the
+ * minute that one ends (switches in a row never drift nor overlap). Under
+ * half a minute either way may round to nothing (`seconds` 0).
+ */
+export function minuteSpan(end: Date, elapsedSeconds: number): { start: Date; end: Date; seconds: number } {
+  const to = onMinute(end.getTime());
+  const from = onMinute(end.getTime() - elapsedSeconds * 1000);
+  return { start: new Date(from), end: new Date(to), seconds: (to - from) / 1000 };
+}
+
+/** What a stopped timer asks to log: its minuteSpan, at least a minute (it was stopped by hand: it asks). */
+export function stopSpan(end: Date, elapsedSeconds: number): { end: Date; seconds: number } {
+  const span = minuteSpan(end, elapsedSeconds);
+  return { end: span.end, seconds: Math.max(60, span.seconds) };
+}

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { addDays, startOfDay } from "@contracts/time";
+import { addDays, onMinute, startOfDay } from "@contracts/time";
 import {
   conflictMessage,
   occupiedId,
@@ -41,8 +41,6 @@ export function useBlockPlacement(
   // As one string: a new array each render must not recompute the placement.
   const sharedKey = ` ${(opts.shared ?? []).join(" ")} `;
   const { timers, query: timersQuery } = timerState;
-  // Only a running timer (no pause time) is placed from the fetch time.
-  const fetchedAt = timers.some(t => !t.pausedAt) ? timerState.fetchedAt : 0;
   const ready = !!logs.data && !schedule.isPending && !!timersQuery.data;
 
   const occupied = useMemo<Occupied[]>(() => {
@@ -55,17 +53,21 @@ export function useBlockPlacement(
     for (const t of timers) {
       if (issueId(t) === opts.excludeTimer || sharedKey.includes(` ${issueId(t)} `) || t.elapsedSeconds <= 0) continue;
       // Real run segments are not stored: the tracked time is taken as the
-      // stretch right before the stop (or before now while running).
-      const end = t.pausedAt ? new Date(t.pausedAt).getTime() : fetchedAt;
+      // stretch right before the stop (or before the fetch while running), on the
+      // server's moments rounded to the minute as its log will be: a timer
+      // started where another stopped begins right where that one's block ends.
+      const start = onMinute(new Date(t.trackedFrom).getTime());
+      const end = onMinute(new Date(t.pausedAt ?? t.serverNow).getTime());
+      if (end <= start) continue;
       out.push({
-        start: new Date(end - t.elapsedSeconds * 1000),
-        seconds: t.elapsedSeconds,
+        start: new Date(start),
+        seconds: (end - start) / 1000,
         label: `timer ${t.issueKey}`,
         timer: issueId(t),
       });
     }
     return out;
-  }, [logs.data, timers, fetchedAt, opts.excludeTimer, sharedKey]);
+  }, [logs.data, timers, opts.excludeTimer, sharedKey]);
 
   /**
    * Place `seconds` (ending at `endAt` for a stopped timer), around the day's

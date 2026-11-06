@@ -74,6 +74,7 @@ describe("timers side by side", () => {
     expect(r.switchedFromAll).toEqual([]);
     await caller.timers.start({ issueKey: "PAR-3", mode: "alongside" });
     expect(await running()).toEqual(["PAR-1", "PAR-2", "PAR-3"]);
+    await q("UPDATE timers SET accumulated_seconds = 600");
     const s = await caller.timers.start({ issueKey: "PAR-4" });
     expect(s.switchedFromAll.map((x) => x.issueKey).sort()).toEqual(["PAR-1", "PAR-2", "PAR-3"]);
     expect(s.switchedFrom?.issueKey).toBe(s.switchedFromAll.at(-1)?.issueKey);

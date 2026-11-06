@@ -110,6 +110,7 @@ describe("two connections with the same issue key", () => {
     await expect(caller.timers.start({ issueKey: "APP-1" })).rejects.toMatchObject({ code: "CONFLICT" });
     await caller.timers.start({ issueKey: "APP-1", connectionId: c2 });
     expect(await q("SELECT connection_id, state FROM timers")).toEqual([{ connection_id: c2, state: "running" }]);
+    await q("UPDATE timers SET accumulated_seconds = 600");
     // The same key on the other connection is another issue: the first timer is switched from.
     const r = await caller.timers.start({ issueKey: "APP-1", connectionId: c1 });
     expect(r.switchedFrom).toMatchObject({ issueKey: "APP-1", connectionId: c2 });

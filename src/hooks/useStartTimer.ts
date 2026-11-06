@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { announceSwitched } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
 import { toast } from "sonner";
-import { addDays, dayKey, startOfDay, type TimeSpan } from "@contracts/time";
+import { addDays, dayKey, minuteSpan, startOfDay, type TimeSpan } from "@contracts/time";
 import { missingSpans, openGap, scheduleFor } from "@contracts/workSchedule";
 import { startChoice } from "@/lib/startChoice";
 import { startParallel, type StartMode } from "@/lib/startParallel";
@@ -32,10 +32,12 @@ async function openGapNow(utils: Utils): Promise<TimeSpan | null> {
   ]);
   if (week !== null) return null;
   const logged: TimeSpan[] = logs.map(w => ({ start: new Date(w.started), seconds: w.timeSpentSeconds }));
-  // A paused timer's time is tracked, not a hole (as on the Dashboard).
-  const paused: TimeSpan[] = timers.flatMap(tm =>
-    !tm.pausedAt || tm.elapsedSeconds <= 0 ? [] : [{ start: new Date(new Date(tm.pausedAt).getTime() - tm.elapsedSeconds * 1000), seconds: tm.elapsedSeconds }]
-  );
+  // A paused timer's time is tracked, not a hole (as on the Dashboard), on whole minutes as its log will be.
+  const paused: TimeSpan[] = timers.flatMap(tm => {
+    if (!tm.pausedAt || tm.elapsedSeconds <= 0) return [];
+    const span = minuteSpan(new Date(tm.pausedAt), tm.elapsedSeconds);
+    return span.seconds > 0 ? [{ start: span.start, seconds: span.seconds }] : [];
+  });
   const gap = openGap(missingSpans(day, scheduleFor(day, versions, ownDays), [...logged, ...paused], now), now);
   // A timer paused in it (even with no time left) ends the hole there, as the server sees it.
   const lastPause = Math.max(0, ...timers.flatMap(tm => (tm.pausedAt ? [new Date(tm.pausedAt).getTime()] : [])));

@@ -645,7 +645,7 @@ export interface FrozenOut {
   "team.person": { issues: { key: string; seconds: number; summary: string }[]; projects: { key: string; name: string; seconds: number }[] };
   "timers.discard": { epoch: number; ok: boolean };
   "timers.heartbeat": { epoch: number; owned: boolean };
-  "timers.list": { connectionId: number; defaultSeconds: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; overlapSeconds: number; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string; unbroken: boolean }[];
+  "timers.list": { connectionId: number; defaultSeconds: number; elapsedSeconds: number; epoch: number; heldElsewhere: boolean; issueKey: string; leaseUntil: Date | null; note: string; orphaned: boolean; overlapSeconds: number; ownedHere: boolean; ownerLabel: string; pausedAt: Date | null; runningSince: Date | null; serverNow: Date; state: string; trackedFrom: Date; unbroken: boolean }[];
   "timers.move": { epoch: number; merged: boolean; note: string; ok: boolean; running: boolean; seconds: number; toLog: number; total: number };
   "timers.pause": { epoch: number; ok: boolean };
   "timers.setNote": { epoch: number; ok: boolean };

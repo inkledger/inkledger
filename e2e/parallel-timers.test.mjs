@@ -37,6 +37,8 @@ test("Play while a timer runs: Run both keeps it running, the two are rows in th
     // Overlapping time refused: only Switch, said why; it stops the others.
     await db.q("UPDATE settings SET overlap_policy = 'block' WHERE user_id = 1");
     await page.reload();
+    // Minutes of their own: a timer switched away from after a passing click (nothing on whole minutes) goes without asking.
+    await db.q("UPDATE timers SET started_at = started_at - 300000 WHERE state = 'running'");
     await page.getByRole("button", { name: "Start timer DEMO-104" }).first().click();
     const blocked = page.getByRole("alertdialog", { name: /^Running: / });
     await blocked.getByText(/Overlapping time is off/).waitFor();

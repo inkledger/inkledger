@@ -200,6 +200,7 @@ describe("decisions: the same question on every page, the first answer wins", ()
     await reset();
     const a = page("client-a-0001");
     await a.timers.start({ issueKey: "DEC-11" });
+    await q("UPDATE timers SET accumulated_seconds = 600");
     const [todo] = await q<{ id: number }>("INSERT INTO todos (user_id, text, position, created_at, updated_at) SELECT id, 'Write docs', 0, 1, 1 FROM users LIMIT 1 RETURNING id");
     await a.todos.startWork({ id: todo.id });
     expect((await a.decisions.list()).map((x) => [x.kind, x.state, x.payload.issueKey])).toEqual([["timer-log", "open", "DEC-11"]]);
