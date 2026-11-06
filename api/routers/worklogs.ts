@@ -436,6 +436,8 @@ export const worklogsRouter = createRouter({
           ...timeFields,
           /** Logging the time of a stopped timer: clear it once saved (if still stopped). */
           fromTimer: z.boolean().default(false),
+          /** With fromTimer, a log shorter than the stopped timer: keep the rest paused to log later (else it is dropped). */
+          keepRest: z.boolean().default(false),
           /** The question this log answers (contracts/decisions): the first page to answer it wins. */
           decision: z.object({ id: z.uuid(), revision: z.number().int().nonnegative() }).optional(),
           /**
@@ -482,9 +484,10 @@ export const worklogsRouter = createRouter({
         // before the worklog is written, so two devices logging it at once
         // can't both succeed (gone means another flow logged it). A stopped
         // timer is cleared; one restarted meanwhile keeps running minus this
-        // time. If the worklog then fails, the time goes back to the timer.
+        // time. A shorter log drops the rest of a stopped one unless asked to
+        // keep it. If the worklog then fails, the time goes back to the timer.
         const split = input.split ? { until: new Date(input.split.until), shares: input.split.shares } : undefined;
-        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId, new Date(), split) : null;
+        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId, new Date(), { split, keepRest: input.keepRest }) : null;
         if (input.fromTimer && !claim) {
           throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.timerLogged", { key: input.issueKey }) });
         }

@@ -163,7 +163,7 @@ async function clearPausedTimer(db: Db | Tx, userId: number, connectionId: numbe
   await db.delete(timers).where(and(timerOf(userId, connectionId, issueKey), eq(timers.state, "paused")));
 }
 
-/** Less than this left on a stopped timer once logged is rounding (whole minutes), not time to keep. */
+/** Less than this left on a stopped timer once logged is rounding (whole minutes), never kept. */
 const MIN_LEFT_SECONDS = 60;
 
 /** A log's shares of the time its timer ran with others: by the others it ran with, in basis points. */
@@ -176,11 +176,11 @@ const trackedThrough = (t: Timer, until: Date) =>
 /**
  * Takes `seconds` of a timer for a worklog, before the worklog is written,
  * under the lock: two devices logging the same timer at once can't both get
- * it (the second finds it gone: `null`). A stopped timer goes once all its
- * time is logged; logged in part, the rest stays paused, to log later (less
- * than a minute left is rounding, not time: it goes). One running keeps
- * running with the time removed. `undo` puts it back if the worklog then
- * fails.
+ * it (the second finds it gone: `null`). A stopped timer goes once logged:
+ * a shorter log drops the rest, unless `keepRest` keeps it paused to log
+ * later (less than a minute left is rounding, not time: it goes anyway). One
+ * running keeps running with the time removed. `undo` puts it back, all of
+ * it, if the worklog then fails.
  *
  * With `split` (it ran beside other timers), the log takes all the time the
  * timer counted up to `until`, though it logs less: the rest of the time it
@@ -193,8 +193,9 @@ export async function claimTimerSeconds(
   seconds: number,
   connectionId?: number,
   now: Date = new Date(),
-  split?: ClaimSplit,
+  o: { split?: ClaimSplit; keepRest?: boolean } = {},
 ): Promise<{ undo: (back?: number) => Promise<void> } | null> {
+  const { split } = o;
   const conn = await issueConnection(userId, issueKey, connectionId);
   let ended: Decision | null = null;
   const claimed = await withTimerLock(userId, async (tx) => {
@@ -207,7 +208,7 @@ export async function claimTimerSeconds(
     const taken = split ? trackedThrough(t, until) : seconds;
     if (t.state !== "running") {
       const left = t.accumulatedSeconds - taken;
-      if (left >= MIN_LEFT_SECONDS) {
+      if (o.keepRest && left >= MIN_LEFT_SECONDS) {
         await tx.update(timers).set({ accumulatedSeconds: left, updatedAt: now, epoch: t.epoch + 1 }).where(eq(timers.id, t.id));
       } else {
         await clearPausedTimer(tx, userId, conn.id, issueKey);

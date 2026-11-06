@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ToggleChip } from "@/components/app/ToggleChip";
+import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { useBlockPlacement } from "@/hooks/useBlockPlacement";
 import { useWorkSchedule } from "@/hooks/useWorkSchedule";
 import { useKeepsTimeHere, useProviderName } from "@/hooks/useConnections";
@@ -186,6 +187,11 @@ function LogTimeForm({
   const sharing = split && split.groups.length > 0 ? split : null;
   // The duration follows "To log" until typed by hand.
   const [durationEdited, setDurationEdited] = useState(false);
+  // The time as a typed duration, or as an end time after the start: one or the other, never kept in sync.
+  const [mode, setMode] = useState<"duration" | "end">("duration");
+  const [endTyped, setEndTyped] = useState("");
+  // A stopped timer logged shorter: its rest is dropped unless kept to log later.
+  const [keepRest, setKeepRest] = useState(false);
   const placementDay =
     day ?? endAt ?? prefillStart ?? (worklog ? new Date(worklog.started) : undefined);
   const placement = useBlockPlacement(placementDay, {
@@ -230,15 +236,24 @@ function LogTimeForm({
   // An untouched duration is the stored one: the field shows whole minutes,
   // and saving its rounding would change an edit of the comment alone.
   const timeShown = sharing && !durationEdited ? durationInput(sharing.toLogSeconds) : timeSpent;
-  const parsed =
-    worklog && timeShown === durationInput(worklog.timeSpentSeconds)
+  // Shared out by percentages, the time is theirs: no end to type.
+  const byEnd = mode === "end" && !sharing;
+  // By end, the start is the one in its field (fixed when the end was chosen).
+  const endSeconds = byEnd && started && endTyped ? (new Date(endTyped).getTime() - new Date(started).getTime()) / 1000 : null;
+  const endBeforeStart = endSeconds !== null && endSeconds <= 0;
+  const parsed = byEnd
+    ? endSeconds !== null && Number.isFinite(endSeconds) && endSeconds > 0
+      ? endSeconds
+      : null
+    : worklog && timeShown === durationInput(worklog.timeSpentSeconds)
       ? worklog.timeSpentSeconds
       : parseDurationToSeconds(timeShown, {
           daySeconds: targetFor(placementDay ?? (started ? new Date(started) : openedAt)),
         });
   const tooLong = !!parsed && parsed > MAX_WORKLOG_SECONDS;
-  const invalid =
-    timeShown.trim().length > 0 && (!parsed || parsed <= 0 || tooLong);
+  const invalid = byEnd
+    ? endTyped !== "" && !!started && (!parsed || tooLong)
+    : timeShown.trim().length > 0 && (!parsed || parsed <= 0 || tooLong);
 
   const changeDuration = (value: string) => {
     setDurationEdited(true);
@@ -261,6 +276,28 @@ function LogTimeForm({
       : "";
   // Placed around the day's break: one worklog per piece. A start chosen by hand is one piece.
   const parts = !startedTouched && auto?.ok ? auto.parts : undefined;
+  /**
+   * To an end time: the block as it stands keeps its start, its end is typed
+   * from there. Back to a duration: what the end made of it, typed from there.
+   */
+  const switchMode = (next: "duration" | "end") => {
+    if (next === mode) return;
+    if (next === "end") {
+      setStarted(startedShown);
+      setStartedTouched(true);
+      setEndTyped(startedShown ? toLocalInputValue(new Date(new Date(startedShown).getTime() + seconds * 1000)) : "");
+    } else if (parsed && parsed > 0) {
+      setTimeSpent(durationInput(parsed));
+      setDurationEdited(true);
+    }
+    setMode(next);
+  };
+  // What a stopped timer logged shorter leaves (whole minutes): dropped, or kept to log later.
+  const restSeconds =
+    fromTimer && !worklog && !sharing && prefillSeconds && parsed && parsed > 0
+      ? Math.round((prefillSeconds - parsed) / 60) * 60
+      : 0;
+  const hasRest = restSeconds >= 60;
   // Editing without touching time or duration: what Jira has stays as is.
   const unchangedEdit =
     !!worklog && !startedEdited && parsed === worklog.timeSpentSeconds;
@@ -358,6 +395,7 @@ function LogTimeForm({
         issueKey,
         connectionId,
         fromTimer,
+        ...(hasRest && keepRest ? { keepRest: true } : {}),
         ...(shared ? { decision: shared.decision } : {}),
         parts: parts && partsInput(parts, parsed),
         ...(sharing && splitRead.data
@@ -394,33 +432,52 @@ function LogTimeForm({
           />
         )}
         <div className="grid gap-2">
-          <Label htmlFor={`${id}-time`}>{t("ui.logTime.timeSpent")}</Label>
-          <Input
-            id={`${id}-time`}
-            placeholder={t("ui.logTime.timePlaceholder")}
-            value={timeShown}
-            onChange={e => changeDuration(e.target.value)}
-            aria-invalid={invalid}
-            aria-describedby={`${id}-time-hint`}
-            autoFocus
-          />
-          <div
-            className="flex flex-wrap gap-1.5"
-            role="group"
-            aria-label={t("ui.logTime.presets")}
-          >
-            {DURATION_PRESETS.map(p => (
-              <ToggleChip
-                key={p}
-                pressed={timeShown === p}
-                onClick={() => changeDuration(p)}
-              >
-                {p}
-              </ToggleChip>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* By end time it is worked out (shown below), its field under the start's. */}
+            <Label htmlFor={byEnd ? undefined : `${id}-time`}>{t("ui.logTime.timeSpent")}</Label>
+            {!sharing && (
+              <SegmentedControl
+                label={t("ui.logTime.mode")}
+                value={mode}
+                onChange={switchMode}
+                options={[
+                  { value: "duration", label: t("ui.logTime.byDuration") },
+                  { value: "end", label: t("ui.logTime.byEnd") },
+                ]}
+              />
+            )}
           </div>
+          {!byEnd && (
+            <>
+              <Input
+                id={`${id}-time`}
+                placeholder={t("ui.logTime.timePlaceholder")}
+                value={timeShown}
+                onChange={e => changeDuration(e.target.value)}
+                aria-invalid={invalid}
+                aria-describedby={`${id}-time-hint`}
+                autoFocus
+              />
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label={t("ui.logTime.presets")}
+              >
+                {DURATION_PRESETS.map(p => (
+                  <ToggleChip
+                    key={p}
+                    pressed={timeShown === p}
+                    onClick={() => changeDuration(p)}
+                  >
+                    {p}
+                  </ToggleChip>
+                ))}
+              </div>
+            </>
+          )}
           <p
             id={`${id}-time-hint`}
+            aria-live={byEnd ? "polite" : undefined}
             className={cn(
               "text-body-sm",
               invalid ? "text-danger" : "text-muted-foreground"
@@ -429,11 +486,31 @@ function LogTimeForm({
             {tooLong
               ? t("ui.logTime.tooLong")
               : invalid
-                ? t("ui.logTime.badFormat")
+                ? byEnd && endBeforeStart
+                  ? t("ui.logTime.endBeforeStart")
+                  : t("ui.logTime.badFormat")
                 : parsed && parsed > 0
                   ? `= ${formatSeconds(parsed)}`
-                  : t("ui.logTime.units")}
+                  : byEnd
+                    ? " "
+                    : t("ui.logTime.units")}
           </p>
+          {hasRest && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-body-sm text-muted-foreground">
+                {t("ui.logTime.rest.left", { duration: formatDurationLong(restSeconds) })}
+              </p>
+              <SegmentedControl
+                label={t("ui.logTime.rest.choice")}
+                value={keepRest ? "keep" : "discard"}
+                onChange={v => setKeepRest(v === "keep")}
+                options={[
+                  { value: "discard", label: t("ui.logTime.rest.discard") },
+                  { value: "keep", label: t("ui.logTime.rest.keep") },
+                ]}
+              />
+            </div>
+          )}
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${id}-started`}>{t("ui.logTime.start")}</Label>
@@ -449,6 +526,21 @@ function LogTimeForm({
               setStarted(e.target.value);
             }}
           />
+          {byEnd && (
+            <>
+              <Label htmlFor={`${id}-end`} className="mt-2">
+                {t("ui.logTime.end")}
+              </Label>
+              <Input
+                id={`${id}-end`}
+                type="datetime-local"
+                value={endTyped}
+                onChange={e => setEndTyped(e.target.value)}
+                aria-invalid={invalid}
+                aria-describedby={`${id}-time-hint`}
+              />
+            </>
+          )}
           <p
             id={`${id}-started-hint`}
             role={conflict || overlapWarning || (waiting && placement.error) ? "alert" : undefined}

@@ -119,13 +119,14 @@ describe("decisions: the same question on every page, the first answer wins", ()
     const a = page("client-a-0001");
     await a.timers.start({ issueKey: "DEC-5" });
     await a.timers.stop({ issueKey: "DEC-5" });
+    await q("UPDATE timers SET accumulated_seconds = 7200 WHERE issue_key = 'DEC-5'");
     const [d] = await a.decisions.list();
-    // Jira refuses the worklog: the time goes back to the timer.
+    // Jira refuses the worklog: the time goes back to the timer, all of it (the rest a shorter log would drop too).
     await expect(a.worklogs.create({ issueKey: "DEC-5", timeSpent: "1h", started, fromTimer: true, decision: { id: d.id, revision: d.revision } })).rejects.toThrow();
     const [back] = await a.decisions.list();
     expect(back.state).toBe("open");
     expect(back.resolution).toHaveProperty("lastError");
-    expect((await a.timers.list())[0]).toMatchObject({ issueKey: "DEC-5", state: "paused" });
+    expect((await a.timers.list())[0]).toMatchObject({ issueKey: "DEC-5", state: "paused", elapsedSeconds: 7200 });
   });
 
   it("'Later' closes it everywhere; the timer stays to log", async () => {
@@ -165,14 +166,26 @@ describe("decisions: the same question on every page, the first answer wins", ()
     expect(await q("SELECT count(*)::int AS n FROM decisions")).toEqual([{ n: 1 }]);
   });
 
-  it("logged in part: the rest stays paused, to log later, with no new question", async () => {
+  it("logged in part: the rest is dropped, the question ends", async () => {
+    await reset();
+    const a = page("client-a-0001");
+    await a.timers.start({ issueKey: "DEC-8" });
+    await q("UPDATE timers SET accumulated_seconds = 7200, started_at = ?", Date.now());
+    await a.timers.stop({ issueKey: "DEC-8" });
+    const [d] = await a.decisions.list();
+    await a.worklogs.create({ issueKey: "DEC-8", timeSpent: "1h", started, fromTimer: true, decision: { id: d.id, revision: d.revision } });
+    expect(await a.timers.list()).toEqual([]);
+    expect((await a.decisions.list()).filter((x) => x.state === "open")).toEqual([]);
+  });
+
+  it("logged in part, keeping the rest: it stays paused, to log later, with no new question", async () => {
     await reset();
     const a = page("client-a-0001");
     await a.timers.start({ issueKey: "DEC-9" });
     await q("UPDATE timers SET accumulated_seconds = 7200, started_at = ?", Date.now());
     await a.timers.stop({ issueKey: "DEC-9" });
     const [d] = await a.decisions.list();
-    await a.worklogs.create({ issueKey: "DEC-9", timeSpent: "1h", started, fromTimer: true, decision: { id: d.id, revision: d.revision } });
+    await a.worklogs.create({ issueKey: "DEC-9", timeSpent: "1h", started, fromTimer: true, keepRest: true, decision: { id: d.id, revision: d.revision } });
     const [t] = await a.timers.list();
     expect(t).toMatchObject({ state: "paused" });
     expect(t.elapsedSeconds).toBeGreaterThanOrEqual(3600);
