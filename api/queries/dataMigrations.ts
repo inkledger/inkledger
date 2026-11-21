@@ -104,6 +104,12 @@ async function record(db: Db, ids: string[]) {
     .onConflictDoUpdate({ target: serverSettings.key, set: { value, updatedAt: new Date() } });
 }
 
+/** The steps not run yet on this database. */
+export async function pendingDataMigrations(db: Db, steps: DataMigration[] = DATA_MIGRATIONS): Promise<string[]> {
+  const ids = await done(db);
+  return steps.filter((step) => !ids.includes(step.id)).map((step) => step.id);
+}
+
 /** Runs the steps not run yet on this database; returns the ids it ran. */
 export async function runDataMigrations(db: Db, steps: DataMigration[] = DATA_MIGRATIONS): Promise<string[]> {
   const ran: string[] = [];

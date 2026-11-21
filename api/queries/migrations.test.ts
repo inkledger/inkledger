@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { guardMigrations, markProductionDb, readJournal, type RawQuery } from "./migrationGuard";
+import { guardMigrations, markProductionDb, productionDbOfAnotherProcess, readJournal, type RawQuery } from "./migrationGuard";
 import { runDataMigrations } from "./dataMigrations";
 
 const folder = path.resolve(process.cwd(), "drizzle");
@@ -51,6 +51,30 @@ describe("migration guard", () => {
     await up();
     await markProductionDb(query);
     await expect(guardMigrations(query, journal, dev)).resolves.toBeUndefined();
+  });
+
+  it("a dev process on an up-to-date production database is told it is one (no data step, no reseal)", async () => {
+    const { query, up } = await fresh();
+    await up();
+    await markProductionDb(query);
+    await expect(productionDbOfAnotherProcess(query, dev)).resolves.toBe(true);
+    await expect(productionDbOfAnotherProcess(query, { ...dev, production: true })).resolves.toBe(false);
+    await expect(productionDbOfAnotherProcess(query, { ...dev, allowProductionDb: true })).resolves.toBe(false);
+    const other = await fresh();
+    await other.up();
+    await expect(productionDbOfAnotherProcess(other.query, dev)).resolves.toBe(false);
+  });
+
+  it("a mark it can't read (no permission, a timeout) refuses, never reads as unmarked", async () => {
+    const { query, up } = await fresh();
+    await up();
+    await query("delete from drizzle.__drizzle_migrations where created_at = $1", [journal.at(-1)!.when]);
+    const denied: RawQuery = async (text, params) => {
+      if (text.includes("server_settings")) throw Object.assign(new Error("permission denied for table server_settings"), { code: "42501" });
+      return query(text, params);
+    };
+    await expect(guardMigrations(denied, journal, dev)).rejects.toThrow(/permission denied/);
+    await expect(productionDbOfAnotherProcess(denied, dev)).rejects.toThrow(/permission denied/);
   });
 
   it("refuses to start on a database newer than the build", async () => {

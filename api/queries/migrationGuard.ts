@@ -21,13 +21,34 @@ export function readJournal(folder: string): JournalEntry[] {
   return [...raw.entries].sort((a, b) => a.when - b.when);
 }
 
-/** A query on something that may not exist yet (a fresh database): no rows then. */
+/** Postgres "no such table" or "no such schema": what a fresh database answers. */
+const notThereYet = (e: unknown) => ["42P01", "3F000"].includes(String((e as { code?: unknown }).code));
+
+/**
+ * A query on something that may not exist yet (a fresh database): no rows then.
+ * Any other failure (no permission, a timeout) is thrown: read as "not marked",
+ * it would let a dev process migrate a production database.
+ */
 async function rowsOrNone(query: RawQuery, text: string): Promise<Record<string, unknown>[]> {
   try {
     return (await query(text)).rows;
-  } catch {
-    return [];
+  } catch (e) {
+    if (notThereYet(e)) return [];
+    throw e;
   }
+}
+
+/** The production server's mark on this very database (see DB_OWNER_KEY). */
+async function markedProduction(query: RawQuery): Promise<boolean> {
+  const [owner] = await rowsOrNone(query, `select value from server_settings where key = '${DB_OWNER_KEY}'`);
+  const [here] = await rowsOrNone(query, "select current_database() as name");
+  let marked: Partial<Owner> = {};
+  try {
+    marked = typeof owner?.value === "string" ? (JSON.parse(owner.value) as Partial<Owner>) : {};
+  } catch {
+    /* unreadable: not marked */
+  }
+  return marked.role === "production" && marked.database === here?.name;
 }
 
 export type GuardOptions = {
@@ -55,20 +76,22 @@ export async function guardMigrations(query: RawQuery, journal: JournalEntry[], 
   }
   const pending = journal.filter((e) => e.when > applied);
   if (pending.length === 0 || opts.production || opts.allowProductionDb) return;
-  const [owner] = await rowsOrNone(query, `select value from server_settings where key = '${DB_OWNER_KEY}'`);
-  const [here] = await rowsOrNone(query, "select current_database() as name");
-  let marked: Partial<Owner> = {};
-  try {
-    marked = typeof owner?.value === "string" ? (JSON.parse(owner.value) as Partial<Owner>) : {};
-  } catch {
-    /* unreadable: not marked */
-  }
-  if (marked.role === "production" && marked.database === here?.name) {
+  if (await markedProduction(query)) {
     throw new Error(
       `Refusing to apply ${pending.length} migration(s) (${pending.map((e) => e.tag).join(", ")}) to a production database ` +
         `from a non-production process. Point DATABASE_URL at a dev database, or set ALLOW_MIGRATE_PRODUCTION_DB=1.`
     );
   }
+}
+
+/**
+ * A production database opened by a dev or test process: it may use it as it
+ * is, but runs no data step on it and seals none of its secrets again (those are
+ * migrations too, and the production server's to run).
+ */
+export async function productionDbOfAnotherProcess(query: RawQuery, opts: GuardOptions): Promise<boolean> {
+  if (opts.production || opts.allowProductionDb) return false;
+  return markedProduction(query);
 }
 
 /** A production server marks its database as its own (after migrating, so the table exists). */

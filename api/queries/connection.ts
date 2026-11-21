@@ -5,9 +5,9 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { env } from "../lib/env";
 import * as schema from "@db/schema";
 import * as relations from "@db/relations";
-import { runDataMigrations } from "./dataMigrations";
+import { pendingDataMigrations, runDataMigrations } from "./dataMigrations";
 import { resealCredentials } from "./credentials";
-import { guardMigrations, markProductionDb, readJournal, type RawQuery } from "./migrationGuard";
+import { guardMigrations, markProductionDb, productionDbOfAnotherProcess, readJournal, type RawQuery } from "./migrationGuard";
 
 const fullSchema = { ...schema, ...relations };
 
@@ -43,12 +43,21 @@ type Opened = { db: Db; close: () => Promise<void>; migrate: () => Promise<void>
 function migrator(db: Db, query: RawQuery, schemaUp: () => Promise<unknown>) {
   return async () => {
     const folder = migrationsFolder();
-    await guardMigrations(query, readJournal(folder), {
-      production: env.isProduction,
-      allowProductionDb: env.allowMigrateProductionDb,
-    });
+    const who = { production: env.isProduction, allowProductionDb: env.allowMigrateProductionDb };
+    await guardMigrations(query, readJournal(folder), who);
+    const foreign = await productionDbOfAnotherProcess(query, who);
     await schemaUp();
     if (env.isProduction) await markProductionDb(query);
+    if (foreign) {
+      const steps = await pendingDataMigrations(db);
+      if (steps.length > 0) {
+        throw new Error(
+          `Refusing to run ${steps.length} data migration(s) (${steps.join(", ")}) on a production database from a non-production process. ` +
+            `Point DATABASE_URL at a dev database, or set ALLOW_MIGRATE_PRODUCTION_DB=1.`
+        );
+      }
+      return;
+    }
     await runDataMigrations(db);
     const resealed = await resealCredentials(db);
     if (resealed > 0) console.log(`[credentials] ${resealed} connection secret(s) sealed again with the current key`);
@@ -71,7 +80,6 @@ async function open(url: string): Promise<Opened> {
     const db = drizzle(client, { schema: fullSchema }) as unknown as Db;
     const query: RawQuery = (text, params) => client.query(text, params);
     const up = migrator(db, query, () => migrate(drizzle(client), { migrationsFolder: migrationsFolder() }));
-    await up();
     return { db, close: () => client.close(), migrate: up };
   }
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -80,17 +88,24 @@ async function open(url: string): Promise<Opened> {
   const db = drizzle(pool, { schema: fullSchema }) as unknown as Db;
   const query: RawQuery = (text, params) => pool.query(text, params);
   const up = migrator(db, query, () => migrate(drizzle(pool), { migrationsFolder: migrationsFolder() }));
-  await up();
   return { db, close: () => pool.end(), migrate: up };
 }
 
 /** Connects and applies pending migrations (once). The server awaits it at start. */
 export function initDb(): Promise<Db> {
   if (instance) return Promise.resolve(instance);
-  pending ??= open(env.databaseUrl).then((o) => {
+  pending ??= open(env.databaseUrl).then(async (o) => {
     instance = o.db;
     close = o.close;
     remigrate = o.migrate;
+    // Migrated with the handle already set: data steps use the app's own queries.
+    // A failed step closes it again, so nothing runs on a half-migrated database.
+    try {
+      await o.migrate();
+    } catch (e) {
+      await closeDb();
+      throw e;
+    }
     return o.db;
   });
   return pending;
