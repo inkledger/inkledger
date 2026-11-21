@@ -39,7 +39,9 @@ export function serveStaticFiles(app: App) {
   // Every route outside the SSR manifest keeps the SPA shell.
   app.notFound((c) => {
     const accept = c.req.header("accept") ?? "";
-    if (!accept.includes("text/html")) {
+    // A hashed asset that isn't there (an old build's chunk) is missing, not a page: the shell
+    // in its place would be cached for a year by the rule above, and fail as a script.
+    if (!accept.includes("text/html") || c.req.path.startsWith("/assets/")) {
       return c.json({ error: "Not Found" }, 404);
     }
     c.header("Cache-Control", "no-cache");
