@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router";
+import { decodeOr } from "@/lib/urlCodecs";
+
+/** The element id a #comment-… or #note-… hash points at, or null for any other hash. */
+export function flashTarget(hash: string): string | null {
+  return /^#(comment|note)-./.test(hash) ? decodeOr(hash.slice(1)) : null;
+}
 
 /**
  * Arriving on an issue at #comment-… or #note-… (a TODO's link): that comment
@@ -9,8 +15,8 @@ import { useLocation } from "react-router";
 export function useHashFlash() {
   const { hash, key } = useLocation();
   useEffect(() => {
-    if (!/^#(comment|note)-./.test(hash)) return;
-    const id = decodeURIComponent(hash.slice(1));
+    const id = flashTarget(hash);
+    if (id === null) return;
     let tries = 0;
     let wait: ReturnType<typeof setTimeout> | undefined;
     let off: ReturnType<typeof setTimeout> | undefined;

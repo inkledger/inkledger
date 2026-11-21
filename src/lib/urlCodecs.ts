@@ -5,6 +5,15 @@ export type Codec<T> = { parse: (raw: string) => T | null; format: (v: T) => str
 
 export const text: Codec<string> = { parse: s => s, format: v => v };
 
+/** decodeURIComponent, or the text as it is when it isn't valid percent-encoding ("%E0" from a hand-typed URL). */
+export function decodeOr(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 /** Present = true ("?favorites"), absent = false. */
 export const flag: Codec<boolean> = { parse: () => true, format: () => "" };
 

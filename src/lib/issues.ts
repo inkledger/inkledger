@@ -1,4 +1,4 @@
-import { DAY_MS } from "@contracts/time";
+import { DAY_MS, startOfDay } from "@contracts/time";
 import { relativeFormat, t } from "@contracts/i18n";
 
 /** Issue fields used by the helpers below (any issue list row fits). */
@@ -8,15 +8,17 @@ type ActivityFields = {
   statusChangedAt: number | null;
 };
 
-function ago(ms: number): string {
-  const days = Math.round((ms - Date.now()) / DAY_MS);
+/** In calendar days: something from late yesterday is "yesterday", not "today". */
+function ago(ms: number, now = Date.now()): string {
+  // Rounded: a day across a DST change is 23 or 25 hours.
+  const days = Math.round((startOfDay(new Date(ms)).getTime() - startOfDay(new Date(now)).getTime()) / DAY_MS);
   if (days === 0) return t("ui.rel.today");
   if (Math.abs(days) < 31) return relativeFormat().format(days, "day");
   return relativeFormat().format(Math.round(days / 30), "month");
 }
 
 /** Why the issue sits where it does in the "Activity" order. */
-export function activityText(issue: ActivityFields): string | null {
+export function activityText(issue: ActivityFields, now = Date.now()): string | null {
   const at = issue.activityAt;
   if (!at) return null;
   const what =
@@ -25,7 +27,7 @@ export function activityText(issue: ActivityFields): string | null {
       : at === issue.statusChangedAt
         ? t("ui.activity.status")
         : t("ui.activity.created");
-  return `${what} · ${ago(at)}`;
+  return `${what} · ${ago(at, now)}`;
 }
 
 /** Most relevant first (last change, activity or creation); unknown last. */
@@ -43,7 +45,7 @@ export function relevanceText(ms: number, now = Date.now()): string {
   if (min < 60) return relativeFormat().format(-min, "minute");
   const h = Math.round(min / 60);
   if (h < 24) return relativeFormat().format(-h, "hour");
-  return ago(ms);
+  return ago(ms, now);
 }
 
 /** Hidden issues stay in sync but out of every list. */

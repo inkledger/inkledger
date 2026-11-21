@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { branchName, byRelevance, commitMessage, issuePath, parseIssuePath, readIssueDragData, relevanceText, setIssueDragData, ISSUE_DRAG_TYPE } from "./issues";
+import { activityText, branchName, byRelevance, commitMessage, issuePath, parseIssuePath, readIssueDragData, relevanceText, setIssueDragData, ISSUE_DRAG_TYPE } from "./issues";
 
 describe("branchName", () => {
   it("builds a short ASCII slug after the key", () => {
@@ -61,6 +61,15 @@ describe("byRelevance", () => {
     expect(relevanceText(now - 30_000, now)).toBe("just now");
     expect(relevanceText(now - 20 * 60_000, now)).toBe("20 minutes ago");
     expect(relevanceText(now - 3 * 3600_000, now)).toBe("3 hours ago");
+  });
+
+  it("counts days on the calendar: late yesterday is yesterday, not today", () => {
+    const now = new Date(2026, 9, 16, 9).getTime();
+    const lateYesterday = new Date(2026, 9, 15, 22).getTime();
+    expect(activityText({ activityAt: lateYesterday, lastCommentAt: null, statusChangedAt: null }, now)).toBe("created · yesterday");
+    expect(activityText({ activityAt: now - 3600_000, lastCommentAt: null, statusChangedAt: null }, now)).toBe("created · today");
+    // Past a day, against the "now" given, not the clock.
+    expect(relevanceText(new Date(2026, 9, 14, 22).getTime(), now)).toBe("2 days ago");
   });
 });
 

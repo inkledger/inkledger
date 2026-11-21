@@ -1,5 +1,6 @@
 import { navEntryFor } from "@/lib/nav";
 import { t } from "@/i18n";
+import { decodeOr } from "@/lib/urlCodecs";
 
 /** Where a history entry was opened from: shown as "← Board" and in the breadcrumb. */
 export type NavFrom = { path: string; label: string };
@@ -10,7 +11,7 @@ const MAX = 200;
 /** The name of the page at `path`, as a back button says it. */
 export function pageLabel(pathname: string): string {
   const issue = /^\/issues\/([^/]+)$/.exec(pathname);
-  if (issue) return decodeURIComponent(issue[1]);
+  if (issue) return decodeOr(issue[1]);
   return navEntryFor(pathname)?.label ?? t("ui.nav.back");
 }
 

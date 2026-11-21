@@ -21,8 +21,9 @@ const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
 export function relativeTime(date: Date, now: number): string {
   const diff = (date.getTime() - now) / 1000;
   for (const [unit, secs] of STEPS) {
+    // Whole units only: 59.7 minutes is "59 minutes", never "60 minutes"; 40 hours is "yesterday".
     if (Math.abs(diff) >= secs)
-      return relativeFormat().format(Math.round(diff / secs), unit);
+      return relativeFormat().format(Math.trunc(diff / secs), unit);
   }
   return t("ui.rel.now");
 }
