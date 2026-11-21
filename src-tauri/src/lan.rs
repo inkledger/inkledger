@@ -77,7 +77,7 @@ fn write_private(path: &Path, body: &str) -> std::io::Result<()> {
 
 /// A network name the user gave this Mac (Settings → Devices): host-name syntax only,
 /// so a page can't put markup or anything but a name in the certificate.
-fn valid_lan_name(name: &str) -> bool {
+pub(crate) fn valid_lan_name(name: &str) -> bool {
     name.len() <= 253
         && name.parse::<IpAddr>().is_err()
         && name.split('.').all(|label| {
@@ -93,6 +93,12 @@ fn valid_lan_name(name: &str) -> bool {
 pub fn load_or_create_ca(dir: &Path, mac: &str) -> Result<Ca, String> {
     let (cert, key) = (dir.join(CA_CERT), dir.join(CA_KEY));
     if let (Ok(cert_pem), Ok(key_pem)) = (std::fs::read_to_string(&cert), std::fs::read_to_string(&key)) {
+        // One made by an older version, or loosened since: back to this user only.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600));
+        }
         return Ok(Ca { cert_pem, key_pem });
     }
     std::fs::create_dir_all(dir).map_err(fault)?;
@@ -321,62 +327,78 @@ fn tls_acceptor(cert_pem: &str, key_pem: &str, ca_pem: &str) -> Result<tokio_rus
     Ok(tokio_rustls::TlsAcceptor::from(Arc::new(config)))
 }
 
-/// The longest request head the proxy reads (the server's own limit is about as large).
-const HEAD_MAX: usize = 64 * 1024;
-
 /// A request head as the server must get it: the phone's address and https said by this
 /// proxy (whatever the phone wrote in those headers is dropped), and one request per
-/// connection (`Connection: close`), so no later request on it goes by unread. An
-/// upgrade keeps its Connection header: what follows is no HTTP request.
-fn rewrite_head(head: &str, peer: IpAddr) -> String {
-    let mut lines = head.split("\r\n");
-    let mut out = String::with_capacity(head.len() + 96);
-    out.push_str(lines.next().unwrap_or_default());
-    out.push_str("\r\n");
-    let upgrade = head.split("\r\n").skip(1).any(|l| l.to_ascii_lowercase().starts_with("upgrade:"));
-    for line in lines.filter(|l| !l.is_empty()) {
-        let name = line.split(':').next().unwrap_or_default().trim().to_ascii_lowercase();
-        let dropped = matches!(name.as_str(), "x-forwarded-for" | "x-forwarded-proto" | "x-forwarded-host" | "x-real-ip" | "forwarded")
-            || (name == "connection" && !upgrade);
+/// connection (`Connection: close`), so no later request on it goes by unread. Only a
+/// real upgrade (Connection naming "upgrade", and an Upgrade header) keeps its Connection:
+/// what follows it is no HTTP request. Bytes, not text: a cookie may hold any octet.
+fn rewrite_head(head: &[u8], peer: IpAddr) -> Vec<u8> {
+    let lines: Vec<&[u8]> = head.split(|b| *b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l)).collect();
+    let name_of = |l: &[u8]| l.split(|b| *b == b':').next().unwrap_or_default().trim_ascii().to_ascii_lowercase();
+    let value_of = |l: &[u8]| l.splitn(2, |b| *b == b':').nth(1).unwrap_or_default().to_ascii_lowercase();
+    let headers = lines.iter().skip(1).filter(|l| !l.is_empty());
+    let connection_upgrade =
+        headers.clone().any(|l| name_of(l) == b"connection" && value_of(l).split(|b| *b == b',').any(|t| t.trim_ascii() == b"upgrade"));
+    let upgrade = connection_upgrade && headers.clone().any(|l| name_of(l) == b"upgrade");
+    let mut out = Vec::with_capacity(head.len() + 96);
+    out.extend_from_slice(lines.first().copied().unwrap_or_default());
+    out.extend_from_slice(b"\r\n");
+    for line in headers {
+        let name = name_of(line);
+        let dropped =
+            matches!(name.as_slice(), b"x-forwarded-for" | b"x-forwarded-proto" | b"x-forwarded-host" | b"x-real-ip" | b"forwarded")
+                || (name == b"connection" && !upgrade);
         if !dropped {
-            out.push_str(line);
-            out.push_str("\r\n");
+            out.extend_from_slice(line);
+            out.extend_from_slice(b"\r\n");
         }
     }
     if !upgrade {
-        out.push_str("Connection: close\r\n");
+        out.extend_from_slice(b"Connection: close\r\n");
     }
-    out.push_str(&format!("X-Forwarded-For: {peer}\r\nX-Forwarded-Proto: https\r\n\r\n"));
+    out.extend_from_slice(format!("X-Forwarded-For: {peer}\r\nX-Forwarded-Proto: https\r\n\r\n").as_bytes());
     out
 }
+
+/// The longest request head the proxy reads (the server's own limit is about as large).
+const HEAD_MAX: usize = 64 * 1024;
+/// Connections at once: anyone on the Wi-Fi reaches this port, and the app's own window lives in this process.
+const PROXY_CONNECTIONS: usize = 256;
 
 /// TLS in, plain HTTP to the server: the real Host header, and the phone's address in
 /// X-Forwarded-For as this proxy saw it (the server's limits count it with TRUST_PROXY).
 async fn serve_proxy(listener: TcpListener, tls: tokio_rustls::TlsAcceptor, upstream: SocketAddr) {
+    let slots = Arc::new(tokio::sync::Semaphore::new(PROXY_CONNECTIONS));
     loop {
         let Ok((socket, peer)) = listener.accept().await else { continue };
+        let Ok(permit) = slots.clone().try_acquire_owned() else { continue };
         let tls = tls.clone();
         tauri::async_runtime::spawn(async move {
-            let Ok(mut client) = tls.accept(socket).await else { return };
-            let mut read = Vec::with_capacity(4096);
-            let mut buf = [0u8; 4096];
-            let head_end = loop {
-                let more = tokio::time::timeout(std::time::Duration::from_secs(30), client.read(&mut buf)).await;
-                let Ok(Ok(n)) = more else { return };
-                if n == 0 {
-                    return;
+            let _permit = permit;
+            let secs = std::time::Duration::from_secs;
+            let Ok(Ok(mut client)) = tokio::time::timeout(secs(10), tls.accept(socket)).await else { return };
+            // The whole head within 30 s, not 30 s per byte.
+            let head = tokio::time::timeout(secs(30), async {
+                let mut read = Vec::with_capacity(4096);
+                let mut buf = [0u8; 4096];
+                loop {
+                    let n = client.read(&mut buf).await.ok()?;
+                    if n == 0 {
+                        return None;
+                    }
+                    read.extend_from_slice(&buf[..n]);
+                    if let Some(at) = read.windows(4).position(|w| w == b"\r\n\r\n") {
+                        return Some((read, at + 4));
+                    }
+                    if read.len() > HEAD_MAX {
+                        return None;
+                    }
                 }
-                read.extend_from_slice(&buf[..n]);
-                if let Some(at) = read.windows(4).position(|w| w == b"\r\n\r\n") {
-                    break at + 4;
-                }
-                if read.len() > HEAD_MAX {
-                    return;
-                }
-            };
-            let Ok(head) = std::str::from_utf8(&read[..head_end]) else { return };
+            })
+            .await;
+            let Ok(Some((read, head_end))) = head else { return };
             let Ok(mut server) = TcpStream::connect(upstream).await else { return };
-            if server.write_all(rewrite_head(head, peer.ip()).as_bytes()).await.is_err()
+            if server.write_all(&rewrite_head(&read[..head_end], peer.ip())).await.is_err()
                 || server.write_all(&read[head_end..]).await.is_err()
             {
                 return;
@@ -503,14 +525,25 @@ mod tests {
     fn the_proxy_says_the_phone_address_and_https_itself() {
         let peer: IpAddr = "192.168.1.30".parse().unwrap();
         let head = "GET /api/trpc/auth.me HTTP/1.1\r\nHost: my-mac.local:47843\r\nX-Forwarded-For: 6.6.6.6\r\nx-forwarded-proto: http\r\nForwarded: for=6.6.6.6\r\nConnection: keep-alive\r\nCookie: a=b\r\n\r\n";
-        let out = rewrite_head(head, peer);
+        let out = String::from_utf8(rewrite_head(head.as_bytes(), peer)).unwrap();
         assert!(out.starts_with("GET /api/trpc/auth.me HTTP/1.1\r\nHost: my-mac.local:47843\r\n"), "{out}");
         assert!(out.contains("Cookie: a=b\r\n"));
         assert!(!out.contains("6.6.6.6") && !out.contains("keep-alive") && !out.contains("proto: http\r\n"), "{out}");
         assert!(out.ends_with("Connection: close\r\nX-Forwarded-For: 192.168.1.30\r\nX-Forwarded-Proto: https\r\n\r\n"), "{out}");
         // An upgrade keeps its Connection header: what follows isn't HTTP.
-        let up = rewrite_head("GET /ws HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", peer);
-        assert!(up.contains("Connection: Upgrade\r\n") && !up.contains("Connection: close"), "{up}");
+        let up = String::from_utf8(rewrite_head(
+            b"GET /ws HTTP/1.1\r\nHost: x\r\nConnection: keep-alive, Upgrade\r\nUpgrade: websocket\r\n\r\n",
+            peer,
+        ))
+        .unwrap();
+        assert!(up.contains("Connection: keep-alive, Upgrade\r\n") && !up.contains("Connection: close"), "{up}");
+        // An Upgrade header alone is no upgrade: the connection still closes after one request.
+        let fake =
+            String::from_utf8(rewrite_head(b"GET /a HTTP/1.1\r\nHost: x\r\nConnection: keep-alive\r\nUpgrade: foo\r\n\r\n", peer)).unwrap();
+        assert!(fake.contains("Connection: close\r\n") && !fake.contains("keep-alive"), "{fake}");
+        // Any octet in a header passes as it is.
+        let raw = rewrite_head(b"GET / HTTP/1.1\r\nCookie: a=\xff\xfe\r\n\r\n", peer);
+        assert!(raw.windows(4).any(|w| w == b"\xff\xfe\r\n"));
     }
 
     #[test]

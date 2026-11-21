@@ -156,7 +156,13 @@ fn remembered_lan(app: &AppHandle) -> Option<(Url, Vec<String>)> {
     let v = app.store("settings.json").ok()?.get(LAN_KEY)?;
     // Older versions stored just the URL.
     let target = v["target"].as_str().or(v.as_str())?;
-    let names = v["names"].as_array().map(|a| a.iter().filter_map(|n| n.as_str().map(str::to_string)).collect()).unwrap_or_default();
+    let names: Vec<String> =
+        v["names"].as_array().map(|a| a.iter().filter_map(|n| n.as_str().map(str::to_string)).collect()).unwrap_or_default();
+    // A name an older version took that isn't a host name now: left out, the sharing goes on.
+    let (names, dropped): (Vec<String>, Vec<String>) = names.into_iter().partition(|n| lan::valid_lan_name(&n.trim().to_lowercase()));
+    if !dropped.is_empty() {
+        eprintln!("[lan] names left out (not host names): {}", dropped.join(", "));
+    }
     Some((Url::parse(target).ok()?, names))
 }
 
@@ -168,7 +174,12 @@ pub(crate) fn trusted_url(url: &Url, profiles: &[String]) -> bool {
         "about" => url.as_str() == "about:blank",
         // A download made by a page (blob:<its origin>/…) is that page's.
         "http" | "https" | "blob" => {
-            if url.host_str() == Some("tauri.localhost") {
+            // Windows and Android serve the bundled pages from http(s)://tauri.localhost.
+            if cfg!(any(windows, target_os = "android"))
+                && url.scheme() != "blob"
+                && url.host_str() == Some("tauri.localhost")
+                && url.port().is_none()
+            {
                 return true;
             }
             let origin = url.origin().ascii_serialization();
@@ -193,12 +204,27 @@ pub(crate) fn ensure_trusted(app: &AppHandle, webview: &tauri::Webview) -> Resul
     }
 }
 
-/// The window never leaves the app's pages and saved servers: anything else opens in
-/// the browser (http, https, mailto), or nowhere.
+/// Pages the remote capability gives native commands to (capabilities/remote.json):
+/// Tailscale names and this machine's ports.
+pub(crate) fn native_scope(url: &Url) -> bool {
+    match url.host_str() {
+        Some(h) if url.scheme() == "https" && h.ends_with(".ts.net") => true,
+        Some("localhost" | "127.0.0.1") => url.scheme() == "http",
+        _ => false,
+    }
+}
+
+/// A page that would get native commands must be the app's or a saved server's: another
+/// tailnet host or local port opens in the browser instead (http, https, mailto). Pages
+/// out of that scope get no native command anyway, and stay in the window: the sign-in
+/// page of a proxy in front of the server, its http → https or canonical-name redirects.
 fn navigation_guard() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri::plugin::Builder::new("navigation-guard")
         .on_navigation(|webview, url| {
             if trusted_url(url, &saved_origins(webview.app_handle())) {
+                return true;
+            }
+            if matches!(url.scheme(), "http" | "https") && !native_scope(url) {
                 return true;
             }
             if matches!(url.scheme(), "http" | "https" | "mailto") {
@@ -716,7 +742,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_server, trusted_url};
+    use super::{native_scope, parse_server, trusted_url};
     use tauri::Url;
 
     #[test]
@@ -725,7 +751,6 @@ mod tests {
         let ok = |u: &str| trusted_url(&Url::parse(u).unwrap(), &saved);
         for yes in [
             "tauri://localhost/index.html?from=x",
-            "http://tauri.localhost/index.html",
             "http://localhost:3000/issues",
             "https://my-mac.tail1.ts.net/settings",
             "https://my-mac.tail1.ts.net:443/",
@@ -744,8 +769,28 @@ mod tests {
             "file:///etc/passwd",
             "data:text/html,<script>x</script>",
             "javascript:alert(1)",
+            "http://tauri.localhost:8080/",
         ] {
             assert!(!ok(no), "{no}");
+        }
+        // The bundled pages' address on Windows and Android, only there.
+        assert_eq!(ok("http://tauri.localhost/index.html"), cfg!(any(windows, target_os = "android")));
+    }
+
+    #[test]
+    fn only_pages_with_native_commands_are_kept_out() {
+        let scope = |u: &str| native_scope(&Url::parse(u).unwrap());
+        for yes in ["https://evil.tail2.ts.net/", "http://localhost:3001/", "http://127.0.0.1:9999/x"] {
+            assert!(scope(yes), "{yes}");
+        }
+        // A sign-in page in front of the server, or its redirects: no native command there.
+        for no in [
+            "https://login.example.com/authorize",
+            "https://sso.corp.example/",
+            "http://my-mac.example.lan:47823/",
+            "https://localhost:3000/",
+        ] {
+            assert!(!scope(no), "{no}");
         }
     }
 
