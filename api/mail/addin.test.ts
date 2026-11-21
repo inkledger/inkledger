@@ -47,6 +47,13 @@ describe("the Outlook add-in's routes", () => {
     expect(((await me.json()) as { data: { themeColor: string } }).data.themeColor).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
+  it("a copy without a valid key is refused before its body is read (up to tens of MB)", async () => {
+    for (const k of ["", "ikl_ol_not-a-real-key-at-all-000"]) {
+      const res = await app.request("http://localhost/api/outlook/copy", as(k, { method: "POST", body: "not json", headers: { "content-type": "application/json" } }));
+      expect(res.status, k || "no key").toBe(401);
+    }
+  });
+
   it("opens only with a valid key", async () => {
     expect((await app.request("http://localhost/api/outlook/me", as("ikl_ol_notavalidkeyatallreally"))).status).toBe(401);
     expect((await app.request("http://localhost/api/outlook/me")).status).toBe(401);

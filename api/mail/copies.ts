@@ -36,16 +36,52 @@ export class CopyError extends Error {
 
 /** A text part derived from HTML when the mail has none (edge cases): tags out, at most 200 KB. */
 const TEXT_FROM_HTML_MAX = 200 * 1024;
-const textOf = (html: string) =>
-  html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>|<\/p>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+
+/**
+ * Scripts and styles out with their content, a line for <br> and </p>, every other
+ * tag out, a few entities read. One pass over the HTML: the regexes this replaces
+ * scanned to the end again for every unclosed <script, and a mail of those (tens
+ * of MB, from any sender) held the server for minutes.
+ */
+export function textOfHtml(html: string): string {
+  const lower = html.toLowerCase();
+  // Past the last one, a closing tag or ">" is never found again: no search runs twice.
+  const none = { script: false, style: false, gt: false };
+  let out = "";
+  let i = 0;
+  while (i < html.length && out.length < TEXT_FROM_HTML_MAX * 2) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, lt);
+    const block = /^<(script|style)/.exec(lower.slice(lt, lt + 7))?.[1] as "script" | "style" | undefined;
+    if (block && !none[block]) {
+      const close = lower.indexOf(`</${block}>`, lt);
+      if (close >= 0) {
+        i = close + block.length + 3;
+        continue;
+      }
+      none[block] = true;
+    }
+    const gt = none.gt || html[lt + 1] === ">" ? -1 : html.indexOf(">", lt + 1);
+    if (gt < 0) {
+      if (html[lt + 1] !== ">") none.gt = true;
+      out += "<";
+      i = lt + 1;
+      continue;
+    }
+    if (/^<(br\s*\/?|\/p)>$/i.test(html.slice(lt, gt + 1))) out += "\n";
+    i = gt + 1;
+  }
+  return out
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .slice(0, TEXT_FROM_HTML_MAX);
+}
 
 const addressOf = (a: { name?: string; address?: string } | undefined): string =>
   a?.address ? (a.name ? `${a.name} <${a.address}>` : a.address) : (a?.name ?? "");
@@ -103,7 +139,7 @@ export async function keepCopy(userId: number, mailId: number, raw: Buffer, sour
         date: parsed.date ?? null,
         subject: parsed.subject ?? "",
       },
-      text: parsed.text ?? (parsed.html ? textOf(parsed.html) : ""),
+      text: parsed.text ?? (parsed.html ? textOfHtml(parsed.html) : ""),
       html: parsed.html ?? null,
       attachments,
     };

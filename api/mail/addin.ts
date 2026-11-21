@@ -155,9 +155,13 @@ async function keyUser(c: Context): Promise<User | null> {
   return row.user;
 }
 
-/** Runs the procedures the add-in may use, as the key's owner. */
-async function asKeyOwner(c: Context, run: (caller: ReturnType<typeof appRouter.createCaller>, user: User) => Promise<unknown>): Promise<Response> {
-  const user = await keyUser(c);
+/** Runs the procedures the add-in may use, as the key's owner (`known`: already checked by the route). */
+async function asKeyOwner(
+  c: Context,
+  run: (caller: ReturnType<typeof appRouter.createCaller>, user: User) => Promise<unknown>,
+  known?: User,
+): Promise<Response> {
+  const user = known ?? (await keyUser(c));
   if (!user) return c.json({ error: t("server.mails.badKey") }, 401);
   // The pane is a device of its own (its id kept by Outlook for the mailbox): it has its own bucket.
   const device = c.req.header("x-device-id")?.trim();
@@ -226,6 +230,9 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
   });
   /** The open mail's copy, read by Outlook itself (Mailbox 1.14 getAsFileAsync): kept for the mail it pinned. */
   app.post(`${BASE}/copy`, async c => {
+    // The key first: the body is a whole mail, parsed and decoded only for its owner.
+    const owner = await keyUser(c);
+    if (!owner) return c.json({ error: t("server.mails.badKey") }, 401);
     const body = copyInput.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: t("server.mails.copy.badEml") }, 400);
     const raw = Buffer.from(body.data.eml, "base64");
@@ -239,6 +246,6 @@ export function registerOutlookRoutes(app: Hono<{ Bindings: HttpBindings }>) {
         if (e.kind !== "off") await getDb().update(mails).set({ copyError: e.message }).where(eq(mails.id, mail.id));
         throw new TRPCError({ code: e.kind === "off" ? "FORBIDDEN" : e.kind === "tooLarge" ? "PAYLOAD_TOO_LARGE" : "BAD_REQUEST", message: e.message });
       }
-    });
+    }, owner);
   });
 }
