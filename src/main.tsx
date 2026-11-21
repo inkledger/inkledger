@@ -10,6 +10,7 @@ import { currentLocale, LOCALES, loadLocale } from "@contracts/i18n";
 import { readSSRState } from "@/ssrState";
 import { SSRClockProvider } from "@/ssrClock";
 import { dayKey } from "@contracts/time";
+import { pageBuild, serviceWorkerUrl } from "@/lib/serviceWorker";
 
 // zod without its JIT in the page: it would probe `new Function` (an eval the CSP blocks and
 // reports). Set before any chunk with zod loads (none is in the first load); validation is the same.
@@ -76,6 +77,6 @@ const render = () => {
 // Not in the native app: its window loads the server live, no offline shell.
 if (import.meta.env.PROD && !isNative() && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js");
+    void navigator.serviceWorker.register(serviceWorkerUrl(pageBuild()));
   });
 }
