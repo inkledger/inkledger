@@ -555,6 +555,10 @@ export const worklogSinks = pgTable(
     remoteSnapshot: text("remote_snapshot"),
     /** Synced: when the service last took it. Not synced yet: when its create was first sent (an answer lost is looked for after it) */
     syncedAt: ms("synced_at"),
+    /** Raised by every change of the worklog: a push marks it synced only if none came while it was sending */
+    revision: integer("revision").notNull().default(0),
+    /** Day-total sinks: the day last set for it (moved to another day, that one is set again too) */
+    pushedDay: text("pushed_day"),
     /** A sink pass (of any server process on this database) is sending it: others skip it until then, or past the lease */
     claimedAt: epochMs("claimed_at"),
   },
