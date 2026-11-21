@@ -115,6 +115,15 @@ describe("isAllowedHost", () => {
 });
 
 describe("createRateLimiter, bounded", () => {
+  it("a blocked key stays blocked however many new keys come (they can't clear it)", () => {
+    const rl = createRateLimiter(2, 60_000, { maxKeys: 50 });
+    for (let i = 0; i < 3; i++) rl.hit("victim", i);
+    expect(rl.hit("victim", 10)).toBeGreaterThan(0);
+    for (let i = 0; i < 5000; i++) rl.hit(`filler-${i}`, 100 + i);
+    expect(rl.hit("victim", 6000)).toBeGreaterThan(0);
+    expect(rl.size()).toBeLessThanOrEqual(50);
+  });
+
   it("keeps at most maxKeys entries however many keys come, expired ones dropped first", () => {
     const rl = createRateLimiter(3, 1000, { maxKeys: 100 });
     for (let i = 0; i < 5000; i++) rl.hit(`k${i}`, i);

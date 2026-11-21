@@ -287,7 +287,7 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1,::1` | Host names the server answers to (LAN and Tailscale names are added from the app) |
 | `TLS_DIR` | off (Docker stack: `/app/tls`) | Folder with `server.crt` and `server.key`; set, the server also answers over HTTPS |
 | `HTTPS_PORT` | `3443` | HTTPS port, used only with `TLS_DIR` |
-| `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` (behind a TLS proxy) |
+| `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` behind a TLS proxy: `1` for one on this machine or the private network, or the proxies' addresses |
 | `COOKIE_SECURE` | auto | Force `Secure` cookies behind a proxy without `X-Forwarded-Proto` |
 | `BACKUP_DIR` | Docker: `/backups` | Where scheduled backups are written |
 | `TZ` | system | Time zone for days and weeks (Docker inherits the host's) |

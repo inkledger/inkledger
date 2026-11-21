@@ -1,4 +1,6 @@
+import { isIP } from "node:net";
 import { SESSION_COOKIE } from "@contracts/types";
+import { isPrivateAddress } from "./security";
 
 const REMEMBER_COOKIE = "ikl_remember";
 
@@ -89,14 +91,53 @@ export function clearedSessionCookies(req: Request): string[] {
   return [current, plain];
 }
 
+/** The desktop app's LAN proxy (src-tauri lan.rs TLS_PORT): it copies the client's bytes, its headers too. */
+const LAN_PROXY_PORT = "47843";
+
+const loopback = (ip: string) => ip === "::1" || (isIP(ip) === 4 && ip.startsWith("127."));
+
+/** One address as a limiter key: IPv4 as itself (mapped ones too), IPv6 by its /64 (one host holds a whole one). */
+export function addressKey(raw: string): string {
+  const ip = raw.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
+  if (isIP(ip) !== 6) return ip;
+  const [head, tail] = ip.split("::");
+  const width = (part: string | undefined) => (part ? part.split(":").reduce((n, g) => n + (g.includes(".") ? 2 : 1), 0) : 0);
+  const groups = tail === undefined ? head.split(":") : [...(head ? head.split(":") : []), ...Array<string>(8 - width(head) - width(tail)).fill("0"), ...(tail ? tail.split(":") : [])];
+  return `${groups.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(":")}::/64`;
+}
+
 /**
- * Client address for rate limiting: the socket address. X-Forwarded-For is
- * spoofable, so it is used only behind a trusted proxy (TRUST_PROXY=1).
+ * Client address for rate limiting: the socket address, unless a trusted proxy
+ * stands in front (TRUST_PROXY). Then the client is the last X-Forwarded-For
+ * entry that proxy added (the ones before it are whatever the client sent).
+ * TRUST_PROXY=1 trusts a proxy on this machine or the private network (Tailscale
+ * serve, Docker's gateway); a comma-separated list trusts those addresses only.
+ * Never for a request this server took over TLS itself (no proxy in front of it,
+ * and Docker's NAT makes its clients look private) or through the LAN proxy.
  */
 export function clientIp(req: Request, remoteAddress?: string): string {
-  if (process.env.TRUST_PROXY === "1") {
-    const first = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-    if (first) return first;
+  const peer = addressKey(remoteAddress ?? "");
+  const trust = (process.env.TRUST_PROXY ?? "").trim();
+  if (trust && trust !== "0" && !ownTlsOrLanProxy(req)) {
+    const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+    const listed = trust === "1" ? null : new Set(trust.split(",").map((a) => addressKey(a)).filter(Boolean));
+    const raw = (remoteAddress ?? "").trim().replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
+    const trusted = listed ? listed.has(peer) : loopback(raw) || isPrivateAddress(raw);
+    if (hops.length > 0 && trusted) {
+      let i = hops.length - 1;
+      while (listed && i > 0 && listed.has(addressKey(hops[i]))) i--;
+      return addressKey(hops[i]);
+    }
   }
-  return remoteAddress || "unknown";
+  return peer || "unknown";
+}
+
+function ownTlsOrLanProxy(req: Request): boolean {
+  try {
+    const url = new URL(req.url);
+    const host = req.headers.get("host") ?? url.host;
+    return url.protocol === "https:" || /:(\d+)$/.exec(host)?.[1] === LAN_PROXY_PORT;
+  } catch {
+    return false;
+  }
 }

@@ -128,9 +128,19 @@ export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?
       if (!entry || entry.resetAt <= now) {
         // Behind the others: its window begins now.
         hits.delete(key);
+        // Room: expired entries first, then the oldest, but never one still blocked
+        // (a flood of new keys must not clear a key's block: an account's or an address's).
+        let looked = hits.size;
         for (const [k, v] of hits) {
           if (v.resetAt > now && hits.size < maxKeys) break;
+          if (looked-- <= 0) break;
           hits.delete(k);
+          if (v.resetAt > now && v.count > limit) hits.set(k, v);
+        }
+        // Only blocked ones left and still full: the oldest goes all the same (memory stays bounded).
+        if (hits.size >= maxKeys) {
+          const oldest = hits.keys().next().value;
+          if (oldest !== undefined) hits.delete(oldest);
         }
         hits.set(key, { count: 1, resetAt: now + windowMs });
         return 0;

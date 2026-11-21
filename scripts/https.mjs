@@ -88,10 +88,14 @@ function exportForContainer() {
 
 function makeCert() {
   mkdirSync(DIR, { recursive: true, mode: 0o700 });
+  // mkdir's mode does nothing on a folder already there (one moved from the old place, say).
+  chmodSync(DIR, 0o700);
   if (!existsSync(file("ca.crt"))) {
     openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", "825",
       "-keyout", file("ca.key"), "-out", file("ca.crt"), "-subj", "/CN=inkledger local CA");
   }
+  // Whoever reads ca.key can pass for any site on the machines that trust this CA.
+  for (const key of ["ca.key", "server.key"]) if (existsSync(file(key))) chmodSync(file(key), 0o600);
   const sans = [...names().map(san), "IP:127.0.0.1"].join(",");
   writeFileSync(file("server.ext"), `subjectAltName=${sans}\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature,keyEncipherment\n`);
   openssl("req", "-newkey", "rsa:2048", "-nodes", "-sha256", "-keyout", file("server.key"),
@@ -118,7 +122,8 @@ function serve(lan = process.argv.includes("--lan"), to = arg("target", process.
   const server = createServer({ key: readFileSync(file("server.key")), cert: readFileSync(file("server.crt")) }, (req, res) => {
     // The Host stays as asked: the server builds the add-in's links from it, and checks Origin against it.
     const upstream = request(
-      { hostname: target.hostname, port: target.port, path: req.url, method: req.method, headers: { ...req.headers, "x-forwarded-proto": "https" } },
+      // X-Forwarded-For: the address this proxy saw, never the one the client wrote (TRUST_PROXY reads it).
+      { hostname: target.hostname, port: target.port, path: req.url, method: req.method, headers: { ...req.headers, "x-forwarded-proto": "https", "x-forwarded-for": req.socket.remoteAddress ?? "" } },
       answer => {
         res.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(res);
