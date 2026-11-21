@@ -123,9 +123,11 @@ export default function DeskPage() {
 
   // The desk's own keys: 1–6 focus a pane, x closes the focused one, Esc restores a maximized one,
   // Alt+Shift+arrows send the focused one to that side.
-  const keys = useRef({ ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk });
+  // The pane the user really focused (a click, a key, one brought in): never the first one by default.
+  const chosen = focusedId && ids.includes(focusedId) ? focusedId : null;
+  const keys = useRef({ ids, focused, chosen, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk });
   useEffect(() => {
-    keys.current = { ids, focused, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk };
+    keys.current = { ids, focused, chosen, maximized: desk?.maximized ?? null, grid: showGrid, focusPane, leave, change, moveTo, bring, desk };
   });
   // Shift-click on an issue link while here: the issue takes the first empty slot (or joins the desk).
   useEffect(() => {
@@ -157,9 +159,11 @@ export default function DeskPage() {
         e.preventDefault();
         if (k.maximized && k.maximized !== id) k.change(d => maximize(d, id), { saveNow: true });
         k.focusPane(id);
-      } else if (e.key === "x" && k.focused) {
+      } else if (e.key === "x" && k.chosen && !e.repeat && !hotkeySequence.pending()) {
+        // Closing takes the pane away: only one the user chose, one per press (a held key would close them all),
+        // and never the second key of a sequence (g x…).
         e.preventDefault();
-        const id = k.focused;
+        const id = k.chosen;
         k.leave(id, d => removePane(d, id));
       } else if (e.key === "Escape" && k.maximized) {
         e.preventDefault();

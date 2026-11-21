@@ -321,7 +321,14 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
   const [newBoard, setNewBoard] = useState("");
   const boardTarget = () => (board === "new" ? { newBoard: newBoard.trim() } : board ? { boardId: Number(board) } : {});
 
+  // Busy for the whole of a pin, its copy and reads included (the pin call alone ends first): a second
+  // click meanwhile would pin the mail again.
+  const [busy, setBusy] = useState(false);
+  const going = useRef(false);
   const go = async (to: Parameters<typeof pin.mutateAsync>[0]["to"], done: (r: Awaited<ReturnType<typeof pin.mutateAsync>>) => string) => {
+    if (going.current) return;
+    going.current = true;
+    setBusy(true);
     try {
       const r = await pin.mutateAsync({ mail, to });
       if (!chosen.kept) await sendCopy(r.mail.id, chosen.draft, (await utils.settings.get.fetch()).mailCopies);
@@ -330,6 +337,9 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
       onClose();
     } catch (e) {
       toastError(e);
+    } finally {
+      going.current = false;
+      setBusy(false);
     }
   };
 
@@ -342,7 +352,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
       <MailCard mail={chosen.view} className="rounded-md border p-2" />
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <Button variant="outline" disabled={pin.isPending || (due === "pick" && !pickedDay)} onClick={() => void go({ todo: { dueOn: dueOn() } }, () => t("ui.mail.pinnedTodo"))}>
+          <Button variant="outline" disabled={busy || (due === "pick" && !pickedDay)} onClick={() => void go({ todo: { dueOn: dueOn() } }, () => t("ui.mail.pinnedTodo"))}>
             <ClipboardList />
             {t("ui.mail.newTodo")}
           </Button>
@@ -350,7 +360,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
           {due === "pick" && <Input type="date" value={pickedDay} aria-label={t("ui.mail.pickDay")} onChange={e => setPickedDay(e.target.value)} />}
         </div>
         <div className="grid gap-1.5">
-          <Button variant="outline" disabled={pin.isPending || (board === "new" && !newBoard.trim())} onClick={() => void go({ board: boardTarget() }, r => t("ui.mail.onBoard", { board: r.boardName ?? "" }))}>
+          <Button variant="outline" disabled={busy || (board === "new" && !newBoard.trim())} onClick={() => void go({ board: boardTarget() }, r => t("ui.mail.onBoard", { board: r.boardName ?? "" }))}>
             <Pin />
             {t("ui.mail.toPinboard")}
           </Button>
@@ -380,7 +390,7 @@ function PinWhere({ chosen, onBack, onClose }: { chosen: Chosen; onBack: () => v
             <li key={`${i.connectionId}:${i.key}`}>
               <button
                 type="button"
-                disabled={pin.isPending}
+                disabled={busy}
                 onClick={() => void go({ issueKey: i.key, connectionId: i.connectionId }, () => t("ui.mail.pinnedTo", { key: i.key }))}
                 className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-body-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >

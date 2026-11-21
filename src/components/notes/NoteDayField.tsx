@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
@@ -16,7 +16,17 @@ export function NoteDayField({ noteId, notedOn, editable }: { noteId: string; no
   // The tree has the latest day (it is read again after a change); the one picked shows meanwhile.
   const tree = trpc.notes.tree.useQuery();
   const [picked, setPicked] = useState<string | null>(null);
-  const value = picked ?? tree.data?.find(item => item.id === noteId)?.notedOn ?? notedOn ?? "";
+  const saved = tree.data?.find(item => item.id === noteId)?.notedOn ?? notedOn ?? "";
+  const value = picked ?? saved;
+  // Typed digit by digit, the year passes through 0002, 0020…: saved on Enter or on leaving the
+  // field (as DateJump does), picked from the calendar at once.
+  const typing = useRef(false);
+  const commit = (next: string) => {
+    typing.current = false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(next) || next < "1000" || next === saved) return setPicked(null);
+    setPicked(next);
+    set.mutate({ id: noteId, notedOn: next });
+  };
   const set = trpc.notes.setDate.useMutation({
     onSuccess: () => void utils.notes.tree.invalidate().then(() => setPicked(null)),
     onError: (e: unknown) => {
@@ -44,11 +54,16 @@ export function NoteDayField({ noteId, notedOn, editable }: { noteId: string; no
         value={value}
         title={t("pages.notes.noteDayHint")}
         disabled={set.isPending}
+        onKeyDown={event => {
+          if (event.key === "Enter") commit(event.currentTarget.value);
+          else if (event.key.length === 1 || event.key === "Backspace" || event.key.startsWith("Arrow")) typing.current = true;
+        }}
         onChange={event => {
-          const next = event.target.value;
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
-          setPicked(next);
-          set.mutate({ id: noteId, notedOn: next });
+          if (typing.current) setPicked(event.target.value);
+          else commit(event.target.value);
+        }}
+        onBlur={event => {
+          if (typing.current) commit(event.currentTarget.value);
         }}
         className="h-7 w-auto border-0 px-1 text-caption shadow-none"
       />

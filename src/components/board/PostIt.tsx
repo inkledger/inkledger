@@ -237,6 +237,20 @@ export function PostIt({
         setDrag(null);
         onDrag?.(null);
       }}
+      // The browser took the pointer away (a scroll, a system gesture): the drag ends where it started, unsaved,
+      // instead of staying stuck in a drag no release will end.
+      onPointerCancel={() => {
+        if (!start.current) return;
+        start.current = null;
+        setDrag(null);
+        onDrag?.(null);
+      }}
+      onLostPointerCapture={() => {
+        if (!start.current) return;
+        start.current = null;
+        setDrag(null);
+        onDrag?.(null);
+      }}
       onDoubleClick={e => {
         if (fromElsewhere(e) || readOnly || isControl(e.target)) return;
         setText(body);

@@ -89,9 +89,22 @@ function IdeaFields({ idea, doc, onPromote, onDiscard, onDelete, markDirty }: { 
   });
   const projects = trpc.ideas.projects.useQuery(undefined, { staleTime: 5 * 60_000 });
   const update = trpc.ideas.update.useMutation({
+    // One after another: each list save carries the whole list, so a later one must not land first.
+    scope: { id: `ideas.update.${idea.id}` },
+    // The lists are sent whole and the server replaces them: the next action (before the read
+    // comes back) builds on this one's list, not on the one before it.
+    onMutate: async ({ id, acceptance, questions, labels }) => {
+      await utils.ideas.get.cancel({ id });
+      utils.ideas.get.setData({ id }, old =>
+        old ? { ...old, ...(acceptance ? { acceptance } : {}), ...(questions ? { questions } : {}), ...(labels ? { labels } : {}) } : old
+      );
+    },
     // The saved text is drawn by the server (its links and pictures): read again.
     onSuccess: () => void utils.ideas.get.invalidate({ id: idea.id }),
-    onError: e => toastError(e),
+    onError: e => {
+      toastError(e);
+      void utils.ideas.get.invalidate({ id: idea.id });
+    },
     onSettled: () => void utils.ideas.list.invalidate(),
   });
   const save = (patch: Omit<Parameters<typeof update.mutate>[0], "id">) => update.mutate({ id: idea.id, ...patch });
