@@ -141,7 +141,8 @@ export function readOnlyCauseOf(e: unknown): ReadOnlyCause | undefined {
  * Any error from an adapter call as a ProviderError (the registry's binding
  * applies it at the boundary): a ProviderError as is; the caller's abort as
  * "cancelled", a timeout as "timeout", a network failure as "unavailable";
- * an error with an HTTP status by that status; anything else "unavailable",
+ * an error with an HTTP status by that status; a body that doesn't parse
+ * "incompatible"; anything else "unavailable",
  * the original kept as the cause.
  */
 export function normalizeError(e: unknown, signal?: AbortSignal): ProviderError {
@@ -156,6 +157,8 @@ export function normalizeError(e: unknown, signal?: AbortSignal): ProviderError 
   if (name === "AbortError") return new ProviderError("cancelled", "Cancelled", { cause: e });
   const status = (e as { status?: unknown } | null)?.status;
   if (typeof status === "number") return new ProviderError(kindOfStatus(status), e instanceof Error ? e.message : `HTTP ${status}`, { status, cause: e });
+  // A body that isn't the JSON asked for (a proxy's or a login's HTML page with a 200): retrying gets the same page.
+  if (e instanceof SyntaxError) return new ProviderError("incompatible", `Not the answer expected: ${e.message}`, { cause: e });
   // A TypeError that isn't the network failing is a bug: said, never queued as "offline".
   if (e instanceof TypeError && !unreachable(e)) return new ProviderError("invalid", `Internal error: ${e.message}`, { cause: e });
   return new ProviderError("unavailable", e instanceof Error ? e.message : String(e), { cause: e });

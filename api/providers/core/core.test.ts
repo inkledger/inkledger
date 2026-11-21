@@ -6,7 +6,7 @@ import { checkActiveSources, checkEntryPage, checkFind } from "./results";
 import { assertSeconds } from "./time";
 import { trackerProbeExceeds } from "./validate";
 import { readPass } from "../conformance/suite";
-import { ProviderError, readRefusal, retryAfterMs } from "./errors";
+import { normalizeError, ProviderError, readRefusal, retryAfterMs } from "./errors";
 import { collectPages } from "./paging";
 import type { RemoteIssue, Transition, TrackerProbe, PageToken } from "../types";
 
@@ -121,6 +121,15 @@ describe("refusals and lists over HTTP", () => {
     expect(await collectPages(1, pages(3), 10)).toEqual([1, 2, 3]);
     expect(await collectPages(1, pages(30), 2)).toEqual([1, 2]);
     await expect(collectPages(1, pages(30), 2, () => new ProviderError("incompatible", "too long"))).rejects.toThrow("too long");
+  });
+
+  it("an answer that is not the JSON asked for (an HTML login page with a 200) is incompatible, never retried as an outage", async () => {
+    const parse = await Promise.resolve(new Response("<!doctype html><title>Sign in</title>").json()).catch((e: unknown) => e);
+    expect(parse).toBeInstanceOf(SyntaxError);
+    const e = normalizeError(parse);
+    expect(e.kind).toBe("incompatible");
+    expect(e.transient).toBe(false);
+    expect(e.cause).toBe(parse);
   });
 
   it("a next page that comes back is refused, its rows never read twice", async () => {
