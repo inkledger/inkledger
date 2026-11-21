@@ -8,6 +8,7 @@
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
 import { secretOf } from "../core/context";
+import { listTooLong } from "../core/paging";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, type HtmlList } from "../core/richtext/toHtml";
@@ -707,7 +708,7 @@ export const basecampProvider: TrackerProvider<"basecamp", BasecampOptions> = {
       const c = await credsOf(x);
       const place = placeOf(ref);
       if (!place) throw new ProviderError("notFound", `Basecamp: no to-do or card ${ref.key}`);
-      const entries = await bcPages<BcEntry>(c, `/buckets/${place.bucket}/recordings/${place.id}/timesheet.json`);
+      const entries = await bcPages<BcEntry>(c, `/buckets/${place.bucket}/recordings/${place.id}/timesheet.json`, 100, listTooLong("Basecamp: timesheet"));
       return entries.filter((e) => (e.status ?? "active") === "active").map((e) => toRemoteWorklog(e, x.conn.remoteAccountId, place.bucket));
     },
     async get(x, ref, id) {

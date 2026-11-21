@@ -216,7 +216,7 @@ export async function planePage<T>(c: PlaneCreds, path: string, cursor: string |
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export function planeAll<T>(c: PlaneCreds, path: string, maxPages = 50): Promise<T[]> {
+export function planeAll<T>(c: PlaneCreds, path: string, maxPages = 50, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, string | null>(
     null,
     async (cursor) => {
@@ -224,6 +224,7 @@ export function planeAll<T>(c: PlaneCreds, path: string, maxPages = 50): Promise
       return { rows: p.results, next: p.next || null };
     },
     maxPages,
+    overflow,
   );
 }
 

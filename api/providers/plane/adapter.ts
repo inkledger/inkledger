@@ -7,6 +7,7 @@
 // worklogs: whole minutes on a day, created and read, not changed.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { secretOf } from "../core/context";
+import { listTooLong } from "../core/paging";
 import { optionsParser } from "../core/options";
 import { htmlParagraphs, markdownWarnings } from "../core/richtext/toHtml";
 import { wholeMinutes } from "../core/time";
@@ -577,7 +578,7 @@ export const planeProvider: TrackerProvider<"plane", PlaneOptions> = {
     async list(x, ref) {
       const k = await ctxOf(x);
       const t = await targetOf(k, ref);
-      const logs = await planeAll<PlaneWorklog>(k.c, ws(k, `${issuePath(t.project, t.id)}worklogs/`));
+      const logs = await planeAll<PlaneWorklog>(k.c, ws(k, `${issuePath(t.project, t.id)}worklogs/`), 50, listTooLong("Plane: worklogs"));
       return logs.map((w) => toRemoteWorklog(k, w, handleOf(ref)));
     },
 
@@ -599,7 +600,7 @@ export const planeProvider: TrackerProvider<"plane", PlaneOptions> = {
       for (const i of issues) {
         const p = await projectById(k, i.project);
         const handle: IssueHandle = { remoteId: i.id, key: keyOf(p, i), container: { remoteId: p.id, key: p.identifier } };
-        for (const log of await planeAll<PlaneWorklog>(k.c, ws(k, `${issuePath(i.project, i.id)}worklogs/`))) {
+        for (const log of await planeAll<PlaneWorklog>(k.c, ws(k, `${issuePath(i.project, i.id)}worklogs/`), 50, listTooLong("Plane: worklogs"))) {
           if (log.logged_by === k.me && dayOf(k, log) >= from) items.push(toRemoteWorklog(k, log, handle));
         }
       }

@@ -7,6 +7,7 @@
 // read first and sent again. Running timers are not entries of ours and are
 // left alone. Built on a simulator, not verified on a real account: SPIKES.md.
 import { z } from "zod";
+import { listTooLong } from "../core/paging";
 import { addLocalDays, isoSecondsUtc } from "../core/time";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { instant, instantAtLocal, instantFrom, localDate, type LocalDate, type TimeZone } from "@contracts/values";
@@ -234,7 +235,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
       // Local days to instants (Clockify's filters are instants, never dates), the last second of the last day.
       const from = isoOf(dayStart(range.from, zone));
       const to = isoOf(dayStart(nextDay(range.to), zone) - 1000);
-      const rows = await cfPages<ClockifyEntry>(c, `/workspaces/${ws}/user/${x.conn.remoteAccountId}/time-entries?${new URLSearchParams({ start: from, end: to }).toString()}`);
+      const rows = await cfPages<ClockifyEntry>(c, `/workspaces/${ws}/user/${x.conn.remoteAccountId}/time-entries?${new URLSearchParams({ start: from, end: to }).toString()}`, { overflow: listTooLong("Clockify: time entries") });
       const approvals = await approvalsFor(c, ws, x.conn.remoteAccountId, rows);
       return rows.flatMap((e) => worklogOf(e, null, approvals) ?? []);
     },

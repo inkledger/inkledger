@@ -201,6 +201,20 @@ describe("gitea, as the layer sees it", () => {
     expect(await b.worklogs!.list(meta(), r)).toEqual([]);
   });
 
+  it("a list of entries longer than the page limit is refused, never cut (a lost answer is matched against it)", async () => {
+    const { sim, b } = simulated();
+    const real = sim.fetch;
+    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
+      if (!String(url).includes("/issues/1/times")) return real(url, init);
+      const next = new URL(String(url));
+      next.searchParams.set("page", String(Number(next.searchParams.get("page") ?? 1) + 1));
+      return new Response(JSON.stringify([{ id: Number(next.searchParams.get("page")), time: 60, created: "2026-10-14T10:00:00Z", user_id: sim.me.id }]), {
+        headers: { "Content-Type": "application/json", link: `<${next.toString()}>; rel="next"` },
+      });
+    });
+    expect(await kindOf(b.worklogs!.list(meta(), ref("acme/web#1")))).toBe("incompatible");
+  });
+
   it("offers deleting one's own entries only; another person's is read, not editable, and refused", async () => {
     const { sim, b } = simulated();
     const anna = sim.user({ id: 31, login: "anna-b", full_name: "Anna Bianchi" });

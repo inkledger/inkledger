@@ -9,6 +9,7 @@
 // not editable. Built on a simulator, not verified on a real account:
 // api/providers/harvest/SPIKES.md.
 import { z } from "zod";
+import { listTooLong } from "../core/paging";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
 import { instant, instantAtLocal, instantFrom, localDate, localDateOf, type Instant, type LocalDate, type TimeZone } from "@contracts/values";
@@ -243,7 +244,7 @@ export const harvestSink: TimeSinkProvider<"harvest", HarvestOptions> = {
     async list(x, range) {
       const c = await credsOf(x);
       // The user's own (an admin's list holds everyone's), by spent date, not running.
-      const rows = await hvPages<HarvestTimeEntry>(c, "/time_entries", "time_entries", { user_id: x.conn.remoteAccountId, from: range.from, to: range.to, is_running: "false" });
+      const rows = await hvPages<HarvestTimeEntry>(c, "/time_entries", "time_entries", { user_id: x.conn.remoteAccountId, from: range.from, to: range.to, is_running: "false" }, 50, listTooLong("Harvest: time entries"));
       return rows.filter((e) => !e.is_running).map((e) => toRemoteWorklog(e, x.conn.timeZone));
     },
 

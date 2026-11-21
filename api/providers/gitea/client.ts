@@ -129,7 +129,7 @@ export async function gt<T>(c: GiteaCreds, path: string, init: RequestInit & { m
 export const gtOk = <T>(c: GiteaCreds, path: string, init: RequestInit = {}): Promise<T> => mustAnswer(gt<T>(c, path, init), "Gitea", path);
 
 /** Every page of a list, following the Link header (bounded). */
-export function allPages<T>(c: GiteaCreds, path: string, maxPages = 50): Promise<T[]> {
+export function allPages<T>(c: GiteaCreds, path: string, maxPages = 50, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, string>(
     path,
     async (at) => {
@@ -137,5 +137,6 @@ export function allPages<T>(c: GiteaCreds, path: string, maxPages = 50): Promise
       return { rows: r?.data ?? [], next: r?.next || null };
     },
     maxPages,
+    overflow,
   );
 }

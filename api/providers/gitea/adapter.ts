@@ -5,6 +5,7 @@
 // and deleted (never changed: a new one replaces it), read back through the
 // user's times over a window. Built on a simulator (docs/dev/spikes.md).
 import { giteaWebhook } from "./webhook";
+import { listTooLong } from "../core/paging";
 import { isoSecondsUtc } from "../core/time";
 import { z } from "zod";
 import type { TrackerCapabilities, TrackerTraits } from "@contracts/providers";
@@ -337,7 +338,7 @@ export const giteaProvider: TrackerProvider<"gitea", GiteaOptions> = {
 
   worklogs: {
     async list(x, ref) {
-      const times = await allPages<GiteaTrackedTime>(await credsOf(x), `${issuePath(ref.key)}/times?limit=${PER_PAGE}`);
+      const times = await allPages<GiteaTrackedTime>(await credsOf(x), `${issuePath(ref.key)}/times?limit=${PER_PAGE}`, 50, listTooLong("Gitea: tracked times"));
       return times.map((t) => toRemoteWorklog(t, x.conn, ref));
     },
     async changed(x, q) {

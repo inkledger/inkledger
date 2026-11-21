@@ -134,7 +134,7 @@ export async function hvPage<T>(c: HarvestCreds, path: string, key: string, page
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export function hvPages<T>(c: HarvestCreds, path: string, key: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
+export function hvPages<T>(c: HarvestCreds, path: string, key: string, params: Record<string, string | number | undefined> = {}, maxPages = 50, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, number>(
     1,
     async (page) => {
@@ -142,5 +142,6 @@ export function hvPages<T>(c: HarvestCreds, path: string, key: string, params: R
       return { rows: r.items, next: r.next };
     },
     maxPages,
+    overflow,
   );
 }

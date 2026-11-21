@@ -93,7 +93,7 @@ export const PAGE_SIZE = 200;
  * shorter than the size is the last, so an exact multiple costs one empty
  * request more.
  */
-export function cfPages<T>(c: ClockifyCreds, path: string, o: { pageSize?: number; maxPages?: number } = {}): Promise<T[]> {
+export function cfPages<T>(c: ClockifyCreds, path: string, o: { pageSize?: number; maxPages?: number; overflow?: () => Error } = {}): Promise<T[]> {
   const size = o.pageSize ?? PAGE_SIZE;
   return collectPages<T, number>(
     1,
@@ -102,5 +102,6 @@ export function cfPages<T>(c: ClockifyCreds, path: string, o: { pageSize?: numbe
       return { rows, next: rows.length < size ? null : page + 1 };
     },
     o.maxPages ?? 100,
+    o.overflow,
   );
 }

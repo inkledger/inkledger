@@ -36,20 +36,27 @@ export async function eachPage<T, G>(
 /**
  * Every row of a list, page after page from `start` while a page names the
  * next, at most `maxPages`: past them `overflow` is thrown, or (none) the
- * rows read so far are the answer.
+ * rows read so far are the answer. A next page that came back before is
+ * refused, never read again.
  */
 export async function collectPages<T, C>(start: C, fetchPage: (at: C) => Promise<{ rows: T[]; next: C | null }>, maxPages: number, overflow?: () => Error): Promise<T[]> {
   const out: T[] = [];
+  const seen = new Set<C>([start]);
   let at = start;
   for (let n = 0; n < maxPages; n++) {
     const { rows, next } = await fetchPage(at);
     out.push(...rows);
     if (next === null) return out;
+    if (seen.has(next)) throw new IncompatibleResultError("a next page came back twice");
+    seen.add(next);
     at = next;
   }
   if (overflow) throw overflow();
   return out;
 }
+
+/** The overflow of a list that must be whole (time entries a pass or a lost answer is matched against): refused, never cut. */
+export const listTooLong = (what: string) => (): Error => new IncompatibleResultError(`${what}: more pages than the limit, the list would be cut`);
 
 /** A whole pass in memory (tests, small passes). */
 export async function readPass<T, G>(read: (q: PageQuery) => Promise<Page<T, G>>, since: Checkpoint | null, maxPages = MAX_PAGES) {

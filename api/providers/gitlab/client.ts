@@ -129,7 +129,7 @@ export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Prom
 export const glOk = <T>(c: GitLabCreds, path: string, init: Call = {}): Promise<T> => mustAnswer(gl<T>(c, path, init), "GitLab", path);
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export function glPages<T>(c: GitLabCreds, path: string, maxPages = 50): Promise<T[]> {
+export function glPages<T>(c: GitLabCreds, path: string, maxPages = 50, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, string>(
     `${path}${path.includes("?") ? "&" : "?"}per_page=100`,
     async (at) => {
@@ -137,6 +137,7 @@ export function glPages<T>(c: GitLabCreds, path: string, maxPages = 50): Promise
       return { rows: r?.data ?? [], next: r?.next || null };
     },
     maxPages,
+    overflow,
   );
 }
 

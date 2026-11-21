@@ -169,7 +169,7 @@ export function asanaPage<T>(c: AsanaCreds, path: string, o: { limit: number; of
 }
 
 /** Every page of a list (bounded: 50 pages of 100). */
-export function asanaPages<T>(c: AsanaCreds, path: string, params: Record<string, string | number | undefined> = {}, maxPages = 50): Promise<T[]> {
+export function asanaPages<T>(c: AsanaCreds, path: string, params: Record<string, string | number | undefined> = {}, maxPages = 50, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, string | null>(
     null,
     async (offset) => {
@@ -177,5 +177,6 @@ export function asanaPages<T>(c: AsanaCreds, path: string, params: Record<string
       return { rows: r?.data ?? [], next: r?.next || null };
     },
     maxPages,
+    overflow,
   );
 }

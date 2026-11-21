@@ -149,7 +149,7 @@ export const joined = (path: string, params: Record<string, string | number | un
 };
 
 /** Every page of a list (bounded: 100 pages). */
-export function bcPages<T>(c: BcCreds, path: string, maxPages = 100): Promise<T[]> {
+export function bcPages<T>(c: BcCreds, path: string, maxPages = 100, overflow?: () => Error): Promise<T[]> {
   return collectPages<T, string>(
     path,
     async (at) => {
@@ -157,5 +157,6 @@ export function bcPages<T>(c: BcCreds, path: string, maxPages = 100): Promise<T[
       return { rows: r?.data ?? [], next: r?.next || null };
     },
     maxPages,
+    overflow,
   );
 }

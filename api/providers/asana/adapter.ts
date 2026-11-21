@@ -7,6 +7,7 @@
 // category (attributable_to) and a billable status.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { tokenCreds } from "../core/context";
+import { listTooLong } from "../core/paging";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { approximations, escapeHtml, inlineHtml, listHtml, listItemOf, withoutBlockMarks, type HtmlList } from "../core/richtext/toHtml";
@@ -666,7 +667,7 @@ export const asanaProvider: TrackerProvider<"asana", AsanaOptions> = {
       const c = await tokenCreds(x);
       const gid = gidOfHandle(ref);
       if (!gid) throw new ProviderError("notFound", `Asana: no task ${ref.key}`);
-      const entries = await asanaPages<AsanaEntry>(c, `${taskPath(gid)}/time_tracking_entries`, { opt_fields: ENTRY_FIELDS });
+      const entries = await asanaPages<AsanaEntry>(c, `${taskPath(gid)}/time_tracking_entries`, { opt_fields: ENTRY_FIELDS }, 50, listTooLong("Asana: time entries"));
       return entries.map((e) => toRemoteWorklog(e, x.conn.remoteAccountId));
     },
     async get(x, _ref, id) {

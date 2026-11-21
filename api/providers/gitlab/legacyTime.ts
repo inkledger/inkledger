@@ -6,6 +6,7 @@
 // spending the same time back ("subtracted …"). A newer server reads and writes
 // timelogs instead (adapter.ts); which one a server is comes from its schema.
 import { dayKey } from "@contracts/time";
+import { listTooLong } from "../core/paging";
 import { instant, instantFrom } from "@contracts/values";
 import { ProviderError } from "../core/errors";
 import type { RemoteWorklog } from "../types";
@@ -128,7 +129,8 @@ export function entriesOfNotes(i: GitLabIssue, notes: GitLabNote[]): RemoteWorkl
   }));
 }
 
-const notesOf = (c: GitLabCreds, i: GitLabIssue) => glPages<GitLabNote>(c, `/projects/${i.project_id}/issues/${i.iid}/notes?sort=asc&order_by=created_at`);
+/** Whole: an entry is an "added" note less a later "subtracted" one, so a cut list would bring deleted entries back. */
+const notesOf = (c: GitLabCreds, i: GitLabIssue) => glPages<GitLabNote>(c, `/projects/${i.project_id}/issues/${i.iid}/notes?sort=asc&order_by=created_at`, 50, listTooLong("GitLab: notes"));
 
 export async function listByNotes(c: GitLabCreds, i: GitLabIssue): Promise<RemoteWorklog[]> {
   return entriesOfNotes(i, await notesOf(c, i));

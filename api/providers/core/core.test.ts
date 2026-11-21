@@ -122,4 +122,16 @@ describe("refusals and lists over HTTP", () => {
     expect(await collectPages(1, pages(30), 2)).toEqual([1, 2]);
     await expect(collectPages(1, pages(30), 2, () => new ProviderError("incompatible", "too long"))).rejects.toThrow("too long");
   });
+
+  it("a next page that comes back is refused, its rows never read twice", async () => {
+    let calls = 0;
+    const looping = async (at: string | null) => {
+      calls++;
+      return { rows: [at], next: at === null ? "a" : at === "a" ? "b" : "a" };
+    };
+    await expect(collectPages<string | null, string | null>(null, looping, 50)).rejects.toMatchObject({ kind: "incompatible" });
+    expect(calls).toBe(3);
+    // The first page's own cursor coming back is a loop too.
+    await expect(collectPages("x", async () => ({ rows: [1], next: "x" }), 50)).rejects.toMatchObject({ kind: "incompatible" });
+  });
 });
