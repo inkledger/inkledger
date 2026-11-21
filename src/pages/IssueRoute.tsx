@@ -6,6 +6,8 @@ import { useConnections } from "@/hooks/useConnections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/app/PageHeader";
 import { t } from "@/i18n";
+import { ErrorState } from "@/components/app/States";
+import { errorText } from "@/lib/errorText";
 import IssueDetail from "./IssueDetail";
 import NotFound from "./NotFound";
 
@@ -25,9 +27,13 @@ export function IssueByRef() {
   // Not in the catalogue (a tracker search hit): the key the link carries, live from its tracker.
   const [params] = useSearchParams();
   const key = params.get("k");
-  const found = trpc.issues.locate.useQuery({ connectionId: conn, remoteId }, { enabled: conn > 0 && remoteId !== "" });
-  if (found.isPending) return <Loading />;
+  const enabled = conn > 0 && remoteId !== "";
+  const found = trpc.issues.locate.useQuery({ connectionId: conn, remoteId }, { enabled });
+  // A link that names no connection is never looked up: a disabled query stays pending for good.
+  if (enabled && found.isPending) return <Loading />;
   if (!found.data && key && conn > 0) return <IssueDetail issueKey={key} connectionId={conn} />;
+  // A failed lookup is not a missing issue.
+  if (found.isError) return <ErrorState message={errorText(found.error)} onRetry={() => void found.refetch()} />;
   if (!found.data || "ambiguous" in found.data) return <NotFound />;
   return <IssueDetail issueKey={found.data.key} connectionId={found.data.connectionId} />;
 }

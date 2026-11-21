@@ -24,6 +24,8 @@ const NO_DAYS: DayOverrides = {};
  * imply. Every day is judged with the version in force on that day (past
  * weeks keep their hours), its own hours replacing its weekday's.
  * `isPending` until both are read: nothing may be computed on guesses.
+ * `isError`: one of them failed (the defaults then stand in: never a base to place
+ * time on); `retry` reads the failed ones again.
  */
 export function useWorkSchedule() {
   const query = trpc.workSchedule.list.useQuery(undefined, {
@@ -55,9 +57,16 @@ export function useWorkSchedule() {
     [versions, overrides]
   );
   const isPending = query.isPending || days.isPending;
+  const isError = query.isError || days.isError;
+  const { refetch: refetchVersions, isError: versionsFailed } = query;
+  const { refetch: refetchDays, isError: daysFailed } = days;
+  const retry = useCallback(() => {
+    if (versionsFailed) void refetchVersions();
+    if (daysFailed) void refetchDays();
+  }, [versionsFailed, refetchVersions, daysFailed, refetchDays]);
 
   return useMemo(
-    () => ({ versions, overrides, forDay, baseForDay, isOverridden, targetFor, targetBetween, isPending }),
-    [versions, overrides, forDay, baseForDay, isOverridden, targetFor, targetBetween, isPending]
+    () => ({ versions, overrides, forDay, baseForDay, isOverridden, targetFor, targetBetween, isPending, isError, retry }),
+    [versions, overrides, forDay, baseForDay, isOverridden, targetFor, targetBetween, isPending, isError, retry]
   );
 }

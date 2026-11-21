@@ -41,7 +41,8 @@ export function useBlockPlacement(
   // As one string: a new array each render must not recompute the placement.
   const sharedKey = ` ${(opts.shared ?? []).join(" ")} `;
   const { timers, query: timersQuery } = timerState;
-  const ready = !!logs.data && !schedule.isPending && !!timersQuery.data;
+  // The schedule read, not its defaults standing in for a failed read.
+  const ready = !!logs.data && !schedule.isPending && !schedule.isError && !!timersQuery.data;
 
   const occupied = useMemo<Occupied[]>(() => {
     const out: Occupied[] = (logs.data ?? []).map(w => ({
@@ -99,11 +100,13 @@ export function useBlockPlacement(
   );
 
   /** What the placement needs couldn't be read: nothing may be placed until a retry reads it. */
-  const error = !ready && (logs.isError || timersQuery.isError);
+  const error = !ready && (logs.isError || timersQuery.isError || schedule.isError);
+  const { retry: retrySchedule } = schedule;
   const retry = useCallback(() => {
     if (logs.isError) void logs.refetch();
     if (timersQuery.isError) void timersQuery.refetch();
-  }, [logs, timersQuery]);
+    retrySchedule();
+  }, [logs, timersQuery, retrySchedule]);
 
   return { ready, error, retry, place, conflictOf, occupied };
 }

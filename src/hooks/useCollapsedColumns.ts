@@ -17,6 +17,17 @@ export function forgetCollapsedSaves(): void {
   saving.intended = null;
 }
 
+/**
+ * The whole list after toggling `id`, from the list the saves under way lead to, else the latest copy
+ * of the setting. Null while neither is known: the server replaces the whole list, so a toggle built on
+ * nothing would unfold every board's columns.
+ */
+export function toggledColumns(id: string, intended: string[] | null, latest: string[] | undefined): string[] | null {
+  const current = intended ?? latest;
+  if (!current) return null;
+  return current.includes(id) ? current.filter(c => c !== id) : [...current, id];
+}
+
 export function useCollapsedColumns(scope?: string) {
   const utils = trpc.useUtils();
   const settings = trpc.settings.get.useQuery();
@@ -51,13 +62,12 @@ export function useCollapsedColumns(scope?: string) {
     },
   });
   const toggle = (column: string) => {
-    const id = prefix + column;
+    // From the list the saves under way lead to (or the latest copy): every toggle counts,
+    // whatever a read in between showed. Not before the setting is read.
+    const next = toggledColumns(prefix + column, saving.intended, utils.settings.get.getData()?.collapsedColumns);
+    if (!next) return;
     // A read on its way would overwrite this toggle when it lands.
     void utils.settings.get.cancel();
-    // From the list the saves under way lead to (or the latest copy): every toggle counts,
-    // whatever a read in between showed.
-    const current = saving.intended ?? utils.settings.get.getData()?.collapsedColumns ?? all;
-    const next = current.includes(id) ? current.filter(c => c !== id) : [...current, id];
     saving.intended = next;
     saving.count++;
     utils.settings.get.setData(undefined, prev => (prev ? { ...prev, collapsedColumns: next } : prev));
