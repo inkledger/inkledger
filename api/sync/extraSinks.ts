@@ -12,7 +12,7 @@
 import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { connections, issues, outbox, sinkMappings, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { TIME_SINK_TYPES, type TimeSinkType, type TrackerType } from "@contracts/providers";
-import { instant, localDateOf, type TimeZone } from "@contracts/values";
+import { instant, localDate, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb } from "../queries/connection";
 import { liveConnections } from "../queries/liveConnections";
 import { issueAt } from "../queries/issueAt";
@@ -243,17 +243,18 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
   let day: string | null = null;
   if (c.entries.model === "dayTotals") {
     // The issue's total that day, all its worklogs together.
-    day = localDateOf(instant(w.started.getTime()), zone);
+    const on = localDateOf(instant(w.started.getTime()), zone);
+    day = on;
     const same = await getDb()
       .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogs)
       .where(and(eq(worklogs.userId, w.userId), eq(worklogs.connectionId, w.connectionId ?? -1), eq(worklogs.issueKey, w.issueKey)));
     const totalOn = (d: string) => same.filter((x) => localDateOf(instant(x.started.getTime()), zone) === d).reduce((a, x) => a + x.seconds, 0);
-    const total = totalOn(day);
-    landed = await b.entries.setDayTotal!(meta(), ref, target, day, total, { idempotencyKey: `${w.uuid}:${day}:${total}` });
+    const total = totalOn(on);
+    landed = await b.entries.setDayTotal!(meta(), ref, target, on, total, { idempotencyKey: `${w.uuid}:${on}:${total}` });
     // Moved from another day: that day's total is set again too, without it.
-    const before = link?.pushedDay;
-    if (before && before !== day) {
+    const before = link?.pushedDay ? localDate(link.pushedDay) : null;
+    if (before && before !== on) {
       const left = totalOn(before);
       await b.entries.setDayTotal!(meta(), ref, target, before, left, { idempotencyKey: `${w.uuid}:${before}:${left}` });
     }
