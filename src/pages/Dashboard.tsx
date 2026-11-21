@@ -105,6 +105,7 @@ import { placePendingTimers } from "@/lib/pendingTimers";
 import { useAskTimerLog } from "@/hooks/useAskTimerLog";
 import { topIssueTotals } from "@/lib/issueTotals";
 import { focusTimer, runningTimers } from "@/lib/timerFocus";
+import { ownData } from "@/lib/queryState";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun; control: FlowControlAttributes }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun, control: flowControlProps("dashboard.period.day") },
@@ -515,9 +516,11 @@ function DashboardContent() {
         })
       );
   }
-  // Not before the day's own hours are read: holes at the weekly break would be offered meanwhile.
+  // Not before the day's own hours, worklogs and planned time are read: holes at the weekly break, or the
+  // whole day as a hole before its worklogs (or with another day's still on screen), would be offered meanwhile.
+  const dayLoaded = ownData(logs) && ownData(planned);
   const missing =
-    dayView && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
+    dayView && dayLoaded && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? effectiveWorkSpans(range.from, daySchedule, plannedEntries).flatMap(work => {
           const end = new Date(Math.min(work.start.getTime() + work.seconds * 1000, holesUntil.getTime()));
           return end <= work.start ? [] : findGaps(timelineEntries, work.start, end, 1);
@@ -534,7 +537,7 @@ function DashboardContent() {
   const openHoursSheet = useCallback(() => setHoursSheet(true), []);
   // "You worked through your break": offered under the timeline of an open, past or current day.
   const breakMove =
-    dayView && !hoursEdit.draft && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
+    dayView && dayLoaded && !hoursEdit.draft && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? suggestBreakMove(range.from, daySchedule, timelineEntries, holesUntil)
       : null;
   // Leaving a day whose hours are being edited (another period, another day): asked first when changed.

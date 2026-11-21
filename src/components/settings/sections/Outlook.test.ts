@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { fakeTrpc, type FakeQuery } from "@/lib/testing/fakeTrpc";
+import { fakeTrpc, fakeWindow, type FakeQuery } from "@/lib/testing/fakeTrpc";
 
 const queries: Record<string, FakeQuery> = {};
 vi.mock("@/lib/trpc", () => ({ trpc: fakeTrpc(queries) }));
 
-vi.stubGlobal("window", { location: { protocol: "http:", origin: "http://localhost" } });
+vi.stubGlobal("window", fakeWindow());
 
 const { OutlookSection } = await import("./Outlook");
 const draw = () => renderToString(createElement(OutlookSection));

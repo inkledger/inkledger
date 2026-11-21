@@ -157,11 +157,13 @@ export default function Reports() {
 
   const hours = hoursDecimal;
 
-  // What the export writes must be there: the days themselves for "Days" (not the issues' totals).
+  // What the export writes must be there: the days themselves for "Days" (not the issues' totals),
+  // and the asked range's own (not the previous range's rows, kept on screen while it loads or stays invalid).
   const exportable =
-    groupBy === "days"
-      ? !!daily.data && daily.data.days.some(d => d.issues.length > 0)
-      : !!data && data.rows.length > 0;
+    rangeValid &&
+    (groupBy === "days"
+      ? !!daily.data && !daily.isPlaceholderData && daily.data.days.some(d => d.issues.length > 0)
+      : !!data && !report.isPlaceholderData && data.rows.length > 0);
 
   const exportDaysCsv = () => {
     if (!daily.data) return;
@@ -196,6 +198,7 @@ export default function Reports() {
   };
 
   const exportCsv = () => {
+    if (!exportable) return;
     if (groupBy === "days") return exportDaysCsv();
     if (!data) return;
     downloadCsv(

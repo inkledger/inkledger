@@ -181,12 +181,20 @@ export default function Team() {
     if (!fromDate || !toDate) return "day";
     return autoGranularity(Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1);
   }, [cols, fromDate, toDate]);
+  const data = overview.data;
+  // The range the data on screen is of: the previous one's stays (dimmed) while a new range loads, and
+  // its days must be bucketed by its own range, not the new one's (every cell came out empty).
+  const [dataRange, setDataRange] = useState<{ from: Date; to: Date } | null>(null);
+  if (data && !overview.isPlaceholderData && fromDate && toDate && (dataRange?.from.getTime() !== fromDate.getTime() || dataRange.to.getTime() !== toDate.getTime()))
+    setDataRange({ from: fromDate, to: toDate });
+  const bucketRange = overview.isPlaceholderData && dataRange ? dataRange : rangeValid && fromDate && toDate ? { from: fromDate, to: toDate } : null;
+  const bucketFrom = bucketRange?.from.getTime();
+  const bucketTo = bucketRange?.to.getTime();
   const buckets: Bucket[] = useMemo(
-    () => (rangeValid && fromDate && toDate ? bucketsOf(fromDate, toDate, kind) : []),
-    [rangeValid, fromDate, toDate, kind]
+    () => (bucketFrom !== undefined && bucketTo !== undefined ? bucketsOf(new Date(bucketFrom), new Date(bucketTo), kind) : []),
+    [bucketFrom, bucketTo, kind]
   );
 
-  const data = overview.data;
   const all: MatrixRow[] = useMemo(
     () =>
       (data?.people ?? []).map(p => ({
@@ -320,7 +328,8 @@ export default function Team() {
       </>
     );
   }
-  if (data && data.loggedSeconds === 0 && data.targetSeconds === 0) {
+  // Not on the previous range's figures, shown while this one loads.
+  if (data && !overview.isPlaceholderData && data.loggedSeconds === 0 && data.targetSeconds === 0) {
     return (
       <>
         {header}
@@ -339,7 +348,12 @@ export default function Team() {
     <div data-fill-page className="flex flex-col lg:min-h-0 lg:flex-1">
       {header}
       {/* KPIs: one row divided by hairlines (2×2 on a phone); the two counts are filters. */}
-      <div data-workspace-anchor="team.kpis" className="grid grid-cols-2 divide-border border-b lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l">
+      <div
+        data-workspace-anchor="team.kpis"
+        // The previous range's figures while this one loads: dimmed, as the matrix is.
+        aria-busy={overview.isPlaceholderData}
+        className={cn("grid grid-cols-2 divide-border border-b transition-opacity lg:grid-cols-4 lg:divide-x max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(2n)]:border-l", overview.isPlaceholderData && "opacity-60")}
+      >
         {!data ? (
           Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="px-5 py-3">

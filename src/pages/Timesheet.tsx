@@ -81,6 +81,7 @@ import { TrashDialog } from "@/components/timesheet/TrashDialog";
 import { workedSeconds } from "@/lib/worked";
 import { topIssueTotals } from "@/lib/issueTotals";
 import { capitalize } from "@/lib/dates";
+import { ownData } from "@/lib/queryState";
 
 type View = "week" | "month";
 
@@ -364,6 +365,11 @@ export default function Timesheet() {
    * timers, never before midnight. No room: nothing is created.
    */
   const duplicateDay = async (key: string, now: Date) => {
+    // The previous scope's or search's entries still on screen are not this day's to copy.
+    if (!ownData(logs)) {
+      toast(t("common.loading"));
+      return;
+    }
     const entries = [...(byDay.get(key) ?? [])].sort(
       (a, b) => new Date(a.started).getTime() - new Date(b.started).getTime()
     );
@@ -438,6 +444,8 @@ export default function Timesheet() {
   const containerOf = (key: string): string => key.split(/[-#]/)[0] ?? "";
 
   const exportCsv = () => {
+    // Never the previous scope's or search's rows, kept on screen while these load.
+    if (!ownData(logs)) return;
     const rows = [...periodLogs]
       .sort(
         (a, b) => new Date(a.started).getTime() - new Date(b.started).getTime()
@@ -601,7 +609,7 @@ export default function Timesheet() {
                     </DropdownMenuItem>
                   ))}
                 <DropdownMenuItem
-                  disabled={periodLogs.length === 0}
+                  disabled={periodLogs.length === 0 || !ownData(logs)}
                   onSelect={exportCsv}
                 >
                   <Download className="h-4 w-4" /> {t("pages.timesheet.exportCsv")}
