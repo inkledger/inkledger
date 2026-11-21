@@ -20,6 +20,8 @@ import { extraKey } from "../modules/keys";
 import { acceptToken, activate, activationsOf, activationStates, deactivate, offlineCode } from "../modules/activation";
 import { StoreError } from "../store/client";
 import { proofFile, proofOf } from "../modules/proof";
+import { createRateLimiter } from "../lib/security";
+import { throttle } from "../workspace/limits";
 import { LICENSE_FILE_FORMAT } from "@contracts/store";
 import {
   isActive,
@@ -39,6 +41,9 @@ async function heldLicence(id: string): Promise<string> {
   if (!held) throw new TRPCError({ code: "NOT_FOUND", message: t("server.modules.proof.none") });
   return held.text;
 }
+
+/** Each proof check asks the store and an explorer: per user, generous for a person, not for a loop. */
+const proofLimiter = createRateLimiter(30, 10 * 60_000);
 
 /** Server-wide: for whoever may manage the Store and licences. */
 const store = permProcedure("manageStore");
@@ -154,7 +159,10 @@ const activationMessage = (reason: string) =>
 
 export const modulesRouter = createRouter({
   /** Where a licence stands on Bitcoin, verified here (docs/work/ideas/onchain-licences.md R-4.6). */
-  licenceProof: protectedProcedure.input(z.object({ id: z.string().min(1).max(64) })).query(async ({ input }) => proofOf(input.id, await heldLicence(input.id))),
+  licenceProof: protectedProcedure.input(z.object({ id: z.string().min(1).max(64) })).query(async ({ input, ctx }) => {
+    throttle(proofLimiter, ctx.user.id);
+    return proofOf(input.id, await heldLicence(input.id));
+  }),
 
   /** The licence's proof as an .ots file, to check with any OpenTimestamps tool. */
   licenceProofFile: protectedProcedure.input(z.object({ id: z.string().min(1).max(64) })).query(async ({ input }) => {
