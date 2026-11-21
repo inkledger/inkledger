@@ -255,15 +255,22 @@ export function Pinboard({
     toastError(e);
     void refresh();
   };
-  const setNotes = (f: (old: Note[]) => Note[]) => {
-    // A read already on its way (a refresh, a live event) would land with the old places.
-    void utils.pinboard.list.cancel(listInput);
+  const setNotes = (f: (old: Note[]) => Note[]) =>
     utils.pinboard.list.setData(listInput, old => (old ? f(old) : old));
-  };
+  // Saves under way on this board: the list is read again once the last one is done.
+  const saving = useRef(0);
   /** Optimistic local change, then the server; any error reloads the truth. */
   const patch = (id: number, p: Partial<PostItData>, send: () => Promise<unknown>) => {
+    // A read already on its way (a refresh, a live event) would land with the old places: dropped,
+    // and read again after the saves, so what it was for still arrives.
+    void utils.pinboard.list.cancel(listInput);
     setNotes(old => old.map(n => (n.id === id ? { ...n, ...p } : n)));
-    queue(id, send).catch(fail);
+    saving.current++;
+    queue(id, send)
+      .catch(fail)
+      .finally(() => {
+        if (--saving.current === 0) void utils.pinboard.list.invalidate(listInput);
+      });
   };
   // One request at a time per note, so quick moves land in order.
   const chains = useRef(new Map<number, Promise<unknown>>());

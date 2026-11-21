@@ -9,4 +9,8 @@ describe("moving an idea to a column's end", () => {
   it("an empty column starts at 0", () => {
     expect(endOfColumn([])).toBe(0);
   });
+
+  it("never past the highest place the server takes", () => {
+    expect(endOfColumn([{ position: 5000 }])).toBe(5000);
+  });
 });

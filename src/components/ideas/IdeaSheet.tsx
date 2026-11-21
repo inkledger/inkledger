@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { withOutOfScope, type Criterion, type IdeaRoute, type Question } from "@contracts/ideas";
@@ -88,26 +88,30 @@ function IdeaFields({ idea, doc, onPromote, onDiscard, onDelete, markDirty }: { 
     onError: e => toastError(e),
   });
   const projects = trpc.ideas.projects.useQuery(undefined, { staleTime: 5 * 60_000 });
+  // Saves still on their way: the idea is read again only after the last one, or a read in between
+  // would put back a list without the saves still queued.
+  const pendingSaves = useRef(0);
   const update = trpc.ideas.update.useMutation({
     // One after another: each list save carries the whole list, so a later one must not land first.
     scope: { id: `ideas.update.${idea.id}` },
-    // The lists are sent whole and the server replaces them: the next action (before the read
-    // comes back) builds on this one's list, not on the one before it.
-    onMutate: async ({ id, acceptance, questions, labels }) => {
-      await utils.ideas.get.cancel({ id });
-      utils.ideas.get.setData({ id }, old =>
-        old ? { ...old, ...(acceptance ? { acceptance } : {}), ...(questions ? { questions } : {}), ...(labels ? { labels } : {}) } : old
-      );
+    onError: e => toastError(e),
+    onSettled: () => {
+      // The saved text is drawn by the server (its links and pictures): read again, once the row is done.
+      if (--pendingSaves.current === 0) void utils.ideas.get.invalidate({ id: idea.id });
+      void utils.ideas.list.invalidate();
     },
-    // The saved text is drawn by the server (its links and pictures): read again.
-    onSuccess: () => void utils.ideas.get.invalidate({ id: idea.id }),
-    onError: e => {
-      toastError(e);
-      void utils.ideas.get.invalidate({ id: idea.id });
-    },
-    onSettled: () => void utils.ideas.list.invalidate(),
   });
-  const save = (patch: Omit<Parameters<typeof update.mutate>[0], "id">) => update.mutate({ id: idea.id, ...patch });
+  const save = (patch: Omit<Parameters<typeof update.mutate>[0], "id">) => {
+    // The lists are sent whole and the server replaces them: shown at once, so the next action (before
+    // any read comes back) builds on this one's list, not on the one before it.
+    pendingSaves.current++;
+    void utils.ideas.get.cancel({ id: idea.id });
+    const { acceptance, questions, labels } = patch;
+    utils.ideas.get.setData({ id: idea.id }, old =>
+      old ? { ...old, ...(acceptance ? { acceptance } : {}), ...(questions ? { questions } : {}), ...(labels ? { labels } : {}) } : old
+    );
+    update.mutate({ id: idea.id, ...patch });
+  };
   const addTodo = trpc.todos.add.useMutation({
     onSuccess: () => toast.success(t("pages.ideas.todoMade", { key: idea.promoted?.key ?? "" })),
     onError: e => toastError(e),
