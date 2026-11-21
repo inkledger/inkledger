@@ -27,6 +27,14 @@ const corpus = [
   "<",
   "trailing <",
   "<a <b>c</b>",
+  "İİİab<script>evil()</script>visible",
+  "<x<script>s</script>>",
+  "<br<script></script>>",
+  "<b<br>>",
+  '<img alt="<script>">visible</script>',
+  "<SCRIPT>a</sCrIpT>b<STYLE>c</STYLE>d",
+  "<br   \n/>x</P>y",
+  "&amp;nbsp;".repeat(50) + "<p>end</p>",
 ];
 
 describe("text from a mail with only HTML", () => {

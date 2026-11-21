@@ -39,48 +39,62 @@ const TEXT_FROM_HTML_MAX = 200 * 1024;
 
 /**
  * Scripts and styles out with their content, a line for <br> and </p>, every other
- * tag out, a few entities read. One pass over the HTML: the regexes this replaces
- * scanned to the end again for every unclosed <script, and a mail of those (tens
- * of MB, from any sender) held the server for minutes.
+ * tag out, a few entities read: the regexes this replaces, in the same order, each
+ * pass linear. Two of those regexes scanned to the end again for every unclosed
+ * <script or every < with no >: a mail of those (MB, from any sender) held the
+ * server for minutes.
  */
 export function textOfHtml(html: string): string {
-  const lower = html.toLowerCase();
-  // Past the last one, a closing tag or ">" is never found again: no search runs twice.
-  const none = { script: false, style: false, gt: false };
-  let out = "";
-  let i = 0;
-  while (i < html.length && out.length < TEXT_FROM_HTML_MAX * 2) {
-    const lt = html.indexOf("<", i);
-    if (lt < 0) {
-      out += html.slice(i);
-      break;
-    }
-    out += html.slice(i, lt);
-    const block = /^<(script|style)/.exec(lower.slice(lt, lt + 7))?.[1] as "script" | "style" | undefined;
-    if (block && !none[block]) {
-      const close = lower.indexOf(`</${block}>`, lt);
-      if (close >= 0) {
-        i = close + block.length + 3;
-        continue;
-      }
-      none[block] = true;
-    }
-    const gt = none.gt || html[lt + 1] === ">" ? -1 : html.indexOf(">", lt + 1);
-    if (gt < 0) {
-      if (html[lt + 1] !== ">") none.gt = true;
-      out += "<";
-      i = lt + 1;
-      continue;
-    }
-    if (/^<(br\s*\/?|\/p)>$/i.test(html.slice(lt, gt + 1))) out += "\n";
-    i = gt + 1;
-  }
-  return out
+  return withoutTags(withoutBlocks(html).replace(/<br\s*\/?>|<\/p>/gi, "\n"))
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .slice(0, TEXT_FROM_HTML_MAX);
+}
+
+/** `<(script|style)[\s\S]*?<\/\1>` removed: once a closing tag isn't found, it is never searched for again. */
+function withoutBlocks(html: string): string {
+  const open = /<(script|style)/gi;
+  const missing = new Set<string>();
+  let out = "";
+  let from = 0;
+  for (let m = open.exec(html); m; m = open.exec(html)) {
+    const tag = m[1].toLowerCase();
+    if (missing.has(tag)) continue;
+    const close = new RegExp(`</${tag}>`, "gi");
+    close.lastIndex = m.index;
+    const end = close.exec(html);
+    if (!end) {
+      missing.add(tag);
+      continue;
+    }
+    out += html.slice(from, m.index);
+    from = end.index + end[0].length;
+    open.lastIndex = from;
+  }
+  return out + html.slice(from);
+}
+
+/** `<[^>]+>` removed: once no ">" follows, none is searched for again. */
+function withoutTags(html: string): string {
+  let out = "";
+  let i = 0;
+  let noMore = false;
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) break;
+    const gt = noMore || html[lt + 1] === ">" ? -1 : html.indexOf(">", lt + 1);
+    if (gt < 0) {
+      if (!noMore && html[lt + 1] !== ">") noMore = true;
+      out += html.slice(i, lt + 1);
+      i = lt + 1;
+      continue;
+    }
+    out += html.slice(i, lt);
+    i = gt + 1;
+  }
+  return out + html.slice(i);
 }
 
 const addressOf = (a: { name?: string; address?: string } | undefined): string =>
