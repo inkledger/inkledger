@@ -49,11 +49,20 @@ function assertWithin(me: User, granted: { role: string; permissions: readonly s
   if (!within(me, granted)) throw notAllowed();
 }
 
+/**
+ * An existing account `me` may change: within what it holds, and, unless `me` is an
+ * admin, not another account manager (a peer could otherwise take it over first).
+ */
+function assertAbove(me: User, user: User) {
+  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user), modules: grantsOf(user) });
+  if (roleOf(me) !== "admin" && can(user, "manageUsers")) throw notAllowed();
+}
+
 async function target(id: number, me: User): Promise<User> {
   if (id === me.id) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.notYourself") });
   const user = await userById(id);
   if (!user) throw new TRPCError({ code: "NOT_FOUND" });
-  assertWithin(me, { role: roleOf(user), permissions: permissionsOf(user), modules: grantsOf(user) });
+  assertAbove(me, user);
   return user;
 }
 
@@ -98,7 +107,7 @@ async function writeAccount<T>(me: User, target: User, takesAway: boolean, write
     // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
     const [actor] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
     assertActing(actor);
-    assertWithin(actor, { role: roleOf(target), permissions: permissionsOf(target), modules: grantsOf(target) });
+    assertAbove(actor, target);
     const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
     const admin = now?.role === "admin" && !now.disabledAt;
     if (admin && takesAway && !admins.some((a) => a.id !== target.id)) {

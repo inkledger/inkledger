@@ -356,8 +356,12 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(still).toMatchObject({ password_hash: boss.passwordHash, role: "admin", disabled_at: null });
       // Within what it holds, it still manages.
       await expect(k.users.invite({ username: "x4", displayName: "X", role: "member", permissions: ["useModules"] })).resolves.toBeTruthy();
-      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).resolves.toMatchObject({ permissions: ["manageUsers"] });
       await expect(k.users.resetPassword({ id: plain.id })).resolves.toBeTruthy();
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).resolves.toMatchObject({ permissions: ["manageUsers"] });
+      // A peer that manages accounts too is an admin's to change: else either could take the other over.
+      await expect(k.users.resetPassword({ id: plain.id })).rejects.toMatchObject(forbidden);
+      await expect(k.users.setDisabled({ id: plain.id, disabled: true })).rejects.toMatchObject(forbidden);
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: [] })).rejects.toMatchObject(forbidden);
       await expect(k.users.reinvite({ id: pend.id })).resolves.toBeTruthy();
       // Modules too: only the ones it runs itself, given or held.
       await expect(k.users.invite({ username: "x5", displayName: "X", role: "member", permissions: ["useModules"], modules: ["kanbunny"] })).rejects.toMatchObject(forbidden);
