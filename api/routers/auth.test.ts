@@ -141,6 +141,8 @@ describe("auth: sessions, cookies, login hardening", () => {
     expect(await login(anon("http://127.0.0.1:47823/api/trpc"))).not.toMatch(/Secure/);
     expect(await login(anon("https://ikl.example.it/api/trpc"))).toMatch(/Secure/);
     expect(await login(anon("http://127.0.0.1/api/trpc", { "x-forwarded-proto": "https" }))).toMatch(/Secure/);
+    // The desktop app's LAN proxy ends TLS and copies the bytes on: the browser is on https.
+    expect(await login(anon("http://127.0.0.1:47823/api/trpc", { host: "my-mac.local:47843" }))).toMatch(/Secure/);
   });
 
   it("rate limits sign-in attempts per account and per client address", async () => {

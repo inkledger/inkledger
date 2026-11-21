@@ -11,6 +11,10 @@ const REMEMBER_COOKIE = "ikl_remember";
 function isHttpsRequest(req: Request): boolean {
   const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
   if (forwarded) return forwarded === "https";
+  // Through the desktop app's LAN proxy (src-tauri lan.rs, :47843): TLS ended there and the
+  // bytes come on as they are, so nothing says https but the port the browser used. A
+  // client that writes that port only gets a Secure flag it didn't need.
+  if (/:47843$/.test(req.headers.get("host") ?? "")) return true;
   try {
     return new URL(req.url).protocol === "https:";
   } catch {
