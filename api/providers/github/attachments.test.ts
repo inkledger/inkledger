@@ -50,6 +50,15 @@ describe("GitHub attachments", () => {
     }
   });
 
+  it("a pasted file whose name doesn't decode (or decodes to control characters) keeps a usable name", () => {
+    const odd = "https://github.com/user-attachments/files/18/50%-off.txt";
+    const crlf = "https://github.com/user-attachments/files/19/a%0D%0Ab.txt";
+    expect(bodyAttachments(`[x](${odd}) [y](${crlf})`)).toEqual([
+      { url: odd, name: "50%-off.txt" },
+      { url: crlf, name: "ab.txt" },
+    ]);
+  });
+
   it("images pasted into a comment download through that comment, only for its issue", async () => {
     const sim = githubSimulator();
     const pasted = sim.upload("0b1c2d3e-2222-4222-8333-444455556666", PNG);

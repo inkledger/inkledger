@@ -26,7 +26,16 @@ export function bodyAttachments(body: string): GitHubPasted[] {
   const seen = new Map<string, GitHubPasted>();
   for (const url of body.match(PASTED) ?? []) {
     if (seen.has(url)) continue;
-    const last = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    const raw = new URL(url).pathname.split("/").pop() ?? "";
+    // A name that doesn't decode stays as written; control characters never reach the copied text.
+    let last = raw;
+    try {
+      last = decodeURIComponent(raw);
+    } catch {
+      /* kept raw */
+    }
+    // eslint-disable-next-line no-control-regex
+    last = last.replace(/[\x00-\x1f\x7f]/g, "");
     const named = /\/files\//.test(url) && last ? last : `image-${assetId(url).slice(0, 8)}`;
     seen.set(url, { url, name: named });
   }
