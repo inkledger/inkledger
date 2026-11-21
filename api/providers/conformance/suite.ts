@@ -18,10 +18,23 @@ const meta = (signal = new AbortController().signal): CallMeta => ({ signal, cor
 /** Every page of one pass, refusing a pass that repeats a token or never ends. */
 export { readPass };
 
-/** A span of the shape a service keeps. */
+const DAY_MS = 86_400_000;
+const dayKeyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * A span of the shape a service keeps, a few days back: inside the window every
+ * service reads (30 days for some), never in the future (GitLab refuses that).
+ * A fixed date aged out of those windows and failed the suite.
+ */
 function timeFor(shape: "session" | "date", seconds: number): TimeInput {
-  return shape === "session" ? { kind: "session", start: instant(Date.UTC(2026, 9, 14, 8, 30)), seconds } : { kind: "date", date: localDate("2026-10-14"), seconds };
+  const day = new Date(Date.now() - 3 * DAY_MS);
+  return shape === "session"
+    ? { kind: "session", start: instant(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 8, 30)), seconds }
+    : { kind: "date", date: localDate(dayKeyOf(day.getTime())), seconds };
 }
+
+/** The days around timeFor's span. */
+const aroundSpan = () => ({ from: localDate(dayKeyOf(Date.now() - 20 * DAY_MS)), to: localDate(dayKeyOf(Date.now() + DAY_MS)) });
 
 const refOf = (i: RemoteIssue): IssueRef => ({ remoteId: i.remoteId, key: i.key, container: { remoteId: i.container.remoteId, key: i.container.key } });
 
@@ -232,13 +245,13 @@ export function sinkConformance<T extends TimeSinkType, O>(name: string, setup: 
       const made = await b.entries.create(meta(), ref, target, { time: timeFor(e.shape, 3600), comment: "conformance", activityId: activity }, { idempotencyKey: "s-1" });
       expect(made.span).toMatchObject({ kind: e.shape, seconds: 3600 });
       expect(made.issue?.remoteId ?? made.issue?.key).toBeTruthy();
-      const list = await b.entries.list(meta(), { from: localDate("2026-10-01"), to: localDate("2026-10-31") });
+      const list = await b.entries.list(meta(), aroundSpan());
       expect(list.map((x) => x.remoteId)).toContain(made.remoteId);
       if (b.entries.update) expect((await b.entries.update(meta(), made.remoteId, { time: timeFor(e.shape, 1800), comment: "c", activityId: activity }, {})).span.seconds).toBe(1800);
       if (b.entries.delete) {
         await b.entries.delete(meta(), made.remoteId, {});
         await b.entries.delete(meta(), made.remoteId, {});
-        expect((await b.entries.list(meta(), { from: localDate("2026-10-01"), to: localDate("2026-10-31") })).map((x) => x.remoteId)).not.toContain(made.remoteId);
+        expect((await b.entries.list(meta(), aroundSpan())).map((x) => x.remoteId)).not.toContain(made.remoteId);
       }
     });
   });
