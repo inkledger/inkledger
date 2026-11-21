@@ -25,4 +25,18 @@ describe("the provider catalogue and registry", () => {
     expect(registryProblems()).toEqual([]);
     expect(availableTrackers()).toEqual(["jira", "github", "gitlab", "azure", "gitea", "linear", "youtrack", "shortcut", "plane", "openproject", "redmine", "trello", "asana", "clickup", "monday", "notion", "wrike", "basecamp", "todoist", "planner"]);
   });
+
+  it("a sink adapter registered under another type, or whose traits drift from the catalogue, is a problem too", () => {
+    const entry = SINK_REGISTRY.harvest as { status: string; adapter: unknown };
+    const real = SINK_REGISTRY.harvest.adapter;
+    try {
+      entry.adapter = { ...real, type: "toggl" };
+      expect(registryProblems()).toEqual(["harvest: adapter of type toggl"]);
+      entry.adapter = { ...real, traits: { ...SINKS.harvest.traits, invoices: !SINKS.harvest.traits.invoices } };
+      expect(registryProblems()).toEqual(["harvest: traits differ from the catalogue"]);
+    } finally {
+      entry.adapter = real;
+    }
+    expect(registryProblems()).toEqual([]);
+  });
 });

@@ -350,6 +350,23 @@ describe("gitlab, time", () => {
     expect(b.worklogs!.update).toBeUndefined();
   });
 
+  it("a page that says there is more but names no cursor ends the list: the first page is never read again", async () => {
+    const { b, sim } = simulated();
+    const i = sim.issues[0];
+    sim.timelog(i, { seconds: 600, at: Date.parse("2026-10-14T08:30:00Z") });
+    let asked = 0;
+    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
+      const res = await sim.fetch(url, init);
+      if (typeof init?.body !== "string" || !init.body.includes('"IssueTimelogs"')) return res;
+      asked++;
+      const json = (await res.json()) as { data: { issue: { timelogs: { pageInfo: unknown } } } };
+      json.data.issue.timelogs.pageInfo = { hasNextPage: true, endCursor: null };
+      return new Response(JSON.stringify(json), { headers: { "Content-Type": "application/json" } });
+    });
+    expect(await b.worklogs!.list(meta(), ref(i, "acme/web#1"))).toHaveLength(1);
+    expect(asked).toBe(1);
+  });
+
   it("logs and deletes with timelogCreate/timelogDelete on a newer server, the day and clock time kept", async () => {
     const { b, sim } = simulated();
     const i = sim.issues[0];

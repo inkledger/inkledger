@@ -578,7 +578,8 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
         const r: { issue: { timelogs: TimelogPage } | null } = await modern(c, () => gql(c, "IssueTimelogs", ISSUE_TIMELOGS, { id: gidOf("Issue", ref.remoteId), after }));
         if (!r.issue) return out;
         out.push(...r.issue.timelogs.nodes.map(toRemoteWorklog));
-        if (!r.issue.timelogs.pageInfo.hasNextPage) break;
+        // More with no cursor to ask from: the list ends here (asking with none would read the first page again).
+        if (!r.issue.timelogs.pageInfo.hasNextPage || !r.issue.timelogs.pageInfo.endCursor) break;
         after = r.issue.timelogs.pageInfo.endCursor;
       }
       return out;

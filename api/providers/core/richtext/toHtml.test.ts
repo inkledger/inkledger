@@ -4,7 +4,7 @@ import { toAsanaHtml } from "../../asana/adapter";
 import { toBasecampHtml } from "../../basecamp/adapter";
 import { toMondayHtml } from "../../monday/adapter";
 import { toWrikeHtml } from "../../wrike/adapter";
-import { htmlParagraphs, markdownWarnings } from "./toHtml";
+import { htmlParagraphs, inlineHtml, markdownWarnings } from "./toHtml";
 
 const MIXED = "mixed **all** _the_ `things` [x](https://x.y) ![i](https://i.j/k.png)\n\n# head\n> q\n- l\n1. n\n```\nc\n```\n| t |";
 
@@ -41,5 +41,14 @@ describe("Markdown out as each service's HTML", () => {
     expect(htmlParagraphs("", "div", true)).toBe("<div></div>");
     expect(htmlParagraphs("", "p", false)).toBe("");
     expect(htmlParagraphs("a & b\nc", "p", false)).toBe("<p>a &amp; b<br>c</p>");
+  });
+
+  it("marks never reach inside a link's address: underscores, stars and tildes in a URL stay as written", () => {
+    const tags = { strong: "b", em: "i", strike: "s" };
+    expect(inlineHtml("[docs](https://x.io/__init__) and **b**", tags)).toBe('<a href="https://x.io/__init__">docs</a> and <b>b</b>');
+    expect(inlineHtml("[a](https://x.y/a_b_) [c](https://x.y/**d**) [e](https://x.y/~~f~~)", tags)).toBe('<a href="https://x.y/a_b_">a</a> <a href="https://x.y/**d**">c</a> <a href="https://x.y/~~f~~">e</a>');
+    // A link with no label shows its address, as written too; a label's own marks still apply.
+    expect(inlineHtml("[](https://x.io/_a_) [**x**](https://a.b/c)", tags)).toBe('<a href="https://x.io/_a_">https://x.io/_a_</a> <a href="https://a.b/c"><b>x</b></a>');
+    expect(toBasecampHtml("![p](https://img.example/a_b_.png)").html).toBe('<div><a href="https://img.example/a_b_.png">p</a></div>');
   });
 });

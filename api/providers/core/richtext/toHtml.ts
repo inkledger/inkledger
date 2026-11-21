@@ -30,18 +30,23 @@ export function inlineHtml(text: string, tags: InlineTags, note?: (f: "code" | "
         return escapeHtml(part.slice(1, -1));
       }
       const html = escapeHtml(part);
+      // Addresses set aside while the marks are applied (a URL's _x_ or ** is no emphasis), put back after.
+      const kept: string[] = [];
+      const keep = (s: string) => `\uE000${kept.push(s) - 1}\uE001`;
+      const keptLink = (label: string, url: string) => link(label || keep(url), keep(url.replace(/"/g, "&quot;")));
       const linked = note
         ? html
             .replace(IMAGE, (_m, alt: string, url: string) => {
               note("image");
-              return link(alt, url);
+              return keptLink(alt, url);
             })
-            .replace(LINK, (_m, label: string, url: string) => link(label, url))
-        : html.replace(LINK_OR_IMAGE, (_m, label: string, url: string) => link(label, url));
+            .replace(LINK, (_m, label: string, url: string) => keptLink(label, url))
+        : html.replace(LINK_OR_IMAGE, (_m, label: string, url: string) => keptLink(label, url));
       return linked
         .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__/g, (_m, a: string | undefined, b: string | undefined) => `<${tags.strong}>${a ?? b}</${tags.strong}>`)
         .replace(/~~([^~\n]+)~~/g, `<${tags.strike}>$1</${tags.strike}>`)
-        .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*(?!\w)|(^|[^_\w])_([^_\s][^_\n]*)_(?!\w)/g, (_m, p1: string | undefined, a: string | undefined, p2: string | undefined, b: string | undefined) => `${p1 ?? p2 ?? ""}<${tags.em}>${a ?? b}</${tags.em}>`);
+        .replace(/(^|[^*\w])\*([^*\s][^*\n]*)\*(?!\w)|(^|[^_\w])_([^_\s][^_\n]*)_(?!\w)/g, (_m, p1: string | undefined, a: string | undefined, p2: string | undefined, b: string | undefined) => `${p1 ?? p2 ?? ""}<${tags.em}>${a ?? b}</${tags.em}>`)
+        .replace(/\uE000(\d+)\uE001/g, (_m, i: string) => kept[Number(i)]);
     })
     .join("");
 }

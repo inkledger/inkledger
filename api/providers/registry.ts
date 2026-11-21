@@ -124,7 +124,9 @@ export function registryProblems(): string[] {
     } catch (e) {
       out.push(e instanceof Error ? e.message : String(e));
     }
+    if (entry.adapter.type !== type) out.push(`${type}: adapter of type ${entry.adapter.type}`);
     if (JSON.stringify(entry.adapter.capabilities) !== JSON.stringify(SINKS[type].capabilities)) out.push(`${type}: capabilities differ from the catalogue`);
+    if (JSON.stringify(entry.adapter.traits) !== JSON.stringify(SINKS[type].traits)) out.push(`${type}: traits differ from the catalogue`);
   }
   return out;
 }
