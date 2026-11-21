@@ -458,6 +458,19 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(openSecret(conn.encrypted_secret, conn.id).plain).toBe("t");
     });
 
+    it("two accounts activating with the same new username at once: one gets it, the other is told it is taken", async () => {
+      const sites = ["https://twin-a.atlassian.net", "https://twin-b.atlassian.net"];
+      for (const site of sites) {
+        const [old] = await q<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES ('t@x.it', 'Twin', ?) RETURNING id", Date.now());
+        await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, legacy, status, created_at) VALUES (?, 'jira', ?, 'acc-1', '{}', 'x', 1, 'unreadable', ?)", old.id, site, Date.now());
+      }
+      const both = await Promise.allSettled(
+        sites.map((siteUrl) => appRouter.createCaller(anon()).auth.activate({ siteUrl, deployment: "cloud", authType: "basic", username: "t@x.it", secret: "t", newUsername: "samename", newPassword: "a fine password" })),
+      );
+      expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+    });
+
     it("a site no account waits to activate on is never contacted: no Jira call, the same answer", async () => {
       const calls = vi.mocked(fetch).mock.calls.length;
       await expect(

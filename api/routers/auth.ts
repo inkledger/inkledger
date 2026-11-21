@@ -192,11 +192,15 @@ export const authRouter = createRouter({
       if (user.passwordHash) throw new TRPCError({ code: "CONFLICT", message: t("server.auth.alreadyActivated") });
       const username = input.newUsername.trim().toLowerCase();
       await assertFreeUsername(username);
-      const [activated] = await getDb()
-        .update(users)
-        .set({ displayName: identity.displayName, email: identity.email, avatarUrl: identity.avatarUrl, username, passwordHash: await hashPassword(input.newPassword), mustChangePassword: 0 })
-        .where(eq(users.id, user.id))
-        .returning();
+      const passwordHash = await hashPassword(input.newPassword);
+      // Taken meanwhile (two activations picking it at once): refused as taken.
+      const [activated] = await renameWrite(() =>
+        getDb()
+          .update(users)
+          .set({ displayName: identity.displayName, email: identity.email, avatarUrl: identity.avatarUrl, username, passwordHash, mustChangePassword: 0 })
+          .where(eq(users.id, user.id))
+          .returning(),
+      );
       // The login just confirmed is the connection's credentials now.
       await storeSecret(found.connectionId, identity.secret);
       await getDb().update(connections).set({ status: "ok", archivedAt: null }).where(eq(connections.id, found.connectionId));
