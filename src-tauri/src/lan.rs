@@ -55,6 +55,40 @@ pub fn create_ca(mac: &str) -> Result<Ca, String> {
     Ok(Ca { cert_pem: cert.pem(), key_pem: key.serialize_pem() })
 }
 
+/// A file only this user reads, from its first byte: whoever holds the CA key can pass
+/// for any name on the phones that trust it.
+fn write_private(path: &Path, body: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+    file.write_all(body.as_bytes())
+}
+
+/// A network name the user gave this Mac (Settings → Devices): host-name syntax only,
+/// so a page can't put markup or anything but a name in the certificate.
+fn valid_lan_name(name: &str) -> bool {
+    name.len() <= 253
+        && name.parse::<IpAddr>().is_err()
+        && name.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+}
+
 /// The CA in `dir`, created there the first time.
 pub fn load_or_create_ca(dir: &Path, mac: &str) -> Result<Ca, String> {
     let (cert, key) = (dir.join(CA_CERT), dir.join(CA_KEY));
@@ -64,12 +98,7 @@ pub fn load_or_create_ca(dir: &Path, mac: &str) -> Result<Ca, String> {
     std::fs::create_dir_all(dir).map_err(fault)?;
     let ca = create_ca(mac)?;
     std::fs::write(&cert, &ca.cert_pem).map_err(fault)?;
-    std::fs::write(&key, &ca.key_pem).map_err(fault)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600));
-    }
+    write_private(&key, &ca.key_pem).map_err(fault)?;
     Ok(ca)
 }
 
@@ -228,7 +257,12 @@ pub async fn start(app: &AppHandle, state: &LanState, target: Url, extra: &[Stri
         return Err(tr("lan.no_network").into());
     }
     let mut names: Vec<String> = local_host_name().map(|n| vec![format!("{n}.local")]).unwrap_or_default();
-    names.extend(extra.iter().map(|n| n.trim().to_lowercase()).filter(|n| !n.is_empty()));
+    for name in extra.iter().map(|n| n.trim().to_lowercase()).filter(|n| !n.is_empty()) {
+        if !valid_lan_name(&name) {
+            return Err(trf("lan.bad_name", &[("name", &name)]));
+        }
+        names.push(name);
+    }
     names.dedup();
     let (cert_pem, key_pem) = issue_server_cert(&ca, &names, &ips)?;
 
@@ -287,14 +321,66 @@ fn tls_acceptor(cert_pem: &str, key_pem: &str, ca_pem: &str) -> Result<tokio_rus
     Ok(tokio_rustls::TlsAcceptor::from(Arc::new(config)))
 }
 
-/// TLS in, plain bytes to the server: the server sees the real Host header.
+/// The longest request head the proxy reads (the server's own limit is about as large).
+const HEAD_MAX: usize = 64 * 1024;
+
+/// A request head as the server must get it: the phone's address and https said by this
+/// proxy (whatever the phone wrote in those headers is dropped), and one request per
+/// connection (`Connection: close`), so no later request on it goes by unread. An
+/// upgrade keeps its Connection header: what follows is no HTTP request.
+fn rewrite_head(head: &str, peer: IpAddr) -> String {
+    let mut lines = head.split("\r\n");
+    let mut out = String::with_capacity(head.len() + 96);
+    out.push_str(lines.next().unwrap_or_default());
+    out.push_str("\r\n");
+    let upgrade = head.split("\r\n").skip(1).any(|l| l.to_ascii_lowercase().starts_with("upgrade:"));
+    for line in lines.filter(|l| !l.is_empty()) {
+        let name = line.split(':').next().unwrap_or_default().trim().to_ascii_lowercase();
+        let dropped = matches!(name.as_str(), "x-forwarded-for" | "x-forwarded-proto" | "x-forwarded-host" | "x-real-ip" | "forwarded")
+            || (name == "connection" && !upgrade);
+        if !dropped {
+            out.push_str(line);
+            out.push_str("\r\n");
+        }
+    }
+    if !upgrade {
+        out.push_str("Connection: close\r\n");
+    }
+    out.push_str(&format!("X-Forwarded-For: {peer}\r\nX-Forwarded-Proto: https\r\n\r\n"));
+    out
+}
+
+/// TLS in, plain HTTP to the server: the real Host header, and the phone's address in
+/// X-Forwarded-For as this proxy saw it (the server's limits count it with TRUST_PROXY).
 async fn serve_proxy(listener: TcpListener, tls: tokio_rustls::TlsAcceptor, upstream: SocketAddr) {
     loop {
-        let Ok((socket, _)) = listener.accept().await else { continue };
+        let Ok((socket, peer)) = listener.accept().await else { continue };
         let tls = tls.clone();
         tauri::async_runtime::spawn(async move {
             let Ok(mut client) = tls.accept(socket).await else { return };
+            let mut read = Vec::with_capacity(4096);
+            let mut buf = [0u8; 4096];
+            let head_end = loop {
+                let more = tokio::time::timeout(std::time::Duration::from_secs(30), client.read(&mut buf)).await;
+                let Ok(Ok(n)) = more else { return };
+                if n == 0 {
+                    return;
+                }
+                read.extend_from_slice(&buf[..n]);
+                if let Some(at) = read.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break at + 4;
+                }
+                if read.len() > HEAD_MAX {
+                    return;
+                }
+            };
+            let Ok(head) = std::str::from_utf8(&read[..head_end]) else { return };
             let Ok(mut server) = TcpStream::connect(upstream).await else { return };
+            if server.write_all(rewrite_head(head, peer.ip()).as_bytes()).await.is_err()
+                || server.write_all(&read[head_end..]).await.is_err()
+            {
+                return;
+            }
             let _ = tokio::io::copy_bidirectional(&mut client, &mut server).await;
         });
     }
@@ -342,8 +428,12 @@ fn welcome_response(page: &Welcome, path: &str) -> (&'static str, Vec<u8>, Optio
 }
 
 fn welcome_html(page: &Welcome) -> String {
-    let links: String =
-        page.hosts.iter().map(|h| format!(r#"<li><a href="https://{h}:{TLS_PORT}/install">https://{h}:{TLS_PORT}</a></li>"#)).collect();
+    let links: String = page
+        .hosts
+        .iter()
+        .map(|h| html(h))
+        .map(|h| format!(r#"<li><a href="https://{h}:{TLS_PORT}/install">https://{h}:{TLS_PORT}</a></li>"#))
+        .collect();
     format!(
         r#"<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title>
@@ -388,6 +478,7 @@ pub fn lan_status(state: State<LanState>) -> LanStatus {
 /// Shares the server the window shows (it must be on this Mac).
 #[tauri::command]
 pub async fn lan_start(app: AppHandle, webview: tauri::Webview, names: Option<Vec<String>>) -> Result<LanStatus, String> {
+    crate::ensure_trusted(&app, &webview)?;
     let url = webview.url().map_err(fault)?;
     let origin = Url::parse(&url.origin().ascii_serialization()).map_err(fault)?;
     let names = names.unwrap_or_default();
@@ -407,6 +498,50 @@ pub fn lan_stop(app: AppHandle, state: State<LanState>) -> LanStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_proxy_says_the_phone_address_and_https_itself() {
+        let peer: IpAddr = "192.168.1.30".parse().unwrap();
+        let head = "GET /api/trpc/auth.me HTTP/1.1\r\nHost: my-mac.local:47843\r\nX-Forwarded-For: 6.6.6.6\r\nx-forwarded-proto: http\r\nForwarded: for=6.6.6.6\r\nConnection: keep-alive\r\nCookie: a=b\r\n\r\n";
+        let out = rewrite_head(head, peer);
+        assert!(out.starts_with("GET /api/trpc/auth.me HTTP/1.1\r\nHost: my-mac.local:47843\r\n"), "{out}");
+        assert!(out.contains("Cookie: a=b\r\n"));
+        assert!(!out.contains("6.6.6.6") && !out.contains("keep-alive") && !out.contains("proto: http\r\n"), "{out}");
+        assert!(out.ends_with("Connection: close\r\nX-Forwarded-For: 192.168.1.30\r\nX-Forwarded-Proto: https\r\n\r\n"), "{out}");
+        // An upgrade keeps its Connection header: what follows isn't HTTP.
+        let up = rewrite_head("GET /ws HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n", peer);
+        assert!(up.contains("Connection: Upgrade\r\n") && !up.contains("Connection: close"), "{up}");
+    }
+
+    #[test]
+    fn only_host_names_go_in_the_certificate() {
+        for ok in ["my-mac.example.lan", "ikl.casa", "studio-mac", "a1-b2.c3"] {
+            assert!(valid_lan_name(ok), "{ok}");
+        }
+        for bad in ["", "a..b", "-a.lan", "a-.lan", "<b>x</b>", "x\"y", "evil.com/path", "*.lan", "192.168.1.20", "a b", &"x".repeat(64)] {
+            assert!(!valid_lan_name(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_welcome_page_escapes_what_it_shows() {
+        let page =
+            Welcome { ca_pem: String::new(), mac: "Mac".into(), hosts: vec!["\"><script>x()</script>".into()], fingerprint: "AB".into() };
+        let out = welcome_html(&page);
+        assert!(!out.contains("<script>x()"), "{out}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_ca_key_is_never_readable_by_others() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("ikl-lan-ca-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        load_or_create_ca(&dir, "Mac").unwrap();
+        let mode = std::fs::metadata(dir.join(CA_KEY)).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn issues_a_server_cert_signed_by_the_ca() {

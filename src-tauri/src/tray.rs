@@ -46,10 +46,14 @@ fn title(timer: &Option<(TrayTimer, Instant)>) -> Option<String> {
 
 fn menu(app: &AppHandle, timer: &Option<(TrayTimer, Instant)>) -> tauri::Result<Menu<tauri::Wry>> {
     let status = match timer {
-        Some((t, _)) => match &t.summary {
-            Some(s) => format!("{} · {}", t.issue_key, s.chars().take(40).collect::<String>()),
-            None => t.issue_key.clone(),
-        },
+        Some((t, _)) => {
+            // Both cut: a page's text, shown in a native menu.
+            let key: String = t.issue_key.chars().take(40).collect();
+            match &t.summary {
+                Some(s) => format!("{key} · {}", s.chars().take(40).collect::<String>()),
+                None => key,
+            }
+        }
         None => tr("tray.none").into(),
     };
     let has = timer.is_some();
@@ -76,7 +80,7 @@ fn refresh(app: &AppHandle, rebuild_menu: bool) {
     let timer = state.0.lock().map(|g| g.clone()).unwrap_or(None);
     let _ = tray.set_title(title(&timer));
     let _ = tray.set_tooltip(Some(match &timer {
-        Some((t, _)) => format!("inkledger — {}", t.issue_key),
+        Some((t, _)) => format!("inkledger — {}", t.issue_key.chars().take(40).collect::<String>()),
         None => "inkledger".into(),
     }));
     if rebuild_menu {
@@ -108,12 +112,24 @@ pub fn rebuild(app: &AppHandle) {
     refresh(app, true);
 }
 
+/// The menu shows the timer's issue and whether it runs: only those make it worth rebuilding
+/// (the page reports the same timer at every refresh; the title ticks by itself).
+fn menu_changed(before: Option<&TrayTimer>, after: Option<&TrayTimer>) -> bool {
+    match (before, after) {
+        (Some(a), Some(b)) => a.issue_key != b.issue_key || a.summary != b.summary || a.running != b.running,
+        (None, None) => false,
+        _ => true,
+    }
+}
+
 #[tauri::command]
 pub fn set_tray_state(app: AppHandle, state: State<TrayState>, timer: Option<TrayTimer>) {
+    let mut changed = true;
     if let Ok(mut g) = state.0.lock() {
+        changed = menu_changed(g.as_ref().map(|(t, _)| t), timer.as_ref());
         *g = timer.map(|t| (t, Instant::now()));
     }
-    refresh(&app, true);
+    refresh(&app, changed);
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
@@ -148,8 +164,23 @@ pub fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
 
 #[cfg(test)]
 mod tests {
-    use super::clock;
+    use super::{clock, menu_changed, TrayTimer};
     use std::time::Duration;
+
+    #[test]
+    fn the_menu_is_rebuilt_only_when_what_it_shows_changes() {
+        let t = |key: &str, running: bool, elapsed: f64| TrayTimer {
+            issue_key: key.into(),
+            summary: Some("Fix".into()),
+            elapsed_seconds: elapsed,
+            running,
+        };
+        assert!(!menu_changed(Some(&t("APP-1", true, 10.0)), Some(&t("APP-1", true, 70.0))));
+        assert!(menu_changed(Some(&t("APP-1", true, 10.0)), Some(&t("APP-1", false, 10.0))));
+        assert!(menu_changed(Some(&t("APP-1", true, 10.0)), Some(&t("APP-2", true, 10.0))));
+        assert!(menu_changed(None, Some(&t("APP-1", true, 0.0))));
+        assert!(!menu_changed(None, None));
+    }
 
     #[test]
     fn clock_ticks_only_while_running() {

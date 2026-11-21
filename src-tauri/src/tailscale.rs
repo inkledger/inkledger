@@ -88,7 +88,8 @@ pub fn serves_itself(shown: &tauri::Url, port: u16) -> bool {
 }
 
 #[tauri::command]
-pub async fn tailscale_serve(webview: tauri::Webview, port: u16) -> Result<TailscaleInfo, String> {
+pub async fn tailscale_serve(app: tauri::AppHandle, webview: tauri::Webview, port: u16) -> Result<TailscaleInfo, String> {
+    crate::ensure_trusted(&app, &webview)?;
     let shown = webview.url().map_err(fault)?;
     if !serves_itself(&shown, port) {
         return Err(tr("ts.only_this_server").into());

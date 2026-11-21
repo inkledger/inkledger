@@ -134,6 +134,8 @@ const TABLE: &[(&str, &str, &str)] = &[
         "{place} non raggiungibile ({why}). Controlla l'indirizzo e la rete.",
     ),
     ("err.no_window", "Window not found", "Finestra non trovata"),
+    ("err.untrusted_page", "Only the app's own pages and saved servers can do that", "Solo le pagine dell'app e i server salvati possono farlo"),
+    ("lan.bad_name", "Not a network name: {name}", "Non è un nome di rete: {name}"),
     ("err.invalid_name", "Invalid name", "Nome non valido"),
     ("err.setting_unavailable", "Setting not available on this system", "Impostazione non disponibile su questo sistema"),
     ("err.not_on_mobile", "Not available on mobile", "Non disponibile su mobile"),

@@ -306,9 +306,10 @@
         if (params.get("error")) status(params.get("error"), true);
         // Always a way back to the server we came from.
         const from = params.get("from");
-        if (from) {
-          const p = profiles.list.find(x => x.url === from);
-          $("back-label").textContent = t("back_to", { name: p ? p.name : hostOf(from) });
+        // Back only to a saved server: a link can't make this page connect anywhere else.
+        const p = from ? profiles.list.find(x => x.url === from) : undefined;
+        if (from && p) {
+          $("back-label").textContent = t("back_to", { name: p.name });
           $("back").hidden = false;
           const back = () => opening(() => invoke("open_profile", { url: from }));
           $("back").onclick = back;

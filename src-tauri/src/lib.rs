@@ -160,6 +160,56 @@ fn remembered_lan(app: &AppHandle) -> Option<(Url, Vec<String>)> {
     Some((Url::parse(target).ok()?, names))
 }
 
+/// A page the window may show: the bundled pages, or a saved server (a profile).
+/// `profiles` are the saved origins ("http://localhost:3000").
+pub(crate) fn trusted_url(url: &Url, profiles: &[String]) -> bool {
+    match url.scheme() {
+        "tauri" | "asset" => true,
+        "about" => url.as_str() == "about:blank",
+        // A download made by a page (blob:<its origin>/…) is that page's.
+        "http" | "https" | "blob" => {
+            if url.host_str() == Some("tauri.localhost") {
+                return true;
+            }
+            let origin = url.origin().ascii_serialization();
+            profiles.iter().any(|p| p == &origin)
+        }
+        _ => false,
+    }
+}
+
+fn saved_origins(app: &AppHandle) -> Vec<String> {
+    profiles::load(app).list.into_iter().map(|p| p.url).collect()
+}
+
+/// Native commands answer only a page the window may show: a site that got into the
+/// window some other way (a link to another tailnet host, a local port) gets nothing.
+pub(crate) fn ensure_trusted(app: &AppHandle, webview: &tauri::Webview) -> Result<(), String> {
+    let url = webview.url().map_err(fault)?;
+    if trusted_url(&url, &saved_origins(app)) {
+        Ok(())
+    } else {
+        Err(tr("err.untrusted_page").into())
+    }
+}
+
+/// The window never leaves the app's pages and saved servers: anything else opens in
+/// the browser (http, https, mailto), or nowhere.
+fn navigation_guard() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::new("navigation-guard")
+        .on_navigation(|webview, url| {
+            if trusted_url(url, &saved_origins(webview.app_handle())) {
+                return true;
+            }
+            if matches!(url.scheme(), "http" | "https" | "mailto") {
+                use tauri_plugin_opener::OpenerExt;
+                let _ = webview.app_handle().opener().open_url(url.as_str(), None::<&str>);
+            }
+            false
+        })
+        .build()
+}
+
 fn main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     app.get_webview_window("main").ok_or_else(|| tr("err.no_window").to_string())
 }
@@ -210,13 +260,15 @@ async fn open_url(app: &AppHandle, raw: &str, name: Option<&str>) -> Result<(), 
 
 /// Add (or rename) a profile and open it — the connect page.
 #[tauri::command]
-async fn add_profile(app: AppHandle, url: String, name: Option<String>) -> Result<(), String> {
+async fn add_profile(app: AppHandle, webview: tauri::Webview, url: String, name: Option<String>) -> Result<(), String> {
+    ensure_trusted(&app, &webview)?;
     open_url(&app, &url, name.as_deref()).await
 }
 
 /// Switch to a saved profile.
 #[tauri::command]
-async fn open_profile(app: AppHandle, url: String) -> Result<(), String> {
+async fn open_profile(app: AppHandle, webview: tauri::Webview, url: String) -> Result<(), String> {
+    ensure_trusted(&app, &webview)?;
     open_url(&app, &url, None).await
 }
 
@@ -524,7 +576,8 @@ fn native_info(app: AppHandle) -> NativeInfo {
 
 /// Open at login (hidden in the menu bar).
 #[tauri::command]
-fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+fn set_autostart(app: AppHandle, webview: tauri::Webview, enabled: bool) -> Result<(), String> {
+    ensure_trusted(&app, &webview)?;
     #[cfg(desktop)]
     let result = {
         use tauri_plugin_autostart::ManagerExt;
@@ -542,6 +595,7 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(navigation_guard())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -662,7 +716,38 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_server;
+    use super::{parse_server, trusted_url};
+    use tauri::Url;
+
+    #[test]
+    fn the_window_trusts_only_its_pages_and_saved_servers() {
+        let saved = vec!["http://localhost:3000".to_string(), "https://my-mac.tail1.ts.net".to_string()];
+        let ok = |u: &str| trusted_url(&Url::parse(u).unwrap(), &saved);
+        for yes in [
+            "tauri://localhost/index.html?from=x",
+            "http://tauri.localhost/index.html",
+            "http://localhost:3000/issues",
+            "https://my-mac.tail1.ts.net/settings",
+            "https://my-mac.tail1.ts.net:443/",
+            "blob:http://localhost:3000/4f1c2d",
+            "about:blank",
+        ] {
+            assert!(ok(yes), "{yes}");
+        }
+        for no in [
+            "https://evil.tail2.ts.net/",
+            "https://my-mac.tail1.ts.net.evil.com/",
+            "http://localhost:3001/",
+            "http://127.0.0.1:3000/",
+            "https://localhost:3000/",
+            "blob:https://evil.example/1",
+            "file:///etc/passwd",
+            "data:text/html,<script>x</script>",
+            "javascript:alert(1)",
+        ] {
+            assert!(!ok(no), "{no}");
+        }
+    }
 
     #[test]
     fn normalizes_server_addresses() {
