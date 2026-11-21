@@ -37,6 +37,8 @@ export type CanvasActions = {
   place: (anchorId: string, areaId: string, index: number) => void;
   /** Whether that place is allowed, and if not why, in the user's words. */
   check: (anchorId: string, areaId: string, index: number) => { allowed: true } | { allowed: false; reason: string };
+  /** Only whether it is allowed: what each block's menu asks of every area, without wording a reason for each. */
+  allows: (anchorId: string, areaId: string, index: number) => boolean;
 };
 
 /** What else the canvas draws besides the blocks: their edit controls, trouble, and what is new. */
@@ -270,7 +272,7 @@ function Block({ placement, areaId, axis, name: block, overlay, stacked, anchor,
   const labelId = `workspace-anchor-${safeId}`;
   const aboutId = `workspace-anchor-about-${safeId}`;
   const movable = (rules.canMove || rules.canReorder) && !busy;
-  const targets = rules.canMove && edit ? areas.filter(area => area.id !== areaId && actions.check(placement.anchorId, area.id, Number.MAX_SAFE_INTEGER).allowed) : [];
+  const targets = rules.canMove && edit ? areas.filter(area => area.id !== areaId && actions.allows(placement.anchorId, area.id, Number.MAX_SAFE_INTEGER)) : [];
   const ghost = !placement.visible && !overlay;
   const uses = usage?.uses.get(placement.anchorId) ?? 0;
   // What the layers say about the block, for screen readers (the drawing says it to the eye).

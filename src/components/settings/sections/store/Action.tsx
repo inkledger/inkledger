@@ -51,7 +51,7 @@ export function Action({
     },
     onError: err => toastError(err),
   });
-  const dismiss = trpc.store.dismiss.useMutation({ onSuccess: refresh });
+  const dismiss = trpc.store.dismiss.useMutation({ onSuccess: refresh, onError: err => toastError(err) });
 
   const hasSettings = useModuleOffers(e.id, "settings");
   const manage = (

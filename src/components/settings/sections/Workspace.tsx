@@ -425,6 +425,13 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
     return { kind: "move" as const, order: rest[at]?.order ?? (rest.length > 0 ? Math.max(...rest.map(item => item.order)) + 1 : 0), index: at, source: placement.areaId };
   };
 
+  const allows: CanvasActions["allows"] = (anchorId, areaId, index) => {
+    const where = target(anchorId, areaId, index);
+    if (!where) return false;
+    if (where.kind === "reorder" && where.unchanged) return true;
+    return dropAssessment(anchorId, where.source, areaId, where.kind === "reorder" ? where.ordered : undefined).allowed;
+  };
+
   const check: CanvasActions["check"] = (anchorId, areaId, index) => {
     const where = target(anchorId, areaId, index);
     if (!where) return { allowed: false, reason: dropError(anchorId, areaId, areaId) };
@@ -453,6 +460,7 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
     variant: (anchorId, variant: Variant) => void preview(variantPatch(workspace, anchorId, variant), { kind: "variant", anchorId, variant }),
     place,
     check,
+    allows,
   };
 
   /** What each block may do here, and in words why one cannot move (said on the block, not learnt by failing). */

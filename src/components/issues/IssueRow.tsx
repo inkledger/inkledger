@@ -59,6 +59,7 @@ import { PinMenuItems } from "@/components/issue/PinMenu";
 import { useProviderName } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { ActionRow } from "@/components/app/ActionRow";
+import { safeExternalUrl } from "@contracts/links";
 
 export type IssueItem =
   inferRouterOutputs<AppRouter>["issues"]["list"]["issues"][number];
@@ -249,7 +250,7 @@ function Actions({ issue, onLog, pin: pinProps, pick }: Omit<RowProps, "picked" 
             <GitCommitHorizontal className="h-4 w-4" /> {t("views.issues.row.copyCommit")}
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <a href={issue.url} target="_blank" rel="noreferrer">
+            <a href={safeExternalUrl(issue.url)?.href} target="_blank" rel="noreferrer">
               <ExternalLink className="h-4 w-4" /> {t("views.issues.row.openJira", { provider })}
             </a>
           </DropdownMenuItem>

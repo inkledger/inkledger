@@ -40,6 +40,7 @@ import { EditIssueButton } from "@/components/issue/ManageIssue";
 import { PinButton, PinMenuItems } from "@/components/issue/PinMenu";
 import type { Issue, IssueData } from "@/components/issue/useIssueData";
 import { t } from "@/i18n";
+import { safeExternalUrl } from "@contracts/links";
 
 type Act = ReturnType<typeof useIssueActions>;
 
@@ -226,7 +227,7 @@ export function IssueActions({
             {copyItems}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <a href={i.url} target="_blank" rel="noreferrer">
+              <a href={safeExternalUrl(i.url)?.href} target="_blank" rel="noreferrer">
                 <ExternalLink className="h-4 w-4" /> {t("pages.issueDetail.openInJira", { provider })}
               </a>
             </DropdownMenuItem>
@@ -282,7 +283,7 @@ export function IssueActions({
           {copyItems}
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <a href={i.url} target="_blank" rel="noreferrer">
+            <a href={safeExternalUrl(i.url)?.href} target="_blank" rel="noreferrer">
               <ExternalLink className="h-4 w-4" /> {t("pages.issueDetail.openInJira", { provider })}
             </a>
           </DropdownMenuItem>

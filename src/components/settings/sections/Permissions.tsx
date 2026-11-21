@@ -48,7 +48,10 @@ export function PermissionsSection() {
   const [notify, setNotify] = useState<NativePermission | null>(null);
   const native = isNative();
   useEffect(() => {
-    if (native) void notificationPermission().then(p => setNotify(p ?? null));
+    if (native)
+      void notificationPermission()
+        .then(p => setNotify(p ?? null))
+        .catch((e: unknown) => toastError(e));
   }, [native]);
 
   const canOpen = info !== null && CAN_OPEN_SETTINGS.has(info.platform);
@@ -78,8 +81,12 @@ export function PermissionsSection() {
   };
 
   const askNotifications = async () => {
-    const p = await requestNotificationPermission();
-    if (p) setNotify(p);
+    try {
+      const p = await requestNotificationPermission();
+      if (p) setNotify(p);
+    } catch (e) {
+      toastError(e);
+    }
   };
 
   return (

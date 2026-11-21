@@ -315,7 +315,11 @@ function RestoreLicence() {
         onChange={ev => {
           const file = ev.target.files?.[0];
           ev.target.value = "";
-          if (file) void file.text().then(text => restore.mutate({ text }));
+          if (file)
+            void file
+              .text()
+              .then(text => restore.mutate({ text }))
+              .catch((e: unknown) => toastError(e));
         }}
       />
       <Button variant="outline" size="sm" disabled={restore.isPending} onClick={() => input.current?.click()}>

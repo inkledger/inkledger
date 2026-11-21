@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { t } from "@/i18n";
 import { FieldInput, type Value } from "@/components/issue/FieldInput";
+import { safeExternalUrl } from "@contracts/links";
 
 /** Which way on: by its id (picked from the list) or by the status it reaches (a drag on the board). */
 export type TransitionTarget = { transitionId: string } | { toStatus: string };
@@ -128,7 +129,7 @@ export function TransitionDialog({
             ) : (
               tr.remoteUrl && (
                 <Button asChild variant="outline">
-                  <a href={tr.remoteUrl} target="_blank" rel="noreferrer">
+                  <a href={safeExternalUrl(tr.remoteUrl)?.href} target="_blank" rel="noreferrer">
                     <ExternalLink />
                     {t("pages.issueDetail.openOnProvider", { provider })}
                   </a>

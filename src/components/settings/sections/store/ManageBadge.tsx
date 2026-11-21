@@ -93,12 +93,14 @@ export function ManageBadge({
       toast.success(t("settings.store.manage.uninstalled", { name }));
       refresh();
     },
+    onError: e => toastError(e),
   });
   const removeLicense = trpc.modules.removeLicense.useMutation({
     onSuccess: () => {
       toast.success(t("settings.store.manage.licenceRemoved", { name }));
       refresh();
     },
+    onError: e => toastError(e),
   });
 
   const importProgress = trpc.modules.importProgress.useMutation({

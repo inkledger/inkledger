@@ -152,6 +152,7 @@ export function PayPanel({ entry, locale, onBack }: { entry: StoreEntry; locale:
       void utils.store.catalog.invalidate();
       onBack();
     },
+    onError: e => toastError(e),
   });
 
   const methods: { id: PaymentMethod; icon: typeof CreditCard; label: string; hint: string; available: boolean; soon: boolean }[] = [

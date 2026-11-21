@@ -38,12 +38,17 @@ export function BackupSection() {
   const utils = trpc.useUtils();
   const info = trpc.backup.get.useQuery(undefined, { refetchInterval: 30_000 });
   const refresh = () => utils.backup.get.invalidate();
+  // The typed fields show what is saved: drawn again after a refused save (and on a change made elsewhere, by their key).
+  const [refused, setRefused] = useState(0);
   const update = trpc.backup.update.useMutation({
     onSuccess: () => {
       void refresh();
       toast.success(t("settings.backup.scheduleSaved"));
     },
-    onError: e => toastError(e),
+    onError: e => {
+      setRefused(n => n + 1);
+      toastError(e);
+    },
   });
   const runNow = trpc.backup.run.useMutation({
     onSuccess: r => {
@@ -97,16 +102,21 @@ export function BackupSection() {
               </Select>
             )}
             <Input
+              key={`${settings.time}:${refused}`}
               type="time"
               aria-label={t("settings.backup.timeLabel")}
               className="w-28"
               defaultValue={settings.time}
-              onBlur={e => e.target.value && e.target.value !== settings.time && update.mutate({ time: e.target.value })}
+              onBlur={e => {
+                if (!e.target.value) e.target.value = settings.time;
+                else if (e.target.value !== settings.time) update.mutate({ time: e.target.value });
+              }}
             />
           </SettingsRow>
         )}
         <SettingsRow label={t("settings.backup.keep")} hint={t("settings.backup.keepHint")}>
           <Input
+            key={`${settings.keep}:${refused}`}
             type="number"
             min={1}
             max={365}
@@ -115,7 +125,9 @@ export function BackupSection() {
             defaultValue={settings.keep}
             onBlur={e => {
               const n = Number(e.target.value);
-              if (Number.isInteger(n) && n >= 1 && n <= 365 && n !== settings.keep) update.mutate({ keep: n });
+              if (Number.isInteger(n) && n >= 1 && n <= 365) {
+                if (n !== settings.keep) update.mutate({ keep: n });
+              } else e.target.value = String(settings.keep);
             }}
           />
         </SettingsRow>

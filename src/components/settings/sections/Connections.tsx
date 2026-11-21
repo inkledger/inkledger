@@ -1,4 +1,6 @@
-import { toastError, failureText } from "@/lib/errorText";
+import { toastError, failureText, errorText } from "@/lib/errorText";
+import { ErrorState } from "@/components/app/States";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { providerName } from "@contracts/providerNames";
@@ -318,7 +320,7 @@ function AddDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open:
 /** A connection's options, each a choice; a change reads everything again with it. */
 function ConnectionOptions({ c }: { c: Shown }) {
   const refresh = useRefresh();
-  const resync = trpc.issues.syncConnection.useMutation({ onSettled: refresh });
+  const resync = trpc.issues.syncConnection.useMutation({ onSettled: refresh, onError: e => toastError(e) });
   const set = trpc.connections.setOption.useMutation({
     onSuccess: () => {
       toast.success(t("settings.connections.optionSaved"));
@@ -332,7 +334,8 @@ function ConnectionOptions({ c }: { c: Shown }) {
       {c.settings.map(s => (
         <div key={s.key} className="grid gap-2">
           <Label htmlFor={`opt-${c.id}-${s.key}`}>{optionLabel(s.key)}</Label>
-          <Select value={s.value} onValueChange={value => set.mutate({ id: c.id, key: s.key, value })}>
+          {/* One change at a time: each one reads the whole connection again. */}
+          <Select value={s.value} disabled={set.isPending || resync.isPending} onValueChange={value => set.mutate({ id: c.id, key: s.key, value })}>
             <SelectTrigger id={`opt-${c.id}-${s.key}`} className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -363,7 +366,9 @@ function SinkMappings({ id }: { id: number }) {
   const [query, setQuery] = useState("");
   const [container, setContainer] = useState<number | null>(null);
   const [activity, setActivity] = useState<string | null>(null);
-  const targets = trpc.sinks.targets.useQuery({ id, query }, { staleTime: 30_000 });
+  // Searched on the tracker: once typing pauses, not on every key.
+  const searched = useDebouncedValue(query.trim(), 300);
+  const targets = trpc.sinks.targets.useQuery({ id, query: searched }, { staleTime: 30_000 });
   const activities = trpc.sinks.activities.useQuery({ id }, { staleTime: 5 * 60_000 });
   const mappings = trpc.sinks.mappings.useQuery({ id });
   const done = () => void utils.sinks.mappings.invalidate({ id });
@@ -706,7 +711,8 @@ export function ConnectionsSection() {
   const [adding, setAdding] = useState(() => params.get("add") === "1");
   const asked = Number(params.get("reconnect"));
   const [reconnecting, setReconnecting] = useState<number | null>(() => (asked > 0 ? asked : null));
-  const target = list.data?.find(c => c.id === reconnecting) ?? (reconnecting !== null ? list.data?.find(c => needsReconnect(c.status)) : undefined);
+  // Only the connection asked for: a stale id must not open another connection's form.
+  const target = list.data?.find(c => c.id === reconnecting);
   const closeReconnect = () => {
     setReconnecting(null);
     if (params.has("reconnect")) {
@@ -727,7 +733,9 @@ export function ConnectionsSection() {
         </Button>
       }
     >
-      {list.data?.length === 0 ? (
+      {list.isError ? (
+        <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
+      ) : list.data?.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.connections.none")}</p>
       ) : (
         <ul className="divide-y">
