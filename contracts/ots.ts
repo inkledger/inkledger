@@ -185,8 +185,13 @@ function readOp(r: Reader, tag: number): Op {
 function readAttestation(r: Reader): Attestation {
   const tag = r.bytes(8);
   const payload = new Reader(r.varbytes(8192));
-  if (equal(tag, BITCOIN_TAG)) return { kind: "bitcoin", height: payload.varuint() };
-  if (equal(tag, PENDING_TAG)) return { kind: "pending", uri: new TextDecoder().decode(payload.varbytes(1000)) };
+  // A known payload read whole: bytes past what it says would be dropped on writing it back (a different proof).
+  const whole = <T>(a: T): T => {
+    if (payload.at !== payload.b.length) throw new OtsError("trailing bytes in an attestation");
+    return a;
+  };
+  if (equal(tag, BITCOIN_TAG)) return whole({ kind: "bitcoin", height: payload.varuint() });
+  if (equal(tag, PENDING_TAG)) return whole({ kind: "pending", uri: new TextDecoder().decode(payload.varbytes(1000)) });
   return { kind: "unknown", tag: tag.slice(), payload: payload.b.slice() };
 }
 

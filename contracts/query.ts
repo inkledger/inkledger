@@ -158,14 +158,16 @@ export function daySpan(value: string, now: Date): { from: Date; to: Date } | nu
   }
   // The last N days (today included): 7d / 7g, 2w / 2s.
   const rel = /^(\d{1,4})(d|g|w|s)$/.exec(v);
-  if (rel) {
+  if (rel && Number(rel[1]) >= 1) {
     const days = Number(rel[1]) * (rel[2] === "w" || rel[2] === "s" ? 7 : 1);
     return { from: addDays(today, 1 - days), to: addDays(today, 1) };
   }
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
   if (iso) {
-    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-    return Number.isNaN(d.getTime()) || d.getDate() !== Number(iso[3]) ? null : { from: d, to: addDays(d, 1) };
+    const [y, m, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+    const d = new Date(y, m - 1, day);
+    // Rolled over (Feb 30, month 13), or a year Date reads as 19xx (0026): no such day.
+    return y < 1000 || Number.isNaN(d.getTime()) || d.getFullYear() !== y || d.getMonth() !== m - 1 || d.getDate() !== day ? null : { from: d, to: addDays(d, 1) };
   }
   return null;
 }

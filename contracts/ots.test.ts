@@ -43,4 +43,14 @@ describe("ots", () => {
     expect(() => parseProof(new Uint8Array([1, 2, 3]))).toThrow(OtsError);
     expect(() => parseProof(OTS.subarray(0, OTS.length - 5))).toThrow(OtsError);
   });
+
+  it("an attestation whose payload carries more than it says is refused, not read and silently dropped", () => {
+    const bitcoin = [0x05, 0x88, 0x96, 0x0d, 0x73, 0xd7, 0x19, 0x01];
+    const pending = [0x83, 0xdf, 0xe3, 0x0d, 0x2e, 0xf9, 0x0c, 0x8e];
+    const attestation = (tag: number[], payload: number[]) => new Uint8Array([0x00, ...tag, payload.length, ...payload]);
+    expect(parseTimestamp(attestation(bitcoin, [0x05])).attestations).toEqual([{ kind: "bitcoin", height: 5 }]);
+    expect(() => parseTimestamp(attestation(bitcoin, [0x05, 0xaa]))).toThrow(OtsError);
+    expect(parseTimestamp(attestation(pending, [1, 0x61])).attestations).toEqual([{ kind: "pending", uri: "a" }]);
+    expect(() => parseTimestamp(attestation(pending, [1, 0x61, 0x62]))).toThrow(OtsError);
+  });
 });

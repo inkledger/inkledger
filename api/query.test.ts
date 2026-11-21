@@ -87,6 +87,13 @@ describe("query language", () => {
     expect(daySpan("settimana", now)).toEqual({ from: new Date(2026, 9, 19), to: new Date(2026, 9, 26) });
     expect(daySpan("2026-10-01..2026-10-03", now)).toEqual({ from: new Date(2026, 9, 1), to: new Date(2026, 9, 4) });
     expect(daySpan("2026-02-30", now)).toBeNull();
+    // A month out of range never rolls into another year, a year of fewer than four real digits is no year, and a span of no days is none.
+    expect(daySpan("2026-13-01", now)).toBeNull();
+    expect(daySpan("2026-00-15", now)).toBeNull();
+    expect(daySpan("0026-01-01", now)).toBeNull();
+    expect(daySpan("0d", now)).toBeNull();
+    expect(daySpan("0w", now)).toBeNull();
+    expect(daySpan("1d", now)).toEqual({ from: new Date(2026, 9, 21), to: new Date(2026, 9, 22) });
     expect(dateBounds("<", "today", now)).toEqual({ to: new Date(2026, 9, 21) });
     expect(dateBounds(">=", "ieri", now)).toEqual({ from: new Date(2026, 9, 20) });
   });

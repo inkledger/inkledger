@@ -87,8 +87,9 @@ export function formatDurationLong(totalSeconds: number): string {
 }
 
 /**
- * The one display format for durations: "2 h 21 min" below a day of work,
- * "2.556 h" for large totals, "—" for nothing.
+ * The one display format for durations: "2 h 21 min" below 24 hours, whole
+ * hours from there (2556 h, with the locale's thousands separator: "2,556 h"
+ * or "2.556 h"), "—" for nothing.
  */
 export function formatDuration(totalSeconds: number): string {
   if (totalSeconds < 30) return "—";
