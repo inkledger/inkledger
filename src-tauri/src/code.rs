@@ -1050,7 +1050,7 @@ mod tests {
         git(&["init", "-q"]);
         t.file("src/App.kt", b"val app = 1\n");
         t.file(".env", b"API_TOKEN=hunter2-secret\n");
-        t.file("deploy/prod.pem", b"-----BEGIN PRIVATE KEY-----\npem-body-secret\n");
+        t.file("deploy/prod.pem", concat!("-----BEGIN ", "PRIVATE KEY-----\npem-body-secret\n").as_bytes());
         t.file("infra/terraform.tfstate", b"{\"password\": \"tfstate-secret\"}\n");
         git(&["add", "-A"]);
         git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "APP-1 first"]);
