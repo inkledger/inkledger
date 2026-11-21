@@ -566,6 +566,18 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(appRouter.createCaller(anon("http://localhost/api/trpc", { cookie: remember })).auth.resume()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
 
+    it("one remembered token resumes once: two requests with it at the same time leave one session and one token", async () => {
+      await account("twin");
+      const remember = rememberOf(await login(anon(), { username: "twin" }));
+      const [{ id }] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'twin'");
+      const sessionsBefore = (await q<{ n: number }>("SELECT count(*)::int AS n FROM sessions WHERE user_id = ?", id))[0].n;
+      const both = await Promise.allSettled([0, 1].map(() => appRouter.createCaller(anon("http://localhost/api/trpc", { cookie: remember })).auth.resume()));
+      expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "UNAUTHORIZED" } });
+      expect(await q("SELECT count(*)::int AS n FROM remembered_devices WHERE user_id = ?", id)).toEqual([{ n: 1 }]);
+      expect(await q("SELECT count(*)::int AS n FROM sessions WHERE user_id = ?", id)).toEqual([{ n: sessionsBefore + 1 }]);
+    });
+
     it("another port's device cookie is not this server's", async () => {
       const remember = rememberOf(await login());
       const other = anon("http://localhost:3000/api/trpc", { cookie: remember, host: "localhost:3000" });

@@ -125,10 +125,13 @@ export async function defaultAdminPending(): Promise<boolean> {
 
 /** Every session and remembered device of a user ends (password changed, reset, disabled). */
 export async function signOutEverywhere(userId: number, keepSessionId?: string | null) {
-  const db = getDb();
-  await db.delete(rememberedDevices).where(eq(rememberedDevices.userId, userId));
-  // One statement, however many sessions.
-  await db.delete(sessions).where(and(eq(sessions.userId, userId), ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : [])));
+  // The account's row locked: a resume under way (which holds it) lands before this or not at all.
+  await getDb().transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+    await tx.delete(rememberedDevices).where(eq(rememberedDevices.userId, userId));
+    // One statement, however many sessions.
+    await tx.delete(sessions).where(and(eq(sessions.userId, userId), ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : [])));
+  });
 }
 
 /** Remembered devices and invite links past their date: nothing opens with them any more, so they go (with the sessions' purge). */

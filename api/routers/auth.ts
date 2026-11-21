@@ -89,10 +89,12 @@ export async function renameWrite<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
-async function startSession(ctx: Ctx, userId: number) {
+type Writer = Pick<ReturnType<typeof getDb>, "insert" | "delete">;
+
+async function startSession(ctx: Ctx, userId: number, db: Writer = getDb()) {
   const sessionId = newSessionId();
   const maxAge = env.sessionDays * 24 * 3600;
-  await getDb().insert(sessions).values({
+  await db.insert(sessions).values({
     id: hashSessionId(sessionId),
     userId,
     expiresAt: new Date(Date.now() + maxAge * 1000),
@@ -101,8 +103,7 @@ async function startSession(ctx: Ctx, userId: number) {
 }
 
 /** A fresh remember token for this device (the old one, if any, is dropped). */
-async function rememberDevice(ctx: Ctx, userId: number, previous?: string) {
-  const db = getDb();
+async function rememberDevice(ctx: Ctx, userId: number, previous?: string, db: Writer = getDb()) {
   if (previous) await db.delete(rememberedDevices).where(eq(rememberedDevices.id, previous));
   const token = newSessionId();
   const maxAge = REMEMBER_DAYS * 24 * 3600;
@@ -283,12 +284,23 @@ export const authRouter = createRouter({
   resume: publicQuery.mutation(async ({ ctx }) => {
     throttle(ctx);
     const found = await rememberedUser(ctx.req);
-    if (!found) {
+    const refused = () => {
       forgetCookie(ctx);
-      throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInWithCredentials") });
-    }
-    await startSession(ctx, found.user.id);
-    await rememberDevice(ctx, found.user.id, found.id);
+      return new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInWithCredentials") });
+    };
+    if (!found) throw refused();
+    // The token is taken in one step (two requests with it: one resumes), under the account's
+    // row as signOutEverywhere locks it: a password change meanwhile ends what this starts.
+    const resumed = await getDb().transaction(async (tx) => {
+      const [now] = await tx.select({ disabledAt: users.disabledAt }).from(users).where(eq(users.id, found.user.id)).for("share");
+      if (!now || now.disabledAt) return false;
+      const [taken] = await tx.delete(rememberedDevices).where(eq(rememberedDevices.id, found.id)).returning({ id: rememberedDevices.id });
+      if (!taken) return false;
+      await startSession(ctx, found.user.id, tx);
+      await rememberDevice(ctx, found.user.id, undefined, tx);
+      return true;
+    });
+    if (!resumed) throw refused();
     return publicUser(found.user);
   }),
 
