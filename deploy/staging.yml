@@ -36,10 +36,14 @@ services:
       PORT: "47823"
       SYNC_INTERVAL_MIN: "5"
       PROVIDERS_READ_ONLY: "0"
+      TLS_DIR: /app/tls
     ports:
       - "127.0.0.1:47824:47823"
+      # The local network, over HTTPS only (README: HTTPS and the certificate).
+      - "0.0.0.0:3443:3443"
     volumes:
       - inkledger-data:/app/data
+      - ${INKLEDGER_TLS_DIR:-~/.inkledger/tls}:/app/tls:ro
       - ${INKLEDGER_BACKUP_DIR:-~/Backups/inkledger}:/backups
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro

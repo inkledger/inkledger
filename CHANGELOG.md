@@ -4,6 +4,10 @@ All notable changes. The version is `package.json`'s; the native apps take it fr
 
 ## Unreleased
 
+### Added
+- The Docker stack serves HTTPS itself on `:3443`, from a certificate made with `pnpm https cert`
+  (`TLS_DIR`; README, "HTTPS and the certificate"). Without a certificate it stays on HTTP.
+
 ### Fixed (time is never lost or counted twice)
 - A write whose answer timed out, came back malformed, or was followed by a fault on this server
   is kept and queued, then reconciled without a duplicate. Only a tracker's own refusal drops it.

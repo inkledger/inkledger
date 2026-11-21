@@ -162,6 +162,65 @@ The `deploy` job requires:
 
 Only tag workflows reach this runner; pull requests run on GitHub-hosted runners. Production deployments are serialized and are not cancelled by another release. The previous image and database dump remain available for recovery.
 
+### HTTPS and the certificate
+
+The container answers on `https://<name>:3443` by itself, on this machine and on the local network: nothing else has to run. The certificate comes from a small certificate authority (CA) of your own, made once on the Docker host.
+
+| File | Where | What it is |
+| --- | --- | --- |
+| `ca.crt` | `data/https/` | The public CA certificate. This is what other machines install to trust the server |
+| `ca.key` | `data/https/` | The CA's private key. It stays on this machine and never enters the container |
+| `server.crt`, `server.key` | `data/https/`, copied to `~/.inkledger/tls/` | The server's certificate. The container reads the copy, mounted read-only on `/app/tls` |
+
+**Never copy or share `ca.key`.** The CA has no limit on the names it can sign, so whoever holds this key can impersonate any website to every machine that trusts your CA. `data/` is gitignored and not part of the image; include it in your own encrypted backups.
+
+**First time**
+
+```sh
+pnpm https cert                     # makes the CA and the certificate, and the container's copy
+docker restart inkledger            # a stack already running picks it up (a new one finds it at start)
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain data/https/ca.crt   # trust the CA on this Mac, once
+```
+
+Then restart the browser and open `https://localhost:3443`. The container's log says `HTTPS on port 3443`.
+
+**Trusting it from other machines:** copy `data/https/ca.crt` there (only the `.crt`) and install it once per machine.
+
+- Windows: from an administrator prompt, `certutil -addstore -f Root ca.crt`.
+- macOS: the `security add-trusted-cert` line above.
+- Then restart the browser.
+
+**Adding a name or an address.** Two separate lists, and both must hold it:
+
+1. *The certificate.* Add it to `HTTPS_NAMES` in `.env` (comma-separated), run `pnpm https cert`, then `docker restart inkledger`. The CA does not change, so no machine has to trust anything again.
+2. *The names the server answers to.* For a DNS name: Settings → Devices → Names on your network, effective at once. For an IP address: add it to `ALLOWED_HOSTS` in `.env.inkledger`, then recreate the container with `docker compose -p inkledger -f deploy/staging.yml up -d --no-deps --no-build inkledger` (a restart does not re-read that file).
+
+**Expiry.** The server certificate lasts 397 days, the longest browsers accept. The CA lasts 825 days. From 30 days before the end, each start of the container logs a warning.
+
+```sh
+openssl x509 -in data/https/server.crt -noout -enddate   # the server certificate
+openssl x509 -in data/https/ca.crt -noout -enddate       # the CA
+```
+
+- **To renew the server certificate:** `pnpm https cert`, then `docker restart inkledger`. Nothing to do on the other machines.
+- **To renew the CA:** a certificate cannot outlast its CA, so do this before a renewal would cross the CA's end date. Delete `data/https/ca.crt` and `data/https/ca.key`, run `pnpm https cert`, `docker restart inkledger`, then install the new `ca.crt` on every machine again.
+
+**Using a certificate from your organization** instead of the local CA: put it in `~/.inkledger/tls/` as `server.crt` (with its intermediates) and `server.key`, then `docker restart inkledger`. Don't run `pnpm https cert` afterwards: it would overwrite them.
+
+**File permissions and other locations.** The key must be readable by the container's user (uid 1000). `pnpm https cert` sets it to mode 0640 in a folder other accounts cannot enter, which is enough with Colima on macOS. On a Linux Docker host, make it readable by uid 1000, for example with `sudo chown 1000 ~/.inkledger/tls/server.key`. To keep the files elsewhere, set the environment variable `INKLEDGER_TLS_DIR` in the shell (or in the CI deploy job) when running both `pnpm https cert` and `pnpm docker:update`. In `.env` it would not reach Docker Compose.
+
+| What you see | Cause | What to do |
+| --- | --- | --- |
+| "Your connection is not private" | The CA isn't installed on that machine, or the name isn't in the certificate | Install `ca.crt`; or add the name (step 1 above) |
+| "Misdirected Request" (421) | The server doesn't answer to that name | Add the name (step 2 above) |
+| Empty response or connection closed | `http://` on the HTTPS port | Use `https://` |
+| `HTTPS off: no certificate in /app/tls` in the log | No `pnpm https cert` yet, or a different folder | Run it, then restart the container |
+| `HTTPS off: cannot read the certificate` in the log | The key isn't readable by uid 1000 | See file permissions above |
+| Nothing answers on `:3443` | An old `pnpm https agent` holds the port | `pnpm https agent-remove`, then `docker restart inkledger` |
+
+More on the certificate tooling and on HTTPS for the dev server: [docs/https.md](docs/https.md).
+
 ### Moving real data from development
 
 Do this once, not after every deployment. Stop `pnpm dev` first so no new work is written after the dump. Keep the Docker stack read-only towards trackers until the imported data and connections have been checked.
@@ -196,7 +255,7 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Dev server with HMR (port 3000) |
-| `pnpm dev:https` / `pnpm https` | Fresh build for other people on the network: :4173, with HTTPS on :3443 in front; local CA and proxy (see [docs/https.md](docs/https.md)) |
+| `pnpm dev:https` / `pnpm https` | Fresh build for other people on the network: :4173, with HTTPS on :3444 in front (:3443 is the container's); local CA and proxy (see [docs/https.md](docs/https.md)) |
 | `pnpm dev:build` / `pnpm preview` | Optimized build and SSR served by the development backend, with working login, APIs and `.env` database |
 | `pnpm build` / `pnpm start` | Production build (`dist/`) and server |
 | `pnpm lint` | ESLint and the design-token check |
@@ -226,6 +285,8 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | `INSTANCE_KEY_PATH` | `data/instance.key` | This server's own key for module licences (made once; a copied database is not a copied server) |
 | `WEATHER` | `on` | Real weather for modules that ask for it (Open-Meteo); `off` disables it |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1,::1` | Host names the server answers to (LAN and Tailscale names are added from the app) |
+| `TLS_DIR` | off (Docker stack: `/app/tls`) | Folder with `server.crt` and `server.key`; set, the server also answers over HTTPS |
+| `HTTPS_PORT` | `3443` | HTTPS port, used only with `TLS_DIR` |
 | `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` (behind a TLS proxy) |
 | `COOKIE_SECURE` | auto | Force `Secure` cookies behind a proxy without `X-Forwarded-Proto` |
 | `BACKUP_DIR` | Docker: `/backups` | Where scheduled backups are written |

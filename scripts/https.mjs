@@ -1,22 +1,25 @@
 #!/usr/bin/env node
-// HTTPS on this machine and the local network, in front of the server (docs/https.md):
-// a local CA and a certificate, and a proxy to it. The Outlook add-in needs it
-// (docs/outlook.md), and so does any page opened from another device over https.
+// HTTPS on this machine and the local network (README, docs/https.md): a local CA
+// and a certificate for the container, which serves :3443 itself, and a proxy for
+// the servers that don't. The Outlook add-in needs it (docs/outlook.md), and so
+// does any page opened from another device over https.
 //
-//   node scripts/https.mjs cert     a local CA and a certificate for this Mac (once)
-//   node scripts/https.mjs serve    HTTPS on :3443 in front of the server (dev :3000)
+//   node scripts/https.mjs cert     a local CA, a certificate for this Mac, and the container's copy
+//   node scripts/https.mjs serve    HTTPS on :3444 in front of a server that has none (dev :3000)
 //   node scripts/https.mjs agent    the same, started at login and kept running (macOS LaunchAgent)
 //   node scripts/https.mjs agent-remove
 //   node scripts/https.mjs dev      the build served on :4173 with the dev configuration, and
-//                                   `serve --lan` in front of it (`pnpm dev:https`; --app-port, --no-build)
+//                                   `serve --lan` on :3444 in front of it (`pnpm dev:https`; --app-port, --port, --no-build)
 //
-// Options for serve: --port 3443, --target http://127.0.0.1:3000, --lan (listen
-// on every interface, not only this machine). The files live in data/https
-// (gitignored). Trusting the CA is a step done by hand: this script prints it.
+// Options for serve: --port 3444, --target http://127.0.0.1:3000 (or HTTPS_TARGET
+// in .env), --lan (listen on every interface, not only this machine). The files
+// live in data/https (gitignored). Trusting the CA is a step done by hand: this
+// script prints it.
 // More names for the certificate (a network name, an IPv4 address): HTTPS_NAMES in
 // .env, comma-separated, or `cert --name <name>` (repeatable).
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { X509Certificate } from "node:crypto";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:https";
 import { request } from "node:http";
 import { connect } from "node:net";
@@ -51,13 +54,36 @@ const san = name => (isIPv4(name) ? `IP:${name}` : `DNS:${name}`);
 
 /** Names the certificate doesn't cover yet (made before they were added). */
 function uncovered() {
-  const text = execFileSync("openssl", ["x509", "-in", file("server.crt"), "-noout", "-ext", "subjectAltName"], { encoding: "utf8" });
+  // Not the openssl command: under launchd it is macOS's LibreSSL, which has no -ext.
+  const text = new X509Certificate(readFileSync(file("server.crt"))).subjectAltName ?? "";
   const have = new Set(text.replace(/IP Address:/g, "IP:").toLowerCase().split(/[,\s]+/));
   return names().filter(n => !have.has(san(n).toLowerCase()));
 }
 
 function openssl(...args) {
   execFileSync("openssl", args, { stdio: ["ignore", "ignore", "inherit"] });
+}
+
+/**
+ * The copy the container mounts, outside the checkout so a deployment from another
+ * one finds it. Never ca.key: whoever holds it can impersonate any site to the
+ * machines that trust this CA. 0640: the container's user reads the key through
+ * the group, and the private ~/.inkledger keeps other accounts on this Mac out.
+ */
+function exportForContainer() {
+  const home = join(homedir(), ".inkledger");
+  const dir = process.env.INKLEDGER_TLS_DIR ?? join(home, "tls");
+  if (!process.env.INKLEDGER_TLS_DIR) {
+    mkdirSync(home, { recursive: true });
+    chmodSync(home, 0o700);
+  }
+  mkdirSync(dir, { recursive: true });
+  chmodSync(dir, 0o750);
+  for (const [name, mode] of [["server.crt", 0o644], ["server.key", 0o640]]) {
+    copyFileSync(file(name), join(dir, name));
+    chmodSync(join(dir, name), mode);
+  }
+  console.log(`\nThe container's copy is in ${dir}. A running container picks it up when restarted:\n\n  docker restart inkledger`);
 }
 
 function makeCert() {
@@ -72,19 +98,21 @@ function makeCert() {
     "-out", file("server.csr"), "-subj", `/CN=${names()[1]}`);
   openssl("x509", "-req", "-in", file("server.csr"), "-CA", file("ca.crt"), "-CAkey", file("ca.key"),
     "-CAcreateserial", "-days", "397", "-sha256", "-extfile", file("server.ext"), "-out", file("server.crt"));
-  console.log(`Certificate for ${names().join(", ")} in ${DIR}.`);
+  exportForContainer();
+  console.log(`\nCertificate for ${names().join(", ")} in ${DIR}.`);
   console.log("\nTrust the local CA once (asks for your password), then restart the browser (and Outlook):\n");
   console.log(`  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${file("ca.crt")}"\n`);
 }
 
-function serve(lan = process.argv.includes("--lan"), to = arg("target", "http://127.0.0.1:3000")) {
+function serve(lan = process.argv.includes("--lan"), to = arg("target", process.env.HTTPS_TARGET ?? "http://127.0.0.1:3000")) {
   if (!existsSync(file("server.crt"))) {
     console.error("No certificate yet: run `node scripts/https.mjs cert` first.");
     process.exit(1);
   }
   const missing = uncovered();
   if (missing.length) console.warn(`The certificate doesn't cover ${missing.join(", ")}: run \`node scripts/https.mjs cert\` again.`);
-  const port = Number(arg("port", "3443"));
+  // Not :3443: that one is the container's.
+  const port = Number(arg("port", "3444"));
   const target = new URL(to);
   const host = lan ? "0.0.0.0" : "127.0.0.1";
   const server = createServer({ key: readFileSync(file("server.key")), cert: readFileSync(file("server.crt")) }, (req, res) => {
@@ -119,6 +147,11 @@ function serve(lan = process.argv.includes("--lan"), to = arg("target", "http://
     });
     upstream.on("error", () => socket.destroy());
     upstream.end();
+  });
+  server.on("error", e => {
+    if (e.code !== "EADDRINUSE") throw e;
+    console.error(`Port ${port} is already in use, perhaps by the proxy \`pnpm https agent\` keeps running. Choose another with --port, or stop that one with \`pnpm https agent-remove\`.`);
+    process.exit(1);
   });
   server.listen(port, host, () => {
     const shown = lan ? names().filter(n => n.includes(".")) : ["localhost"];
@@ -232,6 +265,6 @@ else if (command === "agent") installAgent();
 else if (command === "agent-remove") removeAgent();
 else if (command === "dev") await dev();
 else {
-  console.error("Usage: node scripts/https.mjs cert [--name <name>] | serve | agent [--port 3443] [--target http://127.0.0.1:3000] [--lan] | agent-remove | dev [--app-port 4173] [--no-build]");
+  console.error("Usage: node scripts/https.mjs cert [--name <name>] | serve | agent [--port 3444] [--target http://127.0.0.1:3000] [--lan] | agent-remove | dev [--app-port 4173] [--no-build]");
   process.exit(1);
 }

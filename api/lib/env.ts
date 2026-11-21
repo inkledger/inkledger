@@ -91,6 +91,10 @@ export const env = {
   serveBuild: !isProduction && process.env.SERVE_BUILD === "1",
   /** HTTP port for the production server */
   port: Number(process.env.PORT || 3000),
+  /** Folder with server.crt and server.key: set, the server also answers over HTTPS */
+  tlsDir: process.env.TLS_DIR?.trim() || null,
+  /** HTTPS port, used only with TLS_DIR */
+  httpsPort: Number(process.env.HTTPS_PORT || 3443),
   /** SQLite file path, or ":memory:" for tests */
   databaseUrl: process.env.DATABASE_URL || "postgres://inkledger:inkledger@127.0.0.1:54329/inkledger",
   /** Secret used to encrypt Jira API tokens at rest and sign nothing else */

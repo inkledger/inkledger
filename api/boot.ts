@@ -1,6 +1,7 @@
 // First import: settles the system time zone before any Date is created.
 import "./lib/tz";
 import { localeMiddleware } from "./lib/i18n";
+import { createServer as createHttpsServer } from "node:https";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
@@ -30,6 +31,7 @@ import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
+import { loadTls } from "./lib/tls";
 import { requestLog } from "./lib/requestLog";
 import { inMaintenance } from "./lib/maintenance";
 import { allowedHostsNow } from "./lib/serverHosts";
@@ -68,8 +70,8 @@ app.use(async (c, next) => {
   }
   await next();
 });
-// No HSTS: TLS is the proxies' job (LAN, Tailscale), and the header pins the
-// whole host, every port, to https. Once a browser stored it for localhost,
+// No HSTS: the header pins the whole host, every port, to https, whoever ends
+// TLS (this server's own port, or a proxy). Once a browser stored it for localhost,
 // the plain-HTTP servers on :47823 / :3000 no longer opened there.
 // Outer: the Outlook task pane may be framed by Outlook, which secureHeaders would refuse.
 app.use(outlookFrames);
@@ -223,6 +225,17 @@ if (env.isProduction || env.serveBuild) {
     if (env.serveBuild) console.log("Serving the production build with the development configuration");
     if (env.readOnly) console.log("Read-only (PROVIDERS_READ_ONLY / JIRA_READ_ONLY): writes to trackers are refused");
   });
+  // Plain HTTP stays beside it: the health check, the deployment script and Tailscale use it.
+  const tls = env.tlsDir ? loadTls(env.tlsDir) : null;
+  if (tls && !tls.on) console.warn(`HTTPS off: ${tls.reason}`);
+  if (tls?.on && tls.warning) console.warn(`[https] ${tls.warning}`);
+  const secureServer = tls?.on
+    ? serve({ fetch: app.fetch, port: env.httpsPort, createServer: createHttpsServer, serverOptions: { cert: tls.cert, key: tls.key } }, () => {
+        console.log(`HTTPS on port ${env.httpsPort}`);
+      })
+    : undefined;
+  secureServer?.on("error", (e: Error) => console.error(`HTTPS off: ${e.message}`));
+  const servers = secureServer ? [server, secureServer] : [server];
 
   const shutdown = async (signal: string) => {
     console.log(`${signal} received, shutting down`);
@@ -240,7 +253,7 @@ if (env.isProduction || env.serveBuild) {
     const atMost = (p: Promise<unknown> | undefined, ms: number) =>
       Promise.race([p, new Promise<void>((resolve) => setTimeout(resolve, ms).unref())]);
     await Promise.all([
-      new Promise<void>((resolve) => server.close(() => resolve())),
+      ...servers.map((s) => new Promise<void>((resolve) => s.close(() => resolve()))),
       atMost(g.__iklStopSync?.(), 5_000),
       atMost(g.__iklStopGone?.(), 5_000),
       settleInFlightSyncs(5_000),

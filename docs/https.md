@@ -1,18 +1,31 @@
 # HTTPS on this machine and the local network
 
-`scripts/https.mjs` (`pnpm https <command>`) puts HTTPS in front of the server, with a local certificate authority, so the tailnet is not needed. The Outlook add-in needs it ([outlook.md](outlook.md)), and so does any page opened from another device on the network over `https://`.
+HTTPS with a local certificate authority, so the tailnet is not needed. The Outlook add-in needs it ([outlook.md](outlook.md)), and so does any page opened from another device on the network over `https://`.
+
+**The Docker stack serves HTTPS itself**, on `:3443`, with no other process. Managing its certificate (creating it, trusting it, renewing it, adding a name) is in the [README](../README.md#https-and-the-certificate).
+
+`scripts/https.mjs` (`pnpm https <command>`) makes the certificate:
 
 ```sh
-pnpm https cert            # once: a local CA and a certificate (data/https, gitignored)
+pnpm https cert            # a local CA and a certificate (data/https, gitignored), and the container's copy
 sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain data/https/ca.crt   # once, by hand
-pnpm https serve           # https://localhost:3443 → dev :3000
+```
+
+## A proxy for a server without HTTPS
+
+The dev server has no HTTPS of its own. `serve` puts it in front of one:
+
+```sh
+pnpm https serve           # https://localhost:3444 → dev :3000
 ```
 
 `serve` (and `agent`) take a few options:
-- `--target http://127.0.0.1:47823` points the proxy at another server.
+- `--target http://127.0.0.1:4000` points the proxy at another server. `HTTPS_TARGET` in `.env` does the same for every run; the option wins over it.
 - `--port` changes its port.
 - `--lan` listens on the local network too. Other machines must trust the CA as well.
+
+The server behind the proxy refuses a name it doesn't know with a 421.
 
 To have HTTPS start by itself at every login, and come back if it stops:
 
@@ -37,10 +50,10 @@ HTTPS_NAMES=my-mac.example.lan,192.168.1.20
 
 Then `pnpm dev` answers at `http://<name>:3000`: for you, with live reload.
 
-**For other people on the network, `pnpm dev:https`.** It builds the app first (so it carries every change made up to that moment), serves the build with the development configuration and the `.env` database on `:4173`, and puts HTTPS in front of it on `:3443` (`serve --lan`): `https://<name>:3443`, or `http://<name>:4173`. They get the compiled, compressed app, which nothing changes while you edit on `:3000`: the vite dev server reloads every connected browser at each edit, and its hundreds of separate modules make that reload feel like a frozen page on another machine. Run it again to give them your latest changes.
+**For other people on the network, `pnpm dev:https`.** It builds the app first (so it carries every change made up to that moment), serves the build with the development configuration and the `.env` database on `:4173`, and puts HTTPS in front of it on `:3444` (`serve --lan`; `:3443` stays the container's): `https://<name>:3444`, or `http://<name>:4173`. They get the compiled, compressed app, which nothing changes while you edit on `:3000`: the vite dev server reloads every connected browser at each edit, and its hundreds of separate modules make that reload feel like a frozen page on another machine. Run it again to give them your latest changes.
 
 - While the dev server on `:3000` runs, it alone syncs the trackers, and this server doesn't (`SYNC_INTERVAL_MIN=0`): both use the same database, and two schedulers would ask Jira twice as often.
-- `--app-port <port>` changes `:4173`; `--no-build` serves the last build as it is.
+- `--app-port <port>` changes `:4173`; `--port <port>` changes `:3444`; `--no-build` serves the last build as it is.
 - Ctrl-C stops both.
 
 ## Trusting the CA on other machines
