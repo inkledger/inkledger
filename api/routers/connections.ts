@@ -504,10 +504,10 @@ export const connectionsRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const conn = await ownConnection(ctx.user.id, input.id);
-      const b = boundTracker({
-        ...conn,
-        encryptedSecret: sealSecret(input.token, conn.id),
-      });
+      const sealed = { ...conn, encryptedSecret: sealSecret(input.token, conn.id) };
+      // A time sink (Tempo, Harvest, Clockify…) binds as a sink: as a tracker it never bound, and its reconnect always failed.
+      const isSink = (TIME_SINK_TYPES as readonly string[]).includes(conn.type);
+      const b = isSink ? boundSink(sealed) : boundTracker(sealed);
       if (!b || howOf(conn.type as TrackerType) !== "token")
         throw new TRPCError({
           code: "BAD_REQUEST",
