@@ -351,6 +351,14 @@ export function parseQuery(input: string): ParsedQuery {
 
 const quote = (v: string) => (/[\s()"]/.test(v) || v === "" ? `"${v.replaceAll('"', "")}"` : v);
 
+/**
+ * A searched word, quoted also when bare it would read as something else: a
+ * leading - or ! (not), a leading | or OR (or), @me, an issue key. Unquoted,
+ * a saved "-draft" came back as "not draft".
+ */
+const quoteText = (v: string) =>
+  /^[-!|@]/.test(v) || v === "OR" || KEY_RE.test(v) ? `"${v.replaceAll('"', "")}"` : quote(v);
+
 /** Fields whose value can be the user themselves (me / io). */
 const PERSON_FIELDS = new Set<QueryField>(["assignee", "author"]);
 
@@ -378,7 +386,7 @@ export function formatQuery(expr: QueryExpr | null, lang: Lang = "en"): string {
   const w = (e: QueryExpr, nested: boolean): string => {
     switch (e.kind) {
       case "text":
-        return quote(e.text);
+        return quoteText(e.text);
       case "ref":
         return e.ref;
       case "me":
@@ -403,6 +411,11 @@ export function formatQuery(expr: QueryExpr | null, lang: Lang = "en"): string {
 /** Every field name, for completion: in the user's language first. */
 export function queryFieldNames(lang: Lang): { field: QueryField; name: string }[] {
   return (Object.keys(FIELDS) as QueryField[]).map((f) => ({ field: f, name: FIELDS[f][lang] }));
+}
+
+/** A query of plain words only (however quoted): nothing a text search would leave out. */
+export function onlyWords(expr: QueryExpr | null): boolean {
+  return !expr || expr.kind === "text" || (expr.kind === "and" && expr.items.every((x) => x.kind === "text"));
 }
 
 /** The plain words of a query (its text terms, not negated): what a tracker's text search gets. */

@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import { clientContainers, clients, containers, issues, type Connection, type User } from "@db/schema";
 import { boundTracker } from "../sync/engine";
-import { formatQuery, parseQuery, queryText } from "@contracts/query";
+import { formatQuery, onlyWords, parseQuery, queryText } from "@contracts/query";
 import { providerName } from "@contracts/providerNames";
 import type { RemoteIssue } from "../providers/types";
 import { ProviderError } from "../providers/core/errors";
@@ -71,7 +71,7 @@ async function askTracker(conn: Connection, query: string) {
     } else if (b.searchText) {
       // Words only: the operators are named as not applied.
       const words = queryText(parsed.expr);
-      unsupported = formatQuery(parsed.expr, "en") !== words ? [formatQuery(parsed.expr, "en")] : [];
+      unsupported = onlyWords(parsed.expr) ? [] : [formatQuery(parsed.expr, "en")];
       found = words ? (await b.searchText(callMeta(), words, 25)).items : [];
     }
   } catch (e) {

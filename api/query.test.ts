@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { dateBounds, daySpan, formatQuery, parseQuery, priorityRankOfValue, queryFieldNames, queryText } from "@contracts/query";
+import { dateBounds, daySpan, formatQuery, onlyWords, parseQuery, priorityRankOfValue, queryFieldNames, queryText } from "@contracts/query";
 
 const p = (s: string) => parseQuery(s).expr;
 
 describe("query language", () => {
+  it("writes searched words back so they read as words again (a saved search keeps its meaning)", () => {
+    for (const text of ["-draft", "!urgent", "|x", "OR", "@me", "@io", "APP-12", "acme/web#3", "plain"]) {
+      const written = formatQuery({ kind: "text", text });
+      expect(p(written), `${text} → ${written}`).toEqual({ kind: "text", text });
+    }
+  });
+
+  it("plain words, however quoted, are all a text search needs: nothing is said to be left out", () => {
+    expect(onlyWords(p('"@foo"'))).toBe(true);
+    expect(onlyWords(p('"two words" more'))).toBe(true);
+    expect(onlyWords(p(""))).toBe(true);
+    expect(onlyWords(p("label:bug login"))).toBe(false);
+    expect(onlyWords(p("-draft"))).toBe(false);
+    expect(onlyWords(p("a OR b"))).toBe(false);
+  });
+
   it("reads text, keys, links and @me", () => {
     expect(p("login bug")).toEqual({ kind: "and", items: [{ kind: "text", text: "login" }, { kind: "text", text: "bug" }] });
     expect(p("APP-12")).toEqual({ kind: "ref", ref: "APP-12" });
