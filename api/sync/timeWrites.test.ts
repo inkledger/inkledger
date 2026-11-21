@@ -244,6 +244,27 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     await caller.worklogs.delete({ id: row.id });
   });
 
+  it("a create recorded here whose issue total fails to move keeps the tracker's id: nothing queued, nothing to adopt", async () => {
+    const at = "2026-10-16T14:00:00+02:00";
+    // Only the issue's running total can't be written (the worklog and its link can).
+    await q(`CREATE FUNCTION refuse_total() RETURNS trigger AS $$ BEGIN
+      IF NEW.time_spent_seconds IS DISTINCT FROM OLD.time_spent_seconds THEN RAISE EXCEPTION 'disk full'; END IF;
+      RETURN NEW; END $$ LANGUAGE plpgsql`);
+    await q("CREATE TRIGGER refuse_total BEFORE UPDATE ON issues FOR EACH ROW EXECUTE FUNCTION refuse_total()");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    let made;
+    try {
+      made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "total fault" });
+    } finally {
+      await q("DROP TRIGGER refuse_total ON issues");
+      await q("DROP FUNCTION refuse_total()");
+      errors.mockRestore();
+    }
+    expect(made.remoteId).not.toMatch(/^(new|pending)-/);
+    expect(await q("SELECT id FROM outbox WHERE worklog_id = ?", made.id)).toEqual([]);
+    await caller.worklogs.delete({ id: made.id });
+  });
+
   it("an edit answered outside the contract is kept and queued, not refused (it may have landed)", async () => {
     const at = "2026-10-16T14:00:00+02:00";
     const { ProviderError } = await import("../providers/core/errors");

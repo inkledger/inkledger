@@ -101,12 +101,14 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
   }
   try {
     await landed(row, t.conn, remote);
-    await bumpSpent(t.conn, input.issueKey, input.seconds);
   } catch (e) {
     // The tracker has it, this side failed to record it: kept, and linked at the replay.
     console.error(e);
     await queueIt().catch((err: unknown) => console.error(err));
+    return reread(row.id);
   }
+  // Only the issue's shown total: the next sync sets it anyway, the link is already recorded.
+  await bumpSpent(t.conn, input.issueKey, input.seconds).catch((e: unknown) => console.error(e));
   return reread(row.id);
 }
 
@@ -364,7 +366,8 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
         if (local) {
           if (entry.kind === "create") {
             if (!(await adoptLanded(t, conn, local, entry.createdAt))) await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
-            await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds);
+            // Only the issue's shown total: a failure here must not send the entry again.
+            await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds).catch((e: unknown) => console.error(e));
           } else if (!(await adoptRecreated(t, conn, local, entry.createdAt))) {
             await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone).catch(async (e: unknown) => {
               // An earlier try landed, its answer lost: the entry moved on to these very values.
