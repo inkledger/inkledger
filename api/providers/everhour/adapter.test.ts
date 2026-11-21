@@ -82,6 +82,10 @@ describe("everhour, day totals", () => {
     expect(made).toMatchObject({ remoteId: "ji:10001@2026-03-10", span: { kind: "dayTotal", date: "2026-03-10", seconds: 5400 }, issue: { remoteId: "10001" }, approval: "none" });
     expect(sim.mine()).toMatchObject([{ task: "ji:10001", date: "2026-03-10", time: 5400, comment: "ABC-12: Fix the login" }]);
     expect(noteOf(ISSUE)).toBe("ABC-12: Fix the login");
+    // Cut to Everhour's length without splitting an emoji in two.
+    const cut = noteOf({ ...ISSUE, snapshot: { ...ISSUE.snapshot, title: `${"t".repeat(491)}😀` } });
+    expect(cut).toHaveLength(499);
+    expect(() => encodeURIComponent(cut)).not.toThrow();
     const list = await b.entries.list(meta(), range);
     expect(list.map((w) => [w.remoteId, w.span, w.comment])).toEqual([["ji:10001@2026-03-10", { kind: "dayTotal", date: "2026-03-10", seconds: 5400 }, "ABC-12: Fix the login"]]);
   });

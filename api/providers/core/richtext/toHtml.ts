@@ -5,6 +5,13 @@
 import type { MarkdownFeature } from "@contracts/providers";
 import type { ConversionWarning } from "../../types";
 
+/** Text cut to a service's length (UTF-16 units) without splitting a character in two (an emoji's surrogate pair). */
+export function cutText(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const last = s.charCodeAt(max - 1);
+  return s.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
 export const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** A service's tags for the inline marks; no `code`: a code span is written as its text. */

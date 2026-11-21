@@ -7,6 +7,7 @@
 // read first and sent again. Running timers are not entries of ours and are
 // left alone. Built on a simulator, not verified on a real account: SPIKES.md.
 import { z } from "zod";
+import { cutText } from "../core/richtext/toHtml";
 import { listTooLong } from "../core/paging";
 import { addLocalDays, isoSecondsUtc } from "../core/time";
 import type { EntryCapabilities, TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
@@ -100,8 +101,8 @@ const MAX_HEADER = 300;
 
 /** The first line names the issue; what the user wrote follows. */
 export function noteOf(head: string, comment: string): string {
-  const h = head.slice(0, MAX_HEADER);
-  return comment ? `${h}\n${comment.slice(0, MAX_DESCRIPTION - h.length - 1)}` : h;
+  const h = cutText(head, MAX_HEADER);
+  return comment ? `${h}\n${cutText(comment, MAX_DESCRIPTION - h.length - 1)}` : h;
 }
 const headOf = (ref: ExternalRef) => `[${ref.issue.key}] ${ref.snapshot.title}`.replace(/\s+/g, " ").trim();
 
@@ -235,7 +236,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
       // Local days to instants (Clockify's filters are instants, never dates), the last second of the last day.
       const from = isoOf(dayStart(range.from, zone));
       const to = isoOf(dayStart(nextDay(range.to), zone) - 1000);
-      const rows = await cfPages<ClockifyEntry>(c, `/workspaces/${ws}/user/${x.conn.remoteAccountId}/time-entries?${new URLSearchParams({ start: from, end: to }).toString()}`, { overflow: listTooLong("Clockify: time entries") });
+      const rows = await cfPages<ClockifyEntry>(c, `/workspaces/${encodeURIComponent(ws)}/user/${encodeURIComponent(x.conn.remoteAccountId)}/time-entries?${new URLSearchParams({ start: from, end: to }).toString()}`, { overflow: listTooLong("Clockify: time entries") });
       const approvals = await approvalsFor(c, ws, x.conn.remoteAccountId, rows);
       return rows.flatMap((e) => worklogOf(e, null, approvals) ?? []);
     },
@@ -250,7 +251,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
         ...placement(target),
       };
       // No idempotency key exists: the engine's own protects a retry, never this call.
-      const path = w.onBehalfOfRemoteId ? `/workspaces/${ws}/user/${w.onBehalfOfRemoteId}/time-entries` : `/workspaces/${ws}/time-entries`;
+      const path = w.onBehalfOfRemoteId ? `/workspaces/${encodeURIComponent(ws)}/user/${encodeURIComponent(w.onBehalfOfRemoteId)}/time-entries` : `/workspaces/${encodeURIComponent(ws)}/time-entries`;
       const made = await cfOk<ClockifyEntry>(c, path, { method: "POST", body: JSON.stringify(body) });
       const out = worklogOf(made, ref.issue, null);
       if (!out) throw new ProviderError("incompatible", "Clockify: a created entry came back still running");
@@ -260,20 +261,20 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
     async update(x, id, w) {
       const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
-      const cur = (await cf<ClockifyEntry>(c, `/workspaces/${ws}/time-entries/${id}`, { missingIsNull: true }))?.data;
+      const cur = (await cf<ClockifyEntry>(c, `/workspaces/${encodeURIComponent(ws)}/time-entries/${encodeURIComponent(id)}`, { missingIsNull: true }))?.data;
       if (!cur) throw new ProviderError("notFound", `Clockify: no entry ${id}`);
       if (cur.isLocked) throw new ProviderError("conflict", "Clockify: the entry is locked (approved or in a closed period)");
       const note = splitNote(cur.description);
       // PUT replaces the entry: what the input doesn't say is sent back as it is, or Clockify clears it.
       const body = {
         ...sessionOf(w),
-        description: note.head ? noteOf(note.head, w.comment) : w.comment.slice(0, MAX_DESCRIPTION),
+        description: note.head ? noteOf(note.head, w.comment) : cutText(w.comment, MAX_DESCRIPTION),
         billable: w.billable ?? cur.billable ?? undefined,
         ...(cur.projectId ? { projectId: cur.projectId } : {}),
         ...(cur.taskId ? { taskId: cur.taskId } : {}),
         ...(cur.tagIds ? { tagIds: cur.tagIds } : {}),
       };
-      const saved = await cfOk<ClockifyEntry>(c, `/workspaces/${ws}/time-entries/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      const saved = await cfOk<ClockifyEntry>(c, `/workspaces/${encodeURIComponent(ws)}/time-entries/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
       const out = worklogOf(saved, null, null);
       if (!out) throw new ProviderError("incompatible", "Clockify: a changed entry came back still running");
       return out;
@@ -283,7 +284,7 @@ export const clockifySink: TimeSinkProvider<"clockify", ClockifyOptions> = {
       const c = await tokenCreds(x);
       const ws = await workspaceOf(x, c);
       // Already gone is a success (404).
-      await cf<undefined>(c, `/workspaces/${ws}/time-entries/${id}`, { method: "DELETE", missingIsNull: true });
+      await cf<undefined>(c, `/workspaces/${encodeURIComponent(ws)}/time-entries/${encodeURIComponent(id)}`, { method: "DELETE", missingIsNull: true });
     },
   },
 };

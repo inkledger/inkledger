@@ -63,6 +63,16 @@ describe("clockify, connection", () => {
     expect(new Headers(init.headers).get("x-api-key")).toBe(sim.token);
   });
 
+  it("an entry id goes into the path encoded: it can never name another endpoint", async () => {
+    const { b, sim } = simulated();
+    const seen = vi.fn(sim.fetch);
+    vi.stubGlobal("fetch", seen);
+    await b.entries.delete!(meta(), "x/../../user", {}).catch(() => undefined);
+    const urls = seen.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((u) => u.endsWith("/time-entries/x%2F..%2F..%2Fuser"))).toBe(true);
+    expect(urls.some((u) => u.includes("/time-entries/x/"))).toBe(false);
+  });
+
   it("a refused key is 'auth'", async () => {
     const { b } = simulated({ token: "wrong" });
     expect(await errorOf(b.verify(meta()))).toMatchObject({ kind: "auth" });
@@ -440,6 +450,10 @@ describe("clockify, trap: a description is at most 3000 characters", () => {
     await b.entries.update!(meta(), made.remoteId, session("2026-10-14T08:00:00Z", 600, { comment: "d".repeat(4000) }), {});
     expect(sim.entries[0].description.length).toBeLessThanOrEqual(MAX_DESCRIPTION);
     expect(noteOf("[A-1] x", "")).toBe("[A-1] x");
+    // Cut without splitting an emoji in two.
+    const cut = noteOf(`${"h".repeat(299)}😀`, `${"c".repeat(MAX_DESCRIPTION)}😀`);
+    expect(() => encodeURIComponent(cut)).not.toThrow();
+    expect(cut.length).toBeLessThanOrEqual(MAX_DESCRIPTION);
   });
 
   it("newlines in a title do not break the issue line", async () => {

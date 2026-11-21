@@ -9,6 +9,7 @@
 // not editable. Built on a simulator, not verified on a real account:
 // api/providers/harvest/SPIKES.md.
 import { z } from "zod";
+import { cutText } from "../core/richtext/toHtml";
 import { listTooLong } from "../core/paging";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
@@ -97,7 +98,7 @@ function parseClock(text: string): number | null {
 
 // ---------- What an entry says ----------
 
-const oneLine = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 200);
+const oneLine = (s: string) => cutText(s.replace(/\s+/g, " ").trim(), 200);
 
 /** The first thing in the notes, whatever else is written: which issue this is. */
 const noteHeader = (ref: ExternalRef) => `[${ref.issue.key}] ${oneLine(ref.snapshot.title)}`;

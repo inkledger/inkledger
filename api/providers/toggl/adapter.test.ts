@@ -224,6 +224,11 @@ describe("toggl, writing", () => {
     // A title is cut by itself when it is the whole of the room.
     expect(noteOf(noteHead({ ...REF, snapshot: { url: "", title: "t".repeat(4000) } }), "c")).toHaveLength(MAX_DESCRIPTION);
     expect(noteOf("", "only a comment")).toBe("only a comment");
+    // Cut to the length without splitting an emoji in two, in the head and in the comment.
+    for (const note of [noteOf("", `${"a".repeat(MAX_DESCRIPTION - 1)}😀`), noteOf(`${"h".repeat(MAX_DESCRIPTION - 1)}😀`, "c")]) {
+      expect(note).toHaveLength(MAX_DESCRIPTION - 1);
+      expect(() => encodeURIComponent(note)).not.toThrow();
+    }
   });
 
   it("a note not made by inkledger reads back as a comment with no issue", () => {

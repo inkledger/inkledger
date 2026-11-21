@@ -7,6 +7,7 @@
 // repeatable on its own). The API key stays in the credential.
 // Built on a simulator, not verified on a real account: SPIKES.md.
 import { z } from "zod";
+import { cutText } from "../core/richtext/toHtml";
 import type { TimeSinkCapabilities, TimeSinkTraits, TrackerType } from "@contracts/providers";
 import { instant, localDate, localDateOf } from "@contracts/values";
 import { tokenCreds } from "../core/context";
@@ -61,7 +62,7 @@ export function taskIdOf(ref: ExternalRef): string {
 }
 
 /** The note of a day total: always the issue's key and title, so the entry is findable in Everhour whatever the task shows. */
-export const noteOf = (ref: ExternalRef) => `${ref.issue.key}: ${ref.snapshot.title}`.slice(0, 500);
+export const noteOf = (ref: ExternalRef) => cutText(`${ref.issue.key}: ${ref.snapshot.title}`, 500);
 
 const remoteIdOf = (taskId: string, date: string) => `${taskId}@${date}`;
 

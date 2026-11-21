@@ -195,7 +195,7 @@ async function myBoards(c: TrelloCreds): Promise<Boards> {
 async function boardOf(c: TrelloCreds, known: Boards, id: string): Promise<TrelloBoard | null> {
   const hit = known.get(id);
   if (hit) return hit;
-  const r = await tr<TrelloBoard>(c, `/boards/${id}`, { query: { fields: BOARD_FIELDS, lists: "all" }, missingIsNull: true });
+  const r = await tr<TrelloBoard>(c, `/boards/${encodeURIComponent(id)}`, { query: { fields: BOARD_FIELDS, lists: "all" }, missingIsNull: true });
   if (r) known.set(id, r.data);
   return r?.data ?? null;
 }
@@ -203,7 +203,7 @@ async function boardOf(c: TrelloCreds, known: Boards, id: string): Promise<Trell
 async function listOf(c: TrelloCreds, board: TrelloBoard, id: string): Promise<TrelloList | null> {
   const hit = board.lists?.find((l) => l.id === id);
   if (hit) return hit;
-  return (await tr<TrelloList>(c, `/lists/${id}`, { query: { fields: "name,closed,pos,idBoard" }, missingIsNull: true }))?.data ?? null;
+  return (await tr<TrelloList>(c, `/lists/${encodeURIComponent(id)}`, { query: { fields: "name,closed,pos,idBoard" }, missingIsNull: true }))?.data ?? null;
 }
 
 /** Cards as issues; one whose board or list the token can't read is left out. */
@@ -408,7 +408,7 @@ export const trelloProvider: TrackerProvider<"trello", TrelloOptions> = {
   async statuses(x, source) {
     const c = await credsOf(x);
     if (source.ref.kind !== "column") return [];
-    const lists = await trOk<TrelloList[]>(c, `/boards/${source.ref.boardRemoteId}/lists`, { query: { filter: "open", fields: "name,closed,pos,idBoard" } });
+    const lists = await trOk<TrelloList[]>(c, `/boards/${encodeURIComponent(source.ref.boardRemoteId)}/lists`, { query: { filter: "open", fields: "name,closed,pos,idBoard" } });
     const s = shapeOf(x);
     return [...lists].sort((a, b) => a.pos - b.pos).map((l) => statusOf(s, l));
   },

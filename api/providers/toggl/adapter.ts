@@ -5,6 +5,7 @@
 // back from there. Written from the API v9 documentation and tested on a
 // simulator; its traps are in simulator.ts, its open questions in SPIKES.md.
 import { z } from "zod";
+import { cutText } from "../core/richtext/toHtml";
 import { addLocalDays, isoSecondsUtc } from "../core/time";
 import type { TimeSinkCapabilities, TimeSinkTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
@@ -107,11 +108,11 @@ export function noteHead(ref: ExternalRef): string {
 /** The note: the head, then the worklog's own comment; held to Toggl's length (the comment is cut first). */
 export function noteOf(head: string, comment: string): string {
   const text = comment.replace(/\s+/g, " ").trim();
-  const h = head.slice(0, MAX_DESCRIPTION);
+  const h = cutText(head, MAX_DESCRIPTION);
   if (!text) return h;
   const room = MAX_DESCRIPTION - h.length - SEP.length;
-  if (!h) return text.slice(0, MAX_DESCRIPTION);
-  return room > 0 ? `${h}${SEP}${text.slice(0, room)}` : h;
+  if (!h) return cutText(text, MAX_DESCRIPTION);
+  return room > 0 ? `${h}${SEP}${cutText(text, room)}` : h;
 }
 
 /** An entry's description as the head it starts with (kept on a change) and the comment after it. */

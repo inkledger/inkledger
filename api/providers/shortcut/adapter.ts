@@ -192,7 +192,7 @@ const toRemoteComment = (c: ShortcutComment, l: Lookups): RemoteComment => ({
 
 /** A story by id; null when it is gone or not visible (Shortcut answers 404 to both). */
 async function storyBy(c: ShortcutCreds, id: string): Promise<ShortcutStory | null> {
-  const r = await sc<ShortcutStory>(c, `/stories/${id}`, { missingIsNull: true });
+  const r = await sc<ShortcutStory>(c, `/stories/${encodeURIComponent(id)}`, { missingIsNull: true });
   return r?.data ?? null;
 }
 
@@ -410,7 +410,7 @@ export const shortcutProvider: TrackerProvider<"shortcut", ShortcutOptions> = {
     const me = x.conn.remoteAccountId;
     if (followers.includes(me) === on) return;
     const next = on ? [...followers, me] : followers.filter((f) => f !== me);
-    await scOk<ShortcutStory>(c, `/stories/${id}`, { method: "PUT", body: JSON.stringify({ follower_ids: next }) });
+    await scOk<ShortcutStory>(c, `/stories/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ follower_ids: next }) });
   },
 
   async statusHistory(x, ref) {
