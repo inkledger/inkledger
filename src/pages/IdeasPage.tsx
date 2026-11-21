@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { attachToIssue, ideaImagesForIssue } from "@/lib/ideaImages";
 import { readStored, writeStored } from "@/lib/storage";
+import { endOfColumn } from "@/lib/ideasBoard";
 
 type View = "columns" | "list";
 const VIEW_KEY = "ikl-ideas-view";
@@ -101,7 +102,7 @@ export default function IdeasPage() {
       toast.error(t(`server.ideas.move.${ok.reason}`));
       return;
     }
-    move.mutate({ id: idea.id, state: to, index: inState(to).length });
+    move.mutate({ id: idea.id, state: to, index: endOfColumn(inState(to)) });
     setAnnounce(t("pages.ideas.moved", { title: idea.title, state: t(`pages.ideas.state.${to}`) }));
   };
   const deleteIdea = (idea: Idea) => {

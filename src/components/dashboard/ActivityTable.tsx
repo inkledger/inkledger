@@ -1,6 +1,6 @@
 import { Dot } from "@/components/app/Chip";
 import { statusCategoryTone } from "@/lib/jira";
-import { compare } from "./activitySort";
+import { rankActivity } from "./activitySort";
 import { Link } from "react-router";
 import { formatDurationLong } from "@contracts/time";
 import { projectOf } from "@/lib/projectColors";
@@ -54,8 +54,8 @@ export function ActivitySortControl({ value, onChange }: { value: ActivitySort; 
  * The last activity is in the tile's tooltip and its accessible name.
  */
 export function ActivityTable({ rows, sort = "last", budget = 2 }: { rows: ActivityRow[]; sort?: ActivitySort; budget?: 1 | 2 | 3 | 4 }) {
-  const sorted = [...rows].sort((a, b) => compare(a, b, sort));
-  const most = Math.max(1, ...rows.map(r => r.seconds));
+  const sorted = rankActivity(rows, sort);
+  const most = Math.max(1, ...sorted.map(r => r.seconds));
 
   if (rows.length === 0) {
     return (

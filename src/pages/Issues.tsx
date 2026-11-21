@@ -56,6 +56,7 @@ import { Toolbar } from "@/components/app/Toolbar";
 import { DropdownMenuCheckboxItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { IssueBody } from "@/components/issue/IssueBody";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { PINNED_FIRST, inViewCount, keyboardRows, pinnedDrawn } from "@/lib/issuesPage";
 
 const PAGE_SIZE = 25;
 
@@ -130,7 +131,6 @@ const PINNED_INPUT = {
 } as const;
 
 /** Favourites shown before "Show all": the list below stays in sight. */
-const PINNED_FIRST = 5;
 
 export default function Issues() {
   const provider = useProviderName();
@@ -268,15 +268,12 @@ export default function Issues() {
   // j / k over everything on screen: pinned favorites first, then the list.
   const navigate = useNavigate();
   const [allPinned, setAllPinned] = useState(false);
-  const pinnedShown = allPinned ? pinned.ordered : pinned.ordered.slice(0, PINNED_FIRST);
+  const pinnedShown = pinnedDrawn(pinned.ordered, allPinned);
   const act = useIssueActions();
   const start = useStartTimer({ announce: true });
   const onScreen = useMemo(
-    () => [
-      ...(pinnedMode && page === 1 ? pinned.ordered : []),
-      ...(showMain ? issues : []),
-    ],
-    [pinnedMode, page, pinned.ordered, showMain, issues]
+    () => keyboardRows({ pinnedMode, showMain, page, pinned: pinned.ordered, allPinned, issues }),
+    [pinnedMode, page, pinned.ordered, allPinned, showMain, issues]
   );
   // Rows by identity: two trackers' APP-1 are two rows.
   const byId = (id: string) => onScreen.find(i => issueId(i) === id);
@@ -347,7 +344,7 @@ export default function Issues() {
           data
             ? t("pages.issues.inView", {
                 shown: numberFormat().format(
-                  data.total + (pinnedMode ? pinned.ordered.length : 0)
+                  inViewCount({ pinnedMode, showMain, total: data.total, pinned: pinned.ordered.length })
                 ),
                 total: numberFormat().format(summary.total),
               })

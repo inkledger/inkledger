@@ -666,7 +666,8 @@ function DashboardContent() {
         }
       }
     }
-    return [...rows.values()].slice(0, 10);
+    // All of them: the strip ranks, then keeps the first few.
+    return [...rows.values()];
   }, [recent.data, issueByKey]);
 
   const openIssues = visibleIssues(bucketIssues.data ?? []).filter(
