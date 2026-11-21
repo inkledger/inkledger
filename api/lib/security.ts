@@ -20,8 +20,7 @@ export function isPrivateAddress(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) {
     const [a, b] = ip.split(".").map(Number);
-    // 198.18.0.0/15: the benchmark range, never a service on the internet.
-    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19));
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
   }
   const lower = ip.toLowerCase();
   if (lower.startsWith("::ffff:")) return isPrivateAddress(lower.slice(7));
@@ -58,6 +57,8 @@ export function isForbiddenAddress(ip: string, network: Network = "private"): bo
   if (network === "public" && v !== 0 && isPrivateAddress(ip)) return true;
   if (v === 4) {
     const [a, b, c] = ip.split(".").map(Number);
+    // 198.18.0.0/15, the benchmark range: never a service on the internet.
+    if (network === "public" && a === 198 && (b === 18 || b === 19)) return true;
     return a === 0 || a === 127 || (a === 169 && b === 254) || (a === 192 && b === 0 && c === 0) || a >= 224;
   }
   const g = ipv6Groups(ip);
