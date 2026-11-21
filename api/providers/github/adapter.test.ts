@@ -6,6 +6,7 @@ import { readPass } from "../core/paging";
 import { trackerConformance } from "../conformance/suite";
 import { githubSimulator } from "./simulator";
 import { githubProvider } from "./adapter";
+import { gh } from "./client";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(async () => [{ address: "140.82.112.6", family: 4 }]),
@@ -389,5 +390,17 @@ describe("github, a refused call", () => {
     expect(calls).toBe(4);
     expect(refreshCredential).toHaveBeenCalledTimes(2);
     warn.mockRestore();
+  });
+});
+
+describe("github, pages", () => {
+  it("a next page on another host is refused: the token never leaves the API's origin", async () => {
+    const fetchMock = vi.fn(async () => new Response("[]", { headers: { "Content-Type": "application/json", link: '<https://evil.example/x?page=2>; rel="next"' } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const creds = { apiBase: "https://api.github.com", token: "gho_test" };
+    const first = await gh<unknown[]>(creds, "/user/repos?per_page=100");
+    expect(first?.next).toBe("https://evil.example/x?page=2");
+    await expect(gh(creds, first!.next!)).rejects.toMatchObject({ name: "ProviderError", kind: "incompatible" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

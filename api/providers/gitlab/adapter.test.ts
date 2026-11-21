@@ -6,6 +6,7 @@ import { readPass } from "../core/paging";
 import { statusHistoryConformance, trackerConformance } from "../conformance/suite";
 import { gitlabSimulator } from "./simulator";
 import { gitlabProvider, gitlabWebhook, withoutQuickActions, type GitLabOptions } from "./adapter";
+import { glPages } from "./client";
 import { entriesOfNotes, forgetTimeMode, parseDuration, parseSpendNote, spendDuration } from "./legacyTime";
 
 vi.mock("node:dns/promises", () => ({
@@ -653,5 +654,14 @@ describe("gitlab, status history", () => {
     const i = sim.add("acme/web", "Born in review", { labels: ["workflow::review"] });
     sim.outside.close(i);
     await expect(b.statusHistory!(meta(), ref(i, `acme/web#${i.iid}`))).rejects.toMatchObject({ kind: "incompatible" });
+  });
+});
+
+describe("gitlab, pages", () => {
+  it("a next page on another host is refused: the token never leaves the API's origin", async () => {
+    const fetchMock = vi.fn(async () => new Response("[1]", { headers: { "Content-Type": "application/json", link: '<http://gitlab.corp/api/v4/issues?page=2>; rel="next"' } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(glPages({ apiBase: "https://gitlab.example.com/api/v4", token: "glpat" }, "/issues")).rejects.toMatchObject({ name: "ProviderError", kind: "incompatible" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

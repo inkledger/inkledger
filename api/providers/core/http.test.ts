@@ -36,4 +36,21 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     await expect(call("http://db:5432/", "private")).rejects.toThrow(/^400/);
     await expect(call("http://10.0.0.5/", "private")).resolves.toBeInstanceOf(Response);
   });
+
+  it("a redirect to another origin carries none of the credentials, whatever header they ride in", async () => {
+    const seen: Headers[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        seen.push(new Headers(init.headers));
+        return url.startsWith("https://t.example/") ? new Response(null, { status: 302, headers: { location: "https://cdn.example/file" } }) : new Response("ok");
+      }),
+    );
+    const { safeFetch } = await import("./http");
+    const headers = { Authorization: "Bearer a", "PRIVATE-TOKEN": "b", "X-Api-Key": "c", "X-Redmine-API-Key": "d", "Shortcut-Token": "e", Cookie: "f=1", Accept: "image/*" };
+    await safeFetch({ site: "https://t.example", url: "https://t.example/file", init: { headers }, allowCrossOrigin: true });
+    expect(seen).toHaveLength(2);
+    expect([...seen[0].keys()]).toHaveLength(7);
+    expect([...seen[1].entries()]).toEqual([["accept", "image/*"]]);
+  });
 });

@@ -24,6 +24,9 @@ export const intentOf = (method: string | undefined, declared?: Intent): Intent 
 /** Redirects followed by hand (redirect: "manual"), each one re-validated. */
 const MAX_REDIRECTS = 3;
 
+/** The headers credentials ride in, across the providers: never sent on to another origin. */
+const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "PRIVATE-TOKEN", "X-Api-Key", "X-Redmine-API-Key", "Shortcut-Token"];
+
 /**
  * Connections made only to addresses the network allows, checked when the
  * socket opens: a name that resolved to a public address for the check and
@@ -47,12 +50,12 @@ function guardedAgent(network: Network): Agent {
 const agents: Record<Network, Agent> = { public: guardedAgent("public"), private: guardedAgent("private") };
 
 type SafeFetch = {
-  /** The tracker's site: same-origin redirects keep the Authorization header. */
+  /** The tracker's site: same-origin redirects keep the credential headers. */
   site: string;
   url: string;
   init: RequestInit;
   intent?: Intent;
-  /** Follow a redirect to another https origin (without Authorization), e.g. an attachment CDN. */
+  /** Follow a redirect to another https origin (without credentials), e.g. an attachment CDN. */
   allowCrossOrigin?: boolean;
   /** The provider's error for a refused call (read-only, redirect not allowed); a ProviderError by default. */
   fail?: (status: number, message: string) => Error;
@@ -113,7 +116,7 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
       res.status === 303 ||
       ((res.status === 301 || res.status === 302) && method !== "GET" && method !== "HEAD");
     const hopHeaders = new Headers(req.headers);
-    if (!sameOrigin) hopHeaders.delete("Authorization");
+    if (!sameOrigin) for (const h of CREDENTIAL_HEADERS) hopHeaders.delete(h);
     if (toGet) hopHeaders.delete("Content-Type");
     req = { ...req, headers: hopHeaders, ...(toGet ? { method: "GET", body: undefined } : {}) };
     target = next.toString();
