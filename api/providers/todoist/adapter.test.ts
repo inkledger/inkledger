@@ -219,14 +219,14 @@ describe("todoist, passes", () => {
     expect(next.items.map((i) => [i.key, i.status.category]).sort()).toEqual([[LOGIN, "done"], [SUB, "done"]].sort());
   });
 
-  it("a deleted task (and its sub-tasks) is reported deleted; a task reassigned to someone else is not told apart and simply stops coming", async () => {
+  it("a deleted task (and its sub-tasks) is reported deleted; a task reassigned to someone else is reported moved out", async () => {
     const { b, sim, anna } = simulated();
     const first = await pass(b);
     sim.outside.delete(LOGIN);
     sim.outside.assign(EXPORT, anna);
     const next = await pass(b, first.checkpoint);
-    expect(next.gone.map((g) => g.remoteId).sort()).toEqual([LOGIN, SUB].sort());
-    expect(next.gone.every((g) => g.reason === "deleted")).toBe(true);
+    expect(next.gone.filter((g) => g.reason === "deleted").map((g) => g.remoteId).sort()).toEqual([LOGIN, SUB].sort());
+    expect(next.gone.filter((g) => g.reason !== "deleted")).toEqual([{ remoteId: EXPORT, reason: "movedOut" }]);
     expect(next.items).toEqual([]);
     // Soft-deleted: gone from both reads.
     expect(await b.getIssue(meta(), refOf(LOGIN))).toBeNull();

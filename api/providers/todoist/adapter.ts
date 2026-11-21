@@ -70,8 +70,8 @@ export const todoistCapabilities: TrackerCapabilities = {
   time: { mode: "local", remoteTotals: false },
   sync: {
     issueCheckpoints: true,
-    // A deleted task is reported by the sync; one the user lost sight of is not told apart from one reassigned.
-    gone: { deleted: true, lostAccess: false, movedOut: false, transfer: "none" },
+    // A deleted task is reported by the sync, and so is one reassigned to someone else; one the user lost sight of (a project left) is not told.
+    gone: { deleted: true, lostAccess: false, movedOut: true, transfer: "none" },
     webhooks: [
       { event: "issueChanged", payload: "signal" },
       { event: "issueRemoved", payload: "signal" },
@@ -235,7 +235,7 @@ async function loadProjects(w: World): Promise<void> {
 /** A project by id: from what is known, else asked for (an archived project is not in the list). */
 async function projectOf(w: World, id: string): Promise<TodoistProject | null> {
   if (w.projects.has(id)) return w.projects.get(id) ?? null;
-  const p = (await td<TodoistProject>(w.c, `/projects/${id}`, { missingIsNull: true }))?.data ?? null;
+  const p = (await td<TodoistProject>(w.c, `/projects/${encodeURIComponent(id)}`, { missingIsNull: true }))?.data ?? null;
   w.projects.set(id, p && !p.is_deleted ? p : null);
   return w.projects.get(id) ?? null;
 }
@@ -250,7 +250,7 @@ async function sectionOf(w: World, id: string, wholeList: boolean): Promise<Todo
   if (w.sections.has(id)) return w.sections.get(id) ?? null;
   // A pass reads the list once; a single task asks for its own section.
   if (wholeList) await loadSections(w);
-  if (!w.sections.has(id)) w.sections.set(id, (await td<TodoistSection>(w.c, `/sections/${id}`, { missingIsNull: true }))?.data ?? null);
+  if (!w.sections.has(id)) w.sections.set(id, (await td<TodoistSection>(w.c, `/sections/${encodeURIComponent(id)}`, { missingIsNull: true }))?.data ?? null);
   const s = w.sections.get(id) ?? null;
   return s && !s.is_deleted ? s : null;
 }
@@ -457,14 +457,18 @@ export const todoistProvider: TrackerProvider<"todoist", TodoistOptions> = {
     await loadProjects(w);
     // Everything the sync says changed, in the projects the user is in; what is the user's is kept.
     const mine: TodoistTask[] = [];
+    const notMine: string[] = [];
     for (const t of rows.filter((r) => !r.is_deleted)) {
       const p = await projectOf(w, t.project_id);
       if (p && isMine(w, t, p)) mine.push(t);
+      else if (p) notMine.push(t.id);
     }
     mine.sort((a, b) => (a.updated_at ?? "").localeCompare(b.updated_at ?? "") || a.id.localeCompare(b.id));
     const items = await issuesOf(x, w, mine, true);
     // A deleted task is reported whoever it was assigned to: the engine ignores what it never had.
     const gone: ReportedIssueGone[] = rows.filter((r) => r.is_deleted).map((r) => ({ remoteId: r.id, reason: "deleted" }));
+    // A task that changed and is no longer the user's (reassigned) has moved out; a full sync names everyone's, nothing that changed.
+    if (!answer.full_sync) gone.push(...notMine.map((remoteId) => ({ remoteId, reason: "movedOut" as const })));
     return { last: true as const, items, gone, checkpoint: encodeCheckpoint(x.conn, "issues", V, { token: answer.sync_token } satisfies Since) };
   },
 
