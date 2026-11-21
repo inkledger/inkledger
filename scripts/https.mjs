@@ -137,7 +137,7 @@ function serve(lan = process.argv.includes("--lan"), to = arg("target", process.
   });
   // WebSockets too (the dev server's live reload): the pane must not lose its server inside Outlook.
   server.on("upgrade", (req, socket, head) => {
-    const upstream = request({ hostname: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers });
+    const upstream = request({ hostname: target.hostname, port: target.port, path: req.url, method: req.method, headers: { ...req.headers, "x-forwarded-proto": "https", "x-forwarded-for": req.socket.remoteAddress ?? "" } });
     upstream.on("upgrade", (res, upstreamSocket, upstreamHead) => {
       const headers = Object.entries(res.headers).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map(x => `${k}: ${x}`));
       socket.write(`HTTP/1.1 101 Switching Protocols\r\n${headers.join("\r\n")}\r\n\r\n`);

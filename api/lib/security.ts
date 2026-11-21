@@ -113,10 +113,12 @@ export async function assertSafeJiraUrl(
 
 /**
  * Fixed-window in-memory rate limiter (single-process deployment), holding at
- * most `maxKeys` keys: every window has the same length, so entries kept in
- * the order their windows began are also in the order they end. A new key
- * drops the expired ones from the front (only those), then the oldest while
- * the limiter is still full: memory and work stay bounded however many keys come.
+ * most `maxKeys` keys. Entries sit about in the order their windows end: a new
+ * key drops expired ones from the front, then the oldest while still full, but
+ * moves a blocked one behind instead (so a flood of new keys can't clear a block;
+ * that order then bends a little, and an expired entry may wait further back).
+ * Only when every entry is blocked does the oldest go anyway: memory and work
+ * stay bounded however many keys come.
  */
 export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?: number } = {}) {
   const maxKeys = o.maxKeys ?? 10_000;

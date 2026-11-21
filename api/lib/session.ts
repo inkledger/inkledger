@@ -1,6 +1,5 @@
 import { isIP } from "node:net";
 import { SESSION_COOKIE } from "@contracts/types";
-import { isPrivateAddress } from "./security";
 
 const REMEMBER_COOKIE = "ikl_remember";
 
@@ -91,15 +90,30 @@ export function clearedSessionCookies(req: Request): string[] {
   return [current, plain];
 }
 
-/** The desktop app's LAN proxy (src-tauri lan.rs TLS_PORT): it copies the client's bytes, its headers too. */
-const LAN_PROXY_PORT = "47843";
+/** An address written as one: no brackets, an IPv4-mapped IPv6 as its IPv4. */
+const plainAddress = (raw: string) => raw.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
 
-const loopback = (ip: string) => ip === "::1" || (isIP(ip) === 4 && ip.startsWith("127."));
+/**
+ * A proxy TRUST_PROXY=1 takes at its word: on this machine, or Docker's and home
+ * networks (10/8, 172.16/12, 192.168/16). Not 100.64/10 nor fc00::/7: Tailscale
+ * gives every device of the tailnet one of those, and a device is not a proxy.
+ */
+function localProxy(ip: string): boolean {
+  if (ip === "::1") return true;
+  if (isIP(ip) !== 4) return false;
+  const [a, b] = ip.split(".").map(Number);
+  return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
 
-/** One address as a limiter key: IPv4 as itself (mapped ones too), IPv6 by its /64 (one host holds a whole one). */
+/**
+ * One address as a limiter key: IPv4 as itself (mapped ones too), a public IPv6
+ * by its /64 (one subscriber holds a whole one, and picks any address in it).
+ * Loopback, link-local and private IPv6 stay per host: they are the colleagues
+ * on this network (Tailscale's too), who must not share one block.
+ */
 export function addressKey(raw: string): string {
-  const ip = raw.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
-  if (isIP(ip) !== 6) return ip;
+  const ip = plainAddress(raw);
+  if (isIP(ip) !== 6 || ip === "::1" || /^f[cd]|^fe[89ab]/.test(ip)) return ip;
   const [head, tail] = ip.split("::");
   const width = (part: string | undefined) => (part ? part.split(":").reduce((n, g) => n + (g.includes(".") ? 2 : 1), 0) : 0);
   const groups = tail === undefined ? head.split(":") : [...(head ? head.split(":") : []), ...Array<string>(8 - width(head) - width(tail)).fill("0"), ...(tail ? tail.split(":") : [])];
@@ -110,33 +124,30 @@ export function addressKey(raw: string): string {
  * Client address for rate limiting: the socket address, unless a trusted proxy
  * stands in front (TRUST_PROXY). Then the client is the last X-Forwarded-For
  * entry that proxy added (the ones before it are whatever the client sent).
- * TRUST_PROXY=1 trusts a proxy on this machine or the private network (Tailscale
+ * TRUST_PROXY=1 trusts a proxy on this machine or Docker's network (Tailscale
  * serve, Docker's gateway); a comma-separated list trusts those addresses only.
- * Never for a request this server took over TLS itself (no proxy in front of it,
- * and Docker's NAT makes its clients look private) or through the LAN proxy.
+ * Never for a request this server took over TLS itself: no proxy stands in front
+ * of it (and Docker's NAT makes its clients look local).
  */
 export function clientIp(req: Request, remoteAddress?: string): string {
-  const peer = addressKey(remoteAddress ?? "");
+  const peer = plainAddress(remoteAddress ?? "");
   const trust = (process.env.TRUST_PROXY ?? "").trim();
-  if (trust && trust !== "0" && !ownTlsOrLanProxy(req)) {
-    const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
-    const listed = trust === "1" ? null : new Set(trust.split(",").map((a) => addressKey(a)).filter(Boolean));
-    const raw = (remoteAddress ?? "").trim().replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
-    const trusted = listed ? listed.has(peer) : loopback(raw) || isPrivateAddress(raw);
+  if (trust && trust !== "0" && !ownTls(req)) {
+    const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => plainAddress(h)).filter(Boolean);
+    const listed = trust === "1" ? null : new Set(trust.split(",").map(plainAddress).filter(Boolean));
+    const trusted = listed ? listed.has(peer) : localProxy(peer);
     if (hops.length > 0 && trusted) {
       let i = hops.length - 1;
-      while (listed && i > 0 && listed.has(addressKey(hops[i]))) i--;
+      while (listed && i > 0 && listed.has(hops[i])) i--;
       return addressKey(hops[i]);
     }
   }
-  return peer || "unknown";
+  return peer ? addressKey(peer) : "unknown";
 }
 
-function ownTlsOrLanProxy(req: Request): boolean {
+function ownTls(req: Request): boolean {
   try {
-    const url = new URL(req.url);
-    const host = req.headers.get("host") ?? url.host;
-    return url.protocol === "https:" || /:(\d+)$/.exec(host)?.[1] === LAN_PROXY_PORT;
+    return new URL(req.url).protocol === "https:";
   } catch {
     return false;
   }

@@ -29,11 +29,23 @@ describe("the client address the limits count", () => {
     expect(clientIp(req("http://localhost/", xff), "10.0.0.9")).toBe("10.0.0.9");
   });
 
-  it("never for this server's own HTTPS or the LAN proxy: nothing stands in front to add the entry", () => {
+  it("never for this server's own HTTPS: nothing stands in front to add the entry", () => {
+    process.env.TRUST_PROXY = "1";
+    expect(clientIp(req("https://my-mac.local:3443/", { "x-forwarded-for": "203.0.113.5" }), "172.17.0.1")).toBe("172.17.0.1");
+  });
+
+  it("a tailnet device or a private IPv6 neighbour is no proxy: its own header doesn't count", () => {
     process.env.TRUST_PROXY = "1";
     const xff = { "x-forwarded-for": "203.0.113.5" };
-    expect(clientIp(req("https://my-mac.local:3443/", xff), "172.17.0.1")).toBe("172.17.0.1");
-    expect(clientIp(req("http://localhost/", { ...xff, host: "my-mac.local:47843" }), "127.0.0.1")).toBe("127.0.0.1");
+    expect(clientIp(req("http://localhost/", xff), "100.101.102.103")).toBe("100.101.102.103");
+    expect(clientIp(req("http://localhost/", xff), "fd7a:115c:a1e0::5")).toBe("fd7a:115c:a1e0::5");
+  });
+
+  it("a listed IPv6 proxy is trusted as that address, not its whole /64", () => {
+    process.env.TRUST_PROXY = "2001:db8:1:2::10";
+    const xff = { "x-forwarded-for": "203.0.113.5" };
+    expect(clientIp(req("http://localhost/", xff), "2001:db8:1:2::10")).toBe("203.0.113.5");
+    expect(clientIp(req("http://localhost/", xff), "2001:db8:1:2::11")).toBe("2001:db8:1:2::/64");
   });
 
   it("counts an IPv6 host by its /64 and a mapped IPv4 as itself", () => {
@@ -41,7 +53,10 @@ describe("the client address the limits count", () => {
     expect(addressKey("2001:db8:1:2::1")).toBe("2001:db8:1:2::/64");
     expect(addressKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
     expect(addressKey("::ffff:203.0.113.4")).toBe("203.0.113.4");
-    expect(addressKey("::1")).toBe("0:0:0:0::/64");
+    // On this network (loopback, link-local, private): each host its own.
+    expect(addressKey("::1")).toBe("::1");
+    expect(addressKey("fd12:3456:789a:1::5")).toBe("fd12:3456:789a:1::5");
+    expect(addressKey("fe80::1")).toBe("fe80::1");
     expect(clientIp(req("http://localhost/"), "2001:db8:1:2:3:4:5:6")).toBe(clientIp(req("http://localhost/"), "2001:db8:1:2:ffff::9"));
   });
 });

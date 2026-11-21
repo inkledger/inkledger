@@ -272,7 +272,7 @@ For Lighthouse against the real development data, use `pnpm preview` at `http://
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | — | Postgres connection string |
-| `SESSION_SECRET` | dev: fixed; prod: **required** | Signs sessions; seals tracker credentials when `CREDENTIALS_KEY` is unset |
+| `SESSION_SECRET` | `pnpm dev`: fixed; prod, `dev:build`, `preview`, `dev:https`: **required** | Signs sessions and share links; seals tracker credentials when `CREDENTIALS_KEY` is unset |
 | `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals tracker credentials (AES-256-GCM, bound to their connection); after a rotation the next start seals them again |
 | `PORT` | `3000` | Production port (Docker: `47823`) |
 | `INKLEDGER_ADMIN_PASSWORD` | prod: random, in `INITIAL_ADMIN_PASSWORD_PATH` (`data/initial-admin-password`, mode 0600); dev: `admin` | The first admin's password on a new server (it must be changed at the first sign-in) |

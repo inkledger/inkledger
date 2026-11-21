@@ -18,7 +18,8 @@ export function sessionSecretFrom(secret: string | undefined, strict: boolean): 
   }
   if (strict) {
     throw new Error(
-      "SESSION_SECRET must be set to a random value to serve the built app (e.g. `openssl rand -hex 32` in .env).",
+      "SESSION_SECRET must be set to a random value to serve the built app (e.g. `openssl rand -hex 32` in .env). " +
+        "Tracker credentials saved under the old dev secret open again with CREDENTIALS_KEY_OLD=ikl-dev-secret-change-me for one start.",
     );
   }
   return DEV_SECRET;

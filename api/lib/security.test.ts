@@ -124,6 +124,13 @@ describe("createRateLimiter, bounded", () => {
     expect(rl.size()).toBeLessThanOrEqual(50);
   });
 
+  it("full of blocked keys only, it still holds at most maxKeys (the oldest goes)", () => {
+    const rl = createRateLimiter(1, 60_000, { maxKeys: 5 });
+    for (let k = 0; k < 20; k++) for (let i = 0; i < 3; i++) rl.hit(`b${k}`, k * 10 + i);
+    expect(rl.size()).toBeLessThanOrEqual(5);
+    expect(rl.hit("b19", 500)).toBeGreaterThan(0);
+  });
+
   it("keeps at most maxKeys entries however many keys come, expired ones dropped first", () => {
     const rl = createRateLimiter(3, 1000, { maxKeys: 100 });
     for (let i = 0; i < 5000; i++) rl.hit(`k${i}`, i);
