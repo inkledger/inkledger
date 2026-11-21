@@ -15,6 +15,15 @@ describe("env", () => {
     expect(process.env.TZ).toBeTruthy();
   });
 
+  it("the public dev secret only for the dev server: the built app refuses to start without its own", async () => {
+    const { sessionSecretFrom } = await import("./env");
+    expect(sessionSecretFrom(undefined, false)).toBe("ikl-dev-secret-change-me");
+    expect(() => sessionSecretFrom(undefined, true)).toThrow(/SESSION_SECRET/);
+    expect(() => sessionSecretFrom("ikl-dev-secret-change-me", true)).toThrow(/SESSION_SECRET/);
+    expect(() => sessionSecretFrom("change-me-with-a-random-string", true)).toThrow(/SESSION_SECRET/);
+    expect(sessionSecretFrom("a-real-random-value", true)).toBe("a-real-random-value");
+  });
+
   it("defaults allowed hosts to loopback in production only", () => {
     expect(parseAllowedHosts(undefined, true)).toEqual(["localhost", "127.0.0.1", "::1"]);
     expect(parseAllowedHosts(undefined, false)).toEqual([]);

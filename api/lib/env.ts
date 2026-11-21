@@ -4,15 +4,21 @@ import path from "node:path";
 
 const DEV_SECRET = "ikl-dev-secret-change-me";
 const isProduction = process.env.NODE_ENV === "production";
+const serveBuild = !isProduction && process.env.SERVE_BUILD === "1";
 
-function resolveSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
+/**
+ * The secret keys derive from (credentials, share links). The public dev one
+ * only for the Vite dev server: the built app served elsewhere (production,
+ * SERVE_BUILD: `pnpm dev:build`, `pnpm dev:https` on the local network) would
+ * otherwise sign links anyone can forge.
+ */
+export function sessionSecretFrom(secret: string | undefined, strict: boolean): string {
   if (secret && secret !== DEV_SECRET && secret !== "change-me-with-a-random-string") {
     return secret;
   }
-  if (isProduction) {
+  if (strict) {
     throw new Error(
-      "SESSION_SECRET must be set to a random value in production (e.g. `openssl rand -hex 32`).",
+      "SESSION_SECRET must be set to a random value to serve the built app (e.g. `openssl rand -hex 32` in .env).",
     );
   }
   return DEV_SECRET;
@@ -88,7 +94,7 @@ export const env = {
   /** A forecast without the sidecar (tests): seasonal naive, ±30% around it */
   forecastSimulator: (process.env.FORECAST_SIMULATOR ?? "").trim() === "1",
   isProduction,
-  serveBuild: !isProduction && process.env.SERVE_BUILD === "1",
+  serveBuild,
   /** HTTP port for the production server */
   port: Number(process.env.PORT || 3000),
   /** Folder with server.crt and server.key: set, the server also answers over HTTPS */
@@ -98,7 +104,7 @@ export const env = {
   /** SQLite file path, or ":memory:" for tests */
   databaseUrl: process.env.DATABASE_URL || "postgres://inkledger:inkledger@127.0.0.1:54329/inkledger",
   /** Secret used to encrypt Jira API tokens at rest and sign nothing else */
-  sessionSecret: resolveSessionSecret(),
+  sessionSecret: sessionSecretFrom(process.env.SESSION_SECRET, isProduction || serveBuild),
   /**
    * The key tracker credentials are sealed with (64 hex chars, or any
    * passphrase); unset, it is derived from SESSION_SECRET. The _OLD one still
