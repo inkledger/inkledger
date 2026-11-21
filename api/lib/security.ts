@@ -20,37 +20,56 @@ export function isPrivateAddress(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) {
     const [a, b] = ip.split(".").map(Number);
-    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+    // 198.18.0.0/15: the benchmark range, never a service on the internet.
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19));
   }
   const lower = ip.toLowerCase();
   if (lower.startsWith("::ffff:")) return isPrivateAddress(lower.slice(7));
   return v === 6 && (lower.startsWith("fc") || lower.startsWith("fd"));
 }
 
+/** An IPv6 address as its eight 16-bit groups (a dotted IPv4 tail as the last two); null when it isn't one. */
+function ipv6Groups(ip: string): number[] | null {
+  if (isIP(ip) !== 6) return null;
+  let s = ip.toLowerCase().replace(/%.*$/, "");
+  const tail = /^(.*:)(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(s);
+  if (tail) {
+    const [a, b, c, d] = tail.slice(2).map(Number);
+    s = `${tail[1]}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, rest] = s.split("::");
+  const part = (p: string | undefined) => (p ? p.split(":").map((g) => parseInt(g, 16)) : []);
+  const h = part(head);
+  const r = part(rest);
+  return rest === undefined ? h : [...h, ...Array<number>(8 - h.length - r.length).fill(0), ...r];
+}
+
+const v4Of = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
 /**
  * Addresses a tracker must never resolve to: loopback, unspecified,
- * link-local (incl. cloud metadata 169.254.169.254) and multicast; for a
- * service on the internet, private ranges too.
+ * link-local (incl. cloud metadata 169.254.169.254), IETF protocol
+ * assignments and multicast; for a service on the internet, private ranges
+ * too. An IPv6 address that carries an IPv4 one (mapped, compatible, NAT64,
+ * 6to4) is judged by the IPv4 address it reaches.
  */
 export function isForbiddenAddress(ip: string, network: Network = "private"): boolean {
   const v = isIP(ip);
   if (network === "public" && v !== 0 && isPrivateAddress(ip)) return true;
   if (v === 4) {
-    const [a, b] = ip.split(".").map(Number);
-    return a === 0 || a === 127 || (a === 169 && b === 254) || a >= 224;
+    const [a, b, c] = ip.split(".").map(Number);
+    return a === 0 || a === 127 || (a === 169 && b === 254) || (a === 192 && b === 0 && c === 0) || a >= 224;
   }
-  if (v === 6) {
-    const lower = ip.toLowerCase();
-    if (lower.startsWith("::ffff:")) return isForbiddenAddress(lower.slice(7), network);
-    return (
-      lower === "::" ||
-      lower === "::1" ||
-      lower.startsWith("fe8") ||
-      lower.startsWith("fe9") ||
-      lower.startsWith("fea") ||
-      lower.startsWith("feb") ||
-      lower.startsWith("ff")
-    );
+  const g = ipv6Groups(ip);
+  if (g) {
+    // ::a.b.c.d (compatible, incl. :: and ::1) and ::ffff:a.b.c.d (mapped).
+    if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0 || g[5] === 0xffff)) return isForbiddenAddress(v4Of(g[6], g[7]), network);
+    // NAT64: 64:ff9b::/96 and the local-use 64:ff9b:1::/48, the IPv4 address in the last 32 bits.
+    if (g[0] === 0x64 && g[1] === 0xff9b) return isForbiddenAddress(v4Of(g[6], g[7]), network);
+    // 6to4: 2002:AABB:CCDD::/48.
+    if (g[0] === 0x2002) return isForbiddenAddress(v4Of(g[1], g[2]), network);
+    // fe80::/10 link-local, fec0::/10 site-local; ff00::/8 multicast.
+    return (g[0] & 0xff80) === 0xfe80 || g[0] >> 8 === 0xff;
   }
   return true;
 }

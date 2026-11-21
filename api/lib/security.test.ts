@@ -23,6 +23,25 @@ describe("isForbiddenAddress", () => {
     "allows %s (on-prem Jira lives on private ranges)",
     (ip) => expect(isForbiddenAddress(ip)).toBe(false),
   );
+  it.each([
+    ["64:ff9b::7f00:1", "NAT64 of loopback"],
+    ["64:ff9b::169.254.169.254", "NAT64 of the metadata address"],
+    ["2002:7f00:1::", "6to4 of loopback"],
+    ["2002:a9fe:a9fe::1", "6to4 of the metadata address"],
+    ["::127.0.0.1", "IPv4-compatible loopback"],
+    ["::7f00:1", "IPv4-compatible loopback, hex"],
+    ["::ffff:7f00:1", "IPv4-mapped loopback, hex"],
+    ["fec0::1", "site-local"],
+    ["feff::1", "site-local, top of the range"],
+    ["192.0.0.170", "IETF protocol assignments"],
+  ])("blocks %s (%s)", (ip) => expect(isForbiddenAddress(ip)).toBe(true));
+  it.each(["198.18.0.1", "198.19.255.254", "64:ff9b::a00:1", "2002:c0a8:101::1"])(
+    "keeps a service on the internet off %s (benchmark range, private addresses behind NAT64/6to4)",
+    (ip) => expect(isForbiddenAddress(ip, "public")).toBe(true),
+  );
+  it.each(["64:ff9b::cb00:710a", "2002:cb00:710a::1", "::ffff:a00:1"])("allows %s (a translated public or private address)", (ip) =>
+    expect(isForbiddenAddress(ip)).toBe(false),
+  );
   it.each(["10.39.201.91", "192.168.1.10", "172.16.0.5", "100.101.102.103", "fd12::1", "::ffff:10.0.0.1"])(
     "keeps a service on the internet off %s (private ranges are for self-hosted trackers)",
     (ip) => expect(isForbiddenAddress(ip, "public")).toBe(true),
