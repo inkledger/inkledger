@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   ChevronLeft,
@@ -116,6 +116,14 @@ export function NoteDiary() {
   const utils = trpc.useUtils();
   const [writing, setWriting] = useState<DiaryMode | null>(null);
   const summarize = trpc.notes.summarize.useMutation();
+  // Left meanwhile (writing takes a while): the note is made, the page the user went to stays.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const write = async (mode: DiaryMode) => {
     setWriting(mode);
     try {
@@ -138,7 +146,7 @@ export function NoteDiary() {
             : "pages.notes.diary.written"
         )
       );
-      void navigate(`/notes/${note.id}`);
+      if (mounted.current) void navigate(`/notes/${note.id}`);
     } catch (e) {
       toastError(e);
     } finally {

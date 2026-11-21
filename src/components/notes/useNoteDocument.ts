@@ -39,6 +39,15 @@ type Options = {
 const meaningful = (title: string, body: string) =>
   title.trim().length > 0 || body.trim().length > 0;
 
+/**
+ * Whether a copy of the note read from the server replaces the editor's: never while a save is on its
+ * way, and only a newer revision than the one the editor builds on. An older copy (a read started before
+ * a save landed) would put back old text and move the base revision backwards.
+ */
+export function newerServerCopy(saving: boolean, revision: number, base: number): boolean {
+  return !saving && revision > base;
+}
+
 export function useNoteDocument(options: Options) {
   const { user } = useAuth();
   const userId = user?.id ?? 0;
@@ -76,6 +85,15 @@ export function useNoteDocument(options: Options) {
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
+  // Unmounted (another note opened: one controller per note), a save still on its way lands without
+  // taking the page back to the note it made.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const setConfirmedNote = useCallback((note: NoteDocument | null) => {
     confirmedRef.current = note;
@@ -284,7 +302,7 @@ export function useNoteDocument(options: Options) {
               if (runGeneration !== generation.current) break;
               currentIdRef.current = note.id;
               setCurrentId(note.id);
-              optionsRef.current.onCreated(note);
+              if (mounted.current) optionsRef.current.onCreated(note);
               await utils.notes.tree.invalidate();
             } else {
               const result = await utils.client.notes.updateContent.mutate({
@@ -405,7 +423,7 @@ export function useNoteDocument(options: Options) {
 
   const acceptServer = useCallback(
     (note: NoteDocument) => {
-      if (saving.current || note.contentRevision === baseRevision.current)
+      if (!newerServerCopy(Boolean(saving.current), note.contentRevision, baseRevision.current))
         return;
       const isDirty =
         latest.current.title !== confirmedRef.current?.title ||

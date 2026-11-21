@@ -194,7 +194,9 @@ export default function Board() {
   const transition = trpc.issues.transition.useMutation({
     onMutate: async ({ key, connectionId, toStatus }) => {
       await utils.issues.all.cancel();
-      const previous = utils.issues.all.getData(BUCKET_SCOPE);
+      // Only this card's own state comes back on an error: another move under way, or what was read meanwhile, stays.
+      const card = utils.issues.all.getData(BUCKET_SCOPE)?.find(i => i.key === key && i.connectionId === connectionId);
+      const previous = card ? { status: card.status, category: card.category } : null;
       const category = statuses.find(s => s.connectionId === connectionId && s.status === toStatus)?.category;
       utils.issues.all.setData(BUCKET_SCOPE, old =>
         old?.map(i =>
@@ -212,7 +214,9 @@ export default function Board() {
     onSuccess: r => toast.success(`${r.moved} → ${r.to}`),
     onError: (e, v, ctx) => {
       // Refused by the tracker: the card goes back, with its reason.
-      if (ctx?.previous) utils.issues.all.setData(BUCKET_SCOPE, ctx.previous);
+      const before = ctx?.previous;
+      if (before)
+        utils.issues.all.setData(BUCKET_SCOPE, old => old?.map(i => (i.key === v.key && i.connectionId === v.connectionId ? { ...i, ...before } : i)));
       // The way there asks for fields: its form, instead of an error.
       const fields = (e.data as { fields?: Record<string, string> } | null | undefined)?.fields;
       if (fields && v.toStatus && v.connectionId) setAsking({ key: v.key, connectionId: v.connectionId, target: { toStatus: v.toStatus } });
@@ -355,7 +359,15 @@ export default function Board() {
   const moveTo = async (card: Row, columnId: string) => {
     const col = allColumns.find(c => c.id === columnId);
     if (!col) return;
-    const to = reachable({ connectionId: card.connectionId, status: card.status }, await waysOf(card), col);
+    let ways: Way[];
+    try {
+      ways = await waysOf(card);
+    } catch (e) {
+      // Called without waiting (a menu, a key): a failed read must still say so.
+      toastError(e);
+      return;
+    }
+    const to = reachable({ connectionId: card.connectionId, status: card.status }, ways, col);
     if (to.length === 0) toast.error(t("pages.board.cantGo", { key: card.key, column: col.title }));
     else go(card, to);
   };

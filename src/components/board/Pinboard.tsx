@@ -255,8 +255,11 @@ export function Pinboard({
     toastError(e);
     void refresh();
   };
-  const setNotes = (f: (old: Note[]) => Note[]) =>
+  const setNotes = (f: (old: Note[]) => Note[]) => {
+    // A read already on its way (a refresh, a live event) would land with the old places.
+    void utils.pinboard.list.cancel(listInput);
     utils.pinboard.list.setData(listInput, old => (old ? f(old) : old));
+  };
   /** Optimistic local change, then the server; any error reloads the truth. */
   const patch = (id: number, p: Partial<PostItData>, send: () => Promise<unknown>) => {
     setNotes(old => old.map(n => (n.id === id ? { ...n, ...p } : n)));
