@@ -10,6 +10,8 @@
 // Microsoft To Do (a different API: /me/todo) is not read.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { createHash } from "node:crypto";
+import { FAN_OUT } from "../core/http";
+import { mapInPool } from "../../lib/pool";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
@@ -259,7 +261,7 @@ async function shapeOne(s: Shape, t: PlannerTask, look: ReturnType<typeof lookup
 
 const shapeAll = (c: PlannerCreds, s: Shape, tasks: PlannerTask[]) => {
   const look = lookups(c);
-  return Promise.all(tasks.map((t) => shapeOne(s, t, look)));
+  return mapInPool(tasks, FAN_OUT, (t) => shapeOne(s, t, look));
 };
 
 // ---------- Finding a task ----------

@@ -21,6 +21,9 @@ export type Intent = "read" | "write";
 export const intentOf = (method: string | undefined, declared?: Intent): Intent =>
   declared ?? (["GET", "HEAD"].includes((method ?? "GET").toUpperCase()) ? "read" : "write");
 
+/** How many calls one step of an adapter has out at once (one per issue of a page, say): a burst of hundreds trips the service's rate limit. */
+export const FAN_OUT = 4;
+
 /** Redirects followed by hand (redirect: "manual"), each one re-validated. */
 const MAX_REDIRECTS = 3;
 

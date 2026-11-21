@@ -80,6 +80,26 @@ describe("basecamp, to-dos and cards", () => {
     expect(await b.description!(meta(), ref(sim.recs[1]))).toBeNull();
   });
 
+  it("a first read looks the assigned to-dos up a few at a time, never a page at once (the limit is 50 calls in 10 s)", async () => {
+    const { b, sim, web } = simulated();
+    for (let n = 0; n < 12; n++) sim.add(`Busy ${n}`, { project: web });
+    let inFlight = 0;
+    let most = 0;
+    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
+      const lookup = /\/(todos|cards)\/\d+\.json/.test(String(url));
+      if (lookup) most = Math.max(most, ++inFlight);
+      try {
+        if (lookup) await new Promise((r) => setTimeout(r, 5));
+        return await sim.fetch(url, init);
+      } finally {
+        if (lookup) inFlight--;
+      }
+    });
+    await readPass((q) => b.listChanged(meta(), q), null);
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(4);
+  });
+
   it("the assignments list has no completed to-do and no one else's: a completed one comes with the next pass", async () => {
     const { b, sim } = simulated();
     const done = sim.add("Already done", { project: sim.projects.values().next().value! });

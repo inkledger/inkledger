@@ -7,6 +7,7 @@
 // 15+ writes), else /spend notes and the system notes they leave (legacyTime.ts).
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { sameSecretHashed } from "../core/webhooks";
+import { mapInPool } from "../../lib/pool";
 import { z } from "zod";
 import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type TrackerTraits } from "@contracts/providers";
 import { DAY_MS } from "@contracts/time";
@@ -15,7 +16,7 @@ import { secretOf } from "../core/context";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
 import { utcDayOf } from "../core/time";
-import { pathUnderSite } from "../core/http";
+import { pathUnderSite, FAN_OUT } from "../core/http";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import {
@@ -596,7 +597,7 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
           (["assigned_to_me", "created_by_me"] as const).map((scope) => glPages<GitLabIssue>(c, `/issues?${new URLSearchParams({ scope, state: "all", updated_after: since, order_by: "updated_at", sort: "desc" }).toString()}`, 5)),
         );
         const issues = [...new Map(lists.flat().map((i) => [i.id, i])).values()];
-        const items = (await Promise.all(issues.map((i) => listByNotes(c, i)))).flat();
+        const items = (await mapInPool(issues, FAN_OUT, (i) => listByNotes(c, i))).flat();
         return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: now } satisfies Since) };
       }
       const pageAt =

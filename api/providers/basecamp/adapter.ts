@@ -8,6 +8,7 @@
 // entries: a day, hours and minutes, logged on a to-do or card.
 // Built on a simulator, not verified on a real account: SPIKES.md.
 import { secretOf } from "../core/context";
+import { mapInPool } from "../../lib/pool";
 import { listTooLong } from "../core/paging";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
@@ -20,7 +21,7 @@ import { STATUS_CATEGORIES, type StatusCategory, type TrackerCapabilities, type 
 import { instant, instantFrom, localDate, localDateOf, type LocalDate, type TimeZone } from "@contracts/values";
 import { decodeCheckpoint, decodePageToken, encodeCheckpoint, encodePageToken } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
-import { trimTrailingSlash } from "../core/http";
+import { trimTrailingSlash, FAN_OUT } from "../core/http";
 import {
   type ActiveWorkflowSource,
   type CallContext,
@@ -612,7 +613,7 @@ export const basecampProvider: TrackerProvider<"basecamp", BasecampOptions> = {
       const a = await bcOk<BcAssignments>(c, "/my/assignments.json");
       const all = [...new Map([...(a.priorities ?? []), ...(a.non_priorities ?? [])].filter((x2) => isIssueType(x2.type)).map((x2) => [x2.id, x2])).values()].sort((p, r) => p.id - r.id);
       const slice = all.slice(pass.offset, pass.offset + PER_PAGE);
-      const found = await Promise.all(slice.map((as) => locate(c, { bucket: String(as.bucket.id), id: String(as.id) }, as.type)));
+      const found = await mapInPool(slice, FAN_OUT, (as) => locate(c, { bucket: String(as.bucket.id), id: String(as.id) }, as.type));
       const items = found.flatMap((r) => (r && mine(s, r) ? [toRemoteIssue(s, r)] : []));
       const offset = pass.offset + PER_PAGE;
       return offset < all.length ? { last: false, items, gone: [], next: encodePageToken(x.conn, "issues", V, q.since, { ...pass, offset } satisfies IssuePage) } : done(items, []);

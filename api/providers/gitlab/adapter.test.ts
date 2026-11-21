@@ -416,6 +416,26 @@ describe("gitlab, time on an older server (13.6: no timelogs in GraphQL)", () =>
     expect(i.notes.filter((n) => !n.system).map((n) => n.body)).toEqual(["fixed\n\\/close"]);
   });
 
+  it("the feed reads the notes of many issues a few at a time, never all at once", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    for (let n = 0; n < 12; n++) sim.add("acme/web", `Busy ${n}`);
+    let inFlight = 0;
+    let most = 0;
+    vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
+      const notes = String(url).includes("/notes");
+      if (notes) most = Math.max(most, ++inFlight);
+      try {
+        if (notes) await new Promise((r) => setTimeout(r, 5));
+        return await sim.fetch(url, init);
+      } finally {
+        if (notes) inFlight--;
+      }
+    });
+    await readPass((q) => b.worklogs!.changed!(meta(), q), null);
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(4);
+  });
+
   it("deletes by spending the same time back on its day; the feed then leaves it out", async () => {
     const { b, sim } = simulated({ version: "13.6" });
     const i = sim.issues[0];

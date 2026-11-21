@@ -7,6 +7,8 @@
 // category (attributable_to) and a billable status.
 // Built on a simulator, not verified on a real account: docs/dev/spikes.md.
 import { tokenCreds } from "../core/context";
+import { FAN_OUT } from "../core/http";
+import { mapInPool } from "../../lib/pool";
 import { listTooLong } from "../core/paging";
 import { connectionMapping } from "../core/categories";
 import { optionsParser } from "../core/options";
@@ -288,7 +290,7 @@ async function shapeAll(c: AsanaCreds, s: Shape, tasks: AsanaTask[]): Promise<Re
     }
     return p;
   };
-  return Promise.all(tasks.map(async (t) => toRemoteIssue(s, t, t.parent && !(t.memberships ?? []).length ? await homeOfParent(t.parent.gid) : [])));
+  return mapInPool(tasks, FAN_OUT, async (t) => toRemoteIssue(s, t, t.parent && !(t.memberships ?? []).length ? await homeOfParent(t.parent.gid) : []));
 }
 
 // ---------- Finding a task ----------
