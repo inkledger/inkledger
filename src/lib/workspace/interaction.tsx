@@ -14,7 +14,8 @@ function holdsText(element: HTMLElement | null): boolean {
  * While someone types in a field inside, a layout is not activated (T-01). The task ends when focus
  * leaves the fields, unless what was typed is still there: then it ends once that field is emptied
  * or gone (a dialog closed by its Cancel button, not only by Escape or submit). A focused field that
- * is removed fires no blur in most browsers (a command list closed by Enter): it is watched for too.
+ * is removed fires no blur in most browsers (a command list closed by Enter): it is watched for too,
+ * and the focus moving anywhere (the dialog giving it back, a click) settles it at once.
  */
 export function WorkspaceInteractionBoundary({ children }: { children: ReactNode }) {
   const end = useRef<(() => void) | null>(null);
@@ -54,6 +55,19 @@ export function WorkspaceInteractionBoundary({ children }: { children: ReactNode
     clearRecheck();
     recheck.current = setTimeout(() => stop(), 500);
   };
+  // A removed field fires no blur, and polling for it left a window in which a layout change made
+  // right away (Enter started a timer, then Customize) was held back: the next focus anywhere decides at once.
+  const release = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    release.current = () => {
+      if (focused.current && !focused.current.isConnected) stop();
+    };
+  });
+  useEffect(() => {
+    const onFocusIn = () => release.current();
+    document.addEventListener("focusin", onFocusIn, true);
+    return () => document.removeEventListener("focusin", onFocusIn, true);
+  }, []);
   useEffect(() => () => {
     if (recheck.current) clearTimeout(recheck.current);
     end.current?.();
