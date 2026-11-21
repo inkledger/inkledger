@@ -21,6 +21,15 @@ function localeOf(req: Request): Locale {
   return "en";
 }
 
+/** The page around the rendered app: its language, the app, the local layout script and the state for hydration. */
+export function ssrDocument(indexHtml: string, part: { locale: string; app: string; layout: string; payload: string }): string {
+  // Replacer functions: a string replacement would read "$`", "$'", "$&" and "$$" in the
+  // data (an issue title) as patterns and splice the page into its own state script.
+  return indexHtml
+    .replace(/<html lang="[^"]*">/, () => `<html lang="${part.locale}">`)
+    .replace('<div id="root"></div>', () => `<div id="root">${part.app}</div>${part.layout}<script id="inkledger-ssr-state" type="application/json">${part.payload}</script>`);
+}
+
 export function jsonForHtml(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
@@ -75,9 +84,7 @@ export async function renderSSR(c: SSRContext, indexHtml: string, contentSecurit
     }
     const payload = jsonForHtml({ state: helpers.dehydrate(), locale, day: dayKey(new Date(now)), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, now });
     const layout = url.pathname === "/" ? `<script>${localLayoutScript}</script>` : "";
-    const html = indexHtml
-      .replace(/<html lang="[^"]*">/, `<html lang="${locale}">`)
-      .replace('<div id="root"></div>', `<div id="root">${app}</div>${layout}<script id="inkledger-ssr-state" type="application/json">${payload}</script>`);
+    const html = ssrDocument(indexHtml, { locale, app, layout, payload });
     resHeaders.forEach((value, key) => c.header(key, value));
     c.header("Cache-Control", "private, no-store");
     c.header("Content-Security-Policy", contentSecurityPolicy(html));
