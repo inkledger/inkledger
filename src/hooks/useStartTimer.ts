@@ -1,4 +1,5 @@
 import { toastError } from "@/lib/errorText";
+import { useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { announceSwitched } from "@/lib/timerLog";
 import { newOpId, thisDevice, timerConflictOf } from "@/lib/timerConflict";
@@ -77,9 +78,13 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
     },
   });
   const send = (input: StartInput) => m.mutate({ ...input, opId: newOpId(), device: thisDevice() });
+  const asking = useRef(false);
   const mutate = (input: StartInput) => {
+    // A second click while the first is still looking or sending: one start, one question.
+    if (asking.current || (m.isPending && !input.force)) return;
     if (opts.ask === false || input.force || input.from || input.mode) return send(input);
     const target = { issueKey: input.issueKey, connectionId: input.connectionId };
+    asking.current = true;
     void utils.timers.list
       .fetch(undefined, { staleTime: 0 })
       .then(timers => {
@@ -94,7 +99,10 @@ export function useStartTimer(opts: { announce?: boolean; ask?: boolean } = {}) 
         return openGapNow(utils).then(gap => (gap ? startChoice.ask({ input: target, gap, announce: !!opts.announce }) : send(input)));
       })
       // Unknown (offline): started now, as before.
-      .catch(() => send(input));
+      .catch(() => send(input))
+      .finally(() => {
+        asking.current = false;
+      });
   };
   return { mutate, isPending: m.isPending };
 }
