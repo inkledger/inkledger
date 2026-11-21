@@ -21,11 +21,12 @@ async function resetPassword(username: string | undefined) {
     .where(eq(users.id, user.id));
   await signOutEverywhere(user.id);
   console.log(`Temporary password for "${user.username}": ${password}\nIt must be changed at the next sign-in.`);
+  if (user.disabledAt) console.log("The account was turned off: it is on again (turn it off in Settings › Users if that is not what you meant).");
 }
 
 const [command, ...args] = process.argv.slice(2);
-await initDb();
 try {
+  await initDb();
   if (command === "reset-password") await resetPassword(args[0]);
   else throw new Error("commands: reset-password <username>");
 } catch (e) {
