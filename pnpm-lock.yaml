@@ -16,7 +16,7 @@ overrides:
   '@radix-ui/react-roving-focus': 1.1.16
   '@radix-ui/react-use-controllable-state': 1.2.4
   '@radix-ui/react-visually-hidden': 1.2.8
-  '@hono/node-server@<1.19.15': ^1.19.17
+  '@hono/node-server@<1.19.18': ^1.19.19
   baseline-browser-mapping@<2.11.0: ^2.11.0
   brace-expansion@<1.1.21: ^1.1.21
   brace-expansion@>=2.0.0 <2.1.7: ^2.1.7
@@ -34,8 +34,8 @@ importers:
   .:
     dependencies:
       '@hono/node-server':
-        specifier: ^1.19.17
-        version: 1.19.17(hono@4.13.13)
+        specifier: ^1.19.19
+        version: 1.19.19(hono@4.13.19)
       '@radix-ui/react-context-menu':
         specifier: 2.3.4
         version: 2.3.4(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -61,8 +61,8 @@ importers:
         specifier: ^0.45.1
         version: 0.45.2(@electric-sql/pglite@0.5.10)(@opentelemetry/api@1.10.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)
       hono:
-        specifier: ^4.13.13
-        version: 4.13.13
+        specifier: ^4.13.19
+        version: 4.13.19
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -99,7 +99,7 @@ importers:
         version: 5.2.7
       '@hono/vite-dev-server':
         specifier: ^0.19.0
-        version: 0.19.1(hono@4.13.13)
+        version: 0.19.1(hono@4.13.19)
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.1.19(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -890,8 +890,8 @@ packages:
   '@formatjs/intl-localematcher@0.6.2':
     resolution: {integrity: sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==}
 
-  '@hono/node-server@1.19.17':
-    resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
+  '@hono/node-server@1.19.19':
+    resolution: {integrity: sha512-Fy9R7PACOzHU9LDpfnuzVyuVYevKQRcEG2mZhmfc+DRdmayEd3RVfa2XOt2IgGcPNgA77Yk63KBszepcMFK5Ng==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
@@ -2508,8 +2508,8 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
-  hono@4.13.13:
-    resolution: {integrity: sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==}
+  hono@4.13.19:
+    resolution: {integrity: sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA==}
     engines: {node: '>=16.9.0'}
 
   http-link-header@1.1.4:
@@ -3971,14 +3971,14 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@hono/node-server@1.19.17(hono@4.13.13)':
+  '@hono/node-server@1.19.19(hono@4.13.19)':
     dependencies:
-      hono: 4.13.13
+      hono: 4.13.19
 
-  '@hono/vite-dev-server@0.19.1(hono@4.13.13)':
+  '@hono/vite-dev-server@0.19.1(hono@4.13.19)':
     dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.13)
-      hono: 4.13.13
+      '@hono/node-server': 1.19.19(hono@4.13.19)
+      hono: 4.13.19
       minimatch: 9.0.9
 
   '@humanfs/core@0.19.2':
@@ -5506,7 +5506,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  hono@4.13.13: {}
+  hono@4.13.19: {}
 
   http-link-header@1.1.4: {}
 
