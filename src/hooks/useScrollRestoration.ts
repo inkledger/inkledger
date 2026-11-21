@@ -13,15 +13,29 @@ let saved: Record<string, Snapshot> = (() => {
   }
 })();
 
-function persist() {
-  try {
-    const entries = Object.entries(saved).slice(-100);
-    saved = Object.fromEntries(entries);
-    sessionStorage.setItem(KEY, JSON.stringify(saved));
-  } catch {
-    // storage unavailable: kept for this page load only
-  }
-}
+let dirty = false;
+
+/**
+ * The entries' scroll, kept in memory as it changes and written to the tab's storage (for a reload) only
+ * when leaving an entry or the page: serialising every snapshot on each scrolled frame cost the scroll.
+ */
+export const scrollMemory = {
+  remember(key: string, snapshot: Snapshot) {
+    saved[key] = snapshot;
+    dirty = true;
+  },
+  flush() {
+    if (!dirty) return;
+    dirty = false;
+    try {
+      const entries = Object.entries(saved).slice(-100);
+      saved = Object.fromEntries(entries);
+      sessionStorage.setItem(KEY, JSON.stringify(saved));
+    } catch {
+      // storage unavailable: kept for this page load only
+    }
+  },
+};
 
 const marked = () => [...document.querySelectorAll<HTMLElement>("[data-scroll-key]")];
 
@@ -42,16 +56,19 @@ export function useScrollRestoration(main: RefObject<HTMLElement | null>) {
       frame = 0;
       const els: Snapshot["els"] = {};
       for (const el of marked()) els[el.dataset.scrollKey!] = [el.scrollLeft, el.scrollTop];
-      saved[location.key] = { main: main.current?.scrollTop ?? 0, win: window.scrollY, els };
-      persist();
+      scrollMemory.remember(location.key, { main: main.current?.scrollTop ?? 0, win: window.scrollY, els });
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(take);
     };
+    const onHide = () => scrollMemory.flush();
     document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("pagehide", onHide);
     return () => {
       document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("pagehide", onHide);
       if (frame) cancelAnimationFrame(frame);
+      scrollMemory.flush();
     };
   }, [location.key, main]);
 

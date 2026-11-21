@@ -29,7 +29,8 @@ function isModule(v: unknown, id: string): v is InkledgerModuleV1 {
 /**
  * One module's code: fetched once with its integrity (the bytes the server
  * hashed), then imported from the same immutable URL. Any failure drops just
- * this module.
+ * this module, and only for this load: the next one tries again (a network
+ * blip must not disable it until a reload).
  */
 function load(entry: ModuleListEntry): Promise<InkledgerModuleV1 | null> {
   const url = entry.entryUrl;
@@ -49,6 +50,9 @@ function load(entry: ModuleListEntry): Promise<InkledgerModuleV1 | null> {
     }
   })();
   cache.set(url, p);
+  void p.then(mod => {
+    if (mod === null && cache.get(url) === p) cache.delete(url);
+  });
   return p;
 }
 

@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { formatDuration } from "@contracts/time";
 import { showBrowserNotification } from "@/lib/browserNotifications";
 import { t } from "@/i18n";
+import { issueId } from "@/lib/issues";
 
 /** Browser notification text for a timer running past the threshold. */
 export function timerAlertText(
@@ -15,6 +16,35 @@ export function timerAlertText(
     title: t("ui.alert.title", { duration: formatDuration(elapsedSeconds) }),
     body: t("ui.alert.body", { key: issueKey, minutes: thresholdMinutes }),
   };
+}
+
+type AlertedTimer = { issueKey: string; connectionId: number; state: string; heldElsewhere?: boolean; elapsedSeconds: number };
+
+/**
+ * The running timers past the threshold that haven't alerted yet, marked in `alerted` as they are returned.
+ * Tracked per issue identity: two trackers' APP-1 are two timers, one paused and one running included.
+ */
+export function dueTimerAlerts<T extends AlertedTimer>(list: readonly T[], alerted: Set<string>, sinceFetchSeconds: number, thresholdSeconds: number): { timer: T; id: string; elapsed: number }[] {
+  // Forget timers that were stopped/discarded so they can alert again later.
+  for (const id of alerted) {
+    if (!list.some(t => issueId(t) === id)) alerted.delete(id);
+  }
+  const due: { timer: T; id: string; elapsed: number }[] = [];
+  for (const timer of list) {
+    const id = issueId(timer);
+    if (timer.state !== "running") {
+      alerted.delete(id);
+      continue;
+    }
+    // Its own device alerts for it: one notice, not one per device.
+    if (timer.heldElsewhere) continue;
+    const elapsed = timer.elapsedSeconds + sinceFetchSeconds;
+    if (elapsed >= thresholdSeconds && !alerted.has(id)) {
+      alerted.add(id);
+      due.push({ timer, id, elapsed });
+    }
+  }
+  return due;
 }
 
 /**
@@ -41,25 +71,10 @@ export function useTimerAlerts() {
     if (!("Notification" in window) || Notification.permission !== "granted")
       return;
 
-    const threshold = s.timerAlertMinutes * 60;
-    const list = timers.data ?? [];
-    // Forget timers that were stopped/discarded so they can alert again later.
-    for (const key of alertedFor.current) {
-      if (!list.some(t => t.issueKey === key)) alertedFor.current.delete(key);
-    }
-    for (const t of list) {
-      if (t.state !== "running") {
-        alertedFor.current.delete(t.issueKey);
-        continue;
-      }
-      // Its own device alerts for it: one notice, not one per device.
-      if (t.heldElsewhere) continue;
-      const elapsed = t.elapsedSeconds + Math.max(0, now - fetchedAt) / 1000;
-      if (elapsed >= threshold && !alertedFor.current.has(t.issueKey)) {
-        alertedFor.current.add(t.issueKey);
-        const { title, body } = timerAlertText(t.issueKey, elapsed, s.timerAlertMinutes);
-        void showBrowserNotification(title, { body, tag: `timer-${t.issueKey}` });
-      }
+    const due = dueTimerAlerts(timers.data ?? [], alertedFor.current, Math.max(0, now - fetchedAt) / 1000, s.timerAlertMinutes * 60);
+    for (const { timer, id, elapsed } of due) {
+      const { title, body } = timerAlertText(timer.issueKey, elapsed, s.timerAlertMinutes);
+      void showBrowserNotification(title, { body, tag: `timer-${id}` });
     }
   }, [timers.data, settings.data, now, fetchedAt]);
 }
