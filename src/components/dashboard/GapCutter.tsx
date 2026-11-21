@@ -23,6 +23,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { quickStart, type PickedIssue } from "@/lib/quickStart";
 import { timerLog } from "@/lib/timerLog";
+import { newOpId } from "@/lib/timerConflict";
 import { realSeconds } from "@contracts/placement";
 import { addCut, moveCut, segments, takenSpans, withCuts, withoutCut, CUT_JUMP_MS, CUT_STEP_MS, type Lane, type Neighbour } from "@/lib/gapCuts";
 import { projectColor, projectOf } from "@/lib/projectColors";
@@ -134,6 +135,9 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
   );
   useEffect(() => onDirty(unsaved), [unsaved, onDirty]);
   const drag = useRef<{ lane: number; k: number } | null>(null);
+  // One opId per piece: its retry after a lost answer is answered, not logged twice.
+  const opIds = useRef(new Map<string, string>());
+  const opIdOf = (key: string) => opIds.current.get(key) ?? opIds.current.set(key, newOpId()).get(key)!;
 
   const start = gap.start.getTime();
   const total = gap.seconds * 1000;
@@ -275,6 +279,7 @@ function GapCutterBody({ gap, neighbours, open, onDirty, onDone }: { gap: TimeSp
               started: laneSegs[i].start.toISOString(),
               comment: p.comment.trim(),
               fromTimer: false,
+              opId: opIdOf(`${li}:${i}:${p.issueKey}:${p.connectionId ?? ""}:${seconds}:${laneSegs[i].start.getTime()}`),
             });
             ok++;
           }

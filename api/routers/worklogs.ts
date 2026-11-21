@@ -11,7 +11,8 @@ import { and, desc, eq, getTableColumns, gte, inArray, isNotNull, isNull, like, 
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { randomUUID } from "node:crypto";
-import { outbox, worklogs, worklogSinks, worklogTrash, type Connection, type User } from "@db/schema";
+import { outbox, timerOps, worklogs, worklogSinks, worklogTrash, type Connection, type User } from "@db/schema";
+import superjson from "superjson";
 import type { TrackerType } from "@contracts/providers";
 import {
   fetchWorklogs,
@@ -259,6 +260,39 @@ async function assertUnlocked(where: SQL | undefined) {
 }
 
 
+/** What timer_ops holds for a log still running, or one that wrote part of its worklogs and failed (never JSON). */
+const OP_PENDING = "!pending";
+const OP_PARTIAL = "!partial";
+
+/**
+ * A log runs once per `opId` (kept in timer_ops as "wl:<opId>", under the user's write
+ * lease): a retry gets the first answer back. Reserved before anything is written, so a
+ * retry while the first still runs (or died halfway) is refused, never run twice. A failure
+ * before any worklog was written frees the opId; after one was, it stays refused.
+ */
+async function onceLogged<T>(userId: number, opId: string | undefined, run: (logged: () => void) => Promise<T>): Promise<T> {
+  if (!opId) return run(() => undefined);
+  const db = getDb();
+  const key = and(eq(timerOps.userId, userId), eq(timerOps.opId, `wl:${opId}`));
+  const [prior] = await db.select({ result: timerOps.result }).from(timerOps).where(key);
+  if (prior) {
+    if (prior.result === OP_PENDING || prior.result === OP_PARTIAL) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.busy") });
+    return superjson.parse<T>(prior.result);
+  }
+  await db.insert(timerOps).values({ userId, opId: `wl:${opId}`, result: OP_PENDING });
+  let wrote = false;
+  try {
+    const result = await run(() => {
+      wrote = true;
+    });
+    await db.update(timerOps).set({ result: superjson.stringify(result) }).where(key);
+    return result;
+  } catch (e) {
+    await (wrote ? db.update(timerOps).set({ result: OP_PARTIAL }).where(key) : db.delete(timerOps).where(key)).catch((err: unknown) => console.error(err));
+    throw e;
+  }
+}
+
 export const worklogsRouter = createRouter({
   /**
    * A worklog changed here and on its tracker: keep this one (sent to the
@@ -440,6 +474,10 @@ export const worklogsRouter = createRouter({
           keepRest: z.boolean().default(false),
           /** The question this log answers (contracts/decisions): the first page to answer it wins. */
           decision: z.object({ id: z.uuid(), revision: z.number().int().nonnegative() }).optional(),
+          /** One per log the user asked for: a retry with it (a lost answer, a second click) gets the first answer back. */
+          opId: z.string().min(8).max(100).optional(),
+          /** With fromTimer: the timer's epoch the page saw. Changed since (another device logged it), the log is refused. */
+          timerEpoch: z.number().int().nonnegative().optional(),
           /**
            * The same time split around the day's breaks (contracts/placement.ts):
            * one worklog per part, in order, adding up to `seconds`. The timer's
@@ -474,7 +512,7 @@ export const worklogsRouter = createRouter({
       if (parts.reduce((a, p) => a + p.seconds, 0) !== seconds || !inOrder) {
         throw new TRPCError({ code: "BAD_REQUEST", message: t("server.worklogs.invalidParts") });
       }
-      const write = () => withWriteLease(ctx.user.id, async () => {
+      const write = () => withWriteLease(ctx.user.id, () => onceLogged(ctx.user.id, input.opId, async (logged) => {
         // Every part checked before anything is written or taken from the timer.
         for (const p of parts) {
           await assertWeekOpen(ctx.user.id, p.started);
@@ -487,7 +525,9 @@ export const worklogsRouter = createRouter({
         // time. A shorter log drops the rest of a stopped one unless asked to
         // keep it. If the worklog then fails, the time goes back to the timer.
         const split = input.split ? { until: new Date(input.split.until), shares: input.split.shares } : undefined;
-        const claim = input.fromTimer ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId, new Date(), { split, keepRest: input.keepRest }) : null;
+        const claim = input.fromTimer
+          ? await claimTimerSeconds(ctx.user.id, input.issueKey, seconds, input.connectionId, new Date(), { split, keepRest: input.keepRest, epoch: input.timerEpoch })
+          : null;
         if (input.fromTimer && !claim) {
           throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.timerLogged", { key: input.issueKey }) });
         }
@@ -501,12 +541,13 @@ export const worklogsRouter = createRouter({
           });
           left -= p.seconds;
           saved.push(one);
+          logged();
           // Its time goes to the user's time sinks too, in the background.
           await markForSinks(ctx.user.id, one.id);
         }
         sinksSoon(ctx.user.id);
         return saved[0];
-      });
+      }));
       if (!input.decision) return write();
       const w = whoOf(ctx);
       return answer(ctx.user.id, input.decision, { client: w.client, label: w.label }, "logged", write, (r) => ({ worklogId: r.id }));

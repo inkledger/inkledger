@@ -1,6 +1,7 @@
 import { timeOfDay } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { newOpId } from "@/lib/timerConflict";
 import { trpc } from "@/lib/trpc";
 import { visibleIssues } from "@/lib/issues";
 import { formatDuration, parseDurationToSeconds } from "@contracts/time";
@@ -45,9 +46,12 @@ export function QuickLog({
   // one; never over time already logged. "Now" is when the form opened.
   const placement = useBlockPlacement(day);
   const [openedAt] = useState(() => new Date());
+  // One log asked for: a retry is answered, not logged twice; a new one after each success.
+  const opId = useRef(newOpId());
 
   const create = trpc.worklogs.create.useMutation({
     onSuccess: (w, input) => {
+      opId.current = newOpId();
       toast.success(
         t("ui.quickLog.logged", {
           // All of it, when it went in pieces around a break.
@@ -87,6 +91,7 @@ export function QuickLog({
     create.mutate({
       issueKey: matched.key,
       connectionId: matched.connectionId,
+      opId: opId.current,
       seconds: parsed,
       started: placed.start.toISOString(),
       comment,

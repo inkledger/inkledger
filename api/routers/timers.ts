@@ -193,7 +193,7 @@ export async function claimTimerSeconds(
   seconds: number,
   connectionId?: number,
   now: Date = new Date(),
-  o: { split?: ClaimSplit; keepRest?: boolean } = {},
+  o: { split?: ClaimSplit; keepRest?: boolean; epoch?: number } = {},
 ): Promise<{ undo: (back?: number) => Promise<void> } | null> {
   const { split } = o;
   const conn = await issueConnection(userId, issueKey, connectionId);
@@ -201,6 +201,8 @@ export async function claimTimerSeconds(
   const claimed = await withTimerLock(userId, async (tx) => {
     const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
     if (!t) return null;
+    // The page logged the timer as it saw it: changed since (another device logged it), not again.
+    if (o.epoch !== undefined && t.epoch !== o.epoch) return null;
     const ref = refOf(t);
     // What earlier logs left behind goes first (never what this one may have to put back).
     await pruneRuns(tx, userId, now);

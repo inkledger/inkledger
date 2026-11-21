@@ -171,6 +171,27 @@ describe("worklogs and stats", () => {
     expect(await caller.timers.list()).toEqual([]);
   });
 
+  it("a second device that saw the timer before the first log is refused: its time is logged once", async () => {
+    (await q("DELETE FROM timers"));
+    (await q("DELETE FROM worklogs"));
+    await caller.timers.start({ issueKey: "TWO-1" });
+    (await q("UPDATE timers SET accumulated_seconds = 3600, started_at = ? WHERE issue_key = 'TWO-1'", Date.now()));
+    const [seen] = await caller.timers.list();
+    const log = { issueKey: "TWO-1", seconds: 3600, started: new Date(Date.now() - 3 * 3600_000).toISOString(), fromTimer: true, timerEpoch: seen.epoch };
+    await caller.worklogs.create(log);
+    await expect(caller.worklogs.create({ ...log, started: new Date(Date.now() - 5 * 3600_000).toISOString() })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await q("SELECT count(*)::int AS n FROM worklogs WHERE issue_key = 'TWO-1'")).toEqual([{ n: 1 }]);
+  });
+
+  it("a retried log (the same opId: a lost answer, a second click) gets its first answer and writes nothing more", async () => {
+    (await q("DELETE FROM worklogs"));
+    const log = { issueKey: "OPS-1", seconds: 1800, started: new Date(Date.now() - 7 * 3600_000).toISOString(), opId: "log-retry-0001" };
+    const first = await caller.worklogs.create(log);
+    const again = await caller.worklogs.create(log);
+    expect(again.id).toBe(first.id);
+    expect(await q("SELECT count(*)::int AS n FROM worklogs WHERE issue_key = 'OPS-1'")).toEqual([{ n: 1 }]);
+  });
+
   it("a stopped timer's time split around a break: two worklogs, the timer taken once", async () => {
     (await q("DELETE FROM timers"));
     (await q("DELETE FROM worklogs"));

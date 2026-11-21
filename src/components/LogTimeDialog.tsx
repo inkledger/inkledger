@@ -1,4 +1,5 @@
 import { toastError } from "@/lib/errorText";
+import { newOpId } from "@/lib/timerConflict";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import {
@@ -346,6 +347,8 @@ function LogTimeForm({
     toastError(e);
   };
   const create = trpc.worklogs.create.useMutation({ onSuccess, onError });
+  // One log asked for: a retry (a lost answer, a second Enter) is answered, not logged twice.
+  const opId = useRef(newOpId());
   const update = trpc.worklogs.update.useMutation({ onSuccess, onError });
   const pending = create.isPending || update.isPending;
   const timerActions = useTimerActions(issueKey, connectionId);
@@ -390,11 +393,17 @@ function LogTimeForm({
       });
     else {
       settled.current = true;
+      // The timer as this page saw it: logged meanwhile from another device, this log is refused.
+      const timerEpoch = fromTimer
+        ? utils.timers.list.getData()?.find(x => x.issueKey === issueKey && (connectionId === undefined || x.connectionId === connectionId))?.epoch
+        : undefined;
       create.mutate({
         ...payload,
         issueKey,
         connectionId,
         fromTimer,
+        opId: opId.current,
+        ...(timerEpoch !== undefined ? { timerEpoch } : {}),
         ...(hasRest && keepRest ? { keepRest: true } : {}),
         ...(shared ? { decision: shared.decision } : {}),
         parts: parts && partsInput(parts, parsed),
