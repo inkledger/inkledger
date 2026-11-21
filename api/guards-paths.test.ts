@@ -18,7 +18,7 @@ describe("no path spelling gets past the /api guards", () => {
 
   beforeAll(async () => {
     await (await import("./queries/connection")).resetDbForTests();
-    app = (await import("./boot")).default as App;
+    app = (await import("./boot")).default;
   });
 
   const spellings = (base: string) => [
@@ -40,6 +40,13 @@ describe("no path spelling gets past the /api guards", () => {
         const res = await app.request(path, { headers: { host: "evil.example.com" } });
         expect(res.status, `${path}`).toBe(421);
       }
+  });
+
+  it("a path that doesn't decode is answered, not a server error", async () => {
+    for (const path of ["/api/trpc/%25", "/api/trpc/%E0%A4%A", "/api/trpc/backup.get%ZZ"]) {
+      const res = await app.request(path, { method: "POST", headers: { host: "localhost", "content-type": "application/json" }, body: "{}" });
+      expect(res.status, path).not.toBe(500);
+    }
   });
 
   it("a write from another origin is refused, whatever the path looks like", async () => {

@@ -114,11 +114,20 @@ app.use((c, next) =>
       : smallBody(c, next),
 );
 
+/** The procedures a tRPC path names, or null for a path that doesn't decode (tRPC would throw on it). */
+const procedurePath = (raw: string): string | null => {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+};
+
 // A restore replacing the database: no write lands meanwhile (said, not lost). The
 // backup's own calls go on (a restore by hand when one failed and left the server closed).
 app.use("/api/*", async (c, next) => {
   // Every procedure of a batch must be the backup's: a write batched behind one is refused too.
-  const backupOnly = c.req.path.startsWith("/api/trpc/") && decodeURIComponent(c.req.path.slice("/api/trpc/".length)).split(",").every((p) => p.startsWith("backup."));
+  const backupOnly = c.req.path.startsWith("/api/trpc/") && (procedurePath(c.req.path.slice("/api/trpc/".length)) ?? "").split(",").every((p) => p.startsWith("backup."));
   if (inMaintenance() && c.req.method !== "GET" && c.req.method !== "HEAD" && !backupOnly) {
     return c.json({ error: t("server.maintenance") }, 503);
   }
@@ -164,6 +173,7 @@ registerIdeaFileRoutes(app);
 registerEventRoutes(app);
 registerDeskChatRoutes(app);
 app.use("/api/trpc/*", async (c) => {
+  if (procedurePath(c.req.path) === null) return c.json({ error: "Bad Request" }, 400);
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
