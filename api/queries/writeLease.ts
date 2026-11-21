@@ -11,8 +11,12 @@ import { t } from "@contracts/i18n";
 import { keyedLock } from "../lib/locks";
 import { getDb } from "./connection";
 
-/** Longer than any write takes (each tracker call has its own 30 s timeout): a holder past it died. */
-const WRITE_LEASE_MS = 2 * 60_000;
+/**
+ * The lease's length (a holder past it died), renewed every `beatMs` while its write runs:
+ * a write of several tracker calls (30 s each at most) can outlast one lease, and another
+ * process must never take it meanwhile. Tests shorten them.
+ */
+export const writeLeaseTiming = { leaseMs: 2 * 60_000, beatMs: 30_000 };
 /** How long a write waits for another process's before giving up. */
 const WAIT_MS = 45_000;
 
@@ -26,8 +30,8 @@ async function acquire(userId: number, holder: string): Promise<void> {
     const now = Date.now();
     const [got] = await db
       .insert(writeLeases)
-      .values({ userId, holder, expiresAt: now + WRITE_LEASE_MS })
-      .onConflictDoUpdate({ target: writeLeases.userId, set: { holder, expiresAt: now + WRITE_LEASE_MS }, setWhere: lt(writeLeases.expiresAt, now) })
+      .values({ userId, holder, expiresAt: now + writeLeaseTiming.leaseMs })
+      .onConflictDoUpdate({ target: writeLeases.userId, set: { holder, expiresAt: now + writeLeaseTiming.leaseMs }, setWhere: lt(writeLeases.expiresAt, now) })
       .returning({ holder: writeLeases.holder });
     if (got?.holder === holder) return;
     if (Date.now() + pause > until) throw new TRPCError({ code: "TIMEOUT", message: t("server.worklogs.busy") });
@@ -41,11 +45,24 @@ export function withWriteLease<T>(userId: number, fn: () => Promise<T>): Promise
   return local(userId, async () => {
     const holder = randomUUID();
     await acquire(userId, holder);
+    const beat = setInterval(() => {
+      void getDb()
+        .update(writeLeases)
+        .set({ expiresAt: Date.now() + writeLeaseTiming.leaseMs })
+        .where(and(eq(writeLeases.userId, userId), eq(writeLeases.holder, holder)))
+        .returning({ holder: writeLeases.holder })
+        .then((kept) => {
+          // Gone: this process stalled past the lease and another one took it.
+          if (kept.length === 0) console.error(`[write-lease] user ${userId}: lease lost while writing`);
+        })
+        .catch((e: unknown) => console.error(e));
+    }, writeLeaseTiming.beatMs);
     try {
       const users = new Set(active.getStore() ?? []);
       users.add(userId);
       return await active.run(users, fn);
     } finally {
+      clearInterval(beat);
       await getDb()
         .delete(writeLeases)
         .where(and(eq(writeLeases.userId, userId), eq(writeLeases.holder, holder)))
