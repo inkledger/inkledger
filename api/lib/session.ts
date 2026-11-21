@@ -47,9 +47,12 @@ function portScoped(req: Request, base: string): string {
   return port ? `${base}_${port}` : base;
 }
 
-/** The session cookie of a request: this server's name, else the old plain one. */
+/**
+ * The session cookie of a request, by this server's name only: on an explicit port the plain
+ * name may come from another app on another port of the host (signed in as someone else).
+ */
 export function readSessionCookie(req: Request, cookies: Record<string, string>): string | undefined {
-  return cookies[sessionCookieName(req)] ?? cookies[SESSION_COOKIE];
+  return cookies[sessionCookieName(req)];
 }
 
 export function sessionCookie(req: Request, sessionId: string, maxAgeSeconds: number): string {

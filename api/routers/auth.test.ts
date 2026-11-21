@@ -115,10 +115,12 @@ describe("auth: sessions, cookies, login hardening", () => {
     expect(onDev.sessionId).not.toBe(onProd.sessionId);
   });
 
-  it("still accepts the old plain cookie, and logout clears both names", async () => {
+  it("a server on its own port takes only its own cookie (another port's app could set the plain one); logout clears both names", async () => {
     const { userFromRequest } = await import("../context");
     const plain = (await login(anon("https://mac.tail1.ts.net/api/trpc"))).split(";")[0];
-    const req = new Request("http://localhost:47823/api/trpc", { headers: { cookie: plain } });
+    expect((await userFromRequest(new Request("http://localhost:47823/api/trpc", { headers: { cookie: plain } }))).user).toBeNull();
+    const own = (await login(anon("http://localhost:47823/api/trpc"))).split(";")[0];
+    const req = new Request("http://localhost:47823/api/trpc", { headers: { cookie: `${plain}; ${own}` } });
     const { user, sessionId } = await userFromRequest(req);
     expect(user).not.toBeNull();
     const ctx = { ...anon("http://localhost:47823/api/trpc"), user, sessionId };
