@@ -36,6 +36,7 @@ vi.stubGlobal(
       const body = JSON.parse(String(init?.body)) as { timeSpentSeconds: number; started: string };
       return json({ id: decodeURIComponent(one[1]), ...body, author: { accountId: "acc-1" } });
     }
+    if (url.includes("/issue/FAIL-1/worklog") && method === "POST") return json({ errorMessages: ["Jira refuses this worklog"] }, 400);
     if (url.endsWith("/worklog") && method === "POST") {
       const body = JSON.parse(String(init?.body)) as { timeSpentSeconds: number; started: string };
       return json({ id: `wl-${nextId++}`, ...body, author: { accountId: "acc-1" } });
@@ -169,6 +170,26 @@ describe("worklogs and stats", () => {
     await caller.timers.stop({ issueKey: "TMR-1" });
     await caller.worklogs.create({ issueKey: "TMR-1", timeSpent: "1m", started: hoursAgo(5), fromTimer: true });
     expect(await caller.timers.list()).toEqual([]);
+  });
+
+  it("a refused log gives a running timer back what it took, not more (logging more than it had counted)", async () => {
+    (await q("DELETE FROM timers"));
+    await caller.timers.start({ issueKey: "FAIL-1" });
+    (await q("UPDATE timers SET accumulated_seconds = 600, started_at = ? WHERE issue_key = 'FAIL-1'", Date.now()));
+    await expect(caller.worklogs.create({ issueKey: "FAIL-1", seconds: 3600, started: new Date(Date.now() - 9 * 3600_000).toISOString(), fromTimer: true })).rejects.toThrow();
+    const [t] = await caller.timers.list();
+    expect(t.elapsedSeconds).toBeGreaterThanOrEqual(600);
+    expect(t.elapsedSeconds).toBeLessThan(610);
+  });
+
+  it("the rest kept is the rest the page offered: under a minute but a minute when rounded", async () => {
+    (await q("DELETE FROM timers"));
+    await caller.timers.start({ issueKey: "RST-1" });
+    await caller.timers.stop({ issueKey: "RST-1" });
+    (await q("UPDATE timers SET accumulated_seconds = 3631 WHERE issue_key = 'RST-1'"));
+    await caller.worklogs.create({ issueKey: "RST-1", seconds: 3600, started: new Date(Date.now() - 11 * 3600_000).toISOString(), fromTimer: true, keepRest: true });
+    const [t] = await caller.timers.list();
+    expect(t?.elapsedSeconds).toBe(31);
   });
 
   it("a second device that saw the timer before the first log is refused: its time is logged once", async () => {

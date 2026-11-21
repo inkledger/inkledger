@@ -208,20 +208,25 @@ export async function claimTimerSeconds(
     await pruneRuns(tx, userId, now);
     const until = split && split.until.getTime() < now.getTime() ? split.until : now;
     const taken = split ? trackedThrough(t, until) : seconds;
+    // What the timer really loses: a log may ask for more than it counted (never below zero).
+    let removed: number;
     if (t.state !== "running") {
       const left = t.accumulatedSeconds - taken;
-      if (o.keepRest && left >= MIN_LEFT_SECONDS) {
+      // Kept as the page offered it: a rest that shows as a minute or more once rounded.
+      if (o.keepRest && Math.round(left / 60) * 60 >= MIN_LEFT_SECONDS) {
         await tx.update(timers).set({ accumulatedSeconds: left, updatedAt: now, epoch: t.epoch + 1 }).where(eq(timers.id, t.id));
+        removed = taken;
       } else {
         await clearPausedTimer(tx, userId, conn.id, issueKey);
+        removed = t.accumulatedSeconds;
       }
       // Logged another way (not by answering it): the open question to log it ends.
       ended = await endTimerLogIn(tx, userId, conn.id, issueKey, "logged", { label: "" });
     } else {
-      await tx
-        .update(timers)
-        .set({ accumulatedSeconds: Math.max(0, elapsedSeconds(t, now) - taken), startedAt: now, updatedAt: now, epoch: t.epoch + 1 })
-        .where(eq(timers.id, t.id));
+      const before = elapsedSeconds(t, now);
+      const after = Math.max(0, before - taken);
+      removed = before - after;
+      await tx.update(timers).set({ accumulatedSeconds: after, startedAt: now, updatedAt: now, epoch: t.epoch + 1 }).where(eq(timers.id, t.id));
     }
     // The shares come from the runs as the database has them, never from the page's seconds.
     let sharesTaken: { start: number; end: number; bp: number }[] = [];
@@ -235,10 +240,10 @@ export async function claimTimerSeconds(
     // A running timer's run is cut at `until`: what it ran since is still to log.
     const consumed = await consumeRuns(tx, ref, until, now);
     consumed.shares = await recordShares(tx, ref, sharesTaken);
-    return { t, taken, consumed };
+    return { t, taken, removed, consumed };
   });
   if (!claimed) return null;
-  const { t: was, taken, consumed } = claimed;
+  const { t: was, taken, removed, consumed } = claimed;
   publish(userId, { type: "timers", epoch: was.epoch + 1 });
   if (ended) told(userId, ended);
   return {
@@ -247,6 +252,9 @@ export async function claimTimerSeconds(
       // A split log takes more than it logs: what goes back is that much of what it took.
       const returned = split ? Math.round((back / Math.max(1, seconds)) * taken) : back;
       const logged = taken - returned;
+      // Back goes what the timer lost and wasn't logged: never more than it lost (a log
+      // asking for more than the timer counted took only what it had).
+      const putBack = Math.max(0, removed - logged);
       await withTimerLock(userId, async (tx) => {
         const [t] = await tx.select().from(timers).where(timerOf(userId, conn.id, issueKey)).limit(1);
         if (!t) {
@@ -260,7 +268,7 @@ export async function claimTimerSeconds(
         } else {
           await tx
             .update(timers)
-            .set({ accumulatedSeconds: t.accumulatedSeconds + returned, epoch: t.epoch + 1, updatedAt: new Date() })
+            .set({ accumulatedSeconds: t.accumulatedSeconds + putBack, epoch: t.epoch + 1, updatedAt: new Date() })
             .where(eq(timers.id, t.id));
         }
         // Nothing logged: the runs and shares are as they were.
