@@ -419,6 +419,7 @@ export const server = {
     rejected: "The store refused the request.",
     email: "That email address does not look right.",
     rate: "Too many requests today. Try again tomorrow.",
+    requested: "A request for this module with this email is already open: the licence comes here once it is approved.",
     product: "This module is not available that way any more. Reload the store.",
     method: "This payment method is not available yet.",
     badLicence: "This file is not a valid inkledger licence.",

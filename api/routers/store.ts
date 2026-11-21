@@ -48,6 +48,7 @@ const publicPending = ({ product, kind, status, reason }: Stored): StorePending 
 const ERRORS: Record<string, MessageKey> = {
   email: "server.store.email",
   rate: "server.store.rate",
+  requested: "server.store.requested",
   product: "server.store.product",
   method: "server.store.method",
 };

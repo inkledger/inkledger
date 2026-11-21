@@ -97,6 +97,7 @@ describe("module store", () => {
       if (url.pathname === "/catalog") return json({ v: 1, items: worker.items });
       if (url.pathname === "/request") {
         const b = JSON.parse(String(init?.body)) as { email: string };
+        if (b.email.endsWith("@asked.test")) return json({ error: "requested" }, 409);
         return b.email.endsWith("@spam.test") ? json({ error: "rate" }, 429) : json({ token: "t".repeat(43) });
       }
       if (url.pathname === `/request/${"t".repeat(43)}`) return json(worker.requestStatus);
@@ -162,6 +163,9 @@ describe("module store", () => {
     await caller.store.requestLicense({ product: "inkledger.hello", email: "fan@example.com", message: "hi", locale: "it" });
     expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", email: "fan@example.com", message: "hi", locale: "it" });
 
+    expect(await caller.store.pending()).toEqual({ pending: [{ product: "inkledger.hello", kind: "request", status: "pending" }], installed: [] });
+    // Asked before (the store gives no token twice): said, and the request waiting here is kept.
+    await expect(caller.store.requestLicense({ product: "inkledger.hello", email: "fan@asked.test" })).rejects.toThrow(/already open/);
     expect(await caller.store.pending()).toEqual({ pending: [{ product: "inkledger.hello", kind: "request", status: "pending" }], installed: [] });
     // The token stays on the server.
     expect(JSON.stringify(await caller.store.catalog())).not.toContain("t".repeat(43));

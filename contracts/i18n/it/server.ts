@@ -420,6 +420,7 @@ export const server: Shape<typeof en> = {
     rejected: "Lo store ha rifiutato la richiesta.",
     email: "L'indirizzo email non sembra corretto.",
     rate: "Troppe richieste oggi. Riprova domani.",
+    requested: "Una richiesta per questo modulo con questa email è già aperta: la licenza arriva qui quando viene approvata.",
     product: "Questo modulo non è più disponibile così. Ricarica lo store.",
     method: "Questo metodo di pagamento non è ancora disponibile.",
     badLicence: "Questo file non è una licenza inkledger valida.",
