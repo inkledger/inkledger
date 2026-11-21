@@ -27,6 +27,9 @@ const MAX_REDIRECTS = 3;
 /** The headers credentials ride in, across the providers: never sent on to another origin. */
 const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "PRIVATE-TOKEN", "X-Api-Key", "X-Redmine-API-Key", "Shortcut-Token"];
 
+/** How long a tracker may stay silent: before its headers, and between two chunks of its body. */
+export const AGENT_TIMEOUTS = { headersTimeout: 60_000, bodyTimeout: 60_000 } as const;
+
 /**
  * Connections made only to addresses the network allows, checked when the
  * socket opens: a name that resolved to a public address for the check and
@@ -34,6 +37,8 @@ const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "P
  */
 function guardedAgent(network: Network): Agent {
   return new Agent({
+    // Idle limits, not a total one: a server that sends no headers, or stops sending the body, is cut; a large body that keeps coming is not.
+    ...AGENT_TIMEOUTS,
     connect: {
       lookup: (host, options, done) => {
         lookup(host, { ...options, all: true }, (err, found: LookupAddress[]) => {
@@ -47,7 +52,7 @@ function guardedAgent(network: Network): Agent {
     },
   });
 }
-const agents: Record<Network, Agent> = { public: guardedAgent("public"), private: guardedAgent("private") };
+export const agents: Record<Network, Agent> = { public: guardedAgent("public"), private: guardedAgent("private") };
 
 type SafeFetch = {
   /** The tracker's site: same-origin redirects keep the credential headers. */

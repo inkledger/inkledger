@@ -49,7 +49,8 @@ describe("sync engine, through the provider contract", () => {
     const [row] = await getDb().select().from(connections).where(eq(connections.id, connId));
     const bound = bindTracker(tamper(fake), { id: connId, userId, type: "github", baseUrl: "https://fake.example", remoteAccountId: "me", options: { region: "eu" }, timeZone: timeZone("Europe/Rome"), credential: async () => ({ kind: "token", token: "t" }) });
     const { syncConnectionIssues } = await import("./engine");
-    const run = (opts: { full?: boolean; background?: boolean } = {}) => syncConnectionIssues(row, { full: opts.full ?? false, background: opts.background ?? true, bound });
+    const run = (opts: { full?: boolean; background?: boolean; deadlineMs?: number } = {}) =>
+      syncConnectionIssues(row, { full: opts.full ?? false, background: opts.background ?? true, bound, ...(opts.deadlineMs ? { deadlineMs: opts.deadlineMs } : {}) });
     return { fake, run, row };
   }
 
@@ -178,6 +179,20 @@ describe("sync engine, through the provider contract", () => {
       expect(await run({ background: false })).toMatchObject({ ran: true });
       expect(await q("SELECT status FROM connections WHERE id = ?", connId)).toEqual([{ status: "ok" }]);
       expect((await state()).failures).toBe(0);
+    });
+
+    it("a pass whose tracker never answers ends at the pass deadline as a timeout, and keeps the old checkpoint", async () => {
+      let hang = false;
+      const { run } = await setup({}, (f) => ({
+        ...f,
+        listChanged: (x, q) =>
+          hang ? new Promise<never>((_, reject) => x.signal.addEventListener("abort", () => reject(x.signal.reason as Error), { once: true })) : f.listChanged(x, q),
+      }));
+      await run({ full: true });
+      const before = (await state()).checkpoint;
+      hang = true;
+      await expect(run({ background: false, deadlineMs: 50 })).rejects.toMatchObject({ kind: "timeout" });
+      expect((await state()).checkpoint).toBe(before);
     });
 
     it("an adapter whose page token comes back fails the pass as incompatible, and keeps the old checkpoint", async () => {

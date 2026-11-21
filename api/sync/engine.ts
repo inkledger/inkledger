@@ -101,6 +101,20 @@ async function budgetFor(conn: Connection, b: BoundTracker, signal: AbortSignal)
   return budgetOf(probe.rateLimit);
 }
 
+/**
+ * The longest a sync pass may run: past it, its calls are cancelled as timed
+ * out and the pass fails (its checkpoint kept for the next). A connection
+ * that goes quiet is cut sooner, by the HTTP agent's idle timeouts.
+ */
+export const PASS_DEADLINE_MS = 30 * 60_000;
+
+/** A pass's signal: the caller's, if any, and the pass deadline, whichever fires first; `done` clears the deadline. */
+function passSignal(outer: AbortSignal | undefined, ms: number): { signal: AbortSignal; done: () => void } {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(new DOMException("The sync pass ran past its deadline", "TimeoutError")), ms);
+  return { signal: outer ? AbortSignal.any([outer, ctl.signal]) : ctl.signal, done: () => clearTimeout(timer) };
+}
+
 /** The connection's tracker, bound; null when its adapter isn't built (or is turned off). */
 export function boundTracker(conn: Connection): BoundTracker | null {
   const adapter = trackerAdapter(conn.type as TrackerType);
@@ -114,17 +128,21 @@ export function boundTracker(conn: Connection): BoundTracker | null {
 /** The issue stream of a connection through the provider contract. */
 export async function syncConnectionIssues(
   conn: Connection,
-  opts: { full: boolean; background: boolean; signal?: AbortSignal; bound?: BoundTracker },
+  opts: { full: boolean; background: boolean; signal?: AbortSignal; bound?: BoundTracker; deadlineMs?: number },
 ): Promise<StreamRun<IssuePassResult>> {
   const b = opts.bound ?? boundTracker(conn);
   if (!b) return { ran: false, reason: "waiting", until: new Date(8.64e15) };
-  const signal = opts.signal ?? new AbortController().signal;
   return withStream(conn, "issues", opts, async (since) => {
-    const budget = await budgetFor(conn, b, signal);
-    const meta = { signal, correlationId: `sync-${conn.id}-${Date.now()}` };
-    // What the pass changed goes to the issues' activity and the user's news.
-    const result = await observePass(conn, () => syncIssues(b, { userId: conn.userId, connectionId: conn.id }, { since, meta, budget }));
-    return { result, checkpoint: result.checkpoint };
+    const { signal, done } = passSignal(opts.signal, opts.deadlineMs ?? PASS_DEADLINE_MS);
+    try {
+      const budget = await budgetFor(conn, b, signal);
+      const meta = { signal, correlationId: `sync-${conn.id}-${Date.now()}` };
+      // What the pass changed goes to the issues' activity and the user's news.
+      const result = await observePass(conn, () => syncIssues(b, { userId: conn.userId, connectionId: conn.id }, { since, meta, budget }));
+      return { result, checkpoint: result.checkpoint };
+    } finally {
+      done();
+    }
   });
 }
 
@@ -136,16 +154,20 @@ export async function syncConnectionIssues(
  */
 export async function syncConnectionEntries(
   conn: Connection,
-  opts: { full: boolean; background: boolean; signal?: AbortSignal; bound?: BoundTracker },
+  opts: { full: boolean; background: boolean; signal?: AbortSignal; bound?: BoundTracker; deadlineMs?: number },
 ): Promise<StreamRun<{ upserted: number; removed: number }> | null> {
   const b = opts.bound ?? boundTracker(conn);
   if (!b || !entriesOf(b) || !b.worklogs?.changed) return null;
-  const signal = opts.signal ?? new AbortController().signal;
   return withStream(conn, "entries", opts, async (since) => {
-    const budget = await budgetFor(conn, b, signal);
-    const meta = { signal, correlationId: `entries-${conn.id}-${Date.now()}` };
-    const r = await syncEntries(b, conn, { since, meta, budget, zone: connOf(conn).timeZone });
-    return { result: { upserted: r.upserted, removed: r.removed }, checkpoint: r.checkpoint };
+    const { signal, done } = passSignal(opts.signal, opts.deadlineMs ?? PASS_DEADLINE_MS);
+    try {
+      const budget = await budgetFor(conn, b, signal);
+      const meta = { signal, correlationId: `entries-${conn.id}-${Date.now()}` };
+      const r = await syncEntries(b, conn, { since, meta, budget, zone: connOf(conn).timeZone });
+      return { result: { upserted: r.upserted, removed: r.removed }, checkpoint: r.checkpoint };
+    } finally {
+      done();
+    }
   });
 }
 

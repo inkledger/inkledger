@@ -53,4 +53,16 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     expect([...seen[0].keys()]).toHaveLength(7);
     expect([...seen[1].entries()]).toEqual([["accept", "image/*"]]);
   });
+
+  it("a tracker that goes silent is cut by idle timeouts on the guarded agents, never by a total deadline", async () => {
+    const { agents, AGENT_TIMEOUTS } = await import("./http");
+    expect(AGENT_TIMEOUTS.headersTimeout).toBeGreaterThan(0);
+    expect(AGENT_TIMEOUTS.bodyTimeout).toBeGreaterThan(0);
+    for (const agent of Object.values(agents)) {
+      const options = Object.getOwnPropertySymbols(agent)
+        .map((s) => (agent as unknown as Record<symbol, unknown>)[s])
+        .find((v): v is { headersTimeout?: number; bodyTimeout?: number } => typeof v === "object" && v !== null && "connect" in v);
+      expect(options).toMatchObject(AGENT_TIMEOUTS);
+    }
+  });
 });
