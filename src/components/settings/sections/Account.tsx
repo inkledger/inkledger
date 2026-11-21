@@ -26,6 +26,7 @@ import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
 import { surface, surfaceFace } from "@/components/app/surface";
 import { useDirtyClose } from "@/components/app/DirtyClose";
 import { RenameForm } from "@/components/settings/RenameForm";
+import { forgetAccountData } from "@/lib/accountData";
 
 export function AccountSection() {
   const provider = useProviderName();
@@ -57,6 +58,7 @@ export function AccountSection() {
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       queryClient.clear();
+      forgetAccountData();
       void navigate("/login", { replace: true, state: { signedOut: true } });
     },
     onError: () => toast.error(t("settings.account.signOutFailed")),

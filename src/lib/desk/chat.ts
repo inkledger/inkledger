@@ -7,6 +7,7 @@ import { currentLocale, t } from "@/i18n";
 import { randomUUID } from "@/lib/randomId";
 import { runAgent, type AgentStep } from "./agent";
 import { describeCall, runCodeTool, type Repo } from "./code";
+import { onSessionEnd } from "@/lib/accountData";
 
 /**
  * The Desk's chat in the browser (docs/work/desk.md, batches 4c and 4d): the conversation
@@ -167,6 +168,8 @@ export function clearChat(): void {
   stop();
   set(() => EMPTY);
 }
+// The conversation is the account's: the next one signed in on this page starts empty.
+onSessionEnd(clearChat);
 
 /** The conversation as a note: the issues' keys, then each question and answer. */
 export function chatMarkdown(messages: readonly ChatMessage[], issues: readonly DeskChatIssue[]): string {

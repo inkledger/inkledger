@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormError } from "@/components/auth/AuthShell";
-import { toastError } from "@/lib/errorText";
+import { errorText, toastError } from "@/lib/errorText";
 import { mediumDate } from "@/lib/dates";
 import { formatBytes } from "@/lib/initials";
 import { ErrorState } from "@/components/app/States";
@@ -151,7 +151,14 @@ function MailboxGroup() {
     return { end: t(r.reason === "consent" ? "settings.outlook.consent" : r.reason === "denied" ? "settings.outlook.denied" : "settings.outlook.expired") };
   });
   const start = trpc.mails.signInStart.useMutation({ onSuccess: begin, onError: fail });
-  const signOut = trpc.mails.signOut.useMutation({ onSuccess: () => void utils.mails.account.invalidate(), onError: e => toastError(e) });
+  const signOut = trpc.mails.signOut.useMutation({
+    onSuccess: () => {
+      void utils.mails.account.invalidate();
+      // The mailbox's results go with it, as signing in refreshes them.
+      void utils.mails.search.invalidate();
+    },
+    onError: e => toastError(e),
+  });
 
   return (
     <SettingsGroup id="outlook-mailbox" title={t("settings.outlook.mailboxTitle")} description={t("settings.outlook.mailboxText")} keywords={t("settings.outlook.mailboxKeywords")}>
@@ -270,22 +277,29 @@ function AddinGroup() {
               </Button>
             </div>
           </>
+        ) : key.isError ? (
+          // Unknown whether a key exists: making one would replace it and cut off the installed add-in.
+          <ErrorState message={errorText(key.error)} onRetry={() => void key.refetch()} className="py-4" />
+        ) : key.isPending ? (
+          <Skeleton className="h-9 w-48" />
         ) : key.data ? (
           <p className="text-body-sm text-muted-foreground">
             {key.data.lastUsedAt ? t("settings.outlook.keyUsed", { date: mediumDate(key.data.lastUsedAt) }) : t("settings.outlook.keyUnused")}
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button variant={key.data ? "outline" : "default"} onClick={() => make.mutate()} disabled={make.isPending}>
-            <KeyRound />
-            {key.data ? t("settings.outlook.keyRenew") : t("settings.outlook.keyMake")}
-          </Button>
-          {key.data && (
-            <Button variant="ghost" onClick={() => revoke.mutate()} disabled={revoke.isPending}>
-              {t("settings.outlook.keyRevoke")}
+        {(shown || key.isSuccess) && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant={key.data ? "outline" : "default"} onClick={() => make.mutate()} disabled={make.isPending}>
+              <KeyRound />
+              {key.data ? t("settings.outlook.keyRenew") : t("settings.outlook.keyMake")}
             </Button>
-          )}
-        </div>
+            {key.data && (
+              <Button variant="ghost" onClick={() => revoke.mutate()} disabled={revoke.isPending}>
+                {t("settings.outlook.keyRevoke")}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </SettingsGroup>
   );

@@ -143,6 +143,8 @@ const board = deviceSetting<number | null>(
 export const pinboardBoard = {
   set: (id: number) => board.set(id),
   get: () => board.get(),
+  /** Signing out: the next account's boards are others. */
+  forget: () => board.set(null),
 };
 
 export function usePinboardBoardId(): number | null {

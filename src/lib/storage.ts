@@ -26,6 +26,20 @@ export function writeStored(key: string, value: string | null): boolean {
   }
 }
 
+/** Removes every key that starts with `prefix` (nothing when there is no storage). */
+export function removeStoredPrefix(prefix: string): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach(key => localStorage.removeItem(key));
+  } catch {
+    // No storage: nothing kept to remove.
+  }
+}
+
 /** JSON stored under `key`, or undefined: nothing stored, no storage, or not JSON. The caller checks its shape. */
 export function readStoredJson(key: string): unknown {
   const raw = readStored(key);

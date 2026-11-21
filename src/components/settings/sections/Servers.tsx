@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
+import { forgetAccountData } from "@/lib/accountData";
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
 
@@ -62,6 +63,7 @@ export function ServersSection() {
     // The session row goes even if this fails; the cookie is cleared by the reply.
     await logout.mutateAsync().catch(() => undefined);
     queryClient.clear();
+    forgetAccountData();
     await forgetServer();
   };
 

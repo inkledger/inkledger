@@ -7,6 +7,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { ChangePasswordForm } from "@/components/auth/ChangePasswordForm";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { forgetAccountData } from "@/lib/accountData";
 
 /** A default or temporary password: nothing else opens until it is replaced. */
 export default function ChangePassword() {
@@ -17,6 +18,7 @@ export default function ChangePassword() {
   const logout = trpc.auth.logout.useMutation({
     onSettled: () => {
       queryClient.clear();
+      forgetAccountData();
       void navigate("/login", { replace: true, state: { signedOut: true } });
     },
   });

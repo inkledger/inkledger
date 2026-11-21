@@ -120,6 +120,16 @@ export async function forgetFolder(id: string): Promise<void> {
   }
 }
 
+/** Every folder this browser kept, forgotten (signing out: they are the account's, not the device's). */
+export function forgetAllFolders(): void {
+  set([]);
+  try {
+    indexedDB.deleteDatabase(DB);
+  } catch {
+    // No IndexedDB here: nothing was stored.
+  }
+}
+
 /** Whether the folder can be read now; `ask` asks the browser again (needs a click). */
 export async function readable(folder: Folder, ask: boolean): Promise<boolean> {
   try {

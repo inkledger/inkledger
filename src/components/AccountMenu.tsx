@@ -20,6 +20,7 @@ import { t } from "@/i18n";
 import { BucketMenu } from "@/components/BucketMenu";
 import { surface, surfaceFace } from "@/components/app/surface";
 import type { FlowControlAttributes } from "@/lib/workspace/instrumentation";
+import { forgetAccountData } from "@/lib/accountData";
 
 /** The signed-in user: avatar, name and email, opening server, Settings (in the sidebar) and sign-out. */
 export function AccountMenu({
@@ -45,6 +46,7 @@ export function AccountMenu({
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {
       queryClient.clear();
+      forgetAccountData();
       void navigate("/login", { replace: true, state: { signedOut: true } });
     },
     onError: () => toast.error(t("ui.layout.logoutFailed")),

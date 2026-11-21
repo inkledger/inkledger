@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { readStored, writeStored } from "@/lib/storage";
+import { TIMER_NOTE_DRAFT_PREFIX } from "@/lib/accountData";
 
 /** The note kept on this device after a failed save, unless the server already has it. */
 function readDraft(key: string, note: string): string | null {
@@ -29,7 +30,7 @@ export function TimerNote({
 }) {
   const utils = trpc.useUtils();
   // A note the server refused is kept on this device until it is saved (closing the panel too).
-  const draftKey = `ikl.timerNote.${connectionId ?? ""}:${issueKey}`;
+  const draftKey = `${TIMER_NOTE_DRAFT_PREFIX}${connectionId ?? ""}:${issueKey}`;
   const [draft] = useState(() => readDraft(draftKey, note));
   const [value, setValue] = useState(draft ?? note);
   const [failed, setFailed] = useState(draft !== null);

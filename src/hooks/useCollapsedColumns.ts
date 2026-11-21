@@ -12,6 +12,11 @@ import { t } from "@/i18n";
 /** Saves of the list under way, every board's (they share one setting), and the list they lead to. */
 const saving: { count: number; intended: string[] | null } = { count: 0, intended: null };
 
+/** Signing out: the list a save under way leads to is the previous account's, never the next one's base. */
+export function forgetCollapsedSaves(): void {
+  saving.intended = null;
+}
+
 export function useCollapsedColumns(scope?: string) {
   const utils = trpc.useUtils();
   const settings = trpc.settings.get.useQuery();
