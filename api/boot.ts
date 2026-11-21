@@ -137,6 +137,15 @@ app.use("/api/*", async (c, next) => {
 // CSRF defence in depth (cookies are SameSite=Lax): state-changing requests
 // must come from our own origin when the browser sends one.
 app.use("/api/*", async (c, next) => {
+  // What the browser says started the request: another site (another port of this host is
+  // "same-site") can't send a write, nor open a query (some write), even without an Origin.
+  // A webhook or an add-in key is no browser's cookie: nothing to forge there.
+  const site = c.req.header("sec-fetch-site");
+  const fromElsewhere = site === "cross-site" || site === "same-site";
+  const keyed = c.req.path.startsWith("/api/hooks/") || /^Bearer\s/i.test(c.req.header("authorization") ?? "");
+  if (fromElsewhere && !keyed && (c.req.method !== "GET" && c.req.method !== "HEAD" ? true : c.req.path.startsWith("/api/trpc/"))) {
+    return c.json({ error: "Forbidden origin" }, 403);
+  }
   if (c.req.method !== "GET" && c.req.method !== "HEAD") {
     const origin = c.req.header("origin");
     const host = c.req.header("host");

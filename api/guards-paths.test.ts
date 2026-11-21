@@ -55,4 +55,20 @@ describe("no path spelling gets past the /api guards", () => {
       expect(res.status, `${path}`).toBe(403);
     }
   });
+
+  it("a browser request another site started is refused even without an Origin; servers and keys are not browsers", async () => {
+    const post = (path: string, headers: Record<string, string>) =>
+      app.request(path, { method: "POST", headers: { host: "localhost", "content-type": "application/json", ...headers }, body: "{}" });
+    for (const site of ["cross-site", "same-site"]) expect((await post("/api/trpc/auth.logout", { "sec-fetch-site": site })).status, site).toBe(403);
+    // A query that writes, opened by another site (a link, an image): refused too.
+    expect((await app.request("/api/trpc/auth.me", { headers: { host: "localhost", "sec-fetch-site": "cross-site" } })).status).toBe(403);
+    // Our own pages, a typed address, and clients that aren't browsers go on.
+    expect((await post("/api/trpc/auth.logout", { "sec-fetch-site": "same-origin" })).status).not.toBe(403);
+    expect((await post("/api/trpc/auth.logout", {})).status).not.toBe(403);
+    expect((await app.request("/api/trpc/auth.me", { headers: { host: "localhost", "sec-fetch-site": "none" } })).status).not.toBe(403);
+    expect((await app.request("/api/trpc/auth.me", { headers: { host: "localhost", "sec-fetch-site": "same-origin" } })).status).not.toBe(403);
+    // A webhook or an add-in key: not a cookie, nothing to forge.
+    expect((await post("/api/hooks/1/token", { "sec-fetch-site": "cross-site" })).status).not.toBe(403);
+    expect((await post("/api/outlook/copy", { "sec-fetch-site": "cross-site", authorization: "Bearer ikl_ol_abcdefghijklmnopqrstuvwxyz" })).status).not.toBe(403);
+  });
 });
