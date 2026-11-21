@@ -56,7 +56,15 @@ export async function needsFullSync(userId: number, now: number = Date.now()): P
 export async function syncActiveUsers(): Promise<{ ok: number; failed: number }> {
   let ok = 0;
   let failed = 0;
-  for (const user of await activeUsers()) {
+  let due: User[];
+  try {
+    due = await activeUsers();
+  } catch (e) {
+    // The database out of reach for a moment: this pass is skipped, the next one tries again.
+    console.warn(`[sync] pass skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return { ok, failed };
+  }
+  for (const user of due) {
     if (isShuttingDown() || inMaintenance()) break; // the rest waits for the next boot (or pass)
     try {
       await syncUser(user, { full: await needsFullSync(user.id), background: true });
@@ -74,8 +82,12 @@ export async function syncActiveUsers(): Promise<{ ok: number; failed: number }>
         // password), and the user stays signed in.
         const status = e instanceof JiraApiError ? "auth_failed" : "unreadable";
         const from = originOf(e);
-        await (from !== undefined ? markConnection(user.id, from, status) : markJiraConnection(user.id, status));
-        console.warn(`[sync] user ${user.id}: credentials rejected, connection waits to be reconnected`);
+        try {
+          await (from !== undefined ? markConnection(user.id, from, status) : markJiraConnection(user.id, status));
+          console.warn(`[sync] user ${user.id}: credentials rejected, connection waits to be reconnected`);
+        } catch (mark) {
+          console.warn(`[sync] user ${user.id}: credentials rejected, not set aside: ${mark instanceof Error ? mark.message : String(mark)}`);
+        }
       }
     }
   }
@@ -110,6 +122,8 @@ export function startSyncScheduler(minutes: number): () => Promise<void> {
       // Then the status histories the pass made due (estimates): read only, a bounded number per pass.
       current = syncActiveUsers()
         .then(() => (isShuttingDown() ? undefined : readHistories()))
+        // Never an unhandled rejection: Node would end the process.
+        .catch((e: unknown) => console.warn(`[sync] pass failed: ${e instanceof Error ? e.message : String(e)}`))
         .finally(() => {
           current = null;
           if (!stopped) schedule(minutes * 60_000);

@@ -128,6 +128,18 @@ describe("background Jira sync", () => {
     expect((await caller.issues.syncStatus()).lastError).toBeNull();
   });
 
+  it("a pass the database fails is logged, never thrown (an unhandled rejection would end the process)", async () => {
+    const db = (await import("./queries/connection")).getDb();
+    const down = vi.spyOn(db, "selectDistinct").mockImplementation(() => {
+      throw new Error("Connection terminated unexpectedly");
+    });
+    try {
+      await expect(mod.syncActiveUsers()).resolves.toEqual({ ok: 0, failed: 0 });
+    } finally {
+      down.mockRestore();
+    }
+  });
+
   it("starts no sync once shutdown began", async () => {
     const shutdown = await import("./lib/shutdown");
     const before = searches;
