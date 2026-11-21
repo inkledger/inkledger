@@ -19,7 +19,12 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const { id, hash } = c.req.param();
     // Only the modules granted to this account (an admin runs them all).
     if (!mayRunModule(who.user, id)) return c.json({ error: "Not allowed" }, 403);
-    const file = decodeURIComponent(c.req.path.slice(`${MODULES_PATH}/${id}/${hash}/`.length));
+    let file: string;
+    try {
+      file = decodeURIComponent(c.req.path.slice(`${MODULES_PATH}/${id}/${hash}/`.length));
+    } catch {
+      return c.json({ error: "Not Found" }, 404);
+    }
     const body = await moduleFile(id, hash, file);
     if (!body) return c.json({ error: "Not Found" }, 404);
     return c.body(new Uint8Array(body), 200, {

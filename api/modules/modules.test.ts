@@ -174,6 +174,10 @@ describe("add-on modules", () => {
     }
   });
 
+  it("a module file path that doesn't decode is not found, not a server error", async () => {
+    expect((await app.request("/api/modules/hello/abc/bad%E0%A4%A.js", { headers: { cookie } })).status).toBe(404);
+  });
+
   it("runs nothing for an account that may not use modules (useModules)", async () => {
     const { getDb } = await import("../queries/connection");
     const { users } = await import("@db/schema");
