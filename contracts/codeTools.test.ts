@@ -5,9 +5,9 @@ import { TOOL_RESULT_CHARS, formatToolResult, globMatch, isPrivateName, parseToo
 
 describe("isPrivateName", () => {
   it("secrets and version-control folders are private; examples and ordinary files are not", () => {
-    for (const name of [".git", ".hg", ".svn", ".ssh", ".env", ".env.local", ".env.production", "server.pem", "app.key", "cert.p12", "store.pfx", "release.jks", "app.keystore", "id_rsa", "id_ed25519", ".npmrc", ".netrc", ".pypirc", ".git-credentials", "ID_RSA"])
+    for (const name of [".git", ".hg", ".svn", ".ssh", ".env", ".env.local", ".env.production", "server.pem", "app.key", "cert.p12", "store.pfx", "release.jks", "app.keystore", "id_rsa", "id_ed25519", ".npmrc", ".netrc", ".pypirc", ".git-credentials", "ID_RSA", ".envrc", ".pgpass", ".htpasswd", "credentials.json", "terraform.tfstate", "prod.tfstate.backup", "key.p8", "vault.gpg", ".docker", ".kube", ".azure"])
       expect(isPrivateName(name), name).toBe(true);
-    for (const name of [".env.example", ".env.sample", ".env.template", "id_rsa.pub", "keys.ts", "monkey.kt", ".gitignore", "env.ts", "README.md"])
+    for (const name of [".env.example", ".env.sample", ".env.template", "id_rsa.pub", "keys.ts", "monkey.kt", ".gitignore", "env.ts", "README.md", "secrets.ts", "credentials.ts"])
       expect(isPrivateName(name), name).toBe(false);
   });
 });

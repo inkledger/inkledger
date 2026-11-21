@@ -36,9 +36,9 @@ export const SKIPPED_DIRS: readonly string[] = [".git", ".hg", ".svn", "node_mod
  * leave it: absolute, a drive letter, home, `..`, control characters or `:` (Windows
  * streams). Backslashes are separators, as on Windows.
  */
-const PRIVATE_DIRS = [".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws"];
-const PRIVATE_FILES = [".npmrc", ".netrc", ".pypirc", ".git-credentials", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
-const PRIVATE_EXTENSIONS = [".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"];
+const PRIVATE_DIRS = [".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws", ".azure", ".docker", ".kube"];
+const PRIVATE_FILES = [".npmrc", ".netrc", ".pypirc", ".git-credentials", ".envrc", ".pgpass", ".htpasswd", "credentials.json", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
+const PRIVATE_EXTENSIONS = [".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".p8", ".gpg", ".tfstate", ".tfstate.backup"];
 const ENV_EXAMPLES = [".env.example", ".env.sample", ".env.template"];
 
 /**

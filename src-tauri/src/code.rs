@@ -101,9 +101,22 @@ fn resolve_root(raw: &str, home: Option<&Path>) -> Result<PathBuf, String> {
     Ok(real)
 }
 
-const PRIVATE_DIRS: &[&str] = &[".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws"];
-const PRIVATE_FILES: &[&str] = &[".npmrc", ".netrc", ".pypirc", ".git-credentials", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
-const PRIVATE_EXTENSIONS: &[&str] = &[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"];
+const PRIVATE_DIRS: &[&str] = &[".git", ".hg", ".svn", ".ssh", ".gnupg", ".aws", ".azure", ".docker", ".kube"];
+const PRIVATE_FILES: &[&str] = &[
+    ".npmrc",
+    ".netrc",
+    ".pypirc",
+    ".git-credentials",
+    ".envrc",
+    ".pgpass",
+    ".htpasswd",
+    "credentials.json",
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+];
+const PRIVATE_EXTENSIONS: &[&str] = &[".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".p8", ".gpg", ".tfstate", ".tfstate.backup"];
 const ENV_EXAMPLES: &[&str] = &[".env.example", ".env.sample", ".env.template"];
 
 /// A file or folder the model never sees: version control (the git tools read history)
@@ -444,11 +457,23 @@ fn git_command(root: Option<&Path>) -> Command {
     if let Some(root) = root {
         cmd.arg("-C").arg(root);
     }
-    cmd.args(["-c", "core.quotepath=off", "--no-pager"])
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_PAGER", "cat")
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .stdin(Stdio::null());
+    // Settings a repository's own config can't turn on here: it may come from anyone, and
+    // these run programs (gpg to check a "signed" commit, fsmonitor, external diffs).
+    cmd.args([
+        "-c",
+        "core.quotepath=off",
+        "-c",
+        "log.showSignature=false",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "diff.external=",
+        "--no-pager",
+    ])
+    .env("GIT_TERMINAL_PROMPT", "0")
+    .env("GIT_PAGER", "cat")
+    .env("GIT_OPTIONAL_LOCKS", "0")
+    .stdin(Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -458,19 +483,45 @@ fn git_command(root: Option<&Path>) -> Command {
     cmd
 }
 
+/// Pathspecs that keep private files out of what git prints (their names and contents in
+/// history), the same names `is_private` refuses (.env examples go too: one pattern).
+fn private_excludes() -> Vec<String> {
+    let ex = |glob: String| format!(":(exclude,glob,icase){glob}");
+    let mut out: Vec<String> = PRIVATE_DIRS.iter().map(|d| ex(format!("**/{d}/**"))).collect();
+    out.extend(PRIVATE_FILES.iter().map(|f| ex(format!("**/{f}"))));
+    out.extend(PRIVATE_EXTENSIONS.iter().map(|e| ex(format!("**/*{e}"))));
+    out.extend([ex("**/.env".into()), ex("**/.env.*".into())]);
+    out
+}
+
+/// The pathspecs after `--`: the path asked for, if any (literal, refused if private), then the exclusions.
+fn pathspecs(path: Option<&str>) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    if let Some(p) = path.filter(|p| !p.trim().is_empty()) {
+        let parts = rel_parts(p)?;
+        if parts.iter().any(|s| is_private(s)) {
+            return Err(trf("code.private", &[("path", p)]));
+        }
+        // A literal pathspec: no glob or magic in what the model wrote.
+        out.push(format!(":(literal){}", parts.join("/")));
+    }
+    out.extend(private_excludes());
+    Ok(out)
+}
+
 /// The arguments of `git log` for these filters (fixed list, values as single arguments).
 fn git_log_args(grep: Option<&str>, path: Option<&str>, limit: u32) -> Result<Vec<String>, String> {
     let mut args: Vec<String> =
-        ["log", "--no-color", "--date=short", "--name-status", "--format=%x1e%H%x1f%ad%x1f%s"].iter().map(|s| s.to_string()).collect();
+        ["log", "--no-color", "--no-show-signature", "--date=short", "--name-status", "--format=%x1e%H%x1f%ad%x1f%s"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
     args.push(format!("--max-count={}", limit.clamp(1, GIT_LOG_MAX)));
     if let Some(g) = grep.map(str::trim).filter(|g| !g.is_empty()) {
         args.extend(["--regexp-ignore-case".into(), "--fixed-strings".into(), format!("--grep={g}")]);
     }
     args.push("--".into());
-    if let Some(p) = path.filter(|p| !p.trim().is_empty()) {
-        // A literal pathspec: no glob or magic in what the model wrote.
-        args.push(format!(":(literal){}", rel_parts(p)?.join("/")));
-    }
+    args.extend(pathspecs(path)?);
     Ok(args)
 }
 
@@ -479,15 +530,13 @@ fn git_show_args(commit: &str, path: Option<&str>) -> Result<Vec<String>, String
         return Err(trf("code.bad_commit", &[("commit", commit)]));
     }
     let mut args: Vec<String> =
-        ["show", "--no-color", "--no-ext-diff", "--no-textconv", "--stat", "--patch", "--format=%H%n%an%n%ad%n%n%B"]
+        ["show", "--no-color", "--no-show-signature", "--no-ext-diff", "--no-textconv", "--stat", "--patch", "--format=%H%n%an%n%ad%n%n%B"]
             .iter()
             .map(|s| s.to_string())
             .collect();
     args.push(commit.to_string());
     args.push("--".into());
-    if let Some(p) = path.filter(|p| !p.trim().is_empty()) {
-        args.push(format!(":(literal){}", rel_parts(p)?.join("/")));
-    }
+    args.extend(pathspecs(path)?);
     Ok(args)
 }
 
@@ -940,19 +989,23 @@ mod tests {
             "a..b",
             "0123456789abcdef0123456789abcdef012345678",
         ] {
-            assert!(valid_commit(bad) == false, "{bad}");
+            assert!(!valid_commit(bad), "{bad}");
             assert!(git_show_args(bad, None).is_err(), "{bad}");
         }
         let log = git_log_args(Some("--output=/tmp/x"), Some("src/a b.kt"), 500).unwrap();
         // A value is never an option of its own; the path is literal, after `--`.
         assert!(log.contains(&"--grep=--output=/tmp/x".to_string()));
         assert!(log.contains(&"--max-count=30".to_string()));
-        assert_eq!(&log[log.len() - 2..], &["--".to_string(), ":(literal)src/a b.kt".to_string()]);
+        let tail = log.iter().position(|a| a == "--").unwrap();
+        assert_eq!(log[tail + 1], ":(literal)src/a b.kt");
+        assert!(log[tail + 2..].iter().all(|a| a.starts_with(":(exclude,glob,icase)")));
         assert!(git_log_args(None, Some("../x"), 5).is_err());
         assert!(git_log_args(None, Some("/etc"), 5).is_err());
         let show = git_show_args("abc1234", Some(r"src\a.kt")).unwrap();
         assert!(show.contains(&"--no-ext-diff".to_string()) && show.contains(&"--no-textconv".to_string()));
-        assert_eq!(&show[show.len() - 3..], &["abc1234".to_string(), "--".to_string(), ":(literal)src/a.kt".to_string()]);
+        let tail = show.iter().position(|a| a == "--").unwrap();
+        assert_eq!(&show[tail - 1..tail + 2], &["abc1234".to_string(), "--".to_string(), ":(literal)src/a.kt".to_string()]);
+        assert!(git_show_args("abc1234", Some(".env")).is_err());
     }
 
     #[test]
@@ -985,6 +1038,92 @@ mod tests {
         let show = git_show(&t.0, hash, None).unwrap();
         assert!(show.text.contains("val stock = 0"), "{}", show.text);
         assert!(git_log(&t.0, Some("MAGA-999"), None, 5).unwrap().commits.is_empty());
+    }
+
+    #[test]
+    fn git_never_shows_private_files_from_history() {
+        if !git_available() {
+            return;
+        }
+        let t = Temp::new("git-private");
+        let git = |args: &[&str]| git_command(Some(&t.0)).args(args).output().unwrap();
+        git(&["init", "-q"]);
+        t.file("src/App.kt", b"val app = 1\n");
+        t.file(".env", b"API_TOKEN=hunter2-secret\n");
+        t.file("deploy/prod.pem", b"-----BEGIN PRIVATE KEY-----\npem-body-secret\n");
+        t.file("infra/terraform.tfstate", b"{\"password\": \"tfstate-secret\"}\n");
+        git(&["add", "-A"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "APP-1 first"]);
+        let log = git_log(&t.0, None, None, 5).unwrap();
+        assert_eq!(log.commits.len(), 1);
+        assert_eq!(log.commits[0].files, vec![Changed { status: "A".into(), path: "src/App.kt".into() }]);
+        let hash = &log.commits[0].hash[..10];
+        let show = git_show(&t.0, hash, None).unwrap();
+        assert!(show.text.contains("val app = 1"), "{}", show.text);
+        for secret in ["hunter2-secret", "pem-body-secret", "tfstate-secret", ".env", "prod.pem"] {
+            assert!(!show.text.contains(secret), "{secret} in {}", show.text);
+        }
+        // Asked for by name: refused, as for ls and read.
+        assert!(git_log(&t.0, None, Some(".env"), 5).is_err());
+        assert!(git_show(&t.0, hash, Some("deploy/prod.pem")).is_err());
+        assert!(git_show(&t.0, hash, Some("infra/terraform.tfstate")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_repository_config_runs_no_program() {
+        if !git_available() {
+            return;
+        }
+        use std::os::unix::fs::PermissionsExt;
+        let t = Temp::new("git-config");
+        let marker = t.0.join("ran");
+        let script = t.0.join("evil.sh");
+        std::fs::write(&script, format!("#!/bin/sh\ntouch {}\nexit 1\n", marker.display())).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let git = |args: &[&str]| git_command(Some(&t.0)).args(args).output().unwrap();
+        git(&["init", "-q"]);
+        t.file("a.txt", b"a\n");
+        git(&["add", "a.txt"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "one"]);
+        // A commit "signed" with anything at all: verifying it is what runs gpg.program.
+        let tree = String::from_utf8(git(&["rev-parse", "HEAD^{tree}"]).stdout).unwrap();
+        let object = format!(
+            "tree {}\nauthor t <t@example.com> 1 +0000\ncommitter t <t@example.com> 1 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n fake\n -----END PGP SIGNATURE-----\n\nsigned\n",
+            tree.trim()
+        );
+        std::fs::write(t.0.join("commit.txt"), object).unwrap();
+        let signed = String::from_utf8(git(&["hash-object", "-t", "commit", "-w", "commit.txt"]).stdout).unwrap();
+        git(&["update-ref", "HEAD", signed.trim()]);
+        // A repository unpacked from someone else may carry any config.
+        git(&["config", "log.showSignature", "true"]);
+        git(&["config", "gpg.program", script.to_str().unwrap()]);
+        git(&["config", "core.fsmonitor", script.to_str().unwrap()]);
+        let log = git_log(&t.0, None, None, 5).unwrap();
+        let _ = git_show(&t.0, &log.commits[0].hash[..10], None);
+        assert!(!marker.exists(), "the repository's config ran a program");
+    }
+
+    #[test]
+    fn private_names_cover_common_secret_files() {
+        for name in [
+            ".envrc",
+            ".pgpass",
+            ".htpasswd",
+            "credentials.json",
+            "terraform.tfstate",
+            "prod.tfstate.backup",
+            "key.p8",
+            "vault.gpg",
+            ".docker",
+            ".kube",
+            ".azure",
+        ] {
+            assert!(is_private(name), "{name}");
+        }
+        for name in ["secrets.ts", ".env.example", "credentials.ts", "README.md"] {
+            assert!(!is_private(name), "{name}");
+        }
     }
 
     #[test]
