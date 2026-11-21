@@ -645,3 +645,16 @@ describe("openproject: webhooks", () => {
     expect(openProjectEvent("nope")).toBeNull();
   });
 });
+
+describe("openproject, paging", () => {
+  it("a work package removed mid-pass shifts the pages back, yet none past it is skipped", async () => {
+    const { sim, bound: b } = simulated();
+    const bulk = Array.from({ length: 150 }, (_, n) => sim.add("web", `Bulk ${n}`));
+    const first = await b.listChanged(meta(), { since: null, page: null });
+    if (first.last) throw new Error("expected two pages");
+    sim.outside.remove(bulk[0].id);
+    const second = await b.listChanged(meta(), { since: null, page: first.next });
+    const read = new Set([...first.items, ...second.items].map((i) => i.remoteId));
+    expect(bulk.slice(1).every((w) => read.has(String(w.id)))).toBe(true);
+  });
+});

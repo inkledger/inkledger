@@ -400,6 +400,18 @@ describe("redmine, time", () => {
     expect((await feed(b, f.checkpoint)).items.length).toBe(130);
   });
 
+  it("an entry deleted mid-pass shifts the offsets back, yet no entry past it is skipped", async () => {
+    const { b, sim } = simulated();
+    const all = Array.from({ length: 130 }, (_, n) => sim.entry(sim.issues[0], { hours: 0.25, spentOn: `2026-10-${String(1 + (n % 20)).padStart(2, "0")}` }));
+    const first = await b.worklogs!.changed!(meta(), { since: null, page: null });
+    if (first.last) throw new Error("expected two pages");
+    const gone = all.find((e) => String(e.id) === first.items[0].remoteId)!;
+    sim.outside.deleteEntry(gone);
+    const second = await b.worklogs!.changed!(meta(), { since: null, page: first.next });
+    const read = new Set([...first.items, ...second.items].map((w) => w.remoteId));
+    expect(all.filter((e) => e !== gone).every((e) => read.has(String(e.id)))).toBe(true);
+  });
+
   it("creates with the server's default activity when none is given, and reads back what Redmine stored", async () => {
     const { b, sim } = simulated();
     const r = ref(sim.issues[0]);

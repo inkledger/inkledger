@@ -128,7 +128,7 @@ type Since = { at: number };
  * it has already given is left out.
  */
 type PassAt = { skip: number; tail: number[]; max: number | null; now: number };
-type EntriesAt = { offset: number; from: string; to: string; at: number };
+type EntriesAt = { offset: number; from: string; to: string; at: number; tail?: number[] };
 
 /** Overlap read again at each pass: updated_on is to the second, and a write may land after the clock that stamps it. */
 const OVERLAP_MS = 60_000;
@@ -594,14 +594,18 @@ export const redmineProvider: TrackerProvider<"redmine", RedmineOptions> = {
           at: now,
         }))(Date.now());
       const me = meId(x);
-      const r = await rd<Listed<RmTimeEntry>>(c, paged(`/time_entries.json?${new URLSearchParams({ user_id: String(me), from: pageAt.from, to: pageAt.to }).toString()}`, PER_PAGE, pageAt.offset));
+      // A few rows of the last page read again: an entry deleted meanwhile shifts the offsets back, and the row at the edge would be skipped.
+      const start = Math.max(0, pageAt.offset - (pageAt.tail ? TAIL : 0));
+      const r = await rd<Listed<RmTimeEntry>>(c, paged(`/time_entries.json?${new URLSearchParams({ user_id: String(me), from: pageAt.from, to: pageAt.to }).toString()}`, PER_PAGE, start));
       const rows = (r?.data.time_entries as RmTimeEntry[] | undefined) ?? [];
-      const total = typeof r?.data.total_count === "number" ? r.data.total_count : pageAt.offset + rows.length;
+      const total = typeof r?.data.total_count === "number" ? r.data.total_count : start + rows.length;
+      const seen = new Set(pageAt.tail ?? []);
       // Time logged on a project (no issue) has nowhere to go here.
-      const items = rows.filter((e) => e.issue).map((e) => toRemoteWorklog(e, x.conn.remoteAccountId));
-      const offset = pageAt.offset + rows.length;
+      const items = rows.filter((e) => e.issue && !seen.has(e.id)).map((e) => toRemoteWorklog(e, x.conn.remoteAccountId));
+      const offset = start + rows.length;
       if (rows.length === 0 || offset >= total) return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: pageAt.at } satisfies Since) };
-      return { last: false, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, { ...pageAt, offset } satisfies EntriesAt) };
+      if (offset <= pageAt.offset) throw new IncompatibleResultError("Redmine cut pages below the overlap: no progress");
+      return { last: false, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, { ...pageAt, offset, tail: rows.slice(-TAIL).map((e) => e.id) } satisfies EntriesAt) };
     },
     async create(x, ref, w) {
       const c = await tokenCreds(x);

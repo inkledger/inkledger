@@ -130,7 +130,7 @@ type X = CallContext<"openproject", OpenProjectOptions>;
 const V = 1;
 type Since = { at: number };
 /** Where a pass is: the page (counted from 1) of the next read, and when the pass began. */
-type PassAt = { page: number; at: number };
+type PassAt = { page: number; at: number; total?: number; last?: number };
 
 /** Overlap read again at each pass: the server's clock is not ours, and `updatedAt` may land late. */
 const OVERLAP_MS = 5 * 60_000;
@@ -320,6 +320,19 @@ function entryBody(w: WorklogInput, extra: { workPackage?: string; lockVersion?:
   };
 }
 
+/**
+ * A page of a pass in id order, past the last id read. Rows that left the
+ * list since the last page shift the later ones back: when the total went
+ * down, the previous page is read again so the row at its edge isn't skipped.
+ */
+async function pageAfter<T extends { id: number }>(creds: OpenProjectCreds, path: string, here: PassAt) {
+  const p = (await pageOf<T>(creds, path, here.page, PER_PAGE))!;
+  const before = here.total !== undefined && p.total < here.total && here.page > 1 ? ((await pageOf<T>(creds, path, here.page - 1, PER_PAGE))?.elements ?? []) : [];
+  const elements = [...before, ...p.elements].filter((e) => here.last === undefined || e.id > here.last);
+  const next: PassAt = { page: here.page + 1, at: here.at, total: p.total, last: Math.max(here.last ?? 0, ...p.elements.map((e) => e.id)) };
+  return { p, elements, next };
+}
+
 /** Time entries of a filter, a page at a time in id order (stable under edits). */
 async function entriesPass(x: X, q: PageQuery) {
   const creds = await tokenCreds(x);
@@ -327,12 +340,12 @@ async function entriesPass(x: X, q: PageQuery) {
   const here = decodePageToken<PassAt>(x.conn, "worklogs", V, q.since, q.page) ?? { page: 1, at: Date.now() };
   const filters: Filter[] = [{ user: { operator: "=", values: ["me"] } }];
   if (since !== null) filters.push({ updatedAt: { operator: "<>d", values: [new Date(since).toISOString(), ""] } });
-  const p = (await pageOf<OpTimeEntry>(creds, `/time_entries?${filtersQuery(filters)}&${sortQuery([["id", "asc"]])}`, here.page, PER_PAGE))!;
+  const { p, elements, next } = await pageAfter<OpTimeEntry>(creds, `/time_entries?${filtersQuery(filters)}&${sortQuery([["id", "asc"]])}`, here);
   // Entries on no work package are project time: not about an issue.
-  const items = p.elements.filter((e) => e._links.workPackage?.href).map((e) => toRemoteWorklog(e));
+  const items = elements.filter((e) => e._links.workPackage?.href).map((e) => toRemoteWorklog(e));
   return lastPage(p, here.page)
     ? { last: true as const, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: here.at - OVERLAP_MS } satisfies Since) }
-    : { last: false as const, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, { page: here.page + 1, at: here.at } satisfies PassAt) };
+    : { last: false as const, items, gone: [], next: encodePageToken(x.conn, "worklogs", V, q.since, next satisfies PassAt) };
 }
 
 // ---------- Comments, history ----------
@@ -427,10 +440,10 @@ export const openprojectProvider: TrackerProvider<"openproject", OpenProjectOpti
     const filters: Filter[] = [{ assignee: { operator: "=", values: ["me"] } }];
     if (since !== null) filters.push({ updatedAt: { operator: "<>d", values: [new Date(since).toISOString(), ""] } });
     // Id order: stable while work packages change under the pass (an edit never moves one past the page being read).
-    const p = (await pageOf<OpWorkPackage>(creds, `/work_packages?${filtersQuery(filters)}&${sortQuery([["id", "asc"]])}`, here.page, PER_PAGE))!;
-    const items = await issuesOf(x, creds, p.elements);
+    const { p, elements, next } = await pageAfter<OpWorkPackage>(creds, `/work_packages?${filtersQuery(filters)}&${sortQuery([["id", "asc"]])}`, here);
+    const items = await issuesOf(x, creds, elements);
     if (lastPage(p, here.page)) return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "issues", V, { at: here.at - OVERLAP_MS } satisfies Since) };
-    return { last: false, items, gone: [], next: encodePageToken(x.conn, "issues", V, q.since, { page: here.page + 1, at: here.at } satisfies PassAt) };
+    return { last: false, items, gone: [], next: encodePageToken(x.conn, "issues", V, q.since, next satisfies PassAt) };
   },
 
   async getIssue(x, ref) {
