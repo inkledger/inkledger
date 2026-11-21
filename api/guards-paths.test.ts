@@ -43,10 +43,10 @@ describe("no path spelling gets past the /api guards", () => {
   });
 
   it("a path that doesn't decode is answered, not a server error", async () => {
-    for (const path of ["/api/trpc/%25", "/api/trpc/%E0%A4%A", "/api/trpc/backup.get%ZZ"]) {
-      const res = await app.request(path, { method: "POST", headers: { host: "localhost", "content-type": "application/json" }, body: "{}" });
-      expect(res.status, path).not.toBe(500);
-    }
+    const post = (path: string) => app.request(path, { method: "POST", headers: { host: "localhost", "content-type": "application/json" }, body: "{}" });
+    for (const path of ["/api/trpc/%E0%A4%A", "/api/trpc/backup.get%ZZ"]) expect((await post(path)).status, path).toBe(400);
+    // It decodes (to "%"): no such procedure.
+    expect((await post("/api/trpc/%25")).status).toBe(404);
   });
 
   it("a write from another origin is refused, whatever the path looks like", async () => {

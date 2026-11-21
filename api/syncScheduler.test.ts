@@ -133,10 +133,13 @@ describe("background Jira sync", () => {
     const down = vi.spyOn(db, "selectDistinct").mockImplementation(() => {
       throw new Error("Connection terminated unexpectedly");
     });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
       await expect(mod.syncActiveUsers()).resolves.toEqual({ ok: 0, failed: 0 });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("[sync] pass skipped: Connection terminated unexpectedly"));
     } finally {
       down.mockRestore();
+      warn.mockRestore();
     }
   });
 
