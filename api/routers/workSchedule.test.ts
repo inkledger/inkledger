@@ -146,4 +146,14 @@ describe("hours of a single day", () => {
     stop();
     expect(seen).toEqual(["schedule", "schedule"]);
   });
+
+  it("dropping a version waits for another process's time write (the write lease), as saving one does", async () => {
+    const [me] = await q<{ user_id: number }>("SELECT user_id FROM work_schedules LIMIT 1");
+    await q("INSERT INTO work_schedules (user_id, valid_from, schedule, created_at) SELECT user_id, '2027-03-01', schedule, 1 FROM work_schedules WHERE user_id = ? AND valid_from = ?", me.user_id, EPOCH_DAY);
+    // Another process holds the lease for a moment.
+    await q("INSERT INTO write_leases (user_id, holder, expires_at) VALUES (?, 'other', ?) ON CONFLICT (user_id) DO UPDATE SET holder = 'other', expires_at = excluded.expires_at", me.user_id, Date.now() + 600);
+    const t0 = Date.now();
+    await caller.workSchedule.remove({ validFrom: "2027-03-01" });
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(500);
+  });
 });

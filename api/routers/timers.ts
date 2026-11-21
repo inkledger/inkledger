@@ -661,6 +661,8 @@ export const timersRouter = createRouter({
         if (!a) throw new TRPCError({ code: "NOT_FOUND", message: tr("server.timers.moveNone", { key: input.issueKey }) });
         mayAct(a, w, now, input);
         const b = await rowOf(tx, ctx.user.id, to.id, input.toIssueKey);
+        // Merging into a timer another device runs takes it over: only on purpose, as for its own actions.
+        if (b) mayAct(b, w, now, { force: input.force });
         const seconds = elapsedSeconds(a, now);
         const running = a.state === "running" || b?.state === "running";
         const epoch = Math.max(a.epoch, b?.epoch ?? 0, await epochOf(tx, ctx.user.id)) + 1;

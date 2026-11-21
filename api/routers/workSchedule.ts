@@ -163,13 +163,14 @@ export const workScheduleRouter = createRouter({
       if (input.validFrom === EPOCH_DAY) {
         throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workSchedule.firstCannotDelete") });
       }
-      const versions = await listScheduleVersions(ctx.user.id);
-      await assertRangeOpen(ctx.user.id, input.validFrom, nextAfter(versions, input.validFrom));
-      await getDb()
-        .delete(workSchedules)
-        .where(
-          and(eq(workSchedules.userId, ctx.user.id), eq(workSchedules.validFrom, input.validFrom)),
-        );
+      // Under the write lease, as save and saveDay: a week closed meanwhile is checked against, never slipped past.
+      await withWriteLease(ctx.user.id, async () => {
+        const versions = await listScheduleVersions(ctx.user.id);
+        await assertRangeOpen(ctx.user.id, input.validFrom, nextAfter(versions, input.validFrom));
+        await getDb()
+          .delete(workSchedules)
+          .where(and(eq(workSchedules.userId, ctx.user.id), eq(workSchedules.validFrom, input.validFrom)));
+      });
       changed(ctx.user.id);
       return listScheduleVersions(ctx.user.id);
     }),

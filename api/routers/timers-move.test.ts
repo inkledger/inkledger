@@ -65,6 +65,16 @@ describe("moving the timer to another issue", () => {
     expect((await rows()).map((r) => [r.issue_key, r.state])).toEqual([["APP-1", "running"]]);
   });
 
+  it("onto a timer another device runs: refused unless taken over (never merged into it unasked)", async () => {
+    await q("DELETE FROM timers");
+    await phone.timers.start({ issueKey: "APP-1" });
+    await me.timers.start({ issueKey: "APP-2", mode: "alongside" });
+    await expect(me.timers.move({ issueKey: "APP-2", toIssueKey: "APP-1" })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect((await rows()).map((r) => r.issue_key)).toEqual(["APP-1", "APP-2"]);
+    await me.timers.move({ issueKey: "APP-2", toIssueKey: "APP-1", force: true });
+    expect((await rows()).map((r) => r.issue_key)).toEqual(["APP-1"]);
+  });
+
   it("paused stays paused; the TODO worked on with it follows to the new issue", async () => {
     await q("DELETE FROM timers");
     const todo = await me.todos.add({ text: "fix it", issueKey: "APP-1", connectionId: jira });
