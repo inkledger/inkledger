@@ -177,6 +177,11 @@ describe("Jira comments and attachments", () => {
     await q("UPDATE connections SET archived_at = 1");
     expect((await app.request(after)).status).toBe(404);
     await q("UPDATE connections SET archived_at = NULL");
+    // Its owner turned off: the link opens nothing (as their sessions end).
+    await q("UPDATE users SET disabled_at = 1");
+    expect((await app.request(after)).status).toBe(404);
+    await q("UPDATE users SET disabled_at = NULL");
+    expect((await app.request(after)).status).toBe(200);
     expect((await app.request("/api/shared/not-a-token")).status).toBe(404);
   });
 

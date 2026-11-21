@@ -59,7 +59,13 @@ export async function takeDelivery(connectionId: number, token: string, req: Web
     .limit(1);
   // Unknown, archived or off: the same answer, nothing told.
   if (!conn?.webhookSecret) return { status: 404, reason: "off" };
-  const secret = openSecret(conn.webhookSecret, conn.id).plain;
+  // Sealed under a key this server no longer has: off too (never a server error to the sender).
+  let secret: string;
+  try {
+    secret = openSecret(conn.webhookSecret, conn.id).plain;
+  } catch {
+    return { status: 404, reason: "off" };
+  }
   if (!sameSecret(token, webhookToken(secret, conn.id))) return { status: 404, reason: "off" };
   const check = trackerAdapter(conn.type as TrackerType)?.webhook;
   if (!check) return { status: 404, reason: "off" };

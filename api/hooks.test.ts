@@ -66,6 +66,17 @@ describe("webhooks", () => {
     }
   });
 
+  it("a webhook secret this server can't open (key changed) is off, not a server error", async () => {
+    await caller.connections.setWebhook({ id: gh, on: true });
+    const hook = await caller.connections.webhook({ id: gh });
+    if (!hook.on) throw new Error("not on");
+    const token = hook.path.split("/")[4];
+    await q("UPDATE connections SET webhook_secret = 'v1:not-a-sealed-secret' WHERE id = ?", gh);
+    const { takeDelivery } = await import("./hooks");
+    expect(await takeDelivery(gh, token, { headers: {}, body: "{}" })).toEqual({ status: 404, reason: "off" });
+    await caller.connections.setWebhook({ id: gh, on: false });
+  });
+
   it("Jira: unsigned deliveries count on the token; a stale one is refused", async () => {
     await caller.connections.setWebhook({ id: jira, on: true });
     const hook = await caller.connections.webhook({ id: jira });

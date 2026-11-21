@@ -178,7 +178,7 @@ export function registerAttachmentRoutes(app: App) {
     if (!grant) return notShared();
     try {
       const [user] = await getDb().select().from(users).where(eq(users.id, grant.u)).limit(1);
-      if (!user || (await getSettings(user.id)).shareLinkGeneration !== grant.g) return notShared();
+      if (!user || user.disabledAt || (await getSettings(user.id)).shareLinkGeneration !== grant.g) return notShared();
       if (grant.f === "idea-file") {
         // A picture in an idea handed to an agent: the user's own bytes, never a tracker's.
         const file = /^\d+$/.test(grant.a) ? await ownIdeaFile(user.id, Number(grant.a)) : null;
