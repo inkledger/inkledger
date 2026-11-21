@@ -7,6 +7,8 @@ process.env.DATABASE_URL = ":memory:";
 
 type Call = { trackerConnectionId: number; key: string; date: string; seconds: number };
 const calls = vi.hoisted((): Call[] => []);
+/** Run once inside the next setDayTotal, as an edit landing while the push is under way. */
+const during = vi.hoisted(() => ({ edit: null as null | (() => Promise<void>) }));
 vi.mock("../providers/registry", async (importOriginal) => {
   const real = await importOriginal<typeof import("../providers/registry")>();
   const { everhourSink } = await import("../providers/everhour/adapter");
@@ -16,6 +18,9 @@ vi.mock("../providers/registry", async (importOriginal) => {
       list: async () => [],
       setDayTotal: async (_x: unknown, ref: { trackerConnectionId: number; issue: { key: string } }, _t: unknown, date: string, seconds: number) => {
         calls.push({ trackerConnectionId: ref.trackerConnectionId, key: ref.issue.key, date, seconds });
+        const edit = during.edit;
+        during.edit = null;
+        if (edit) await edit();
         return null;
       },
     },
@@ -64,5 +69,48 @@ describe("a day-totals sink after a delete", () => {
     await q("INSERT INTO outbox (user_id, connection_id, item_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, created_at) VALUES (?, ?, ?, 'delete', 'FAKE-1', 'ev-1', 3600, ?, 1)", userId, sinkId, issueA, started);
     await (await import("./extraSinks")).pushSinks(userId);
     expect(calls).toEqual([{ trackerConnectionId: a, key: "FAKE-1", date: "2026-10-21", seconds: 1800 }]);
+  });
+
+  it("a worklog moved to another day: the old day's total is set again too, without it", async () => {
+    const { markForSinks, pushSinks } = await import("./extraSinks");
+    const [w] = await q<{ id: number }>(
+      "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'FAKE-1', 'a-move', 3600, ?, '', 1) RETURNING id",
+      userId,
+      a,
+      Date.parse("2026-10-22T09:00:00+02:00"),
+    );
+    await markForSinks(userId, w.id);
+    await pushSinks(userId);
+    calls.length = 0;
+    await q("UPDATE worklogs SET started = ? WHERE id = ?", Date.parse("2026-10-23T09:00:00+02:00"), w.id);
+    await markForSinks(userId, w.id);
+    await pushSinks(userId);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        { trackerConnectionId: a, key: "FAKE-1", date: "2026-10-23", seconds: 3600 },
+        { trackerConnectionId: a, key: "FAKE-1", date: "2026-10-22", seconds: 0 },
+      ]),
+    );
+  });
+
+  it("an edit landing while the push is under way stays due: never marked sent with the old time", async () => {
+    const { markForSinks, pushSinks } = await import("./extraSinks");
+    const [w] = await q<{ id: number }>(
+      "INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) VALUES (?, ?, 'FAKE-1', 'a-race', 1200, ?, '', 1) RETURNING id",
+      userId,
+      a,
+      Date.parse("2026-10-24T09:00:00+02:00"),
+    );
+    await markForSinks(userId, w.id);
+    during.edit = async () => {
+      await q("UPDATE worklogs SET time_spent_seconds = 2400 WHERE id = ?", w.id);
+      await markForSinks(userId, w.id);
+    };
+    await pushSinks(userId);
+    expect(await q("SELECT state FROM worklog_sinks WHERE worklog_id = ? AND sink_connection_id = ?", w.id, sinkId)).toEqual([{ state: "pending" }]);
+    calls.length = 0;
+    await pushSinks(userId);
+    expect(calls).toContainEqual({ trackerConnectionId: a, key: "FAKE-1", date: "2026-10-24", seconds: 2400 });
+    expect(await q("SELECT state FROM worklog_sinks WHERE worklog_id = ? AND sink_connection_id = ?", w.id, sinkId)).toEqual([{ state: "synced" }]);
   });
 });

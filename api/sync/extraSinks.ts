@@ -73,7 +73,11 @@ export async function markForSinks(userId: number, worklogId: number) {
   await getDb()
     .insert(worklogSinks)
     .values(sinks.map((s) => ({ worklogId, sinkConnectionId: s.id, state: "pending" })))
-    .onConflictDoUpdate({ target: [worklogSinks.worklogId, worklogSinks.sinkConnectionId], set: { state: "pending", lastError: null } });
+    .onConflictDoUpdate({
+      target: [worklogSinks.worklogId, worklogSinks.sinkConnectionId],
+      // A push under way sees the revision moved: it leaves the link due instead of marking it sent.
+      set: { state: "pending", lastError: null, revision: sql`${worklogSinks.revision} + 1` },
+    });
 }
 
 /**
@@ -232,16 +236,27 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
   if (c.target.use === "required" && !mapped) return fail(w.id, sink.id, "noTarget");
   const target = c.target.use === "none" ? null : (mapped?.target ?? null);
   const zone = connOf(sink).timeZone;
+  const linkOf = and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id));
+  // The worklog as it is when this push starts: a change after it leaves the link due.
+  const [link] = await getDb().select({ revision: worklogSinks.revision, pushedDay: worklogSinks.pushedDay }).from(worklogSinks).where(linkOf);
   let landed: RemoteWorklog | null;
+  let day: string | null = null;
   if (c.entries.model === "dayTotals") {
     // The issue's total that day, all its worklogs together.
-    const day = localDateOf(instant(w.started.getTime()), zone);
+    day = localDateOf(instant(w.started.getTime()), zone);
     const same = await getDb()
       .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogs)
       .where(and(eq(worklogs.userId, w.userId), eq(worklogs.connectionId, w.connectionId ?? -1), eq(worklogs.issueKey, w.issueKey)));
-    const total = same.filter((x) => localDateOf(instant(x.started.getTime()), zone) === day).reduce((a, x) => a + x.seconds, 0);
+    const totalOn = (d: string) => same.filter((x) => localDateOf(instant(x.started.getTime()), zone) === d).reduce((a, x) => a + x.seconds, 0);
+    const total = totalOn(day);
     landed = await b.entries.setDayTotal!(meta(), ref, target, day, total, { idempotencyKey: `${w.uuid}:${day}:${total}` });
+    // Moved from another day: that day's total is set again too, without it.
+    const before = link?.pushedDay;
+    if (before && before !== day) {
+      const left = totalOn(before);
+      await b.entries.setDayTotal!(meta(), ref, target, before, left, { idempotencyKey: `${w.uuid}:${before}:${left}` });
+    }
   } else {
     const input: WorklogInput = {
       time: timeInput(c.entries.shape, w, zone),
@@ -253,10 +268,14 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
         ? await b.entries.update(meta(), remoteId, input, {})
         : ((await landedBefore(b, sink, w, ref, zone)) ?? (await createOnce(b, sink, w, ref, target, input)));
   }
-  await getDb()
+  const sent = { remoteId: landed?.remoteId ?? remoteId, version: landed?.version ?? null, lastError: null, syncedAt: new Date(), ...(day ? { pushedDay: day } : {}) };
+  const done = await getDb()
     .update(worklogSinks)
-    .set({ state: "synced", remoteId: landed?.remoteId ?? remoteId, version: landed?.version ?? null, lastError: null, syncedAt: new Date() })
-    .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id)));
+    .set({ ...sent, state: "synced" })
+    .where(and(linkOf, eq(worklogSinks.revision, link?.revision ?? 0)))
+    .returning({ id: worklogSinks.id });
+  // Changed while it was sending: what landed is kept (the next push updates it), the link stays due.
+  if (done.length === 0) await getDb().update(worklogSinks).set(sent).where(linkOf);
   const companion = COMPANIONS[sink.type as TimeSinkType];
   const trackerId = companion && landed ? companion.trackerIdOf(landed) : null;
   if (trackerId) await adoptTrackerId(w, trackerId);
