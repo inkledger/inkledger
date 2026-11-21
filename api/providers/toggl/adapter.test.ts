@@ -5,7 +5,8 @@ import { readPass } from "../core/paging";
 import { sinkConformance } from "../conformance/suite";
 import { registryProblems, sinkAdapter, sinkStatus } from "../registry";
 import type { ExternalRef, SinkTarget, WorklogInput } from "../types";
-import { MAX_DESCRIPTION, noteHead, noteOf, readNote, togglSink, dayStart } from "./adapter";
+import { decodeCheckpoint } from "../core/checkpoint";
+import { MAX_DESCRIPTION, noteHead, noteOf, readNote, togglSink, togglSinkCapabilities, dayStart } from "./adapter";
 import { togglSimulator } from "./simulator";
 
 vi.mock("node:dns/promises", () => ({
@@ -377,6 +378,16 @@ describe("toggl, reading", () => {
     expect(await b.entries.list(meta(), day("2026-10-14"))).toMatchObject([{ issue: null, comment: "stand-up", billable: false }]);
   });
 
+  it("the changes feed reads again the overlap its capabilities declare", async () => {
+    const { b, conn } = simulated();
+    const before = Date.now();
+    const r = await b.entries.changed!(meta(), { since: null, page: null });
+    if (!r.last) throw new Error("one answer, no pages");
+    const feed = togglSinkCapabilities.entries.feed;
+    if (feed.kind !== "window" || feed.by !== "updatedAt") throw new Error("an updatedAt window");
+    expect(decodeCheckpoint<{ at: number }>(conn, "entries", 1, r.checkpoint)?.at).toBeLessThanOrEqual(before - feed.overlapMs + 1000);
+  });
+
   it("an answer cut at the cap (1000, with no sign of more) is read again in halves until nothing is lost", async () => {
     const { sim, b } = simulated();
     sim.plan("premium");
@@ -431,7 +442,7 @@ describe("toggl, reading", () => {
     const { sim, b } = simulated();
     const old = sim.entry({ start: "2026-10-14T08:30:00Z", seconds: 600 });
     // The entry changed long before the checkpoint's overlap.
-    old.at = Date.now() - 3_600_000;
+    old.at = Date.now() - 2 * 3_600_000;
     const first = await readPass((q) => b.entries.changed!(meta(), q), null);
     expect(first.items.map((w) => w.remoteId)).toContain(String(old.id));
     const quiet = await readPass((q) => b.entries.changed!(meta(), q), first.checkpoint);

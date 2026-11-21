@@ -439,7 +439,7 @@ describe("monday, the traps of its API", () => {
     expect(await heavy("BoardItems", { board: ops.id, limit: 501, rules: [] })).toBe("InvalidArgumentException");
   });
 
-  it("an expired cursor mid-pass is an invalid checkpoint (the pass starts over); a cursor takes no new filters", async () => {
+  it("an expired cursor mid-pass fails the pass, never the checkpoint (a cursor only lives in page tokens); a cursor takes no new filters", async () => {
     const { b, sim, ops } = simulated();
     for (let n = 0; n < 120; n++) sim.add(ops.id, `Bulk ${n}`);
     const first = await b.listChanged(meta(), { since: null, page: null });
@@ -447,7 +447,7 @@ describe("monday, the traps of its API", () => {
     const second = await b.listChanged(meta(), { since: null, page: first.next });
     if (second.last) throw new Error("expected more pages");
     sim.advance(CURSOR_LIFE_MS + 1000);
-    await expect(b.listChanged(meta(), { since: null, page: second.next })).rejects.toMatchObject({ kind: "invalidCheckpoint" });
+    await expect(b.listChanged(meta(), { since: null, page: second.next })).rejects.toMatchObject({ kind: "incompatible" });
     // A fresh pass works.
     expect((await pass(b)).items.length).toBeGreaterThan(120);
     // Asking for a rule the schema doesn't know is refused, as the real one would.

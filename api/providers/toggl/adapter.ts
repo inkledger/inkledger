@@ -55,8 +55,8 @@ type Since = { at: number };
 
 /** The feed window the capabilities declare. */
 const LOOKBACK_MS = 7 * DAY_MS;
-/** Overlap read again at each pass: an entry may land after the clock that stamps it. */
-const OVERLAP_MS = 60_000;
+/** Overlap read again at each pass, as the capabilities declare: an entry may land after the clock that stamps it. */
+const OVERLAP_MS = 3_600_000;
 /** /me/time_entries answers at most this many entries, with no sign of more. */
 const ENTRIES_CAP = 1000;
 /** A date range wider than this is refused by /me/time_entries: ranges are read in pieces. */

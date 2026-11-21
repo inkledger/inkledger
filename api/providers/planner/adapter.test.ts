@@ -204,6 +204,19 @@ describe("planner, passes", () => {
     expect(titles).not.toContain("Done long ago");
   });
 
+  it("more departures than a pass looks at are carried over: the next pass looks at the rest", async () => {
+    const { b, sim } = simulated();
+    const bulk = Array.from({ length: 130 }, (_, n) => sim.add(`Bulk ${n}`));
+    const all = await pass(b);
+    for (const t of bulk) sim.outside.delete(t);
+    const first = await pass(b, all.checkpoint);
+    expect(first.gone).toHaveLength(100);
+    const second = await pass(b, first.checkpoint);
+    expect(second.gone).toHaveLength(30);
+    expect(new Set([...first.gone, ...second.gone].map((g) => g.remoteId))).toEqual(new Set(bulk.map((t) => t.id)));
+    expect((await pass(b, second.checkpoint)).gone).toEqual([]);
+  });
+
   it("a deleted task is reported gone (404); unassigned, or in a plan the user left, are not reported", async () => {
     const { b, sim, web } = simulated();
     const lost = sim.plan("Secret", { buckets: ["Inbox"] });

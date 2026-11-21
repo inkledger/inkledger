@@ -118,7 +118,8 @@ function refused(status: number, headers: Headers, body: Answer<unknown> | null)
   // A bad token is a 401 (or "Not Authenticated"); the same exception name on a mutation is a missing permission.
   if (status === 401 || /not authenticated/i.test(said)) return new ProviderError("auth", message, { status });
   if (code === "UserUnauthorizedException" || status === 403) return new ProviderError("forbidden", message, { status });
-  if (/cursor/i.test(code) || /cursor.*(invalid|expired)/i.test(said)) return new ProviderError("invalidCheckpoint", message, { status });
+  // A cursor lives only in a pass's page tokens (checkpoints are times): an expired one fails that pass, the checkpoint stands.
+  if (/cursor/i.test(code) || /cursor.*(invalid|expired)/i.test(said)) return new ProviderError("incompatible", message, { status });
   if (NOT_FOUND.has(code) || status === 404) return new ProviderError("notFound", message, { status });
   if (INVALID.has(code)) return new ProviderError("invalid", message, { status });
   if (status >= 500) return new ProviderError("unavailable", message, { status });

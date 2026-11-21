@@ -397,11 +397,12 @@ export const plannerProvider: TrackerProvider<"planner", PlannerOptions> = {
     // Planner has no change feed: what was in the last pass and is not in this one is looked at, and only a 404 is a deletion
     // (unassigned, or a plan the user left, are not reported: the engine's reconciliation tells them).
     const gone: ReportedIssueGone[] = [];
-    for (const id of Object.keys(since?.seen ?? {})
-      .filter((id) => !(id in seen))
-      .slice(0, MAX_GONE_CHECKS)) {
+    const left = Object.keys(since?.seen ?? {}).filter((id) => !(id in seen));
+    for (const id of left.slice(0, MAX_GONE_CHECKS)) {
       if (await isDeleted(c, id)) gone.push({ remoteId: id, reason: "deleted" });
     }
+    // The ones not looked at yet stay in the checkpoint: the next pass looks at them.
+    for (const id of left.slice(MAX_GONE_CHECKS)) seen[id] = since!.seen[id];
     return { last: true, items, gone, checkpoint: encodeCheckpoint(x.conn, "issues", V, { at: pass.at, seen } satisfies Since) };
   },
 
