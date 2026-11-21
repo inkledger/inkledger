@@ -416,6 +416,18 @@ describe("gitlab, time on an older server (13.6: no timelogs in GraphQL)", () =>
     expect(i.notes.filter((n) => !n.system).map((n) => n.body)).toEqual(["fixed\n\\/close"]);
   });
 
+  it("an entry with a later twin (same person, length and day) is not deleted: spending it back would take the twin instead", async () => {
+    const { b, sim } = simulated({ version: "13.6" });
+    const i = sim.issues[0];
+    const r = ref(i, "acme/web#1");
+    const start = Date.now() - 3_600_000;
+    const a = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(start), seconds: 600 }, comment: "" }, { idempotencyKey: "a" });
+    const twin = await b.worklogs!.create!(meta(), r, { time: { kind: "session", start: instant(start + 60_000), seconds: 600 }, comment: "" }, { idempotencyKey: "b" });
+    expect(await errorOf(b.worklogs!.delete!(meta(), r, a.remoteId, {}))).toMatchObject({ kind: "invalid" });
+    expect(i.notes.filter((n) => n.system).map((n) => n.body.split(" ")[0])).toEqual(["added", "added"]);
+    expect((await b.worklogs!.list(meta(), r)).map((w) => w.remoteId)).toEqual([a.remoteId, twin.remoteId]);
+  });
+
   it("the feed reads the notes of many issues a few at a time, never all at once", async () => {
     const { b, sim } = simulated({ version: "13.6" });
     for (let n = 0; n < 12; n++) sim.add("acme/web", `Busy ${n}`);

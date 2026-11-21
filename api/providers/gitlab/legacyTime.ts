@@ -154,9 +154,18 @@ export async function createByNote(c: GitLabCreds, i: GitLabIssue, me: string, w
   return { ...made, span: { kind: "session", start: instant(w.start), seconds: w.seconds }, comment: w.comment };
 }
 
-/** Spends the entry's time back on its day; an entry already gone is left so. */
+/**
+ * Spends the entry's time back on its day; an entry already gone is left so.
+ * A "subtracted" note takes back the latest entry of the same person, length
+ * and day: with a later twin, it would be the twin that goes, so it is refused.
+ */
 export async function deleteByNote(c: GitLabCreds, i: GitLabIssue, remoteId: string): Promise<void> {
-  const e = (await listByNotes(c, i)).find((x) => x.remoteId === remoteId);
+  const list = await listByNotes(c, i);
+  const at = list.findIndex((x) => x.remoteId === remoteId);
+  const e = list[at];
   if (!e || e.span.kind !== "session") return;
-  await spend(c, i, `/spend -${spendDuration(e.span.seconds)} ${localDay(e.span.start)}`);
+  const day = localDay(e.span.start);
+  const twin = list.slice(at + 1).some((x) => x.authorRemoteId === e.authorRemoteId && x.span.seconds === e.span.seconds && localDay(x.span.start) === day);
+  if (twin) throw new ProviderError("invalid", "GitLab (older server): a later entry of the same length on the same day would be taken back instead; delete that one first");
+  await spend(c, i, `/spend -${spendDuration(e.span.seconds)} ${day}`);
 }
