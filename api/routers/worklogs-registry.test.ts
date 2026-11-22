@@ -207,11 +207,12 @@ describe("the worklog registry", () => {
     await expect(caller.worklogs.delete({ id: queued.id })).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await q("SELECT time_spent_seconds, comment FROM worklogs WHERE id = ?", queued.id)).toEqual([{ time_spent_seconds: 900, comment: "queued" }]);
     expect(await q("SELECT time_spent_seconds, comment FROM outbox WHERE id = ?", entry.id)).toEqual([{ time_spent_seconds: 900, comment: "queued" }]);
-    // That process died: past the lease the edit goes, to the queue and here alike.
+    // That process died: past the lease the edit goes here (the queued create keeps the values sent, the replay looks for them).
     const { CLAIM_TTL_MS } = await import("../sync/timeWrites");
     await q("UPDATE outbox SET claimed_at = ? WHERE id = ?", Date.now() - CLAIM_TTL_MS - 1000, entry.id);
     await caller.worklogs.update({ id: queued.id, seconds: 1800, started: "2026-10-19T11:00:00+02:00", comment: "edited" });
-    expect(await q("SELECT time_spent_seconds, comment FROM outbox WHERE id = ?", entry.id)).toEqual([{ time_spent_seconds: 1800, comment: "edited" }]);
+    expect(await q("SELECT time_spent_seconds, comment FROM worklogs WHERE id = ?", queued.id)).toEqual([{ time_spent_seconds: 1800, comment: "edited" }]);
+    expect(await q("SELECT time_spent_seconds, comment FROM outbox WHERE id = ?", entry.id)).toEqual([{ time_spent_seconds: 900, comment: "queued" }]);
     await caller.worklogs.delete({ id: queued.id });
     expect(await q("SELECT count(*)::int AS n FROM outbox WHERE id = ?", entry.id)).toEqual([{ n: 0 }]);
   });

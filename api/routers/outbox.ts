@@ -2,7 +2,7 @@
 // (each connection against its own tracker, through the contract:
 // sync/timeWrites.ts replayContract), discarded.
 import { z } from "zod";
-import { and, asc, count, eq, inArray, isNull, lt, not, or } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, lt, not, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { t } from "@contracts/i18n";
 import { TIME_SINK_TYPES } from "@contracts/providers";
@@ -32,9 +32,10 @@ export const outboxRouter = createRouter({
         kind: outbox.kind,
         issueKey: outbox.issueKey,
         remoteId: outbox.remoteId,
-        timeSpentSeconds: outbox.timeSpentSeconds,
-        started: outbox.started,
-        comment: outbox.comment,
+        // A queued create keeps the values sent; the worklog shows what it will send now.
+        timeSpentSeconds: sql<number>`coalesce(${worklogs.timeSpentSeconds}, ${outbox.timeSpentSeconds})`.mapWith(Number),
+        started: sql<Date | null>`coalesce(${worklogs.started}, ${outbox.started})`.mapWith(outbox.started),
+        comment: sql<string>`coalesce(${worklogs.comment}, ${outbox.comment})`,
         attempts: outbox.attempts,
         lastError: outbox.lastError,
         createdAt: outbox.createdAt,
@@ -45,6 +46,7 @@ export const outboxRouter = createRouter({
         issues,
         issueAt(outbox.userId, outbox.connectionId, outbox.issueKey),
       )
+      .leftJoin(worklogs, and(eq(worklogs.id, outbox.worklogId), eq(outbox.kind, "create")))
       // A sink delete held while its worklog's own delete is under way isn't queued yet.
       .where(and(eq(outbox.userId, ctx.user.id), not(heldSinkDelete)))
       .orderBy(asc(outbox.createdAt), asc(outbox.id))

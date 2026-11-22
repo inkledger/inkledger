@@ -205,7 +205,14 @@ export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim()
 const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone) =>
   span.kind === "session" ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v) : span.kind === "date" && span.seconds === v.seconds && span.date === localDateOf(instant(v.started.getTime()), zone);
 
-async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date, replacing?: { remoteId: string; version: string | null }): Promise<boolean> {
+async function adoptLanded(
+  t: ContractTime,
+  conn: Connection,
+  local: Worklog,
+  queuedAt: Date,
+  replacing?: { remoteId: string; version: string | null },
+  sent?: { started: Date; seconds: number; comment: string },
+): Promise<boolean> {
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
   const there = await t.b.worklogs.list(meta(), t.ref);
@@ -215,12 +222,14 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     (await db.select({ remoteId: outbox.remoteId }).from(outbox).where(and(eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete")))).map((r) => r.remoteId),
   );
   const notBefore = queuedAt.getTime() - ADOPT_WINDOW_MS;
-  const mine = { started: local.started, seconds: local.timeSpentSeconds };
+  // What was sent, which may differ from the worklog now (its time changed while queued).
+  const mine = sent ?? { started: local.started, seconds: local.timeSpentSeconds };
+  const words = sent?.comment ?? local.comment;
   for (const w of there) {
     if (w.authorRemoteId !== conn.remoteAccountId || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
     if (!holds(w.span, mine, t.zone)) continue;
     // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
-    if (w.span.kind !== "session" && (!w.createdAt || !sameWords(w.comment, local.comment))) continue;
+    if (w.span.kind !== "session" && (!w.createdAt || !sameWords(w.comment, words))) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
       .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
@@ -241,6 +250,8 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     // The entry it replaces goes, as after a recreate that was answered (queued if it can't now).
     if (replacing) await dropOld(t.b, conn, local, t.ref, meta(), replacing.remoteId, replacing.version);
+    // Its time changed while it waited: the caller changes the entry, words included.
+    if (sent && movedSince(sent, local)) return true;
     // The comment changed while it waited: sent now, where the tracker changes an entry in
     // place (one that logs it again would churn, and keeps no comment on some: Gitea). Refused
     // there, the entry stays as it landed (the words here only); not answering, tried again.
@@ -291,6 +302,9 @@ async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog)
   await linkSink(local.id, conn.id, w.remoteId, w.version ?? null);
   return true;
 }
+
+/** The worklog's time is no longer what was sent. */
+const movedSince = (sent: { started: Date; seconds: number }, local: Worklog) => sent.seconds !== local.timeSpentSeconds || sent.started.getTime() !== local.started.getTime();
 
 /** The worklog is the service's entry `remoteId`: a copy of it a sync read back meanwhile goes (no trace). */
 async function landedOn(local: Worklog, conn: Connection, remoteId: string, version: string | null) {
@@ -370,16 +384,31 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
         const local = await queuedWorklog(entry, conn);
         // Gone here meanwhile (deleted while queued): nothing left to send.
         if (local) {
-          if (entry.kind === "create") {
-            if (!(await adoptLanded(t, conn, local, entry.createdAt))) await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
-            // Only the issue's shown total: a failure here must not send the entry again.
-            await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds).catch((e: unknown) => console.error(e));
-          } else if (!(await adoptRecreated(t, conn, local, entry.createdAt))) {
+          const sendUpdate = async (local: Worklog) => {
+            if (await adoptRecreated(t, conn, local, entry.createdAt)) return;
             await pushUpdate(t.b, conn, local, t.ref, meta(), t.zone).catch(async (e: unknown) => {
               // An earlier try landed, its answer lost: the entry moved on to these very values.
               if (!(e instanceof ProviderError && e.kind === "conflict" && (await alreadyUpdated(t, conn, local)))) throw e;
             });
-          }
+          };
+          if (entry.kind === "create") {
+            // As last sent (an edit while queued changes only the worklog): what may have landed.
+            const sent = { started: entry.started ?? local.started, seconds: entry.timeSpentSeconds, comment: entry.comment };
+            const adopted = await adoptLanded(t, conn, local, entry.createdAt, undefined, sent);
+            if (!adopted) {
+              // This try's values: its answer lost too, the next replay looks for these.
+              await db.update(outbox).set({ timeSpentSeconds: local.timeSpentSeconds, started: local.started, comment: local.comment }).where(eq(outbox.id, entry.id));
+              await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
+            }
+            // Only the issue's shown total: a failure here must not send the entry again.
+            await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds).catch((e: unknown) => console.error(e));
+            if (adopted && movedSince(sent, local)) {
+              // Landed with its old time: changed as a queued edit (kept as one if this try fails).
+              const now = await reread(local.id);
+              await db.update(outbox).set({ kind: "update", remoteId: now.remoteId, timeSpentSeconds: now.timeSpentSeconds, started: now.started, comment: now.comment }).where(eq(outbox.id, entry.id));
+              await sendUpdate(now);
+            }
+          } else await sendUpdate(local);
         }
       }
       await db.delete(outbox).where(eq(outbox.id, entry.id));

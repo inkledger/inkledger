@@ -137,7 +137,7 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started, comment: "offline" });
     expect(made.remoteId).toMatch(/^pending-\d+$/);
     expect(await sinkOf(made.id)).toEqual({ remote_id: null, state: "pending" });
-    // Edited while queued: the queued create carries the new time.
+    // Edited while queued: the replay sends the new time.
     await caller.worklogs.update({ id: made.id, seconds: 900, started, comment: "offline, longer" });
     expect(await replay()).toMatchObject({ synced: 0, failed: 1 });
     tracker.offline = false;
@@ -561,6 +561,43 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       await caller.worklogs.delete({ id: made.id });
     } finally {
       tracker.recreating = false;
+    }
+  });
+
+  it("a lost create whose time is changed while queued: the replay takes the entry that landed and changes it, the time once", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const there = async (day: string) =>
+      (await boundTracker(conn)!.worklogs!.list(meta, { remoteId: "r-1", key: "FAKE-1" }))
+        .filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day))
+        .map((w) => ({ id: w.remoteId, seconds: w.span.kind === "session" ? w.span.seconds : 0 }));
+    // Keyed (the key returns the first entry), keyless (a retry is a new entry), and read back by a sync before the replay.
+    for (const [day, recreating, readBack] of [["2026-10-27", false, false], ["2026-10-28", true, false], ["2026-10-29", false, true]] as const) {
+      tracker.recreating = recreating;
+      try {
+        tracker.loseAnswer = true;
+        const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "lost" });
+        tracker.loseAnswer = false;
+        expect(made.remoteId).toMatch(/^pending-/);
+        await caller.worklogs.update({ id: made.id, seconds: 1500, started: `${day}T09:00:00+01:00`, comment: "lost" });
+        // The queue shows what it will send.
+        expect((await caller.outbox.list()).map((o) => [o.kind, o.timeSpentSeconds, o.started?.getTime()])).toEqual([["create", 1500, Date.parse(`${day}T09:00:00+01:00`)]]);
+        if (readBack) await caller.issues.syncConnection({ id: connId });
+        await replay();
+        const now = await there(day);
+        expect(now).toEqual([{ id: (await sinkOf(made.id))?.remote_id, seconds: 1500 }]);
+        const here = (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+        expect(here.map((w) => [w.id, w.timeSpentSeconds])).toEqual([[made.id, 1500]]);
+        expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+        await caller.worklogs.delete({ id: made.id });
+      } finally {
+        tracker.loseAnswer = false;
+        tracker.recreating = false;
+      }
     }
   });
 

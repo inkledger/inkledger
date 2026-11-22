@@ -591,15 +591,15 @@ export const worklogsRouter = createRouter({
         if (isLocalId(input.remoteId)) {
           return await updateLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, fields, conn.id);
         }
-        // Pending worklog: it never reached its tracker — just update the local copy
-        // and the queued "create" operation.
+        // Pending worklog: only the local copy changes; its queued create keeps the values
+        // sent (they may have landed: the replay looks for those, then sends these).
         if (isPendingId(input.remoteId)) {
           const oid = pendingOutboxId(input.remoteId);
           return await withOutboxLock(ctx.user.id, () =>
             // The queued create and the copy here change together, only while no replay
             // (another process on this database included) is sending it.
             getDb().transaction(async (tx) => {
-              const [taken] = await tx.update(outbox).set(fields).where(stillQueued(ctx.user.id, oid)).returning({ id: outbox.id });
+              const [taken] = await tx.select({ id: outbox.id }).from(outbox).where(stillQueued(ctx.user.id, oid)).for("update");
               if (!taken) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
               const [saved] = await tx.update(worklogs).set(fields).where(worklogWhere(ctx.user.id, input.issueKey, input.remoteId, conn.id)).returning();
               return saved;
