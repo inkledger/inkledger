@@ -3,7 +3,7 @@
 // reports gone marked (never deleted here), transfers followed with the
 // time and notes that hang on the issue, and in a full pass the issues no
 // longer among the user's asked one by one: still there, or missing.
-import { and, eq, getTableColumns, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { issueNotes, issues, itemAliases, notifications, outbox, pinboardNotes, timers, todos, worklogs } from "@db/schema";
 import type { StatusCategory } from "@contracts/providers";
 import { getDb } from "../queries/connection";
@@ -227,17 +227,13 @@ export async function syncIssues(b: BoundTracker, t: Target, opts: { since: Chec
  * only a doubt: kept, marked, never treated as deleted.
  */
 async function reconcile(b: BoundTracker, t: Target, seen: Set<string>, meta: CallMeta, budget: Budget): Promise<number> {
-  const rest = await getDb()
-    .select({ remoteId: issues.remoteId, key: issues.key, container: issues.projectKey })
-    .from(issues)
-    .where(
-      and(
-        eq(issues.userId, t.userId),
-        eq(issues.connectionId, t.connectionId),
-        isNull(issues.goneAt),
-        seen.size ? notInArray(issues.remoteId, [...seen]) : sql`true`,
-      ),
-    );
+  // The ones seen left out here, not in the statement: a pass may see more than its 65,535 parameters.
+  const rest = (
+    await getDb()
+      .select({ remoteId: issues.remoteId, key: issues.key, container: issues.projectKey })
+      .from(issues)
+      .where(and(eq(issues.userId, t.userId), eq(issues.connectionId, t.connectionId), isNull(issues.goneAt)))
+  ).filter((r) => !seen.has(r.remoteId));
   // Missing marks go together after the loop (before any refresh that would write one of them).
   let missing = 0;
   let marks: string[] = [];
