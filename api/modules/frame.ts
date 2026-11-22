@@ -363,7 +363,9 @@ addEventListener("message", (e) => {
 });
 // Its box removed with this frame in it (nothing could park it): the cleanup still runs as the
 // document goes (what it then asks of the host is lost with it).
-addEventListener("pagehide", () => {
+addEventListener("pagehide", (e) => {
+  // Kept for a back/forward return: the view stays as it is.
+  if (e.persisted) return;
   const off = unmount;
   unmount = null;
   if (!off) return;

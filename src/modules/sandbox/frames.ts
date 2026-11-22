@@ -282,7 +282,7 @@ function openFrame(
       // A live view runs its cleanup first (it may still save), served until it's done: parked off
       // screen where moveBefore keeps its document, else (WebKit) left where it is, unseen.
       if (role !== "view" || !mounted || killed.has(entry.id) || !iframe.isConnected) return end();
-      if (!park(iframe)) iframe.style.visibility = "hidden";
+      if (!park(iframe)) Object.assign(iframe.style, { visibility: "hidden", position: "absolute" });
       onUnmounted = end;
       peer.send({ v: RPC_VERSION, t: "unmount" });
       deadline = setTimeout(end, UNMOUNT_MS);
