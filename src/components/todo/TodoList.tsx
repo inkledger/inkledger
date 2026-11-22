@@ -563,6 +563,12 @@ function TodoRow({
   };
   const repeat = TODO_REPEATS.find(r => r === x.repeat) ?? null;
   // Leaving a field by the keyboard: the focus back on the row (a click elsewhere keeps its own).
+  // Enter or Esc already ended the edit: a blur as the field goes neither saves again nor undoes Esc.
+  const left = useRef(false);
+  const saveText = () => {
+    const v = draft.trim();
+    if (v && v !== x.text) void onUpdate({ text: v });
+  };
   const back = (refocus = false) => {
     setMode("view");
     if (refocus) requestAnimationFrame(() => row.current?.focus());
@@ -783,14 +789,20 @@ function TodoRow({
               aria-label={t("views.todos.editLabel")}
               value={draft}
               onChange={e => setDraft(e.target.value)}
-              onBlur={() => back()}
+              onFocus={() => (left.current = false)}
+              // Leaving the field keeps the edit, as Enter does (the date chip beside it does too).
+              onBlur={() => {
+                if (left.current) return;
+                saveText();
+                back();
+              }}
               onKeyDown={e => {
                 e.stopPropagation();
-                if (e.key === "Escape") return (e.preventDefault(), back(true));
+                if (e.key === "Escape") return (e.preventDefault(), (left.current = true), back(true));
                 if (e.key !== "Enter") return;
                 e.preventDefault();
-                const v = draft.trim();
-                if (v && v !== x.text) void onUpdate({ text: v });
+                left.current = true;
+                saveText();
                 back(true);
               }}
             />

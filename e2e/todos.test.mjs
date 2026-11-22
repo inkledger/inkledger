@@ -508,3 +508,37 @@ test("two quick ticks on a TODO's steps both land, while the first is still on i
       assert.fail("both ticks never landed");
     },
   ));
+
+// Leaving the edit field threw the new text away (only Enter kept it); Esc still cancels.
+test("editing a TODO: clicking away keeps the new text, Esc drops it", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'first', NULL, 0, ?, ?)", now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/issues");
+      await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+      await page.keyboard.press("d");
+      const float = page.getByRole("region", { name: "Floating TODO list" });
+      await float.getByRole("radio", { name: /^Someday/ }).click();
+      await float.getByRole("listitem", { name: "first" }).focus();
+      await page.keyboard.press("e");
+      const edit = float.getByRole("textbox", { name: "Edit the TODO" });
+      await edit.fill("first renamed");
+      // Away: the quick capture field takes the focus.
+      await float.getByRole("textbox", { name: "New TODO" }).click();
+      await float.getByRole("listitem", { name: "first renamed" }).waitFor();
+      assert.equal((await db.q("SELECT text FROM todos"))[0].text, "first renamed");
+      await float.getByRole("listitem", { name: "first renamed" }).focus();
+      await page.keyboard.press("e");
+      await edit.fill("not this");
+      await page.keyboard.press("Escape");
+      await edit.waitFor({ state: "detached" });
+      await page.waitForTimeout(300);
+      assert.equal((await db.q("SELECT text FROM todos"))[0].text, "first renamed");
+    },
+  ));
+
