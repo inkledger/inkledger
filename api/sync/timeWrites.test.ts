@@ -895,6 +895,11 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       const both = await there();
       expect(both).toHaveLength(2);
       await caller.worklogs.delete({ id: made.id });
+      // A pass while its delete waits (another process has it) keeps both out of reads.
+      await q("UPDATE outbox SET claimed_at = ? WHERE jira_worklog_id = ''", Date.now());
+      await caller.issues.syncConnection({ id: connId });
+      expect(await here()).toEqual([]);
+      await q("UPDATE outbox SET claimed_at = NULL");
       await caller.issues.syncConnection({ id: connId });
       expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
       expect(await there()).toEqual(both);

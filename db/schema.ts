@@ -775,7 +775,7 @@ export const outbox = pgTable(
     nextAttemptAt: epochMs("next_attempt_at"),
     /**
      * A delete of a create whose answer was lost (no id there: remote id ""): the entry
-     * is looked for by the values sent, among those made after this and before the row.
+     * is looked for by the values sent, among those made after this and before landedBefore.
      */
     landedAfter: ms("landed_after"),
     /**

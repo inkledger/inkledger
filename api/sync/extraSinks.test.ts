@@ -169,6 +169,34 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     }
   });
 
+  it("a create sent to the sink an hour ago with no answer, deleted: the same time logged there by hand since stays", async () => {
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    const entries = (fakes.sink as { entries: { create: (...a: unknown[]) => Promise<{ createdAt?: unknown }> } }).entries;
+    const real = entries.create;
+    let sent: unknown[] = [];
+    // No answer, and nothing landed.
+    entries.create = async (...args: unknown[]) => {
+      sent = args;
+      throw new ProviderError("unavailable", "fake: timed out");
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-27T09:00:00+02:00", comment: "by hand since" });
+      await push();
+      expect(await sinkRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await q("UPDATE worklog_sinks SET synced_at = synced_at - 3600000, last_sent_at = last_sent_at - 3600000 WHERE worklog_id = ?", made.id);
+      entries.create = real;
+      const hand = await real(sent[0], sent[1], sent[2], sent[3], { idempotencyKey: "by-hand-since" });
+      hand.createdAt = instant(Date.now());
+      await caller.worklogs.delete({ id: made.id });
+      await push();
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-27")).toHaveLength(1);
+      expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    } finally {
+      entries.create = real;
+    }
+  });
+
   it("a worklog never sent to the sink, deleted: nothing is queued for it there", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-21T09:00:00+02:00", comment: "never sent" });
     await caller.worklogs.delete({ id: made.id });

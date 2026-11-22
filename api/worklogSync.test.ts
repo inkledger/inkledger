@@ -318,6 +318,30 @@ describe("worklogs from Jira", () => {
     jira.list = [];
   });
 
+  it("an entry made on Jira after a lost create's last send could land, or for a delete queued before its sends were kept: read back as any other", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const at = now - 6 * DAY;
+    // Sent two hours ago, its last send an hour ago (its window closed since); one with no last send known.
+    await q(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?, ?), (?, ?, 'delete', 'PRJ-1', '', 900, ?, 'work', ?, NULL, ?)",
+      user.id, conn.id, at, Date.now() - 7_200_000, Date.now() - 3_600_000, Date.now(),
+      user.id, conn.id, at + 3_600_000, Date.now() - 600_000, Date.now(),
+    );
+    // The same time logged on Jira by hand, just now.
+    jira.updated = [{ worklogId: 650 }, { worklogId: 651 }];
+    jira.list = [wl("650", "acc-1", at, 1800, "10"), wl("651", "acc-1", at + 3_600_000, 900, "10")];
+    try {
+      await syncWorklogs(user);
+      expect((await mine()).filter((w) => ["650", "651"].includes(w.id as string)).map((w) => w.id)).toEqual(["650", "651"]);
+    } finally {
+      await q("DELETE FROM outbox");
+      await q("DELETE FROM worklogs WHERE jira_worklog_id IN ('650', '651')");
+      jira.updated = [];
+      jira.list = [];
+    }
+  });
+
   it("a lost create's delete discarded after a pass left its entry out: the next pass reads it back", async () => {
     const { syncWorklogs } = await import("./worklogSync");
     const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
