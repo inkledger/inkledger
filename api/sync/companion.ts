@@ -13,6 +13,7 @@ import { withDeleteReason } from "../queries/trash";
 import { goneIsDone, ProviderError } from "../providers/core/errors";
 import { certainRefusal } from "../providers/trpc";
 import { boundSink, pushOne, sinksSoon, trackerOfSink } from "./extraSinks";
+import { ADOPT_WINDOW_MS } from "./timeWrites";
 import { callMeta } from "../lib/callMeta";
 
 const meta = () => callMeta("companion");
@@ -137,11 +138,13 @@ export async function deleteViaCompanion(entry: { sink: Connection; remoteId: st
   const [sent] = entry.remoteId
     ? []
     : await getDb()
-        .select({ at: worklogSinks.syncedAt, seconds: worklogSinks.sentSeconds, started: worklogSinks.sentStarted, comment: worklogSinks.sentComment })
+        .select({ at: worklogSinks.syncedAt, last: worklogSinks.lastSentAt, seconds: worklogSinks.sentSeconds, started: worklogSinks.sentStarted, comment: worklogSinks.sentComment })
         .from(worklogSinks)
         .where(and(eq(worklogSinks.worklogId, current.id), eq(worklogSinks.sinkConnectionId, entry.sink.id)));
+  // Looked for only among entries made while its sends could land.
+  const bounds = sent?.at && sent.last ? { landedAfter: sent.at, landedBefore: new Date(sent.last.getTime() + ADOPT_WINDOW_MS) } : null;
   await withDeleteReason("user", async (tx) => {
-    if (sent?.at) {
+    if (sent && bounds) {
       await tx.insert(outbox).values({
         userId: current.userId,
         connectionId: entry.sink.id,
@@ -151,10 +154,10 @@ export async function deleteViaCompanion(entry: { sink: Connection; remoteId: st
         timeSpentSeconds: sent.seconds ?? current.timeSpentSeconds,
         started: sent.started ?? current.started,
         comment: sent.comment ?? current.comment,
-        landedAfter: sent.at,
+        ...bounds,
       });
     }
     await tx.delete(worklogs).where(eq(worklogs.id, current.id));
   });
-  if (sent?.at) sinksSoon(current.userId);
+  if (bounds) sinksSoon(current.userId);
 }

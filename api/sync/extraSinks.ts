@@ -17,7 +17,7 @@ import { getDb } from "../queries/connection";
 import { liveConnections } from "../queries/liveConnections";
 import { issueAt } from "../queries/issueAt";
 import { bindSink, type BoundSink } from "../providers/core/bind";
-import { goneIsDone, ProviderError } from "../providers/core/errors";
+import { goneIsDone, neverSent, ProviderError } from "../providers/core/errors";
 import { connectionOptions, connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
@@ -26,7 +26,7 @@ import { linkSink, roundingSlack, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
-import { buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords, unbury } from "./timeWrites";
+import { ADOPT_WINDOW_MS, buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords, unbury } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
 import { callMeta } from "../lib/callMeta";
 
@@ -102,6 +102,7 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
       seconds: worklogSinks.sentSeconds,
       started: worklogSinks.sentStarted,
       comment: worklogSinks.sentComment,
+      lastSentAt: worklogSinks.lastSentAt,
     })
     .from(worklogSinks)
     .innerJoin(connections, eq(connections.id, worklogSinks.sinkConnectionId))
@@ -114,8 +115,8 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
     if (r.remoteId) return [{ ...held, remoteId: r.remoteId, timeSpentSeconds: w.timeSpentSeconds, started: w.started }];
     // No id there yet, sent (its answer lost, or under way): it may land. Looked for by the values sent.
     const entries = sinkAdapter(r.type as TimeSinkType)?.capabilities.entries;
-    if (entries?.model !== "entries" || entries.idempotency !== "local" || !r.sentAt || r.seconds === null || !r.started) return [];
-    return [{ ...held, remoteId: "", timeSpentSeconds: r.seconds, started: r.started, comment: r.comment ?? "", landedAfter: r.sentAt }];
+    if (entries?.model !== "entries" || entries.idempotency !== "local" || !r.sentAt || !r.lastSentAt || r.seconds === null || !r.started) return [];
+    return [{ ...held, remoteId: "", timeSpentSeconds: r.seconds, started: r.started, comment: r.comment ?? "", landedAfter: r.sentAt, landedBefore: new Date(r.lastSentAt.getTime() + ADOPT_WINDOW_MS) }];
   });
   await db.transaction(async (tx) => {
     // Still here, and kept until this commits: gone (another delete got there first, its
@@ -237,15 +238,26 @@ async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: Ext
   return null;
 }
 
-/** A create on the sink, its first send's time and this send's values kept on the link (landedBefore reads them). */
+/** A create on the sink, its first and last send's time and this send's values kept on the link (landedBefore reads them). */
 async function createOnce(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, target: SinkTarget | null, input: WorklogInput): Promise<RemoteWorklog> {
-  if (b.capabilities.entries.idempotency === "local") {
-    await getDb()
-      .update(worklogSinks)
-      .set({ syncedAt: sql`coalesce(${worklogSinks.syncedAt}, ${Date.now()})`, sentSeconds: w.timeSpentSeconds, sentStarted: w.started, sentComment: w.comment })
-      .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id)));
+  if (b.capabilities.entries.idempotency !== "local") return b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
+  const db = getDb();
+  const link = and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id));
+  const [before] = await db
+    .select({ syncedAt: worklogSinks.syncedAt, lastSentAt: worklogSinks.lastSentAt, sentSeconds: worklogSinks.sentSeconds, sentStarted: worklogSinks.sentStarted, sentComment: worklogSinks.sentComment })
+    .from(worklogSinks)
+    .where(link);
+  await db
+    .update(worklogSinks)
+    .set({ syncedAt: sql`coalesce(${worklogSinks.syncedAt}, ${Date.now()})`, lastSentAt: new Date(), sentSeconds: w.timeSpentSeconds, sentStarted: w.started, sentComment: w.comment })
+    .where(link);
+  try {
+    return await b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
+  } catch (e) {
+    // Never reached the sink: what an earlier send left is still what may have landed.
+    if (before && neverSent(e)) await db.update(worklogSinks).set(before).where(link);
+    throw e;
   }
-  return b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
 }
 
 /**

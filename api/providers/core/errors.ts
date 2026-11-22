@@ -165,6 +165,20 @@ export function normalizeError(e: unknown, signal?: AbortSignal): ProviderError 
   return new ProviderError("unavailable", e instanceof Error ? e.message : String(e), { cause: e });
 }
 
+/** A request that never left this machine: no address for the service, no connection to it. */
+const NEVER_SENT_CODES = /^(ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|UND_ERR_CONNECT_TIMEOUT)$/;
+
+/** The call failed before its request reached the service (its causes say so): nothing of it can have landed. */
+export function neverSent(e: unknown): boolean {
+  let c = e;
+  for (let i = 0; i < 6 && typeof c === "object" && c !== null; i++) {
+    const code = (c as { code?: unknown }).code;
+    if (typeof code === "string" && NEVER_SENT_CODES.test(code)) return true;
+    c = (c as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 const NETWORK_CODES = /^(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EPIPE|UND_ERR_\w+)$/;
 
 /** undici's way of saying the service couldn't be reached: TypeError("fetch failed"), the socket error as cause. */

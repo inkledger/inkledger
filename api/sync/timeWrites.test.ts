@@ -5,10 +5,15 @@ process.env.DATABASE_URL = ":memory:";
 /** The test's tracker that keeps entries (the contract's fake, as "gitlab"), and whether it answers. */
 type TestTracker = {
   adapter: unknown; offline: boolean; refuse: boolean; loseAnswer: boolean; calls: string[]; refuseOnly?: string; downOnly?: string; recreating?: boolean; recreator?: unknown;
+  /** Its name doesn't resolve from the server: no request ever leaves. */
+  unresolved?: boolean;
+  unresolvedOnly?: string;
+  /** When each entry was made there, by id (the tracker's creation time). */
+  made: Map<string, number>;
   /** After the call landed, what the answer turns into (a timeout, an answer outside the contract), by call name. */
   afterLanding?: Partial<Record<string, (signal: AbortSignal) => Promise<unknown>>>;
 };
-const tracker: TestTracker = vi.hoisted(() => ({ adapter: null, offline: false, refuse: false, loseAnswer: false, calls: [] }));
+const tracker: TestTracker = vi.hoisted(() => ({ adapter: null, offline: false, refuse: false, loseAnswer: false, calls: [], made: new Map<string, number>() }));
 
 vi.mock("../providers/registry", async (importOriginal) => {
   const real = await importOriginal<typeof import("../providers/registry")>();
@@ -31,6 +36,7 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       Object.entries(fake.worklogs ?? {}).map(([name, fn]) => [
         name,
         async (...args: unknown[]) => {
+          if (tracker.unresolved || tracker.unresolvedOnly === name) throw new ProviderError("unavailable", "fetch failed", { cause: Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }) }) });
           if (tracker.offline) throw new ProviderError("unavailable", "fake: down");
           if (tracker.refuse || tracker.refuseOnly === name) throw new ProviderError("invalid", "fake: no");
           if (tracker.downOnly === name) throw new ProviderError("unavailable", "fake: down");
@@ -38,6 +44,12 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
           // A key the service doesn't keep (GitLab, Gitea): a retried create is a new entry.
           if (keyless && name === "create") args[3] = { ...(args[3] as object), idempotencyKey: `unkept-${Math.random()}` };
           const out = await (fn as (...a: unknown[]) => unknown)(...args);
+          // Entries carry the time they were made there, as Jira's do.
+          if (name === "create") {
+            const id = (out as { remoteId: string }).remoteId;
+            if (!tracker.made.has(id)) tracker.made.set(id, Date.now());
+          }
+          if (name === "list") return (out as { remoteId: string }[]).map((w) => (tracker.made.has(w.remoteId) ? { ...w, createdAt: tracker.made.get(w.remoteId) } : w));
           // It landed, but the answer never came back.
           if (tracker.loseAnswer && name === "create") throw new ProviderError("unavailable", "fake: timed out");
           const after = tracker.afterLanding?.[name];
@@ -752,6 +764,82 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       await caller.worklogs.delete({ id: back.id });
     } finally {
       tracker.loseAnswer = false;
+    }
+  });
+
+  it("a create that never reached the tracker (its name not resolving from here), deleted while queued: no delete looks for it; the same time logged on the tracker by hand stays and is read back", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { instant } = await import("@contracts/values");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const ref = { remoteId: "r-1", key: "FAKE-1" };
+    const day = "2026-11-05";
+    const at = `${day}T08:00:00+01:00`;
+    const there = async () => (await boundTracker(conn)!.worklogs!.list(meta, ref)).filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day)).map((w) => w.remoteId);
+    const here = async () => (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+    try {
+      tracker.unresolved = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 3600, started: at, comment: "Daily" });
+      expect(made.remoteId).toMatch(/^pending-/);
+      // Background passes still can't reach it.
+      expect(await replay()).toMatchObject({ synced: 0 });
+      // The user logs the same time on the tracker itself, then deletes the pending one.
+      tracker.unresolved = false;
+      const hand = await boundTracker(conn)!.worklogs!.create!(meta, ref, { time: { kind: "session", start: instant(Date.parse(at)), seconds: 3600 }, comment: "Daily" }, { idempotencyKey: "by-hand-1" });
+      tracker.unresolved = true;
+      await caller.worklogs.delete({ id: made.id });
+      expect(await q("SELECT kind FROM outbox")).toEqual([]);
+      tracker.unresolved = false;
+      expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+      expect(await there()).toEqual([hand.remoteId]);
+      await caller.issues.syncConnection({ id: connId });
+      expect((await here()).map((w) => [w.remoteId, w.timeSpentSeconds, w.comment])).toEqual([[hand.remoteId, 3600, "Daily"]]);
+      await caller.worklogs.delete({ id: (await here())[0].id });
+    } finally {
+      tracker.unresolved = false;
+    }
+  });
+
+  it("a lost create deleted long after its last send: the same time logged on the tracker by hand since then stays (only entries made while a send could land are its)", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { instant } = await import("@contracts/values");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const ref = { remoteId: "r-1", key: "FAKE-1" };
+    const day = "2026-11-06";
+    const at = `${day}T08:00:00+01:00`;
+    const there = async () => (await boundTracker(conn)!.worklogs!.list(meta, ref)).filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day)).map((w) => w.remoteId);
+    const here = async () => (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+    try {
+      // Sent an hour ago with no answer (it may have landed, it didn't).
+      tracker.offline = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 3600, started: at, comment: "Daily" });
+      tracker.offline = false;
+      await q("UPDATE outbox SET created_at = created_at - 3600000, landed_after = landed_after - 3600000, landed_before = landed_before - 3600000");
+      // A try that never left (the name not resolving as it sends) is no send.
+      tracker.unresolvedOnly = "create";
+      expect(await replay()).toMatchObject({ synced: 0 });
+      tracker.unresolvedOnly = undefined;
+      const hand = await boundTracker(conn)!.worklogs!.create!(meta, ref, { time: { kind: "session", start: instant(Date.parse(at)), seconds: 3600 }, comment: "Daily" }, { idempotencyKey: "by-hand-2" });
+      tracker.unresolved = true;
+      await caller.worklogs.delete({ id: made.id });
+      tracker.unresolved = false;
+      expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+      expect(await there()).toEqual([hand.remoteId]);
+      await caller.issues.syncConnection({ id: connId });
+      expect((await here()).map((w) => w.remoteId)).toEqual([hand.remoteId]);
+      await caller.worklogs.delete({ id: (await here())[0].id });
+    } finally {
+      tracker.offline = false;
+      tracker.unresolved = false;
+      tracker.unresolvedOnly = undefined;
+      await q("DELETE FROM outbox");
     }
   });
 

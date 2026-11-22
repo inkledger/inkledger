@@ -283,8 +283,8 @@ describe("worklogs from Jira", () => {
     const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
     const at = now - 3 * DAY;
     await q(
-      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?)",
-      user.id, conn.id, at, Date.now() - 600_000, Date.now(),
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?, ?)",
+      user.id, conn.id, at, Date.now() - 600_000, Date.now() + 300_000, Date.now(),
     );
     // Ours, landed; and one of another length, the user's own.
     jira.updated = [{ worklogId: 600 }, { worklogId: 601 }];
@@ -303,8 +303,8 @@ describe("worklogs from Jira", () => {
     const [tempo] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'tempo', 'https://api.tempo.io', 'acc-1', ?, 'x', 1) RETURNING id", user.id, JSON.stringify({ jiraConnectionId: conn.id }));
     const at = now - 4 * DAY;
     await q(
-      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?)",
-      user.id, tempo.id, at, Date.now() - 600_000, Date.now(),
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?, ?)",
+      user.id, tempo.id, at, Date.now() - 600_000, Date.now() + 300_000, Date.now(),
     );
     // Tempo's copy on Jira: its note, the issue first.
     jira.updated = [{ worklogId: 620 }];
@@ -322,8 +322,8 @@ describe("worklogs from Jira", () => {
     const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
     const at = now - 5 * DAY;
     const [tomb] = await q<{ id: number }>(
-      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?) RETURNING id",
-      user.id, conn.id, at, Date.now() - 600_000, Date.now(),
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?, ?) RETURNING id",
+      user.id, conn.id, at, Date.now() - 600_000, Date.now() + 300_000, Date.now(),
     );
     jira.updated = [{ worklogId: 640 }];
     jira.list = [wl("640", "acc-1", at, 1800, "10")];

@@ -16,7 +16,7 @@ import { issueAt } from "../queries/issueAt";
 import { withDeleteReason } from "../queries/trash";
 import { connOf } from "../providers/connections";
 import type { BoundTracker } from "../providers/core/bind";
-import { ProviderError } from "../providers/core/errors";
+import { neverSent, ProviderError } from "../providers/core/errors";
 import { t as tr } from "@contracts/i18n";
 import { certainRefusal, providerTrpcError } from "../providers/trpc";
 import type { IssueRef, RemoteWorklog } from "../providers/types";
@@ -59,10 +59,10 @@ async function reread(id: number): Promise<Worklog> {
   return row;
 }
 
-async function queue(t: ContractTime, w: Worklog, kind: "create" | "update" | "delete", remoteId = "", db: Db | Tx = getDb()) {
+async function queue(t: ContractTime, w: Worklog, kind: "create" | "update" | "delete", remoteId = "", db: Db | Tx = getDb(), extra: Partial<typeof outbox.$inferInsert> = {}) {
   const [entry] = await db
     .insert(outbox)
-    .values({ userId: w.userId, connectionId: t.conn.id, kind, issueKey: w.issueKey, remoteId: remoteId, worklogId: kind === "delete" ? null : w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started, comment: w.comment })
+    .values({ userId: w.userId, connectionId: t.conn.id, kind, issueKey: w.issueKey, remoteId: remoteId, worklogId: kind === "delete" ? null : w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started, comment: w.comment, ...extra })
     .returning();
   return entry;
 }
@@ -84,11 +84,13 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
     })
     .returning();
   // Queued: its replay first looks whether it landed (adoptLanded), so it is never logged twice.
-  const queueIt = async () => {
-    const entry = await queue(t, row, "create");
+  // When it may have landed: sent at sentAt (null: it never reached the tracker).
+  const queueIt = async (sentAt: number | null) => {
+    const entry = await queue(t, row, "create", "", getDb(), sentAt === null ? {} : sendBounds(null, sentAt));
     await getDb().update(worklogs).set({ remoteId: `pending-${entry.id}` }).where(eq(worklogs.id, row.id));
   };
   let remote;
+  const sentAt = Date.now();
   try {
     remote = await createThere(t.b, row, t.ref, meta(), t.zone);
   } catch (e) {
@@ -98,7 +100,7 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
       throw e;
     }
     logFault(e);
-    await queueIt();
+    await queueIt(neverSent(e) ? null : sentAt);
     return reread(row.id);
   }
   try {
@@ -106,7 +108,7 @@ export async function createThrough(t: ContractTime, input: { userId: number; is
   } catch (e) {
     // The tracker has it, this side failed to record it: kept, and linked at the replay.
     console.error(e);
-    await queueIt().catch((err: unknown) => console.error(err));
+    await queueIt(sentAt).catch((err: unknown) => console.error(err));
     return reread(row.id);
   }
   // Only the issue's shown total: the next sync sets it anyway, the link is already recorded.
@@ -190,8 +192,11 @@ export const CLAIM_TTL_MS = 5 * 60_000;
 export const creationInFlight = (now = Date.now()): SQL =>
   sql`(${worklogs.remoteId} like 'new-%' and (${worklogs.syncedAt} > ${now - CLAIM_TTL_MS} or exists (select 1 from ${worklogSinks} join ${connections} on ${connections.id} = ${worklogSinks.sinkConnectionId} where ${worklogSinks.worklogId} = ${worklogs.id} and ${inArray(connections.type, COMPANION_TYPES)} and ${worklogSinks.state} <> 'synced')))`;
 
-/** How long before queueing a timed-out create may have been stored by the service. */
-const ADOPT_WINDOW_MS = 5 * 60_000;
+/** How long before queueing a timed-out create may have been stored by the service (and after a send, by a slow one). */
+export const ADOPT_WINDOW_MS = 5 * 60_000;
+
+/** A queued create sent (again) at `at`: from its first send to this one, each widened by the adopt window. */
+const sendBounds = (landedAfter: Date | null, at: number) => ({ landedAfter: landedAfter ?? new Date(at - ADOPT_WINDOW_MS), landedBefore: new Date(at + ADOPT_WINDOW_MS) });
 
 /**
  * An entry of ours already on the service for this worklog (an earlier try
@@ -321,28 +326,30 @@ export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remot
 
 /**
  * The entry is the lost create such a delete is about: the values sent, the very words, made
- * after its first send and before the delete (a day's entry, or one with no creation time
- * known, only where it keeps a start: it is deleted, so never a guess).
+ * while its sends could land (from its first to shortly after its last; a day's entry, or one
+ * with no creation time known, only where it keeps a start: it is deleted, so never a guess).
  */
 export function buriedBy(
-  tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "createdAt">,
+  tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "landedBefore">,
   e: Pick<RemoteWorklog, "span" | "comment" | "createdAt" | "dayOnly">,
   zone: TimeZone,
   slack = 0,
 ): boolean {
-  if (!tomb.started || !tomb.landedAfter) return false;
+  // No last send known (queued before it was kept): nothing is taken for it.
+  if (!tomb.started || !tomb.landedAfter || !tomb.landedBefore) return false;
   if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, e.dayOnly, slack) || !sameWords(e.comment, tomb.comment)) return false;
   if (e.createdAt == null) return e.span.kind === "session" && !e.dayOnly;
   const at = Number(e.createdAt);
-  return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.createdAt.getTime() + CLOCK_SKEW_MS;
+  return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.landedBefore.getTime() + CLOCK_SKEW_MS;
 }
 
 /**
  * A queued create dropped with its worklog (deleted while queued): sent at least once, it
  * may have landed with its answer lost, so a delete carrying the values sent looks for it.
+ * Never sent (it never reached the tracker): nothing to look for.
  */
 export async function buryLostCreate(taken: typeof outbox.$inferSelect, db: Db | Tx = getDb()) {
-  if (taken.kind !== "create") return;
+  if (taken.kind !== "create" || !taken.landedAfter || !taken.landedBefore) return;
   await db.insert(outbox).values({
     userId: taken.userId,
     connectionId: taken.connectionId,
@@ -353,7 +360,8 @@ export async function buryLostCreate(taken: typeof outbox.$inferSelect, db: Db |
     timeSpentSeconds: taken.timeSpentSeconds,
     started: taken.started,
     comment: taken.comment,
-    landedAfter: new Date(taken.createdAt.getTime() - ADOPT_WINDOW_MS),
+    landedAfter: taken.landedAfter,
+    landedBefore: taken.landedBefore,
   });
 }
 
@@ -496,9 +504,14 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
             const sent = { started: entry.started ?? local.started, seconds: entry.timeSpentSeconds, comment: entry.comment };
             const adopted = await adoptLanded(t, conn, local, entry.createdAt, undefined, sent);
             if (!adopted) {
-              // This try's values: its answer lost too, the next replay looks for these.
-              await db.update(outbox).set({ timeSpentSeconds: local.timeSpentSeconds, started: local.started, comment: local.comment }).where(eq(outbox.id, entry.id));
-              await pushCreate(t.b, conn, local, t.ref, meta(), t.zone);
+              // This try's values and time: its answer lost too, the next replay looks for these.
+              const before = { timeSpentSeconds: entry.timeSpentSeconds, started: entry.started, comment: entry.comment, landedAfter: entry.landedAfter, landedBefore: entry.landedBefore };
+              await db.update(outbox).set({ timeSpentSeconds: local.timeSpentSeconds, started: local.started, comment: local.comment, ...sendBounds(entry.landedAfter, Date.now()) }).where(eq(outbox.id, entry.id));
+              await pushCreate(t.b, conn, local, t.ref, meta(), t.zone).catch(async (e: unknown) => {
+                // Never reached the tracker: what an earlier send left is still what may have landed.
+                if (neverSent(e)) await db.update(outbox).set(before).where(eq(outbox.id, entry.id));
+                throw e;
+              });
             }
             // Only the issue's shown total: a failure here must not send the entry again.
             await bumpSpent(conn, entry.issueKey, local.timeSpentSeconds).catch((e: unknown) => console.error(e));

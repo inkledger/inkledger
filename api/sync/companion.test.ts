@@ -233,8 +233,8 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
     await q("INSERT INTO connection_sync (connection_id, stream, checkpoint) VALUES (?, 'entries', 'past-it') ON CONFLICT (connection_id, stream) DO UPDATE SET checkpoint = 'past-it'", trackerId);
     await q(
-      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', '', 900, ?, 'gone', ?, ?, ?)",
-      userId, tempoId, Date.parse("2026-10-25T09:00:00+02:00"), Date.now() - 600_000, MAX_OUTBOX_ATTEMPTS - 1, Date.now(),
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', '', 900, ?, 'gone', ?, ?, ?, ?)",
+      userId, tempoId, Date.parse("2026-10-25T09:00:00+02:00"), Date.now() - 600_000, Date.now() + 300_000, MAX_OUTBOX_ATTEMPTS - 1, Date.now(),
     );
     const real = globalThis.fetch;
     vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errors: [{ message: "no" }] }), { status: 400, headers: { "content-type": "application/json" } }));
@@ -245,6 +245,24 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     }
     expect(await q("SELECT checkpoint FROM connection_sync WHERE connection_id = ? AND stream = 'entries'", trackerId)).toEqual([{ checkpoint: null }]);
     await q("DELETE FROM outbox");
+  });
+
+  it("a create to Tempo that never left (its connection refused), deleted: no delete looks for it there", async () => {
+    const at = "2026-10-27T09:00:00+02:00";
+    down = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "never left" });
+      expect(await tempoRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await push();
+      down = false;
+      await caller.worklogs.delete({ id: made.id });
+      expect(await q("SELECT kind FROM outbox WHERE jira_worklog_id = ''")).toEqual([]);
+    } finally {
+      down = false;
+      quiet.mockRestore();
+      await q("DELETE FROM outbox");
+    }
   });
 
   it("deleted while its create to Tempo is under way: the entry that lands goes at once, Jira's copy with it", async () => {
