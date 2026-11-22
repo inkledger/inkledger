@@ -135,4 +135,30 @@ describe("module hit areas", () => {
     named();
     expect([el.getAttribute("role"), el.getAttribute("aria-label"), el.getAttribute("tabindex")]).toEqual([null, null, null]);
   });
+
+  it("tells how it was activated: where a click fell in the box, or the keyboard", () => {
+    const { win, fire } = page();
+    const how: unknown[] = [];
+    const el = box();
+    createHitAreas(win).add(el, leftHalf, h => how.push(h), { focusable: true });
+    fire("pointerdown", 20, 30);
+    fire("click", 20, 30);
+    el.dispatchEvent(Object.assign(new Event("keydown"), { key: "Enter" }));
+    expect(how).toEqual([{ via: "pointer", x: 20, y: 30 }, { via: "keyboard" }]);
+  });
+
+  it("forwards its box taking and losing the focus, until undone", () => {
+    const { win } = page();
+    const heard: [boolean, boolean][] = [];
+    const el = box();
+    const undo = createHitAreas(win).add(el, leftHalf, () => {}, { focusable: true, onFocus: (f, v) => heard.push([f, v]) });
+    el.dispatchEvent(new Event("focus"));
+    el.dispatchEvent(new Event("blur"));
+    undo();
+    el.dispatchEvent(new Event("focus"));
+    expect(heard).toEqual([
+      [true, true],
+      [false, false],
+    ]);
+  });
 });

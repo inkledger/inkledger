@@ -10,7 +10,10 @@
 /** Whether a point is on the module's shape: x, y from the element's top left (CSS px), and its size. */
 export type HitTest = (x: number, y: number, width: number, height: number) => boolean;
 
-type Area = { el: HTMLElement; test: HitTest; activate: () => void };
+/** How a hit area was activated: a click (x, y from the element's top left, CSS px), or Enter/Space on its box. */
+export type HitActivation = { via: "pointer"; x: number; y: number } | { via: "keyboard" };
+
+type Area = { el: HTMLElement; test: HitTest; activate: (how: HitActivation) => void };
 
 /** Layers over the page: a point under one of these belongs to it, not to a module below. */
 const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
@@ -61,7 +64,8 @@ export function createHitAreas(win: Window = window) {
     if (e.type === "click") {
       const a = owner;
       owner = null;
-      a.activate();
+      const r = a.el.getBoundingClientRect();
+      a.activate({ via: "pointer", x: p.clientX - r.left, y: p.clientY - r.top });
     }
   };
 
@@ -84,9 +88,15 @@ export function createHitAreas(win: Window = window) {
     /**
      * Makes `el`'s shape clickable and, unless `a11y.focusable` is false (a
      * framed module whose own control takes the keyboard), `el` a focusable
-     * button named `a11y.label` that Enter/Space activate. Returns the undo.
+     * button named `a11y.label` that Enter/Space activate; `a11y.onFocus` hears it take and lose the
+     * focus (`visible`: the keyboard's, :focus-visible). Returns the undo.
      */
-    add(el: HTMLElement, test: HitTest, activate: () => void, a11y: { focusable: boolean; label?: string } = { focusable: true }): () => void {
+    add(
+      el: HTMLElement,
+      test: HitTest,
+      activate: (how: HitActivation) => void,
+      a11y: { focusable: boolean; label?: string; onFocus?: (focused: boolean, visible: boolean) => void } = { focusable: true },
+    ): () => void {
       const area: Area = { el, test, activate };
       if (areas.size === 0) listen(true);
       areas.add(area);
@@ -96,18 +106,24 @@ export function createHitAreas(win: Window = window) {
       const onKey = (e: KeyboardEvent) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        activate();
+        activate({ via: "keyboard" });
       };
+      const onFocus = () => a11y.onFocus?.(true, el.matches?.(":focus-visible") ?? true);
+      const onBlur = () => a11y.onFocus?.(false, false);
       if (a11y.focusable) {
         el.tabIndex = 0;
         if (!hadRole) el.setAttribute("role", "button");
         if (a11y.label) el.setAttribute("aria-label", a11y.label);
         el.addEventListener("keydown", onKey);
+        el.addEventListener("focus", onFocus);
+        el.addEventListener("blur", onBlur);
       }
       return () => {
         if (!areas.delete(area)) return;
         if (a11y.focusable) {
           el.removeEventListener("keydown", onKey);
+          el.removeEventListener("focus", onFocus);
+          el.removeEventListener("blur", onBlur);
           if (hadTab === null) el.removeAttribute("tabindex");
           else el.setAttribute("tabindex", hadTab);
           if (!hadRole) el.removeAttribute("role");

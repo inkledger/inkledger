@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { HitActivation } from "../hit";
 import type { HostApiV1, TimerState } from "../types";
 import { frameMethods, onMask, type Cas } from "./methods";
 import { createRpcPeer, type HostMessage } from "./rpc";
@@ -124,7 +125,7 @@ describe("the host API a framed module reaches", () => {
     let undone = 0;
     let test: (x: number, y: number, w: number, h: number) => boolean = () => false;
     const hits = {
-      add: (_el: HTMLElement, t: typeof test, _a: () => void, a11y?: { focusable: boolean; label?: string }) => {
+      add: (_el: HTMLElement, t: typeof test, _a: (how: HitActivation) => void, a11y?: { focusable: boolean; label?: string }) => {
         test = t;
         added.push(a11y ?? { focusable: true });
         return () => void undone++;

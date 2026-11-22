@@ -4,7 +4,7 @@ import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
 import type { ViewSlot } from "../hostV2";
 import { mobileMore, sheetOpen } from "./sheet";
-import { frameMethods } from "./methods";
+import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
@@ -220,7 +220,16 @@ function openFrame(
   };
   // The sheet is no manifest slot: its API is the module's as in its first slot.
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
-  const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
+  const box: ViewBox | null =
+    role === "view"
+      ? {
+          el: parent,
+          slot,
+          activate: how => peer.send({ v: RPC_VERSION, t: "activate", ...(how ? { how } : {}) }),
+          focus: (focused, visible) => peer.send({ v: RPC_VERSION, t: "hit-focus", focused, visible }),
+          onDock: () => layoutFeed().poke(),
+        }
+      : null;
   const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions });
   const sheet = {
     // A runtime has no box: the view the person is in (its frame has the focus) opened it.

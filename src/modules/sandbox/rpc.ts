@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
+import type { HitActivation } from "../hit";
 
 /**
  * The host's end of a framed module's messages. A sandboxed frame has an
@@ -59,7 +60,9 @@ export type HostMessage =
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: true; value: unknown }
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: false; error: string }
   | { v: typeof RPC_VERSION; t: "push"; id: number; value: unknown }
-  | { v: typeof RPC_VERSION; t: "activate" }
+  | { v: typeof RPC_VERSION; t: "activate"; how?: HitActivation }
+  // The view's host box (its hit area's button) took or lost the focus.
+  | { v: typeof RPC_VERSION; t: "hit-focus"; focused: boolean; visible: boolean }
   | { v: typeof RPC_VERSION; t: "unmount" }
   | { v: typeof RPC_VERSION; t: "runtime-gone" }
   | { v: typeof RPC_VERSION; t: "port"; slot: string };

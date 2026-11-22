@@ -61,6 +61,7 @@ if (NativeWorker) {
 let seq = 0;
 let started = false;
 let activate = null;
+let hitFocus = null;
 let onView = null;
 let unmount = null;
 // The module's runtime frame gone (or never made): told once, to every listener, late ones too.
@@ -334,6 +335,7 @@ async function start(init, port) {
       host.hit = {
         set: (shape, fn, opts) => {
           activate = typeof fn === "function" ? fn : null;
+          hitFocus = opts && typeof opts.onFocus === "function" ? opts.onFocus : null;
           hitOpts = {};
           if (opts && typeof opts.label === "string") hitOpts.label = opts.label.slice(0, 120);
           if (opts && opts.focusable === true) hitOpts.focusable = true;
@@ -399,7 +401,9 @@ addEventListener("message", (e) => {
     const f = pushes.get(d.id);
     if (f) f(d.value);
   } else if (d.t === "activate") {
-    if (activate) safe(activate);
+    if (activate) safe(activate, d.how && typeof d.how === "object" ? d.how : undefined);
+  } else if (d.t === "hit-focus") {
+    if (hitFocus) safe(hitFocus, d.focused === true, d.visible === true);
   } else if (d.t === "runtime-gone") {
     runtimeIsGone();
   } else if (d.t === "unmount") {

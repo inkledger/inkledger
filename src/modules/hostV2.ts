@@ -4,6 +4,9 @@
 // box is a capability declared in its signed manifest.
 import type { ModuleCapability } from "@contracts/modules";
 import type { HostApiV1, SlotId, Sub, ThemeState } from "./types";
+import type { HitActivation } from "./hit";
+
+export type { HitActivation };
 
 export type { ModuleCapability };
 
@@ -15,8 +18,11 @@ export type HitRegion =
   | { kind: "rect"; x: number; y: number; w: number; h: number }
   | { kind: "circle"; x: number; y: number; r: number };
 
-/** A hit area's keyboard side: a focusable button of the host's, and its accessible name. */
-export type HitOptions = { label?: string; focusable?: boolean };
+/**
+ * A hit area's keyboard side: a focusable button of the host's, and its accessible name.
+ * `onFocus`: that button took or lost the focus (`visible`: the keyboard's, as :focus-visible).
+ */
+export type HitOptions = { label?: string; focusable?: boolean; onFocus?(focused: boolean, visible: boolean): void };
 
 /** How much a module may spend: "reduce" draws less often, "still" keeps a still picture. */
 export type BudgetLevel = "normal" | "reduce" | "still";
@@ -126,9 +132,9 @@ export type HostApiV2 = Basics &
      * 512 px a side; ten changes a second at most).
      * `opts.focusable`: the host's box takes Tab and Enter/Space as a button named
      * `opts.label`; without it the host adds no Tab stop (the frame's own control
-     * takes the keyboard).
+     * takes the keyboard). `activate` hears how: a click (where, in the box) or the keyboard.
      */
-    hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void, opts?: HitOptions): void };
+    hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: (how?: HitActivation) => void, opts?: HitOptions): void };
     /** In "mobile-more" only: closes the phone's More sheet (e.g. as the module's own sheet opens). */
     more?: { close(): void };
     /** "runtime": a port to this module's runtime (one per view); absent when the host made none. */

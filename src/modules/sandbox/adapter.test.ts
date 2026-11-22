@@ -367,6 +367,29 @@ describe("the frame's host API (bootstrap)", () => {
     expect(sizes).toEqual([120, 201]);
   });
 
+  it("hit areas: the module hears how it was activated, and its host box's focus", async () => {
+    const heard: unknown[] = [];
+    const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: () => {} }) };
+    const mod = {
+      id: "m",
+      hostApi: 2,
+      mount: {
+        "dashboard-overlay": (_el: unknown, host: HostApiV2) => {
+          host.hit.set([{ kind: "rect", x: 0, y: 0, w: 1, h: 1 }], how => heard.push(how), { focusable: true, onFocus: (f, v) => heard.push([f, v]) });
+          return () => {};
+        },
+      },
+    };
+    const f = bootFrame({ capabilities: [], mod, methods, slot: "dashboard-overlay" });
+    await settle();
+    f.peer.send({ v: RPC_VERSION, t: "hit-focus", focused: true, visible: true });
+    f.peer.send({ v: RPC_VERSION, t: "activate", how: { via: "keyboard" } });
+    f.peer.send({ v: RPC_VERSION, t: "activate", how: { via: "pointer", x: 3, y: 4 } });
+    f.peer.send({ v: RPC_VERSION, t: "hit-focus", focused: false, visible: false });
+    await settle();
+    expect(heard).toEqual([[true, true], { via: "keyboard" }, { via: "pointer", x: 3, y: 4 }, [false, false]]);
+  });
+
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
     const got: unknown[] = [];
     const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };

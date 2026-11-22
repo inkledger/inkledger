@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILE_MAX_BYTES } from "@contracts/modules";
-import { hitAreas, type HitTest } from "../hit";
+import { hitAreas, type HitActivation, type HitTest } from "../hit";
 import type { BudgetLevel, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
@@ -63,7 +63,15 @@ export type Cas = {
 };
 
 /** Where a view draws, for what touches its box (hit regions, dock, preblurred); none for the runtime. `hits`: the page's hit areas. */
-export type ViewBox = { el: HTMLElement; slot: string; activate: () => void; onDock?: () => void; hits?: Pick<ReturnType<typeof hitAreas>, "add"> };
+export type ViewBox = {
+  el: HTMLElement;
+  slot: string;
+  activate: (how?: HitActivation) => void;
+  /** Its host box took or lost the focus (`visible`: the keyboard's). */
+  focus?: (focused: boolean, visible: boolean) => void;
+  onDock?: () => void;
+  hits?: Pick<ReturnType<typeof hitAreas>, "add">;
+};
 
 /**
  * The host API a framed module reaches over messages, from the same hub API
@@ -182,7 +190,7 @@ export function frameMethods(
           if (unhit && key === hitA11y) return;
           unhit?.();
           hitA11y = key;
-          unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, a11y);
+          unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, { ...a11y, onFocus: view.focus });
         },
       }),
       "dock.set": method({
