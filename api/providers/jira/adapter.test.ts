@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { timeZone } from "@contracts/values";
 import { bindTracker } from "../core/bind";
+import { decodeCheckpoint } from "../core/checkpoint";
 import { ProviderError } from "../core/errors";
 import { trackerConformance } from "../conformance/suite";
 import { jiraSimulator } from "./simulator";
@@ -118,5 +119,21 @@ describe("jira, status history", () => {
       { at: expect.any(Number), from: { id: "11", name: "Da fare" }, to: { id: "21", name: "In corso" } },
       { at: expect.any(Number), from: { id: "21", name: "In corso" }, to: { id: "31", name: "Completato" } },
     ]);
+  });
+});
+
+describe("jira, worklog feeds", () => {
+  it("both feeds read to the end: the checkpoint is the earlier of their clocks (the later would skip what came between the two reads)", async () => {
+    const { sim, conn } = simulated();
+    const clocks: Record<string, number> = { updated: 1_000_000, deleted: 5_000_000 };
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const m = /\/worklog\/(updated|deleted)\?/.exec(String(input));
+      if (m) return new Response(JSON.stringify({ values: [], until: clocks[m[1]], lastPage: true }), { headers: { "Content-Type": "application/json" } });
+      return sim.fetch(input, init);
+    });
+    const b = bindTracker(jiraProvider, conn);
+    const out = await b.worklogs!.changed!(meta(), { since: null, page: null });
+    if (!out.last) throw new Error("one page");
+    expect(decodeCheckpoint<{ at: number }>(conn, "worklogs", 1, out.checkpoint)?.at).toBe(1_000_000);
   });
 });

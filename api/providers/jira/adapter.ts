@@ -128,6 +128,16 @@ export type JiraOptions = z.infer<typeof optionsSchema>;
 const V = 1;
 type Since = { at: number };
 
+/**
+ * Both worklog feeds read to the end, one after the other: the earlier clock (the later
+ * would skip what changed between the two reads). A clock that didn't move past `since`
+ * (an empty feed) bounds nothing.
+ */
+const bothRead = (since: number, a: number, b: number): number => {
+  const moved = [a, b].filter((u) => u > since);
+  return moved.length > 0 ? Math.min(...moved) : since;
+};
+
 type X = CallContext<"jira", JiraOptions>;
 
 /** The Jira client's credentials for a call. */
@@ -459,7 +469,7 @@ export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
         gone: deleted.ids.map((id) => ({ remoteId: id, reason: "deleted" as const })),
         // A feed stopped at its page cap holds the checkpoint where it stopped (the other's later time would skip its rest).
         checkpoint: encodeCheckpoint(x.conn, "worklogs", V, {
-          at: !updated.complete || !deleted.complete ? Math.min(...[updated, deleted].filter((f) => !f.complete).map((f) => f.until)) : Math.max(updated.until, deleted.until),
+          at: !updated.complete || !deleted.complete ? Math.min(...[updated, deleted].filter((f) => !f.complete).map((f) => f.until)) : bothRead(since, updated.until, deleted.until),
         } satisfies Since),
       };
     },
