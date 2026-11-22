@@ -550,7 +550,17 @@ function TodoRow({
   const at = x.issueKey
     ? issuePath({ key: x.issueKey, connectionId: x.connectionId })
     : null;
-  const steps = parseSteps(x.steps);
+  // Steps changed and not read back yet: a quick second change builds on the first, and they land in order.
+  const [stepsDraft, setStepsDraft] = useState<TodoStep[] | null>(null);
+  const stepsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const steps = stepsDraft ?? parseSteps(x.steps);
+  const changeSteps = (next: TodoStep[]) => {
+    setStepsDraft(next);
+    const sent = stepsQueue.current.then(() => onUpdate({ steps: next })).catch(() => undefined);
+    stepsQueue.current = sent;
+    // The last one read back (or refused): the server's steps again.
+    void sent.then(() => stepsQueue.current === sent && setStepsDraft(null));
+  };
   const repeat = TODO_REPEATS.find(r => r === x.repeat) ?? null;
   // Leaving a field by the keyboard: the focus back on the row (a click elsewhere keeps its own).
   const back = (refocus = false) => {
@@ -909,7 +919,7 @@ function TodoRow({
           {stepsOpen && (
             <StepsEditor
               steps={steps}
-              onChange={next => void onUpdate({ steps: next })}
+              onChange={changeSteps}
             />
           )}
         </ActionRow>

@@ -2,7 +2,7 @@
 // and where it lives (Settings → TODO).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dayKey, fakeProcedures, start, withApp } from "./harness.mjs";
+import { dayKey, fakeProcedures, holdRoute, start, trpcProcs, withApp } from "./harness.mjs";
 
 const inDays = n => {
   const d = new Date();
@@ -478,5 +478,33 @@ test("a TODO on the pinboard: pinned from its row, ticked on the post-it, done i
       await page.goto(base + "/todos");
       await page.getByRole("radio", { name: /^Done/ }).click();
       await page.getByRole("listitem", { name: "Water the plants" }).waitFor();
+    },
+  ));
+
+test("two quick ticks on a TODO's steps both land, while the first is still on its way", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        const steps = ["A", "B", "C"].map(text => ({ id: text.toLowerCase(), text, done: false }));
+        await db.q("INSERT INTO todos (user_id, text, due_on, steps, position, created_at, updated_at) VALUES (1, 'Ship it', ?, ?, 0, ?, ?)", inDays(0), JSON.stringify(steps), now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      await page.goto(base + "/todos");
+      const row = page.getByRole("listitem", { name: "Ship it" });
+      await row.getByRole("button", { name: "0 of 3 steps done: show them" }).click();
+      const { release } = await holdRoute(page, u => trpcProcs(u).includes("todos.update"));
+      await row.getByRole("checkbox", { name: "Step done: A" }).click();
+      await row.getByRole("checkbox", { name: "Step done: B" }).click();
+      // Both shown at once, before any answer.
+      assert.equal(await row.getByRole("checkbox", { name: "Step done: A" }).getAttribute("aria-checked"), "true");
+      release();
+      for (let i = 0; i < 30; i++) {
+        const done = JSON.parse((await db.q("SELECT steps FROM todos"))[0].steps).filter(s => s.done).map(s => s.text);
+        if (done.length === 2) return assert.deepEqual(done, ["A", "B"]);
+        await page.waitForTimeout(100);
+      }
+      assert.fail("both ticks never landed");
     },
   ));
