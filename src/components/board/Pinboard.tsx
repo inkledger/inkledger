@@ -82,6 +82,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBuckets } from "@/hooks/useBuckets";
+import { useTodoWork } from "@/hooks/useTodoWork";
 import { ErrorState } from "@/components/app/States";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -205,6 +206,7 @@ export function Pinboard({
 }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
+  const work = useTodoWork();
   const panel = usePinboardPanel();
   const provider = useProviderName();
   const storedBoard = usePinboardBoardId();
@@ -297,7 +299,10 @@ export function Pinboard({
     const todo = n.todo;
     if (!todo) return;
     patch(n.id, { todo: { ...todo, done } }, () =>
-      utils.client.todos.update.mutate({ id: todo.id, done, today: dayKey(new Date()) }).then(() => utils.todos.invalidate())
+      // As from the list: its issue's timer running for it stops too.
+      (done ? work.finish(todo.id) : Promise.resolve())
+        .then(() => utils.client.todos.update.mutate({ id: todo.id, done, today: dayKey(new Date()) }))
+        .then(() => utils.todos.invalidate())
     );
   };
   const nudge = (id: number, dx: number, dy: number) => {

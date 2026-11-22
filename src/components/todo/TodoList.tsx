@@ -127,11 +127,7 @@ export function TodoList({
       });
 
   const tick = (x: Todo, done: boolean) =>
-    // Done while its issue's timer runs for it: that timer stops too, its time to log.
-    (done && working?.todoId === x.id && working.linked
-      ? work.stop(working)
-      : Promise.resolve()
-    )
+    (done ? work.finish(x.id) : Promise.resolve())
       .then(() => update(x.id, { done }))
       .then(() =>
         toast.success(

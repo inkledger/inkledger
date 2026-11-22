@@ -41,5 +41,11 @@ export function useTodoWork() {
           void refresh();
         }, toastError)
       : utils.client.todos.stopWork.mutate().then(() => void refresh(), toastError);
-  return { start, stop };
+  /** A TODO done while its issue's timer runs for it: that timer stops too, its time to log. */
+  const finish = (todoId: number): Promise<void> =>
+    utils.todos.working
+      .fetch(undefined, { staleTime: 30_000 })
+      .catch(() => null)
+      .then(w => (w && w.todoId === todoId && w.linked ? stop(w) : undefined));
+  return { start, stop, finish };
 }

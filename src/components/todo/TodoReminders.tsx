@@ -6,6 +6,7 @@ import { surface } from "@/components/app/surface";
 import { canShowTodos, showTodos } from "@/hooks/useTodoPanel";
 import { useTodoReminders } from "@/hooks/useTodoReminders";
 import { useToday } from "@/hooks/useToday";
+import { useTodoWork } from "@/hooks/useTodoWork";
 import { toastError } from "@/lib/errorText";
 import { issuePath } from "@/lib/issues";
 import { dayLabel } from "@/lib/todoDay";
@@ -22,6 +23,7 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
   const utils = trpc.useUtils();
   const today = useToday();
   const { today: todayKey, items } = useTodoReminders();
+  const work = useTodoWork();
   if (items.length === 0) return null;
   const refresh = () => utils.todos.invalidate();
   const act = (p: Promise<unknown>) => void p.then(refresh, toastError);
@@ -83,11 +85,14 @@ export function TodoReminders({ onOpen }: { onOpen: () => void }) {
                   variant="ghost"
                   onClick={() =>
                     act(
-                      utils.client.todos.update.mutate({
-                        id: x.id,
-                        done: true,
-                        today: dayKey(today),
-                      })
+                      // As from the list: its issue's timer running for it stops too.
+                      work.finish(x.id).then(() =>
+                        utils.client.todos.update.mutate({
+                          id: x.id,
+                          done: true,
+                          today: dayKey(today),
+                        })
+                      )
                     )
                   }
                 >
