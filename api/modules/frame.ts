@@ -101,25 +101,34 @@ const alphaMask = (pic) => {
   for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
   return { kind: "mask", w, h, alpha };
 };
-// Storage writes at the host's pace (4 a second, 16 at once): a burst waits here instead of being refused there.
+// Storage writes at the host's pace (4 a second, 16 at once; a little under it here, the clocks differ):
+// a burst waits here instead of being refused there.
+const WRITE_RATE = 3.5;
 let writeTokens = 16, writeAt = Date.now();
 const paced = () => new Promise((resolve) => {
   const go = () => {
     const now = Date.now();
-    writeTokens = Math.min(16, writeTokens + ((now - writeAt) / 1000) * 4);
+    writeTokens = Math.min(16, writeTokens + ((now - writeAt) / 1000) * WRITE_RATE);
     writeAt = now;
     if (writeTokens >= 1) { writeTokens -= 1; resolve(); }
-    else setTimeout(go, Math.ceil(((1 - writeTokens) / 4) * 1000));
+    else setTimeout(go, Math.ceil(((1 - writeTokens) / WRITE_RATE) * 1000));
   };
   go();
 });
+// A write refused for its pace all the same (a message held up on the way): again after a moment.
+const written = async (m, a) => {
+  for (let i = 0; ; i++) {
+    await paced();
+    try { return await call(m, a); }
+    catch (e) { if (i >= 3 || !e || e.message !== "rate-limited") throw e; await new Promise((r) => setTimeout(r, 300)); }
+  }
+};
 // One write per key at a time; those waiting their turn merge: a set or delete, the latest wins;
 // an update joins the batch, its change applied in order over one read and one conditional write.
 const writeKeys = new Map();
 const runWrite = async (key, items) => {
   const last = items[items.length - 1];
-  await paced();
-  await (last.del ? call("storage.delete", [key]) : call("storage.set", [key, last.value]));
+  await (last.del ? written("storage.delete", [key]) : written("storage.set", [key, last.value]));
   for (const w of items) w.resolve();
 };
 const runUpdates = async (key, items) => {
@@ -129,8 +138,7 @@ const runUpdates = async (key, items) => {
     const outs = items.map((w) => { try { value = w.change(value); return { ok: true, value }; } catch (error) { return { ok: false, error }; } });
     const settleAll = () => items.forEach((w, j) => (outs[j].ok ? w.resolve(outs[j].value) : w.reject(outs[j].error)));
     if (!outs.some((o) => o.ok)) return settleAll();
-    await paced();
-    const w = await call("storage.setIf", [key, value, r.revision]);
+    const w = await written("storage.setIf", [key, value, r.revision]);
     if (w.ok) return settleAll();
     r = w;
   }
