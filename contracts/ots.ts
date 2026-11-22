@@ -13,6 +13,8 @@ const BITCOIN_TAG = new Uint8Array([0x05, 0x88, 0x96, 0x0d, 0x73, 0xd7, 0x19, 0x
 const PENDING_TAG = new Uint8Array([0x83, 0xdf, 0xe3, 0x0d, 0x2e, 0xf9, 0x0c, 0x8e]);
 const MAX_DEPTH = 256;
 const MAX_ARG = 4096;
+/** Bytes of messages a walk may make in all: a real proof's stay a few hundred each (hexlify doubles them). */
+const MAX_WALK = 1 << 20;
 
 export class OtsError extends Error {}
 
@@ -291,12 +293,17 @@ export type Reached = { attestation: Attestation; message: Uint8Array; path: num
 export async function attestationsOf(ts: Timestamp, message: Uint8Array): Promise<{ reached: Reached[]; skipped: number }> {
   const reached: Reached[] = [];
   let skipped = 0;
+  let walked = 0;
   const walk = async (t: Timestamp, msg: Uint8Array, path: number[]) => {
     for (const attestation of t.attestations) reached.push({ attestation, message: msg, path });
     for (const [i, o] of t.ops.entries()) {
       const next = await apply(o.op, msg);
       if (next === null) skipped++;
-      else await walk(o.next, next, [...path, i]);
+      else {
+        walked += next.length;
+        if (walked > MAX_WALK) throw new OtsError("proof too large to walk");
+        await walk(o.next, next, [...path, i]);
+      }
     }
   };
   await walk(ts, message, []);

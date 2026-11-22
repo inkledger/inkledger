@@ -67,7 +67,15 @@ export async function proofOf(id: string, licence: string): Promise<LicenceProof
   }
   // The proof is of this licence, or of nothing that matters here.
   if (toHex(proof.digest) !== sha256Hex(licence)) return { status: "failed", block: kept.block, time: null, existedBy };
-  const bitcoin = (await attestationsOf(proof.timestamp, proof.digest)).reached.filter(
+  let reached;
+  try {
+    reached = (await attestationsOf(proof.timestamp, proof.digest)).reached;
+  } catch (e) {
+    // Too large to walk: no real proof is.
+    if (e instanceof OtsError) return { status: "failed", block: kept.block, time: null, existedBy };
+    throw e;
+  }
+  const bitcoin = reached.filter(
     (r): r is typeof r & { attestation: { kind: "bitcoin"; height: number } } => r.attestation.kind === "bitcoin",
   );
   if (bitcoin.length === 0) return { status: "pending", block: null, time: null, existedBy };

@@ -10,6 +10,12 @@ const OTS = new Uint8Array(readFileSync(new URL("./__fixtures__/hello-world.txt.
 const TEXT = readFileSync(new URL("./__fixtures__/hello-world.txt", import.meta.url));
 
 describe("ots", () => {
+  it("a proof whose operations would grow the message past any real size is refused, not walked (hexlify doubles it)", async () => {
+    let ts: Timestamp = { attestations: [{ kind: "pending", uri: "https://a.example" }], ops: [] };
+    for (let i = 0; i < 16; i++) ts = { attestations: [], ops: [{ op: { name: "hexlify" }, next: ts }] };
+    await expect(attestationsOf(ts, new Uint8Array(32))).rejects.toBeInstanceOf(OtsError);
+  });
+
   it("the official example proof reaches its Bitcoin block", async () => {
     const proof = parseProof(OTS);
     expect(toHex(proof.digest)).toBe(createHash("sha256").update(TEXT).digest("hex"));
