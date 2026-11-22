@@ -129,11 +129,16 @@ export function entriesOfNotes(i: GitLabIssue, notes: GitLabNote[]): RemoteWorkl
   }));
 }
 
-/** Whole: an entry is an "added" note less a later "subtracted" one, so a cut list would bring deleted entries back. */
-const notesOf = (c: GitLabCreds, i: GitLabIssue) => glPages<GitLabNote>(c, `/projects/${i.project_id}/issues/${i.iid}/notes?sort=asc&order_by=created_at`, 50, listTooLong("GitLab: notes"));
+/**
+ * An issue's notes. `whole` (one issue's entries, matched against or written to): past the page limit it is refused,
+ * as an entry is an "added" note less a later "subtracted" one and a cut list would bring deleted entries back.
+ * The feed over many issues takes what it can read rather than fail the whole pass on one issue.
+ */
+const notesOf = (c: GitLabCreds, i: GitLabIssue, whole: boolean) =>
+  glPages<GitLabNote>(c, `/projects/${i.project_id}/issues/${i.iid}/notes?sort=asc&order_by=created_at`, 50, whole ? listTooLong("GitLab: notes") : undefined);
 
-export async function listByNotes(c: GitLabCreds, i: GitLabIssue): Promise<RemoteWorklog[]> {
-  return entriesOfNotes(i, await notesOf(c, i));
+export async function listByNotes(c: GitLabCreds, i: GitLabIssue, whole = true): Promise<RemoteWorklog[]> {
+  return entriesOfNotes(i, await notesOf(c, i, whole));
 }
 
 const spend = (c: GitLabCreds, i: GitLabIssue, body: string) =>

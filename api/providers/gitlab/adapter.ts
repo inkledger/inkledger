@@ -597,7 +597,7 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
           (["assigned_to_me", "created_by_me"] as const).map((scope) => glPages<GitLabIssue>(c, `/issues?${new URLSearchParams({ scope, state: "all", updated_after: since, order_by: "updated_at", sort: "desc" }).toString()}`, 5)),
         );
         const issues = [...new Map(lists.flat().map((i) => [i.id, i])).values()];
-        const items = (await mapInPool(issues, FAN_OUT, (i) => listByNotes(c, i))).flat();
+        const items = (await mapInPool(issues, FAN_OUT, (i) => listByNotes(c, i, false))).flat();
         return { last: true, items, gone: [], checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: now } satisfies Since) };
       }
       const pageAt =
