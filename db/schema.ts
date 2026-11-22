@@ -561,6 +561,10 @@ export const worklogSinks = pgTable(
     pushedDay: text("pushed_day"),
     /** A sink pass (of any server process on this database) is sending it: others skip it until then, or past the lease */
     claimedAt: epochMs("claimed_at"),
+    /** Not on the sink yet, where it keeps no key: what its create last sent (an answer lost is looked for by these) */
+    sentSeconds: integer("sent_seconds"),
+    sentStarted: ms("sent_started"),
+    sentComment: text("sent_comment"),
   },
   (t) => [
     uniqueIndex("uq_worklog_sinks_worklog_sink").on(t.worklogId, t.sinkConnectionId),
@@ -767,6 +771,11 @@ export const outbox = pgTable(
     claimedAt: epochMs("claimed_at"),
     /** A time sink's delete that failed waits until then before its next try (null: now). */
     nextAttemptAt: epochMs("next_attempt_at"),
+    /**
+     * A delete of a create whose answer was lost (no id there: remote id ""): the entry
+     * is looked for by the values sent, among those made after this and before the row.
+     */
+    landedAfter: ms("landed_after"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
