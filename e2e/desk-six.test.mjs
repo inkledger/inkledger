@@ -139,7 +139,12 @@ test("six on a phone: six tabs at 320 px scroll in their row, the page never sid
     const last = tabs.getByRole("tab", { name: "DEMO-106" });
     await tabs.getByRole("tab", { name: "DEMO-106", selected: true }).waitFor();
     await page.locator('[data-desk-pane="1:DEMO-106"]').getByText("Test task number 6").first().waitFor();
-    const box = await last.boundingBox();
+    // It scrolls into view smoothly: read once the scroll has settled (a busy machine takes longer).
+    let box = await last.boundingBox();
+    for (let i = 0; i < 40 && !(box.x >= 0 && box.x + box.width <= 320); i++) {
+      await page.waitForTimeout(50);
+      box = await last.boundingBox();
+    }
     assert.ok(box.x >= 0 && box.x + box.width <= 320, `the last tab is in view: ${JSON.stringify(box)}`);
     assert.ok((await over()) <= 0, `still no sideways scroll (${await over()}px)`);
     for (const colorScheme of ["light", "dark"]) {
