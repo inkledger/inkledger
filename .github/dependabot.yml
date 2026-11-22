@@ -30,6 +30,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # The forecast sidecar's image (uv pinned by digest).
+  - package-ecosystem: docker
+    directory: /ml/forecast
+    schedule:
+      interval: weekly
   # The Android app's build.
   - package-ecosystem: gradle
     directory: /src-tauri/gen/android
