@@ -13,6 +13,9 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { createHub, type Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
+import { FramedBox } from "./sandbox/FrameHost";
+import { keepRuntimes } from "./sandbox/frames";
+import type { InkledgerModuleV1 } from "./types";
 import type { SlotId } from "./types";
 import { ModulesContext } from "./context";
 import type { BackdropVisibility } from "@contracts/modules";
@@ -72,6 +75,12 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     hub?.route(pathname);
   }, [hub, pathname]);
+
+  // Framed modules' runtimes live as long as their module runs, with this hub.
+  useEffect(() => {
+    if (hub) keepRuntimes(running.filter(m => "framed" in m.module).map(m => m.entry.id));
+  }, [hub, running]);
+  useEffect(() => () => keepRuntimes(), [hub]);
 
   return (
     <ModulesContext.Provider value={hub ? { hub, modules: running } : null}>
@@ -165,6 +174,12 @@ export function DashboardBackdrop() {
 }
 
 function ModuleBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {
+  const { entry, module } = loaded;
+  if ("framed" in module) return <FramedBox hub={hub} entry={entry} slot={slot} className={BOX[slot]} />;
+  return <InPageBox hub={hub} loaded={{ entry, module }} slot={slot} />;
+}
+
+function InPageBox({ hub, loaded, slot }: { hub: Hub; loaded: { entry: LoadedModule["entry"]; module: InkledgerModuleV1 }; slot: SlotId }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;

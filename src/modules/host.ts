@@ -244,7 +244,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     closeSettings: () => settingsOf.set(null),
 
     /** The API one module gets in one slot. */
-    apiFor(moduleId: string, slot: SlotId): { api: HostApiV1; dispose: () => void } {
+    apiFor(moduleId: string, slot: SlotId) {
       const owned = new Set<() => void>();
       let disposed = false;
       // A module stopped meanwhile (licence removed, switched off): its last
@@ -378,6 +378,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
       };
       return {
         api,
+        /** storage.update in two halves, for a framed module (its `change` runs in its frame). */
+        cas: {
+          read: (key: string) => read(() => utils.client.modules.storageGet.query({ moduleId, key })),
+          setIf: (key: string, value: unknown, ifRevision: number) =>
+            read(() => utils.client.modules.storageSetIf.mutate({ moduleId, key, value, ifRevision })),
+        },
         dispose: () => {
           disposed = true;
           [...owned].forEach(off => off());

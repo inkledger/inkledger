@@ -1,6 +1,6 @@
 import { readStored, writeStored } from "@/lib/storage";
 import type { ModuleListEntry } from "@contracts/modules";
-import type { InkledgerModuleV1 } from "./types";
+import type { InkledgerModuleV1, SlotId } from "./types";
 
 const OFF_KEY = "inkledger-modules-off";
 
@@ -16,7 +16,17 @@ export function setModulesDisabled(off: boolean) {
   writeStored(OFF_KEY, off ? "1" : null);
 }
 
-export type LoadedModule = { entry: ModuleListEntry; module: InkledgerModuleV1 };
+/** A framed module as the page sees it: the slots it draws in (its code runs only in its frames). */
+export type FramedModule = { id: string; hostApi: 2; framed: true; mount: Partial<Record<SlotId, true>> };
+
+export type LoadedModule = { entry: ModuleListEntry; module: InkledgerModuleV1 | FramedModule };
+
+function framed(entry: ModuleListEntry): FramedModule | null {
+  if (!entry.frameUrl) return null;
+  const mount: Partial<Record<SlotId, true>> = {};
+  for (const slot of entry.slots) mount[slot] = true;
+  return { id: entry.id, hostApi: 2, framed: true, mount };
+}
 
 const cache = new Map<string, Promise<InkledgerModuleV1 | null>>();
 
@@ -58,6 +68,7 @@ function load(entry: ModuleListEntry): Promise<InkledgerModuleV1 | null> {
 
 export async function loadModules(entries: ModuleListEntry[]): Promise<LoadedModule[]> {
   const active = entries.filter(e => e.status.state === "active");
-  const loaded = await Promise.all(active.map(async entry => ({ entry, module: await load(entry) })));
+  // Framed code never runs in the page: nothing to fetch here.
+  const loaded = await Promise.all(active.map(async entry => ({ entry, module: entry.runtime === "frame" ? framed(entry) : await load(entry) })));
   return loaded.flatMap(l => (l.module ? [{ entry: l.entry, module: l.module }] : []));
 }
