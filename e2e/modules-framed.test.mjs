@@ -18,7 +18,7 @@ const CODE = fixture("framed");
 
 // The framed module, and the in-page demo module beside it (host API v1, publisher lane).
 const MANIFESTS = {
-  framed: { version: "2.0.0", hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["runtime"], slots: ["dashboard-widget"] },
+  framed: { version: "2.0.0", hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["runtime"], slots: ["dashboard-widget", "dashboard-overlay"] },
   hello: { version: "1.0.0", hostApi: { min: 1, max: 1 }, slots: ["sidebar-footer"] },
 };
 
@@ -46,6 +46,8 @@ const watch = () => {
   w.__longTasks = [];
   w.__gaps = [];
   w.__frameAt = null;
+  w.__clicks = [];
+  document.addEventListener("click", e => w.__clicks.push(e.target.tagName), true);
   new PerformanceObserver(l => w.__longTasks.push(...l.getEntries().map(e => ({ start: e.startTime, duration: e.duration })))).observe({ type: "longtask", buffered: true });
   new MutationObserver(() => {
     if (w.__frameAt === null && document.querySelector("iframe[data-module-frame]")) w.__frameAt = performance.now();
@@ -79,23 +81,40 @@ async function withFramed(body, { before } = {}) {
   }
 }
 
-const viewFrame = async page => (await page.locator('iframe[data-module-frame="view"]').elementHandle()).contentFrame();
+const WIDGET = '[data-module-slot="dashboard-widget"] iframe[data-module-frame="view"]';
+const OVERLAY = '[data-module-slot="dashboard-overlay"] iframe[data-module-frame="view"]';
+const viewFrame = async (page, sel = WIDGET) => (await page.locator(sel).elementHandle()).contentFrame();
 
 test("a framed module draws in its card, talks to the host and its runtime, and reaches nothing of the app", () =>
   withFramed(async ({ page, base, consoleErrors, responses }) => {
-    const inside = page.frameLocator('iframe[data-module-frame="view"]');
+    const inside = page.frameLocator(WIDGET);
     await inside.getByTestId("framed-hello").filter({ hasText: "framed hello" }).waitFor();
     await inside.getByTestId("framed-worker").filter({ hasText: "worker 42" }).waitFor();
     await inside.getByTestId("framed-runtime").filter({ hasText: "runtime hears dashboard-widget" }).waitFor();
     await inside.getByTestId("framed-totals").filter({ hasText: /^totals \d+$/ }).waitFor();
     await inside.getByTestId("framed-timer").filter({ hasText: "timer idle" }).waitFor();
-    await page.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor();
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
     assert.equal(await page.locator('[data-module-runtimes] iframe[data-module-frame="runtime"][data-state="live"]').count(), 1);
     // The frame fills its card, inside its border.
-    const card = await page.locator('[data-module="framed"]').evaluate(el => [el.clientWidth, el.clientHeight]);
-    const frameBox = await page.locator('iframe[data-module-frame="view"]').boundingBox();
+    const card = await page.locator('[data-module-slot="dashboard-widget"] [data-module="framed"]').evaluate(el => [el.clientWidth, el.clientHeight]);
+    const frameBox = await page.locator(WIDGET).boundingBox();
     assert.deepEqual([frameBox.width, frameBox.height], card);
     assert.deepEqual(consoleErrors, [], "no console errors while mounting");
+
+    // Over the page: the frame takes no pointer events; a click on its square is the module's, beside it the page's.
+    const overlay = page.locator(OVERLAY);
+    await page.locator(`${OVERLAY}[data-state="live"]`).waitFor();
+    assert.equal(await overlay.evaluate(el => getComputedStyle(el).pointerEvents), "none");
+    const o = await overlay.boundingBox();
+    await page.evaluate(() => (window.__clicks.length = 0));
+    await page.mouse.click(o.x + 50, o.y + 50);
+    await page.frameLocator(OVERLAY).getByTestId("framed-dot").filter({ hasText: "activated 1" }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__clicks), [], "the page never saw the module's click");
+    await page.mouse.click(o.x + 10, o.y + 10);
+    const beside = await page.evaluate(() => window.__clicks);
+    assert.equal(beside.length, 1);
+    assert.notEqual(beside[0], "IFRAME");
+    assert.equal(await page.frameLocator(OVERLAY).getByTestId("framed-dot").textContent(), "activated 1");
 
     // Smooth while it mounted: no long task of the page, no frame gap worth a dropped beat.
     await page.waitForTimeout(500);
@@ -162,7 +181,7 @@ test("a framed module draws in its card, talks to the host and its runtime, and 
 test("other bytes at the code URL never run: the import map pins the entry to its hash", () =>
   withFramed(
     async ({ page, consoleErrors }) => {
-      await page.locator('iframe[data-module-frame="view"][data-state="failed"]').waitFor();
+      await page.locator(`${WIDGET}[data-state="failed"]`).waitFor();
       const frame = await viewFrame(page);
       assert.equal(await frame.evaluate(() => document.querySelector("#ikl-box")), null);
       assert.ok(!(await frame.evaluate(() => document.body.textContent)).includes("tampered"));
@@ -184,7 +203,7 @@ test("a page module beside a framed one keeps its mount across a route change", 
   withFramed(async ({ page }) => {
     const hello = page.getByTestId("module-hello");
     await hello.waitFor();
-    await page.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor();
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
     await hello.evaluate(el => (el.__kept = true));
     // A route change inside the app (no reload).
     await page.evaluate(() => {

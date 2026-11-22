@@ -1,6 +1,7 @@
 // A framed (host API v2) demo module for the e2e tests: runs in a sandboxed
 // frame, draws in its dashboard card, asks the host for totals, round-trips a
 // worker made from its own code (as the real modules do) and hears its runtime.
+// Over the Dashboard it draws a square that only the host makes clickable.
 if (typeof document === "undefined") self.addEventListener("message", e => self.postMessage(e.data * 2));
 
 export default {
@@ -10,6 +11,15 @@ export default {
     return host.views((port, slot) => port.postMessage(`runtime hears ${slot}`));
   },
   mount: {
+    "dashboard-overlay"(el, host) {
+      const dot = document.createElement("div");
+      dot.dataset.testid = "framed-dot";
+      Object.assign(dot.style, { position: "absolute", left: "20px", top: "20px", width: "60px", height: "60px", background: "rgb(0 0 0 / 0.1)" });
+      let n = 0;
+      host.hit.set([{ kind: "rect", x: 20, y: 20, w: 60, h: 60 }], () => (dot.textContent = `activated ${++n}`));
+      el.append(dot);
+      return () => dot.remove();
+    },
     "dashboard-widget"(el, host) {
       const box = document.createElement("div");
       box.dataset.testid = "module-framed";
