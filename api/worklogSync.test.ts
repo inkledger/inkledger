@@ -57,6 +57,8 @@ const jira = {
   deletedUntil: 0,
   /** When the updated feed's entries changed: a pass since a later time doesn't get them (default: every pass does). */
   updatedAt: 0,
+  /** Runs while a pass reads the worklogs (something the user does meanwhile). */
+  duringList: null as null | (() => Promise<void>),
 };
 
 vi.stubGlobal(
@@ -90,6 +92,9 @@ vi.stubGlobal(
     if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: jira.deletedUntil || now + 1000 });
     if (p.endsWith("/worklog/list")) {
       jira.posts.push(String(init?.body));
+      const meanwhile = jira.duringList;
+      jira.duringList = null;
+      await meanwhile?.();
       return json(jira.list);
     }
     if (p.endsWith("/issue/11")) return json(issue("11", "PRJ-2"));
@@ -366,6 +371,37 @@ describe("worklogs from Jira", () => {
       jira.updated = [];
       jira.list = [];
       jira.updatedAt = 0;
+    }
+  });
+
+  it("a lost create's delete discarded while a pass that left its entry out is running: the next pass still reads it back", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const at = now - 7 * DAY;
+    const [tomb] = await q<{ id: number }>(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?, ?) RETURNING id",
+      user.id, conn.id, at, Date.now() - 600_000, Date.now() + 300_000, Date.now(),
+    );
+    jira.updated = [{ worklogId: 660 }];
+    jira.list = [wl("660", "acc-1", at, 1800, "10")];
+    jira.updatedAt = Date.now() - 300_000;
+    // Read from before it landed: this pass sees it, and leaves it out.
+    await q("UPDATE connection_sync SET checkpoint = ? WHERE connection_id = ? AND stream = 'worklogs'", String(Date.now() - 900_000), conn.id);
+    await q("UPDATE sync_state SET last_worklog_sync_at = ? WHERE user_id = ?", Date.now() - 900_000, user.id);
+    jira.duringList = async () => void (await me.outbox.discard({ id: tomb.id }));
+    try {
+      await syncWorklogs(user);
+      expect(jira.duringList).toBeNull();
+      expect((await mine()).filter((w) => w.id === "660")).toEqual([]);
+      await syncWorklogs(user);
+      expect((await mine()).filter((w) => w.id === "660")).toEqual([{ k: "PRJ-1", id: "660", s: 1800 }]);
+    } finally {
+      await q("DELETE FROM outbox");
+      await q("DELETE FROM worklogs WHERE jira_worklog_id = '660'");
+      jira.updated = [];
+      jira.list = [];
+      jira.updatedAt = 0;
+      jira.duringList = null;
     }
   });
 

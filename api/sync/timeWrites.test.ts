@@ -8,6 +8,8 @@ type TestTracker = {
   /** Its name doesn't resolve from the server: no request ever leaves. */
   unresolved?: boolean;
   unresolvedOnly?: string;
+  /** Runs once while its feed is read (something the user does meanwhile). */
+  whileReading?: () => Promise<void>;
   /** When each entry was made there, by id (the tracker's creation time). */
   made: Map<string, number>;
   /** After the call landed, what the answer turns into (a timeout, an answer outside the contract), by call name. */
@@ -51,6 +53,11 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
           }
           const dated = (w: { remoteId: string }) => (tracker.made.has(w.remoteId) ? { ...w, createdAt: tracker.made.get(w.remoteId) } : w);
           if (name === "list") return (out as { remoteId: string }[]).map(dated);
+          if (name === "changed" && tracker.whileReading) {
+            const meanwhile = tracker.whileReading;
+            tracker.whileReading = undefined;
+            await meanwhile();
+          }
           if (name === "changed") return { ...(out as { items: { remoteId: string }[] }), items: (out as { items: { remoteId: string }[] }).items.map(dated) };
           // It landed, but the answer never came back.
           if (tracker.loseAnswer && name === "create") throw new ProviderError("unavailable", "fake: timed out");
@@ -478,6 +485,29 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       }
     } finally {
       tracker.recreating = false;
+    }
+  });
+
+  it("a lost create's delete discarded while the tracker's feed is being read: that pass leaves the feed where the rewind put it", async () => {
+    const { syncConnectionEntries } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const [u] = await q<{ user_id: number }>("SELECT user_id FROM connections WHERE id = ?", connId);
+    const [tomb] = await q<{ id: number }>(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, landed_before, created_at) VALUES (?, ?, 'delete', 'FAKE-1', '', 1800, ?, 'work', ?, ?, ?) RETURNING id",
+      u.user_id, connId, Date.parse("2026-10-25T09:00:00+02:00"), Date.now() - 600_000, Date.now() + 300_000, Date.now(),
+    );
+    tracker.whileReading = async () => void (await caller.outbox.discard({ id: tomb.id }));
+    try {
+      expect(await syncConnectionEntries(conn, { full: false, background: false })).toMatchObject({ ran: true });
+      expect(tracker.whileReading).toBeUndefined();
+      expect(await q("SELECT id FROM outbox WHERE id = ?", tomb.id)).toEqual([]);
+      expect(await q("SELECT checkpoint FROM connection_sync WHERE connection_id = ? AND stream = 'entries'", connId)).toEqual([{ checkpoint: null }]);
+    } finally {
+      tracker.whileReading = undefined;
+      await q("DELETE FROM outbox");
     }
   });
 

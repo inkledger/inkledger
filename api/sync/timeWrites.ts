@@ -3,7 +3,7 @@
 // can't be reached, queued in the outbox and replayed in order later. For
 // Jira the calls are the ones its own path made (jira-gate.test.ts).
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
@@ -392,6 +392,29 @@ export async function unbury(tomb: typeof outbox.$inferSelect, db: Db | Tx = get
   }
   const [s] = await db.select({ cp: connectionSync.checkpoint }).from(connectionSync).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));
   if (s?.cp && Number(s.cp) > at) await db.update(connectionSync).set({ checkpoint: String(at) }).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));
+}
+
+/** The lost creates' deletes keeping entries out of a tracker's reads now (through it, or a sink standing in for it). */
+export async function liveTombs(userId: number, connId: number): Promise<number[]> {
+  const rows = await getDb()
+    .select({ id: outbox.id, via: connections })
+    .from(outbox)
+    .innerJoin(connections, eq(connections.id, outbox.connectionId))
+    .where(and(eq(outbox.userId, userId), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS)));
+  return rows.filter((r) => r.via.id === connId || trackerOfSink(r.via) === connId).map((r) => r.id);
+}
+
+/**
+ * Some of these ended since (done, discarded, out of attempts): a pass that kept their entries
+ * out must not move its tracker's feed past them (its rewind, or the old place, stands).
+ */
+export async function tombsEnded(ids: number[]): Promise<boolean> {
+  if (ids.length === 0) return false;
+  const still = await getDb()
+    .select({ id: outbox.id })
+    .from(outbox)
+    .where(and(inArray(outbox.id, ids), lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS)));
+  return still.length < ids.length;
 }
 
 /**

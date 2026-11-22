@@ -18,7 +18,7 @@ import { rowFromJira, upsertLocal } from "./routers/worklogs";
 import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
 import { connOf, contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
-import { buriedBy, creationInFlight } from "./sync/timeWrites";
+import { buriedBy, creationInFlight, liveTombs, tombsEnded } from "./sync/timeWrites";
 import { trackerOfSink } from "./sync/extraSinks";
 import { instant } from "@contracts/values";
 import { isWorking } from "@contracts/sync";
@@ -113,11 +113,14 @@ async function syncConnectionWorklogs(account: User, conn: Connection, opts: { r
       .where(and(eq(worklogTrash.userId, account.id), eq(worklogTrash.connectionId, conn.id), eq(worklogTrash.reason, "user"), isNotNull(worklogTrash.remoteId))),
   ]);
   const queued = new Set([...queuedOps.map((o) => o.id), ...trashed.flatMap((o) => (o.id ? [o.id] : []))]);
+  const tombs = await liveTombs(account.id, conn.id);
   const buried = await buriedOn(account.id, conn);
   const startedAt = Date.now();
   const ctx = contextFor(account, conn);
   const result = since ? await incremental(ctx, since.getTime(), queued, buried) : await initial(ctx, queued, buried);
   const until = new Date(result.until ?? startedAt);
+  // A delete that kept an entry out ended meanwhile: where its rewind (or the old place) left the feed stands.
+  if (await tombsEnded(tombs)) return { imported: result.imported, deleted: result.deleted, initial: !since };
   if (conn.legacy) {
     await db.insert(syncState)
       .values({ userId: account.id, lastWorklogSyncAt: until })

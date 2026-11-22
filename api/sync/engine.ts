@@ -14,6 +14,7 @@ import type { Checkpoint, Stream, TrackerProbe } from "../providers/types";
 import { budgetOf, type Budget } from "./budget";
 import { syncIssues, type IssuePassResult } from "./issues";
 import { entriesOf, syncEntries } from "./worklogs";
+import { liveTombs, tombsEnded } from "./timeWrites";
 import { acquire, failed, HEARTBEAT_MS, LeaseLostError, renew, succeeded } from "./state";
 import { observePass } from "./observe";
 import { insertNotifications } from "../routers/notifications";
@@ -164,8 +165,10 @@ export async function syncConnectionEntries(
     try {
       const budget = await budgetFor(conn, b, signal);
       const meta = { signal, correlationId: `entries-${conn.id}-${Date.now()}` };
+      const tombs = await liveTombs(conn.userId, conn.id);
       const r = await syncEntries(b, conn, { since, meta, budget, zone: connOf(conn).timeZone });
-      return { result: { upserted: r.upserted, removed: r.removed }, checkpoint: r.checkpoint };
+      // A delete that kept an entry out ended meanwhile: its rewind stands, not this pass's place.
+      return { result: { upserted: r.upserted, removed: r.removed }, checkpoint: (await tombsEnded(tombs)) ? undefined : r.checkpoint };
     } finally {
       done();
     }
