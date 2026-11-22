@@ -56,7 +56,8 @@ export function PinMenuItems({ issueKey, connectionId, label }: { issueKey: stri
   if (!boards || boards.length <= 1) {
     const only = boards?.[0];
     return (
-      <DropdownMenuItem onSelect={() => void (only ? toggle(only) : pin(issueKey, connectionId))}>
+      // Until the boards are known, a click would pin straight to the default one (as PinButton waits).
+      <DropdownMenuItem disabled={!where.data} onSelect={() => void (only ? toggle(only) : pin(issueKey, connectionId))}>
         <Pin className="h-4 w-4" /> {only?.noteId != null ? t("ui.pin.unpin") : label}
       </DropdownMenuItem>
     );
