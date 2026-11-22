@@ -133,7 +133,7 @@ describe("notes in folders", () => {
     expect((await me.notes.tree()).map(n => `${n.kind}:${n.title}`).sort()).toEqual(["folder:Box", "note:Inside"]);
   });
 
-  it("brings a trashed note back under its parent only within the depth limit, however deep that parent moved", async () => {
+  it("brings a trashed note back under its parent only within the depth limit; too deep there now, at the top level", async () => {
     let parent: string | null = null;
     const chain: string[] = [];
     for (let level = 0; level <= 30; level++) {
@@ -146,8 +146,9 @@ describe("notes in folders", () => {
     await me.notes.create({ title: "Inside", body: "x", parentId: kept.id });
     const { batch } = await me.notes.remove({ id: kept.id });
     await me.notes.move({ id: box.id, parentId: chain[30], index: 0 });
-    await expect(me.notes.restore({ batch })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-    expect((await me.notes.tree()).some(n => n.id === kept.id)).toBe(false);
+    await me.notes.restore({ batch });
+    // Never stuck in the trash, never past the limit: back, at the top level.
+    expect((await me.notes.tree()).find(n => n.id === kept.id)).toMatchObject({ parentId: null });
   });
 
   it("moves and trashes a folder of any size, and lists it in the trash", async () => {

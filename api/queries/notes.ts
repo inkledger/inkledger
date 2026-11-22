@@ -158,7 +158,8 @@ async function checkPlacement(
   if (!parent) return;
   const parents = await ancestors(tx, userId, parent.id);
   const parentDepth = Math.max(...parents.map(row => Number(row.depth)));
-  const subtreeDepth = Math.max(0, ...subtree.map(row => Number(row.depth)));
+  // A fold, not a spread: a subtree of any size (a spread of 125k arguments throws).
+  const subtreeDepth = subtree.reduce((most, row) => Math.max(most, Number(row.depth)), 0);
   if (parentDepth + subtreeDepth + 1 > NOTE_MAX_DEPTH) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
@@ -553,7 +554,11 @@ export async function restoreNoteBatch(
       for (const [nodeId, depth] of depthOf)
         for (const child of children.get(nodeId) ?? [])
           if (!depthOf.has(child.id)) depthOf.set(child.id, depth + 1);
-      await checkPlacement(tx, userId, parent, [...depthOf].map(([nodeId, depth]) => ({ id: nodeId, depth })));
+      // Too deep there now: back at the top level, as when its parent is gone (never stuck in the trash).
+      await checkPlacement(tx, userId, parent, [...depthOf].map(([nodeId, depth]) => ({ id: nodeId, depth }))).catch((e: unknown) => {
+        if (!(e instanceof TRPCError && e.code === "PRECONDITION_FAILED")) throw e;
+        parentId = null;
+      });
     }
     const now = new Date();
     const restored = await tx
