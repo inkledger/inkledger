@@ -322,6 +322,7 @@ export const server: Shape<typeof en> = {
     lockedBecause: "Questo worklog è bloccato sul suo tracker: {reason}",
     noConflict: "Questo worklog non ha conflitti da risolvere.",
     notFound: "Questo worklog non esiste più.",
+    notYours: "Qui puoi eliminare solo i tuoi worklog.",
     justSynced: "Il worklog è appena stato inviato al tuo tracker: aggiorna e riprova",
     busy: "Un'altra modifica al tuo tempo è ancora in salvataggio: riprova tra un momento.",
     invalidDuration: 'Durata non valida: "{value}". Usa formati come "2h 30m", "1d", "45m".',

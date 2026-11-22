@@ -321,6 +321,7 @@ export const server = {
     lockedBecause: "This worklog is locked on its tracker: {reason}",
     noConflict: "This worklog has no conflict to settle.",
     notFound: "This worklog no longer exists.",
+    notYours: "Only your own worklogs can be deleted here.",
     justSynced: "The worklog was just sent to your tracker: refresh and try again",
     busy: "Another change to your time is still being saved: try again in a moment.",
     invalidDuration: 'Invalid duration: "{value}". Use formats like "2h 30m", "1d", "45m".',

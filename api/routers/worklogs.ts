@@ -736,6 +736,10 @@ export const worklogsRouter = createRouter({
               ? await through.b.worklogs.get(callMeta("time"), through.ref, input.remoteId)
               : (await through.b.worklogs?.list(callMeta("time"), through.ref))?.find((w) => w.remoteId === input.remoteId);
             if (!there) return deleted();
+            // Someone else's entry (listed by team): never deleted from here, whatever the tracker allows.
+            if (there.authorRemoteId && there.authorRemoteId !== conn.remoteAccountId) {
+              throw new TRPCError({ code: "FORBIDDEN", message: t("server.worklogs.notYours") });
+            }
             if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
             await deleteThere(through.b, callMeta("time"), through.ref, input.remoteId);
           } catch (e) {
