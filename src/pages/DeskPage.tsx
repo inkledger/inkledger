@@ -10,7 +10,7 @@ import { announceAdd } from "@/lib/desk/announce";
 import { DESK_OPEN_EVENT, paneOf, type DeskOpenDetail } from "@/lib/desk/send";
 import { isDialogOpen, isTyping } from "@/lib/dom";
 import { hotkeySequence } from "@/lib/hotkeySequence";
-import { errorText } from "@/lib/errorText";
+import { errorText, toastError } from "@/lib/errorText";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -133,12 +133,15 @@ export default function DeskPage() {
   useEffect(() => {
     const onOpen = (e: Event) => {
       const ref = (e as CustomEvent<DeskOpenDetail>).detail;
-      void paneOf(utils, ref).then(pane => {
-        if (!pane) return;
-        const k = keys.current;
-        if (k.desk && !k.ids.includes(paneId(pane))) announceAdd(k.desk, addPane(k.desk, pane), pane);
-        k.bring(pane, d => addPane(d, pane));
-      });
+      void paneOf(utils, ref)
+        .then(pane => {
+          if (!pane) return;
+          const k = keys.current;
+          if (k.desk && !k.ids.includes(paneId(pane))) announceAdd(k.desk, addPane(k.desk, pane), pane);
+          k.bring(pane, d => addPane(d, pane));
+        })
+        // The lookup failed (offline): said, not swallowed.
+        .catch(toastError);
     };
     window.addEventListener(DESK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(DESK_OPEN_EVENT, onOpen);
