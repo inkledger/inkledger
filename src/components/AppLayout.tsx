@@ -97,22 +97,24 @@ import { surface, surfaceFace } from "@/components/app/surface";
 import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 
 // Dialogs and hosts opened on demand: out of the first load (each fetched right after it).
-const QuickStart = lazyPart(() => import("@/components/QuickStart").then(m => m.QuickStart));
-const IdleDialog = lazyPart(() => import("@/components/IdleDialog").then(m => m.IdleDialog));
-const DayReview = lazyPart(() => import("@/components/DayReview").then(m => m.DayReview));
-const FocusMode = lazyPart(() => import("@/components/FocusMode").then(m => m.FocusMode));
-const Screensaver = lazyPart(() => import("@/components/screensaver/Screensaver").then(m => m.Screensaver));
-const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog));
-const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog));
-const StartParallelDialog = lazyPart(() => import("@/components/StartParallelDialog").then(m => m.StartParallelDialog));
-const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog));
-const IdeaCaptureDialog = lazyPart(() => import("@/components/ideas/IdeaCaptureDialog").then(m => m.IdeaCaptureDialog));
-const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog));
+// Mounted always, drawn when asked: code that never arrived draws nothing in the shell.
+const QUIET = { quiet: true };
+const QuickStart = lazyPart(() => import("@/components/QuickStart").then(m => m.QuickStart), QUIET);
+const IdleDialog = lazyPart(() => import("@/components/IdleDialog").then(m => m.IdleDialog), QUIET);
+const DayReview = lazyPart(() => import("@/components/DayReview").then(m => m.DayReview), QUIET);
+const FocusMode = lazyPart(() => import("@/components/FocusMode").then(m => m.FocusMode), QUIET);
+const Screensaver = lazyPart(() => import("@/components/screensaver/Screensaver").then(m => m.Screensaver), QUIET);
+const ShortcutsDialog = lazyPart(() => import("@/components/ShortcutsDialog").then(m => m.ShortcutsDialog), QUIET);
+const StartChoiceDialog = lazyPart(() => import("@/components/StartChoiceDialog").then(m => m.StartChoiceDialog), QUIET);
+const StartParallelDialog = lazyPart(() => import("@/components/StartParallelDialog").then(m => m.StartParallelDialog), QUIET);
+const CreateIssueDialog = lazyPart(() => import("@/components/issues/CreateIssueDialog").then(m => m.CreateIssueDialog), QUIET);
+const IdeaCaptureDialog = lazyPart(() => import("@/components/ideas/IdeaCaptureDialog").then(m => m.IdeaCaptureDialog), QUIET);
+const IssueHistoryDialog = lazyPart(() => import("@/components/issue/IssueHistoryDialog").then(m => m.IssueHistoryDialog), QUIET);
 // The palette's body: its ⌘K stays in the first load (useCommandPaletteShortcut), so a key pressed at once is never lost.
-const CommandPalette = lazyPart(() => import("@/components/CommandPalette").then(m => m.CommandPalette));
-const TimerLogHost = lazyPart(() => import("@/components/TimerLogHost").then(m => m.TimerLogHost));
-const DecisionHost = lazyPart(() => import("@/components/decisions/DecisionHost").then(m => m.DecisionHost));
-const MakeTodoHost = lazyPart(() => import("@/components/todo/MakeTodo").then(m => m.MakeTodoHost));
+const CommandPalette = lazyPart(() => import("@/components/CommandPalette").then(m => m.CommandPalette), QUIET);
+const TimerLogHost = lazyPart(() => import("@/components/TimerLogHost").then(m => m.TimerLogHost), QUIET);
+const DecisionHost = lazyPart(() => import("@/components/decisions/DecisionHost").then(m => m.DecisionHost), QUIET);
+const MakeTodoHost = lazyPart(() => import("@/components/todo/MakeTodo").then(m => m.MakeTodoHost), QUIET);
 
 /** Opens the focus view; shown only while a timer exists. */
 function ActiveTimerFocusButton() {

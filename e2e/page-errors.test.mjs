@@ -150,6 +150,26 @@ test("a dialog whose code never arrives: no reload by itself, the error shows in
   }
 });
 
+test("a dialog always in the shell whose code never arrives draws nothing under the app: one notice offers a reload", async () => {
+  const app = await start();
+  try {
+    const { page, context } = app;
+    const chunk = u => /\/assets\/(IdeaCaptureDialog|ShortcutsDialog)-[\w-]+\.js$/.test(new URL(u).pathname);
+    await context.route(chunk, route => route.abort("failed"));
+    let loads = 0;
+    page.on("load", () => loads++);
+    await page.goto(app.base + "/");
+    await sidebarLink(page, "/reports").waitFor();
+    await page.waitForTimeout(4000);
+    assert.equal(loads, 1, "no reload by itself");
+    assert.equal(await page.getByRole("alert").filter({ hasText: "Something went wrong" }).count(), 0, "no error card in the shell");
+    await page.getByText("Something went wrong").first().waitFor();
+    assert.ok(await sidebarLink(page, "/").isVisible(), "the sidebar stays");
+  } finally {
+    await app.stop();
+  }
+});
+
 test("a page's code failing while a dialog's is still on its way still reloads the page by itself", async () => {
   const app = await start();
   try {

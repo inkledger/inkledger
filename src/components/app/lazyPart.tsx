@@ -1,5 +1,7 @@
-import { lazy, Suspense, useState, type ComponentType } from "react";
+import { Component, lazy, Suspense, useState, type ComponentType, type ReactNode } from "react";
+import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
+import { t } from "@/i18n";
 
 const partFailures = new WeakSet<object>();
 
@@ -38,7 +40,31 @@ function whenIdle(run: () => void) {
  * card shows in its place with "Reload", never instead of the whole app. As for a page,
  * only a reload fetches it again: the browser keeps a module that failed to load.
  */
-export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> {
+/** Said once however many parts failed: the page works, a reload fetches them again. */
+let toldMissing = false;
+
+/**
+ * A part always mounted in the shell (it draws only when asked): code that never arrived draws
+ * nothing there, never a card under the app, and says so once with "Reload". Any other error
+ * goes on to the error card as for every part.
+ */
+class QuietPart extends Component<{ children: ReactNode }, { missing: boolean; error: unknown }> {
+  state = { missing: false, error: null as unknown };
+  static getDerivedStateFromError(error: unknown) {
+    return isPartFailure(error) ? { missing: true, error: null } : { missing: false, error };
+  }
+  componentDidCatch(error: unknown) {
+    if (!isPartFailure(error) || toldMissing) return;
+    toldMissing = true;
+    toast.error(t("ui.error.title"), { description: t("ui.error.body"), action: { label: t("ui.error.reload"), onClick: () => window.location.reload() }, duration: Infinity });
+  }
+  render() {
+    if (this.state.error) throw this.state.error instanceof Error ? this.state.error : new Error(t("ui.error.unknown"));
+    return this.state.missing ? null : this.props.children;
+  }
+}
+
+export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>, opts: { quiet?: boolean } = {}): ComponentType<P> {
   let pending: Promise<{ default: ComponentType<P> }> | undefined;
   // Its code once here: drawn as is. React.lazy suspends on its first render however long
   // the code has been here, and then holds the content back ~300 ms after the fallback.
@@ -57,13 +83,12 @@ export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>
     // Chosen once per mount: a body that switched from Lazy to the code itself would remount,
     // losing what was typed in it.
     const [Body] = useState<ComponentType<P>>(() => loaded ?? Lazy);
-    return (
-      <ErrorBoundary>
-        <Suspense fallback={null}>
-          <Body {...props} />
-        </Suspense>
-      </ErrorBoundary>
+    const body = (
+      <Suspense fallback={null}>
+        <Body {...props} />
+      </Suspense>
     );
+    return <ErrorBoundary>{opts.quiet ? <QuietPart>{body}</QuietPart> : body}</ErrorBoundary>;
   }
   return Part;
 }
