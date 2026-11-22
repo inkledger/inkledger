@@ -13,34 +13,31 @@ import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
 const KEY = generateKeyPairSync("ed25519");
 const PEM = KEY.publicKey.export({ type: "spki", format: "pem" }).toString();
-const CODE = readFileSync(new URL("./fixtures/modules/framed/index.js", import.meta.url));
-const ID = "framed";
+const fixture = id => readFileSync(new URL(`./fixtures/modules/${id}/index.js`, import.meta.url));
+const CODE = fixture("framed");
 
-function install(modulesDir) {
-  const manifest = {
-    id: ID,
-    version: "2.0.0",
-    product: `inkledger.${ID}`,
-    entry: "index.js",
-    hostApi: { min: 1, max: 2 },
-    runtime: "frame",
-    capabilities: ["runtime"],
-    slots: ["dashboard-widget"],
-    name: { en: "Framed", it: "Framed" },
-    files: { "index.js": sha256hex(CODE) },
-  };
-  mkdirSync(join(modulesDir, ID), { recursive: true });
-  writeFileSync(join(modulesDir, ID, "index.js"), CODE);
-  writeFileSync(join(modulesDir, ID, "manifest.json"), JSON.stringify(manifest));
-  writeFileSync(join(modulesDir, ID, "manifest.sig"), signManifest(manifest, "inkledger-package-v1\n", KEY.privateKey));
+// The framed module, and the in-page demo module beside it (host API v1, publisher lane).
+const MANIFESTS = {
+  framed: { version: "2.0.0", hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["runtime"], slots: ["dashboard-widget"] },
+  hello: { version: "1.0.0", hostApi: { min: 1, max: 1 }, slots: ["sidebar-footer"] },
+};
+
+function install(modulesDir, id) {
+  const code = fixture(id);
+  const manifest = { id, product: `inkledger.${id}`, entry: "index.js", name: { en: id, it: id }, files: { "index.js": sha256hex(code) }, ...MANIFESTS[id] };
+  mkdirSync(join(modulesDir, id), { recursive: true });
+  writeFileSync(join(modulesDir, id, "index.js"), code);
+  writeFileSync(join(modulesDir, id, "manifest.json"), JSON.stringify(manifest));
+  writeFileSync(join(modulesDir, id, "manifest.sig"), signManifest(manifest, "inkledger-package-v1\n", KEY.privateKey));
 }
 
-const license = signEnvelope(
-  Buffer.from(JSON.stringify({ id: `L-${ID}`, email_hash: "h", product: `inkledger.${ID}`, issued: 1, v: 1 })),
-  "inkledger-license-v1\n",
-  KEY.privateKey,
-);
-const seed = db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify([license]), Date.now());
+const license = id =>
+  signEnvelope(
+    Buffer.from(JSON.stringify({ id: `L-${id}`, email_hash: "h", product: `inkledger.${id}`, issued: 1, v: 1 })),
+    "inkledger-license-v1\n",
+    KEY.privateKey,
+  );
+const seed = db => db.q("INSERT INTO server_settings (key, value, updated_at) VALUES ('modules.licenses', ?, ?)", JSON.stringify(Object.keys(MANIFESTS).map(license)), Date.now());
 
 // The page's own long tasks and frame gaps, and when the first module frame appeared (the app page only).
 const watch = () => {
@@ -64,7 +61,7 @@ const watch = () => {
 
 async function withFramed(body, { before } = {}) {
   const modulesDir = join(mkdtempSync(join(tmpdir(), "ikl-e2e-framed-")), "modules");
-  install(modulesDir);
+  for (const id of Object.keys(MANIFESTS)) install(modulesDir, id);
   const app = await start({ seed, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   const consoleErrors = [];
   app.page.on("console", m => m.type() === "error" && consoleErrors.push(m.text()));
@@ -182,3 +179,19 @@ test("other bytes at the code URL never run: the import map pins the entry to it
         ),
     },
   ));
+
+test("a page module beside a framed one keeps its mount across a route change", () =>
+  withFramed(async ({ page }) => {
+    const hello = page.getByTestId("module-hello");
+    await hello.waitFor();
+    await page.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor();
+    await hello.evaluate(el => (el.__kept = true));
+    // A route change inside the app (no reload).
+    await page.evaluate(() => {
+      history.pushState(null, "", "/issues");
+      dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+    await page.waitForTimeout(300);
+    assert.equal(await page.getByTestId("module-hello").evaluate(el => el.__kept === true), true, "the same mount, not a new one");
+  }));

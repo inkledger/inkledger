@@ -15,7 +15,6 @@ import { createHub, type Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
 import { FramedBox } from "./sandbox/FrameHost";
 import { keepRuntimes } from "./sandbox/frames";
-import type { InkledgerModuleV1 } from "./types";
 import type { SlotId } from "./types";
 import { ModulesContext } from "./context";
 import type { BackdropVisibility } from "@contracts/modules";
@@ -174,17 +173,17 @@ export function DashboardBackdrop() {
 }
 
 function ModuleBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {
-  const { entry, module } = loaded;
-  if ("framed" in module) return <FramedBox hub={hub} entry={entry} slot={slot} className={BOX[slot]} />;
-  return <InPageBox hub={hub} loaded={{ entry, module }} slot={slot} />;
+  if ("framed" in loaded.module) return <FramedBox hub={hub} entry={loaded.entry} slot={slot} className={BOX[slot]} />;
+  // The same `loaded` the list holds: a new object here would remount the module on every render.
+  return <InPageBox hub={hub} loaded={loaded} slot={slot} />;
 }
 
-function InPageBox({ hub, loaded, slot }: { hub: Hub; loaded: { entry: LoadedModule["entry"]; module: InkledgerModuleV1 }; slot: SlotId }) {
+function InPageBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
     const mount = loaded.module.mount[slot];
-    if (!el || !mount) return;
+    if (!el || typeof mount !== "function") return;
     const { api, dispose } = hub.apiFor(loaded.entry.id, slot);
     let unmount: (() => void) | null = null;
     try {
