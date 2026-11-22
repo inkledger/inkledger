@@ -65,6 +65,8 @@ export function isForbiddenAddress(ip: string, network: Network = "private"): bo
   if (g) {
     // ::a.b.c.d (compatible, incl. :: and ::1) and ::ffff:a.b.c.d (mapped).
     if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0 || g[5] === 0xffff)) return isForbiddenAddress(v4Of(g[6], g[7]), network);
+    // ::ffff:0:a.b.c.d (IPv4-translated, SIIT).
+    if (g.slice(0, 4).every((x) => x === 0) && g[4] === 0xffff && g[5] === 0) return isForbiddenAddress(v4Of(g[6], g[7]), network);
     // NAT64: 64:ff9b::/96 and the local-use 64:ff9b:1::/48, the IPv4 address in the last 32 bits.
     if (g[0] === 0x64 && g[1] === 0xff9b) return isForbiddenAddress(v4Of(g[6], g[7]), network);
     // 6to4: 2002:AABB:CCDD::/48.

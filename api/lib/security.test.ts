@@ -14,7 +14,7 @@ import { parseCookies } from "../context";
 const resolveTo = (...ips: string[]) => async () => ips;
 
 describe("isForbiddenAddress", () => {
-  it.each(["127.0.0.1", "0.0.0.0", "169.254.169.254", "::1", "::", "fe80::1", "::ffff:127.0.0.1", "224.0.0.1"])(
+  it.each(["127.0.0.1", "0.0.0.0", "169.254.169.254", "::1", "::", "fe80::1", "::ffff:127.0.0.1", "::ffff:0:127.0.0.1", "::ffff:0:a9fe:a9fe", "224.0.0.1"])(
     "blocks %s",
     (ip) => expect(isForbiddenAddress(ip)).toBe(true),
   );

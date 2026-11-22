@@ -63,6 +63,14 @@ if (!process.env.VITEST) {
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
+// A request line in absolute form ("GET https://x/… HTTP/1.1") sets the URL, scheme included,
+// which clientIp reads to tell this server's own TLS: only a proxy is sent one.
+app.use(async (c, next) => {
+  const target = (c.env as HttpBindings | undefined)?.incoming?.url;
+  if (target !== undefined && !target.startsWith("/")) return c.text("Bad Request", 400);
+  await next();
+});
+
 // A rebound DNS name pointing at 127.0.0.1 must not reach the API or the SPA.
 app.use(async (c, next) => {
   if (!isAllowedHost(c.req.header("host"), await allowedHostsNow())) {

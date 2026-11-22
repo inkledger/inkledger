@@ -13,7 +13,7 @@ vi.mock("node:dns/promises", () => ({
  * doubled or trailing slashes, a backslash (GHSA-h7mg-cq63-vhpq, GHSA-jpvv-r467-5p4w).
  */
 describe("no path spelling gets past the /api guards", () => {
-  type App = { request: (path: string, init?: RequestInit) => Response | Promise<Response> };
+  type App = { request: (path: string, init?: RequestInit, env?: Record<string, unknown>) => Response | Promise<Response> };
   let app: App;
 
   beforeAll(async () => {
@@ -40,6 +40,13 @@ describe("no path spelling gets past the /api guards", () => {
         const res = await app.request(path, { headers: { host: "evil.example.com" } });
         expect(res.status, `${path}`).toBe(421);
       }
+  });
+
+  it("a request line in absolute form (only proxies get those) is refused: it would pick the scheme clientIp trusts", async () => {
+    const at = (target: string) => app.request("/api/health", { headers: { host: "localhost" } }, { incoming: { url: target, headers: {} } });
+    expect((await at("https://evil.example/api/health")).status).toBe(400);
+    expect((await at("http://localhost/api/health")).status).toBe(400);
+    expect((await at("/api/health")).status).toBe(200);
   });
 
   it("a path that doesn't decode is answered, not a server error", async () => {
