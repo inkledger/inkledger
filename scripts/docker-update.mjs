@@ -16,6 +16,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, closeSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { jttDatabaseUrl } from "./docker-guard.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const PROJECT = "inkledger";
@@ -36,10 +37,7 @@ for (const name of [PROJECT, APP, DB, IMAGE]) {
 }
 if (!existsSync(ENV_FILE)) throw new Error(`docker-update: ${ENV_FILE} is missing (see .env.example)`);
 // Nor through the env file: a database URL naming the old stack's database or host.
-for (const line of readFileSync(ENV_FILE, "utf8").split("\n")) {
-  const url = /^\s*DATABASE_URL\s*=\s*["']?([^"'\s]+)/.exec(line)?.[1];
-  if (url && /@jtt[\w-]*[:/]|\/jtt(?:[?]|$)/.test(url)) throw new Error(`docker-update: ${ENV_FILE} points DATABASE_URL at the jtt stack: refusing`);
-}
+if (jttDatabaseUrl(readFileSync(ENV_FILE, "utf8"))) throw new Error(`docker-update: ${ENV_FILE} points DATABASE_URL at the jtt stack: refusing`);
 
 const out = (cmd, argv) => spawnSync(cmd, argv, { cwd: ROOT, encoding: "utf8" }).stdout?.trim() ?? "";
 function run(cmd, argv, opts = {}) {
