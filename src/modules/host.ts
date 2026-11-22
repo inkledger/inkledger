@@ -124,7 +124,11 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
 
   // ---- Derived from the cache: what changed since the last look ----
   let lastStatus = new Map<string, { status: string; category: string }>();
-  let lastRunning = new Set<string>();
+  // Null until the timer list first arrives: the timers running then are recorded, not told as started.
+  let lastRunning: Set<string> | null = null;
+  // The data objects the last look walked: the same object again (another cache event) is not walked twice.
+  let seenTimers: unknown;
+  let seenIssues: unknown;
   let lastLogged: number | null = null;
   let goalDay = "";
 
@@ -133,7 +137,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     const night = nightOf();
     if (theme.get().night !== night) theme.set({ ...theme.get(), night });
     const timers = utils.timers.list.getData();
-    if (timers) {
+    if (timers && timers !== seenTimers) {
+      seenTimers = timers;
       // Timers side by side: a module sees the one started last.
       const runningNow = runningTimers(timers);
       const running = runningNow[0];
@@ -147,15 +152,16 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
       );
       // By identity, as the other events: the same key on two trackers is two timers. Each one that starts, once.
       const ids = new Set(runningNow.map(r => `${r.connectionId ?? ""}:${r.issueKey}`));
-      for (const r of [...runningNow].reverse()) {
-        if (lastRunning.has(`${r.connectionId ?? ""}:${r.issueKey}`)) continue;
+      for (const r of lastRunning ? [...runningNow].reverse() : []) {
+        if (lastRunning?.has(`${r.connectionId ?? ""}:${r.issueKey}`)) continue;
         emit("timer-started", { issueKey: r.issueKey, ...(r.connectionId ? { ref: { connectionId: r.connectionId, key: r.issueKey } } : {}) });
       }
       lastRunning = ids;
     }
 
     const issues = utils.issues.all.getData();
-    if (issues) {
+    if (issues && issues !== seenIssues) {
+      seenIssues = issues;
       // By identity: two trackers may share a key.
       const idOf = (i: { connectionId: number; key: string }) => `${i.connectionId}:${i.key}`;
       const next = new Map(issues.map(i => [idOf(i), { status: i.status, category: i.category }]));
@@ -271,10 +277,11 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           owned.delete(off);
         };
       };
+      // Nothing added after a stop: dispose has already let go of what it owned.
       const sub =
         <T>(s: { subscribe: (fn: (v: T) => void) => () => void }): Sub<T> =>
         fn =>
-          own(s.subscribe(v => guard(moduleId, () => fn(v))));
+          disposed ? () => {} : own(s.subscribe(v => guard(moduleId, () => fn(v))));
       const api: HostApiV1 = {
         version: 1,
         moduleId,
@@ -317,6 +324,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           );
         },
         on(event, fn) {
+          if (disposed) return () => {};
           const set = listeners.get(event) ?? new Set();
           listeners.set(event, set);
           const wrapped = (d: never) => guard(moduleId, () => fn(d));
@@ -357,8 +365,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
             if (disposed) return never<T>();
             let read = await utils.client.modules.storageGet.query({ moduleId, key });
             // Another tab or device wrote between the read and the write: change again on theirs.
+            // An update already started finishes even if the module stops meanwhile (its final flush): later writes in its chain wait on it.
             for (let tries = 0; tries < UPDATE_TRIES; tries++) {
-              if (disposed) return never<T>();
               const next = change(read.value as T | null);
               const r = await utils.client.modules.storageSetIf.mutate({ moduleId, key, value: next, ifRevision: read.revision });
               if (!("conflict" in r)) return next;

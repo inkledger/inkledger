@@ -138,3 +138,96 @@ describe("host hub: storage.update", () => {
     hub.dispose();
   });
 });
+
+
+describe("host hub: after a module stops", () => {
+  // A listener or subscription added after dispose was never removed (dispose had already emptied what it owns).
+  it("listens to nothing added after dispose", async () => {
+    const { createHub } = await import("./host");
+    const hub = createHub(new QueryClient(), fakeUtils(() => []) as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    dispose();
+    const heard: unknown[] = [];
+    api.on("focus-mode", d => heard.push(d));
+    api.timer(v => heard.push(v));
+    api.today(v => heard.push(v));
+    api.theme(v => heard.push(v));
+    hub.emit("focus-mode", { on: true });
+    expect(heard).toEqual([]);
+    hub.dispose();
+  });
+
+  // The final flush starts an update, then the module is disposed: it must still finish, or every later write in its chain hangs.
+  it("an update already started finishes and resolves", async () => {
+    const { createHub } = await import("./host");
+    let answer: (v: { value: unknown; revision: number }) => void = () => {};
+    const client = {
+      modules: {
+        storageGet: { query: () => new Promise<{ value: unknown; revision: number }>(r => (answer = r)) },
+        storageSetIf: { mutate: async () => ({ revision: 2 }) },
+      },
+    };
+    const hub = createHub(new QueryClient(), { ...fakeUtils(() => []), client } as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    const out = api.storage.update?.("state", (cur: number | null) => (cur ?? 0) + 1);
+    dispose();
+    answer({ value: 1, revision: 1 });
+    const result = await Promise.race([out, new Promise(r => setTimeout(() => r("hung"), 50))]);
+    expect(result).toBe(2);
+    hub.dispose();
+  });
+});
+
+describe("host hub: timer-started on the first data", () => {
+  // The list arrived after the hub was made: every timer already running was told as just started.
+  it("records the timers already running when the list first arrives, telling only later starts", async () => {
+    const { createHub } = await import("./host");
+    let timers: Timer[] | undefined;
+    const qc = new QueryClient();
+    const hub = createHub(qc, fakeUtils(() => timers as Timer[]) as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    const heard: unknown[] = [];
+    api.on("timer-started", d => heard.push(d));
+    timers = [{ issueKey: "DEMO-1", connectionId: 1, state: "running" }];
+    qc.setQueryData(["tick"], 1);
+    await new Promise(r => setTimeout(r, 0));
+    expect(heard).toEqual([]);
+    timers = [...timers, { issueKey: "DEMO-2", connectionId: 1, state: "running" }];
+    qc.setQueryData(["tick"], 2);
+    await new Promise(r => setTimeout(r, 0));
+    expect(heard).toEqual([{ issueKey: "DEMO-2", ref: { connectionId: 1, key: "DEMO-2" } }]);
+    dispose();
+    hub.dispose();
+  });
+});
+
+describe("host hub: cache notifications", () => {
+  // Every cache event (a fetch starting, an observer coming) walked all issues again, though they had not changed.
+  it("walks the issues only when their list changed, and still tells a move once", async () => {
+    const { createHub } = await import("./host");
+    let reads = 0;
+    let status = "To Do";
+    const issue = { connectionId: 1, key: "DEMO-1", category: "new", priority: "Medium", priorityRank: 2, get status() { reads++; return status; } };
+    let issues = [issue];
+    const qc = new QueryClient();
+    const utils = { ...fakeUtils(() => []), issues: { all: { getData: () => issues, prefetch: async () => {}, invalidate: async () => {} } } };
+    const hub = createHub(qc, utils as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    const moved: unknown[] = [];
+    api.on("issue-moved", d => moved.push(d));
+    const tick = async (n: number) => {
+      qc.setQueryData(["tick"], n);
+      await new Promise(r => setTimeout(r, 0));
+    };
+    const before = reads;
+    for (let n = 1; n <= 3; n++) await tick(n);
+    expect(reads).toBe(before);
+    status = "Done";
+    issues = [{ ...issue, status: "Done", category: "done" }];
+    await tick(4);
+    await tick(5);
+    expect(moved).toEqual([{ issueKey: "DEMO-1", from: "To Do", to: "Done", ref: { connectionId: 1, key: "DEMO-1" } }]);
+    dispose();
+    hub.dispose();
+  });
+});
