@@ -9,6 +9,9 @@ import { browserBroker, createBroker } from "./broker";
 import { browserPage } from "./importance";
 import { createLayoutFeed, createPointerFeed, watchBlur } from "./feeds";
 import { createModuleCache, indexedDbCache } from "./cache";
+import { fontLoader, themeSheet } from "./themeSheet";
+import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?url";
 import { sidebar } from "@/hooks/useSidebar";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 
@@ -53,6 +56,17 @@ const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 let broker: ReturnType<typeof createBroker> | null = null;
 let pointer: ReturnType<typeof createPointerFeed> | null = null;
 let cache: ReturnType<typeof createModuleCache> | null = null;
+const fonts = fontLoader(
+  [
+    { family: "Inter Variable", url: interUrl },
+    { family: "Inter Tight Variable", url: interTightUrl },
+  ],
+  url => fetch(url).then(r => r.blob()),
+);
+const readLook = () => {
+  const root = getComputedStyle(document.documentElement);
+  return themeSheet({ token: n => root.getPropertyValue(n), fontFamily: getComputedStyle(document.body).fontFamily, fontSize: root.fontSize });
+};
 let layout: ReturnType<typeof createLayoutFeed> | null = null;
 const layoutFeed = () =>
   (layout ??= createLayoutFeed({
@@ -130,7 +144,7 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box);
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())) });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), look: { watch: push => api.theme(() => push(readLook())), fonts } });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({

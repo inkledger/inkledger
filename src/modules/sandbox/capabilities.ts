@@ -28,6 +28,8 @@ export type CapabilityDeps = {
   /** Watches the blur wanted over a backdrop box. */
   blur(box: Element, push: (px: number) => void): () => void;
   cache: ReturnType<typeof createModuleCache>;
+  /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
+  look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
 };
 
 const subId = z.number().int().min(1).max(2 ** 31);
@@ -61,6 +63,24 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       },
     }),
     layout: method({ ...watch(push => d.layout.watch(push)), cap: "layout" }),
+    // Every frame: the app's look (the fonts once, they are large).
+    look: method(
+      watch(push => {
+        let tokens = "";
+        let alive = true;
+        const off = d.look.watch(css => {
+          tokens = css;
+          push({ tokens });
+        });
+        void d.look.fonts().then(fonts => {
+          if (alive && fonts) push({ tokens, fonts });
+        });
+        return () => {
+          alive = false;
+          off();
+        };
+      }),
+    ),
     "cache.get": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [10, 30], run: ([k]) => d.cache.get(d.moduleId, k) }),
     "cache.put": method({ args: z.tuple([cacheKey, z.instanceof(Blob).refine(b => b.size <= PICTURE_MAX_BYTES)]), cap: "cache", rate: [4, 16], run: ([k, b]) => d.cache.put(d.moduleId, k, b) }),
     "cache.delete": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [4, 16], run: ([k]) => d.cache.delete(d.moduleId, k) }),

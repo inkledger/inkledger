@@ -41,6 +41,8 @@ function memoryCache(): CacheBackend {
   };
 }
 
+const look = { watch: (push: (css: string) => void) => (push(":root{--primary:1 2% 3%}"), () => {}), fonts: async () => "@font-face{}" };
+
 const emptyPage: ImportancePage = {
   width: 100,
   height: 100,
@@ -58,7 +60,7 @@ function withModule(
   view: ViewBox | null = null,
 ) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()) });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -162,5 +164,14 @@ describe("the frame's host API (bootstrap)", () => {
     await settle(12);
     expect(back).not.toBeNull();
     expect(await (back as Blob | null)?.text()).toBe("abc");
+  });
+
+  it("the app's look reaches every frame: tokens, then fonts", async () => {
+    let atMount = "";
+    const f = withModule([], () => (atMount = "mounted"));
+    await settle(12);
+    expect(atMount).toBe("mounted");
+    expect(f.styles.get("ikl-theme")?.textContent).toBe(":root{--primary:1 2% 3%}");
+    expect(f.styles.get("ikl-fonts")?.textContent).toBe("@font-face{}");
   });
 });

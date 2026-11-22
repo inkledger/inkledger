@@ -123,7 +123,20 @@ const views = (fn) => {
   return () => { onView = null; };
 };
 
+// The app's look: its tokens (again on every theme change) and its fonts.
+const sheet = (id) => {
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement("style"); el.id = id; document.head.append(el); }
+  return el;
+};
+const applyLook = (v) => {
+  if (!v) return;
+  if (typeof v.tokens === "string") sheet("ikl-theme").textContent = v.tokens;
+  if (typeof v.fonts === "string") sheet("ikl-fonts").textContent = v.fonts;
+};
+
 async function start(init, port) {
+  watched("look")(applyLook);
   const has = (c) => init.capabilities.includes(c);
   const host = {
     version: 2,

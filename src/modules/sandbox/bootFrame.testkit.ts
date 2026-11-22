@@ -27,11 +27,13 @@ export function bootFrame(o: {
   };
   const frameWin = {};
   const box = { id: "", style: {}, dataset: {} as Record<string, string> };
+  const styles = new Map<string, { id: string; textContent: string }>();
   const keys: ((e: { key: string }) => void)[] = [];
   const doc = {
-    createElement: () => box,
+    createElement: (tag: string) => (tag === "style" ? { id: "", textContent: "" } : box),
+    getElementById: (id: string) => styles.get(id) ?? null,
     body: { append() {} },
-    head: { append() {} },
+    head: { append: (el: { id: string; textContent: string }) => void styles.set(el.id, el) },
     addEventListener: (t: string, fn: (e: { key: string }) => void) => t === "keydown" && keys.push(fn),
   };
   const errors: unknown[] = [];
@@ -66,7 +68,7 @@ export function bootFrame(o: {
     },
   });
   vm.runInContext(BOOTSTRAP, context);
-  return { peer, sent, box, errors, keydown: (key: string) => keys.forEach(fn => fn({ key })) };
+  return { peer, sent, box, errors, styles, keydown: (key: string) => keys.forEach(fn => fn({ key })) };
 }
 
 /** Lets the messages both ways go round. */
