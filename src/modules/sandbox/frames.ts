@@ -17,6 +17,7 @@ import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-la
 import { sidebar } from "@/hooks/useSidebar";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 import { budgetOf, markStopped, watchFrame } from "./watchdog";
+import { createFrameBudget } from "./budget";
 import { moduleSessions } from "./session";
 
 /**
@@ -27,15 +28,13 @@ import { moduleSessions } from "./session";
  * again (it navigated) stops its whole module for the session.
  */
 
-/** Live frames on a page, at most: each costs a document (and the first, a process). */
-const MAX_FRAMES = 8;
 /** How long a removed view's cleanup may take before its frame goes anyway. */
 const UNMOUNT_MS = 250;
 /** Slots with no height of their own: the view frame takes its content's, up to FIT_MAX_PX. */
 const FIT_SLOTS: readonly ViewSlot[] = ["settings", "sidebar-footer", "mobile-more"];
 const FIT_MAX_PX = 2000;
 
-let live = 0;
+const budget = createFrameBudget();
 const peers = new Set<RpcPeer>();
 const killed = new Set<string>();
 const onKill = new Map<string, Set<() => void>>();
@@ -177,7 +176,7 @@ function openFrame(
   ready: (peer: RpcPeer) => Transferable[],
   failed?: () => void,
 ): Frame | null {
-  if (!entry.frameUrl || killed.has(entry.id) || live >= MAX_FRAMES) return null;
+  if (!entry.frameUrl || killed.has(entry.id) || !budget.take(role)) return null;
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", "allow-scripts");
   iframe.setAttribute("referrerpolicy", "no-referrer");
@@ -251,7 +250,6 @@ function openFrame(
     if (++loads > 1) kill(entry.id, "its frame navigated", "navigated");
   });
   iframe.src = entry.frameUrl;
-  live++;
   parent.append(iframe);
   // Judged from its first beat on (the ladder gives startup its grace).
   let watch: ReturnType<typeof watchFrame> | null = null;
@@ -263,7 +261,7 @@ function openFrame(
       if (stopped) return;
       stopped = true;
       // Counted off now: a box remounted while this one is parked gets its frame.
-      live--;
+      budget.give(role);
       watch?.dispose();
       watch = null;
       cancelAnimationFrame(sizeFrame);
