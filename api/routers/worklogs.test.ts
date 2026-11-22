@@ -310,6 +310,17 @@ describe("worklogs and stats", () => {
     expect((e as Error).message).toMatch(/Jira refuses this delete/);
   });
 
+  it("an edit of a worklog kept only here, gone meanwhile, is not found (not a server fault)", async () => {
+    const [gh] = await q<{ id: number }>(
+      "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'github', 'https://api.github.com', 'gh-1', '{}', 'x', 1) RETURNING id",
+      userId,
+    );
+    await expect(
+      caller.worklogs.update({ issueKey: "o/r#1", remoteId: "local-gone", connectionId: gh.id, seconds: 600, started: new Date(2026, 8, 1, 9).toISOString() }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await q("DELETE FROM connections WHERE id = ?", gh.id);
+  });
+
   describe("overlapping worklogs", () => {
     const day = (h: number, m = 0) => new Date(2026, 8, 7, h, m); // Mon 7 Sep 2026
     const log = (issueKey: string, start: Date, timeSpent: string) =>

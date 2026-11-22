@@ -590,7 +590,10 @@ export const worklogsRouter = createRouter({
         const fields = { timeSpentSeconds: seconds, started, comment: input.comment };
         // Kept only in inkledger: nothing to tell a tracker.
         if (isLocalId(input.remoteId)) {
-          return await updateLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, fields, conn.id);
+          const saved = await updateLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, fields, conn.id);
+          // Named by issue and id (an older app): gone meanwhile, nothing was changed.
+          if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: t("server.worklogs.notFound") });
+          return saved;
         }
         // Pending worklog: only the local copy changes; its queued create keeps the values
         // sent (they may have landed: the replay looks for those, then sends these).
