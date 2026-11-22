@@ -160,6 +160,11 @@ describe("fromAdf", () => {
     let node: unknown = para(txt("x"));
     for (let k = 0; k < 20000; k++) node = { type: "blockquote", content: [node] };
     expect(() => fromAdf(doc(node))).not.toThrow();
+    // Past a depth the rest is kept as its text, never the whole document lost.
+    expect(plainText(fromAdf(doc(para(txt("before")), node, para(txt("after")))))).toBe("before\n\nx\n\nafter");
+    let inline: unknown = txt("deep");
+    for (let k = 0; k < 20000; k++) inline = { type: "unknownInline", content: [inline] };
+    expect(plainText(fromAdf(doc(para(txt("a "), inline))))).toBe("a deep");
   });
 });
 
@@ -436,6 +441,15 @@ describe("fromMarkdown", () => {
     expect(quick("[a](<".repeat(200_000), "gfm")).toBeLessThan(500);
     expect(quick("<script></script>".repeat(40_000), "gfm")).toBeLessThan(500);
     expect(quick("$a$ ".repeat(150_000), "glfm")).toBeLessThan(500);
+  });
+
+  it("a quote nested past any real depth keeps its text, never the whole description lost", () => {
+    const text = plainText(fromMarkdown(`before\n\n${">".repeat(12_000)} deep\n\nafter`, "gfm"));
+    expect(text.startsWith("before")).toBe(true);
+    expect(text).toContain("deep");
+    expect(text.endsWith("after")).toBe(true);
+    // A normal nesting reads as before.
+    expect(md("> a\n> > b")).toEqual([{ t: "quote", c: [p(t("a")), { t: "quote", c: [p(t("b"))] }] }]);
   });
 
   it("keeps what only looks like a tag in prose: type parameters and placeholders are text, not HTML", () => {

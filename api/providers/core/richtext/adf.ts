@@ -19,11 +19,33 @@ const PANELS: Record<string, "info" | "note" | "warning" | "success" | "error"> 
   error: "error",
 };
 
-/** All the text under a node, whatever it is */
-function textOf(n: Node): string {
-  if (n.type === "hardBreak") return "\n";
-  const own = typeof n.text === "string" ? n.text : "";
-  return own + kids(n).map(textOf).join("");
+/** All the text under a node, whatever it is (in document order, without recursion: any depth) */
+function textOf(root: Node): string {
+  let out = "";
+  const stack = [root];
+  for (let n = stack.pop(); n !== undefined; n = stack.pop()) {
+    if (n.type === "hardBreak") {
+      out += "\n";
+      continue;
+    }
+    if (typeof n.text === "string") out += n.text;
+    const k = kids(n);
+    for (let i = k.length - 1; i >= 0; i--) stack.push(k[i]);
+  }
+  return out;
+}
+
+/** Nesting read as structure; deeper, a node is kept as its text (as html.ts does), never the whole document lost to the stack. */
+const MAX_DEPTH = 256;
+let depth = 0;
+function nested<T>(read: () => T, flat: () => T): T {
+  if (depth >= MAX_DEPTH) return flat();
+  depth++;
+  try {
+    return read();
+  } finally {
+    depth--;
+  }
 }
 
 function isoDate(ts: unknown): string {
@@ -53,6 +75,16 @@ function withMarks(base: Inline, marks: unknown): Inline {
 }
 
 function inlineNode(n: Node): Inline[] {
+  return nested(
+    () => inlineNodeAt(n),
+    () => {
+      const v = textOf(n);
+      return v ? [{ t: "text", v }] : [];
+    },
+  );
+}
+
+function inlineNodeAt(n: Node): Inline[] {
   const a = attrs(n);
   switch (n.type) {
     case "text": {
@@ -165,6 +197,16 @@ function listItems(nodes: Node[], task: boolean): ListItem[] {
 }
 
 function blockNode(n: Node): Block[] {
+  return nested(
+    () => blockNodeAt(n),
+    () => {
+      const v = textOf(n);
+      return v ? [{ t: "p", c: [{ t: "text", v }] }] : [];
+    },
+  );
+}
+
+function blockNodeAt(n: Node): Block[] {
   const a = attrs(n);
   switch (n.type) {
     case "paragraph": {
@@ -227,6 +269,7 @@ function blockNode(n: Node): Block[] {
 }
 
 export function fromAdf(doc: unknown): RichDoc {
+  depth = 0;
   try {
     if (!isNode(doc)) return emptyDoc();
     if (doc.type === "doc" || Array.isArray(doc.content)) return { v: 1, blocks: flow(kids(doc)) };

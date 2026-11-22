@@ -469,7 +469,12 @@ function splitRow(l: string): string[] {
 
 const isDelimRow = (l: string): boolean => l.includes("|") && l.includes("-") && splitRow(l).every((c) => /^:?-+:?$/.test(c));
 
-function blocks(lines: string[], cx: Cx): Block[] {
+/** Quotes and lists nested this deep are read as structure; deeper, their lines are kept as text (never the whole document lost to the stack). */
+const MAX_DEPTH = 256;
+
+function blocks(lines: string[], cx: Cx, depth = 0): Block[] {
+  // Too deep for more structure: what is left reads as paragraphs of its text.
+  const nestedBlocks = (ls: string[]): Block[] => (depth < MAX_DEPTH ? blocks(ls, cx, depth + 1) : segsToBlocks(inlineMd(ls.join("\n").trim(), cx)));
   const out: Block[] = [];
   const n = lines.length;
   let i = 0;
@@ -526,8 +531,8 @@ function blocks(lines: string[], cx: Cx): Block[] {
         i++;
       }
       const alert = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*$/i.exec(inner[0] ?? "");
-      if (alert) out.push({ t: "panel", kind: ALERTS[alert[1].toUpperCase()], c: blocks(inner.slice(1), cx) });
-      else out.push({ t: "quote", c: blocks(inner, cx) });
+      if (alert) out.push({ t: "panel", kind: ALERTS[alert[1].toUpperCase()], c: nestedBlocks(inner.slice(1)) });
+      else out.push({ t: "quote", c: nestedBlocks(inner) });
       continue;
     }
 
@@ -563,7 +568,7 @@ function blocks(lines: string[], cx: Cx): Block[] {
           checked = task[1] !== " ";
           body[0] = body[0].slice(task[0].length);
         }
-        items.push({ checked, c: blocks(body, cx) });
+        items.push({ checked, c: nestedBlocks(body) });
         let j = i;
         while (j < n && isBlank(lines[j])) j++;
         const sib = j < n ? markerOf(lines[j]) : null;
