@@ -60,6 +60,8 @@ export class EstimateCache {
       u = { revision: revision.toString(), entries: new Map() };
       this.users.set(userId, u);
     }
+    // Past ones go when the map grows: a revision that stays the same for long keeps it bounded.
+    if (u.entries.size >= 1000) for (const [k, e] of u.entries) if (now - e.at >= TTL_MS) u.entries.delete(k);
     u.entries.set(key, { at: now, value });
   }
 }
@@ -284,8 +286,16 @@ export function todoRatio(ratios: readonly { ratio: number; last: number }[], no
 
 /** A TODO's estimate: its issue's, or my TODO habit when it has none (R-3.10). */
 export async function estimateForTodo(userId: number, todoId: number, now: number, cache: EstimateCache = defaultCache): Promise<TodoEstimate> {
-  const revision = await estimateRevision(userId);
-  const key = `todo:${todoId}`;
+  // The revision and the TODO's issue in one read: tying it to an issue (or untying it) raises
+  // no revision, so the issue is part of the key.
+  const [head] = await q<{ revision: string | null; link: string | null }>(
+    "SELECT (SELECT revision::text FROM estimate_revisions WHERE user_id = ?) AS revision, (SELECT coalesce(issue_key, '') || ':' || coalesce(connection_id::text, '') FROM todos WHERE id = ? AND user_id = ?) AS link",
+    userId,
+    todoId,
+    userId,
+  );
+  const revision = BigInt(head?.revision ?? 0);
+  const key = `todo:${todoId}:${head?.link ?? ""}`;
   const cached = cache.get<TodoEstimate>(userId, revision, key, now);
   if (cached) return cached;
   const [row] = await q<TodoRow>(TODO_SQL, userId, todoId);

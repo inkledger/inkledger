@@ -236,6 +236,17 @@ describe("estimates", () => {
     expect(await u.caller.estimates.forTodo({ id: open })).toEqual({ todoRatio: 1.2, n: 6 });
   });
 
+  it("a TODO tied to an issue (or untied) answers from it at once, not from the cache", async () => {
+    const u = await makeUser("e8b");
+    for (let n = 0; n < 6; n++) await todo(u.userId, 3600, [3000, 1320], BASE + n * 24 * H);
+    const open = await todo(u.userId, null, []);
+    await u.issue({ key: "T-50", category: "doing" });
+    const cache = new mod.EstimateCache();
+    expect(await mod.estimateForTodo(u.userId, open, NOW, cache)).toEqual({ todoRatio: 1.2, n: 6 });
+    await q("UPDATE todos SET issue_key = 'T-50', connection_id = ? WHERE id = ?", u.connId, open);
+    expect(await mod.estimateForTodo(u.userId, open, NOW, cache)).not.toEqual({ todoRatio: 1.2, n: 6 });
+  });
+
   it("a status switched off stops counting", async () => {
     const u = await makeUser("e9");
     // An hour In Progress, then waiting for the customer with 3 h logged there, then done.
