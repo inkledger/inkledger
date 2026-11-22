@@ -13,7 +13,7 @@
 // (it refuses a newer schema): the database goes back to this run's dump first. Without a
 // dump the script stops there and says how to recover, never claiming a rollback.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, openSync, closeSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, closeSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { jttDatabaseUrl } from "./docker-guard.mjs";
@@ -68,7 +68,6 @@ async function waitHealthy(timeoutMs) {
   return null;
 }
 
-const startedAt = Date.now();
 /** Migrations the database has applied (the new image applies its own at boot); null when they can't be read. */
 const migrations = () => {
   const r = spawnSync("docker", ["exec", DB, "psql", "-U", "inkledger", "-d", "inkledger", "-Atc", "select count(*) from drizzle.__drizzle_migrations"], { cwd: ROOT, encoding: "utf8" });
@@ -77,16 +76,8 @@ const migrations = () => {
   // A database the app never migrated yet has no journal: none applied.
   return /__drizzle_migrations" does not exist|schema "drizzle" does not exist/.test(r.stderr ?? "") ? "0" : null;
 };
-/** This run's dump, if it made one. */
-const thisRunsDump = () =>
-  existsSync(BACKUPS)
-    ? readdirSync(BACKUPS)
-        .filter((f) => /^inkledger-\d{8}-\d{6}\.dump$/.test(f))
-        .map((f) => join(BACKUPS, f))
-        .filter((f) => statSync(f).mtimeMs >= startedAt - 1000 && statSync(f).size > 0)
-        .sort()
-        .at(-1)
-    : undefined;
+/** This run's dump, if it made one: by its path, as the app's own backups share the folder and the name. */
+let thisRunsDump;
 const psql = (sql) => ["exec", DB, "psql", "-v", "ON_ERROR_STOP=1", "-U", "inkledger", "-d", "postgres", "-c", sql];
 
 const sha = out("git", ["rev-parse", "--short", "HEAD"]);
@@ -108,6 +99,7 @@ if (!args.has("--no-backup")) {
       unlinkSync(file);
       throw new Error("docker-update: backup failed, nothing changed");
     }
+    thisRunsDump = file;
     console.log(`✓ Backup ${file} (${(statSync(file).size / 1024 / 1024).toFixed(1)} MB)`);
   }
 }
@@ -151,7 +143,7 @@ if (healthyMs === null || rehearse) {
   const migratedAfter = migrations();
   const migrated = migratedAfter === null || migratedAfter !== migratedBefore;
   if (migrated) {
-    const dump = thisRunsDump();
+    const dump = thisRunsDump;
     run("docker", compose("stop", APP));
     if (!dump) {
       console.error(
