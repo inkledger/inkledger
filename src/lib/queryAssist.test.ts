@@ -22,6 +22,7 @@ describe("a quick filter chip", () => {
     expect(on).toContain("updated:nextmonth");
     expect(on).toContain("@me");
     expect(togglePreset("status: bug", { kind: "me" }, "en")).toContain("status:");
+    expect(togglePreset("-updated:nextmonth bug", { kind: "me" }, "en")).toContain("-updated:nextmonth");
     expect(togglePreset(on, { kind: "me" }, "en").trim().split(" ").sort()).toEqual(["bug", "updated:nextmonth"]);
   });
 });

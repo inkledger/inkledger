@@ -23,7 +23,10 @@ export function togglePreset(value: string, term: QueryTerm, lang: "en" | "it"):
   const parts = partsOf(parsed.expr);
   const next = parts.some(p => same(p, term)) ? parts.filter(p => !same(p, term)) : [...parts, term];
   // What the parser could not read stays as typed: a tap never deletes it.
-  const kept = parsed.warnings.filter(w => w.dropped).map(w => (/\s/.test(w.at) ? `"${w.at}"` : w.at));
+  const kept = parsed.warnings.filter(w => w.dropped).map(w => {
+    const word = /\s/.test(w.at) ? `"${w.at}"` : w.at;
+    return value.includes(`-${word}`) || value.includes(`!${word}`) ? `-${word}` : word;
+  });
   const written = [next.length === 0 ? "" : formatQuery(next.length === 1 ? next[0] : { kind: "and", items: next }, lang), ...kept].filter(Boolean).join(" ");
   return written ? written + " " : "";
 }
