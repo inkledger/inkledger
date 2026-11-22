@@ -238,7 +238,8 @@ async function confirmRefused(
       } catch (v) {
         const err = normalizeError(v, signal);
         // Only verify refused too settles it: no answer (timeout, 429, 5xx) is no verdict, kept or given.
-        if (err.kind !== "auth" && err.kind !== "forbidden") throw err;
+        // Sent elsewhere instead (a sign-in page behind a redirect) is a refusal too.
+        if (err.kind !== "auth" && err.kind !== "forbidden" && err.kind !== "incompatible") throw err;
         why = ` (${err.message})`;
         return "refused";
       }

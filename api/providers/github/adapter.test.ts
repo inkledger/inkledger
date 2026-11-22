@@ -284,6 +284,19 @@ describe("github, a refused call", () => {
     warn.mockRestore();
   });
 
+  it("an identity call sent to a sign-in page elsewhere (a redirect) is a refusal: waits to be reconnected", async () => {
+    const { sim, conn } = simulated();
+    vi.stubGlobal("fetch", async (input: Request | URL | string, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("/user/repos")) return Response.json({ message: "Bad credentials" }, { status: 401 });
+      if (url.endsWith("/user")) return new Response(null, { status: 302, headers: { location: "https://sso.example.com/login" } });
+      return sim.fetch(input, init);
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await expect(bindTracker(githubProvider, conn).containers!(meta())).rejects.toMatchObject({ kind: "auth", status: 401 });
+    warn.mockRestore();
+  });
+
   it("an expired token is refreshed and the original call retried once with the new Bearer", async () => {
     const { sim, conn: base } = simulated();
     let token = "gho_old";
