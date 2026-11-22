@@ -600,7 +600,8 @@ export const issuesRouter = createRouter({
       try {
         const fields = await providerCall(() => found.b.otherFields!(callMeta(), found.ref));
         const raw = JSON.stringify(fields);
-        if (raw.length <= 32 * 1024) await getDb().update(issues).set({ raw }).where(where);
+        // Written only when it changed: a view is a read.
+        if (raw.length <= 32 * 1024) await getDb().update(issues).set({ raw }).where(and(where, sql`${issues.raw} IS DISTINCT FROM ${raw}`));
         return { fields, stale: false };
       } catch (e) {
         const [row] = await getDb().select({ raw: issues.raw }).from(issues).where(where).limit(1);
