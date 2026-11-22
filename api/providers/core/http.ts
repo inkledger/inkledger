@@ -138,11 +138,11 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     } catch {
       throw redirectRefused();
     }
-    // 303 (and 301/302 after a non-GET, as browsers do) continue as GET without body.
+    // 301/302 after a non-GET: a browser would go on as GET, whose answer would pass for the write's.
     const method = (req.method ?? "GET").toUpperCase();
-    const toGet =
-      res.status === 303 ||
-      ((res.status === 301 || res.status === 302) && method !== "GET" && method !== "HEAD");
+    if ((res.status === 301 || res.status === 302) && method !== "GET" && method !== "HEAD") throw redirectRefused();
+    // 303 continues as GET without body.
+    const toGet = res.status === 303;
     const hopHeaders = new Headers(req.headers);
     if (!sameOrigin) for (const h of CREDENTIAL_HEADERS) hopHeaders.delete(h);
     if (toGet) hopHeaders.delete("Content-Type");

@@ -262,6 +262,15 @@ describe("redirects (SSRF)", () => {
     expect(normalizeError(e).kind).toBe("incompatible");
   });
 
+  it("a write moved by a 301/302 is never sent on as a GET whose answer would pass for the write's", async () => {
+    const mock = fetch as ReturnType<typeof vi.fn>;
+    mock.mockResolvedValueOnce(redirect("/rest/api/3/issue/APP-1/worklog?moved=1"));
+    mock.mockResolvedValueOnce(jsonResponse({ worklogs: [], total: 0 }));
+    const e = await addWorklog(creds, "APP-1", { timeSpentSeconds: 1800, started: "2026-07-20T10:00:00.000+0200", comment: "" }).catch((x: unknown) => x);
+    expect(normalizeError(e).kind).toBe("incompatible");
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
   it("follows same-origin redirects, at most 3", async () => {
     const mock = fetch as ReturnType<typeof vi.fn>;
     mock.mockResolvedValueOnce(redirect("/rest/api/3/myself?moved=1", 301));
