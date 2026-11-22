@@ -5,8 +5,9 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { connections, issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
+import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
+import { TIME_SINK_TYPES } from "@contracts/providers";
 import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { instant, localDateOf, type TimeZone } from "@contracts/values";
@@ -22,6 +23,7 @@ import type { IssueRef, RemoteWorklog } from "../providers/types";
 import { boundTracker } from "./engine";
 import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, roundingSlack, sameTime, startOf } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
+import { trackerOfSink } from "./extraSinks";
 import { callMeta } from "../lib/callMeta";
 
 /** Where one issue's time goes: its tracker, bound, the issue's reference there, the zone its dates are in. */
@@ -355,6 +357,34 @@ export async function buryLostCreate(taken: typeof outbox.$inferSelect, db: Db |
   });
 }
 
+/**
+ * A lost create's delete that ends undone (discarded, out of attempts): the entry it kept out
+ * of reads, should it be there, is read back as any other. Its tracker's feed has gone past
+ * it, so it goes back: Jira's to before it landed, another's (an opaque checkpoint) to the start.
+ */
+export async function unbury(tomb: typeof outbox.$inferSelect, db: Db | Tx = getDb()) {
+  if (!isLostCreate(tomb) || !tomb.landedAfter) return;
+  const [via] = await db.select().from(connections).where(eq(connections.id, tomb.connectionId));
+  if (!via) return;
+  // Through the sink standing in for its tracker (Tempo): the tracker's feed. A sink beside one reads nothing back.
+  const trackerId = trackerOfSink(via);
+  if (trackerId === null && (TIME_SINK_TYPES as readonly string[]).includes(via.type)) return;
+  const [conn] = trackerId === null ? [via] : await db.select().from(connections).where(eq(connections.id, trackerId));
+  if (!conn) return;
+  const at = tomb.landedAfter.getTime() - CLOCK_SKEW_MS;
+  if (conn.type !== "jira") {
+    await db.update(connectionSync).set({ checkpoint: null }).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "entries")));
+    return;
+  }
+  if (conn.legacy) {
+    const [s] = await db.select({ at: syncState.lastWorklogSyncAt }).from(syncState).where(eq(syncState.userId, conn.userId));
+    if (s?.at && s.at.getTime() > at) await db.update(syncState).set({ lastWorklogSyncAt: new Date(at) }).where(eq(syncState.userId, conn.userId));
+    return;
+  }
+  const [s] = await db.select({ cp: connectionSync.checkpoint }).from(connectionSync).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));
+  if (s?.cp && Number(s.cp) > at) await db.update(connectionSync).set({ checkpoint: String(at) }).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));
+}
+
 /** The entry a lost create left, found by its delete (only one linked to no worklog: never another's), deleted there. */
 async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox.$inferSelect) {
   // No list there: nothing to look for.
@@ -488,6 +518,8 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
       // A fault's details to the log: the queue shows general words for it.
       if (!(e instanceof ProviderError)) console.error(e);
       const offline = queueable(e);
+      // Its last try: a lost create's entry is no longer kept out of reads.
+      if (!offline && entry.attempts + 1 >= MAX_OUTBOX_ATTEMPTS) await unbury(entry);
       await db
         .update(outbox)
         // In the user's words (the queue shows it): a tracker's refusal, no answer, or a fault.

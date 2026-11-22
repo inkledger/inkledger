@@ -54,6 +54,8 @@ const jira = {
   found: null as null | string[],
   /** Where the deleted feed says it reached (default: just after now). */
   deletedUntil: 0,
+  /** When the updated feed's entries changed: a pass since a later time doesn't get them (default: every pass does). */
+  updatedAt: 0,
 };
 
 vi.stubGlobal(
@@ -81,7 +83,7 @@ vi.stubGlobal(
       const since = Number(url.searchParams.get("since"));
       return json({ values: [], lastPage: false, until: since + 1 });
     }
-    if (p.endsWith("/worklog/updated")) return json({ values: jira.updated, lastPage: true, until: now + 1000 });
+    if (p.endsWith("/worklog/updated")) return json({ values: jira.updatedAt && Number(url.searchParams.get("since")) >= jira.updatedAt ? [] : jira.updated, lastPage: true, until: now + 1000 });
     if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: jira.deletedUntil || now + 1000 });
     if (p.endsWith("/worklog/list")) {
       jira.posts.push(String(init?.body));
@@ -290,6 +292,33 @@ describe("worklogs from Jira", () => {
     await q("DELETE FROM connections WHERE id = ?", tempo.id);
     jira.updated = [];
     jira.list = [];
+  });
+
+  it("a lost create's delete discarded after a pass left its entry out: the next pass reads it back", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const at = now - 5 * DAY;
+    const [tomb] = await q<{ id: number }>(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?) RETURNING id",
+      user.id, conn.id, at, Date.now() - 600_000, Date.now(),
+    );
+    jira.updated = [{ worklogId: 640 }];
+    jira.list = [wl("640", "acc-1", at, 1800, "10")];
+    // Stored on Jira after the create was sent: a pass from later on doesn't see it again.
+    jira.updatedAt = Date.now() - 300_000;
+    try {
+      await syncWorklogs(user);
+      expect((await mine()).filter((w) => w.id === "640")).toEqual([]);
+      await me.outbox.discard({ id: tomb.id });
+      await syncWorklogs(user);
+      expect((await mine()).filter((w) => w.id === "640")).toEqual([{ k: "PRJ-1", id: "640", s: 1800 }]);
+    } finally {
+      await q("DELETE FROM outbox");
+      await q("DELETE FROM worklogs WHERE jira_worklog_id = '640'");
+      jira.updated = [];
+      jira.list = [];
+      jira.updatedAt = 0;
+    }
   });
 
   it("a worklog still being created (its answer on the way) survives a pass that doesn't see it on Jira; one left by a dead process doesn't", async () => {

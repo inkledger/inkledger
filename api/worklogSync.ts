@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, like, not } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, like, lt, not } from "drizzle-orm";
 import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { issueAt } from "./queries/issueAt";
@@ -13,7 +13,7 @@ import {
   searchIssues,
   type JiraWorklog,
 } from "./jira/client";
-import { PENDING_PREFIX } from "@contracts/types";
+import { MAX_OUTBOX_ATTEMPTS, PENDING_PREFIX } from "@contracts/types";
 import { rowFromJira, upsertLocal } from "./routers/worklogs";
 import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
 import { connOf, contextFor, jiraConnections, type JiraUser } from "./providers/connections";
@@ -66,7 +66,8 @@ export async function buriedOn(userId: number, conn: Connection): Promise<(issue
       .select({ t: outbox, via: connections })
       .from(outbox)
       .innerJoin(connections, eq(connections.id, outbox.connectionId))
-      .where(and(eq(outbox.userId, userId), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter)))
+      // One discarded or out of attempts no longer: its entry is read back.
+      .where(and(eq(outbox.userId, userId), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS)))
   ).filter((r) => r.via.id === conn.id || trackerOfSink(r.via) === conn.id);
   if (tombs.length === 0) return () => false;
   const zone = connOf(conn).timeZone;

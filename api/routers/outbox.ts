@@ -12,7 +12,7 @@ import { getDb } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
 import { connections, issues, outbox, worklogs } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
-import { CLAIM_TTL_MS, replayContract } from "../sync/timeWrites";
+import { CLAIM_TTL_MS, replayContract, unbury } from "../sync/timeWrites";
 import { heldSinkDelete, pushSinks } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";
 import { singleFlight } from "../lib/locks";
@@ -103,6 +103,8 @@ export const outboxRouter = createRouter({
             if (still) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
             return { ok: true };
           }
+          // A lost create's delete given up: its entry, should it be there, is read back.
+          await unbury(entry, db);
           if (entry.kind === "create") {
             await db
               .delete(worklogs)

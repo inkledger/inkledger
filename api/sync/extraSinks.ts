@@ -26,7 +26,7 @@ import { linkSink, roundingSlack, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
-import { buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords } from "./timeWrites";
+import { buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords, unbury } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
 import { callMeta } from "../lib/callMeta";
 
@@ -459,6 +459,8 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
             }
             failed++;
             const attempts = g.attempts + 1;
+            // Its last try: a lost create's entry is no longer kept out of the tracker's reads.
+            if (attempts === MAX_OUTBOX_ATTEMPTS) await unbury(g);
             await db
               .update(outbox)
               .set({ attempts, nextAttemptAt: now() + deleteRetryDelayMs(attempts), claimedAt: null, lastError: (e instanceof Error ? e.message : String(e)).slice(0, 500) })

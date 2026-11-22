@@ -229,6 +229,24 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     }
   });
 
+  it("a lost create's delete on Tempo refused at its last try: the tracker's feed goes back, so its entry is read back", async () => {
+    const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
+    await q("INSERT INTO connection_sync (connection_id, stream, checkpoint) VALUES (?, 'entries', 'past-it') ON CONFLICT (connection_id, stream) DO UPDATE SET checkpoint = 'past-it'", trackerId);
+    await q(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', '', 900, ?, 'gone', ?, ?, ?)",
+      userId, tempoId, Date.parse("2026-10-25T09:00:00+02:00"), Date.now() - 600_000, MAX_OUTBOX_ATTEMPTS - 1, Date.now(),
+    );
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errors: [{ message: "no" }] }), { status: 400, headers: { "content-type": "application/json" } }));
+    try {
+      expect(await push()).toMatchObject({ failed: 1 });
+    } finally {
+      vi.stubGlobal("fetch", real);
+    }
+    expect(await q("SELECT checkpoint FROM connection_sync WHERE connection_id = ? AND stream = 'entries'", trackerId)).toEqual([{ checkpoint: null }]);
+    await q("DELETE FROM outbox");
+  });
+
   it("a pending entry another server process is sending is left to it; past its lease, sent", async () => {
     const at = "2026-10-20T09:00:00+02:00";
     down = true;

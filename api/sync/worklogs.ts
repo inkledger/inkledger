@@ -5,7 +5,7 @@
 // entries read back into the registry. Every tracker that keeps entries
 // writes through here (sync/timeWrites.ts); Jira's feed is still read by
 // its own sync (worklogSync.ts).
-import { and, eq, inArray, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
 import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/values";
@@ -20,6 +20,7 @@ import type { Budget } from "./budget";
 import { rounds } from "../lib/rounds";
 import { t } from "@contracts/i18n";
 import { providerName } from "@contracts/providerNames";
+import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { buriedBy } from "./timeWrites";
 
 type Local = typeof worklogs.$inferSelect;
@@ -262,7 +263,7 @@ async function applyPage(
       : await db
           .select()
           .from(outbox)
-          .where(and(eq(outbox.userId, conn.userId), eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), inArray(outbox.issueKey, newKeys)));
+          .where(and(eq(outbox.userId, conn.userId), eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), inArray(outbox.issueKey, newKeys)));
 
   type Read = { w: RemoteWorklog; key: string; values: { timeSpentSeconds: number; started: Date; comment: string; syncedAt: Date }; locked: string | null };
   const reads: (Read & { k?: { worklogId: number; state: string }; local?: Local; differs: boolean })[] = entries.map((w) => {

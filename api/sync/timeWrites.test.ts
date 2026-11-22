@@ -693,6 +693,41 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("a lost create's delete discarded, or out of attempts, after a sync left its entry out: the entry is read back, once", async () => {
+    const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
+    const here = async (day: string) => (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+    const tomb = async () => (await q<{ id: number }>("SELECT id FROM outbox WHERE kind = 'delete' AND jira_worklog_id = ''"))[0];
+    for (const [day, end] of [["2026-11-03", "discard"], ["2026-11-04", "attempts"]] as const) {
+      try {
+        tracker.loseAnswer = true;
+        const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "kept out" });
+        tracker.loseAnswer = false;
+        await caller.worklogs.delete({ id: made.id });
+        tracker.downOnly = "delete";
+        await caller.issues.syncConnection({ id: connId });
+        expect(await here(day)).toEqual([]);
+        tracker.downOnly = undefined;
+        if (end === "discard") await caller.outbox.discard({ id: (await tomb()).id });
+        else {
+          // Its last try, refused.
+          await q("UPDATE outbox SET attempts = ? WHERE id = ?", MAX_OUTBOX_ATTEMPTS - 1, (await tomb()).id);
+          tracker.refuseOnly = "delete";
+          expect(await replay()).toMatchObject({ failed: 1 });
+          tracker.refuseOnly = undefined;
+        }
+        await caller.issues.syncConnection({ id: connId });
+        const back = await here(day);
+        expect(back.map((w) => [w.timeSpentSeconds, w.comment])).toEqual([[1200, "kept out"]]);
+        await caller.worklogs.delete({ id: back[0].id });
+        await q("DELETE FROM outbox");
+      } finally {
+        tracker.loseAnswer = false;
+        tracker.downOnly = undefined;
+        tracker.refuseOnly = undefined;
+      }
+    }
+  });
+
   it("a lost create deleted, then restored from the trash: the replay deletes only the lost entry, the restored one stays", async () => {
     const { boundTracker } = await import("./engine");
     const { getDb } = await import("../queries/connection");
