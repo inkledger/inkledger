@@ -124,17 +124,20 @@ export function BandChart({ points, unit, caption, className }: { points: BandPo
           )}
         </div>
       )}
-      <table id={tableId} className="sr-only">
-        <caption>{caption}</caption>
-        <tbody>
-          {points.map(p => (
-            <tr key={p.key}>
-              <th scope="row">{p.title}</th>
-              <td>{p.value !== undefined ? unit(p.value) : p.p50 !== undefined ? `${unit(p.p50)} (${unit(p.p10!)}–${unit(p.p90!)})` : ""}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* sr-only on a wrapper: a table ignores its 1px size and widens the page by its longest row. */}
+      <div className="sr-only">
+        <table id={tableId}>
+          <caption>{caption}</caption>
+          <tbody>
+            {points.map(p => (
+              <tr key={p.key}>
+                <th scope="row">{p.title}</th>
+                <td>{p.value !== undefined ? unit(p.value) : p.p50 !== undefined ? `${unit(p.p50)} (${unit(p.p10!)}–${unit(p.p90!)})` : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
