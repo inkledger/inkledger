@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILE_MAX_BYTES } from "@contracts/modules";
 import { hitAreas } from "../hit";
-import type { HitRegion } from "../hostV2";
+import type { BudgetLevel, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
 
@@ -48,7 +48,12 @@ export type ViewBox = { el: HTMLElement; slot: string; activate: () => void };
  * The host API a framed module reaches over messages, from the same hub API
  * an in-page module gets (its guards, and its stop when the module goes).
  */
-export function frameMethods(api: HostApiV1, cas: Cas, view: ViewBox | null): { methods: Record<string, Method>; dispose(): void } {
+export function frameMethods(
+  api: HostApiV1,
+  cas: Cas,
+  view: ViewBox | null,
+  budget: (fn: (b: BudgetLevel) => void) => () => void = fn => (fn("normal"), () => {}),
+): { methods: Record<string, Method>; dispose(): void } {
   const subs = new Map<number, () => void>();
   const subscribe = (id: number, ctx: MethodContext, off: () => void) => {
     subs.get(id)?.();
@@ -70,11 +75,7 @@ export function frameMethods(api: HostApiV1, cas: Cas, view: ViewBox | null): { 
         else if (a[1] === "timer") subscribe(id, ctx, api.timer(push));
         else if (a[1] === "today") subscribe(id, ctx, api.today(push));
         else if (a[1] === "theme") subscribe(id, ctx, api.theme(push));
-        else {
-          // TODO(sandbox phase 3): the watchdog's ladder sets "reduce" and "still".
-          push("normal");
-          subscribe(id, ctx, () => {});
-        }
+        else subscribe(id, ctx, budget(push));
       },
     }),
     unsub: method({

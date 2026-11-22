@@ -49,6 +49,26 @@ describe("the host API a framed module reaches", () => {
     expect(timerFns.size).toBe(0);
   });
 
+  it("pushes the watchdog's budget for the module, and every change of it", async () => {
+    const fns = new Set<(b: "normal" | "reduce" | "still") => void>();
+    const served = frameMethods({} as HostApiV1, { read: () => Promise.reject(new Error()), setIf: () => Promise.reject(new Error()) }, null, fn => {
+      fns.add(fn);
+      fn("normal");
+      return () => void fns.delete(fn);
+    });
+    const sent: HostMessage[] = [];
+    const p = createRpcPeer({ source: () => frame, post: m => sent.push(m), capabilities: [], methods: served.methods });
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "sub", a: [9, "budget"] } });
+    await settle();
+    fns.forEach(fn => fn("reduce"));
+    expect(sent.filter(m => m.t === "push")).toEqual([
+      { v: 1, t: "push", id: 9, value: "normal" },
+      { v: 1, t: "push", id: 9, value: "reduce" },
+    ]);
+    p.dispose();
+    expect(fns.size).toBe(0);
+  });
+
   it("refuses an event the host does not have", async () => {
     const { sent, call } = setup();
     call(1, "sub", [100, "event", "keydown"]);

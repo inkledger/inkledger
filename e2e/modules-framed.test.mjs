@@ -73,6 +73,8 @@ async function withFramed(body, { before } = {}) {
     await app.context.addInitScript(watch);
     await before?.(app);
     await app.page.goto(app.base + "/");
+    // On screen: a framed card off screen is paused (hidden) until it's back.
+    await app.page.locator('[data-module-slot="dashboard-widget"] [data-module="framed"]').scrollIntoViewIfNeeded();
     await body({ ...app, consoleErrors, responses });
     assert.deepEqual(app.errors, [], "no page errors");
   } finally {

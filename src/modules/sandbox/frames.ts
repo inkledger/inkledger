@@ -4,6 +4,7 @@ import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
 import { frameMethods } from "./methods";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
+import { budgetOf, markStopped, watchFrame } from "./watchdog";
 
 /**
  * Framed modules on the page: one sandboxed view frame per slot mount, and
@@ -43,10 +44,11 @@ const idle = (fn: () => void) => {
 
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
-/** A module that navigated: all its frames go, and it stays off until the page reloads. */
-function kill(id: string, why: string) {
+/** A module that navigated or slowed the page: all its frames go, and it stays off until the page reloads. */
+function kill(id: string, why: string, reason: "slow" | "navigated") {
   if (killed.has(id)) return;
   killed.add(id);
+  markStopped(id, reason);
   console.warn(`[module ${id}] stopped: ${why}`);
   [...(onKill.get(id) ?? [])].forEach(f => f());
 }
@@ -87,7 +89,7 @@ function openFrame(
   Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" ? "100%" : "0", colorScheme: "normal", background: "transparent" });
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }) } : null;
-  const served = frameMethods(api, cas, box);
+  const served = frameMethods(api, cas, box, budgetOf(entry.id));
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({
@@ -105,6 +107,7 @@ function openFrame(
       );
     },
     onMounted: () => (iframe.dataset.state = "live"),
+    onBeat: busy => watch?.beat(busy),
     onFailed(reason) {
       iframe.dataset.state = "failed";
       console.error(`[module ${entry.id}] ${reason}`);
@@ -119,12 +122,14 @@ function openFrame(
   let loads = 0;
   // The first load is the document; any later one is the frame navigating (blocked or not).
   iframe.addEventListener("load", () => {
-    if (++loads > 1) kill(entry.id, "its frame navigated");
+    if (++loads > 1) kill(entry.id, "its frame navigated", "navigated");
   });
   iframe.src = entry.frameUrl;
   live++;
   parent.append(iframe);
-  // TODO(sandbox phase 3): heartbeat and long-task attribution per frame feed the watchdog here.
+  // Judged from its first beat on (the ladder gives startup its grace).
+  let watch: ReturnType<typeof watchFrame> | null = null;
+  watch = watchFrame(entry.id, iframe, role, why => kill(entry.id, why, "slow"));
   let stopped = false;
   return {
     iframe,
@@ -133,6 +138,8 @@ function openFrame(
       stopped = true;
       live--;
       removePeer();
+      watch?.dispose();
+      watch = null;
       served.dispose();
       disposeApi();
       iframe.remove();
