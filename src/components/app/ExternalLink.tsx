@@ -31,6 +31,8 @@ export function ExternalLink({
   const { isAllowed, allow } = useAllowedLinks();
   const [open, setOpen] = useState(false);
   const host = hostOf(url) ?? url;
+  // Only a web address can be allowed by its domain (another scheme never opens by itself).
+  const web = /^https?:\/\//i.test(url);
 
   if (OUTLOOK_MAIL.test(url) || isAllowed(url)) {
     return (
@@ -69,17 +71,19 @@ export function ExternalLink({
           {url}
         </p>
         <div className="mt-3 grid gap-2">
-          <Button
-            size="sm"
-            onClick={() =>
-              void allow(host).then(d => {
-                setOpen(false);
-                toast.success(t("ui.link.allowed", { domain: d }), { description: t("ui.link.manage") });
-              }, (e: unknown) => toastError(e))
-            }
-          >
-            {t("ui.link.allowAlways", { host })}
-          </Button>
+          {web && (
+            <Button
+              size="sm"
+              onClick={() =>
+                void allow(host).then(d => {
+                  setOpen(false);
+                  toast.success(t("ui.link.allowed", { domain: d }), { description: t("ui.link.manage") });
+                }, (e: unknown) => toastError(e))
+              }
+            >
+              {t("ui.link.allowAlways", { host })}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
