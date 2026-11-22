@@ -2,7 +2,7 @@
 // key, "l" opens Log time, and one key press is answered once (one listener on the page).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withApp } from "./harness.mjs";
+import { trpcProcs, withApp } from "./harness.mjs";
 
 test("issue page: C copies the key once, L opens one Log time dialog", () =>
   withApp({}, async ({ page, base }) => {
@@ -38,7 +38,8 @@ test("issue page: S held down flips the favorite once, not once per repeat", () 
   withApp({}, async ({ page, base }) => {
     const toggles = [];
     page.on("request", r => {
-      if (r.url().includes("issues.toggleFavorite")) toggles.push(r.url());
+      // By procedure: a batch of three toggles is three, not one request.
+      for (const p of trpcProcs(r.url())) if (p === "issues.toggleFavorite") toggles.push(p);
     });
     await page.goto(`${base}/issues/DEMO-101`);
     await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
