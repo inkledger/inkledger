@@ -128,6 +128,8 @@ function useDashboardLayout() {
   const queue = useRef<Promise<void>>(Promise.resolve());
   // What the user just ticked, shown at once and dropped once saved (or put back if it failed).
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
+  // Each section's last tick: an earlier one settling never drops a later one still saving.
+  const lastTick = useRef<Record<string, number>>({});
   const shown = (anchorId: string) => ticked[anchorId] ?? workspace.placements.find(placement => placement.anchorId === anchorId)?.visible !== false;
   const layout: DashboardLayoutItem[] = DASHBOARD_WIDGETS
     .map(widget => `dashboard.${widget.id}`)
@@ -138,8 +140,12 @@ function useDashboardLayout() {
     isVisible: shown,
     toggle: (id: string) => {
       const visible = !shown(id);
+      const tick = (lastTick.current[id] ?? 0) + 1;
+      lastTick.current[id] = tick;
       setTicked(current => ({ ...current, [id]: visible }));
-      const settle = () => setTicked(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+      const settle = () => {
+        if (lastTick.current[id] === tick) setTicked(current => Object.fromEntries(Object.entries(current).filter(([key]) => key !== id)));
+      };
       // Both Dashboard scopes, as the old setting was one for every device: this page's first, so it changes at once.
       const targets: CustomizeTarget[] = [{ scope, actions }, { scope: otherScope, actions: otherActions }].map(({ scope: target, actions: targetActions }) => ({
         scope: target,
