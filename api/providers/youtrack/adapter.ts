@@ -92,7 +92,8 @@ export const youtrackCapabilities: TrackerCapabilities = {
       approvals: { read: false },
       idempotency: "local",
       concurrency: "none",
-      limits: {},
+      // Whole minutes (wholeMinutes).
+      limits: { increment: { seconds: 60, rounding: "nearest" } },
     },
   },
   sync: {

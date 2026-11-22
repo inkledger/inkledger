@@ -776,6 +776,50 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("on a tracker that rounds lengths (Redmine: hours to two places), a 600 s create whose answer was lost is adopted at the replay, not logged twice", async () => {
+    const { fakeTracker } = await import("../providers/fake/adapter");
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    type Remote = import("../providers/types").RemoteWorklog;
+    const base = fakeTracker([{ key: "FAKE-1", title: "First" }]);
+    const time = base.capabilities.time;
+    if (time.mode !== "entries" || time.entries.model !== "entries") throw new Error("fake keeps entries");
+    const limits = { increment: { seconds: 36, rounding: "nearest" as const } };
+    const capabilities = { ...base.capabilities, time: { ...time, entries: { ...time.entries, shape: "date" as const, idempotency: "local" as const, limits } } };
+    const kept = new Map<string, Remote>();
+    let seq = 0;
+    const worklogs = {
+      list: async () => [...kept.values()],
+      create: async (x: { conn: { remoteAccountId: string } }, ref: { remoteId: string; key: string }, w: { time: Remote["span"]; comment: string }) => {
+        // As Redmine keeps it: 600 s is 0.17 h, read back as 612 s.
+        const seconds = Math.round((Math.round(w.time.seconds / 36) / 100) * 3600);
+        const made: Remote = { remoteId: `r-${++seq}`, issue: { remoteId: ref.remoteId, key: ref.key }, span: { ...w.time, seconds }, comment: w.comment, authorRemoteId: x.conn.remoteAccountId, editable: { update: true, delete: true }, createdAt: instant(Date.now()) };
+        kept.set(made.remoteId, made);
+        if (tracker.loseAnswer) throw new ProviderError("unavailable", "fake: timed out");
+        return made;
+      },
+      delete: async (_x: unknown, _ref: unknown, id: string) => {
+        kept.delete(id);
+      },
+    };
+    const real = tracker.adapter;
+    tracker.adapter = Object.assign(Object.create(Object.getPrototypeOf(base) as object), base, { capabilities, worklogs });
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: "2026-11-05T10:00:00+01:00", comment: "rounded" });
+      tracker.loseAnswer = false;
+      expect([...kept.values()].map((w) => w.span.seconds)).toEqual([612]);
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      expect([...kept.keys()]).toEqual(["r-1"]);
+      expect((await sinkOf(made.id))?.remote_id).toBe("r-1");
+      await caller.worklogs.delete({ id: made.id });
+      expect(kept.size).toBe(0);
+    } finally {
+      tracker.loseAnswer = false;
+      tracker.adapter = real;
+    }
+  });
+
   it("a worklog locked on its tracker can't be changed or deleted here; a conflict is settled either way", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "to lock" });
     await q("UPDATE worklog_sinks SET locked = ? WHERE worklog_id = ?", JSON.stringify({ cause: "approved", message: "Approved by the team lead" }), made.id);
@@ -814,6 +858,22 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     expect(mine).toMatchObject({ timeSpentSeconds: 1200, comment: "mine" });
     expect(await sinkOf(made.id)).toMatchObject({ state: "synced" });
     await caller.worklogs.delete({ id: made.id });
+  });
+});
+
+describe("rounding services", () => {
+  it("the trackers that round a length declare their step: what they store of 600 s is within the lost-answer slack", async () => {
+    const { trackerAdapter } = await import("../providers/registry");
+    const { roundingSlack } = await import("./worklogs");
+    // Redmine and Wrike keep hours to two places (612 s), YouTrack, Plane, Asana and Basecamp whole minutes (600 s; 630 s is 660 s).
+    for (const [type, sent, stored] of [["redmine", 600, 612], ["wrike", 600, 612], ["youtrack", 630, 660], ["plane", 630, 660], ["asana", 630, 660], ["basecamp", 630, 660]] as const) {
+      const time = trackerAdapter(type)?.capabilities.time;
+      const limits = time?.mode === "entries" && time.entries.model === "entries" ? time.entries.limits : undefined;
+      expect(Math.abs(stored - sent), type).toBeLessThanOrEqual(roundingSlack(limits, sent));
+    }
+    // One that keeps seconds: none.
+    const jira = trackerAdapter("jira")?.capabilities.time;
+    expect(roundingSlack(jira?.mode === "entries" && jira.entries.model === "entries" ? jira.entries.limits : undefined, 600)).toBe(0);
   });
 });
 

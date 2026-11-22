@@ -84,7 +84,8 @@ export const wrikeCapabilities: TrackerCapabilities = {
       approvals: { read: true },
       idempotency: "local",
       concurrency: "none",
-      limits: { maxSeconds: 24 * 3600 },
+      // Hours to two places: 36-second steps (hoursOf).
+      limits: { maxSeconds: 24 * 3600, increment: { seconds: 36, rounding: "nearest" } },
     },
   },
   sync: {

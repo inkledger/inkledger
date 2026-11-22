@@ -176,10 +176,24 @@ export function startOf(span: RemoteWorklog["span"], zone: TimeZone): Date {
   return new Date(span.kind === "session" ? span.start : instantAtLocal(span.date, 9, zone));
 }
 
-/** Two entries are the same time: same length, starts within a minute (a create whose answer was lost, read back). */
+/**
+ * Two entries are the same time: same length (give or take `slack` seconds, a service's
+ * rounding), starts within a minute (a create whose answer was lost, read back).
+ */
 const SAME_START_MS = 60_000;
-export const sameTime = (a: { started: Date; seconds: number }, b: { started: Date; seconds: number }) =>
-  a.seconds === b.seconds && Math.abs(a.started.getTime() - b.started.getTime()) < SAME_START_MS;
+export const sameTime = (a: { started: Date; seconds: number }, b: { started: Date; seconds: number }, slack = 0) =>
+  Math.abs(a.seconds - b.seconds) <= slack && Math.abs(a.started.getTime() - b.started.getTime()) < SAME_START_MS;
+
+/**
+ * How far from the length sent a service that rounds it (its increment) may store it: half a
+ * step to the nearest, a step up or down, the whole step for one shorter than a step.
+ */
+export function roundingSlack(limits: EntryCapabilities["limits"] | undefined, seconds: number): number {
+  const step = limits?.increment;
+  if (!step) return 0;
+  if (seconds < step.seconds) return step.seconds - seconds;
+  return step.rounding === "nearest" ? Math.floor(step.seconds / 2) : step.seconds;
+}
 
 /** What the service has, as stored for a conflict (the user picks). */
 export type RemoteSnapshot = { seconds: number; started: number; comment: string };

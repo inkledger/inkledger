@@ -42,7 +42,8 @@ export const harvestSinkCapabilities: TimeSinkCapabilities = {
     approvals: { read: true },
     idempotency: "local",
     concurrency: "none",
-    limits: {},
+    // A duration account keeps hours to two places: 36-second steps (timeFields).
+    limits: { increment: { seconds: 36, rounding: "nearest" } },
   },
   references: ["external", "projectTask", "description"],
   target: { use: "required", lookup: "search" },

@@ -90,7 +90,8 @@ export const redmineCapabilities: TrackerCapabilities = {
       approvals: { read: false },
       idempotency: "local",
       concurrency: "none",
-      limits: {},
+      // Hours to two places: 36-second steps (hoursOf).
+      limits: { increment: { seconds: 36, rounding: "nearest" } },
     },
   },
   sync: {

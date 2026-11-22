@@ -20,7 +20,7 @@ import { t as tr } from "@contracts/i18n";
 import { certainRefusal, providerTrpcError } from "../providers/trpc";
 import type { IssueRef, RemoteWorklog } from "../providers/types";
 import { boundTracker } from "./engine";
-import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime, startOf } from "./worklogs";
+import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, roundingSlack, sameTime, startOf } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 import { callMeta } from "../lib/callMeta";
 
@@ -205,10 +205,10 @@ export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim()
  * The entry holds this time: a session as sameTime, a day's entry (or a session whose service
  * keeps only its day: dayOnly) on that day in the service's zone; the same length.
  */
-export const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone, dayOnly = false) =>
+export const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone, dayOnly = false, slack = 0) =>
   span.kind === "session" && !dayOnly
-    ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v)
-    : span.kind !== "dayTotal" && span.seconds === v.seconds && (span.kind === "date" ? span.date : localDateOf(span.start, zone)) === localDateOf(instant(v.started.getTime()), zone);
+    ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v, slack)
+    : span.kind !== "dayTotal" && Math.abs(span.seconds - v.seconds) <= slack && (span.kind === "date" ? span.date : localDateOf(span.start, zone)) === localDateOf(instant(v.started.getTime()), zone);
 
 async function adoptLanded(
   t: ContractTime,
@@ -230,9 +230,11 @@ async function adoptLanded(
   // What was sent, which may differ from the worklog now (its time changed while queued).
   const mine = sent ?? { started: local.started, seconds: local.timeSpentSeconds };
   const words = sent?.comment ?? local.comment;
+  // A service that rounds lengths stores one a little off what was sent.
+  const slack = roundingSlack(entriesOf(t.b)?.limits, mine.seconds);
   for (const w of there) {
     if (w.authorRemoteId !== conn.remoteAccountId || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
-    if (!holds(w.span, mine, t.zone)) continue;
+    if (!holds(w.span, mine, t.zone, false, slack)) continue;
     // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
     if (w.span.kind !== "session" && (!w.createdAt || !sameWords(w.comment, words))) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
@@ -246,7 +248,7 @@ async function adoptLanded(
     // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
     // same time, can't be told from that copy: its comment may have been edited since either.)
     // A day's copy is read back at its import start: one at another hour is a worklog of its own.
-    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, w.span.kind === "session" ? mine : { started: startOf(w.span, t.zone), seconds: w.span.seconds }))) continue;
+    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, w.span.kind === "session" ? mine : { started: startOf(w.span, t.zone), seconds: w.span.seconds }, slack))) continue;
     // A queued change is about an older worklog: any newer one of the same time may be a twin
     // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
     // twice, as it did; never another worklog's entry, and the old one with it, gone).
@@ -304,7 +306,7 @@ async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog)
     .limit(1);
   const id = sink?.remoteId ?? local.remoteId;
   const w = (await t.b.worklogs.list(meta(), t.ref)).find((x) => x.remoteId === id);
-  if (!w || !holds(w.span, { started: local.started, seconds: local.timeSpentSeconds }, t.zone) || !sameWords(w.comment, local.comment)) return false;
+  if (!w || !holds(w.span, { started: local.started, seconds: local.timeSpentSeconds }, t.zone, false, roundingSlack(entriesOf(t.b)?.limits, local.timeSpentSeconds)) || !sameWords(w.comment, local.comment)) return false;
   await linkSink(local.id, conn.id, w.remoteId, w.version ?? null);
   return true;
 }
@@ -324,9 +326,10 @@ export function buriedBy(
   tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "createdAt">,
   e: Pick<RemoteWorklog, "span" | "comment" | "createdAt">,
   zone: TimeZone,
+  slack = 0,
 ): boolean {
   if (!tomb.started || !tomb.landedAfter) return false;
-  if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone) || !sameWords(e.comment, tomb.comment)) return false;
+  if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, false, slack) || !sameWords(e.comment, tomb.comment)) return false;
   if (e.createdAt == null) return e.span.kind === "session";
   const at = Number(e.createdAt);
   return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.createdAt.getTime() + CLOCK_SKEW_MS;
@@ -358,7 +361,7 @@ async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox
   if (!t.b.worklogs?.list) return;
   const there = await t.b.worklogs.list(meta(), t.ref);
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone)) continue;
+    if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone, roundingSlack(entriesOf(t.b)?.limits, tomb.timeSpentSeconds))) continue;
     const [linked] = await getDb()
       .select({ id: worklogSinks.id })
       .from(worklogSinks)
