@@ -4,7 +4,7 @@ import { method, type Method, type MethodContext } from "./rpc";
 
 export { PICTURE_MAX_BYTES };
 import type { ViewBox } from "./methods";
-import { parseLight, type createPageLight } from "./light";
+import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
 import type { createLayoutFeed, createPointerFeed } from "./feeds";
@@ -41,6 +41,7 @@ const MAX_WATCHES = 16;
 const picture = z.instanceof(Blob).refine(b => b.size > 0 && b.size <= PICTURE_MAX_BYTES);
 const fileName = z.string().max(200);
 const cacheKey = z.string().min(1).max(128);
+const lightVars = z.union([z.null(), z.record(z.string().max(32), z.unknown()).refine(v => Object.keys(v).length <= 8)]);
 
 export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, Method>; dispose(): void } {
   // This frame, as owner of what it set (the light).
@@ -88,15 +89,18 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     "cache.get": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [10, 30], run: ([k]) => d.cache.get(d.moduleId, k) }),
     "cache.put": method({ args: z.tuple([cacheKey, z.instanceof(Blob).refine(b => b.size <= PICTURE_MAX_BYTES)]), cap: "cache", rate: [4, 16], run: ([k, b]) => d.cache.put(d.moduleId, k, b) }),
     "cache.delete": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [4, 16], run: ([k]) => d.cache.delete(d.moduleId, k) }),
+    // Up to a frame's worth (the frame paces its own casts, the latest winning); written once a frame.
     "surfaces.light": method({
-      args: z.tuple([z.union([z.null(), z.record(z.string().max(32), z.unknown()).refine(v => Object.keys(v).length <= 8)])]),
+      args: z.union([z.tuple([lightVars]), z.tuple([lightVars, z.array(z.string().max(32)).max(LIGHT_OFF_MAX)])]),
       cap: "surfaces.light",
-      rate: [2, 6],
-      run([vars]) {
+      rate: [30, 30],
+      run([vars, kinds]) {
         if (vars === null) return void d.light.set(d.moduleId, token, null);
         const parsed = parseLight(vars);
         if (!parsed.ok) throw new Error(`light: ${parsed.name} refused`);
-        if (!d.light.set(d.moduleId, token, parsed.light)) throw new Error("light: another module casts it");
+        const off = d.light.off(kinds ?? []);
+        if (!off) throw new Error("light: an unknown surface kind refused");
+        if (!d.light.set(d.moduleId, token, parsed.light, off)) throw new Error("light: another module casts it");
       },
     }),
     share: method({ args: z.tuple([picture, fileName]), cap: "share", rate: [1, 2], run: ([f, name]) => d.broker.share(f, name) }),

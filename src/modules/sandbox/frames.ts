@@ -109,6 +109,10 @@ const light = () =>
         document.head.append(el);
         return el;
       },
+      frame(fn) {
+        const id = requestAnimationFrame(fn);
+        return () => cancelAnimationFrame(id);
+      },
     },
     SURFACES,
   ));

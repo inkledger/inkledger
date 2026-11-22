@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SURFACES } from "@/components/app/surface";
-import { LIGHT_NAMES, createPageLight, lightRules, lightValue, parseLight, type LightName } from "./light";
+import { LIGHT_NAMES, createPageLight, lightOff, lightRules, lightValue, parseLight, type LightName } from "./light";
 
 // Values as the Shadow module writes them.
 const GOOD: [LightName, string, string][] = [
@@ -128,5 +128,42 @@ describe("surfaces.light: on the page", () => {
     expect(props.size).toBe(0);
     expect(styles[0]?.removed).toBe(true);
     expect(light.set("other", {}, { "--sky-dim": "1" })).toBe(true);
+  });
+
+  it("kinds switched off get no rules; another set of kinds remakes them", () => {
+    expect(lightRules(SURFACES, ["card"])).not.toContain('[data-surface="card"]');
+    expect(lightRules(SURFACES, ["card"])).toContain('[data-surface="picture"]');
+    expect(lightOff(SURFACES, ["picture", "card", "card"])).toEqual(["card", "picture"]);
+    expect(lightOff(SURFACES, ["card", "nope"])).toBeNull();
+    expect(lightOff(SURFACES, ["__proto__"])).toBeNull();
+    const { doc, styles } = fakeDoc();
+    const light = createPageLight(doc, SURFACES);
+    const a = {};
+    light.set("shadow", a, { "--sky-dim": "0.2" });
+    light.set("shadow", a, { "--sky-dim": "0.3" });
+    expect(styles).toHaveLength(1);
+    light.set("shadow", a, { "--sky-dim": "0.3" }, ["card"]);
+    expect(styles).toHaveLength(2);
+    expect(styles[0]?.removed).toBe(true);
+    expect(styles[1]?.css).not.toContain('[data-surface="card"]');
+  });
+
+  it("with a frame to wait for, the sets before it are written once, the latest winning", () => {
+    const { doc, writes, props } = fakeDoc();
+    const frames: (() => void)[] = [];
+    const light = createPageLight({ ...doc, frame: fn => (frames.push(fn), () => void frames.splice(frames.indexOf(fn), 1)) }, SURFACES);
+    const a = {};
+    for (const dim of ["0.1", "0.2", "0.3"]) expect(light.set("shadow", a, { "--sky-dim": dim })).toBe(true);
+    expect(writes).toEqual([]);
+    expect(light.set("other", {}, { "--sky-dim": "1" })).toBe(false);
+    expect(frames).toHaveLength(1);
+    frames.splice(0).forEach(fn => fn());
+    expect(writes).toEqual(["--sky-dim"]);
+    expect(props.get("--sky-dim")).toBe("0.3");
+    // Gone before its frame: nothing is written after.
+    light.set("shadow", a, { "--sky-dim": "0.4" });
+    light.release(a);
+    expect(frames).toHaveLength(0);
+    expect(props.size).toBe(0);
   });
 });

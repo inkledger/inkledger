@@ -40,8 +40,12 @@ type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient"
 
 /** Members present only when the manifest declares their capability (and the host offers it). */
 type Capabilities = {
-  /** "surfaces.light": allowlisted shadow variables, strict values; null drops the light. */
-  surfaces?: HostApiV1["surfaces"] & { light?(vars: Readonly<Record<string, string>> | null): void };
+  /**
+   * "surfaces.light": allowlisted shadow variables, strict values; null drops the light.
+   * `off`: surface kinds of the catalog left unlit. About one cast a frame reaches the
+   * page, the latest winning; it rejects when the host refused it (a value, a kind).
+   */
+  surfaces?: HostApiV1["surfaces"] & { light?(vars: Readonly<Record<string, string>> | null, off?: readonly string[]): Promise<void> };
   /** "page.importance": how much each point of the page matters (password fields are always 1). */
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /** "pointer" */

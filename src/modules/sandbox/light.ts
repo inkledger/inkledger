@@ -153,10 +153,10 @@ const RINGS = "var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 
  * box or pill (outside the box only), a drop-shadow for a picture's own
  * outline; glass, grounds and baked pictures get none. Focus rings are kept.
  */
-export function lightRules(catalog: SurfaceCatalog): string {
+export function lightRules(catalog: SurfaceCatalog, off: readonly string[] = []): string {
   const rules: string[] = [];
   for (const [kind, p] of Object.entries(catalog)) {
-    if (!p.cast || p.translucent || p.bakedShadow || p.maxElevation === 0) continue;
+    if (!p.cast || p.translucent || p.bakedShadow || p.maxElevation === 0 || off.includes(kind)) continue;
     const edge = p.effects.includes("edge");
     for (const e of ELEVATIONS.filter(e => e <= p.maxElevation)) {
       const at = `[data-surface="${kind}"][data-elev="${e}"]`;
@@ -173,40 +173,77 @@ export function lightRules(catalog: SurfaceCatalog): string {
   return rules.join("\n");
 }
 
+/** Kinds a module switched off, at most this many (the catalog is smaller). */
+export const LIGHT_OFF_MAX = 64;
+
+/** The kinds to leave unlit, sorted, or null when one is not in the catalog. */
+export function lightOff(catalog: SurfaceCatalog, off: readonly string[]): string[] | null {
+  if (off.length > LIGHT_OFF_MAX || off.some(k => !Object.hasOwn(catalog, k))) return null;
+  return [...new Set(off)].sort();
+}
+
 export type LightPage = {
   root: { setProperty(k: string, v: string): void; removeProperty(k: string): void };
   /** Puts a stylesheet on the page; its undo. */
   addStyle(css: string): { remove(): void };
+  /** Runs `fn` before the next paint; its undo. Without it a light is written at once. */
+  frame?(fn: () => void): () => void;
 };
 
 /**
  * The page's light: one module casts it at a time. Only what changed is
- * written (each write repaints the surfaces), and its owner going clears it.
+ * written (each write repaints the surfaces), at most once a frame (the
+ * latest set wins), and its owner going clears it.
  */
 export function createPageLight(page: LightPage, catalog: SurfaceCatalog) {
   let owner: { moduleId: string; token: object } | null = null;
   let applied: Light = {};
   let style: { remove(): void } | null = null;
+  let styleOff = "";
+  let pending: { light: Light; off: readonly string[] } | null = null;
+  let cancel: (() => void) | null = null;
+  const apply = () => {
+    cancel = null;
+    const next = pending;
+    pending = null;
+    if (!next || !owner) return;
+    // The rules change only with the kinds left unlit.
+    const key = next.off.join(",");
+    if (style && key !== styleOff) {
+      style.remove();
+      style = null;
+    }
+    styleOff = key;
+    style ??= page.addStyle(lightRules(catalog, next.off));
+    for (const k of Object.keys(applied)) if (!(k in next.light)) page.root.removeProperty(k);
+    for (const [k, v] of Object.entries(next.light)) if (applied[k as LightName] !== v) page.root.setProperty(k, v);
+    applied = { ...next.light };
+  };
   const clear = () => {
+    cancel?.();
+    cancel = null;
+    pending = null;
     for (const k of Object.keys(applied)) page.root.removeProperty(k);
     applied = {};
     style?.remove();
     style = null;
+    styleOff = "";
     owner = null;
   };
   return {
-    /** False when another module holds the light. */
-    set(moduleId: string, token: object, light: Light | null): boolean {
+    /** The kinds a module may leave unlit, checked against the catalog (null: refused). */
+    off: (kinds: readonly string[]) => lightOff(catalog, kinds),
+    /** False when another module holds the light. `off`: kinds left unlit (checked by `off`). */
+    set(moduleId: string, token: object, light: Light | null, off: readonly string[] = []): boolean {
       if (owner && owner.moduleId !== moduleId) return false;
       if (light === null) {
         if (owner) clear();
         return true;
       }
       owner = { moduleId, token };
-      style ??= page.addStyle(lightRules(catalog));
-      for (const k of Object.keys(applied)) if (!(k in light)) page.root.removeProperty(k);
-      for (const [k, v] of Object.entries(light)) if (applied[k as LightName] !== v) page.root.setProperty(k, v);
-      applied = { ...light };
+      pending = { light, off };
+      if (!page.frame) apply();
+      else cancel ??= page.frame(apply);
       return true;
     },
     /** The frame that last set the light went. */

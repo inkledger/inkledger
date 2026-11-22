@@ -71,7 +71,7 @@ describe("the frame's host API (bootstrap)", () => {
     let seen: HostApiV2 | null = null;
     const f = withModule(["surfaces.light"], (_el, host) => {
       seen = host;
-      host.surfaces?.light?.({ "--sky-dim": "0.25" });
+      void host.surfaces?.light?.({ "--sky-dim": "0.25" });
     });
     await settle();
     expect(seen).not.toBeNull();
@@ -83,6 +83,28 @@ describe("the frame's host API (bootstrap)", () => {
     withModule([], (_el, host) => (offered = "light" in (host.surfaces ?? {})));
     await settle();
     expect(offered).toBe(false);
+  });
+
+  it("surfaces.light: casts in a burst reach the host once, the latest winning; a refused one rejects in the frame", async () => {
+    const results: unknown[] = [];
+    const f = withModule(["surfaces.light"], (_el, host) => {
+      void host.surfaces?.light?.({ "--sky-dim": "0.1" }).then(() => results.push("first"));
+      void host.surfaces?.light?.({ "--sky-dim": "0.2" }, ["card"]).then(() => results.push("second"));
+    });
+    await settle(10);
+    // Answers: the look's watch, and one light.
+    expect(f.sent.filter(m => m.t === "res")).toHaveLength(2);
+    expect(f.props.get("--sky-dim")).toBe("0.2");
+    expect(results).toEqual(["first", "second"]);
+
+    const errors: string[] = [];
+    withModule(["surfaces.light"], (_el, host) => {
+      void host.surfaces?.light?.({ "--sky-dim": "2" }).catch((e: Error) => errors.push(e.message));
+      setTimeout(() => void host.surfaces?.light?.({ "--sky-dim": "0.5" }, ["nope"]).catch((e: Error) => errors.push(e.message)), 40);
+    });
+    await new Promise(r => setTimeout(r, 80));
+    await settle(10);
+    expect(errors).toEqual(["light: --sky-dim refused", "light: an unknown surface kind refused"]);
   });
 
   it("page.importance: the box's points, off the page counting as important", async () => {

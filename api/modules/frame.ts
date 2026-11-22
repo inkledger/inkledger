@@ -209,7 +209,24 @@ async function start(init, port) {
       },
     },
   };
-  if (has("surfaces.light")) host.surfaces.light = (vars) => fire("surfaces.light", [vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, String(v)]))]);
+  if (has("surfaces.light")) {
+    // About one cast a frame (the host's pace), the latest winning: each caller hears how its value, or a later one, went.
+    let lightAt = -1000, lightTimer = 0, lightNext = null, lightWaiting = [];
+    const castLight = () => {
+      lightTimer = 0;
+      lightAt = Date.now();
+      const args = lightNext, waiting = lightWaiting;
+      lightNext = null;
+      lightWaiting = [];
+      call("surfaces.light", args).then(() => { for (const w of waiting) w.resolve(); }, (e) => { report(e); for (const w of waiting) w.reject(e); });
+    };
+    host.surfaces.light = (vars, off) => new Promise((resolve, reject) => {
+      const v = vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, x]) => [k, String(x)]));
+      lightNext = off == null ? [v] : [v, Array.from(off, String)];
+      lightWaiting.push({ resolve, reject });
+      if (!lightTimer) lightTimer = setTimeout(castLight, Math.max(0, lightAt + 34 - Date.now()));
+    });
+  }
   if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
   if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
