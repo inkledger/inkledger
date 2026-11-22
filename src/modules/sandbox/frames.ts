@@ -160,6 +160,11 @@ const whenKilled = (id: string, fn: () => void) => {
 
 type Frame = { iframe: HTMLIFrameElement; stop: () => void };
 
+const focusedBox = (id: string) => {
+  const at = document.activeElement;
+  return at instanceof HTMLElement ? at.closest<HTMLElement>(`[data-module="${CSS.escape(id)}"]`) : null;
+};
+
 type Movable = HTMLElement & { moveBefore(node: Node, child: Node | null): void };
 const movable = (el: HTMLElement): el is Movable => "moveBefore" in el && typeof el.moveBefore === "function";
 
@@ -217,7 +222,13 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions });
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const sheet = {
+    // A runtime has no box: the view the person is in (its frame has the focus) opened it.
+    open: (id: string, from?: HTMLElement | null) => sheetOpen.open(id, from ?? focusedBox(id)),
+    // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
+    close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
+  };
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;
@@ -239,6 +250,8 @@ function openFrame(
     onMounted() {
       mounted = true;
       iframe.dataset.state = "live";
+      // The sheet's frame comes after the dialog took the focus: it takes it (Esc then reaches the frame).
+      if (slot === "sheet" && role === "view" && !stopped && sheetOpen.get() === entry.id) iframe.focus({ preventScroll: true });
     },
     onUnmounted: () => onUnmounted?.(),
     onSize: resize,

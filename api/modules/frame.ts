@@ -350,8 +350,8 @@ async function start(init, port) {
           return () => { goneFns.delete(fn); };
         };
       } else if (port) host.runtime = port;
-      // Esc in the sheet's frame never reaches the host's dialog: told here.
-      if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); });
+      // Esc in the sheet's frame never reaches the host's dialog: told here (captured, whatever the module stops).
+      if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); }, true);
       const box = document.createElement("div");
       box.id = "ikl-box";
       document.body.append(box);

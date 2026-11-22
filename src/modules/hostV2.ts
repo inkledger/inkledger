@@ -84,7 +84,11 @@ type Capabilities = {
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /** "pointer" */
   pointer?: Sub<PointerState>;
-  /** "sheet": opens or closes this module's sheet slot. */
+  /**
+   * "sheet": opens or closes this module's sheet slot. Open, its frame takes the focus and Esc
+   * in it closes it; closed, the focus goes back to the opening view's box (its host button,
+   * else its frame).
+   */
   sheet?: { open(): void; close(): void };
   /** "share", "download", "open-image": brokered, need the person's gesture. */
   share?(file: Blob, name: string): Promise<boolean>;

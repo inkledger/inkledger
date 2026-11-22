@@ -33,7 +33,8 @@ export type CapabilityDeps = {
   cache: ReturnType<typeof createModuleCache>;
   /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
   look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
-  sheet: { open(moduleId: string): void; close(moduleId: string): void };
+  /** `from`: the opener's box (a view's), where the focus returns as the sheet closes. */
+  sheet: { open(moduleId: string, from?: HTMLElement | null): void; close(moduleId: string): void };
   /** The phone's More sheet, closed from a module row in it. */
   more?: { close(): void };
 };
@@ -130,7 +131,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       run() {
         // A dialog only on the person's gesture: never one that pops up by itself.
         if (!d.broker.active()) throw new Error("needs the person's gesture");
-        d.sheet.open(d.moduleId);
+        d.sheet.open(d.moduleId, d.view?.el ?? null);
       },
     }),
     "sheet.close": method({ args: z.tuple([]), cap: "sheet", rate: [2, 4], run: () => d.sheet.close(d.moduleId) }),

@@ -5,6 +5,14 @@ import { ModulesContext } from "../context";
 import { FramedBox } from "./FrameHost";
 import { sheetOpen } from "./sheet";
 
+/** Closed: the focus back on the opener's box (a host button, else the frame inside it). */
+const returnFocus = (e: Event) => {
+  const box = sheetOpen.takeOpener();
+  if (!box) return;
+  e.preventDefault();
+  (box.hasAttribute("tabindex") && box.tabIndex >= 0 ? box : (box.querySelector("iframe") ?? box)).focus({ preventScroll: true });
+};
+
 /** A framed module's sheet (host.sheet.open): the host's dialog, the module's view frame inside. */
 export function ModuleSheet() {
   const ctx = useContext(ModulesContext);
@@ -17,7 +25,7 @@ export function ModuleSheet() {
   const name = loaded ? loaded.entry.name[currentLocale() === "it" ? "it" : "en"] : "";
   return (
     <Sheet open={loaded !== undefined} onOpenChange={o => !o && sheetOpen.close()}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-md">
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" onCloseAutoFocus={returnFocus}>
         <SheetHeader className="border-b">
           <SheetTitle>{name}</SheetTitle>
           <SheetDescription>{t("settings.store.moduleSheet.description", { name })}</SheetDescription>

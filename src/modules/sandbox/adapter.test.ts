@@ -294,6 +294,17 @@ describe("the frame's host API (bootstrap)", () => {
     expect(sheetOpen.get()).toBeNull();
   });
 
+  it("sheet: the opening view's box is kept, once, for the focus to go back to", async () => {
+    sheetOpen.close();
+    const el = { dataset: {}, isConnected: true, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
+    withModule(["sheet"], (_el, host) => host.sheet?.open(), quietEnv, { el, slot: "sidebar-rail", activate() {} });
+    await settle();
+    expect(sheetOpen.get()).toBe("m");
+    expect(sheetOpen.takeOpener()).toBe(el);
+    expect(sheetOpen.takeOpener()).toBeNull();
+    sheetOpen.close();
+  });
+
   it("unmount: the view's cleanup runs, then the host hears it is done", async () => {
     const order: string[] = [];
     const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => void order.push("cleanup") } };
