@@ -123,7 +123,7 @@ describe("grep with a regular expression: nothing can hold the page", () => {
 
   it("refused: backreferences, repeated groups that repeat or alternate inside, many open-ended repetitions", async () => {
     const small = folder("small", { "a.txt": "aaa bbb" });
-    for (const query of ["(a)\\1", "(a|aa)*b", "(?:a*)*", "((a+))+", ".*.*.*.*x"]) {
+    for (const query of ["(a)\\1", "(a|aa)*b", "(?:a*)*", "((a+))+", "((a|a))+$", `${"a?".repeat(30)}${"a".repeat(30)}`, ".*.*.*.*x"]) {
       const out = await browserTool(small, "grep", { repo: "small", query, regex: true });
       expect(out.ok, query).toBe(false);
     }
@@ -131,7 +131,7 @@ describe("grep with a regular expression: nothing can hold the page", () => {
 
   it("everyday patterns still run", async () => {
     const code = folder("code", { "a.kt": "fun stockLevel(item: Item) = item.qty\nval x = MAGA-400" });
-    for (const query of ["fun\\s+\\w+\\s*\\(", "MAGA-\\d{3}", "(?:val|var) x", "stock(Level)?", "[a-z]+Level"]) {
+    for (const query of ["fun\\s+\\w+\\s*\\(", "MAGA-\\d{3}", "(?:val|var) x", "stock(Level)?", "[a-z]+Level", "\\d{1,3}\\.\\d{1,3}|MAGA-400", "^val x( = )?"]) {
       const out = await browserTool(code, "grep", { repo: "code", query, regex: true });
       expect(out.ok && "hits" in out.result && out.result.hits.length, query).toBe(1);
     }

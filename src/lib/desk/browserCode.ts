@@ -81,28 +81,32 @@ const clip = (line: string) => (line.length > LINE_CHARS ? `${line.slice(0, LINE
 
 /** A regular expression runs in the page, where nothing can stop it: its shape is bounded instead. */
 const REGEX_QUANTIFIERS = 3;
+/** The ways the bounded repetitions (?, {n,m}) together can match, at most. */
+const REGEX_CHOICES = 256;
 const REGEX_LINE_CHARS = 1_000;
 const REGEX_BUDGET_MS = 2_000;
 
 /**
  * Why a pattern could take the page for minutes (catastrophic backtracking), or null: a
- * backreference; a repeated group that repeats or alternates inside; more than a few
- * open-ended repetitions in all.
+ * backreference; a repeated group that repeats or alternates inside (at any depth); more
+ * than a few open-ended repetitions, or too many optional parts, in all.
  */
 export function slowPattern(source: string): string | null {
   const groups: { repeats: boolean; alternates: boolean }[] = [{ repeats: false, alternates: false }];
   let openEnded = 0;
+  let choices = 1;
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
     const top = groups[groups.length - 1];
-    // What follows position `at`: a quantifier's length (0: none), and whether it is open-ended.
-    const quantifier = (at: number): { length: number; open: boolean } => {
+    // What follows position `at`: a quantifier's length (0: none), whether it is open-ended, the ways it can match.
+    const quantifier = (at: number): { length: number; open: boolean; ways: number } => {
       const q = source[at];
-      if (q === "*" || q === "+") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: true };
-      if (q === "?") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: false };
+      if (q === "*" || q === "+") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: true, ways: 1 };
+      if (q === "?") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: false, ways: 2 };
       const m = q === "{" ? /^\{(\d+)(,(\d*))?\}\??/.exec(source.slice(at)) : null;
-      if (!m) return { length: 0, open: false };
-      return { length: m[0].length, open: m[2] !== undefined && (m[3] === "" || Number(m[3]) > 10) };
+      if (!m) return { length: 0, open: false, ways: 1 };
+      const open = m[2] !== undefined && (m[3] === "" || Number(m[3]) - Number(m[1]) > 10);
+      return { length: m[0].length, open, ways: m[2] !== undefined && !open ? Number(m[3]) - Number(m[1]) + 1 : 1 };
     };
     if (ch === "\\") {
       if (/[1-9k]/.test(source[i + 1] ?? "")) return "it refers back to a group";
@@ -119,19 +123,24 @@ export function slowPattern(source: string): string | null {
       groups.pop();
       const q = quantifier(i + 1);
       if (q.length && (top.repeats || top.alternates)) return "a repeated group repeats or alternates inside";
-      if (q.length || top.repeats) groups[groups.length - 1].repeats = true;
+      const parent = groups[groups.length - 1];
+      if (q.length || top.repeats) parent.repeats = true;
+      if (top.alternates) parent.alternates = true;
       if (q.open) openEnded++;
+      choices *= q.ways;
       i += q.length;
       continue;
     }
-    const q = ch === ")" ? { length: 0, open: false } : quantifier(i + 1);
+    const q = ch === ")" ? { length: 0, open: false, ways: 1 } : quantifier(i + 1);
     if (q.length) {
       top.repeats = true;
       if (q.open) openEnded++;
+      choices *= q.ways;
       i += q.length;
     }
   }
-  return openEnded > REGEX_QUANTIFIERS ? `more than ${REGEX_QUANTIFIERS} open-ended repetitions` : null;
+  if (openEnded > REGEX_QUANTIFIERS) return `more than ${REGEX_QUANTIFIERS} open-ended repetitions`;
+  return choices > REGEX_CHOICES ? "too many optional parts" : null;
 }
 
 /**
