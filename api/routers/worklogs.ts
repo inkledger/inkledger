@@ -95,12 +95,13 @@ function keepsTimeLocally(conn: Pick<Connection, "type">): boolean {
 
 /**
  * A pending worklog's queued create, as an edit or a delete may take it: still
- * queued (once replayed it has a real id, and an edit by the old one would do
- * nothing) and claimed by no replay, of this process or another on the same
+ * queued as a create (once replayed it has a real id, and an edit by the old one
+ * would do nothing; a replay that adopted it may have left it a queued edit, never
+ * the old id's to drop) and claimed by no replay, of this process or another on the same
  * database (a claim past its lease is a dead process's).
  */
 function stillQueued(userId: number, outboxId: number) {
-  return and(eq(outbox.id, outboxId), eq(outbox.userId, userId), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS)));
+  return and(eq(outbox.id, outboxId), eq(outbox.userId, userId), eq(outbox.kind, "create"), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS)));
 }
 
 function pendingOutboxId(remoteId: string): number {

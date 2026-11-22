@@ -906,6 +906,26 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("a pending worklog a replay adopted and left as a queued edit: a stale delete or edit by its old pending id is refused, the edit stays queued", async () => {
+    const day = "2026-11-09";
+    try {
+      tracker.offline = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "flipped" });
+      const [row] = await q<{ id: number }>("SELECT id FROM outbox WHERE kind = 'create'");
+      expect(made.remoteId).toBe(`pending-${row.id}`);
+      // As a replay leaves it: the entry adopted, its changed time still to send.
+      await q("UPDATE outbox SET kind = 'update', jira_worklog_id = 'w-adopted' WHERE id = ?", row.id);
+      await q("UPDATE worklogs SET jira_worklog_id = 'w-adopted' WHERE id = ?", made.id);
+      await expect(caller.worklogs.delete({ issueKey: "FAKE-1", remoteId: made.remoteId })).rejects.toMatchObject({ code: "CONFLICT" });
+      await expect(caller.worklogs.update({ issueKey: "FAKE-1", remoteId: made.remoteId, seconds: 1500, started: `${day}T09:00:00+01:00`, comment: "flipped" })).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(await q("SELECT kind, jira_worklog_id FROM outbox WHERE id = ?", row.id)).toEqual([{ kind: "update", jira_worklog_id: "w-adopted" }]);
+    } finally {
+      tracker.offline = false;
+      await q("DELETE FROM outbox");
+      await q("DELETE FROM worklogs WHERE jira_worklog_id = 'w-adopted'");
+    }
+  });
+
   it("on a tracker keeping a session's day and no words (GitLab's notes), a create whose answer was lost is adopted at the replay, not logged twice", async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");
