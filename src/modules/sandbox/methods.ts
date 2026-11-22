@@ -24,7 +24,7 @@ const allEvents: Exclude<HostEventName, (typeof EVENTS)[number]> extends never ?
 void allEvents;
 
 /** Drawn over the page: the frame never takes pointer events there, the host tests its regions. */
-const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch"];
+const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge"];
 
 const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);

@@ -175,8 +175,18 @@ export function DashboardBackdrop() {
   );
 }
 
+/**
+ * A framed module's box where its frame needs room a page module's anchor
+ * doesn't have (the frame draws only inside itself).
+ */
+const FRAMED_BOX: Partial<Record<SlotId, string>> = {
+  // A strip along the panel's bottom edge, its width, 84 px tall and 10 px
+  // below the edge; it takes no pointer events (the host tests its shape).
+  "panel-edge": "pointer-events-none absolute inset-x-0 -bottom-[10px] h-[84px] [&_*]:!pointer-events-none",
+};
+
 function ModuleBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {
-  if ("framed" in loaded.module) return <FramedBox hub={hub} entry={loaded.entry} slot={slot} className={BOX[slot]} />;
+  if ("framed" in loaded.module) return <FramedBox hub={hub} entry={loaded.entry} slot={slot} className={FRAMED_BOX[slot] ?? BOX[slot]} />;
   // The same `loaded` the list holds: a new object here would remount the module on every render.
   return <InPageBox hub={hub} loaded={loaded} slot={slot} />;
 }

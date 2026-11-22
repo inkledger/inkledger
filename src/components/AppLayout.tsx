@@ -820,14 +820,15 @@ export function AppLayout() {
               </ErrorBoundary>
             </main>
           </div>
-          {/* Add-on modules' anchor on the panel's bottom-left corner: zero size,
-              fixed, never part of the layout. On phones the page scrolls as a
-              whole: the anchor stands on the tab bar's top edge (the screen's
-              bottom while the keyboard hides the bar). */}
+          {/* Add-on modules' anchor on the panel's bottom edge: zero height, the
+              panel's width, fixed, never part of the layout (a page module's box
+              sits on its left end; a framed one is a strip along it). On phones the
+              page scrolls as a whole: the anchor stands on the tab bar's top edge
+              (the screen's bottom while the keyboard hides the bar). */}
           <div
             className={cn(
-              "pointer-events-none fixed z-20 h-0 w-0",
-              "bottom-[var(--bottom-nav-h,0px)] left-[max(0.5rem,env(safe-area-inset-left))] sm:left-3 lg:bottom-4",
+              "pointer-events-none fixed z-20 h-0",
+              "bottom-[var(--bottom-nav-h,0px)] left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] sm:left-3 lg:bottom-4 lg:right-4",
               collapsed ? "lg:left-[76px]" : "lg:left-[264px]"
             )}
           >

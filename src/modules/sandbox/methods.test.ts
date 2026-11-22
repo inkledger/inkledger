@@ -149,4 +149,15 @@ describe("the host API a framed module reaches", () => {
     await settle();
     expect(undone).toBe(2);
   });
+
+  it("hit.set: the panel's edge strip is drawn over the page too (only its shape is clickable)", async () => {
+    let added = 0;
+    const hits = { add: () => (added++, () => {}) };
+    const el = { dataset: {} } as unknown as HTMLElement;
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "panel-edge", activate() {}, hits });
+    const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 0, y: 0, w: 10, h: 10 }], {}] } });
+    await settle();
+    expect(added).toBe(1);
+  });
 });
