@@ -323,6 +323,13 @@
       "when": 1795352213523,
       "tag": "0045_lost_create_sends",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795358202034,
+      "tag": "0046_mail_mailbox",
+      "breakpoints": true
     }
   ]
 }

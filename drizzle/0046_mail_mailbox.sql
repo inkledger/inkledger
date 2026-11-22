@@ -1,0 +1,1 @@
+ALTER TABLE "mails" ADD COLUMN IF NOT EXISTS "mailbox" text;

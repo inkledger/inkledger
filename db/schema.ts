@@ -988,6 +988,8 @@ export const mails = pgTable(
     goneAt: ms("gone_at"),
     /** Last looked for in the mailbox */
     checkedAt: ms("checked_at"),
+    /** The signed-in mailbox it was found in (its account, lower case); null: not known to be there */
+    mailbox: text("mailbox"),
     /** Why its copy couldn't be made (the pin stands) */
     copyError: text("copy_error"),
     createdAt: ms("created_at")
