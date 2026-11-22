@@ -65,9 +65,15 @@ const fonts = fontLoader(
   ],
   url => fetch(url).then(r => r.blob()),
 );
-const readLook = () => {
+// Read once per theme change for every frame (the hub hands each subscriber the same object).
+const looks = new WeakMap<object, string>();
+const readLook = (theme: object) => {
+  const known = looks.get(theme);
+  if (known !== undefined) return known;
   const root = getComputedStyle(document.documentElement);
-  return themeSheet({ token: n => root.getPropertyValue(n), fontFamily: getComputedStyle(document.body).fontFamily, fontSize: root.fontSize });
+  const css = themeSheet({ token: n => root.getPropertyValue(n), fontFamily: getComputedStyle(document.body).fontFamily, fontSize: root.fontSize });
+  looks.set(theme, css);
+  return css;
 };
 let layout: ReturnType<typeof createLayoutFeed> | null = null;
 const layoutFeed = () =>
@@ -147,7 +153,7 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box);
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(() => push(readLook())), fonts } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(t => push(readLook(t))), fonts } });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({

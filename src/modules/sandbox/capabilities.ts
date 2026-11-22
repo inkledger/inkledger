@@ -70,6 +70,8 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         let tokens = "";
         let alive = true;
         const off = d.look.watch(css => {
+          // A theme change that leaves the tokens as they were (the sky's dimming) sends nothing.
+          if (css === tokens) return;
           tokens = css;
           push({ tokens });
         });
