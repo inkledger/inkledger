@@ -106,7 +106,7 @@ async function budgetFor(conn: Connection, b: BoundTracker, signal: AbortSignal)
  * out and the pass fails (its checkpoint kept for the next). A connection
  * that goes quiet is cut sooner, by the HTTP agent's idle timeouts.
  */
-export const PASS_DEADLINE_MS = 30 * 60_000;
+export const PASS_DEADLINE_MS = 4 * 60 * 60_000;
 
 /** A pass's signal: the caller's, if any, and the pass deadline, whichever fires first; `done` clears the deadline. */
 function passSignal(outer: AbortSignal | undefined, ms: number): { signal: AbortSignal; done: () => void } {

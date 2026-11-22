@@ -31,7 +31,7 @@ const MAX_REDIRECTS = 3;
 const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "PRIVATE-TOKEN", "X-Api-Key", "X-Redmine-API-Key", "Shortcut-Token"];
 
 /** How long a tracker may stay silent: before its headers, and between two chunks of its body. */
-export const AGENT_TIMEOUTS = { headersTimeout: 60_000, bodyTimeout: 60_000 } as const;
+export const AGENT_TIMEOUTS = { headersTimeout: 120_000, bodyTimeout: 120_000 } as const;
 
 /**
  * Connections made only to addresses the network allows, checked when the
