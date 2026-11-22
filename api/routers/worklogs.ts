@@ -417,6 +417,8 @@ export const worklogsRouter = createRouter({
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       // Its tracker keeps no time: inkledger already has them all.
       if (keepsTimeLocally(conn)) return { synced: 0 };
+      // Jira's client reaches Jira only: on another tracker it reads the wrong API.
+      if (conn.type !== "jira") return { synced: 0 };
       const { user, creds } = contextFor(ctx.user, conn);
       const remote = await fetchWorklogs(creds, input.issueKey);
       const db = getDb();
