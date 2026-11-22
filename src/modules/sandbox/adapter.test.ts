@@ -5,6 +5,7 @@ import { capabilityMethods, type CapabilityDeps } from "./capabilities";
 import { method } from "./rpc";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
+import { createModuleCache, type CacheBackend } from "./cache";
 import type { ImportancePage } from "./importance";
 import type { ViewBox } from "./methods";
 import { bootFrame, settle } from "./bootFrame.testkit";
@@ -30,6 +31,16 @@ const feeds = {
   blur: (_b: Element, push: (px: number) => void) => (push(5), () => {}),
 } as unknown as Pick<CapabilityDeps, "pointer" | "layout" | "blur">;
 
+function memoryCache(): CacheBackend {
+  const rows = new Map<string, { value: Blob; at: number }>();
+  return {
+    get: async (m, k) => rows.get(m + "/" + k)?.value ?? null,
+    put: async (m, k, value, at) => void rows.set(m + "/" + k, { value, at }),
+    delete: async (m, k) => void rows.delete(m + "/" + k),
+    entries: async () => [],
+  };
+}
+
 const emptyPage: ImportancePage = {
   width: 100,
   height: 100,
@@ -47,7 +58,7 @@ function withModule(
   view: ViewBox | null = null,
 ) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()) });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -141,5 +152,15 @@ describe("the frame's host API (bootstrap)", () => {
     await settle();
     expect(none[0]).toBe("undefined");
     expect(none[1]).not.toBe("undefined");
+  });
+
+  it("cache: what a module puts, it gets back", async () => {
+    let back: Blob | null = null;
+    withModule(["cache"], (_el, host) => {
+      void host.cache?.put("strip", new Blob(["abc"])).then(() => host.cache?.get("strip").then(b => (back = b)));
+    });
+    await settle(12);
+    expect(back).not.toBeNull();
+    expect(await (back as Blob | null)?.text()).toBe("abc");
   });
 });

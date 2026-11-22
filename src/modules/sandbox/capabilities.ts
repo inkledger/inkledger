@@ -7,6 +7,7 @@ import { parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
 import type { createLayoutFeed, createPointerFeed } from "./feeds";
+import type { createModuleCache } from "./cache";
 
 /**
  * The host API members a framed module gets only with their capability
@@ -26,6 +27,7 @@ export type CapabilityDeps = {
   layout: ReturnType<typeof createLayoutFeed>;
   /** Watches the blur wanted over a backdrop box. */
   blur(box: Element, push: (px: number) => void): () => void;
+  cache: ReturnType<typeof createModuleCache>;
 };
 
 const subId = z.number().int().min(1).max(2 ** 31);
@@ -34,6 +36,7 @@ const MAX_WATCHES = 16;
 /** A picture over messages: under the message cap, with room for the rest of the call. */
 const picture = z.instanceof(Blob).refine(b => b.size > 0 && b.size <= PICTURE_MAX_BYTES);
 const fileName = z.string().max(200);
+const cacheKey = z.string().min(1).max(128);
 
 export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, Method>; dispose(): void } {
   // This frame, as owner of what it set (the light).
@@ -58,6 +61,9 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       },
     }),
     layout: method({ ...watch(push => d.layout.watch(push)), cap: "layout" }),
+    "cache.get": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [10, 30], run: ([k]) => d.cache.get(d.moduleId, k) }),
+    "cache.put": method({ args: z.tuple([cacheKey, z.instanceof(Blob).refine(b => b.size <= PICTURE_MAX_BYTES)]), cap: "cache", rate: [4, 16], run: ([k, b]) => d.cache.put(d.moduleId, k, b) }),
+    "cache.delete": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [4, 16], run: ([k]) => d.cache.delete(d.moduleId, k) }),
     "surfaces.light": method({
       args: z.tuple([z.union([z.null(), z.record(z.string().max(32), z.unknown()).refine(v => Object.keys(v).length <= 8)])]),
       cap: "surfaces.light",
