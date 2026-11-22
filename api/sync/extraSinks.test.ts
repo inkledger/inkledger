@@ -2,6 +2,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.DATABASE_URL = ":memory:";
 
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn(async () => [{ address: "52.200.10.20", family: 4 }]),
+}));
+
 /** The contract's fake tracker as "gitlab" and fake time sink as "harvest"; the sink's build status set by the test. */
 type Fakes = { tracker: unknown; sink: unknown; sinkStatus: string };
 const fakes: Fakes = vi.hoisted((): Fakes => ({ tracker: null, sink: null, sinkStatus: "built" }));
@@ -148,6 +152,51 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-18")).toEqual([]);
     await push();
     expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
+  it("Harvest on a timestamp account (start and end to the minute): a create it took with its answer lost is found the next pass, not filed twice", async () => {
+    const { harvestSimulator } = await import("../providers/harvest/simulator");
+    const { harvestSink } = await import("../providers/harvest/adapter");
+    const { sealSecret } = await import("../lib/crypto");
+    const sim = harvestSimulator(undefined, { timestamps: true });
+    const [before] = await q<{ base_url: string; options: string; remote_account_id: string; encrypted_secret: string }>("SELECT base_url, options, remote_account_id, encrypted_secret FROM connections WHERE id = ?", sinkId);
+    const fake = fakes.sink;
+    let lose = true;
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const res = await sim.fetch(input, init);
+      // The first entry taken, its answer lost on the way.
+      if (lose && init?.method === "POST" && String(input).includes("/time_entries")) {
+        lose = false;
+        throw new TypeError("fetch failed");
+      }
+      return res;
+    });
+    try {
+      fakes.sink = harvestSink;
+      await q("UPDATE connections SET base_url = ?, options = ?, remote_account_id = ?, encrypted_secret = ? WHERE id = ?", sim.apiBase, JSON.stringify({ accountId: sim.accountId }), String(sim.me.id), sealSecret(sim.token, sinkId), sinkId);
+      const { boundSink } = await import("./extraSinks");
+      const { getDb } = await import("../queries/connection");
+      const { connections } = await import("@db/schema");
+      const { eq } = await import("drizzle-orm");
+      const [sink] = await getDb().select().from(connections).where(eq(connections.id, sinkId));
+      const [target] = (await boundSink(sink)!.targets!({ signal: new AbortController().signal, correlationId: "t" }, "", 10)).items;
+      await q("UPDATE sink_mappings SET target_remote_id = ?, activity_id = NULL WHERE sink_connection_id = ?", target.remoteId, sinkId);
+      // 630 s from 14:00:30: kept as 14:00 to 14:11, read back as 660 s.
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 630, started: "2026-10-19T14:00:30+02:00", comment: "to the minute" });
+      await push();
+      expect(await sinkRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await push();
+      const there = sim.entries.filter((e) => e.date === "2026-10-19");
+      expect(there.map((e) => e.hours * 3600)).toEqual([660]);
+      expect(await sinkRow(made.id)).toMatchObject({ state: "synced", remote_id: String(there[0].id) });
+      await caller.worklogs.delete({ id: made.id });
+      await push();
+    } finally {
+      fakes.sink = fake;
+      vi.unstubAllGlobals();
+      await q("UPDATE connections SET base_url = ?, options = ?, remote_account_id = ?, encrypted_secret = ? WHERE id = ?", before.base_url, before.options, before.remote_account_id, before.encrypted_secret, sinkId);
+      await q("UPDATE sink_mappings SET target_remote_id = 't-1', activity_id = 'dev' WHERE sink_connection_id = ?", sinkId);
+    }
   });
 
   it("\"Send now\" sends a delete that background passes no longer try (past the attempts cap)", async () => {

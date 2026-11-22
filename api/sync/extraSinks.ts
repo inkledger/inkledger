@@ -199,6 +199,9 @@ async function adoptTrackerId(w: Worklog, trackerId: string) {
 /** How far a sink's clock may be behind ours when it stamps an entry it just made. */
 const CLOCK_SKEW_MS = 60_000;
 
+/** How far off what was sent an entry read back may be: the service's rounding, and half a minute where it keeps minutes. */
+const slackOf = (b: BoundSink, e: RemoteWorklog, seconds: number) => roundingSlack(b.capabilities.entries.limits, seconds) + (e.minuteOnly ? 30 : 0);
+
 /**
  * Where the sink honours no idempotency key (Tempo), a create sent before with its answer lost
  * (no answer, an odd one, a fault here) may be there already: before sending it again, the
@@ -221,7 +224,7 @@ async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: Ext
   for (const e of there) {
     if (e.authorRemoteId !== sink.remoteAccountId) continue;
     if (!e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
-    if (!holds(e.span, sent, zone, e.dayOnly, roundingSlack(b.capabilities.entries.limits, sent.seconds))) continue;
+    if (!holds(e.span, sent, zone, e.dayOnly, slackOf(b, e, sent.seconds))) continue;
     // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
     if ((e.span.kind !== "session" || e.dayOnly) && (e.createdAt == null || !sameWords(e.comment, sent.comment))) continue;
     if (e.createdAt != null && Number(e.createdAt) < link.sentAt.getTime() - CLOCK_SKEW_MS) continue;
@@ -256,7 +259,7 @@ async function buriedEntry(b: BoundSink, sink: Connection, g: typeof outbox.$inf
   const day = localDateOf(instant(g.started.getTime()), zone);
   for (const e of await b.entries.list(meta(), { from: day, to: day })) {
     if (e.authorRemoteId !== sink.remoteAccountId || !e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
-    if (!buriedBy(g, e, zone, roundingSlack(b.capabilities.entries.limits, g.timeSpentSeconds))) continue;
+    if (!buriedBy(g, e, zone, slackOf(b, e, g.timeSpentSeconds))) continue;
     const [taken] = await getDb()
       .select({ id: worklogSinks.id })
       .from(worklogSinks)
