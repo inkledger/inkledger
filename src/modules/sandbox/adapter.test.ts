@@ -445,3 +445,52 @@ describe("storage writes from a frame", () => {
     expect(done).toBe(20);
   });
 });
+
+describe("cleanups that save", () => {
+  const timeline = () => {
+    const t0 = Date.now();
+    const log: [string, number][] = [];
+    return { log, mark: (what: string) => log.push([what, Date.now() - t0]) };
+  };
+
+  it("a view's cleanup promise is waited for: the host hears it is done only once it settles", async () => {
+    const { log, mark } = timeline();
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => new Promise<void>(r => setTimeout(() => (mark("saved"), r()), 60)) } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, onUnmounted: () => mark("unmounted") });
+    await settle();
+    f.peer.send({ v: RPC_VERSION, t: "unmount" });
+    await new Promise(r => setTimeout(r, 120));
+    expect(log.map(([w]) => w)).toEqual(["saved", "unmounted"]);
+  });
+
+  it("a cleanup promise that never settles holds the frame about a second, no more", async () => {
+    const { log, mark } = timeline();
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => new Promise<void>(() => {}) } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, onUnmounted: () => mark("unmounted") });
+    await settle();
+    f.peer.send({ v: RPC_VERSION, t: "unmount" });
+    await new Promise(r => setTimeout(r, 600));
+    expect(log).toEqual([]);
+    await new Promise(r => setTimeout(r, 600));
+    expect(log.map(([w]) => w)).toEqual(["unmounted"]);
+  });
+
+  it("the runtime's cleanup runs when the host closes it, and on pagehide, once", async () => {
+    const order: string[] = [];
+    const runtime = () => () => new Promise<void>(r => setTimeout(() => (order.push("flushed"), r()), 20));
+    const mod = { id: "m", hostApi: 2, runtime, mount: {} };
+    const f = bootFrame({ capabilities: ["runtime"], mod, methods: {}, role: "runtime", onUnmounted: () => order.push("unmounted") });
+    await settle();
+    f.peer.send({ v: RPC_VERSION, t: "unmount" });
+    await new Promise(r => setTimeout(r, 60));
+    expect(order).toEqual(["flushed", "unmounted"]);
+
+    let ran = 0;
+    const g = bootFrame({ capabilities: ["runtime"], mod: { id: "m", hostApi: 2, runtime: () => () => void ran++, mount: {} }, methods: {}, role: "runtime" });
+    await settle();
+    g.pagehide();
+    g.pagehide();
+    await settle();
+    expect(ran).toBe(1);
+  });
+});

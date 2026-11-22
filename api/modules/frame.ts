@@ -310,7 +310,10 @@ async function start(init, port) {
   if (!mod || mod.id !== init.moduleId || mod.hostApi !== 2 || typeof mod.mount !== "object" || !mod.mount) return fail("load", "not an inkledger module (v2)");
   try {
     if (init.role === "runtime") {
-      if (typeof mod.runtime === "function") mod.runtime(Object.assign(host, { views }));
+      if (typeof mod.runtime === "function") {
+        const off = mod.runtime(Object.assign(host, { views }));
+        if (typeof off === "function") unmount = off;
+      }
     } else {
       const mount = mod.mount[init.slot];
       if (typeof mount !== "function") throw new Error("nothing to mount in " + init.slot);
@@ -362,6 +365,15 @@ async function start(init, port) {
   }
 }
 
+// A cleanup's promise (saves in flight), waited for at most CLEANUP_MS; null when it returned none.
+const CLEANUP_MS = 1000;
+const cleanup = (off) => {
+  let r;
+  try { r = off(); } catch (e) { report(e); }
+  if (!r || typeof r.then !== "function") return null;
+  return Promise.race([Promise.resolve(r).catch(report), new Promise((res) => setTimeout(res, CLEANUP_MS))]);
+};
+
 // The host's watchdog hears from every frame twice a second, with this frame's
 // own long tasks since the last beat: frames share a process, so a late beat
 // alone can't say whose loop stalled it.
@@ -391,11 +403,13 @@ addEventListener("message", (e) => {
   } else if (d.t === "runtime-gone") {
     runtimeIsGone();
   } else if (d.t === "unmount") {
-    // The view is going: its cleanup runs now, and the host removes the frame once told (or past its deadline).
+    // The view (or the runtime) is going: its cleanup runs now, and the host removes the frame once
+    // told (or past its deadline). A cleanup that returns a promise is waited for, up to a second.
     const off = unmount;
     unmount = null;
-    if (off) safe(off);
-    send({ t: "unmounted" });
+    const done = off ? cleanup(off) : null;
+    if (done) void done.then(() => send({ t: "unmounted" }));
+    else send({ t: "unmounted" });
   } else if (d.t === "port") {
     if (!e.ports[0]) return;
     if (onView) safe(onView, e.ports[0], d.slot);
@@ -405,15 +419,15 @@ addEventListener("message", (e) => {
     void start(d, e.ports[0]);
   }
 });
-// Its box removed with this frame in it (nothing could park it): the cleanup still runs as the
-// document goes (what it then asks of the host is lost with it).
+// Its box removed with this frame in it (nothing could park it), or the page going: the view's or
+// the runtime's cleanup still runs as the document goes (what it then asks of the host may be lost).
 addEventListener("pagehide", (e) => {
   // Kept for a back/forward return: the view stays as it is.
   if (e.persisted) return;
   const off = unmount;
   unmount = null;
   if (!off) return;
-  safe(off);
+  void cleanup(off);
   send({ t: "unmounted" });
 });
 send({ t: "ready" });

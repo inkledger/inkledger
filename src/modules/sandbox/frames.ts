@@ -28,8 +28,8 @@ import { moduleSessions } from "./session";
  * again (it navigated) stops its whole module for the session.
  */
 
-/** How long a removed view's cleanup may take before its frame goes anyway. */
-const UNMOUNT_MS = 250;
+/** How long a removed view's (or runtime's) cleanup may take before its frame goes anyway: the frame waits up to 1 s for a cleanup's promise. */
+const UNMOUNT_MS = 1300;
 /** Slots with no height of their own: the view frame takes its content's, up to FIT_MAX_PX. */
 const FIT_SLOTS: readonly ViewSlot[] = ["settings", "sidebar-footer", "mobile-more"];
 const FIT_MAX_PX = 2000;
@@ -138,6 +138,18 @@ function kill(id: string, why: string, reason: "slow" | "navigated") {
   console.warn(`[module ${id}] stopped: ${why}`);
   [...(onKill.get(id) ?? [])].forEach(f => f());
 }
+
+/** Cleanups under way in a module's frames: its runtime closes after its views' (their last words reach it). */
+const settling = new Map<string, Set<Promise<void>>>();
+const settle = (id: string, p: Promise<void>) => {
+  const set = settling.get(id) ?? new Set();
+  settling.set(id, set);
+  set.add(p);
+  void p.then(() => {
+    set.delete(p);
+    if (set.size === 0 && settling.get(id) === set) settling.delete(id);
+  });
+};
 
 const whenKilled = (id: string, fn: () => void) => {
   const set = onKill.get(id) ?? new Set();
@@ -268,10 +280,12 @@ function openFrame(
       sizeFrame = 0;
       let ended = false;
       let deadline: ReturnType<typeof setTimeout> | undefined = undefined;
+      let settled = () => {};
       const end = () => {
         if (ended) return;
         ended = true;
         clearTimeout(deadline);
+        settled();
         onUnmounted = null;
         removePeer();
         served.dispose();
@@ -279,10 +293,11 @@ function openFrame(
         disposeApi();
         iframe.remove();
       };
-      // A live view runs its cleanup first (it may still save), served until it's done: parked off
-      // screen where moveBefore keeps its document, else (WebKit) left where it is, unseen.
-      if (role !== "view" || !mounted || killed.has(entry.id) || !iframe.isConnected) return end();
-      if (!park(iframe)) Object.assign(iframe.style, { visibility: "hidden", position: "absolute" });
+      // A live view or runtime runs its cleanup first (it may still save), served until it's done. A view
+      // is parked off screen where moveBefore keeps its document, else (WebKit) left where it is, unseen.
+      if (!mounted || killed.has(entry.id) || !iframe.isConnected) return end();
+      if (role === "view" && !park(iframe)) Object.assign(iframe.style, { visibility: "hidden", position: "absolute" });
+      settle(entry.id, new Promise<void>(resolve => (settled = resolve)));
       onUnmounted = end;
       peer.send({ v: RPC_VERSION, t: "unmount" });
       deadline = setTimeout(end, UNMOUNT_MS);
@@ -314,7 +329,11 @@ function stopRuntime(id: string) {
   if (!r) return;
   runtimes.delete(id);
   r.offKill();
-  r.frame?.stop();
+  // Told to close (and given its deadline to save) once its views' cleanups are done.
+  const frame = r.frame;
+  const views = [...(settling.get(id) ?? [])];
+  if (views.length === 0) frame?.stop();
+  else void Promise.all(views).then(() => frame?.stop());
   r.waiting.forEach(([p]) => p.close());
   // Never a dead port without a word: the views fall back on their own.
   r.views.forEach(v => v.send({ v: RPC_VERSION, t: "runtime-gone" }));

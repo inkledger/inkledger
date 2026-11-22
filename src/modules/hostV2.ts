@@ -144,13 +144,20 @@ export type RuntimeHost = Basics &
     views(fn: (port: MessagePort, slot: ViewSlot) => void): () => void;
   };
 
+/**
+ * What a mount or the runtime hands back: run as its frame goes (a slot unmounted, the
+ * module switched off or uninstalled, the page going). A promise (saves in flight) is
+ * waited for up to a second; as the page goes nothing is waited for.
+ */
+export type Cleanup = () => void | Promise<void>;
+
 /** A framed module's default export. */
 export type InkledgerModuleV2 = {
   id: string;
   hostApi: 2;
-  /** Runs once in the module's runtime frame ("runtime" capability); returns its cleanup. */
-  runtime?(host: RuntimeHost): () => void;
-  mount: Partial<Record<ViewSlot, (el: HTMLElement, host: HostApiV2) => () => void>>;
+  /** Runs once in the module's runtime frame ("runtime" capability); returns its cleanup, run after its views'. */
+  runtime?(host: RuntimeHost): Cleanup;
+  mount: Partial<Record<ViewSlot, (el: HTMLElement, host: HostApiV2) => Cleanup>>;
 };
 
 /** Which capability unlocks each optional member. */
