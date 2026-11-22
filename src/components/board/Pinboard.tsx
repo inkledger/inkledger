@@ -139,6 +139,7 @@ function PaperNote({ children }: { children: React.ReactNode }) {
 
 type NoteActions = {
   front: (id: number) => void;
+  drag: (id: number, p: { x: number; y: number } | null) => void;
   nudge: (id: number, dx: number, dy: number) => void;
   move: (n: PostItData, x: number, y: number) => void;
   note: (n: PostItData, note: string) => void;
@@ -167,7 +168,7 @@ const PinnedNote = memo(function PinnedNote({ n, zoom, readOnly, boards, actions
       onNudge={(dx, dy) => actions.current?.nudge(n.id, dx, dy)}
       onMove={(x, y) => actions.current?.move(n, x, y)}
       onNote={note => actions.current?.note(n, note)}
-      onDrag={p => pinboardLive.set(n.id, p)}
+      onDrag={p => actions.current?.drag(n.id, p)}
       onColor={color => actions.current?.color(n, color)}
       onRemove={() => actions.current?.remove(n)}
       onTodoTick={n.todo ? done => actions.current?.tick(n, done) : undefined}
@@ -264,6 +265,13 @@ export function Pinboard({
     utils.pinboard.list.setData(listInput, old => (old ? f(old) : old));
   // Saves under way on this board: the list is read again once the last one is done.
   const saving = useRef(0);
+  // A post-it being dragged (raised locally): the read waits for its end, or it sinks mid-drag.
+  const dragging = useRef(false);
+  const owed = useRef(false);
+  const reread = () => {
+    owed.current = dragging.current;
+    if (!dragging.current) void utils.pinboard.list.invalidate(listInput);
+  };
   /** Optimistic local change, then the server; any error reloads the truth. */
   const patch = (id: number, p: Partial<PostItData>, send: () => Promise<unknown>) => {
     // A read already on its way (a refresh, a live event) would land with the old places: dropped,
@@ -274,7 +282,7 @@ export function Pinboard({
     queue(id, send)
       .catch(fail)
       .finally(() => {
-        if (--saving.current === 0) void utils.pinboard.list.invalidate(listInput);
+        if (--saving.current === 0) reread();
       });
   };
   // One request at a time per note, so quick moves land in order.
@@ -492,6 +500,12 @@ export function Pinboard({
   useLayoutEffect(() => {
     noteActions.current = {
       front: toFront,
+      drag: (id, p) => {
+        pinboardLive.set(id, p);
+        dragging.current = !!p;
+        // Ended with no save (cancelled, dropped in place): the read held for it now.
+        if (!p && owed.current && saving.current === 0) reread();
+      },
       nudge,
       move: (n, x, y) =>
         patch(n.id, { x, y }, () =>
