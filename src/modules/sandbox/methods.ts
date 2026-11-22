@@ -33,6 +33,24 @@ const region = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("circle"), x: num, y: num, r: num.min(0) }).strict(),
 ]);
 
+/** An overlay's shape as an alpha mask over its box (the frame scales its picture down to this). */
+export const MASK_MAX_SIDE = 512;
+const side = z.number().int().min(1).max(MASK_MAX_SIDE);
+const mask = z
+  .object({ kind: z.literal("mask"), w: side, h: side, alpha: z.instanceof(Uint8Array) })
+  .strict()
+  .refine(m => m.alpha.length === m.w * m.h);
+/** Alpha at or over this is the shape (antialiased edges below it let the page keep the click). */
+const MASK_SOLID = 32;
+
+/** Whether a point of a box (w × h) is on the mask stretched over it. */
+export const onMask = (m: { w: number; h: number; alpha: Uint8Array }, x: number, y: number, w: number, h: number) => {
+  if (w <= 0 || h <= 0) return false;
+  const mx = Math.min(m.w - 1, Math.floor((x / w) * m.w));
+  const my = Math.min(m.h - 1, Math.floor((y / h) * m.h));
+  return mx >= 0 && my >= 0 && (m.alpha[my * m.w + mx] ?? 0) >= MASK_SOLID;
+};
+
 const inRegion = (r: HitRegion, x: number, y: number) =>
   r.kind === "rect" ? x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h : (x - r.x) ** 2 + (y - r.y) ** 2 <= r.r ** 2;
 
@@ -42,7 +60,7 @@ export type Cas = {
 };
 
 /** Where a view draws, for what touches its box (hit regions, dock, preblurred); none for the runtime. */
-export type ViewBox = { el: HTMLElement; slot: string; activate: () => void };
+export type ViewBox = { el: HTMLElement; slot: string; activate: () => void; onDock?: () => void };
 
 /**
  * The host API a framed module reaches over messages, from the same hub API
@@ -130,11 +148,17 @@ export function frameMethods(
     methods: {
       ...methods,
       "hit.set": method({
-        args: z.tuple([z.array(region).max(32)]),
+        args: z.union([z.tuple([z.array(region).max(32)]), z.tuple([mask])]),
         rate: [10, 10],
-        run([regions]) {
+        run([shape]) {
           dispose();
-          if (regions.length === 0 || !OVERLAYS.includes(view.slot)) return;
+          if (!OVERLAYS.includes(view.slot)) return;
+          if (!Array.isArray(shape)) {
+            unhit = hitAreas().add(box, (x, y, w, h) => onMask(shape, x, y, w, h), view.activate);
+            return;
+          }
+          const regions: readonly HitRegion[] = shape;
+          if (regions.length === 0) return;
           unhit = hitAreas().add(box, (x, y) => regions.some(r => inRegion(r, x, y)), view.activate);
         },
       }),
@@ -145,6 +169,7 @@ export function frameMethods(
         run([on]) {
           if (on) box.dataset.docked = "";
           else delete box.dataset.docked;
+          view.onDock?.();
         },
       }),
       "backdrop.preblurred": method({

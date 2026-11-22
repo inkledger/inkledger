@@ -30,7 +30,7 @@ const inlineJson = (v: unknown) => JSON.stringify(v).replace(/</g, LT);
  * print; Worker shimmed to work in an opaque frame; the host API rebuilt over
  * messages to the parent. Says ready, gets its role, then imports the entry.
  */
-const BOOTSTRAP = `const V = 1;
+export const BOOTSTRAP = `const V = 1;
 const quiet = () => {};
 const abs = (u) => new URL(u, location.href).href;
 const report = (e) => console.error("[module]", e);
@@ -66,14 +66,30 @@ const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
 const send = (m, transfer) => parent.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
-const call = (m, a) => new Promise((resolve, reject) => {
+// Over the host's message cap a call would go unanswered: refused here instead.
+const MAX_BYTES = 1000000;
+const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
+const call = (m, a, transfer) => new Promise((resolve, reject) => {
+  if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));
   const id = ++seq;
   pending.set(id, { resolve, reject });
-  send({ t: "call", id, m, a: a || [] });
+  send({ t: "call", id, m, a: a || [] }, transfer);
 });
-const fire = (m, a) => void call(m, a).catch(report);
+const fire = (m, a, transfer) => void call(m, a, transfer).catch(report);
+// A picture's alpha, scaled to at most 512 px a side: the overlay's shape for the host's hit test.
+const alphaMask = (pic) => {
+  const k = Math.min(1, 512 / Math.max(pic.width, pic.height, 1));
+  const w = Math.max(1, Math.round(pic.width * k)), h = Math.max(1, Math.round(pic.height * k));
+  const c = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(w, h) : Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const g = c.getContext("2d");
+  g.drawImage(pic, 0, 0, w, h);
+  const rgba = g.getImageData(0, 0, w, h).data;
+  const alpha = new Uint8Array(w * h);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
+  return { kind: "mask", w, h, alpha };
+};
 // A value with subscribers: one subscription at the host, the latest kept for late subscribers.
-const state = (name) => {
+const held = (start, stop) => {
   const fns = new Set();
   let id = 0, has = false, last;
   return (fn) => {
@@ -82,17 +98,19 @@ const state = (name) => {
     if (!id) {
       id = ++seq;
       pushes.set(id, (v) => { last = v; has = true; for (const f of [...fns]) safe(f, v); });
-      fire("sub", [id, name]);
+      start(id);
     }
     return () => {
       if (!fns.delete(fn) || fns.size > 0 || !id) return;
       pushes.delete(id);
-      fire("unsub", [id]);
+      stop(id);
       id = 0;
       has = false;
     };
   };
 };
+const state = (name) => held((id) => fire("sub", [id, name]), (id) => fire("unsub", [id]));
+const watched = (m) => held((id) => fire(m, [id]), (id) => fire("unwatch", [id]));
 const on = (name, fn) => {
   const id = ++seq;
   pushes.set(id, (d) => safe(fn, d));
@@ -105,7 +123,20 @@ const views = (fn) => {
   return () => { onView = null; };
 };
 
+// The app's look: its tokens (again on every theme change) and its fonts.
+const sheet = (id) => {
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement("style"); el.id = id; document.head.append(el); }
+  return el;
+};
+const applyLook = (v) => {
+  if (!v) return;
+  if (typeof v.tokens === "string") sheet("ikl-theme").textContent = v.tokens;
+  if (typeof v.fonts === "string") sheet("ikl-fonts").textContent = v.fonts;
+};
+
 async function start(init, port) {
+  watched("look")(applyLook);
   const has = (c) => init.capabilities.includes(c);
   const host = {
     version: 2,
@@ -144,13 +175,23 @@ async function start(init, port) {
       },
     },
   };
+  if (has("surfaces.light")) host.surfaces.light = (vars) => fire("surfaces.light", [vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, String(v)]))]);
+  if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
+  if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
+  if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
+  if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
+  if (has("cache")) host.cache = { get: (k) => call("cache.get", [k]), put: (k, b) => call("cache.put", [k, b]).then(quiet), delete: (k) => call("cache.delete", [k]).then(quiet) };
+  if (has("sheet")) host.sheet = { open: () => fire("sheet.open"), close: () => fire("sheet.close") };
+  if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
-  if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]) };
+  if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
+  if (has("pointer") && init.role === "view") host.pointer = watched("pointer");
+  if (has("layout")) host.layout = watched("layout");
   const fail = (what, e) => send({ t: "failed", reason: (what + ": " + String((e && e.message) || e)).slice(0, 400) });
   let mod;
   try {
     // Pinned by the import map's integrity: other bytes never run.
-    mod = (await import(ENTRY)).default;
+    mod = (await load()).default;
   } catch (e) {
     return fail("load", e);
   }
@@ -162,8 +203,27 @@ async function start(init, port) {
       const mount = mod.mount[init.slot];
       if (typeof mount !== "function") throw new Error("nothing to mount in " + init.slot);
       host.slot = init.slot;
-      host.hit = { set: (regions, fn) => { activate = typeof fn === "function" ? fn : null; fire("hit.set", [regions]); } };
+      // Ten shapes a second at most, the latest winning: the host refuses faster, and a refused last shape would stay wrong.
+      let hitAt = -1000, hitTimer = 0, hitNext = null;
+      const sendHit = () => {
+        hitTimer = 0;
+        hitAt = Date.now();
+        const shape = hitNext;
+        hitNext = null;
+        if (Array.isArray(shape)) return fire("hit.set", [shape]);
+        const m = alphaMask(shape);
+        fire("hit.set", [m], [m.alpha.buffer]);
+      };
+      host.hit = {
+        set: (shape, fn) => {
+          activate = typeof fn === "function" ? fn : null;
+          hitNext = shape;
+          if (!hitTimer) hitTimer = setTimeout(sendHit, Math.max(0, hitAt + 100 - Date.now()));
+        },
+      };
       if (port) host.runtime = port;
+      // Esc in the sheet's frame never reaches the host's dialog: told here.
+      if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); });
       const box = document.createElement("div");
       box.id = "ikl-box";
       document.body.append(box);
@@ -219,6 +279,7 @@ export const frameDocument = (entryUrl: string, integrity: string, nonce: string
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#ikl-box{position:absolute;inset:0}</style>
 <script type="importmap" nonce="${nonce}">${inlineJson({ imports: {}, integrity: { [entryUrl]: integrity } })}</script>
 <script type="module" nonce="${nonce}">const ENTRY = ${inlineJson(entryUrl)};
+const load = () => import(ENTRY);
 ${BOOTSTRAP}</script>
 </head><body></body></html>
 `;

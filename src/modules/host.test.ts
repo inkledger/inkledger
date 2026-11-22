@@ -231,3 +231,18 @@ describe("host hub: cache notifications", () => {
     hub.dispose();
   });
 });
+
+describe("host hub: theme", () => {
+  it("carries the night's dimming the light set on the page", async () => {
+    vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: (k: string) => (k === "--sky-dim" ? " 0.42" : "0 0% 0%") }));
+    const { createHub } = await import("./host");
+    const hub = createHub(new QueryClient(), fakeUtils(() => []) as never);
+    const { api, dispose } = hub.apiFor("test", "dashboard-widget");
+    const heard: unknown[] = [];
+    api.theme(v => heard.push(v));
+    expect(heard[0]).toMatchObject({ skyDim: 0.42 });
+    dispose();
+    hub.dispose();
+    vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "0 0% 0%" }));
+  });
+});

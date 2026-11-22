@@ -7,6 +7,7 @@ import { onAppEvent } from "./appEvents";
 import { currentLocale } from "@/i18n";
 import { hitAreas } from "./hit";
 import { SURFACES } from "@/components/app/surface";
+import type { ThemeStateV2 } from "./hostV2";
 import type {
   HostApiV1,
   HostEventName,
@@ -92,7 +93,7 @@ export function priorityRank(name: string): number | null {
 
 const TOKENS = ["primary", "foreground", "muted", "card", "border", "background", "ring"] as const;
 
-function readTheme(night = true): ThemeState {
+function readTheme(night = true): ThemeStateV2 {
   const root = document.documentElement;
   const css = getComputedStyle(root);
   const tokens = Object.fromEntries(
@@ -104,6 +105,8 @@ function readTheme(night = true): ThemeState {
     tokens,
     night,
     softwareRender: softwareRender(),
+    // The night's dimming as the light on the page sets it (framed modules can't read :root).
+    skyDim: Math.min(1, Math.max(0, Number.parseFloat(css.getPropertyValue("--sky-dim")) || 0)),
   };
 }
 
@@ -114,7 +117,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   const today = store<TodayState>({ loggedSeconds: 0, goalSeconds: null, workTime: false });
   // Night on the Dashboard as the person set it (Settings → Appearance); on by default.
   const nightOf = () => (utils.settings.get.getData()?.dashboardNight ?? 1) === 1;
-  const theme = store<ThemeState>(readTheme(nightOf()));
+  const theme = store<ThemeStateV2>(readTheme(nightOf()));
   // The module whose settings sheet is open (ModuleSettingsSheet).
   const settingsOf = store<string | null>(null);
   const listeners = new Map<HostEventName, Set<(d: never) => void>>();

@@ -1211,6 +1211,9 @@ export const settings = {
       description: "Saved for you on this server.",
       backdrop: "How much of the scene shows behind the Dashboard is set in Appearance:",
     },
+    moduleSheet: {
+      description: "Drawn by {name}, in its own sandbox.",
+    },
     switch: {
       label: "{name} on",
       badge: "Off",

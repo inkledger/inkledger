@@ -1,0 +1,80 @@
+import vm from "node:vm";
+import { BOOTSTRAP } from "../../../api/modules/frame";
+import type { ModuleCapability } from "@contracts/modules";
+import { createRpcPeer, RPC_VERSION, type HostMessage, type Method } from "./rpc";
+
+/**
+ * The frame's bootstrap run for real (node:vm, the entry's import stubbed)
+ * against a real host peer: what a module calls in its frame, as the host
+ * receives it. No DOM: the few objects it touches are faked.
+ */
+export function bootFrame(o: {
+  capabilities: ModuleCapability[];
+  mod: unknown;
+  methods: Record<string, Method>;
+  role?: "view" | "runtime";
+  slot?: string;
+  /** More of the frame's window (an OffscreenCanvas, say). */
+  globals?: Record<string, unknown>;
+}) {
+  const frameListeners: ((e: unknown) => void)[] = [];
+  const parentWin = {
+    postMessage(m: unknown, _origin: string, transfer: Transferable[] = []) {
+      // Into the host's realm, as the browser's structured clone would.
+      const data: unknown = structuredClone(m, { transfer });
+      queueMicrotask(() => peer.receive({ source: frameWin, origin: "null", data }));
+    },
+  };
+  const frameWin = {};
+  const box = { id: "", style: {}, dataset: {} as Record<string, string> };
+  const styles = new Map<string, { id: string; textContent: string }>();
+  const keys: ((e: { key: string }) => void)[] = [];
+  const doc = {
+    createElement: (tag: string) => (tag === "style" ? { id: "", textContent: "" } : box),
+    getElementById: (id: string) => styles.get(id) ?? null,
+    body: { append() {} },
+    head: { append: (el: { id: string; textContent: string }) => void styles.set(el.id, el) },
+    addEventListener: (t: string, fn: (e: { key: string }) => void) => t === "keydown" && keys.push(fn),
+  };
+  const errors: unknown[] = [];
+  const context = vm.createContext({
+    parent: parentWin,
+    window: {},
+    document: doc,
+    location: { href: "http://app.test/modules/frame/x/0" },
+    addEventListener: (t: string, fn: (e: unknown) => void) => t === "message" && frameListeners.push(fn),
+    load: async () => ({ default: o.mod }),
+    URL,
+    Blob,
+    setTimeout,
+    // The beat to the watchdog (twice a second): not what these tests read.
+    setInterval: () => 0,
+    clearInterval: () => undefined,
+    queueMicrotask,
+    structuredClone,
+    console: { error: (...a: unknown[]) => errors.push(a), warn() {}, log() {} },
+    ...o.globals,
+  });
+  const sent: HostMessage[] = [];
+  const peer = createRpcPeer({
+    source: () => frameWin,
+    post(m, transfer) {
+      sent.push(m);
+      const data: unknown = structuredClone(m, { transfer });
+      const ports = transfer.filter(t => t instanceof MessagePort);
+      queueMicrotask(() => frameListeners.forEach(fn => fn({ source: parentWin, data, ports })));
+    },
+    capabilities: o.capabilities,
+    methods: o.methods,
+    onReady() {
+      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {} });
+    },
+  });
+  vm.runInContext(BOOTSTRAP, context);
+  return { peer, sent, box, errors, styles, keydown: (key: string) => keys.forEach(fn => fn({ key })) };
+}
+
+/** Lets the messages both ways go round. */
+export const settle = async (rounds = 6) => {
+  for (let i = 0; i < rounds; i++) await new Promise(r => setTimeout(r, 0));
+};

@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   BUNDLE_MAX_BYTES,
-  HOST_API_VERSION,
   LICENSE_CONTEXT,
   LICENSE_VERSION,
   MANIFEST_FILE,
@@ -11,6 +10,7 @@ import {
   PACKAGE_CONTEXT,
   SIGNATURE_FILE,
   runsHere,
+  hostApiFits,
   MODULES_FRAME_PATH,
   type LicensePayload,
   type ModuleListEntry,
@@ -70,10 +70,10 @@ export const buildOf = (signature: string) => sha256hex(Buffer.from(signature.tr
 /**
  * Whether a package may run as its manifest asks: in the page only publisher
  * code built for host API v1 (it has the page's privileges); anything else in
- * a sandboxed frame.
+ * a sandboxed frame, built for v2 (the frame's bootstrap runs nothing older).
  */
 export const runtimeAllowed = (m: { runtime: ModuleRuntime; hostApi: { max: number } }, tier: PackageTier): boolean =>
-  m.runtime === "frame" || (tier === "publisher" && m.hostApi.max === 1);
+  m.runtime === "frame" ? m.hostApi.max >= 2 : tier === "publisher" && m.hostApi.max === 1;
 
 /** The full check of a package given as bytes (installed folder or upload). */
 function checkPackage(files: Files, signature: string): CheckedPackage {
@@ -212,8 +212,7 @@ async function licensedProducts(): Promise<Set<string>> {
 
 function statusOf(checked: CheckedPackage, products: Set<string>, licensed?: Set<string>): ModuleStatus {
   if (!checked.ok) return { state: "invalid", reason: checked.reason };
-  const { min, max } = checked.manifest.hostApi;
-  if (HOST_API_VERSION < min || HOST_API_VERSION > max) return { state: "unsupported-host-api" };
+  if (!hostApiFits(checked.manifest.hostApi)) return { state: "unsupported-host-api" };
   if (!products.has(checked.manifest.product)) return licensed?.has(checked.manifest.product) ? { state: "needs-activation" } : { state: "needs-license" };
   return { state: "active" };
 }

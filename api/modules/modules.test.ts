@@ -280,7 +280,7 @@ describe("add-on modules", () => {
   });
 
   it("an unsupported host API version is never installed, and one already there is not loaded", async () => {
-    const future = bundle({ "index.js": ENTRY }, { hostApi: { min: 2, max: 3 }, runtime: "frame" });
+    const future = bundle({ "index.js": ENTRY }, { hostApi: { min: 3, max: 4 }, runtime: "frame" });
     expect(await (await upload(future)).json()).toEqual({ ok: false, reason: "incompatible-host" });
     // As an older inkledger left it on disk (the server was downgraded).
     fs.mkdirSync(path.join(DIR, "hello"));
@@ -294,7 +294,7 @@ describe("add-on modules", () => {
   it("an update this inkledger can't run never replaces the working module", async () => {
     await upload(bundle());
     await (await import("./registry")).addLicense(license("inkledger.hello"));
-    expect(await (await upload(bundle({ "index.js": ENTRY }, { version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame" }))).json()).toEqual({ ok: false, reason: "incompatible-host" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { version: "2.0.0", hostApi: { min: 3, max: 3 }, runtime: "frame" }))).json()).toEqual({ ok: false, reason: "incompatible-host" });
     const [m] = (await caller.modules.list()).modules;
     expect(m).toMatchObject({ version: "1.0.0", status: { state: "active" } });
   });
@@ -307,9 +307,21 @@ describe("add-on modules", () => {
     expect(runtimeAllowed({ runtime: "inpage", hostApi: v2 }, "publisher")).toBe(false);
     expect(runtimeAllowed({ runtime: "inpage", hostApi: v1 }, "framed")).toBe(false);
     for (const tier of ["publisher", "framed"] as const) {
-      expect(runtimeAllowed({ runtime: "frame", hostApi: v1 }, tier)).toBe(true);
+      expect(runtimeAllowed({ runtime: "frame", hostApi: v1 }, tier)).toBe(false);
       expect(runtimeAllowed({ runtime: "frame", hostApi: v2 }, tier)).toBe(true);
     }
+  });
+
+  it("runs host API 1 in the page and 2 in a frame, side by side", async () => {
+    expect(await (await upload(bundle())).json()).toMatchObject({ ok: true });
+    const v2 = bundle({ "index.js": ENTRY }, { id: "framed", product: "inkledger.framed", name: { en: "framed", it: "framed" }, version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame" });
+    expect(await (await upload(v2)).json()).toMatchObject({ ok: true });
+    const { addLicense } = await import("./registry");
+    await addLicense(license("inkledger.hello"));
+    await addLicense(license("inkledger.framed"));
+    const list = (await caller.modules.list()).modules;
+    expect(list.find(m => m.id === "hello")).toMatchObject({ status: { state: "active" }, runtime: "inpage" });
+    expect(list.find(m => m.id === "framed")).toMatchObject({ status: { state: "active" }, runtime: "frame" });
   });
 
   it("a manifest without a runtime runs in the page; one for host API 2 must ask for a frame", async () => {

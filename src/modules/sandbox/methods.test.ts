@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HostApiV1, TimerState } from "../types";
-import { frameMethods, type Cas } from "./methods";
+import { frameMethods, onMask, type Cas } from "./methods";
 import { createRpcPeer, type HostMessage } from "./rpc";
 
 const frame = {};
@@ -95,5 +95,27 @@ describe("the host API a framed module reaches", () => {
     declared.call(1, "dock.set", [true]);
     await settle();
     expect(declared.el.dataset.docked).toBe("");
+  });
+
+  it("hit.set takes an alpha mask over the box, only one whose size it says", async () => {
+    const { sent, call } = setup();
+    call(1, "hit.set", [{ kind: "mask", w: 2, h: 2, alpha: new Uint8Array([0, 255, 0, 0]) }]);
+    call(2, "hit.set", [{ kind: "mask", w: 2, h: 2, alpha: new Uint8Array(3) }]);
+    call(3, "hit.set", [{ kind: "mask", w: 600, h: 1, alpha: new Uint8Array(600) }]);
+    await settle();
+    expect(sent).toEqual([
+      { v: 1, t: "res", id: 2, ok: false, error: "bad-arguments" },
+      { v: 1, t: "res", id: 3, ok: false, error: "bad-arguments" },
+      { v: 1, t: "res", id: 1, ok: true, value: null },
+    ]);
+  });
+
+  it("a mask is stretched over its box; faint edges let the page keep the click", () => {
+    const m = { w: 2, h: 2, alpha: new Uint8Array([0, 255, 20, 0]) };
+    expect(onMask(m, 150, 10, 200, 100)).toBe(true);
+    expect(onMask(m, 50, 10, 200, 100)).toBe(false);
+    expect(onMask(m, 50, 90, 200, 100)).toBe(false);
+    expect(onMask(m, 199.9, 0, 200, 100)).toBe(true);
+    expect(onMask(m, 10, 10, 0, 0)).toBe(false);
   });
 });

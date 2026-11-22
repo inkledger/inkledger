@@ -1,8 +1,20 @@
-import type { ModuleListEntry, SlotId } from "@contracts/modules";
+import type { ModuleListEntry } from "@contracts/modules";
 import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
+import type { ViewSlot } from "../hostV2";
+import { sheetOpen } from "./sheet";
 import { frameMethods } from "./methods";
+import { capabilityMethods } from "./capabilities";
+import { createPageLight } from "./light";
+import { browserBroker, createBroker } from "./broker";
+import { browserPage } from "./importance";
+import { createLayoutFeed, createPointerFeed, watchBlur } from "./feeds";
+import { createModuleCache, indexedDbCache } from "./cache";
+import { fontLoader, themeSheet } from "./themeSheet";
+import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?url";
+import { sidebar } from "@/hooks/useSidebar";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 import { budgetOf, markStopped, watchFrame } from "./watchdog";
 
@@ -44,6 +56,58 @@ const idle = (fn: () => void) => {
 
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
+let broker: ReturnType<typeof createBroker> | null = null;
+let pointer: ReturnType<typeof createPointerFeed> | null = null;
+let cache: ReturnType<typeof createModuleCache> | null = null;
+const fonts = fontLoader(
+  [
+    { family: "Inter Variable", url: interUrl },
+    { family: "Inter Tight Variable", url: interTightUrl },
+  ],
+  url => fetch(url).then(r => r.blob()),
+);
+// Read once per theme change for every frame (the hub hands each subscriber the same object).
+const looks = new WeakMap<object, string>();
+const readLook = (theme: object) => {
+  const known = looks.get(theme);
+  if (known !== undefined) return known;
+  const root = getComputedStyle(document.documentElement);
+  const css = themeSheet({ token: n => root.getPropertyValue(n), fontFamily: getComputedStyle(document.body).fontFamily, fontSize: root.fontSize });
+  looks.set(theme, css);
+  return css;
+};
+let layout: ReturnType<typeof createLayoutFeed> | null = null;
+const layoutFeed = () =>
+  (layout ??= createLayoutFeed({
+    rail: sidebar.collapsed,
+    docked: () => document.querySelector('[data-module-slot="mobile-dock"] [data-docked]') !== null,
+    subscribe: sidebar.subscribe,
+  }));
+const blur = (box: Element, push: (px: number) => void) =>
+  watchBlur(box, push, {
+    style: e => getComputedStyle(e),
+    observe(e, fn) {
+      const o = new MutationObserver(fn);
+      o.observe(e, { attributes: true, attributeFilter: ["style"] });
+      return () => o.disconnect();
+    },
+  });
+let pageLight: ReturnType<typeof createPageLight> | null = null;
+const light = () =>
+  (pageLight ??= createPageLight(
+    {
+      root: document.documentElement.style,
+      addStyle(css) {
+        const el = document.createElement("style");
+        el.id = "ikl-surface-light";
+        el.textContent = css;
+        document.head.append(el);
+        return el;
+      },
+    },
+    SURFACES,
+  ));
+
 /** A module that navigated or slowed the page: all its frames go, and it stays off until the page reloads. */
 function kill(id: string, why: string, reason: "slow" | "navigated") {
   if (killed.has(id)) return;
@@ -69,7 +133,7 @@ type Frame = { iframe: HTMLIFrameElement; stop: () => void };
 function openFrame(
   hub: Hub,
   entry: ModuleListEntry,
-  slot: SlotId,
+  slot: ViewSlot,
   parent: HTMLElement,
   role: "view" | "runtime",
   ready: (peer: RpcPeer) => Transferable[],
@@ -87,16 +151,18 @@ function openFrame(
   }
   // Same colour scheme as the frame's document, or the browser paints it opaque.
   Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" ? "100%" : "0", colorScheme: "normal", background: "transparent" });
-  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
-  const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }) } : null;
+  // The sheet is no manifest slot: its API is the module's as in its first slot.
+  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
+  const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box, budgetOf(entry.id));
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(t => push(readLook(t))), fonts } });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({
     source: () => iframe.contentWindow,
     post: (m: HostMessage, transfer) => iframe.contentWindow?.postMessage(m, "*", transfer),
     capabilities: entry.capabilities,
-    methods: served.methods,
+    methods: { ...served.methods, ...caps.methods },
     onReady() {
       if (initialised) return;
       initialised = true;
@@ -141,6 +207,7 @@ function openFrame(
       watch?.dispose();
       watch = null;
       served.dispose();
+      caps.dispose();
       disposeApi();
       iframe.remove();
     },
@@ -149,7 +216,7 @@ function openFrame(
 
 // ---- Runtime frames: one per module, in a container that never moves ----
 
-type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, SlotId][]; peer: RpcPeer | null; offKill: () => void };
+type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, ViewSlot][]; peer: RpcPeer | null; offKill: () => void };
 const runtimes = new Map<string, Runtime>();
 let shelf: HTMLElement | null = null;
 
@@ -173,7 +240,7 @@ function stopRuntime(id: string) {
 }
 
 /** The module's runtime, made with its first view; a view's port reaches it once it is ready. */
-function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: SlotId, port: MessagePort) {
+function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, port: MessagePort) {
   let r = runtimes.get(entry.id);
   if (r && r.hub !== hub) {
     stopRuntime(entry.id);
@@ -205,7 +272,7 @@ export function keepRuntimes(ids: readonly string[] = []) {
   for (const id of [...runtimes.keys()]) if (!ids.includes(id)) stopRuntime(id);
 }
 
-export function mountView(hub: Hub, entry: ModuleListEntry, slot: SlotId, box: HTMLElement): () => void {
+export function mountView(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, box: HTMLElement): () => void {
   let frame: Frame | null = null;
   const stop = () => {
     frame?.stop();
@@ -219,8 +286,13 @@ export function mountView(hub: Hub, entry: ModuleListEntry, slot: SlotId, box: H
       connectRuntime(hub, entry, slot, channel.port1);
       return [channel.port2];
     });
+    // No frame for it (too many, or the module was stopped): no empty dialog.
+    if (!frame && slot === "sheet") sheetOpen.close(entry.id);
   });
-  const offKill = whenKilled(entry.id, stop);
+  const offKill = whenKilled(entry.id, () => {
+    stop();
+    if (slot === "sheet") sheetOpen.close(entry.id);
+  });
   return () => {
     cancel();
     offKill();
