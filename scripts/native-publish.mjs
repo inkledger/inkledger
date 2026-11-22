@@ -10,7 +10,7 @@
 // updates fine from a link; a store release key comes with phase 4.
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -104,4 +104,6 @@ if (args.has("--dev")) {
   copyFileSync(join(stage, "manifest.json"), join(dev, "manifest.json"));
   console.log("✓ Published for the dev server (data/downloads)");
 }
+// The staged copy is not kept (an APK of tens of MB per run).
+rmSync(stage, { recursive: true, force: true });
 console.log(`  Android ${version} · ${(body.length / 1024 / 1024).toFixed(1)} MB · sha256 ${manifest.android.sha256.slice(0, 12)}…`);
