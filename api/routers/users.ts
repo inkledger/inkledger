@@ -142,10 +142,13 @@ export const usersRouter = createRouter({
       assertWithin(me, input);
       const username = input.username.trim().toLowerCase();
       await assertFreeUsername(username);
-      const [user] = await getDb()
-        .insert(users)
-        .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
-        .returning();
+      // Taken meanwhile (two invites of one name at once): refused as taken.
+      const [user] = await renameWrite(() =>
+        getDb()
+          .insert(users)
+          .values({ username, displayName: input.displayName, role: input.role, permissions: storedPermissions(input.permissions), moduleGrants: storedGrants(input.modules) })
+          .returning(),
+      );
       const { token, expiresAt } = await createInvite(user.id, me.id);
       return { user: row(user), link: inviteLink(token), expiresAt };
     }),

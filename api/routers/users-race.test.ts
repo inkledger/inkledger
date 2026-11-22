@@ -129,6 +129,12 @@ describe("a manager's change races an admin's promotion", () => {
     expect(await q("SELECT permissions FROM users WHERE id = ?", t.id)).toEqual([{ permissions: "[]" }]);
   });
 
+  it("two invites of one username at once: one is made, the other is told it is taken", async () => {
+    const both = await Promise.allSettled([1, 2].map(() => manager.users.invite({ username: "dup", displayName: "D", role: "member", permissions: [] })));
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+  });
+
   it("a manager turned off while its request ran invites nobody", async () => {
     const [m] = await q<{ id: number }>("INSERT INTO users (username, display_name, permissions, created_at) VALUES ('inviter', 'I', '[\"manageUsers\"]', 1) RETURNING id");
     const { appRouter } = await import("../router");
