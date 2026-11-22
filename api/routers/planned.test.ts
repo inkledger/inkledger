@@ -152,6 +152,7 @@ describe("planned entries", () => {
     expect((await addPlan({ ...vacation, startsAt: "1026-10-12T00:00:00+01:00", endsAt: "2025-10-12T00:00:00+01:00" })).id).toBeTruthy();
     await caller.weeks.close({ week: "2026-10-21" });
     await expect(addPlan({ ...vacation, startsAt: "1026-10-12T00:00:00+01:00", endsAt: "9026-10-12T00:00:00+01:00" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect((await addPlan({ ...vacation, startsAt: "0500-01-04T00:00:00+01:00", endsAt: "0600-01-04T00:00:00+01:00" })).id).toBeTruthy();
   });
 
   it("uses an exclusive end at week boundaries", async () => {

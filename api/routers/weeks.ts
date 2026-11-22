@@ -44,9 +44,9 @@ export async function assertWeekOpen(userId: number, date: Date): Promise<void> 
 export async function assertWeeksOpen(userId: number, startsAt: Date, endsAt: Date): Promise<void> {
   const last = new Date(endsAt.getTime() - 1);
   const first = startOfWeek(startsAt);
-  if (first > last) return;
+  // Keys compare as text, from a four-digit year on: no week before year 1000 is closed.
+  if (first > last || last.getFullYear() < 1000) return;
   // A range, not every week listed: a span of years would be thousands of parameters.
-  // Keys compare as text, so from a four-digit year on.
   const from = first.getFullYear() < 1000 ? "1000-01-01" : weekStartKey(first);
   const rows = await getDb()
     .select({ id: weekLocks.id })
