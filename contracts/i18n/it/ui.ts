@@ -311,7 +311,7 @@ export const ui: Shape<typeof en> = {
     showBucket: "Mostra: {name}",
     actions: "Azioni",
     closeDay: "Chiudi la giornata",
-    focusMode: "Focus mode",
+    focusMode: "Modalità focus",
     pinMail: "Fissa una mail…",
     screensaver: "Salvaschermo",
     newIssue: "Nuova issue",

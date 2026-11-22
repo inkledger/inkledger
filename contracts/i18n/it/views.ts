@@ -424,7 +424,7 @@ export const views: Shape<typeof en> = {
       deleteTitle: "Eliminare «{name}»?",
       deleteEmpty: "La lavagna è vuota.",
       deleteNotes: {
-        one: "Verranno eliminati anche i suoi {count} post-it.",
+        one: "Verrà eliminato anche il suo post-it.",
         other: "Verranno eliminati anche i suoi {count} post-it.",
       },
       deleteJira: "Le issue su {provider} non vengono toccate.",

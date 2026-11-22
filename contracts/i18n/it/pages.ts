@@ -955,7 +955,7 @@ export const pages: Shape<typeof en> = {
     prefConflict: "Il layout è cambiato nel frattempo",
     weekTitle: "Settimana {from} – {to}",
     overdueOne: {
-      one: "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.",
+      one: "{key} è scaduta da {days} giorno: aggiorna la scadenza o chiudila.",
       other:
         "{key} è scaduta da {days} giorni: aggiorna la scadenza o chiudila.",
     },
@@ -1036,7 +1036,7 @@ export const pages: Shape<typeof en> = {
       "Registrazioni di oggi non ancora caricate: riprova tra un attimo",
     notDuplicated: "Non duplicata: {reason}",
     duplicated: {
-      one: "{count} worklog duplicati su oggi",
+      one: "{count} worklog duplicato su oggi",
       other: "{count} worklog duplicati su oggi",
     },
     duplicatePartial: "Duplicati {done} di {total}{list}: {message}",
@@ -1048,7 +1048,7 @@ export const pages: Shape<typeof en> = {
     csvTracker: "Tracker",
     csvContainer: "Progetto o repository",
     exported: {
-      one: "Esportati {count} worklog",
+      one: "Esportato {count} worklog",
       other: "Esportati {count} worklog",
     },
     deleteOneTitle: "Eliminare {key}?",
@@ -1062,7 +1062,7 @@ export const pages: Shape<typeof en> = {
     bulkBody: "I worklog selezionati verranno eliminati anche da {provider}.",
     duplicateTitle: "Duplicare la giornata su oggi?",
     duplicateBody: {
-      one: "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).",
+      one: "{count} worklog ({duration}) del {date} verrà creato oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).",
       other:
         "{count} worklog ({duration}) del {date} verranno creati oggi, nello stesso ordine e uno dopo l'altro, terminando adesso (o prima, se quell'orario è già occupato).",
     },
@@ -1090,7 +1090,7 @@ export const pages: Shape<typeof en> = {
     goal: "Obiettivo",
     days: "Giorni",
     deleteSelected: {
-      one: "Elimina {count} selezionati",
+      one: "Elimina {count} selezionato",
       other: "Elimina {count} selezionati",
     },
     emptyWeek: "Nessuna registrazione in questa settimana",

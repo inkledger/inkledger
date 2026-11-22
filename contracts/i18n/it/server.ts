@@ -42,7 +42,7 @@ export const server: Shape<typeof en> = {
     credentialsUnreadable: "Le credenziali salvate di un tracker non sono leggibili: ricollegalo in Impostazioni → Connessioni.",
     loginFailed: "Impossibile accedere: controlla indirizzo e credenziali",
     tooManyAttempts: {
-      one: "Troppi tentativi di accesso. Riprova tra {count} secondi.",
+      one: "Troppi tentativi di accesso. Riprova tra {count} secondo.",
       other: "Troppi tentativi di accesso. Riprova tra {count} secondi.",
     },
     invalidCredentialsServer: "Credenziali Jira non valide. Controlla nome utente e password (o PAT).",
