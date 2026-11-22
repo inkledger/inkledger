@@ -66,7 +66,8 @@ vi.stubGlobal(
  * per issue); after it 22 / 26 / 41 (the "unassigned" notifications one by one); now the
  * same at any K.
  */
-const MEASURED = { 1: 22, 5: 22, 20: 22 } as const;
+// +1 since a pass reads the deletes queued for creates whose answer was lost (one statement, any number of issues).
+const MEASURED = { 1: 23, 5: 23, 20: 23 } as const;
 
 describe("a sync that finds K issues reassigned away", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;
