@@ -125,6 +125,8 @@ export function entriesOfNotes(i: GitLabIssue, notes: GitLabNote[]): RemoteWorkl
     createdAt: instantFrom(note.created_at),
     updatedAt: null,
     dayOnly: true,
+    // A spend note keeps no words of its own.
+    noWords: true,
     editable: { update: false, delete: true },
   }));
 }

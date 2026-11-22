@@ -411,6 +411,8 @@ export type RemoteWorklog = {
   dayOnly?: boolean;
   /** The service keeps its start and end to the minute: its length may be half a minute off what was sent */
   minuteOnly?: boolean;
+  /** The service keeps no words for it (read as ""): they can't tell it from a twin */
+  noWords?: boolean;
 };
 
 /** What a new or changed entry says. billable/activity/onBehalf only where the capabilities allow (checked by the core). */

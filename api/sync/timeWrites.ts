@@ -236,9 +236,9 @@ async function adoptLanded(
   const slack = roundingSlack(entriesOf(t.b)?.limits, mine.seconds);
   for (const w of there) {
     if (w.authorRemoteId !== conn.remoteAccountId || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
-    if (!holds(w.span, mine, t.zone, false, slack)) continue;
-    // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
-    if (w.span.kind !== "session" && (!w.createdAt || !sameWords(w.comment, words))) continue;
+    if (!holds(w.span, mine, t.zone, w.dayOnly, slack)) continue;
+    // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent (where it keeps any).
+    if ((w.span.kind !== "session" || w.dayOnly) && (!w.createdAt || (!w.noWords && !sameWords(w.comment, words)))) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
       .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
@@ -250,7 +250,7 @@ async function adoptLanded(
     // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
     // same time, can't be told from that copy: its comment may have been edited since either.)
     // A day's copy is read back at its import start: one at another hour is a worklog of its own.
-    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, w.span.kind === "session" ? mine : { started: startOf(w.span, t.zone), seconds: w.span.seconds }, slack))) continue;
+    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, w.span.kind === "session" && !w.dayOnly ? mine : { started: startOf(w.span, t.zone), seconds: w.span.seconds }, slack))) continue;
     // A queued change is about an older worklog: any newer one of the same time may be a twin
     // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
     // twice, as it did; never another worklog's entry, and the old one with it, gone).

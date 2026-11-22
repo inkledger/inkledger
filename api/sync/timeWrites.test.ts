@@ -755,6 +755,49 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("on a tracker keeping a session's day and no words (GitLab's notes), a create whose answer was lost is adopted at the replay, not logged twice", async () => {
+    const { fakeTracker } = await import("../providers/fake/adapter");
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    type Remote = import("../providers/types").RemoteWorklog;
+    const base = fakeTracker([{ key: "FAKE-1", title: "First" }]);
+    const time = base.capabilities.time;
+    if (time.mode !== "entries" || time.entries.model !== "entries") throw new Error("fake keeps entries");
+    const capabilities = { ...base.capabilities, time: { ...time, entries: { ...time.entries, idempotency: "local" as const } } };
+    const kept = new Map<string, Remote>();
+    let seq = 0;
+    const worklogs = {
+      list: async () => [...kept.values()],
+      create: async (x: { conn: { remoteAccountId: string } }, ref: { remoteId: string; key: string }, w: { time: Remote["span"]; comment: string }) => {
+        if (w.time.kind !== "session") throw new Error("sessions");
+        // As GitLab's notes leave it: the day at 9:00, no words.
+        const day = new Date(w.time.start).toISOString().slice(0, 10);
+        const made: Remote = { remoteId: `n-${++seq}`, issue: { remoteId: ref.remoteId, key: ref.key }, span: { kind: "session", start: instant(Date.parse(`${day}T09:00:00+01:00`)), seconds: w.time.seconds }, comment: "", authorRemoteId: x.conn.remoteAccountId, editable: { update: false, delete: true }, createdAt: instant(Date.now()), dayOnly: true, noWords: true };
+        kept.set(made.remoteId, made);
+        if (tracker.loseAnswer) throw new ProviderError("unavailable", "fake: timed out");
+        return made;
+      },
+      delete: async (_x: unknown, _ref: unknown, id: string) => {
+        kept.delete(id);
+      },
+    };
+    const real = tracker.adapter;
+    tracker.adapter = Object.assign(Object.create(Object.getPrototypeOf(base) as object), base, { capabilities, worklogs });
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-11-10T14:00:00+01:00", comment: "no notes there" });
+      tracker.loseAnswer = false;
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      expect([...kept.keys()]).toEqual(["n-1"]);
+      expect((await sinkOf(made.id))?.remote_id).toBe("n-1");
+      await caller.worklogs.delete({ id: made.id });
+      expect(kept.size).toBe(0);
+    } finally {
+      tracker.loseAnswer = false;
+      tracker.adapter = real;
+    }
+  });
+
   it("on a tracker keeping only days, a create whose answer was lost is adopted at the replay, not logged twice", async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");
