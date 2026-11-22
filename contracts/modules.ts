@@ -6,8 +6,10 @@
  * A module runs with the page's privileges: trust rests on the signature.
  */
 
-/** The host API version modules are built against. */
-export const HOST_API_VERSION = 1;
+/** The host API versions this inkledger runs: 1 in the page (publisher code only), 2 in sandboxed frames. */
+export const HOST_API = { min: 1, max: 2 } as const;
+/** What the Store is told this inkledger runs: it reads one version, so v1 builds until it takes a range. */
+export const STORE_HOST_API = 1;
 
 /**
  * Where modules can draw. "panel-edge" is a zero-size anchor on the bottom-left
@@ -56,9 +58,12 @@ export const BUNDLE_MAX_BYTES = 2 * 1024 * 1024;
 
 export type { LicensePayload, ModuleManifest } from "./modulesSchema";
 
+/** Whether a host API range meets the versions this inkledger runs. */
+export const hostApiFits = (r: { min: number; max: number }): boolean => r.min <= HOST_API.max && HOST_API.min <= r.max;
+
 /** Whether a manifest runs on this inkledger: its host API range and every slot it names. */
 export const runsHere = (m: { hostApi: { min: number; max: number }; slots: readonly string[] }): boolean =>
-  m.hostApi.min <= HOST_API_VERSION && HOST_API_VERSION <= m.hostApi.max && m.slots.every((s) => (SLOT_IDS as readonly string[]).includes(s));
+  hostApiFits(m.hostApi) && m.slots.every((s) => (SLOT_IDS as readonly string[]).includes(s));
 
 export type ModuleStatus =
   | { state: "active" }

@@ -1,4 +1,4 @@
-import { HOST_API_VERSION, SLOT_IDS } from "@contracts/modules";
+import { STORE_HOST_API, SLOT_IDS } from "@contracts/modules";
 import { type PaymentMethod, type StoreItem } from "@contracts/store";
 import { storeCatalogSchema } from "@contracts/storeSchema";
 import { env } from "../lib/env";
@@ -153,4 +153,4 @@ export async function downloadBundle(product: string, token: string): Promise<st
  * What this inkledger runs, sent with every bundle request: the store answers
  * with the newest build that fits, never one that would not load here.
  */
-const HOST = { api: HOST_API_VERSION, slots: [...SLOT_IDS] };
+const HOST = { api: STORE_HOST_API, slots: [...SLOT_IDS] };
