@@ -106,8 +106,10 @@ function linkAt(s: string, i: number, cx: Cx): { end: number; inner: string; url
     while (k < s.length && /\s/.test(s[k])) k++;
     let dest = "";
     if (s[k] === "<") {
-      const e = s.indexOf(">", k);
-      if (e < 0 || s.slice(k, e).includes("\n")) return null;
+      // No line end and no other < inside <...>: the search stops at either (never the rest of the text for each "[a](<").
+      let e = k + 1;
+      while (e < s.length && s[e] !== ">" && s[e] !== "<" && s[e] !== "\n") e += s[e] === "\\" ? 2 : 1;
+      if (s[e] !== ">") return null;
       dest = s.slice(k + 1, e);
       k = e + 1;
     } else {
@@ -196,6 +198,8 @@ function inlineMd(s: string, cx: Cx, inLink = false): Seg[] {
     if (buf) out.push({ t: "text", v: buf });
     buf = "";
   };
+  // Lowercased once, when a raw text element first needs its end tag looked up.
+  let lower: string | null = null;
   const push = (x: Seg) => {
     flush();
     out.push(x);
@@ -283,7 +287,8 @@ function inlineMd(s: string, cx: Cx, inLink = false): Seg[] {
           if (dest) push(imageOf(dest, alt?.[1] ?? alt?.[2] ?? ""));
         } else if ((name === "script" || name === "style") && tag[1] === "") {
           // raw text element: its content is not text
-          const e = s.toLowerCase().indexOf(`</${name}`, i);
+          lower ??= s.toLowerCase();
+          const e = lower.indexOf(`</${name}`, i);
           const gt = e < 0 ? -1 : s.indexOf(">", e);
           i = gt < 0 ? s.length : gt + 1;
         }
@@ -380,11 +385,11 @@ function inlineMd(s: string, cx: Cx, inLink = false): Seg[] {
       }
     }
     if (c === "$" && cx.glfm && !isAlnum(prev) && prev !== "\\" && !isSpace(s[i + 1]) && !/\d/.test(s[i + 1])) {
-      const nl = s.indexOf("\n", i);
-      const lim = Math.min(nl < 0 ? s.length : nl, i + 500);
+      // The partner within 500 characters and on the same line (looked for from it back, never to the line's end for each $).
+      const lim = i + 500;
       let e = s.indexOf("$", i + 1);
       while (e >= 0 && e < lim && (isSpace(s[e - 1]) || /\d/.test(s[e + 1] ?? ""))) e = s.indexOf("$", e + 1);
-      if (e > i + 1 && e < lim) {
+      if (e > i + 1 && e < lim && !s.slice(i, e).includes("\n")) {
         push({ t: "code", v: s.slice(i + 1, e) });
         i = e + 1;
         continue;

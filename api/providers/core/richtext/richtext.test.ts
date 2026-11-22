@@ -426,6 +426,18 @@ describe("fromMarkdown", () => {
     expect(md("at 10:30:45 ok", "gfm")).toEqual([p(t("at 10:30:45 ok"))]);
   });
 
+  it("a marker with no partner never scans the rest of a long text again for each occurrence", () => {
+    const quick = (text: string, flavor: "commonmark" | "gfm" | "glfm") => {
+      const t0 = performance.now();
+      fromMarkdown(text, flavor);
+      return performance.now() - t0;
+    };
+    // About a megabyte each: seconds when every occurrence scanned (or lowercased) the rest of the text.
+    expect(quick("[a](<".repeat(200_000), "gfm")).toBeLessThan(500);
+    expect(quick("<script></script>".repeat(40_000), "gfm")).toBeLessThan(500);
+    expect(quick("$a$ ".repeat(150_000), "glfm")).toBeLessThan(500);
+  });
+
   it("drops inline html but keeps its text, and maps br", () => {
     expect(md("a <b>bold</b> c<br>d <!-- hidden --> e")).toEqual([p(t("a bold c"), { t: "br" }, t("d  e"))]);
     expect(plainText(fromMarkdown("x <script>alert(1)</script> y <style>.a{}</style>z", "gfm"))).toBe("x  y z");
