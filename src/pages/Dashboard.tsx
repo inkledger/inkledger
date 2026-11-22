@@ -469,7 +469,8 @@ function DashboardContent() {
   const issueTotals = useMemo(() => topIssueTotals(logs.data ?? [], issueByKey), [logs.data, issueByKey]);
 
   const timelineEntries: TimelineEntry[] = (logs.data ?? []).map(w => ({
-    id: w.remoteId,
+    // A worklog's remote id is unique only on its own issue and tracker: the block's key says all three.
+    id: `w:${issueId(w)}:${w.remoteId}`,
     issueKey: w.issueKey,
     connectionId: w.connectionId,
     remoteId: issueByKey.get(issueId(w))?.remoteId,
