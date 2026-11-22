@@ -234,7 +234,7 @@ describe("an answer that outlived its lease", () => {
     const { reconcile } = await import("./store");
     await q("UPDATE decisions SET busy_until = 1 WHERE id = ?", id);
     await reconcile(userId);
-    await q("UPDATE decisions SET state = 'resolving', busy_by = 'page-b', revision = revision + 1 WHERE id = ? AND state = 'open'", id);
+    await q("UPDATE decisions SET state = 'resolving', busy_by = 'page-b', busy_until = ?, revision = revision + 1 WHERE id = ? AND state = 'open'", Date.now() + 120_000, id);
   };
 
   it("never marks the newer claim resolved", async () => {
@@ -254,6 +254,15 @@ describe("an answer that outlived its lease", () => {
     })).rejects.toThrow("late failure");
     const [after] = await q<{ state: string; busy_by: string }>("SELECT state, busy_by FROM decisions WHERE id = ?", d.id);
     expect(after).toMatchObject({ state: "resolving", busy_by: "page-b" });
+  });
+
+  it("still finishes when the question was refreshed while it ran", async () => {
+    const { answer } = await import("./store");
+    const { userId, d } = await setup("refreshed");
+    // A timer stopped again meanwhile: the open-or-resolving question gets a new payload and revision.
+    await answer(userId, d, { client: "page-a", label: "A" }, "log", () => q("UPDATE decisions SET payload = '{\"seconds\":60}', revision = revision + 1 WHERE id = ?", d.id));
+    const [after] = await q<{ state: string }>("SELECT state FROM decisions WHERE id = ?", d.id);
+    expect(after.state).toBe("resolved");
   });
 
   it("refuses a draft that grows past its size across patches", async () => {

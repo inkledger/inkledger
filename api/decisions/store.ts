@@ -193,6 +193,10 @@ export async function answer<T>(userId: number, ref: { id: string; revision: num
     conflict(cur);
   }
   told(userId, claimed, by.client);
+  // This claim and no later one: one taken over after its lease ran out (reconciled, claimed again) is
+  // not this answer's to finish. Matched on the claim's own stamp, so a refresh of the question meanwhile
+  // (a timer stopped again bumps the revision) still lets it finish.
+  const ours = and(eq(decisions.id, ref.id), eq(decisions.state, "resolving"), eq(decisions.busyBy, claimed.busyBy ?? ""), eq(decisions.busyUntil, claimed.busyUntil ?? new Date(0)));
   let r: T;
   try {
     r = await run(claimed);
@@ -200,8 +204,7 @@ export async function answer<T>(userId: number, ref: { id: string; revision: num
     const [back] = await db
       .update(decisions)
       .set({ state: "open", busyBy: null, busyUntil: null, resolution: JSON.stringify({ lastError: e instanceof Error ? e.message : String(e) }), revision: sql`${decisions.revision} + 1`, updatedAt: new Date() })
-      // Only this claim: one taken over after its lease ran out (reconciled, claimed again) is not this answer's to reopen.
-      .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving"), eq(decisions.revision, claimed.revision)))
+      .where(ours)
       .returning();
     if (back) told(userId, back, by.client);
     throw e;
@@ -209,7 +212,7 @@ export async function answer<T>(userId: number, ref: { id: string; revision: num
   const [done] = await db
     .update(decisions)
     .set({ state: "resolved", busyBy: null, busyUntil: null, resolution: JSON.stringify({ choice, by: by.label, client: by.client ?? "", at: Date.now(), ...resultOf(r) }), revision: sql`${decisions.revision} + 1`, updatedAt: new Date() })
-    .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving"), eq(decisions.revision, claimed.revision)))
+    .where(ours)
     .returning();
   if (done) told(userId, done, by.client);
   return r;
