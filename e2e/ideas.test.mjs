@@ -89,6 +89,26 @@ test("ideas from the command palette", () =>
     await page.getByRole("listitem", { name: "From anywhere" }).waitFor();
   }));
 
+test("New idea from the palette asks before Escape drops what was typed", () =>
+  withApp({}, async ({ page, base }) => {
+    await page.goto(base + "/");
+    await page.keyboard.press("ControlOrMeta+k");
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("New idea");
+    await page.getByRole("option", { name: "New idea" }).click();
+    const dialog = page.getByRole("dialog", { name: "New idea" });
+    const field = dialog.getByRole("textbox", { name: "New ideas" });
+    await field.fill("One\nTwo\nThree");
+    await page.keyboard.press("Escape");
+    const ask = page.getByRole("alertdialog", { name: "Discard your changes?" });
+    await ask.waitFor();
+    await ask.getByRole("button", { name: "Keep editing" }).click();
+    assert.equal(await field.inputValue(), "One\nTwo\nThree", "kept");
+    // Empty, it closes at once.
+    await field.fill("");
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+  }));
+
 /** "New issue" as the server answers it: Jira's DEMO project; created as DEMO-101 (already in the catalogue). */
 async function fakeCreate(page, sent) {
   await page.route(/\/api\/trpc\/[^?]*issues\.create/, async route => {

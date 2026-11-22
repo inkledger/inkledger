@@ -9,12 +9,13 @@ import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 
 /** One idea per line, a pasted list too (docs/work/ideas/triage.md R-2.2): Add or Mod+Enter puts them at the top of Raw. */
-export function IdeaCapture({ containerId, autoFocus = false, onAdded }: { containerId?: number; autoFocus?: boolean; onAdded?: (count: number) => void }) {
+export function IdeaCapture({ containerId, autoFocus = false, onAdded, onDirty }: { containerId?: number; autoFocus?: boolean; onAdded?: (count: number) => void; onDirty?: (dirty: boolean) => void }) {
   const [text, setText] = useState("");
   const utils = trpc.useUtils();
   const capture = trpc.ideas.capture.useMutation({
     onSuccess: made => {
       setText("");
+      onDirty?.(false);
       toast.success(t("pages.ideas.added", { count: made.length }));
       onAdded?.(made.length);
     },
@@ -37,7 +38,10 @@ export function IdeaCapture({ containerId, autoFocus = false, onAdded }: { conta
         value={text}
         autoFocus={autoFocus}
         rows={3}
-        onChange={e => setText(e.currentTarget.value)}
+        onChange={e => {
+          setText(e.currentTarget.value);
+          onDirty?.(e.currentTarget.value.trim() !== "");
+        }}
         onKeyDown={e => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
