@@ -379,6 +379,14 @@ describe("auth: sessions, cookies, login hardening", () => {
       });
     });
 
+    it("a password reset also revokes the account's share links", async () => {
+      const a = appRouter.createCaller(await admin());
+      const held = await account("held");
+      await q("INSERT INTO settings (user_id, share_link_generation) VALUES (?, 2)", held.id);
+      await a.users.resetPassword({ id: held.id });
+      expect(await q("SELECT share_link_generation AS g FROM settings WHERE user_id = ?", held.id)).toEqual([{ g: 3 }]);
+    });
+
     it("a new account runs no module unless it is given, one by one", async () => {
       const a = appRouter.createCaller(await admin());
       const plain = await a.users.invite({ username: "nomods", displayName: "No mods", role: "member", permissions: [] });

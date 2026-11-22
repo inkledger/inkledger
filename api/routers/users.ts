@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { connections, users, type User } from "@db/schema";
+import { connections, settings, users, type User } from "@db/schema";
 import { PERMISSIONS } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { t } from "@contracts/i18n";
@@ -201,6 +201,8 @@ export const usersRouter = createRouter({
     );
     if (done.length === 0) throw notAllowed();
     await signOutEverywhere(user.id);
+    // Links shared by whoever held the account stop too.
+    await getDb().update(settings).set({ shareLinkGeneration: sql`${settings.shareLinkGeneration} + 1` }).where(eq(settings.userId, user.id));
     return { password };
   }),
 
