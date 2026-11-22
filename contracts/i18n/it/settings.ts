@@ -1206,6 +1206,9 @@ export const settings: Shape<typeof en> = {
       description: "Salvate per te su questo server.",
       backdrop: "Quanto si vede la scena dietro la Dashboard si imposta in Aspetto:",
     },
+    moduleSheet: {
+      description: "Disegnato da {name}, nel suo spazio isolato.",
+    },
     switch: {
       label: "{name} attiva",
       badge: "Spenta",

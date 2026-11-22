@@ -279,8 +279,13 @@ export function mountView(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, box:
       connectRuntime(hub, entry, slot, channel.port1);
       return [channel.port2];
     });
+    // No frame for it (too many, or the module was stopped): no empty dialog.
+    if (!frame && slot === "sheet") sheetOpen.close(entry.id);
   });
-  const offKill = whenKilled(entry.id, stop);
+  const offKill = whenKilled(entry.id, () => {
+    stop();
+    if (slot === "sheet") sheetOpen.close(entry.id);
+  });
   return () => {
     cancel();
     offKill();
