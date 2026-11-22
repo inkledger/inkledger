@@ -12,6 +12,10 @@ const active: ModuleListEntry = {
   entryUrl: "/api/modules/shadow/deadbeef/entry.mjs",
   integrity: "sha256-c2hh",
   build: "a".repeat(32),
+  runtime: "inpage",
+  capabilities: [],
+  frameUrl: null,
+  token: null,
 };
 
 describe("verified add-on renderer bindings", () => {

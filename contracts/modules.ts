@@ -21,6 +21,32 @@ export const HOST_API_VERSION = 1;
 export const SLOT_IDS = ["sidebar-footer", "dashboard-overlay", "panel-edge", "dashboard-widget", "dashboard-backdrop", "dashboard-action", "settings", "sidebar-rail", "mobile-more", "mobile-dock", "dashboard-perch", "app-stage", "screensaver"] as const;
 export type SlotId = (typeof SLOT_IDS)[number];
 
+/**
+ * Where a module's code runs: "frame" in its own sandboxed frame (opaque
+ * origin, the host API over messages); "inpage" in the app's page, with its
+ * privileges (publisher-signed host API v1 only). Old manifests are "inpage".
+ */
+export const MODULE_RUNTIMES = ["frame", "inpage"] as const;
+export type ModuleRuntime = (typeof MODULE_RUNTIMES)[number];
+
+/** What a framed module may ask the host for beyond the basics: declared in its signed manifest, closed. */
+export const MODULE_CAPABILITIES = [
+  "runtime",
+  "surfaces.light",
+  "page.importance",
+  "pointer",
+  "sheet",
+  "share",
+  "download",
+  "open-image",
+  "geo",
+  "cache",
+  "dock",
+  "backdrop.preblurred",
+  "layout",
+] as const;
+export type ModuleCapability = (typeof MODULE_CAPABILITIES)[number];
+
 export const LICENSE_CONTEXT = "inkledger-license-v1\n";
 export const PACKAGE_CONTEXT = "inkledger-package-v1\n";
 export const LICENSE_VERSION = 1;
@@ -56,9 +82,21 @@ export type ModuleListEntry = {
   integrity: string | null;
   /** Which build this is (a rebuild keeps its version): hex of the signature's hash, 32 chars. */
   build: string | null;
+  runtime: ModuleRuntime;
+  capabilities: ModuleCapability[];
+  /** A framed module's document (session cookie), only when active; entryUrl stays null for it. */
+  frameUrl: string | null;
+  /** A framed module's code token (MODULES_RUN_PATH, no cookie), when active and granted to this account. */
+  token: string | null;
 };
 
 export const MODULES_PATH = "/api/modules";
+/** Framed modules' code, by token (opaque frames send no cookie); outside /api, so tokens never reach the request log. */
+export const MODULES_RUN_PATH = "/modules/run";
+/** A framed module's sandboxed document. */
+export const MODULES_FRAME_PATH = "/modules/frame";
+/** How long a code token lasts (modules.list hands out a fresh one). */
+export const RUN_TOKEN_MS = 3600_000;
 export const STORAGE_MAX_BYTES = 16 * 1024;
 export const STORAGE_MAX_KEYS = 64;
 

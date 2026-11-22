@@ -280,7 +280,7 @@ describe("add-on modules", () => {
   });
 
   it("an unsupported host API version is never installed, and one already there is not loaded", async () => {
-    const future = bundle({ "index.js": ENTRY }, { hostApi: { min: 2, max: 3 } });
+    const future = bundle({ "index.js": ENTRY }, { hostApi: { min: 2, max: 3 }, runtime: "frame" });
     expect(await (await upload(future)).json()).toEqual({ ok: false, reason: "incompatible-host" });
     // As an older inkledger left it on disk (the server was downgraded).
     fs.mkdirSync(path.join(DIR, "hello"));
@@ -294,9 +294,54 @@ describe("add-on modules", () => {
   it("an update this inkledger can't run never replaces the working module", async () => {
     await upload(bundle());
     await (await import("./registry")).addLicense(license("inkledger.hello"));
-    expect(await (await upload(bundle({ "index.js": ENTRY }, { version: "2.0.0", hostApi: { min: 2, max: 2 } }))).json()).toEqual({ ok: false, reason: "incompatible-host" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame" }))).json()).toEqual({ ok: false, reason: "incompatible-host" });
     const [m] = (await caller.modules.list()).modules;
     expect(m).toMatchObject({ version: "1.0.0", status: { state: "active" } });
+  });
+
+  it("runs in the page only publisher code built for host API v1", async () => {
+    const { runtimeAllowed } = await import("./registry");
+    const v1 = { min: 1, max: 1 };
+    const v2 = { min: 1, max: 2 };
+    expect(runtimeAllowed({ runtime: "inpage", hostApi: v1 }, "publisher")).toBe(true);
+    expect(runtimeAllowed({ runtime: "inpage", hostApi: v2 }, "publisher")).toBe(false);
+    expect(runtimeAllowed({ runtime: "inpage", hostApi: v1 }, "framed")).toBe(false);
+    for (const tier of ["publisher", "framed"] as const) {
+      expect(runtimeAllowed({ runtime: "frame", hostApi: v1 }, tier)).toBe(true);
+      expect(runtimeAllowed({ runtime: "frame", hostApi: v2 }, tier)).toBe(true);
+    }
+  });
+
+  it("a manifest without a runtime runs in the page; one for host API 2 must ask for a frame", async () => {
+    await upload(bundle());
+    expect((await caller.modules.list()).modules[0]).toMatchObject({ runtime: "inpage", capabilities: [], frameUrl: null, token: null });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { hostApi: { min: 1, max: 2 } }))).json()).toEqual({ ok: false, reason: "runtime-not-allowed" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { hostApi: { min: 1, max: 2 }, runtime: "inpage" }))).json()).toEqual({ ok: false, reason: "runtime-not-allowed" });
+    // As left on disk: never served.
+    const bad = bundle({ "index.js": ENTRY }, { hostApi: { min: 1, max: 2 } });
+    fs.rmSync(path.join(DIR, "hello"), { recursive: true });
+    fs.mkdirSync(path.join(DIR, "hello"));
+    fs.writeFileSync(path.join(DIR, "hello/manifest.json"), JSON.stringify(bad.manifest));
+    fs.writeFileSync(path.join(DIR, "hello/manifest.sig"), String(bad.signature));
+    fs.writeFileSync(path.join(DIR, "hello/index.js"), ENTRY);
+    await (await import("./registry")).addLicense(license("inkledger.hello"));
+    expect((await caller.modules.list()).modules[0]).toMatchObject({ status: { state: "invalid", reason: "runtime-not-allowed" }, entryUrl: null });
+  });
+
+  it("capabilities are a closed list, each once", async () => {
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { runtime: "frame", capabilities: ["cookies"] }))).json()).toMatchObject({ ok: false, reason: "manifest-invalid" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { runtime: "frame", capabilities: ["share", "share"] }))).json()).toMatchObject({ ok: false, reason: "manifest-invalid" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { runtime: "inpage-ish" }))).json()).toMatchObject({ ok: false, reason: "manifest-invalid" });
+  });
+
+  it("a framed module never reaches the page's loader: no entry URL, and the cookie route refuses its code", async () => {
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["share"] }))).json()).toMatchObject({ ok: true });
+    await (await import("./registry")).addLicense(license("inkledger.hello"));
+    const [m] = (await caller.modules.list()).modules;
+    expect(m).toMatchObject({ status: { state: "active" }, runtime: "frame", capabilities: ["share"], entryUrl: null, integrity: null });
+    expect(m.frameUrl).toMatch(/^\/modules\/frame\/hello\/[0-9a-f]{32}$/);
+    const hash = (m.frameUrl ?? "").split("/").pop();
+    expect((await app.request(`/api/modules/hello/${hash}/index.js`, { headers: { cookie } })).status).toBe(404);
   });
 
   it("a licence holds for every version of its product, older or newer than when it was bought", async () => {

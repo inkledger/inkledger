@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SLOT_IDS } from "./modules";
+import { MODULE_CAPABILITIES, MODULE_RUNTIMES, SLOT_IDS } from "./modules";
 
 export const moduleIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/);
 
@@ -16,6 +16,11 @@ export const moduleManifestSchema = z.strictObject({
   /** Display name, by locale. */
   name: z.strictObject({ en: z.string().min(1).max(40), it: z.string().min(1).max(40) }),
   files: z.record(z.string(), z.string().regex(/^[0-9a-f]{64}$/)),
+  runtime: z.enum(MODULE_RUNTIMES).default("inpage"),
+  capabilities: z
+    .array(z.enum(MODULE_CAPABILITIES))
+    .refine((c) => new Set(c).size === c.length)
+    .default([]),
 });
 export type ModuleManifest = z.infer<typeof moduleManifestSchema>;
 

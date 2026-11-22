@@ -10,8 +10,14 @@ const PUBLISHER_KEY = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA1etNGb4TL2Eeu60uWvKF9YvAvz3s0dXPL/rAhXx7OQQ=
 -----END PUBLIC KEY-----`;
 
-/** Keys whose packages load here. */
+/** Keys whose packages load here, in the page or framed (first-party). */
 export const PACKAGE_KEYS: readonly string[] = [PUBLISHER_KEY];
+
+/** Other publishers' keys: their packages load only in a sandboxed frame. None yet. */
+export const FRAME_ONLY_PACKAGE_KEYS: readonly string[] = [];
+
+/** "publisher": may run in the page (host API v1); "framed": a sandboxed frame only. */
+export type PackageTier = "publisher" | "framed";
 
 /** Who issues licences, by key: the name tells the user where a licence came from. */
 export const LICENSE_ISSUERS = {
@@ -65,5 +71,10 @@ const withExtra = (keys: readonly string[]): string[] => {
   return extra ? [...pems, extra] : pems;
 };
 
-export const packageKeys = (): string[] => withExtra(PACKAGE_KEYS);
+/** Package keys with their tier; the extra key stands in for the publisher (development, tests). */
+export const packageKeyTiers = (): { pem: string; tier: PackageTier }[] => [
+  ...withExtra(PACKAGE_KEYS).map((pem) => ({ pem, tier: "publisher" as const })),
+  ...FRAME_ONLY_PACKAGE_KEYS.map((k) => ({ pem: asPem(k), tier: "framed" as const })),
+];
+export const packageKeys = (): string[] => packageKeyTiers().map((k) => k.pem);
 export const licenseKeys = (): string[] => withExtra(LICENSE_KEYS);

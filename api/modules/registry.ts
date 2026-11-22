@@ -11,9 +11,11 @@ import {
   PACKAGE_CONTEXT,
   SIGNATURE_FILE,
   runsHere,
+  MODULES_FRAME_PATH,
   type LicensePayload,
   type ModuleListEntry,
   type ModuleManifest,
+  type ModuleRuntime,
   type ModuleStatus,
 } from "@contracts/modules";
 import { licensePayloadSchema, moduleIdSchema, moduleManifestSchema } from "@contracts/modulesSchema";
@@ -22,7 +24,7 @@ import { verifyEnvelope } from "../vendor/seal/envelope.ts";
 import { pathInside, sha256hex, verifyPackage } from "../vendor/seal/package.ts";
 import { env } from "../lib/env";
 import { getServerSetting, setServerSetting, updateServerSetting } from "../lib/serverSettings";
-import { asPem, extraKey, LICENSE_ISSUERS, licenseKeys, packageKeys, type LicenseIssuer } from "./keys";
+import { asPem, extraKey, LICENSE_ISSUERS, licenseKeys, packageKeyTiers, type LicenseIssuer, type PackageTier } from "./keys";
 import { activationStates } from "./activation";
 
 /**
@@ -65,6 +67,14 @@ export type CheckedPackage =
  */
 export const buildOf = (signature: string) => sha256hex(Buffer.from(signature.trim())).slice(0, 32);
 
+/**
+ * Whether a package may run as its manifest asks: in the page only publisher
+ * code built for host API v1 (it has the page's privileges); anything else in
+ * a sandboxed frame.
+ */
+export const runtimeAllowed = (m: { runtime: ModuleRuntime; hostApi: { max: number } }, tier: PackageTier): boolean =>
+  m.runtime === "frame" || (tier === "publisher" && m.hostApi.max === 1);
+
 /** The full check of a package given as bytes (installed folder or upload). */
 function checkPackage(files: Files, signature: string): CheckedPackage {
   const rawManifest = files.get(MANIFEST_FILE);
@@ -81,16 +91,18 @@ function checkPackage(files: Files, signature: string): CheckedPackage {
   if (manifest.product !== `inkledger.${manifest.id}`) return { ok: false, reason: "manifest-invalid", manifest };
   if (!Object.hasOwn(manifest.files, manifest.entry)) return { ok: false, reason: "entry-undeclared", manifest };
   const computed = Object.fromEntries([...files].map(([p, b]) => [p, sha256hex(b)]));
+  const keys = packageKeyTiers();
   const r = verifyPackage({
     manifest: json,
     declared: manifest.files,
     signature,
     computed,
     context: PACKAGE_CONTEXT,
-    keys: packageKeys(),
+    keys: keys.map((k) => k.pem),
     reserved: RESERVED,
   });
   if (!r.ok) return { ok: false, reason: r.reason, manifest };
+  if (!runtimeAllowed(manifest, keys[r.keyIndex]?.tier ?? "framed")) return { ok: false, reason: "runtime-not-allowed", manifest };
   return { ok: true, manifest, files, packageHash: sha256hex(Buffer.from(canonicalJSON(json))).slice(0, 32), build: buildOf(signature) };
 }
 
@@ -208,13 +220,21 @@ function statusOf(checked: CheckedPackage, products: Set<string>, licensed?: Set
 
 const integrityOf = (b: Buffer) => `sha256-${createHash("sha256").update(b).digest("base64")}`;
 
-export async function listModules(): Promise<ModuleListEntry[]> {
+/**
+ * What the page sees. `tokenFor` mints a framed module's code token for the
+ * account asking (null: not granted to it).
+ */
+export async function listModules(tokenFor?: (id: string, hash: string) => string | null): Promise<ModuleListEntry[]> {
   const { active: products, licensed } = await licenseStates();
   return installedIds().map((id) => {
     const checked = readInstalled(id);
     const status = statusOf(checked, products, licensed);
     const m = checked.manifest;
-    const active = checked.ok && status.state === "active";
+    const runtime = m?.runtime ?? "inpage";
+    const ok = checked.ok && status.state === "active";
+    // Framed code never reaches the page's loader: it gets a frame, not an entry URL.
+    const active = ok && runtime === "inpage";
+    const framed = ok && runtime === "frame";
     return {
       id,
       version: m?.version ?? "?",
@@ -225,6 +245,10 @@ export async function listModules(): Promise<ModuleListEntry[]> {
       entryUrl: active ? `${MODULES_PATH}/${id}/${checked.packageHash}/${checked.manifest.entry}` : null,
       integrity: active ? integrityOf(checked.files.get(checked.manifest.entry) ?? Buffer.alloc(0)) : null,
       build: checked.ok ? checked.build : null,
+      runtime,
+      capabilities: m?.capabilities ?? [],
+      frameUrl: framed ? `${MODULES_FRAME_PATH}/${id}/${checked.packageHash}` : null,
+      token: framed ? (tokenFor?.(id, checked.packageHash) ?? null) : null,
     };
   });
 }
@@ -237,12 +261,13 @@ export async function isActive(id: string): Promise<boolean> {
 
 /**
  * A file of an active module at its current package hash, or null. Only
- * declared .js/.mjs files: a module is code, its assets are inlined.
+ * declared .js/.mjs files: a module is code, its assets are inlined. Each
+ * lane serves only its own modules (`runtime`: the route asking).
  */
-export async function moduleFile(id: string, hash: string, file: string): Promise<Buffer | null> {
+export async function moduleFile(id: string, hash: string, file: string, runtime: ModuleRuntime): Promise<Buffer | null> {
   if (!moduleIdSchema.safeParse(id).success || !/\.m?js$/.test(file) || !pathInside(file, RESERVED)) return null;
   const checked = readInstalled(id);
-  if (!checked.ok || checked.packageHash !== hash) return null;
+  if (!checked.ok || checked.packageHash !== hash || checked.manifest.runtime !== runtime) return null;
   if (statusOf(checked, await licensedProducts()).state !== "active") return null;
   if (!Object.hasOwn(checked.manifest.files, file)) return null;
   return checked.files.get(file) ?? null;

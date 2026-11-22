@@ -25,7 +25,7 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     } catch {
       return c.json({ error: "Not Found" }, 404);
     }
-    const body = await moduleFile(id, hash, file);
+    const body = await moduleFile(id, hash, file, "inpage");
     if (!body) return c.json({ error: "Not Found" }, 404);
     return c.body(new Uint8Array(body), 200, {
       "Content-Type": "text/javascript; charset=utf-8",
