@@ -52,8 +52,14 @@ test("the heat map: a row per person, filters, search, sort and a day read only"
     // Below target: under 90% of what was expected so far.
     await page.getByRole("button", { name: /Below target/ }).click();
     await page.waitForURL(url => new URL(url).searchParams.get("show") === "below");
-    // Luca (4h a day) and Mario (nothing logged); the KPI counts the same two.
-    const belowRows = await rowNames(page);
+    // Luca (4h a day) and Mario (nothing logged); the KPI counts the same two. Read once the
+    // table has redrawn for the filter (the URL changes first).
+    await page.getByRole("button", { name: /Below target\s*2/ }).waitFor();
+    let belowRows = await rowNames(page);
+    for (let i = 0; i < 50 && belowRows.length !== 2; i++) {
+      await page.waitForTimeout(100);
+      belowRows = await rowNames(page);
+    }
     assert.equal(belowRows.length, 2);
     assert.match(belowRows.join(" "), /Luca Verdi.*Mario Rossi/s);
     await page.getByRole("button", { name: /Below target\s*2/ }).waitFor();
