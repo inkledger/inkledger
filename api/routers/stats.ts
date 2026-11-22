@@ -5,6 +5,7 @@ import { getDb } from "../queries/connection";
 import { containers, issues, worklogs } from "@db/schema";
 import { addDays, dayKey, startOfDay, startOfWeek } from "@contracts/time";
 import { issueOfWorklog, projectGroup, worklogProjectKey } from "./reports";
+import { onLiveConnection } from "../queries/liveConnections";
 import { realSecondsByDay, realSecondsTotal } from "@contracts/placement";
 
 export const statsRouter = createRouter({
@@ -61,8 +62,8 @@ export const statsRouter = createRouter({
           count: sql<number>`count(*)`,
         })
         .from(issues)
-        // hidden issues are out of the user's view: out of the counts too
-        .where(and(eq(issues.userId, ctx.user.id), eq(issues.hidden, 0)))
+        // hidden issues are out of the user's view: out of the counts too, as gone ones and those of archived connections
+        .where(and(eq(issues.userId, ctx.user.id), eq(issues.hidden, 0), onLiveConnection))
         .groupBy(issues.category),
     ]);
 

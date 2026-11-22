@@ -383,6 +383,14 @@ describe("app router (integration, in-memory SQLite)", () => {
     expect(stats.perDay).toHaveLength(14);
     expect(stats.perDay.reduce((a, d) => a + d.seconds, 0)).toBe(9000);
     expect(stats.perProject[0].projectKey).toBe("PRJ");
+    // An issue gone from its tracker is not counted (as no list shows it).
+    const { q } = await import("./queries/connection");
+    await q("UPDATE issues SET gone_at = 1 WHERE key = 'OPS-7'");
+    try {
+      expect((await caller.stats.dashboard()).issueCount).toBe(1);
+    } finally {
+      await q("UPDATE issues SET gone_at = NULL WHERE key = 'OPS-7'");
+    }
   });
 
   it("settings: returns defaults and persists updates", async () => {
