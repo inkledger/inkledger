@@ -28,6 +28,8 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
   let down = false;
   /** Tempo takes the next write but answers outside its API (the answer lost on the way, a proxy's page). */
   let garbleNext = false;
+  /** Tempo's next write waits for this (a push under way while the user edits). */
+  let holdNext: { reached: () => void; gate: Promise<void> } | null = null;
   const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
   const push = async () => (await import("./extraSinks")).pushSinks(userId);
   type Entries = { list(x: unknown, ref: { remoteId: string; key: string }): Promise<{ remoteId: string; span: { seconds: number } }[]> };
@@ -43,6 +45,12 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     issueId = issue.id;
     vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
       if (down) return Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error("refused"), { code: "ECONNREFUSED" }) }));
+      if (holdNext && init?.method === "POST") {
+        const held = holdNext;
+        holdNext = null;
+        held.reached();
+        return held.gate.then(() => sim.fetch(input, init));
+      }
       if (garbleNext && init?.method === "POST") {
         garbleNext = false;
         return Promise.resolve(sim.fetch(input, init)).then(() => new Response("<html>gateway</html>", { status: 200, headers: { "content-type": "text/html" } }));
@@ -127,6 +135,29 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     expect(sim.worklogs).toHaveLength(1);
     expect(sim.worklogs[0]).toMatchObject({ timeSpentSeconds: 1200 });
     expect(await row(made.id)).toEqual({ remote_id: String(sim.worklogs[0].jiraWorklogId), seconds: 1200 });
+    await caller.worklogs.delete({ id: made.id });
+  });
+
+  it("changed while its pending create is being sent: the next pass sends the change", async () => {
+    const at = "2026-10-22T09:00:00+02:00";
+    down = true;
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: at, comment: "racing" });
+    down = false;
+    let release = () => {};
+    let reached = () => {};
+    const atPost = new Promise<void>((r) => (reached = r));
+    holdNext = { reached, gate: new Promise<void>((r) => (release = r)) };
+    const pushing = push();
+    await atPost;
+    await caller.worklogs.update({ id: made.id, seconds: 900, started: at, comment: "racing" });
+    release();
+    await pushing;
+    // What landed is the old length: the link stays due.
+    expect(await tempoRow(made.id)).toMatchObject({ state: "pending" });
+    await push();
+    const mine = sim.worklogs.filter((w) => w.startDate === "2026-10-22");
+    expect(mine.map((w) => w.timeSpentSeconds)).toEqual([900]);
+    expect(await tempoRow(made.id)).toMatchObject({ state: "synced" });
     await caller.worklogs.delete({ id: made.id });
   });
 

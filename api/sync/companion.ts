@@ -6,7 +6,7 @@
 // the tracker's own and change there. Written through like any other
 // (D10): refused, nothing is kept; unreachable, kept here and sent later.
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { connections, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { withDeleteReason } from "../queries/trash";
@@ -104,6 +104,13 @@ export async function updateViaCompanion(
   }
   // Not on the sink yet: its pending create sends these values.
   await getDb().update(worklogs).set({ ...fields, syncedAt: new Date() }).where(eq(worklogs.id, current.id));
+  // A push of the old values under way sees the revision moved: it leaves the link due.
+  if (!entry.remoteId) {
+    await getDb()
+      .update(worklogSinks)
+      .set({ revision: sql`${worklogSinks.revision} + 1` })
+      .where(and(eq(worklogSinks.worklogId, current.id), eq(worklogSinks.sinkConnectionId, entry.sink.id)));
+  }
   return reread(current.id);
 }
 
