@@ -16,6 +16,7 @@ export function bootFrame(o: {
   slot?: string;
   /** More of the frame's window (an OffscreenCanvas, say). */
   globals?: Record<string, unknown>;
+  onUnmounted?(): void;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const parentWin = {
@@ -66,6 +67,7 @@ export function bootFrame(o: {
     },
     capabilities: o.capabilities,
     methods: o.methods,
+    onUnmounted: () => o.onUnmounted?.(),
     onReady() {
       peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {} });
     },

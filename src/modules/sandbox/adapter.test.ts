@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SURFACES } from "@/components/app/surface";
 import { z } from "zod";
 import { capabilityMethods, type CapabilityDeps } from "./capabilities";
-import { method } from "./rpc";
+import { method, RPC_VERSION } from "./rpc";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
 import { createModuleCache, type CacheBackend } from "./cache";
@@ -220,6 +220,16 @@ describe("the frame's host API (bootstrap)", () => {
     frame.keydown("Escape");
     await settle();
     expect(sheetOpen.get()).toBeNull();
+  });
+
+  it("unmount: the view's cleanup runs, then the host hears it is done", async () => {
+    const order: string[] = [];
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => void order.push("cleanup") } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, onUnmounted: () => order.push("unmounted") });
+    await settle();
+    f.peer.send({ v: RPC_VERSION, t: "unmount" });
+    await settle();
+    expect(order).toEqual(["cleanup", "unmounted"]);
   });
 
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {

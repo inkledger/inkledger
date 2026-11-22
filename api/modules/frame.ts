@@ -62,6 +62,7 @@ let seq = 0;
 let started = false;
 let activate = null;
 let onView = null;
+let unmount = null;
 const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
@@ -227,7 +228,8 @@ async function start(init, port) {
       const box = document.createElement("div");
       box.id = "ikl-box";
       document.body.append(box);
-      mount(box, host);
+      const off = mount(box, host);
+      if (typeof off === "function") unmount = off;
     }
     send({ t: "mounted" });
   } catch (e) {
@@ -261,6 +263,12 @@ addEventListener("message", (e) => {
     if (f) f(d.value);
   } else if (d.t === "activate") {
     if (activate) safe(activate);
+  } else if (d.t === "unmount") {
+    // The view is going: its cleanup runs now, and the host removes the frame once told (or past its deadline).
+    const off = unmount;
+    unmount = null;
+    if (off) safe(off);
+    send({ t: "unmounted" });
   } else if (d.t === "port") {
     if (!e.ports[0]) return;
     if (onView) safe(onView, e.ports[0], d.slot);

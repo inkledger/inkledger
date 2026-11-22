@@ -28,6 +28,8 @@ import { budgetOf, markStopped, watchFrame } from "./watchdog";
 
 /** Live frames on a page, at most: each costs a document (and the first, a process). */
 const MAX_FRAMES = 8;
+/** How long a removed view's cleanup may take before its frame goes anyway. */
+const UNMOUNT_MS = 250;
 
 let live = 0;
 const peers = new Set<RpcPeer>();
@@ -126,6 +128,21 @@ const whenKilled = (id: string, fn: () => void) => {
 
 type Frame = { iframe: HTMLIFrameElement; stop: () => void };
 
+type Movable = HTMLElement & { moveBefore(node: Node, child: Node | null): void };
+const movable = (el: HTMLElement): el is Movable => "moveBefore" in el && typeof el.moveBefore === "function";
+
+/** Off screen without reloading it (moveBefore keeps its document, appendChild would not); false where it can't. */
+function park(iframe: HTMLIFrameElement): boolean {
+  const to = shelfEl();
+  if (!iframe.isConnected || !movable(to)) return false;
+  try {
+    to.moveBefore(iframe, null);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * One sandboxed frame of a module, its messages served from the hub's API for
  * it. `init` is what it gets once it says ready (with `transfer`).
@@ -157,6 +174,8 @@ function openFrame(
   const served = frameMethods(api, cas, box, budgetOf(entry.id));
   const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(t => push(readLook(t))), fonts } });
   let initialised = false;
+  let mounted = false;
+  let onUnmounted: (() => void) | null = null;
   const warned = new Set<string>();
   const peer = createRpcPeer({
     source: () => iframe.contentWindow,
@@ -172,7 +191,11 @@ function openFrame(
         transfer,
       );
     },
-    onMounted: () => (iframe.dataset.state = "live"),
+    onMounted() {
+      mounted = true;
+      iframe.dataset.state = "live";
+    },
+    onUnmounted: () => onUnmounted?.(),
     onBeat: busy => watch?.beat(busy),
     onFailed(reason) {
       iframe.dataset.state = "failed";
@@ -188,6 +211,7 @@ function openFrame(
   let loads = 0;
   // The first load is the document; any later one is the frame navigating (blocked or not).
   iframe.addEventListener("load", () => {
+    if (stopped) return;
     if (++loads > 1) kill(entry.id, "its frame navigated", "navigated");
   });
   iframe.src = entry.frameUrl;
@@ -202,14 +226,27 @@ function openFrame(
     stop() {
       if (stopped) return;
       stopped = true;
-      live--;
-      removePeer();
       watch?.dispose();
       watch = null;
-      served.dispose();
-      caps.dispose();
-      disposeApi();
-      iframe.remove();
+      let ended = false;
+      let deadline: ReturnType<typeof setTimeout> | undefined = undefined;
+      const end = () => {
+        if (ended) return;
+        ended = true;
+        clearTimeout(deadline);
+        onUnmounted = null;
+        live--;
+        removePeer();
+        served.dispose();
+        caps.dispose();
+        disposeApi();
+        iframe.remove();
+      };
+      // A live view runs its cleanup first (it may still save): parked off screen, served until it's done.
+      if (role !== "view" || !mounted || killed.has(entry.id) || !park(iframe)) return end();
+      onUnmounted = end;
+      peer.send({ v: RPC_VERSION, t: "unmount" });
+      deadline = setTimeout(end, UNMOUNT_MS);
     },
   };
 }

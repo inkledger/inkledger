@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ModuleListEntry } from "@contracts/modules";
 import type { ViewSlot } from "../hostV2";
 import type { Hub } from "../host";
@@ -13,7 +13,8 @@ export function FramedBox({ hub, entry, slot, className }: { hub: Hub; entry: Mo
     latest.current = entry;
   });
   const { id, frameUrl } = entry;
-  useEffect(() => {
+  // A layout effect: its cleanup runs while the frame is still in the page, so the module's own cleanup can run.
+  useLayoutEffect(() => {
     const box = ref.current;
     if (!box || !frameUrl) return;
     return mountView(hub, latest.current, slot, box);
