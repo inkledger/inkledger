@@ -172,7 +172,7 @@ export async function pushDelete(b: BoundTracker, conn: Pick<Connection, "id">, 
 }
 
 /** A date entry's start: 09:00 in the connection's zone (only its day is known). */
-function startOf(span: RemoteWorklog["span"], zone: TimeZone): Date {
+export function startOf(span: RemoteWorklog["span"], zone: TimeZone): Date {
   return new Date(span.kind === "session" ? span.start : instantAtLocal(span.date, 9, zone));
 }
 

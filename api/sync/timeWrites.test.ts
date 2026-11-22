@@ -613,8 +613,9 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     const capabilities = { ...base.capabilities, time: { ...time, entries: { ...time.entries, shape: "date" as const, idempotency: "local" as const } } };
     const kept = new Map<string, Remote>();
     let seq = 0;
+    let newestFirst = false;
     const worklogs = {
-      list: async () => [...kept.values()],
+      list: async () => (newestFirst ? [...kept.values()].reverse() : [...kept.values()]),
       create: async (x: { conn: { remoteAccountId: string } }, ref: { remoteId: string; key: string }, w: { time: Remote["span"]; comment: string }) => {
         tracker.calls.push("create");
         const made: Remote = { remoteId: `d-${++seq}`, issue: { remoteId: ref.remoteId, key: ref.key }, span: w.time, comment: w.comment, authorRemoteId: x.conn.remoteAccountId, editable: { update: true, delete: true }, createdAt: instant(Date.now()) };
@@ -637,6 +638,49 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       expect([...kept.keys()]).toEqual(["d-1"]);
       expect((await sinkOf(made.id))?.remote_id).toBe("d-1");
       await caller.worklogs.delete({ id: made.id });
+      expect(kept.size).toBe(0);
+
+      const { getDb } = await import("../queries/connection");
+      const { connections, worklogs: rows, worklogSinks } = await import("@db/schema");
+      const { eq } = await import("drizzle-orm");
+      const { connOf } = await import("../providers/connections");
+      const { instantAtLocal, localDate } = await import("@contracts/values");
+      const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+      // A worklog of that entry, as a sync or the user would have it here.
+      const linkedRow = async (remoteId: string, started: Date) => {
+        const [row] = await getDb().insert(rows).values({ userId: made.userId, connectionId: connId, issueKey: "FAKE-1", remoteId, timeSpentSeconds: 3600, started, comment: "days", authorAccountId: "me", syncedAt: new Date() }).returning();
+        await getDb()
+          .insert(worklogSinks)
+          .values({ worklogId: row.id, sinkConnectionId: connId, remoteId, state: "synced" })
+          .onConflictDoUpdate({ target: [worklogSinks.worklogId, worklogSinks.sinkConnectionId], set: { remoteId, state: "synced" } });
+        return row;
+      };
+      const lostCreate = async (started: string) => {
+        tracker.loseAnswer = true;
+        const w = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 3600, started, comment: "days" });
+        tracker.loseAnswer = false;
+        return { w, entry: [...kept.keys()].at(-1)! };
+      };
+
+      // Read back by a sync meanwhile (a day's entry comes in at 09:00): the copy goes, the time once.
+      const second = await lostCreate("2026-11-03T12:00:00Z");
+      const copy = await linkedRow(second.entry, new Date(instantAtLocal(localDate("2026-11-03"), 9, connOf(conn).timeZone)));
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      expect([...kept.keys()]).toEqual([second.entry]);
+      expect((await sinkOf(second.w.id))?.remote_id).toBe(second.entry);
+      expect(await q("SELECT count(*)::int AS n FROM worklogs WHERE id = ?", copy.id)).toEqual([{ n: 0 }]);
+      await caller.worklogs.delete({ id: second.w.id });
+
+      // Another worklog logged after it, the same day, length and words, with its own entry: never taken.
+      newestFirst = true;
+      const third = await lostCreate("2026-11-04T12:00:00Z");
+      kept.set("d-twin", { ...kept.get(third.entry)!, remoteId: "d-twin" });
+      const twin = await linkedRow("d-twin", new Date("2026-11-04T15:00:00Z"));
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      expect((await sinkOf(third.w.id))?.remote_id).toBe(third.entry);
+      expect((await sinkOf(twin.id))?.remote_id).toBe("d-twin");
+      await caller.worklogs.delete({ id: third.w.id });
+      await caller.worklogs.delete({ id: twin.id });
       expect(kept.size).toBe(0);
     } finally {
       tracker.loseAnswer = false;

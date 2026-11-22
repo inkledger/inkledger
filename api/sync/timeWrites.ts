@@ -20,7 +20,7 @@ import { t as tr } from "@contracts/i18n";
 import { certainRefusal, providerTrpcError } from "../providers/trpc";
 import type { IssueRef, RemoteWorklog } from "../providers/types";
 import { boundTracker } from "./engine";
-import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
+import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime, startOf } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 import { callMeta } from "../lib/callMeta";
 
@@ -240,7 +240,8 @@ async function adoptLanded(
     // Another worklog's entry: only its copy a sync read back meanwhile (made after ours, the
     // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
     // same time, can't be told from that copy: its comment may have been edited since either.)
-    if (linked && linked.id !== local.id && (linked.id < local.id || !(w.span.kind === "session" ? sameTime({ started: linked.started, seconds: linked.seconds }, mine) : holds(w.span, { started: linked.started, seconds: linked.seconds }, t.zone)))) continue;
+    // A day's copy is read back at its import start: one at another hour is a worklog of its own.
+    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, w.span.kind === "session" ? mine : { started: startOf(w.span, t.zone), seconds: w.span.seconds }))) continue;
     // A queued change is about an older worklog: any newer one of the same time may be a twin
     // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
     // twice, as it did; never another worklog's entry, and the old one with it, gone).
