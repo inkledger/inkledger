@@ -154,7 +154,8 @@ app.use("/api/*", async (c, next) => {
   if (fromElsewhere && !keyed && (c.req.method !== "GET" && c.req.method !== "HEAD" ? true : c.req.path.startsWith("/api/trpc/"))) {
     return c.json({ error: "Forbidden origin" }, 403);
   }
-  if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+  // Queries too (some write): a browser without Sec-Fetch-Site still says Origin.
+  if ((c.req.method !== "GET" && c.req.method !== "HEAD") || c.req.path.startsWith("/api/trpc/")) {
     const origin = c.req.header("origin");
     const host = c.req.header("host");
     if (origin && host) {

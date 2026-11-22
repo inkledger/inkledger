@@ -78,4 +78,19 @@ describe("no path spelling gets past the /api guards", () => {
     expect((await post("/api/hooks/1/token", { "sec-fetch-site": "cross-site" })).status).not.toBe(403);
     expect((await post("/api/outlook/copy", { "sec-fetch-site": "cross-site", authorization: "Bearer ikl_ol_abcdefghijklmnopqrstuvwxyz" })).status).not.toBe(403);
   });
+
+  it("an opaque origin (a sandboxed module frame: Origin null) can neither write nor open a query", async () => {
+    const opaque = { host: "localhost", origin: "null", "content-type": "application/json" };
+    for (const path of ["/api/trpc/auth.logout", "/api/modules/upload", "/api/trpc/modules.setEnabled"]) {
+      // With Sec-Fetch-Site, as browsers send it from such a frame, and without (older browsers).
+      for (const site of [{ "sec-fetch-site": "cross-site" }, {}]) {
+        expect((await app.request(path, { method: "POST", headers: { ...opaque, ...site }, body: "{}" })).status, `${path} ${JSON.stringify(site)}`).toBe(403);
+      }
+    }
+    for (const path of ["/api/trpc/auth.me", "/api/trpc/modules.list"]) {
+      for (const site of [{ "sec-fetch-site": "cross-site" }, {}]) {
+        expect((await app.request(path, { headers: { ...opaque, ...site } })).status, `${path} ${JSON.stringify(site)}`).toBe(403);
+      }
+    }
+  });
 });
