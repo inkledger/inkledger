@@ -185,7 +185,8 @@ const FRAMED_BOX: Partial<Record<SlotId, string>> = {
   "panel-edge": "pointer-events-none absolute inset-x-0 -bottom-[10px] h-[84px] [&_*]:!pointer-events-none",
   // Above the tab bar's right end, room for a control (a player pill); it takes
   // the pointer only while the module says it shows one (dock.set).
-  "mobile-dock": "pointer-events-none absolute bottom-0 right-0 h-[3.25rem] w-[min(260px,calc(100vw-24px))] data-[docked]:pointer-events-auto",
+  // (52 px: a 44 px pill lifted 8 px off the bar.)
+  "mobile-dock": "pointer-events-none absolute bottom-0 right-0 h-[52px] w-[min(260px,calc(100vw-24px))] data-[docked]:pointer-events-auto",
 };
 
 function ModuleBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {
