@@ -272,8 +272,11 @@ describe("module store", () => {
       worker.checkoutUrl = bad;
       await expect(caller.store.checkout({ product: "inkledger.hello", method: "card" })).rejects.toThrow();
     }
-    worker.checkoutUrl = "https://shop.test/buy?claim=c";
     expect(await caller.store.pending()).toEqual({ pending: [], installed: [] });
+    // A store on this machine (a local test store) may serve its page over http.
+    worker.checkoutUrl = "http://127.0.0.1:8787/buy";
+    await expect(caller.store.checkout({ product: "inkledger.hello", method: "card" })).resolves.toBeTruthy();
+    worker.checkoutUrl = "https://shop.test/buy?claim=c";
   });
 });
 

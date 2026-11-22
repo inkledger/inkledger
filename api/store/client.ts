@@ -115,10 +115,13 @@ export async function requestLicense(r: { product: string; email: string; messag
   return token;
 }
 
+/** A payment page: https, or a store on this machine (a local test store). */
+const paymentPage = (u: URL) => u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname));
+
 export async function startCheckout(r: { product: string; method: PaymentMethod; email?: string }) {
   const answer = (await (await postJson("/checkout", r)).json()) as { token: string; url: unknown };
   // The page opens it as is (browser or OS opener): a payment page, never javascript: or file:.
-  if (typeof answer.url !== "string" || !URL.canParse(answer.url) || new URL(answer.url).protocol !== "https:") throw new StoreError("unreachable", 0, "checkout url");
+  if (typeof answer.url !== "string" || !URL.canParse(answer.url) || !paymentPage(new URL(answer.url))) throw new StoreError("unreachable", 0, "checkout url");
   return { token: answer.token, url: answer.url };
 }
 
