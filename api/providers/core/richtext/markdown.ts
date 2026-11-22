@@ -139,9 +139,10 @@ function linkAt(s: string, i: number, cx: Cx): { end: number; inner: string; url
     while (k < s.length && /\s/.test(s[k])) k++;
     const q = s[k];
     if (q === '"' || q === "'" || q === "(") {
-      const e = s.indexOf(q === "(" ? ")" : q, k + 1);
+      // Within reach: a title that never closes is not looked for in the rest of the text.
+      const e = s.slice(k + 1, k + 1 + REACH).indexOf(q === "(" ? ")" : q);
       if (e < 0) return null;
-      k = e + 1;
+      k = k + 1 + e + 1;
       while (k < s.length && /\s/.test(s[k])) k++;
     }
     return s[k] === ")" ? { end: k + 1, inner, url: unescapeMd(dest) } : null;

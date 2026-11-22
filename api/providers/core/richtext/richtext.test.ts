@@ -450,6 +450,12 @@ describe("fromMarkdown", () => {
     expect(quick("$a$ ".repeat(150_000), "glfm")).toBeLessThan(500);
   });
 
+  it("a link title that never closes is not looked for in the rest of the text", () => {
+    const t0 = performance.now();
+    fromMarkdown("[a](b (".repeat(150_000), "gfm");
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+
   it("a quote nested past any real depth keeps its text, never the whole description lost", () => {
     const text = plainText(fromMarkdown(`before\n\n${">".repeat(12_000)} deep\n\nafter`, "gfm"));
     expect(text.startsWith("before")).toBe(true);
