@@ -164,6 +164,12 @@ describe("the desk's chat", () => {
   describe("tools (batch 4d): the page runs them, the server only forwards", () => {
     const ask = (body: unknown) => app.request("/api/desk/chat", { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify(body) });
     const readAll = async (res: Response) => new TextDecoder().decode(await res.arrayBuffer());
+    /** The answer's status, its stream read to the end (an answer nobody reads stays open). */
+    const status = async (b: unknown) => {
+      const res = await ask(b);
+      await res.arrayBuffer();
+      return res.status;
+    };
     const events = (text: string) => [...text.matchAll(/event: (\w+)\ndata: (.*)\n/g)].map(m => ({ event: m[1], data: JSON.parse(m[2]) as Record<string, unknown> }));
     const question = { role: "user", content: "Is APP-1 solved? Look at the code" };
     const call = { role: "assistant", content: "", tool_calls: [{ name: "grep", arguments: { repo: "app", query: "APP-1" } }] };
@@ -191,8 +197,8 @@ describe("the desk's chat", () => {
         body([question, call]),
         body([question], { repos: ["/Users/me/secret"] }),
       ];
-      for (const b of bad) expect((await ask(b)).status, JSON.stringify(b).slice(0, 200)).toBe(400);
-      expect((await ask(body([question, call, result]))).status).toBe(200);
+      for (const b of bad) expect(await status(b), JSON.stringify(b).slice(0, 200)).toBe(400);
+      expect(await status(body([question, call, result]))).toBe(200);
     });
 
     it("forwards the tools offered and the turns to Ollama; tool calls come back as an event", async () => {
@@ -299,7 +305,7 @@ describe("the desk's chat", () => {
       await readAll(await ask(body([question, ...rounds(12)])));
       expect(sent?.tools).toBeUndefined();
       expect(sent?.messages.at(-2)?.content).toMatch(/answer now/i);
-      expect((await ask(body([question, ...rounds(13)]))).status).toBe(400);
+      expect(await status(body([question, ...rounds(13)]))).toBe(400);
     });
 
     it("the simulator plays a scripted round: grep for the first key, then an answer citing the result", async () => {
@@ -319,9 +325,64 @@ describe("the desk's chat", () => {
       expect(done?.markdown).toContain("src/Login.kt:12");
     });
 
+    /** A model that answers at once: tools for a question, an answer for a round. */
+    const quickModel = () => {
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      ollama = init => {
+        const sent = JSON.parse(String(init?.body)) as { messages: { role: string }[] };
+        const round = sent.messages.some(m => m.role === "tool");
+        const message = round ? { role: "assistant", content: "Done." } : { role: "assistant", content: "", tool_calls: [{ function: { name: "grep", arguments: { repo: "app", query: "APP-1" } } }] };
+        return new Response(`${JSON.stringify({ message, done: true })}\n`);
+      };
+    };
+
     it("questions and tool rounds are counted apart: a round never uses up a question", async () => {
+      freshMinute();
+      quickModel();
+      // Twelve questions, each with the round its tools asked for: 24 requests in a minute.
+      for (let i = 0; i < 12; i++) {
+        const asked = await readAll(await ask(body([question])));
+        expect(events(asked).some(e => e.event === "tool_calls")).toBe(true);
+        expect(await status(body([question, call, result]))).toBe(200);
+      }
+    });
+
+    it("a round the server never asked for counts as a question", async () => {
+      freshMinute();
+      quickModel();
+      for (let i = 0; i < 12; i++) expect(await status(body([question, call, result]))).toBe(200);
+      expect(await status(body([question, call, result]))).toBe(429);
+    });
+
+    it("a long chat is still sent: earlier turns the model wouldn't read are trimmed, never refused", async () => {
+      freshMinute();
       env.ollamaSimulator = "1";
-      for (let i = 0; i < 20; i++) expect((await ask(body([question, call, result]))).status).toBe(200);
+      // An answer longer than a turn may be.
+      expect(await status(body([{ role: "user", content: "First?" }, { role: "assistant", content: "x".repeat(13_000) }, question]))).toBe(200);
+      // More turns than a request may carry.
+      const many = Array.from({ length: 210 }, (_, i) => (i % 2 ? { role: "assistant", content: `answer ${i}` } : { role: "user", content: `question ${i}` }));
+      expect(await status(body([...many, question]))).toBe(200);
+      // Long turns together past the whole's bound.
+      const long = Array.from({ length: 22 }, (_, i) => (i % 2 ? { role: "assistant", content: "y".repeat(11_000) } : { role: "user", content: "z".repeat(11_000) }));
+      expect(await status(body([...long, question]))).toBe(200);
+    });
+
+    it("a few answers at once per user, no more", async () => {
+      freshMinute();
+      env.ollamaSimulator = null;
+      env.ollamaUrl = "http://127.0.0.1:11434";
+      const held: ReadableStreamDefaultController<Uint8Array>[] = [];
+      ollama = () => new Response(new ReadableStream<Uint8Array>({ start: c => void held.push(c) }));
+      const open = [await ask(body([question])), await ask(body([question])), await ask(body([question]))];
+      for (const res of open) expect(res.status).toBe(200);
+      const reading = open.map(res => readAll(res));
+      await vi.waitFor(() => expect(held).toHaveLength(3));
+      expect((await ask(body([question]))).status).toBe(429);
+      for (const c of held) c.close();
+      await Promise.all(reading);
+      ollama = () => new Response(`${JSON.stringify({ message: { role: "assistant", content: "Done." }, done: true })}\n`);
+      expect(await readAll(await ask(body([question])))).toContain("event: done");
     });
 
     it("never touches the file system, whatever paths the turns carry", async () => {

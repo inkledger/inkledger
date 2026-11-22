@@ -122,6 +122,28 @@ describe("runAgent", () => {
   });
 });
 
+describe("runAgent: a tool given up on", () => {
+  it("is told to stop when it takes too long", async () => {
+    let seen: AbortSignal | undefined;
+    const s = server((_, n) => (n === 0 ? calls({ name: "grep", arguments: { repo: "app", query: "MAGA-400" } }) : answer("Too slow to say.")));
+    const end = await runAgent(
+      { ...base, history: earlier, tools: [...base.tools], mode: "tools" },
+      {
+        post: body => s.post(body),
+        toolTimeoutMs: 20,
+        runTool: (_call, signal) => {
+          seen = signal;
+          return new Promise(() => {});
+        },
+      },
+      () => {},
+    );
+    expect(end).toBe("done");
+    expect(seen?.aborted).toBe(true);
+    expect(s.posted[1].messages.at(-1)).toMatchObject({ role: "tool", content: "error: the tool took too long" });
+  });
+});
+
 describe("runAgent: evidence first, also for a model with tools", () => {
   it("before the first round the loop itself searches the key and the title's words (code and commits), and sends the hits with the tools", async () => {
     const s = server(() => answer("Solved by 1a2b."));
@@ -174,6 +196,17 @@ describe("compactWire", () => {
     expect(out[2]).toMatchObject({ content: "read f2.kt lines 1–200 (elided)" });
     // The last ones are kept whole even when alone they pass the budget.
     expect(compactWire([tool(1, 9_000), tool(2, 9_000)], 1_000, 2).map(m => m.content.length)).toEqual([9_000, 9_000]);
+  });
+
+  it("the latest round's results all stay whole, however many: the model hasn't read them yet", () => {
+    const round: AgentWire = { role: "assistant", content: "", tool_calls: [1, 2, 3, 4, 5].map(n => ({ name: "read", arguments: { repo: "app", path: `f${n}.kt` } })) };
+    const wire: AgentWire[] = [{ role: "user", content: "q" }, round, ...[1, 2, 3, 4, 5].map(n => tool(n, 10_000))];
+    expect(compactWire(wire).map(m => m.content.length)).toEqual([1, 0, 10_000, 10_000, 10_000, 10_000, 10_000]);
+    // An earlier round's results still go first.
+    const later: AgentWire[] = [...wire, round, ...[6, 7, 8, 9, 10].map(n => tool(n, 1_000))];
+    const out = compactWire(later);
+    expect(out.slice(2, 4).every(m => m.content.endsWith("(elided)"))).toBe(true);
+    expect(out.slice(8).map(m => m.content.length)).toEqual([1_000, 1_000, 1_000, 1_000, 1_000]);
   });
 });
 

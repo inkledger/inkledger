@@ -9,6 +9,9 @@ import type { RichDoc } from "./richtext";
 export const DESK_CHAT_PATH = "/api/desk/chat";
 /** What the chat can reach for the issues shown: the projects' repositories, the model's tools. */
 export const DESK_CHAT_REACH_PATH = "/api/desk/chat/reach";
+/** The turns sent back: the latest ones (an older question falls out first), each at most this long. */
+export const DESK_CHAT_KEPT_TURNS = 12;
+export const DESK_CHAT_TURN_CHARS = 12_000;
 
 /** A tool the model asked for; the page runs it on the user's machine. */
 export type DeskChatToolCall = { name: CodeToolName; arguments: Record<string, unknown> };

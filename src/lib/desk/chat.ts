@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { DESK_CHAT_PATH, type DeskChatEvent, type DeskChatIssue, type DeskChatRequest, type DeskChatWire } from "@contracts/deskChat";
+import { DESK_CHAT_KEPT_TURNS, DESK_CHAT_PATH, DESK_CHAT_TURN_CHARS, type DeskChatEvent, type DeskChatIssue, type DeskChatRequest, type DeskChatWire } from "@contracts/deskChat";
 import type { DeskSlot } from "@contracts/desk";
 import type { RichDoc } from "@contracts/richtext";
 import type { CodeToolName } from "@contracts/codeTools";
@@ -95,9 +95,12 @@ export async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenera
   }
 }
 
-/** The turns sent back: questions, and answers that came (whole or stopped); never earlier tool rounds. */
+/** The turns sent back: questions, and answers that came (whole or stopped); never earlier tool rounds; the latest only, each capped as the server reads it. */
 const turns = (messages: readonly ChatMessage[]): DeskChatWire[] =>
-  messages.filter(m => m.role === "user" || (m.status !== "error" && m.text.trim())).map(m => ({ role: m.role, content: m.text }));
+  messages
+    .filter(m => m.role === "user" || (m.status !== "error" && m.text.trim()))
+    .slice(-DESK_CHAT_KEPT_TURNS)
+    .map(m => ({ role: m.role, content: m.text.slice(0, DESK_CHAT_TURN_CHARS) }));
 
 /** The server refused the request (said in its words). */
 class Refused extends Error {}

@@ -5,13 +5,13 @@
 // the page, which runs them on the user's machine and posts again with the results.
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
-import { streamSSE } from "hono/streaming";
+import { streamSSE, type SSEStreamingApi } from "hono/streaming";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { containers, issues, type User } from "@db/schema";
 import { DESK_MAX_PANES, deskIssues, deskPaneSchema, emptySlotSchema, type DeskPane, type DeskSlot } from "@contracts/desk";
-import { DESK_CHAT_PATH, DESK_CHAT_REACH_PATH, type DeskChatIssue, type DeskChatReach, type DeskChatToolCall, type DeskChatWire } from "@contracts/deskChat";
+import { DESK_CHAT_KEPT_TURNS, DESK_CHAT_PATH, DESK_CHAT_REACH_PATH, DESK_CHAT_TURN_CHARS, type DeskChatIssue, type DeskChatReach, type DeskChatToolCall, type DeskChatWire } from "@contracts/deskChat";
 import { CODE_TOOLS, EXTRACTS_CHARS, MAX_TOOL_ROUNDS, TOOL_RESULT_CHARS, type CodeToolName } from "@contracts/codeTools";
 import { issueMarkdown } from "@contracts/issueCopy";
 import { emptyDoc } from "@contracts/richtext";
@@ -36,8 +36,8 @@ const NUM_CTX = 24_576;
 /** With code: the issues, the tool rounds (compacted by the page) or the extracts (tokens). */
 const NUM_CTX_CODE = 32_768;
 /** The turns sent back: the latest ones (an older question falls out first). */
-const KEPT_TURNS = 12;
-const TURN_CHARS = 12_000;
+const KEPT_TURNS = DESK_CHAT_KEPT_TURNS;
+const TURN_CHARS = DESK_CHAT_TURN_CHARS;
 /** Tool calls in one round, and the size of one call's arguments (chars). */
 const CALLS_PER_ROUND = 6;
 const CALL_CHARS = 2_000;
@@ -52,6 +52,32 @@ const CONTEXT_MS = 120_000;
 const limiter = createRateLimiter(12, 60_000);
 /** Each question may take up to MAX_TOOL_ROUNDS rounds: counted apart, still bounded. */
 const roundLimiter = createRateLimiter(12 * MAX_TOOL_ROUNDS, 60_000);
+/** Answers being written for one user at once (a few tabs). */
+const STREAMS_PER_USER = 3;
+const streams = new Map<number, number>();
+/** How long tools asked for may take to come back as a round. */
+const ROUND_MS = 10 * 60_000;
+
+/**
+ * The rounds this server asked for (a `tool_calls` event), per user: only those count as
+ * rounds. A request that merely carries tool results is a question for the limits.
+ */
+const owedRounds = new Map<number, { count: number; until: number }>();
+function oweRound(userId: number): void {
+  const now = Date.now();
+  const owed = owedRounds.get(userId);
+  owedRounds.set(userId, { count: (owed && owed.until > now ? owed.count : 0) + 1, until: now + ROUND_MS });
+}
+function takeRound(userId: number): boolean {
+  const owed = owedRounds.get(userId);
+  if (!owed || owed.until <= Date.now()) {
+    owedRounds.delete(userId);
+    return false;
+  }
+  if (owed.count <= 1) owedRounds.delete(userId);
+  else owedRounds.set(userId, { ...owed, count: owed.count - 1 });
+  return true;
+}
 
 /**
  * The model's context: every issue shown on the desk (empty slots and parked issues
@@ -155,12 +181,47 @@ const wire = z.discriminatedUnion("role", [
 const requestSchema = z
   .object({
     panes: z.array(z.union([deskPaneSchema, emptySlotSchema])).max(20),
-    messages: z.array(wire).min(1).max(200),
+    messages: z.preprocess(trimEarlier, z.array(wire).min(1).max(200)),
     tools: z.array(z.enum(CODE_TOOLS)).max(CODE_TOOLS.length).optional(),
     repos: z.array(label).max(20).optional(),
     extracts: z.string().max(EXTRACTS_CHARS).optional(),
   })
   .refine(b => wellFormed(b.messages));
+
+const weight = (m: unknown): number => {
+  if (typeof m !== "object" || m === null) return 0;
+  const content = "content" in m && typeof m.content === "string" ? m.content.length : 0;
+  return content + ("tool_calls" in m && m.tool_calls ? JSON.stringify(m.tool_calls).length : 0);
+};
+const isTurn = (m: unknown): m is { role: "user" | "assistant"; content: string } =>
+  typeof m === "object" &&
+  m !== null &&
+  "role" in m &&
+  (m.role === "user" || (m.role === "assistant" && !("tool_calls" in m && m.tool_calls))) &&
+  "content" in m &&
+  typeof m.content === "string" &&
+  m.content.trim() !== "";
+
+/**
+ * The turns before the last question cut to those the model is sent (keptMessages), each
+ * at most TURN_CHARS, the oldest out until the whole fits: a long chat (or a long answer
+ * in it) is never refused for turns nobody reads. The current question is checked whole.
+ */
+function trimEarlier(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  const list: unknown[] = raw;
+  const at = list.map((m: unknown) => (typeof m === "object" && m !== null && "role" in m ? m.role : null)).lastIndexOf("user");
+  if (at <= 0) return raw;
+  const current = list.slice(at);
+  const earlier = list
+    .slice(0, at)
+    .filter(isTurn)
+    .map(m => ({ role: m.role, content: m.content.slice(0, TURN_CHARS) }))
+    .slice(-(KEPT_TURNS - 1));
+  let total = [...earlier, ...current].reduce<number>((n, m) => n + weight(m), 0);
+  while (earlier.length && total > TOTAL_CHARS) total -= weight(earlier.shift());
+  return [...earlier, ...current];
+}
 
 /**
  * A conversation that can be sent: it ends with a question or a tool result; an answer
@@ -283,7 +344,8 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const body = parsed.data;
     const messages = keptMessages(body.messages);
     const current = currentQuestion(messages);
-    const isRound = current.some(m => m.role === "tool");
+    // A round only when this server asked for its tools; else it is counted as a question.
+    const isRound = current.some(m => m.role === "tool") && takeRound(user.id);
     const wait = (isRound ? roundLimiter : limiter).hit(String(user.id));
     if (wait > 0) return c.json({ error: t("server.deskChat.tooMany", { count: wait }) }, 429);
     c.header("Cache-Control", "no-store");
@@ -313,7 +375,19 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
       { role: "system", content: languageReminder(locale) },
     ];
     const question = current[0]?.role === "user" ? current[0].content : "";
-    return streamSSE(c, async stream => {
+    // Counted with no wait in between: two requests can't both take the last place.
+    if ((streams.get(user.id) ?? 0) >= STREAMS_PER_USER) return c.json({ error: t("server.deskChat.tooMany", { count: 5 }) }, 429);
+    streams.set(user.id, (streams.get(user.id) ?? 0) + 1);
+    let counted = true;
+    // Once: the answer done, or the client gone (whichever comes first).
+    const ended = () => {
+      if (!counted) return;
+      counted = false;
+      const left = (streams.get(user.id) ?? 1) - 1;
+      if (left > 0) streams.set(user.id, left);
+      else streams.delete(user.id);
+    };
+    const answerStream = async (stream: SSEStreamingApi) => {
       const upstream = new AbortController();
       stream.onAbort(() => upstream.abort());
       await stream.writeSSE({ event: "context", data: JSON.stringify({ issues: context.issues }) });
@@ -362,6 +436,7 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
         if (written) take(written);
         else if (held) await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: answer }) });
         if (calls.length) {
+          oweRound(user.id);
           await stream.writeSSE({ event: "tool_calls", data: JSON.stringify({ calls }) });
           return;
         }
@@ -373,6 +448,10 @@ export function registerDeskChatRoutes(app: Hono<{ Bindings: HttpBindings }>) {
       } finally {
         upstream.abort();
       }
+    };
+    return streamSSE(c, stream => {
+      stream.onAbort(ended);
+      return answerStream(stream).finally(ended);
     });
   });
 }

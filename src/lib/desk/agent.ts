@@ -81,13 +81,15 @@ const size = (m: AgentWire) => m.content.length + (m.role === "assistant" && m.t
 
 /**
  * Old tool results replaced by their one line ("read src/x.kt lines 1–200 (elided)"),
- * oldest first, until the whole fits `budget`; the last `keepWhole` results stay whole.
+ * oldest first, until the whole fits `budget`; the last `keepWhole` results stay whole,
+ * and so does every result of the latest round (the model hasn't read them yet).
  */
 export function compactWire(wire: readonly AgentWire[], budget = COMPACT_BUDGET, keepWhole = KEEP_WHOLE): AgentWire[] {
   let total = wire.reduce((n, m) => n + size(m), 0);
   if (total <= budget) return [...wire];
   const tools = wire.flatMap((m, i) => (m.role === "tool" ? [i] : []));
-  const elidable = new Set(tools.slice(0, Math.max(0, tools.length - keepWhole)));
+  const lastRound = wire.reduce((at, m, i) => (m.role === "assistant" && m.tool_calls ? i : at), -1);
+  const elidable = new Set(tools.slice(0, Math.max(0, tools.length - keepWhole)).filter(i => lastRound < 0 || i < lastRound));
   return wire.map((m, i) => {
     if (total <= budget || !elidable.has(i) || m.role !== "tool" || !("brief" in m)) return m;
     const content = `${m.brief} (elided)`;
@@ -146,16 +148,25 @@ export async function runAgent(input: AgentInput, deps: AgentDeps, emit: (e: Age
     if (!input.tools.includes(call.name)) run = { ok: false, text: `error: ${call.name} can't be used here`, brief: `${call.name}: not available` };
     else {
       let timer: ReturnType<typeof setTimeout> | undefined;
+      // A tool given up on is told to stop too (Stop stops it as well).
+      const own = new AbortController();
+      const stopOwn = () => own.abort();
+      signal?.addEventListener("abort", stopOwn, { once: true });
+      if (signal?.aborted) own.abort();
       const late = new Promise<ToolRun>(resolve => {
-        timer = setTimeout(() => resolve({ ok: false, text: "error: the tool took too long", brief: `${s.brief}: too slow` }), deps.toolTimeoutMs ?? TOOL_TIMEOUT_MS);
+        timer = setTimeout(() => {
+          own.abort();
+          resolve({ ok: false, text: "error: the tool took too long", brief: `${s.brief}: too slow` });
+        }, deps.toolTimeoutMs ?? TOOL_TIMEOUT_MS);
       });
       try {
-        run = await Promise.race([deps.runTool(call, signal), late]);
+        run = await Promise.race([deps.runTool(call, own.signal), late]);
       } catch (e) {
         if (signal?.aborted) throw new Stopped();
         run = { ok: false, text: `error: ${e instanceof Error ? e.message : String(e)}`, brief: `${s.brief}: failed` };
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener("abort", stopOwn);
       }
     }
     const text = capText(run.text, TOOL_RESULT_CHARS);
