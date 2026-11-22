@@ -77,6 +77,8 @@ vi.stubGlobal(
     if (p.endsWith("/issue/PRJ-9/worklog")) return json({ worklogs: [wl("900", "acc-1", now - 3 * DAY)], total: 1 });
     if (p.endsWith("/issue/PRJ-1/worklog")) return json({ worklogs: jira.prj1, total: jira.prj1.length });
     if (p.endsWith("/issue/PRJ-3/worklog")) return json({ worklogs: [], total: 0 });
+    // Moved to PRJ-1: Jira answers its old key with the issue it became.
+    if (p.endsWith("/issue/OLD-1/worklog")) return json({ worklogs: jira.prj1, total: jira.prj1.length });
     if (p.endsWith("/issue/PRJ-4/worklog")) return json({ errorMessages: ["Issue does not exist"] }, 404);
     if (p.endsWith("/worklog/updated") && jira.stuckUpdated) return json({ values: [], lastPage: false, until: Number(url.searchParams.get("since")) });
     if (p.endsWith("/worklog/updated") && jira.endlessUpdated) {
@@ -216,6 +218,12 @@ describe("worklogs from Jira", () => {
     await me.worklogs.reimport();
     expect((await mine()).map((w) => w.id)).toEqual(["100", "900"]);
     await q("DELETE FROM worklogs WHERE jira_worklog_id = '900'");
+  });
+
+  it("a moved issue's copies under its old key go: Jira answers the old key with the same worklogs, counted once", async () => {
+    (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'OLD-1', '100', 3600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 2 * DAY));
+    await me.worklogs.reimport();
+    expect(await q<{ key: string; id: string }>("SELECT issue_key AS key, jira_worklog_id AS id FROM worklogs WHERE jira_worklog_id = '100'")).toEqual([{ key: "PRJ-1", id: "100" }]);
   });
 
   it("a reimport whose search finds nothing still drops copies Jira no longer has", async () => {

@@ -148,6 +148,9 @@ async function initial({ user, creds }: Ctx, queued: Set<string>, buried: Buried
     Infinity,
   );
   const seen = new Set<string>();
+  // Worklogs read under one key in this pass: under another (a moved issue's old key, which Jira
+  // answers with the issue it became) they are that one's, never a second copy.
+  const got = new Set<string>();
   let imported = 0;
   let deleted = 0;
   // Known issues and local worklogs read once, not once per issue.
@@ -162,8 +165,9 @@ async function initial({ user, creds }: Ctx, queued: Set<string>, buried: Buried
     seen.add(issue.key);
     added = (await ensureIssue(user, issue.key, () => Promise.resolve(issue), known)) || added;
     const mine = (await fetchWorklogs(creds, issue.key)).filter(
-      (w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from,
+      (w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from && !got.has(w.id),
     );
+    for (const w of mine) got.add(w.id);
     for (const w of mine) {
       if (queued.has(w.id) || buried(issue.key, w)) continue;
       await upsertLocal(rowFromJira(user.id, issue.key, w, user.connectionId));
@@ -177,7 +181,8 @@ async function initial({ user, creds }: Ctx, queued: Set<string>, buried: Buried
     if (seen.has(key) || !rows.some((w) => w.started.getTime() >= from && !queued.has(w.id))) continue;
     const there = await worklogsStillOn(creds, key);
     if (!there) continue;
-    const mine = there.filter((w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from);
+    const mine = there.filter((w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from && !got.has(w.id));
+    for (const w of mine) got.add(w.id);
     for (const w of mine) {
       if (queued.has(w.id) || buried(key, w)) continue;
       await upsertLocal(rowFromJira(user.id, key, w, user.connectionId));
