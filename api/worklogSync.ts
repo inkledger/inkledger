@@ -18,7 +18,7 @@ import { rowFromJira, upsertLocal } from "./routers/worklogs";
 import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
 import { connOf, contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
-import { buriedBy, creationInFlight, liveTombs, tombsEnded } from "./sync/timeWrites";
+import { buriedBy, creationInFlight, tombsEnded } from "./sync/timeWrites";
 import { trackerOfSink } from "./sync/extraSinks";
 import { instant } from "@contracts/values";
 import { isWorking } from "@contracts/sync";
@@ -59,7 +59,7 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
  * Creates deleted here whose answer was lost (their delete looks for the entry on Jira):
  * such an entry is never read back as new meanwhile.
  */
-export async function buriedOn(userId: number, conn: Connection): Promise<(issueKey: string, w: JiraWorklog) => boolean> {
+export async function buriedOn(userId: number, conn: Connection): Promise<((issueKey: string, w: JiraWorklog) => boolean) & { ids: number[] }> {
   // Through Jira, or the sink standing in for it (Tempo).
   const tombs = (
     await getDb()
@@ -69,15 +69,17 @@ export async function buriedOn(userId: number, conn: Connection): Promise<(issue
       // One discarded or out of attempts no longer: its entry is read back.
       .where(and(eq(outbox.userId, userId), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS)))
   ).filter((r) => r.via.id === conn.id || trackerOfSink(r.via) === conn.id);
-  if (tombs.length === 0) return () => false;
+  // Their ids too: a pass that ran while one ended keeps its tracker's feed where it was.
+  const ids = tombs.map((r) => r.t.id);
+  if (tombs.length === 0) return Object.assign(() => false, { ids });
   const zone = connOf(conn).timeZone;
-  return (issueKey, w) => {
+  return Object.assign((issueKey: string, w: JiraWorklog) => {
     const row = rowFromJira(userId, issueKey, w);
     const e = { span: { kind: "session" as const, start: instant(row.started.getTime()), seconds: row.timeSpentSeconds }, comment: row.comment, createdAt: w.created ? instant(Date.parse(w.created)) : null };
     // The sink's copy on Jira carries its note: the issue on the first line, then the comment.
     const note = row.comment.startsWith(`${issueKey}: `) ? row.comment.slice(row.comment.indexOf("\n") + 1 || row.comment.length) : null;
     return tombs.some(({ t, via }) => t.issueKey === issueKey && (buriedBy(t, e, zone) || (via.id !== conn.id && note !== null && buriedBy(t, { ...e, comment: note }, zone))));
-  };
+  }, { ids });
 }
 
 /** The connection's issue stream waits (a backoff or a rate limit): its worklogs wait too. */
@@ -113,14 +115,13 @@ async function syncConnectionWorklogs(account: User, conn: Connection, opts: { r
       .where(and(eq(worklogTrash.userId, account.id), eq(worklogTrash.connectionId, conn.id), eq(worklogTrash.reason, "user"), isNotNull(worklogTrash.remoteId))),
   ]);
   const queued = new Set([...queuedOps.map((o) => o.id), ...trashed.flatMap((o) => (o.id ? [o.id] : []))]);
-  const tombs = await liveTombs(account.id, conn.id);
   const buried = await buriedOn(account.id, conn);
   const startedAt = Date.now();
   const ctx = contextFor(account, conn);
   const result = since ? await incremental(ctx, since.getTime(), queued, buried) : await initial(ctx, queued, buried);
   const until = new Date(result.until ?? startedAt);
   // A delete that kept an entry out ended meanwhile: where its rewind (or the old place) left the feed stands.
-  if (await tombsEnded(tombs)) return { imported: result.imported, deleted: result.deleted, initial: !since };
+  if (await tombsEnded(buried.ids)) return { imported: result.imported, deleted: result.deleted, initial: !since };
   if (conn.legacy) {
     await db.insert(syncState)
       .values({ userId: account.id, lastWorklogSyncAt: until })
