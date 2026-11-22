@@ -21,10 +21,11 @@ const ref = { remoteId: "r-1", key: "FAKE-1" };
  * Queries per pass, by page size N (all new, all known) and by entries gone G (of 40).
  * Before Wave 2 (frozen 2026-10-22): 40 / 80 / 160 for both, and 10 / 20 / 40 gone
  * (4 per entry, 2 per entry gone). A page is now read once and written in a few
- * statements: the same at any size.
+ * statements: the same at any size. New entries cost one more read since 2026-11-22: the
+ * creates deleted here whose answer was lost, on their issues (never read back meanwhile).
  */
 const MEASURED = {
-  allNew: { 10: 4, 20: 4, 40: 4 },
+  allNew: { 10: 5, 20: 5, 40: 5 },
   allKnown: { 10: 4, 20: 4, 40: 4 },
   gone: { 5: 2, 10: 2, 20: 2 },
 } as const;

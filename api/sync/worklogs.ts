@@ -5,7 +5,7 @@
 // entries read back into the registry. Every tracker that keeps entries
 // writes through here (sync/timeWrites.ts); Jira's feed is still read by
 // its own sync (worklogSync.ts).
-import { and, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
 import { instant, instantAtLocal, localDateOf, type TimeZone } from "@contracts/values";
@@ -20,6 +20,7 @@ import type { Budget } from "./budget";
 import { rounds } from "../lib/rounds";
 import { t } from "@contracts/i18n";
 import { providerName } from "@contracts/providerNames";
+import { buriedBy } from "./timeWrites";
 
 type Local = typeof worklogs.$inferSelect;
 type Sink = typeof worklogSinks.$inferSelect;
@@ -219,6 +220,7 @@ async function applyPage(
   items: RemoteWorklog[],
   gone: { remoteId: string }[],
   zone: TimeZone,
+  slackOf: (seconds: number) => number = () => 0,
 ): Promise<{ upserted: number; removed: number }> {
   const db = getDb();
   const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
@@ -253,6 +255,14 @@ async function applyPage(
               or(sql`${worklogs.remoteId} LIKE 'new-%'`, sql`${worklogs.remoteId} LIKE 'pending-%'`),
             ),
           );
+  // Creates deleted here whose answer was lost, on those issues: their delete looks for the entry.
+  const buried =
+    newKeys.length === 0
+      ? []
+      : await db
+          .select()
+          .from(outbox)
+          .where(and(eq(outbox.userId, conn.userId), eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter), inArray(outbox.issueKey, newKeys)));
 
   type Read = { w: RemoteWorklog; key: string; values: { timeSpentSeconds: number; started: Date; comment: string; syncedAt: Date }; locked: string | null };
   const reads: (Read & { k?: { worklogId: number; state: string }; local?: Local; differs: boolean })[] = entries.map((w) => {
@@ -298,6 +308,8 @@ async function applyPage(
       }
       continue;
     }
+    // Never read back meanwhile: linked here, it would be no longer the delete's to take.
+    if (buried.some((t) => t.issueKey === r.key && buriedBy(t, w, zone, slackOf(t.timeSpentSeconds)))) continue;
     const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
     if (at >= 0) {
       // Ours, read back before its answer came: the same worklog, never a second one.
@@ -373,7 +385,7 @@ export async function syncEntries(
       // takes 65535 parameters at most).
       // Only the user's own, on an issue, count as copies (the others are left out anyway).
       const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
-      for (const round of rounds(mine, (w) => w.remoteId)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone)).upserted;
+      for (const round of rounds(mine, (w) => w.remoteId)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone, (s) => roundingSlack(entriesOf(b)?.limits, s))).upserted;
       for (const round of rounds(gone, (g) => g.remoteId)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
     },
   );
