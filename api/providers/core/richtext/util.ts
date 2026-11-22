@@ -19,6 +19,24 @@ export function segsToInlines(segs: (Inline | Image)[], inLink = false): Inline[
   });
 }
 
+/** Images split the run into paragraphs; trimBreaks drops blank edges from each one */
+export function segsToBlocks(segs: (Inline | Image)[], opts: { trimBreaks: boolean }): Block[] {
+  const out: Block[] = [];
+  let run: Inline[] = [];
+  const flush = () => {
+    if (!run.every(blank)) out.push({ t: "p", c: opts.trimBreaks ? trimBreaks(run) : run });
+    run = [];
+  };
+  for (const s of segs) {
+    if (s.t === "image") {
+      flush();
+      out.push(s);
+    } else run.push(s);
+  }
+  flush();
+  return out;
+}
+
 /** Drop blank text and breaks at both ends */
 export function trimBreaks(xs: Inline[]): Inline[] {
   let a = 0;

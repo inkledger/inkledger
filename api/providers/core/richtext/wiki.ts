@@ -2,7 +2,7 @@
 // Pure, never throws; unknown markup stays as text.
 
 import { emptyDoc, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
-import { blank, isAlnum, isSpace, segsToInlines, trimBreaks } from "./util";
+import { isAlnum, isSpace, segsToBlocks, segsToInlines } from "./util";
 
 type Image = Extract<Block, { t: "image" }>;
 type Seg = Inline | Image;
@@ -27,23 +27,6 @@ const EMOJI: Record<string, string> = {
 };
 
 // ---- inlines ----
-
-function segsToBlocks(segs: Seg[]): Block[] {
-  const out: Block[] = [];
-  let run: Inline[] = [];
-  const flush = () => {
-    if (!run.every(blank)) out.push({ t: "p", c: trimBreaks(run) });
-    run = [];
-  };
-  for (const s of segs) {
-    if (s.t === "image") {
-      flush();
-      out.push(s);
-    } else run.push(s);
-  }
-  flush();
-  return out;
-}
 
 /** Index of the closing marker for a span opened at `from`, or -1 */
 function closer(s: string, from: number, ch: string): number {
@@ -264,7 +247,7 @@ function buildList(items: Item[], depth: number): Block[] {
       cur = { ordered: it.ordered, items: [] };
       blocks.push({ t: "list", ordered: it.ordered, items: cur.items });
     }
-    cur.items.push({ checked: null, c: segsToBlocks(parseInline(it.text)) });
+    cur.items.push({ checked: null, c: segsToBlocks(parseInline(it.text), { trimBreaks: true }) });
     i++;
   }
   return blocks;
@@ -293,7 +276,7 @@ function parseBlocks(input: string[]): Block[] {
   const out: Block[] = [];
   let para: string[] = [];
   const flushPara = () => {
-    if (para.length > 0) out.push(...segsToBlocks(parseInline(para.join("\n"))));
+    if (para.length > 0) out.push(...segsToBlocks(parseInline(para.join("\n")), { trimBreaks: true }));
     para = [];
   };
 
@@ -358,7 +341,7 @@ function parseBlocks(input: string[]): Block[] {
     const bq = /^bq\.\s+(.*)$/.exec(line);
     if (bq) {
       flushPara();
-      out.push({ t: "quote", c: segsToBlocks(parseInline(bq[1])) });
+      out.push({ t: "quote", c: segsToBlocks(parseInline(bq[1]), { trimBreaks: true }) });
       i++;
       continue;
     }

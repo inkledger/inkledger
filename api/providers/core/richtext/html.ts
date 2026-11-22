@@ -3,7 +3,7 @@
 // only the attributes the tree needs (href, src, alt, class, type, checked) are read.
 
 import { emptyDoc, plainText, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
-import { blank, segsToInlines, trimBreaks } from "./util";
+import { segsToBlocks, segsToInlines, trimBreaks } from "./util";
 
 type Image = Extract<Block, { t: "image" }>;
 type Seg = Inline | Image;
@@ -168,23 +168,6 @@ function tidy(segs: Seg[]): Seg[] {
     .filter((s) => !(s.t === "text" && s.v === ""));
 }
 
-function segsToBlocks(segs: Seg[]): Block[] {
-  const out: Block[] = [];
-  let run: Inline[] = [];
-  const flush = () => {
-    if (!run.every(blank)) out.push({ t: "p", c: trimBreaks(run) });
-    run = [];
-  };
-  for (const s of tidy(segs)) {
-    if (s.t === "image") {
-      flush();
-      out.push(s);
-    } else run.push(s);
-  }
-  flush();
-  return out;
-}
-
 function textContent(nodes: Node[]): string {
   return nodes
     .map((x) => {
@@ -297,7 +280,7 @@ function blocksOf(nodes: Node[]): Block[] {
   const out: Block[] = [];
   let run: Seg[] = [];
   const flush = () => {
-    out.push(...segsToBlocks(run));
+    out.push(...segsToBlocks(tidy(run), { trimBreaks: true }));
     run = [];
   };
   const walk = (ns: Node[]) => {

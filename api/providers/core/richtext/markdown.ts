@@ -2,7 +2,7 @@
 // recurse on stripped lines) and a scanning inline parser. Pure, never throws.
 
 import { emptyDoc, plainText, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
-import { blank, isAlnum, isSpace, segsToInlines } from "./util";
+import { isAlnum, isSpace, segsToBlocks, segsToInlines } from "./util";
 
 type MarkdownFlavor = "commonmark" | "gfm" | "glfm";
 
@@ -31,23 +31,6 @@ const isPunct = (c: string | undefined): boolean => c !== undefined && /[!-/:-@[
 const normLabel = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 // ---- seg helpers ----
-
-function segsToBlocks(segs: Seg[]): Block[] {
-  const out: Block[] = [];
-  let run: Inline[] = [];
-  const flush = () => {
-    if (!run.every(blank)) out.push({ t: "p", c: run });
-    run = [];
-  };
-  for (const s of segs) {
-    if (s.t === "image") {
-      flush();
-      out.push(s);
-    } else run.push(s);
-  }
-  flush();
-  return out;
-}
 
 function imageOf(dest: string, alt: string): Image {
   const a = alt ? { alt } : {};
@@ -462,7 +445,7 @@ const MAX_DEPTH = 256;
 
 function blocks(lines: string[], cx: Cx, depth = 0): Block[] {
   // Too deep for more structure: what is left reads as paragraphs of its text.
-  const nestedBlocks = (ls: string[]): Block[] => (depth < MAX_DEPTH ? blocks(ls, cx, depth + 1) : segsToBlocks(inlineMd(ls.join("\n").trim(), cx)));
+  const nestedBlocks = (ls: string[]): Block[] => (depth < MAX_DEPTH ? blocks(ls, cx, depth + 1) : segsToBlocks(inlineMd(ls.join("\n").trim(), cx), { trimBreaks: false }));
   const out: Block[] = [];
   const n = lines.length;
   let i = 0;
@@ -611,7 +594,7 @@ function blocks(lines: string[], cx: Cx, depth = 0): Block[] {
     }
     const text = buf.join("\n").trimEnd();
     if (heading) out.push({ t: "h", level: heading, c: segsToInlines(inlineMd(buf.map((b) => b.trim()).join(" "), cx)) });
-    else out.push(...segsToBlocks(inlineMd(text, cx)));
+    else out.push(...segsToBlocks(inlineMd(text, cx), { trimBreaks: false }));
   }
   return out;
 }
