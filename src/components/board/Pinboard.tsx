@@ -331,6 +331,8 @@ export function Pinboard({
     });
 
   const remove = async (n: PostItData) => {
+    // A read on its way would bring the post-it back.
+    void utils.pinboard.list.cancel(listInput);
     setNotes(old => old.filter(x => x.id !== n.id));
     try {
       const removed = await utils.client.pinboard.remove.mutate({ id: n.id });
@@ -368,7 +370,10 @@ export function Pinboard({
         toast.success(t(r.existed ? "ui.pin.existing" : "ui.pin.added", { key: n.issueKey, board: r.boardName }));
         return;
       }
-      if (move) setNotes(old => old.filter(x => x.id !== n.id));
+      if (move) {
+        void utils.pinboard.list.cancel(listInput);
+        setNotes(old => old.filter(x => x.id !== n.id));
+      }
       const r = await utils.client.pinboard.copy.mutate({ id: n.id, boardId: to, move });
       void refresh();
       const removed = r.removed;
