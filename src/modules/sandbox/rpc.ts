@@ -23,6 +23,8 @@ const v = z.literal(RPC_VERSION);
 export const frameMessageSchema = z.discriminatedUnion("t", [
   z.object({ v, t: z.literal("ready") }).strict(),
   z.object({ v, t: z.literal("mounted") }).strict(),
+  // Twice a second, with the frame's own long-task time since the last one (the watchdog's).
+  z.object({ v, t: z.literal("beat"), busy: z.number().min(0).max(60_000) }).strict(),
   z.object({ v, t: z.literal("failed"), reason: z.string().max(500) }).strict(),
   z
     .object({
@@ -162,6 +164,7 @@ export type RpcPeerOptions = {
   now?: () => number;
   onReady?(): void;
   onMounted?(): void;
+  onBeat?(busyMs: number): void;
   onFailed?(reason: string): void;
   /** A message refused (not counted: other windows' messages, which are none of this peer's business). */
   onRefused?(why: Refusal, method?: string): void;
@@ -223,6 +226,7 @@ export function createRpcPeer(o: RpcPeerOptions) {
       const msg = parsed.data;
       if (msg.t === "ready") o.onReady?.();
       else if (msg.t === "mounted") o.onMounted?.();
+      else if (msg.t === "beat") o.onBeat?.(msg.busy);
       else if (msg.t === "failed") o.onFailed?.(msg.reason);
       else {
         const def = Object.hasOwn(o.methods, msg.m) ? o.methods[msg.m] : undefined;

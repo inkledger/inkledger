@@ -34,6 +34,15 @@ describe("framed module messages", () => {
     expect(sent).toEqual([{ v: 1, t: "res", id: 7, ok: true, value: "HI" }]);
   });
 
+  it("hands a frame's heartbeat to the watchdog, and drops a malformed one", () => {
+    const beats: number[] = [];
+    const p = createRpcPeer({ source: () => frame, post: () => {}, capabilities: [], methods: {}, onBeat: b => beats.push(b) });
+    expect(p.receive({ source: frame, origin: "null", data: { v: 1, t: "beat", busy: 120 } })).toEqual({ ok: true });
+    expect(p.receive({ source: frame, origin: "null", data: { v: 1, t: "beat", busy: -1 } })).toEqual({ ok: false, why: "schema" });
+    expect(p.receive({ source: other, origin: "null", data: { v: 1, t: "beat", busy: 0 } })).toEqual({ ok: false, why: "source" });
+    expect(beats).toEqual([120]);
+  });
+
   it("reads nothing from another window, nor from a frame whose window is gone", () => {
     const { call, sent, refused } = peer();
     expect(call("echo", ["hi"], 1, other)).toEqual({ ok: false, why: "source" });

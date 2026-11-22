@@ -175,6 +175,17 @@ async function start(init, port) {
   }
 }
 
+// The host's watchdog hears from every frame twice a second, with this frame's
+// own long tasks since the last beat: frames share a process, so a late beat
+// alone can't say whose loop stalled it.
+let busy = 0;
+try {
+  if (PerformanceObserver.supportedEntryTypes.includes("longtask")) {
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === "self") busy += e.duration; }).observe({ type: "longtask" });
+  }
+} catch { /* not measured here: beats alone */ }
+setInterval(() => { send({ t: "beat", busy: Math.min(60000, Math.round(busy)) }); busy = 0; }, 500);
+
 addEventListener("message", (e) => {
   if (e.source !== parent) return;
   const d = e.data;
