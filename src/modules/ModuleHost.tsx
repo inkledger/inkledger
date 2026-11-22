@@ -18,12 +18,6 @@ import { ModulesContext } from "./context";
 import type { BackdropVisibility } from "@contracts/modules";
 
 
-let shared: Hub | null = null;
-function sharedHub(...args: Parameters<typeof createHub>): Hub {
-  shared ??= createHub(...args);
-  return shared;
-}
-
 /**
  * Loads the active add-on modules and runs the host hub while any is loaded.
  * Without modules (the usual case) it costs one small query.
@@ -59,14 +53,21 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
   // Not allowed any more (or switched off): none of the loaded ones keeps running.
   const running = useMemo(() => (entries ? modules.filter(m => entries.some(e => e.id === m.entry.id)) : []), [entries, modules]);
 
-  // One hub while any module runs: made when the first loads, let go after the last.
-  const hub = running.length > 0 ? sharedHub(queryClient, utils) : null;
+  // One hub while any module runs: made when the first loads, let go after the
+  // last and when the provider goes (logout), so the next login starts fresh.
+  // Made in an effect, not while rendering: StrictMode's discarded renders leak none.
+  const active = running.length > 0;
+  const [hub, setHub] = useState<Hub | null>(null);
   useEffect(() => {
-    if (running.length === 0 && shared) {
-      shared.dispose();
-      shared = null;
-    }
-  }, [running.length]);
+    if (!active) return;
+    const made = createHub(queryClient, utils);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the hub is an external resource: made after commit, handed to the tree once.
+    setHub(made);
+    return () => {
+      made.dispose();
+      setHub(null);
+    };
+  }, [active, queryClient, utils]);
 
   useEffect(() => {
     hub?.route(pathname);
