@@ -12,6 +12,7 @@ import {
   isAuthor,
   isNetworkError,
 } from "./client";
+import { normalizeError } from "../providers/core/errors";
 
 // Redirect targets are re-validated with a DNS lookup: no real DNS in tests.
 vi.mock("node:dns/promises", () => ({
@@ -252,6 +253,13 @@ describe("redirects (SSRF)", () => {
     });
     expect(mock).toHaveBeenCalledTimes(1);
     expect(mock.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("a refused redirect is no outage: nothing to queue and retry", async () => {
+    const mock = fetch as ReturnType<typeof vi.fn>;
+    mock.mockResolvedValueOnce(redirect("https://moved.example.net/rest/api/3/myself"));
+    const e = await getMyself(creds).catch((x: unknown) => x);
+    expect(normalizeError(e).kind).toBe("incompatible");
   });
 
   it("follows same-origin redirects, at most 3", async () => {

@@ -89,8 +89,8 @@ type SafeFetch = {
   network?: Network;
 };
 
-/** A refused call as a ProviderError: a write the read-only switch blocked is "readOnly", anything else "invalid". */
-const providerFail = (status: number, message: string): Error => new ProviderError(status === 403 ? "readOnly" : "invalid", message);
+/** A refused call as a ProviderError: a write the read-only switch blocked is "readOnly", a redirect refused (502) "incompatible", anything else "invalid". */
+const providerFail = (status: number, message: string): Error => new ProviderError(status === 403 ? "readOnly" : status === 502 ? "incompatible" : "invalid", message);
 
 export async function safeFetch({ site, url, init, intent, allowCrossOrigin = false, fail = providerFail, network = "public" }: SafeFetch): Promise<Response> {
   const verb = (init.method ?? "GET").toUpperCase();
@@ -102,6 +102,8 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     throw Object.assign(fail(403, `read-only (${why}): ${verb} blocked`), { providerKind: "readOnly" as const, readOnlyCause: why });
   }
   const origin = new URL(site).origin;
+  // Marked: an answer outside the contract whatever the provider's error, never an outage to queue and retry nor a refusal.
+  const redirectRefused = () => Object.assign(fail(502, t("server.jira.redirectNotAllowed")), { providerKind: "incompatible" as const });
   let target = url;
   // The call's cancellation and correlation id reach every request.
   const signal = callSignal(init.signal);
@@ -125,16 +127,16 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     const location = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
     if (!location) return res;
     await discardBody(res);
-    if (hop >= MAX_REDIRECTS) throw fail(502, t("server.jira.redirectNotAllowed"));
+    if (hop >= MAX_REDIRECTS) throw redirectRefused();
     const next = new URL(location, target);
     const sameOrigin = next.origin === origin;
     if (!sameOrigin && !(allowCrossOrigin && next.protocol === "https:")) {
-      throw fail(502, t("server.jira.redirectNotAllowed"));
+      throw redirectRefused();
     }
     try {
       await assertSafeUrl(next.toString(), { network: sameOrigin ? network : "public" });
     } catch {
-      throw fail(502, t("server.jira.redirectNotAllowed"));
+      throw redirectRefused();
     }
     // 303 (and 301/302 after a non-GET, as browsers do) continue as GET without body.
     const method = (req.method ?? "GET").toUpperCase();

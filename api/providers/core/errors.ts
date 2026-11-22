@@ -149,6 +149,7 @@ export function normalizeError(e: unknown, signal?: AbortSignal): ProviderError 
   if (e instanceof ProviderError) return e;
   const marked = (e as { providerKind?: unknown } | null)?.providerKind;
   if (marked === "readOnly") return new ProviderError("readOnly", e instanceof Error ? e.message : "Read-only", { cause: e });
+  if (marked === "incompatible") return new ProviderError("incompatible", e instanceof Error ? e.message : "Not the answer expected", { cause: e });
   // A deadline (AbortSignal.timeout) aborts the signal too: that is no answer in time, not the caller giving up.
   const name = e instanceof Error ? e.name : "";
   const reason = (signal?.reason as { name?: unknown } | undefined)?.name;

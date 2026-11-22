@@ -54,6 +54,12 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     expect([...seen[1].entries()]).toEqual([["accept", "image/*"]]);
   });
 
+  it("a redirect refused is an answer outside the contract: neither the tracker's refusal nor an outage", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } })));
+    const { safeFetch } = await import("./http");
+    await expect(safeFetch({ site: "https://t.example", url: "https://t.example/api/x", init: {} })).rejects.toMatchObject({ name: "ProviderError", kind: "incompatible" });
+  });
+
   it("a tracker that goes silent is cut by idle timeouts on the guarded agents, never by a total deadline", async () => {
     const { agents, AGENT_TIMEOUTS } = await import("./http");
     for (const [network, agent] of Object.entries(agents) as [keyof typeof AGENT_TIMEOUTS, (typeof agents)[keyof typeof agents]][]) {
