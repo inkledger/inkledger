@@ -16,6 +16,7 @@ import {
 import { DIARY_MAX_DAYS, diaryInstructions, diaryMarkdown } from "@contracts/diary";
 import { TIDY_MAX } from "@contracts/noteTidy";
 import { currentLocale } from "@contracts/i18n/core";
+import { dayKey, parseDayKey } from "@contracts/time";
 import { markdownNoteVersions, markdownNotes, type MarkdownNote } from "@db/schema";
 import { askModel, assertModelOn, chat, ollamaRefusal } from "../ai/ollama";
 import { diaryPrompt } from "../ai/prompts/diary";
@@ -56,7 +57,14 @@ const issue = z.object({
   issueKey: issueKeyInput,
 });
 const revision = z.number().int().positive();
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+// A real day: "2026-02-30" would drop the note out of every day view.
+const day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(v => {
+    const d = parseDayKey(v);
+    return d !== null && dayKey(d) === v;
+  }, { error: () => t("server.todos.badDay") });
 const noteDateFilter = z.discriminatedUnion("field", [
   z.object({ field: z.literal("noted"), from: day.optional(), to: day.optional() }),
   z.object({ field: z.enum(["created", "updated"]), from: z.iso.datetime({ offset: true }).optional(), to: z.iso.datetime({ offset: true }).optional() }),

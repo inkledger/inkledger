@@ -67,6 +67,13 @@ describe("notes: a day of their own, searched by date", () => {
     expect((await other.notes.search({ query: "", dates: [{ field: "noted", from: "2026-01-01" }] })).results).toEqual([]);
   });
 
+  it("a day that doesn't exist is refused, not stored", async () => {
+    const note = await me.notes.create({ title: "Real", body: "x", notedOn: "2026-10-01" });
+    await expect(me.notes.setDate({ id: note.id, notedOn: "2026-02-30" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(me.notes.create({ title: "Bad", body: "x", notedOn: "2026-13-45" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect((await me.notes.get({ id: note.id })).notedOn).toBe("2026-10-01");
+  });
+
   it("a page cursor belongs to its dates", async () => {
     for (let i = 0; i < 3; i++) await me.notes.create({ title: `N${i}`, body: "x", notedOn: "2026-10-2" + i });
     const first = await me.notes.search({ query: "", dates: [{ field: "noted", from: "2026-10-20" }], limit: 1 });
