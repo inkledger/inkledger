@@ -12,6 +12,7 @@ import { ownBucket } from "../queries/owned";
 import { activeBucket } from "../queries/buckets";
 import { publish } from "../lib/userEvents";
 import { setPositions } from "../queries/positions";
+import { assertReadable } from "./queries";
 
 const source = z.object({ connectionId: z.number().int().positive(), containerId: z.number().int().positive().nullable().default(null) });
 const boardMode = z.enum(["lanes", "category", "custom"]);
@@ -87,6 +88,7 @@ export const bucketsRouter = createRouter({
           throw new TRPCError({ code: "BAD_REQUEST", message: t("server.buckets.badSource") });
         }
       }
+      assertReadable(input.query);
       const query = formatQuery(parseQuery(input.query).expr, "en");
       return db.transaction(async (tx) => {
         let id = input.id;

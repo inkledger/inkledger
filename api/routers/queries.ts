@@ -16,6 +16,15 @@ const query = z.string().trim().min(1).max(200);
 /** A query as kept: its canonical English form (or the text as typed, when it parses to nothing). */
 const canonical = (text: string) => formatQuery(parseQuery(text).expr, "en") || text.trim();
 
+/**
+ * A query kept for good (a saved search, a bucket) must read as typed: a term it can't read
+ * would be dropped and the query kept wider (a bucket of only "is:foo" matches everything).
+ */
+export function assertReadable(text: string): void {
+  const bad = parseQuery(text).warnings.filter((w) => w.code === "badValue" || w.code === "unknownField");
+  if (bad.length > 0) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.queries.badTerms", { terms: bad.map((w) => w.at).join(", ") }) });
+}
+
 export const queriesRouter = createRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
@@ -47,6 +56,7 @@ export const queriesRouter = createRouter({
 
   /** Saves a search under a name (a name already used is overwritten). */
   save: protectedProcedure.input(z.object({ name: z.string().trim().min(1).max(60), query })).mutation(async ({ ctx, input }) => {
+    assertReadable(input.query);
     const db = getDb();
     const q = canonical(input.query);
     const [same] = await db

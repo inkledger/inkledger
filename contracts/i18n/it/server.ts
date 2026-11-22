@@ -15,6 +15,7 @@ export const server: Shape<typeof en> = {
   },
   queries: {
     notFound: "Quella ricerca salvata non c'è più.",
+    badTerms: "Non riconosciuti: {terms}. Correggili o toglili prima di salvare.",
   },
   clients: {
     badContainer: "Un committente può contenere solo progetti dei tuoi tracker.",

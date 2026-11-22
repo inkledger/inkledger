@@ -14,6 +14,7 @@ export const server = {
   },
   queries: {
     notFound: "That saved search is gone.",
+    badTerms: "Not understood: {terms}. Fix or remove them before saving.",
   },
   clients: {
     badContainer: "A client can only hold your own trackers' projects.",

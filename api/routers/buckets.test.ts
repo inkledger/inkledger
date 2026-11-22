@@ -69,6 +69,13 @@ describe("buckets, per device", () => {
     }
   });
 
+  it("a bucket's query with a term it can't read is refused, never saved wider (is:foo would match everything)", async () => {
+    const phone = await onDevice("device-phone-2");
+    await expect(phone.buckets.save({ name: "Odd", sources: [{ connectionId: c2, containerId: null }], query: "is:foo" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(phone.buckets.save({ name: "Odd", sources: [{ connectionId: c2, containerId: null }], query: "colour:red" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(phone.queries.save({ name: "Odd", query: "is:foo" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("a bucket on one device narrows that device's lists only", async () => {
     const phone = await onDevice("device-phone-1");
     const desk = await onDevice("device-desk-1");
