@@ -215,18 +215,25 @@ function LogTimeForm({
   const utils = trpc.useUtils();
   const typed = useRef(comment);
   const settled = useRef(false);
-  useEffect(
-    () => () => {
-      const note = typed.current.slice(0, 500);
-      // Shared, the draft stays with the question on the server: nothing to keep here.
-      if (shared || !fromTimer || settled.current || note === (prefillComment ?? "")) return;
-      void utils.client.timers.setNote
-        .mutate({ issueKey, connectionId: connectionId ?? undefined, note })
-        .then(() => utils.timers.list.invalidate())
-        .catch(() => {
-          // The timer went meanwhile (logged elsewhere, discarded): nothing to keep the note on.
-        });
-    },
+  const closed = useRef(false);
+  const keepNote = () => {
+    const note = typed.current.slice(0, 500);
+    // Shared, the draft stays with the question on the server: nothing to keep here.
+    if (shared || !fromTimer || settled.current || note === (prefillComment ?? "")) return;
+    void utils.client.timers.setNote
+      .mutate({ issueKey, connectionId: connectionId ?? undefined, note })
+      .then(() => utils.timers.list.invalidate())
+      .catch(() => {
+        // The timer went meanwhile (logged elsewhere, discarded): nothing to keep the note on.
+      });
+  };
+  useEffect(() => {
+    closed.current = false;
+    return () => {
+      closed.current = true;
+      keepNote();
+    };
+  },
     // Once, on close: the refs carry the latest values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -344,6 +351,8 @@ function LogTimeForm({
   };
   const onError = (e: unknown) => {
     settled.current = false;
+    // Closed while the log was on its way: the note it carried is kept as on any close.
+    if (closed.current) keepNote();
     toastError(e);
   };
   const create = trpc.worklogs.create.useMutation({ onSuccess, onError });
