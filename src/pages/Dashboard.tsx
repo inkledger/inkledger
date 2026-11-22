@@ -105,7 +105,7 @@ import { placePendingTimers } from "@/lib/pendingTimers";
 import { useAskTimerLog } from "@/hooks/useAskTimerLog";
 import { topIssueTotals } from "@/lib/issueTotals";
 import { focusTimer, runningTimers } from "@/lib/timerFocus";
-import { ownData } from "@/lib/queryState";
+import { freshData } from "@/lib/queryState";
 
 const periodOptions = (): { value: PeriodKind; label: string; icon: typeof Sun; control: FlowControlAttributes }[] => [
   { value: "day", label: t("pages.dashboard.periodDay"), icon: Sun, control: flowControlProps("dashboard.period.day") },
@@ -525,7 +525,8 @@ function DashboardContent() {
   }
   // Not before the day's own hours, worklogs and planned time are read: holes at the weekly break, or the
   // whole day as a hole before its worklogs (or with another day's still on screen), would be offered meanwhile.
-  const dayLoaded = ownData(logs) && ownData(planned);
+  // Its last read answered too: time logged elsewhere since an older read would show as a hole.
+  const dayLoaded = freshData(logs) && freshData(planned);
   const missing =
     dayView && dayLoaded && !schedule.isPending && weekStatus.data === null && range.from.getTime() <= today.getTime()
       ? effectiveWorkSpans(range.from, daySchedule, plannedEntries).flatMap(work => {

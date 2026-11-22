@@ -6,3 +6,11 @@ export function ownData(query: { data: unknown; isPlaceholderData: boolean }): b
   // Data, not isSuccess: a failed refetch keeps the data read before, still this key's.
   return query.data !== undefined && !query.isPlaceholderData;
 }
+
+/**
+ * Its own data, and its last read answered: what offers to log time (a hole to fill) waits for
+ * this, since time logged elsewhere after an older read would be offered again.
+ */
+export function freshData(query: { data: unknown; isPlaceholderData: boolean; isError: boolean }): boolean {
+  return ownData(query) && !query.isError;
+}

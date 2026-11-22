@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ownData } from "./queryState";
+import { freshData, ownData } from "./queryState";
 
 describe("ownData", () => {
   it("only the asked key's loaded data counts, never the previous one kept meanwhile", () => {
@@ -12,5 +12,10 @@ describe("ownData", () => {
   it("a failed refetch keeps the data read before: it still counts", () => {
     const refetchFailed = { data: [], isPlaceholderData: false, isSuccess: false, isError: true };
     expect(ownData(refetchFailed)).toBe(true);
+  });
+
+  it("what offers to log time needs the last read answered: a failed refetch may miss time logged since", () => {
+    expect(freshData({ data: [], isPlaceholderData: false, isError: false })).toBe(true);
+    expect(freshData({ data: [], isPlaceholderData: false, isError: true })).toBe(false);
   });
 });
