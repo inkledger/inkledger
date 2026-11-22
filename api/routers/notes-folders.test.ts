@@ -102,6 +102,21 @@ describe("notes in folders", () => {
     await expect(me.notes.convertToFolder({ id: inner.id })).rejects.toThrow(/A folder can't go inside a note/);
   });
 
+  it("a note turned folder gets no text back from its AI copy or an older version", async () => {
+    const note = await me.notes.create({ title: "Was", body: "words" });
+    await me.notes.setAi({ id: note.id, markdown: "# AI copy" });
+    const kept = await me.notes.keepAi({ id: note.id, expectedRevision: note.contentRevision });
+    if (kept.status !== "updated") throw new Error("not kept");
+    await me.notes.setAi({ id: note.id, markdown: "# Another AI copy" });
+    const emptied = await me.notes.updateContent({ id: note.id, title: "Was", body: "", expectedRevision: kept.note.contentRevision });
+    if (emptied.status !== "updated") throw new Error("not emptied");
+    await me.notes.convertToFolder({ id: note.id });
+    const revision = (await me.notes.get({ id: note.id })).contentRevision;
+    await expect(me.notes.keepAi({ id: note.id, expectedRevision: revision })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(me.notes.restoreVersion({ id: note.id, versionId: kept.versionId!, expectedRevision: revision })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect((await me.notes.get({ id: note.id })).body).toBe("");
+  });
+
   it("keeps folders first when moving: a note never lands among them, a folder never among the notes", async () => {
     const root = await me.notes.createFolder({ title: "Root", parentId: null });
     const a = await me.notes.createFolder({ title: "A", parentId: root.id });

@@ -329,6 +329,8 @@ export const notesRouter = createRouter({
     .mutation(async ({ ctx, input }): Promise<(NoteUpdated & { versionId: string | null }) | NoteConflict> => {
       const result = await getDb().transaction(async (tx): Promise<(NoteUpdated & { versionId: string | null }) | NoteConflict> => {
         const current = await ownNote(tx, ctx.user.id, input.id, true);
+        // A folder has no text, not even one kept from before it was one.
+        if (current.kind !== "note") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.folderText") });
         if (current.aiBody === null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.notes.noAi") });
         if (current.contentRevision !== input.expectedRevision) return { status: "conflict", current: noteDocument(current) };
         const versionId = await snapshotNote(tx, current, "ai");
@@ -695,6 +697,7 @@ export const notesRouter = createRouter({
       const result = await getDb().transaction(
         async (tx): Promise<NoteUpdated | NoteConflict> => {
           const current = await ownNote(tx, ctx.user.id, input.id, true);
+          if (current.kind !== "note") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.notes.folderText") });
           const [version] = await tx
             .select()
             .from(markdownNoteVersions)
