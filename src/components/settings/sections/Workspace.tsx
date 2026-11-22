@@ -235,8 +235,9 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
         return true;
       } catch (e) {
         if (latestDraft.current === draft) {
-          // Never built on: the next change starts again from what is shown (the server's last draft).
-          latestDraft.current = null;
+          // Refused for what it holds: never built on, the next change starts again from what is
+          // shown (the server's last draft). Made on an older layout: kept, what of it can be kept is offered.
+          if (!staleDraftOf(e)) latestDraft.current = null;
           refused(e, draft);
         }
         return false;
