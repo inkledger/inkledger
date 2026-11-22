@@ -237,6 +237,43 @@ test("a suggestion is used field by field", () =>
     },
   ));
 
+test("a field still being typed in is saved when the sheet closes by Escape", () =>
+  withApp(
+    {
+      viewport: { width: 1400, height: 900 },
+      seed: async db => {
+        const now = Date.now();
+        const questions = [{ id: "q1", text: "Who asked", answer: "", blocking: false }];
+        await db.q("INSERT INTO ideas (user_id, title, body, questions, state, position, created_at, updated_at) VALUES (1, 'Draft', 'Old.', ?, 'raw', 0, ?, ?)", JSON.stringify(questions), now, now);
+      },
+    },
+    async ({ page, base, db }) => {
+      const until = async (sql, ok) => {
+        for (let i = 0; i < 30; i++) {
+          const [r] = await db.q(sql);
+          if (ok(r)) return;
+          await page.waitForTimeout(100);
+        }
+        assert.fail(`never: ${sql}`);
+      };
+      await page.goto(base + "/ideas");
+      await page.getByRole("radio", { name: "Columns" }).click();
+      const sheet = page.getByRole("dialog");
+      const typeAndEscape = async (open, name, text) => {
+        await page.getByRole("button", { name: open }).click();
+        await sheet.getByRole("textbox", { name }).fill(text);
+        await page.keyboard.press("Escape");
+        await sheet.waitFor({ state: "detached" });
+      };
+      await typeAndEscape("Open Draft", "Title", "Renamed");
+      await until("SELECT title FROM ideas", r => r.title === "Renamed");
+      await typeAndEscape("Open Renamed", "Problem", "New.");
+      await until("SELECT body FROM ideas", r => r.body === "New.");
+      await typeAndEscape("Open Renamed", "Answer: Who asked", "Anna");
+      await until("SELECT questions FROM ideas", r => JSON.parse(r.questions)[0].answer === "Anna");
+    },
+  ));
+
 test("ideas at 320 px", () =>
   withApp(
     {

@@ -40,7 +40,11 @@ export function IdeaSheet({
   const open = ideaId !== null;
   const idea = trpc.ideas.get.useQuery({ id: ideaId ?? 0 }, { enabled: open });
   // A suggestion not used yet is asked about before closing.
-  const guard = useDirtyClose(onClose);
+  const guard = useDirtyClose(() => {
+    // A field still focused saves as it is left: once removed, it would fire no blur.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    onClose();
+  });
   return (
     <>
     {guard.confirm}
