@@ -438,6 +438,13 @@ describe("fromMarkdown", () => {
     expect(quick("$a$ ".repeat(150_000), "glfm")).toBeLessThan(500);
   });
 
+  it("keeps what only looks like a tag in prose: type parameters and placeholders are text, not HTML", () => {
+    expect(plainText(fromMarkdown("use List<Integer> here, Map<String,Long> too", "gfm"))).toBe("use List<Integer> here, Map<String,Long> too");
+    expect(plainText(fromMarkdown("set <your-token> in <T> and </Foo>", "commonmark"))).toBe("set <your-token> in <T> and </Foo>");
+    // Real HTML is still dropped for its text.
+    expect(plainText(fromMarkdown("a <kbd>Ctrl</kbd> and <span class=\"x\">s</span>", "gfm"))).toBe("a Ctrl and s");
+  });
+
   it("drops inline html but keeps its text, and maps br", () => {
     expect(md("a <b>bold</b> c<br>d <!-- hidden --> e")).toEqual([p(t("a bold c"), { t: "br" }, t("d  e"))]);
     expect(plainText(fromMarkdown("x <script>alert(1)</script> y <style>.a{}</style>z", "gfm"))).toBe("x  y z");

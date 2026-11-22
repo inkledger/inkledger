@@ -18,6 +18,12 @@ const ALERTS: Record<string, Extract<Block, { t: "panel" }>["kind"]> = {
   WARNING: "warning",
   CAUTION: "error",
 };
+/** HTML's element names: a tag-shaped word in prose that is none of them (List<Integer>, <your-token>) is text. */
+const HTML_TAGS = new Set(
+  (
+    "a abbr address area article aside audio b base bdi bdo blockquote body br button canvas caption center cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure font footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd label legend li link main map mark menu meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script section select small source span strike strong style sub summary sup svg table tbody td template textarea tfoot th thead time title tr track tt u ul var video wbr"
+  ).split(" "),
+);
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
 const isAlnum = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
@@ -276,7 +282,7 @@ function inlineMd(s: string, cx: Cx, inLink = false): Seg[] {
         continue;
       }
       const tag = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)(?:\s[^<>]*)?>/.exec(head);
-      if (tag) {
+      if (tag && HTML_TAGS.has(tag[2].toLowerCase())) {
         const name = tag[2].toLowerCase();
         i += tag[0].length;
         if (name === "br") push({ t: "br" });
