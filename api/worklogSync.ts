@@ -239,7 +239,10 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
   }
   // A feed stopped at its page cap holds the checkpoint where it stopped: the other's later time would skip its rest.
   const cut = [updated, removed].filter((f) => !f.complete).map((f) => f.until);
-  const until = cut.length ? Math.min(...cut) : Math.max(updated.until, removed.until);
+  // Both read to the end, one after the other: the earlier clock (the later skips what changed between
+  // the two reads); a clock that didn't move past `since` (an empty feed) bounds nothing.
+  const moved = [updated.until, removed.until].filter((u) => u > since);
+  const until = cut.length ? Math.min(...cut) : moved.length ? Math.min(...moved) : since;
   return { imported, deleted, until: until || undefined };
 }
 
