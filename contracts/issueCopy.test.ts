@@ -3,6 +3,24 @@ import { describe, expect, it } from "vitest";
 import { issueMarkdown } from "./issueCopy";
 
 describe("issueMarkdown", () => {
+  it("the issue's own headings sit under the copy's sections; a code block's language can't break its fence", () => {
+    const md = issueMarkdown(
+      { key: "APP-8", title: "T", url: "https://jira.example/browse/APP-8", status: "Open", type: null },
+      {
+        v: 1,
+        blocks: [
+          { t: "h", level: 1, c: [{ t: "text", v: "Constraints" }] },
+          { t: "code", lang: "js```\n# Injected", v: "x()" },
+        ],
+      },
+      [],
+    );
+    expect(md).toContain("\n### Constraints\n");
+    expect(md).not.toContain("\n# Constraints");
+    expect(md).toContain("```\nx()\n```");
+    expect(md).not.toContain("# Injected");
+  });
+
   it("an issue copies with its header and attachments", () => {
     const md = issueMarkdown(
       { key: "APP-7", title: "Export *fails*", url: "https://jira.example/browse/APP-7", status: "In Progress", type: "Bug" },

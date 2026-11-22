@@ -1,6 +1,6 @@
 // An issue as an agent gets it, pasted by hand (docs/work/ideas/issue-copy.md R-6.1, R-6.10):
 // a header, the description, the comments, every attachment as a link through this app.
-import { escapeMd, toMarkdown, type RichDoc } from "./richtext";
+import { escapeMd, toMarkdown, type Block, type RichDoc } from "./richtext";
 import { dayKey, hhmm } from "./time";
 
 /** The lives a copied link may be given, in minutes (the server allows 5–1440). */
@@ -13,6 +13,22 @@ export type IssueCopyComment = { author: string; created: number | null; doc: Ri
 
 /** Each comment, oldest first; "unavailable" when the tracker couldn't give them now. */
 export type IssueCopyComments = readonly IssueCopyComment[] | "unavailable";
+
+/**
+ * The tracker's headings set under the copy's own section at level `parent`: an issue's
+ * H1 never stands above the copy's structure (clamped at 6, Markdown's deepest).
+ */
+function underHeading(doc: RichDoc, parent: number): RichDoc {
+  const shift = (b: Block): Block =>
+    b.t === "h"
+      ? { ...b, level: Math.min(6, b.level + parent) as 1 | 2 | 3 | 4 | 5 | 6 }
+      : b.t === "quote" || b.t === "panel"
+        ? { ...b, c: b.c.map(shift) }
+        : b.t === "list"
+          ? { ...b, items: b.items.map((i) => ({ ...i, c: i.c.map(shift) })) }
+          : b;
+  return { ...doc, blocks: doc.blocks.map(shift) };
+}
 
 /**
  * The Markdown copied for an agent; attachments named twice are listed once.
@@ -29,7 +45,7 @@ export function issueMarkdown(
   const byName = new Map<string, string>();
   for (const a of attachments) if (!byName.has(a.name)) byName.set(a.name, a.url);
   const link = (name: string) => byName.get(name) ?? null;
-  const description = toMarkdown(doc, link);
+  const description = toMarkdown(underHeading(doc, depth + 1), link);
   const facts = [`- Tracker: ${issue.url}`, `- Status: ${issue.status}`, ...(issue.type ? [`- Type: ${issue.type}`] : [])];
   const parts = [`${h(depth)} ${issue.key}: ${escapeMd(issue.title)}`, facts.join("\n"), `${h(depth + 1)} Description`, description || "(no description)"];
   if (comments === "unavailable") parts.push(`${h(depth + 1)} Comments`, "(comments unavailable)");
@@ -37,7 +53,7 @@ export function issueMarkdown(
     parts.push(`${h(depth + 1)} Comments`);
     for (const c of comments) {
       const when = c.created !== null ? ` · ${dayKey(new Date(c.created))} ${hhmm(new Date(c.created))}` : "";
-      parts.push(`${h(depth + 2)} ${escapeMd(c.author)}${when}`, toMarkdown(c.doc, link) || "(empty)");
+      parts.push(`${h(depth + 2)} ${escapeMd(c.author)}${when}`, toMarkdown(underHeading(c.doc, depth + 2), link) || "(empty)");
     }
   }
   if (byName.size > 0) parts.push(`${h(depth + 1)} Attachments`, [...byName].map(([name, url]) => `- [${escapeMd(name)}](${url})`).join("\n"));

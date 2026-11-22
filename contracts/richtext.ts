@@ -212,7 +212,9 @@ const blockMd = (b: Block, link: AttachmentLink): string => {
       return `${"#".repeat(b.level)} ${inlineMd(b.c, link)}`;
     case "code": {
       const fence = "`".repeat(Math.max(3, longestTicks(b.v) + 1));
-      return `${fence}${b.lang ?? ""}\n${b.v}\n${fence}`;
+      // A language name only: a backtick or a newline in it would end the fence and turn the code into Markdown.
+      const lang = b.lang && /^[\w+#.-]{1,32}$/.test(b.lang) ? b.lang : "";
+      return `${fence}${lang}\n${b.v}\n${fence}`;
     }
     case "list":
       return b.items
