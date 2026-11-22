@@ -272,6 +272,26 @@ describe("worklogs from Jira", () => {
     jira.list = [];
   });
 
+  it("a create filed through Tempo, deleted here with its answer lost: Jira's copy is never read back while its delete is queued", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const [tempo] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'tempo', 'https://api.tempo.io', 'acc-1', ?, 'x', 1) RETURNING id", user.id, JSON.stringify({ jiraConnectionId: conn.id }));
+    const at = now - 4 * DAY;
+    await q(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?)",
+      user.id, tempo.id, at, Date.now() - 600_000, Date.now(),
+    );
+    // Tempo's copy on Jira: its note, the issue first.
+    jira.updated = [{ worklogId: 620 }];
+    jira.list = [{ ...wl("620", "acc-1", at, 1800, "10"), comment: "PRJ-1: Issue PRJ-1\nwork" }];
+    await syncWorklogs(user);
+    expect((await mine()).filter((w) => w.id === "620")).toEqual([]);
+    await q("DELETE FROM outbox");
+    await q("DELETE FROM connections WHERE id = ?", tempo.id);
+    jira.updated = [];
+    jira.list = [];
+  });
+
   it("a worklog still being created (its answer on the way) survives a pass that doesn't see it on Jira; one left by a dead process doesn't", async () => {
     const { CLAIM_TTL_MS } = await import("./sync/timeWrites");
     const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);

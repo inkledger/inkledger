@@ -190,6 +190,45 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     }
   });
 
+  it("Tempo took it, its answer lost, then the worklog changed: the next pass changes that entry, the time once", async () => {
+    const at = "2026-10-23T09:00:00+02:00";
+    garbleNext = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "lost" });
+      expect(await tempoRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await caller.worklogs.update({ id: made.id, seconds: 1200, started: at, comment: "lost, longer" });
+      await push();
+      const mine = sim.worklogs.filter((w) => w.startDate === "2026-10-23");
+      expect(mine.map((w) => [w.timeSpentSeconds, w.description.endsWith("\nlost, longer")])).toEqual([[1200, true]]);
+      expect(await tempoRow(made.id)).toEqual({ state: "synced", remote_id: String(mine[0].tempoWorklogId) });
+      expect(await row(made.id)).toEqual({ remote_id: String(mine[0].jiraWorklogId), seconds: 1200 });
+      await caller.worklogs.delete({ id: made.id });
+    } finally {
+      garbleNext = false;
+      quiet.mockRestore();
+    }
+  });
+
+  it("Tempo took it, its answer lost, then the worklog deleted: the next pass deletes that entry there", async () => {
+    const at = "2026-10-24T09:00:00+02:00";
+    garbleNext = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "gone" });
+      // Changed first: what was sent is what is looked for.
+      await caller.worklogs.update({ id: made.id, seconds: 1500, started: at, comment: "gone" });
+      await caller.worklogs.delete({ id: made.id });
+      expect(sim.worklogs.filter((w) => w.startDate === "2026-10-24")).toHaveLength(1);
+      await push();
+      expect(sim.worklogs.filter((w) => w.startDate === "2026-10-24")).toEqual([]);
+      expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    } finally {
+      garbleNext = false;
+      quiet.mockRestore();
+    }
+  });
+
   it("a pending entry another server process is sending is left to it; past its lease, sent", async () => {
     const at = "2026-10-20T09:00:00+02:00";
     down = true;

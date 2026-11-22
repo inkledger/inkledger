@@ -133,5 +133,28 @@ export async function deleteViaCompanion(entry: { sink: Connection; remoteId: st
       }
     }
   }
-  await withDeleteReason("user", (tx) => tx.delete(worklogs).where(eq(worklogs.id, current.id)));
+  // Sent, its answer lost (no id yet): the entry it may have left is looked for and deleted, by the values sent.
+  const [sent] = entry.remoteId
+    ? []
+    : await getDb()
+        .select({ at: worklogSinks.syncedAt, seconds: worklogSinks.sentSeconds, started: worklogSinks.sentStarted, comment: worklogSinks.sentComment })
+        .from(worklogSinks)
+        .where(and(eq(worklogSinks.worklogId, current.id), eq(worklogSinks.sinkConnectionId, entry.sink.id)));
+  await withDeleteReason("user", async (tx) => {
+    if (sent?.at) {
+      await tx.insert(outbox).values({
+        userId: current.userId,
+        connectionId: entry.sink.id,
+        kind: "delete",
+        issueKey: current.issueKey,
+        remoteId: "",
+        timeSpentSeconds: sent.seconds ?? current.timeSpentSeconds,
+        started: sent.started ?? current.started,
+        comment: sent.comment ?? current.comment,
+        landedAfter: sent.at,
+      });
+    }
+    await tx.delete(worklogs).where(eq(worklogs.id, current.id));
+  });
+  if (sent?.at) sinksSoon(current.userId);
 }

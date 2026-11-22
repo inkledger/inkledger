@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, like, not } from "drizzle-orm";
-import { connectionSync, issues, outbox, syncState, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
+import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { issueAt } from "./queries/issueAt";
 import {
@@ -19,6 +19,7 @@ import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
 import { connOf, contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
 import { buriedBy, creationInFlight } from "./sync/timeWrites";
+import { trackerOfSink } from "./sync/extraSinks";
 import { instant } from "@contracts/values";
 import { isWorking } from "@contracts/sync";
 
@@ -59,16 +60,22 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
  * such an entry is never read back as new meanwhile.
  */
 export async function buriedOn(userId: number, conn: Connection): Promise<(issueKey: string, w: JiraWorklog) => boolean> {
-  const tombs = await getDb()
-    .select()
-    .from(outbox)
-    .where(and(eq(outbox.userId, userId), eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter)));
+  // Through Jira, or the sink standing in for it (Tempo).
+  const tombs = (
+    await getDb()
+      .select({ t: outbox, via: connections })
+      .from(outbox)
+      .innerJoin(connections, eq(connections.id, outbox.connectionId))
+      .where(and(eq(outbox.userId, userId), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter)))
+  ).filter((r) => r.via.id === conn.id || trackerOfSink(r.via) === conn.id);
   if (tombs.length === 0) return () => false;
   const zone = connOf(conn).timeZone;
   return (issueKey, w) => {
     const row = rowFromJira(userId, issueKey, w);
     const e = { span: { kind: "session" as const, start: instant(row.started.getTime()), seconds: row.timeSpentSeconds }, comment: row.comment, createdAt: w.created ? instant(Date.parse(w.created)) : null };
-    return tombs.some((t) => t.issueKey === issueKey && buriedBy(t, e, zone));
+    // The sink's copy on Jira carries its note: the issue on the first line, then the comment.
+    const note = row.comment.startsWith(`${issueKey}: `) ? row.comment.slice(row.comment.indexOf("\n") + 1 || row.comment.length) : null;
+    return tombs.some(({ t, via }) => t.issueKey === issueKey && (buriedBy(t, e, zone) || (via.id !== conn.id && note !== null && buriedBy(t, { ...e, comment: note }, zone))));
   };
 }
 

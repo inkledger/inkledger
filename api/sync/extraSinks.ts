@@ -26,7 +26,7 @@ import { linkSink, sameTime, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
-import { CLAIM_TTL_MS } from "./timeWrites";
+import { buriedBy, CLAIM_TTL_MS, isLostCreate } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
 import { callMeta } from "../lib/callMeta";
 
@@ -190,42 +190,66 @@ const CLOCK_SKEW_MS = 60_000;
 /**
  * Where the sink honours no idempotency key (Tempo), a create sent before with its answer lost
  * (no answer, an odd one, a fault here) may be there already: before sending it again, the
- * day's entries are read. Ours: on its issue, the same time, by this account, made after the
- * first send, and linked to no other worklog. The first send's time is on its link (syncedAt).
+ * day's entries are read. Ours: on its issue, the time last sent (the worklog may have changed
+ * since: then `moved`), by this account, made after the first send, and linked to no other
+ * worklog. The first send's time and the values sent are on its link.
  */
-async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, zone: TimeZone): Promise<RemoteWorklog | null> {
+async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, zone: TimeZone): Promise<{ e: RemoteWorklog; moved: boolean } | null> {
   if (b.capabilities.entries.idempotency !== "local") return null;
   const db = getDb();
   const [link] = await db
-    .select({ sentAt: worklogSinks.syncedAt })
+    .select({ sentAt: worklogSinks.syncedAt, seconds: worklogSinks.sentSeconds, started: worklogSinks.sentStarted, comment: worklogSinks.sentComment })
     .from(worklogSinks)
     .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id)));
   if (!link?.sentAt) return null;
-  const day = localDateOf(instant(w.started.getTime()), zone);
+  const sent = link.seconds !== null && link.started ? { started: link.started, seconds: link.seconds, comment: link.comment ?? "" } : { started: w.started, seconds: w.timeSpentSeconds, comment: w.comment };
+  const moved = sent.seconds !== w.timeSpentSeconds || sent.started.getTime() !== w.started.getTime() || sent.comment !== w.comment;
+  const day = localDateOf(instant(sent.started.getTime()), zone);
   const there = await b.entries.list(meta(), { from: day, to: day });
   for (const e of there) {
     if (e.authorRemoteId !== sink.remoteAccountId || e.span.kind !== "session") continue;
     if (!e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
-    if (!sameTime({ started: new Date(e.span.start), seconds: e.span.seconds }, { started: w.started, seconds: w.timeSpentSeconds })) continue;
+    if (!sameTime({ started: new Date(e.span.start), seconds: e.span.seconds }, sent)) continue;
     if (e.createdAt != null && Number(e.createdAt) < link.sentAt.getTime() - CLOCK_SKEW_MS) continue;
     const [taken] = await db
+      .select({ id: worklogSinks.id })
+      .from(worklogSinks)
+      .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.remoteId, e.remoteId)));
+    if (!taken) return { e, moved };
+  }
+  return null;
+}
+
+/** A create on the sink, its first send's time and this send's values kept on the link (landedBefore reads them). */
+async function createOnce(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, target: SinkTarget | null, input: WorklogInput): Promise<RemoteWorklog> {
+  if (b.capabilities.entries.idempotency === "local") {
+    await getDb()
+      .update(worklogSinks)
+      .set({ syncedAt: sql`coalesce(${worklogSinks.syncedAt}, ${Date.now()})`, sentSeconds: w.timeSpentSeconds, sentStarted: w.started, sentComment: w.comment })
+      .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id)));
+  }
+  return b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
+}
+
+/**
+ * A create of a worklog deleted before its answer came (queued with the values sent): its
+ * entry on the sink, as landedBefore finds one, made before the delete; or null.
+ */
+async function buriedEntry(b: BoundSink, sink: Connection, g: typeof outbox.$inferSelect): Promise<RemoteWorklog | null> {
+  if (!g.started) return null;
+  const zone = connOf(sink).timeZone;
+  const { ref } = await refOf({ userId: g.userId, connectionId: trackerOfSink(sink), issueKey: g.issueKey });
+  const day = localDateOf(instant(g.started.getTime()), zone);
+  for (const e of await b.entries.list(meta(), { from: day, to: day })) {
+    if (e.authorRemoteId !== sink.remoteAccountId || !e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
+    if (!buriedBy(g, e, zone)) continue;
+    const [taken] = await getDb()
       .select({ id: worklogSinks.id })
       .from(worklogSinks)
       .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.remoteId, e.remoteId)));
     if (!taken) return e;
   }
   return null;
-}
-
-/** A create on the sink, its first send's time kept on the link (landedBefore reads it). */
-async function createOnce(b: BoundSink, sink: Connection, w: Worklog, ref: ExternalRef, target: SinkTarget | null, input: WorklogInput): Promise<RemoteWorklog> {
-  if (b.capabilities.entries.idempotency === "local") {
-    await getDb()
-      .update(worklogSinks)
-      .set({ syncedAt: new Date() })
-      .where(and(eq(worklogSinks.worklogId, w.id), eq(worklogSinks.sinkConnectionId, sink.id), isNull(worklogSinks.syncedAt)));
-  }
-  return b.entries.create!(meta(), ref, target, input, { idempotencyKey: w.uuid });
 }
 
 /** One worklog onto one sink: created, changed, or its day's total set. */
@@ -264,10 +288,15 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
       comment: w.comment,
       ...(mapped?.activityId ? { activityId: mapped.activityId } : {}),
     };
-    landed =
-      remoteId && b.entries.update
-        ? await b.entries.update(meta(), remoteId, input, {})
-        : ((await landedBefore(b, sink, w, ref, zone)) ?? (await createOnce(b, sink, w, ref, target, input)));
+    const found = remoteId && b.entries.update ? null : await landedBefore(b, sink, w, ref, zone);
+    if (remoteId && b.entries.update) landed = await b.entries.update(meta(), remoteId, input, {});
+    else if (found?.moved && b.entries.update) {
+      // Landed as sent before an edit: its entry first (a failed change is sent as one next time), then changed.
+      await getDb().update(worklogSinks).set({ remoteId: found.e.remoteId }).where(linkOf);
+      const trackerId = COMPANIONS[sink.type as TimeSinkType]?.trackerIdOf(found.e);
+      if (trackerId) await adoptTrackerId(w, trackerId);
+      landed = await b.entries.update(meta(), found.e.remoteId, input, {});
+    } else landed = found?.e ?? (await createOnce(b, sink, w, ref, target, input));
   }
   const sent = { remoteId: landed?.remoteId ?? remoteId, version: landed?.version ?? null, lastError: null, syncedAt: new Date(), ...(day ? { pushedDay: day } : {}) };
   const done = await getDb()
@@ -383,7 +412,11 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
         for (let i = 0; i < claimed.length; i++) {
           const g = claimed[i];
           try {
-            if (b.capabilities.entries.model === "dayTotals") {
+            if (isLostCreate(g)) {
+              // No id there: the entry its create may have left, looked for and deleted.
+              const e = await buriedEntry(b, sink, g);
+              if (e && b.entries.delete) await goneIsDone(b.entries.delete(meta(), e.remoteId, {}));
+            } else if (b.capabilities.entries.model === "dayTotals") {
               // A day's total without the deleted worklog (0 removes the day): its own
               // tracker's time only, as its issue (item_id) says; a delete from before that
               // was kept goes by the key, as then.
