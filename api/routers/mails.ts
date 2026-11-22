@@ -143,7 +143,9 @@ const sameMailWhere = (input: { internetMessageId?: string | null; exchangeId?: 
 /**
  * Saves a mail: a new one, or the one already kept with the same Message-ID or
  * Exchange id, completed with what this copy knows (a subject typed by hand
- * stays when the new copy has none).
+ * stays when the new copy has none). Known by its Message-ID alone (which any
+ * sender writes), a copy only fills what the kept one is missing: it never
+ * rewrites its subject, sender or link.
  */
 async function saveMail(userId: number, given: z.infer<typeof headers>): Promise<MailRow> {
   const input = await withLink(userId, given);
@@ -163,7 +165,19 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
       ? await tx.select().from(mails).where(and(eq(mails.userId, userId), or(...same))).limit(1).for("update")
       : [];
     if (known) {
-      const [row] = await tx.update(mails).set({ ...values, updatedAt: now }).where(eq(mails.id, known.id)).returning(columns);
+      // The same mailbox item: what this copy knows wins. Else only what the kept one lacks.
+      const sameBox = !!input.exchangeId && known.exchangeId === input.exchangeId;
+      const change = sameBox
+        ? values
+        : {
+            ...(!known.subject && values.subject ? { subject: values.subject } : {}),
+            ...(!known.fromName && values.fromName ? { fromName: values.fromName } : {}),
+            ...(!known.fromAddress && values.fromAddress ? { fromAddress: values.fromAddress } : {}),
+            ...(!known.receivedAt && values.receivedAt ? { receivedAt: values.receivedAt } : {}),
+            ...(!known.webLink && values.webLink ? { webLink: values.webLink } : {}),
+            ...(!known.exchangeId && values.exchangeId ? { exchangeId: values.exchangeId } : {}),
+          };
+      const [row] = await tx.update(mails).set({ ...change, updatedAt: now }).where(eq(mails.id, known.id)).returning(columns);
       return row;
     }
     if (!input.subject && !input.webLink) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.mails.empty") });

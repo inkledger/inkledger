@@ -84,6 +84,12 @@ export function simulateThrottle(afterCalls: number | null): void {
   throttleAfter = afterCalls;
 }
 
+/** Under the tests: Graph refusing every lookup of one Message-ID (400), as for an id it can't read (null: none). */
+let refused: string | null = null;
+export function simulateRefuse(internetMessageId: string | null): void {
+  refused = internetMessageId;
+}
+
 /** Under the tests: Graph refusing to give messages' content (a capture that fails). */
 let contentFails = false;
 export function simulateContentFailure(on: boolean): void {
@@ -112,6 +118,7 @@ export async function simulatedMicrosoft(url: string, init: RequestInit): Promis
   }
   const search = u.searchParams.get("$search")?.replace(/"/g, "").trim().toLowerCase();
   const filter = u.searchParams.get("$filter")?.match(/internetMessageId eq '(.+)'/)?.[1];
+  if (filter !== undefined && filter === refused) return json({ error: { code: "ErrorInvalidIdMalformed" } }, 400);
   const found = MAILBOX.filter(
     m =>
       (!search || `${m.subject} ${m.from.emailAddress.name} ${m.from.emailAddress.address}`.toLowerCase().includes(search)) &&

@@ -263,9 +263,13 @@ export async function searchMailbox(userId: number, query?: string): Promise<Fou
   return r ? r.value.map(foundMail) : null;
 }
 
-/** The mail with this Message-ID in the mailbox (to give a mail from a file its link), if signed in and found. */
+/**
+ * The mail with this Message-ID in the mailbox (to give a mail from a file its link), null when
+ * not found. Nobody signed in throws (auth): no mailbox is never read as "not in it".
+ */
 export async function findByMessageId(userId: number, id: string): Promise<FoundMail | null> {
   const value = `<${id.replace(/^<|>$/g, "")}>`.replace(/'/g, "''");
   const r = await asUser<{ value: GraphMessage[] }>(userId, `/me/messages?$filter=${encodeURIComponent(`internetMessageId eq '${value}'`)}&$select=${SELECT}&$top=1`);
-  return r?.value[0] ? foundMail(r.value[0]) : null;
+  if (r === null) throw new ProviderError("auth", t("server.mails.signedOut"));
+  return r.value[0] ? foundMail(r.value[0]) : null;
 }

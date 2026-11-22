@@ -18,7 +18,7 @@ import { ownMail } from "../queries/owned";
 import { restUser } from "../context";
 import { env } from "../lib/env";
 import { sealBytesFor } from "../lib/crypto";
-import { findByMessageId, messageContent } from "./microsoft";
+import { findByMessageId, mailAccount, messageContent } from "./microsoft";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 type Ctx = Context<{ Bindings: HttpBindings }>;
@@ -187,6 +187,8 @@ export async function captureFromGraph(userId: number, mail: { id: number; inter
   if ((await copyMode(userId)) === "off") return;
   const fail = (message: string) => getDb().update(mails).set({ copyError: message }).where(eq(mails.id, mail.id));
   try {
+    // Not signed in: a file or the add-in may still bring it.
+    if (!mail.exchangeId && !(await mailAccount(userId))) return;
     const id = mail.exchangeId ?? (mail.internetMessageId ? (await findByMessageId(userId, mail.internetMessageId))?.exchangeId : null);
     if (!id) return void (await fail(t("server.mails.copy.notInMailbox")));
     const raw = await messageContent(userId, id);

@@ -33,6 +33,7 @@ describe("gone check", () => {
   afterEach(() => {
     sim.simulateForget(null);
     sim.simulateThrottle(null);
+    sim.simulateRefuse(null);
   });
 
   it("a deleted mail is noticed and a restored one cleared", async () => {
@@ -70,5 +71,33 @@ describe("gone check", () => {
     await checkGonePass(later);
     const second = await q<{ id: number }>("SELECT id FROM mails WHERE user_id = ? AND checked_at = ? ORDER BY id", userId, later);
     expect(second.map((r) => r.id)).toEqual(ids.slice(200, 210));
+  });
+
+  it("no mailbox signed in is never read as the mail being gone", async () => {
+    const userId = await signedIn("gone3");
+    const id = await mail(userId, "sim-2@example.com");
+    const { checkMail } = await import("./goneCheck");
+    const { signOutMail } = await import("./microsoft");
+    // Signed out while a pass is under way.
+    await signOutMail(userId);
+    await expect(checkMail(userId, { id, internetMessageId: "sim-2@example.com", goneAt: null }, Date.now())).rejects.toThrow();
+    expect((await q("SELECT gone_at FROM mails WHERE id = ?", id))[0]).toEqual({ gone_at: null });
+  });
+
+  it("a mail Graph always refuses doesn't stop the pass: the others are still looked for", async () => {
+    const userId = await signedIn("gone4");
+    await q("DELETE FROM mail_accounts WHERE user_id <> ?", userId);
+    const bad = await mail(userId, "unreadable@example.com");
+    const others = [await mail(userId, "sim-1@example.com", 10), await mail(userId, "sim-2@example.com", 20)];
+    sim.simulateRefuse("<unreadable@example.com>");
+    const { checkGonePass } = await import("./goneCheck");
+    const now = Date.now();
+    await checkGonePass(now);
+    const rows = await q<{ id: number; checked_at: number | null; gone_at: number | null }>("SELECT id, checked_at, gone_at FROM mails WHERE user_id = ? ORDER BY id", userId);
+    expect(rows.map((r) => [r.id, Number(r.checked_at), r.gone_at])).toEqual([
+      [bad, now, null],
+      [others[0], now, null],
+      [others[1], now, null],
+    ]);
   });
 });

@@ -8,6 +8,7 @@ import { getDb } from "../queries/connection";
 import { isShuttingDown } from "../lib/shutdown";
 import { DAY_MS } from "@contracts/time";
 import { findByMessageId } from "./microsoft";
+import { ProviderError } from "../providers/core/errors";
 
 const PER_PASS = 200;
 /** The first pass a while after start, not with the boot's other work. */
@@ -35,7 +36,12 @@ export async function checkGonePass(now = Date.now()): Promise<void> {
     for (const m of due) {
       try {
         await checkMail(userId, { id: m.id, internetMessageId: m.internetMessageId!, goneAt: m.goneAt }, now);
-      } catch {
+      } catch (e) {
+        // One mail Graph refuses (an id it can't read): looked for again on a later pass, the others now.
+        if (e instanceof ProviderError && e.kind === "invalid") {
+          await getDb().update(mails).set({ checkedAt: new Date(now) }).where(eq(mails.id, m.id));
+          continue;
+        }
         // Throttled or busy (429, 503), signed out, a network blip: this user waits for the next pass.
         break;
       }
