@@ -95,8 +95,16 @@ export function slowPattern(source: string): string | null {
   const groups: { repeats: boolean; alternates: boolean }[] = [{ repeats: false, alternates: false }];
   let openEnded = 0;
   let choices = 1;
+  // The atom just before, when it repeats without end, and whether it was counted. A run on one
+  // escape (\w+, \s*) or one character backtracks only against a neighbour it overlaps: \w+\s*=\s*\w+
+  // is linear, \s*\s*\s* is not. Any dot, class or group counts as before.
+  let prev: { atom: string; counted: boolean } | null = null;
+  let atom = "";
+  const overlaps = (a: string, b: string) =>
+    a === b || a === "." || b === "." || !/^\\?[^\\]$/.test(a) || !/^\\?[^\\]$/.test(b) || (a.length === 1) !== (b.length === 1) || (/^\\[wd]$/.test(a) && /^\\[wd]$/.test(b)) || (/^\\[WSD]$/.test(a) && /^\\[WSD]$/.test(b));
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
+    atom = ch;
     const top = groups[groups.length - 1];
     // What follows position `at`: a quantifier's length (0: none), whether it is open-ended, the ways it can match.
     const quantifier = (at: number): { length: number; open: boolean; ways: number } => {
@@ -110,10 +118,13 @@ export function slowPattern(source: string): string | null {
     };
     if (ch === "\\") {
       if (/[1-9k]/.test(source[i + 1] ?? "")) return "it refers back to a group";
+      atom = `\\${source[i + 1] ?? ""}`;
       i++;
     } else if (ch === "[") {
+      atom = "[]";
       for (i++; i < source.length && source[i] !== "]"; i++) if (source[i] === "\\") i++;
     } else if (ch === "(") {
+      prev = null;
       groups.push({ repeats: false, alternates: false });
       // (?:…), lookarounds, named groups: their opening "?" is no repetition.
       i += /^\?(?:[:=!]|<[=!]|<[^>]*>)/.exec(source.slice(i + 1))?.[0].length ?? 0;
@@ -129,15 +140,22 @@ export function slowPattern(source: string): string | null {
       if (q.open) openEnded++;
       choices *= q.ways;
       i += q.length;
+      prev = q.open ? { atom: "()", counted: true } : null;
       continue;
     }
     const q = ch === ")" ? { length: 0, open: false, ways: 1 } : quantifier(i + 1);
     if (q.length) {
       top.repeats = true;
-      if (q.open) openEnded++;
+      if (q.open) {
+        const single = /^\\?[^\\]$/.test(atom) && atom !== ".";
+        // Counted alone when it can't run on its own (a dot, a class), else when it overlaps the run before it (both then).
+        const counted: boolean = !single || (prev !== null && overlaps(prev.atom, atom));
+        if (counted) openEnded += prev && single && !prev.counted ? 2 : 1;
+        prev = { atom, counted };
+      } else prev = null;
       choices *= q.ways;
       i += q.length;
-    }
+    } else prev = null;
   }
   if (openEnded > REGEX_QUANTIFIERS) return `more than ${REGEX_QUANTIFIERS} open-ended repetitions`;
   return choices > REGEX_CHOICES ? "too many optional parts" : null;
@@ -200,6 +218,7 @@ async function run(root: DirHandle, name: CodeToolName, rawArgs: unknown, signal
     if (!args.ok) return fail(args.error);
     const { query, regex, glob } = args.args;
     let test: (line: string) => boolean;
+    let overBudget = () => false;
     if (regex) {
       let re: RegExp;
       try {
@@ -209,11 +228,17 @@ async function run(root: DirHandle, name: CodeToolName, rawArgs: unknown, signal
       }
       const slow = slowPattern(query);
       if (slow) return fail(`"${query}" could take too long (${slow}): use a simpler expression, or a plain search`);
-      const until = Date.now() + REGEX_BUDGET_MS;
+      // Only the time inside the expression counts (reading the folder is not its cost); past the
+      // budget the search ends with what it found, marked cut short.
+      let spent = 0;
       test = line => {
-        if (Date.now() > until) fail(`"${query}" took too long: use a simpler expression, or a plain search`);
-        return re.test(line.slice(0, REGEX_LINE_CHARS));
+        if (spent > REGEX_BUDGET_MS) return false;
+        const t0 = performance.now();
+        const hit = re.test(line.slice(0, REGEX_LINE_CHARS));
+        spent += performance.now() - t0;
+        return hit;
       };
+      overBudget = () => spent > REGEX_BUDGET_MS;
     } else {
       const needle = query.toLowerCase();
       test = line => line.toLowerCase().includes(needle);
@@ -231,7 +256,10 @@ async function run(root: DirHandle, name: CodeToolName, rawArgs: unknown, signal
       files++;
       const lines = linesOf(text);
       for (let i = 0; i < lines.length; i++) {
-        if (!test(lines[i])) continue;
+        if (!test(lines[i])) {
+          if (overBudget()) return { hits, truncated: true, files };
+          continue;
+        }
         if (hits.length === GREP_HITS) return { hits, truncated: true, files };
         hits.push({ path: file.path, line: i + 1, text: clip(lines[i]) });
       }
