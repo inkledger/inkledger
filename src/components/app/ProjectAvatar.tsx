@@ -11,7 +11,7 @@ const SIZES = {
 } as const;
 
 const PROJECT_KEY = /^[A-Z][A-Z0-9_]{1,31}$/;
-/** Projects without a Jira icon: asked once per session, then initials only. */
+/** Projects without a Jira icon (`connection:key`): asked once per session, then initials only. */
 const missing = new Set<string>();
 
 /** A project's initials: its own (APP), a repository's name (owner/firmware → fi), not its owner's. */
@@ -40,8 +40,10 @@ export function ProjectAvatar({
   /** Use the Jira project icon when `project` is a project key that has one. */
   icon?: boolean;
 }) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(() => missing.has(project));
+  // Per project and connection: a picker's avatar showing another project asks for its own icon.
+  const id = `${connectionId ?? ""}:${project}`;
+  const [seen, setSeen] = useState(() => ({ id, loaded: false, failed: missing.has(id) }));
+  const { loaded, failed } = seen.id === id ? seen : { loaded: false, failed: missing.has(id) };
   const src =
     icon && !failed && PROJECT_KEY.test(project)
       ? `/api/projects/${project}/avatar${connectionId ? `?c=${connectionId}` : ""}`
@@ -76,10 +78,10 @@ export function ProjectAvatar({
           alt=""
           loading="lazy"
           decoding="async"
-          onLoad={() => setLoaded(true)}
+          onLoad={() => setSeen({ id, loaded: true, failed: false })}
           onError={() => {
-            missing.add(project);
-            setFailed(true);
+            missing.add(id);
+            setSeen({ id, loaded: false, failed: true });
           }}
           className={cn(
             "absolute inset-0 h-full w-full rounded-full bg-card object-contain p-0.5",
