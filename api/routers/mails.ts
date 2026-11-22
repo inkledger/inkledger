@@ -167,6 +167,9 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
     if (known) {
       // The same mailbox item: what this copy knows wins. Else only what the kept one lacks.
       const sameBox = !!input.exchangeId && known.exchangeId === input.exchangeId;
+      // Pinned again from the mailbox itself (the add-in, the signed-in mailbox): the mail may have
+      // moved to another folder, so where it is now is taken; what it says stays as kept.
+      const fromBox = input.source === "addin" || input.source === "graph";
       const change = sameBox
         ? values
         : {
@@ -174,8 +177,8 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
             ...(!known.fromName && values.fromName ? { fromName: values.fromName } : {}),
             ...(!known.fromAddress && values.fromAddress ? { fromAddress: values.fromAddress } : {}),
             ...(!known.receivedAt && values.receivedAt ? { receivedAt: values.receivedAt } : {}),
-            ...(!known.webLink && values.webLink ? { webLink: values.webLink } : {}),
-            ...(!known.exchangeId && values.exchangeId ? { exchangeId: values.exchangeId } : {}),
+            ...((fromBox || !known.webLink) && values.webLink ? { webLink: values.webLink } : {}),
+            ...((fromBox || !known.exchangeId) && values.exchangeId ? { exchangeId: values.exchangeId } : {}),
           };
       const [row] = await tx.update(mails).set({ ...change, updatedAt: now }).where(eq(mails.id, known.id)).returning(columns);
       return row;

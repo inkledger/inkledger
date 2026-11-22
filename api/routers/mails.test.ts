@@ -102,12 +102,16 @@ describe("pinned mails", () => {
     await q("DELETE FROM mails");
     const kept = await me.mails.save({ subject: "Invoice 42", fromName: "Supplier", fromAddress: "billing@supplier.example", internetMessageId: "inv-42@supplier.example", exchangeId: "EX-1", webLink: LINK, source: "graph" });
     const spoof = { subject: "Invoice 42: pay here instead", fromName: "Supplier", fromAddress: "billing@elsewhere.example", internetMessageId: "inv-42@supplier.example" };
-    await me.mails.save({ ...spoof, exchangeId: "EX-2", source: "addin" });
     await me.mails.save({ ...spoof, source: "eml" });
     const [row] = await q<{ subject: string; from_address: string; web_link: string; exchange_id: string }>("SELECT subject, from_address, web_link, exchange_id FROM mails WHERE id = ?", kept.id);
     expect(row).toEqual({ subject: "Invoice 42", from_address: "billing@supplier.example", web_link: kept.webLink, exchange_id: "EX-1" });
+    // Pinned again from the mailbox under another item id (moved to another folder): where it is
+    // now is taken, what it says is not.
+    await me.mails.save({ ...spoof, exchangeId: "EX-2", source: "addin" });
+    const [moved] = await q<{ subject: string; from_address: string; exchange_id: string }>("SELECT subject, from_address, exchange_id FROM mails WHERE id = ?", kept.id);
+    expect(moved).toEqual({ subject: "Invoice 42", from_address: "billing@supplier.example", exchange_id: "EX-2" });
     // The same mail by its mailbox id still takes what is new.
-    await me.mails.save({ subject: "Invoice 42 (updated)", exchangeId: "EX-1", source: "graph" });
+    await me.mails.save({ subject: "Invoice 42 (updated)", exchangeId: "EX-2", source: "graph" });
     expect((await q<{ subject: string }>("SELECT subject FROM mails WHERE id = ?", kept.id))[0].subject).toBe("Invoice 42 (updated)");
   });
 });
