@@ -9,8 +9,11 @@ import { countQueries } from "../testing/countQueries";
 
 const q: typeof import("./connection").q = async (text, ...params) => (await import("./connection")).q(text, ...params);
 
-/** Queries by sessions S (one of them kept). Before Wave 2: 2 / 6 / 21 (one delete per session). */
-const MEASURED = { 1: 2, 5: 2, 20: 2 } as const;
+/**
+ * Queries by sessions S (one of them kept). Before Wave 2: 2 / 6 / 21 (one delete per session).
+ * Since a resume can't outlive it: one more, the account's row locked first (still flat in S).
+ */
+const MEASURED = { 1: 3, 5: 3, 20: 3 } as const;
 
 describe("signOutEverywhere", () => {
   let me = 0;
