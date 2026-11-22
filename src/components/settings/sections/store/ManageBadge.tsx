@@ -83,7 +83,7 @@ export function ManageBadge({
   const list = trpc.modules.list.useQuery().data;
   const licences = (list?.licenses ?? []).filter(l => l.product === product);
   const off = list?.off.includes(moduleId) ?? false;
-  const stopped = useSyncExternalStore(stoppedModules.subscribe, stoppedModules.get).get(moduleId);
+  const stopped = useSyncExternalStore(stoppedModules.subscribe, stoppedModules.get, stoppedModules.get).get(moduleId);
   const [confirm, setConfirm] = useState(false);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [servers, setServers] = useState(false);
