@@ -247,7 +247,7 @@ async function readOne(due: Due, conn: Connection, b: BoundTracker, known: Known
 export async function readDueHistories(now = Date.now()): Promise<{ read: number }> {
   await enrol();
   const due = await dueReads(now);
-  const conns = new Map<number, { conn: Connection; b: BoundTracker | null; known: Known | null }>();
+  const conns = new Map<number, { conn: Connection; b: BoundTracker | null; known: Known | null; down?: boolean }>();
   let read = 0;
   for (const d of due) {
     if (d.connectionId === null) continue;
@@ -257,10 +257,12 @@ export async function readDueHistories(now = Date.now()): Promise<{ read: number
       c = { conn, b: conn ? boundTracker(conn) : null, known: null };
       conns.set(d.connectionId, c);
     }
-    if (!c.conn || !c.b) continue;
+    // Its status list failed earlier in this pass: not asked again for each of its issues.
+    if (!c.conn || !c.b || c.down) continue;
     try {
       c.known ??= await statusesOf(c.conn, c.b, { signal: AbortSignal.timeout(60_000), correlationId: `history-statuses-${c.conn.id}-${now}` });
     } catch (e) {
+      c.down = true;
       await failed(d, e instanceof ProviderError ? e.kind : "error", now);
       continue;
     }

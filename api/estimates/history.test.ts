@@ -15,9 +15,11 @@ const sim = jiraSimulator("https://hist.atlassian.net", "acc-h", { moreStatuses:
 const calls: { method: string; path: string }[] = [];
 let onChangelog: (() => Promise<void>) | null = null;
 let unreachable = false;
+let statusesDown = false;
 vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
   const url = new URL(String(input instanceof Request ? input.url : input));
   calls.push({ method: (init?.method ?? "GET").toUpperCase(), path: url.pathname });
+  if (statusesDown && /\/status$/.test(url.pathname)) return new Response("down", { status: 503 });
   if (/\/changelog$/.test(url.pathname)) {
     if (unreachable) return new Response("down", { status: 503 });
     const hook = onChangelog;
@@ -85,6 +87,7 @@ describe("status history reads", () => {
   beforeEach(() => {
     calls.length = 0;
     unreachable = false;
+    statusesDown = false;
     onChangelog = null;
   });
 
@@ -189,6 +192,16 @@ describe("status history reads", () => {
     await readDue();
     expect((await rows("APP-8")).map((r) => r.to_status_id)).toEqual(["51", "31"]);
     expect((await read("APP-8")).state).toBe("available");
+  });
+
+  it("a tracker whose status list fails is asked once per pass, not once per due issue", async () => {
+    await closedWithTime("SL-1", ["21", "31"]);
+    await closedWithTime("SL-2", ["21", "31"]);
+    await closedWithTime("SL-3", ["21", "31"]);
+    calls.length = 0;
+    statusesDown = true;
+    await readDue();
+    expect(calls.filter((c) => /\/status$/.test(c.path))).toHaveLength(1);
   });
 
   it("a history that can't be read as statuses keeps its issues out, unlike no history at all", async () => {
