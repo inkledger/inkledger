@@ -499,7 +499,7 @@ function LogTimeForm({
                   ? t("ui.logTime.endBeforeStart")
                   : t("ui.logTime.badFormat")
                 : parsed && parsed > 0
-                  ? `= ${formatSeconds(parsed)}`
+                  ? `= ${formatSeconds(parsed, { days: false })}`
                   : byEnd
                     ? " "
                     : t("ui.logTime.units")}
