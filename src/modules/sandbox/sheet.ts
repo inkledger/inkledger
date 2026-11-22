@@ -10,6 +10,7 @@ const open = createStore<string | null>(null);
 export const sheetOpen = {
   get: open.get,
   use: open.use,
+  subscribe: open.subscribe,
   open: (moduleId: string) => open.set(moduleId),
   close(moduleId?: string) {
     if (moduleId === undefined || open.get() === moduleId) open.set(null);

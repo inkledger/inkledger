@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LayoutState, PointerState } from "../hostV2";
-import { createLayoutFeed, createPointerFeed, watchBlur, type PointerWin } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, watchBlur, type LayoutChangedWin, type PointerWin } from "./feeds";
 
 function fakeWin() {
   const on = new Map<string, Set<(e: unknown) => void>>();
@@ -99,5 +99,38 @@ describe("the backdrop's blur", () => {
     changed();
     changed();
     expect(got).toEqual([5, 3]);
+  });
+});
+
+describe("the layout-changed feed", () => {
+  it("one nudge once scrolls, resizes and switches settle, in a frame; nothing heard while unwatched", () => {
+    const w = fakeWin();
+    const timers = new Map<number, () => void>();
+    let next = 0;
+    const win = Object.assign(w.win, {
+      setTimeout: (fn: () => void) => (timers.set(++next, fn), next),
+      clearTimeout: (id: number) => void timers.delete(id),
+    }) as unknown as LayoutChangedWin;
+    const runTimers = () => [...timers.entries()].forEach(([id, fn]) => (timers.delete(id), fn()));
+    const switches = new Set<() => void>();
+    const feed = createLayoutChangedFeed(win, [fn => (switches.add(fn), () => void switches.delete(fn))]);
+    let told = 0;
+    w.fire("scroll", {});
+    expect(timers.size).toBe(0);
+    const off = feed.watch(() => told++);
+    w.fire("scroll", {});
+    w.fire("scroll", {});
+    w.fire("resize", {});
+    switches.forEach(fn => fn());
+    expect(timers.size).toBe(1);
+    w.frame();
+    expect(told).toBe(0);
+    runTimers();
+    expect(told).toBe(0);
+    w.frame();
+    expect(told).toBe(1);
+    off();
+    expect(w.listeners()).toBe(0);
+    expect(switches.size).toBe(0);
   });
 });

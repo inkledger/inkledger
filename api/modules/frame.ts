@@ -243,6 +243,13 @@ async function start(init, port) {
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
   if (has("pointer") && init.role === "view") host.pointer = watched("pointer");
   if (has("layout")) host.layout = watched("layout");
+  // The page moved under the frame (scroll, resize, a route, a fold, a sheet): told once it settles.
+  host.layoutChanged = (fn) => {
+    const id = ++seq;
+    pushes.set(id, () => safe(fn));
+    fire("layoutChanged", [id]);
+    return () => { if (pushes.delete(id)) fire("unwatch", [id]); };
+  };
   const fail = (what, e) => send({ t: "failed", reason: (what + ": " + String((e && e.message) || e)).slice(0, 400) });
   let mod;
   try {

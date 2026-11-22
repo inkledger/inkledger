@@ -107,6 +107,28 @@ describe("the frame's host API (bootstrap)", () => {
     expect(errors).toEqual(["light: --sky-dim refused", "light: an unknown surface kind refused"]);
   });
 
+  it("layoutChanged: every frame hears the page move, with no capability, until it lets go", async () => {
+    let poke = () => {};
+    let watching = 0;
+    const lc = {
+      feed: { poke: () => poke(), watch: (fn: () => void) => ((poke = fn), watching++, () => void watching--) },
+      route: () => () => {},
+    } as unknown as NonNullable<CapabilityDeps["layoutChanged"]>;
+    const caps = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen, layoutChanged: lc });
+    let heard = 0;
+    let off = () => {};
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => ((off = host.layoutChanged?.(() => heard++) ?? off), () => {}) } };
+    bootFrame({ capabilities: [], mod, methods: caps.methods });
+    await settle();
+    poke();
+    poke();
+    await settle();
+    expect(heard).toBe(2);
+    off();
+    await settle();
+    expect(watching).toBe(0);
+  });
+
   it("page.importance: the box's points, off the page counting as important", async () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 0, height: 0 }) } as unknown as HTMLElement;
     let out: unknown = null;

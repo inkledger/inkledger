@@ -7,7 +7,7 @@ import type { ViewBox } from "./methods";
 import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
-import type { createLayoutFeed, createPointerFeed } from "./feeds";
+import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
 import type { createModuleCache } from "./cache";
 
 /**
@@ -26,6 +26,8 @@ export type CapabilityDeps = {
   page: () => ImportancePage;
   pointer: ReturnType<typeof createPointerFeed>;
   layout: ReturnType<typeof createLayoutFeed>;
+  /** The page moved under the frames (no payload); `route` adds this hub's route changes to it. */
+  layoutChanged?: { feed: ReturnType<typeof createLayoutChangedFeed>; route(fn: () => void): () => void };
   /** Watches the blur wanted over a backdrop box. */
   blur(box: Element, push: (px: number) => void): () => void;
   cache: ReturnType<typeof createModuleCache>;
@@ -66,6 +68,19 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       },
     }),
     layout: method({ ...watch(push => d.layout.watch(push)), cap: "layout" }),
+    // Every frame: a nudge to look again (what it costs is one message once the page settles).
+    layoutChanged: method(
+      watch(push => {
+        const lc = d.layoutChanged;
+        if (!lc) return () => {};
+        const off = lc.feed.watch(() => push(null));
+        const offRoute = lc.route(lc.feed.poke);
+        return () => {
+          off();
+          offRoute();
+        };
+      }),
+    ),
     // Every frame: the app's look (the fonts once, they are large).
     look: method(
       watch(push => {

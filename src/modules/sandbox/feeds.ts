@@ -111,6 +111,56 @@ export function createLayoutFeed(src: { rail(): boolean; docked(): boolean; subs
   };
 }
 
+export type LayoutChangedWin = Pick<Window, "addEventListener" | "removeEventListener" | "requestAnimationFrame" | "setTimeout" | "clearTimeout">;
+
+/** Quiet this long after the last scroll, resize or switch before a change is told. */
+export const LAYOUT_SETTLE_MS = 150;
+
+/**
+ * "The page moved under you" (scroll, resize, a route, the sidebar folding, a
+ * sheet), told once things settle and then in an animation frame: never a
+ * message per scroll event. Listens only while watched.
+ */
+export function createLayoutChangedFeed(win: LayoutChangedWin, sources: readonly ((fn: () => void) => () => void)[]) {
+  const watchers = new Set<() => void>();
+  let timer: number | undefined;
+  let frame = 0;
+  let offs: (() => void)[] = [];
+  const tell = () => {
+    frame = 0;
+    watchers.forEach(fn => fn());
+  };
+  const poke = () => {
+    if (watchers.size === 0) return;
+    win.clearTimeout(timer);
+    timer = win.setTimeout(() => {
+      timer = undefined;
+      frame ||= win.requestAnimationFrame(tell);
+    }, LAYOUT_SETTLE_MS);
+  };
+  const opts = { passive: true, capture: true };
+  return {
+    poke,
+    watch(fn: () => void): () => void {
+      if (watchers.size === 0) {
+        win.addEventListener("scroll", poke, opts);
+        win.addEventListener("resize", poke, { passive: true });
+        offs = sources.map(s => s(poke));
+      }
+      watchers.add(fn);
+      return () => {
+        if (!watchers.delete(fn) || watchers.size > 0) return;
+        win.removeEventListener("scroll", poke, opts);
+        win.removeEventListener("resize", poke);
+        offs.forEach(off => off());
+        offs = [];
+        win.clearTimeout(timer);
+        timer = undefined;
+      };
+    },
+  };
+}
+
 /**
  * The blur the host wants over a backdrop (px), for a module that bakes it
  * into its own picture: read from `--backdrop-blur` where the host sets it,

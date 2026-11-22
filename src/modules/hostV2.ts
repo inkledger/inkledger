@@ -37,6 +37,12 @@ type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient"
   version: 2;
   theme: Sub<ThemeStateV2>;
   budget: Sub<BudgetLevel>;
+  /**
+   * The page moved under the frame: a scroll, a resize, a route change, the
+   * sidebar folding, a sheet opening or closing. Told once things settle
+   * (in an animation frame), never per scroll event. Returns the undo.
+   */
+  layoutChanged?(fn: () => void): () => void;
   /** As in v1; `update` runs `change` in the frame over a read and a conditional write. */
   storage: Required<HostApiV1["storage"]>;
   /**

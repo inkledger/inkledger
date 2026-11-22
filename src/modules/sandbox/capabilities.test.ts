@@ -24,7 +24,7 @@ const deps = {
 describe("capabilities, held by the host", () => {
   it("every member past the basics names its capability", () => {
     const { methods } = capabilityMethods(deps);
-    expect(Object.keys(methods).filter(n => !methods[n]?.cap)).toEqual(["unwatch", "look"]);
+    expect(Object.keys(methods).filter(n => !methods[n]?.cap)).toEqual(["unwatch", "layoutChanged", "look"]);
   });
 
   it("a module that posts the call itself is refused each one it did not declare", async () => {
@@ -34,7 +34,7 @@ describe("capabilities, held by the host", () => {
     const peer = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods, onRefused: (why, m) => why === "capability" && m && refused.push(m) });
     let id = 0;
     for (const m of Object.keys(methods)) peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: ++id, m, a: [] } });
-    expect(refused.sort()).toEqual(Object.keys(methods).filter(n => n !== "unwatch" && n !== "look").sort());
+    expect(refused.sort()).toEqual(Object.keys(methods).filter(n => n !== "unwatch" && n !== "look" && n !== "layoutChanged").sort());
   });
 
   it("the look is sent again only when it changed", async () => {
