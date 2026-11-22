@@ -416,7 +416,7 @@ describe("gitlab, time on an older server (13.6: no timelogs in GraphQL)", () =>
     const start = Math.min(today(0, 30), Date.now() - 6 * 3_600_000);
     const w = await b.worklogs!.create!(meta(), ref(i, "acme/web#1"), { time: { kind: "session", start: instant(start), seconds: 5400 }, comment: "" }, { idempotencyKey: "k1" });
     // The clock time asked for comes back; the server keeps the day.
-    expect(w).toMatchObject({ remoteId: expect.stringMatching(/^n\d+$/), span: { kind: "session", start, seconds: 5400 }, dayOnly: true, editable: { update: false, delete: true } });
+    expect(w).toMatchObject({ remoteId: expect.stringMatching(/^n\d+$/), span: { kind: "session", start, seconds: 5400 }, dayOnly: true, noWords: true, editable: { update: false, delete: true } });
     expect(i.notes.filter((n) => n.system).map((n) => n.body)).toEqual([`added 1h 30m of time spent at ${dayOf(start)}`]);
     // A note of only the command leaves no comment.
     expect(i.notes.filter((n) => !n.system)).toEqual([]);
