@@ -118,4 +118,10 @@ describe("the current desk", () => {
     await expect(bob.desks.add({ connectionId: conn, key: "APP-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 2 }]);
   });
+
+  it("two issues added at once both land: neither add loses the other's", async () => {
+    await ann.desks.setCurrent({ layout: null });
+    await Promise.all([ann.desks.add({ key: "APP-3", connectionId: conn }), ann.desks.add({ key: "APP-4", connectionId: conn })]);
+    expect((await ann.desks.current()).panes.map(slotKey).sort()).toEqual(["APP-3", "APP-4"]);
+  });
 });

@@ -79,6 +79,61 @@ function linesOf(text: string): string[] {
 
 const clip = (line: string) => (line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS)}…` : line);
 
+/** A regular expression runs in the page, where nothing can stop it: its shape is bounded instead. */
+const REGEX_QUANTIFIERS = 3;
+const REGEX_LINE_CHARS = 1_000;
+const REGEX_BUDGET_MS = 2_000;
+
+/**
+ * Why a pattern could take the page for minutes (catastrophic backtracking), or null: a
+ * backreference; a repeated group that repeats or alternates inside; more than a few
+ * open-ended repetitions in all.
+ */
+export function slowPattern(source: string): string | null {
+  const groups: { repeats: boolean; alternates: boolean }[] = [{ repeats: false, alternates: false }];
+  let openEnded = 0;
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    const top = groups[groups.length - 1];
+    // What follows position `at`: a quantifier's length (0: none), and whether it is open-ended.
+    const quantifier = (at: number): { length: number; open: boolean } => {
+      const q = source[at];
+      if (q === "*" || q === "+") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: true };
+      if (q === "?") return { length: 1 + (source[at + 1] === "?" ? 1 : 0), open: false };
+      const m = q === "{" ? /^\{(\d+)(,(\d*))?\}\??/.exec(source.slice(at)) : null;
+      if (!m) return { length: 0, open: false };
+      return { length: m[0].length, open: m[2] !== undefined && (m[3] === "" || Number(m[3]) > 10) };
+    };
+    if (ch === "\\") {
+      if (/[1-9k]/.test(source[i + 1] ?? "")) return "it refers back to a group";
+      i++;
+    } else if (ch === "[") {
+      for (i++; i < source.length && source[i] !== "]"; i++) if (source[i] === "\\") i++;
+    } else if (ch === "(") {
+      groups.push({ repeats: false, alternates: false });
+      // (?:…), lookarounds, named groups: their opening "?" is no repetition.
+      i += /^\?(?:[:=!]|<[=!]|<[^>]*>)/.exec(source.slice(i + 1))?.[0].length ?? 0;
+      continue;
+    } else if (ch === "|") top.alternates = true;
+    else if (ch === ")" && groups.length > 1) {
+      groups.pop();
+      const q = quantifier(i + 1);
+      if (q.length && (top.repeats || top.alternates)) return "a repeated group repeats or alternates inside";
+      if (q.length || top.repeats) groups[groups.length - 1].repeats = true;
+      if (q.open) openEnded++;
+      i += q.length;
+      continue;
+    }
+    const q = ch === ")" ? { length: 0, open: false } : quantifier(i + 1);
+    if (q.length) {
+      top.repeats = true;
+      if (q.open) openEnded++;
+      i += q.length;
+    }
+  }
+  return openEnded > REGEX_QUANTIFIERS ? `more than ${REGEX_QUANTIFIERS} open-ended repetitions` : null;
+}
+
 /**
  * Every file under `start` (folders skipped by SKIPPED_DIRS), depth first in name order,
  * files before subfolders; at most WALK_FILES_MAX. The page gets a turn now and then.
@@ -143,7 +198,13 @@ async function run(root: DirHandle, name: CodeToolName, rawArgs: unknown, signal
       } catch {
         return fail(`"${query}" is not a valid regular expression`);
       }
-      test = line => re.test(line.slice(0, 2_000));
+      const slow = slowPattern(query);
+      if (slow) return fail(`"${query}" could take too long (${slow}): use a simpler expression, or a plain search`);
+      const until = Date.now() + REGEX_BUDGET_MS;
+      test = line => {
+        if (Date.now() > until) fail(`"${query}" took too long: use a simpler expression, or a plain search`);
+        return re.test(line.slice(0, REGEX_LINE_CHARS));
+      };
     } else {
       const needle = query.toLowerCase();
       test = line => line.toLowerCase().includes(needle);

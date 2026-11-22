@@ -105,6 +105,11 @@ export async function connectFolder(containerId: number): Promise<Folder | null>
   set([...folders.filter(f => !(f.containerId === containerId && f.name === folder.name)), folder]);
   try {
     await withStore("readwrite", s => s.put(folder));
+    // The same folder connected before: its old records go, or they come back after a reload.
+    const stored: unknown[] = await withStore("readonly", s => s.getAll());
+    for (const old of stored.filter(isFolder).filter(f => f.id !== folder.id && f.containerId === containerId && f.name === folder.name)) {
+      await withStore("readwrite", s => s.delete(old.id));
+    }
   } catch {
     // A handle that can't be stored (or no IndexedDB): connected until a reload.
   }

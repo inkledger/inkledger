@@ -7,13 +7,16 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { desks, issues, itemAliases } from "@db/schema";
 import { addPane, deskIssues, DESK_MAX_PANES, isIssue, normalizeDesk, paneId, type DeskLayout, type DeskPane, type DeskSlot } from "@contracts/desk";
 import { createRouter, protectedProcedure } from "../middleware";
-import { getDb } from "../queries/connection";
+import { getDb, type Db } from "../queries/connection";
+import { xactLockIn } from "../queries/locks";
 import { issueAt } from "../queries/issueAt";
 import { issueConnection } from "../providers/connections";
 import { issueKeyInput } from "../lib/inputs";
 
-async function readCurrent(userId: number): Promise<DeskLayout> {
-  const [row] = await getDb()
+type Executor = Pick<Db, "select" | "insert">;
+
+async function readCurrent(userId: number, db: Executor = getDb()): Promise<DeskLayout> {
+  const [row] = await db
     .select({ layout: desks.layout })
     .from(desks)
     .where(and(eq(desks.userId, userId), isNull(desks.name)))
@@ -26,10 +29,10 @@ async function readCurrent(userId: number): Promise<DeskLayout> {
   }
 }
 
-async function writeCurrent(userId: number, layout: DeskLayout): Promise<DeskLayout> {
+async function writeCurrent(userId: number, layout: DeskLayout, db: Executor = getDb()): Promise<DeskLayout> {
   const desk = normalizeDesk(layout);
   const now = new Date();
-  await getDb()
+  await db
     .insert(desks)
     .values({ userId, name: null, layout: JSON.stringify(desk), createdAt: now, updatedAt: now })
     .onConflictDoUpdate({ target: desks.userId, targetWhere: isNull(desks.name), set: { layout: JSON.stringify(desk), updatedAt: now } });
@@ -124,11 +127,15 @@ export const desksRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const pane = "remoteId" in input ? await paneByRef(ctx.user.id, input.connectionId, input.remoteId) : await paneFor(ctx.user.id, input.key, input.connectionId);
-      const before = await readCurrent(ctx.user.id);
-      const already = before.panes.some(item => paneId(item) === paneId(pane));
-      const full = before.panes.length >= DESK_MAX_PANES && before.panes.every(isIssue) && !already;
-      const out = full ? before.panes[before.panes.length - 1] : undefined;
-      const layout = already ? before : await writeCurrent(ctx.user.id, addPane(before, pane));
-      return { layout, key: pane.key, already, full, parked: out && isIssue(out) ? out.key : undefined, count: deskIssues(layout).length };
+      // Read and written under the user's desk lock: two adds at once both land.
+      return getDb().transaction(async tx => {
+        await xactLockIn(tx, "desk", ctx.user.id);
+        const before = await readCurrent(ctx.user.id, tx);
+        const already = before.panes.some(item => paneId(item) === paneId(pane));
+        const full = before.panes.length >= DESK_MAX_PANES && before.panes.every(isIssue) && !already;
+        const out = full ? before.panes[before.panes.length - 1] : undefined;
+        const layout = already ? before : await writeCurrent(ctx.user.id, addPane(before, pane), tx);
+        return { layout, key: pane.key, already, full, parked: out && isIssue(out) ? out.key : undefined, count: deskIssues(layout).length };
+      });
     }),
 });

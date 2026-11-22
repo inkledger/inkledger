@@ -136,6 +136,8 @@ export async function ask(question: string, panes: readonly DeskSlot[], code: Ch
       { history, question: text, panes, tools: code.tools, repos: code.repos.map(r => r.label), issues: code.issues, mode: code.mode },
       { post, runTool: (call, signal) => runCodeTool(call, code.repos, signal), describe: describeCall },
       e => {
+        // Stopped, or a new chat since: what this answer still sends goes nowhere.
+        if (controller.signal.aborted) return;
         if (e.type === "context") set(s => ({ ...s, context: e.issues }));
         else if (e.type === "delta") patch(answer.id, m => ({ ...m, text: m.text + e.text }));
         else if (e.type === "draft") patch(answer.id, m => ({ ...m, doc: e.doc }));
@@ -169,6 +171,8 @@ export function stop(): void {
 /** "New chat": the conversation forgotten (an answer being written is stopped). */
 export function clearChat(): void {
   stop();
+  // The next question goes at once, not after the stopped answer winds down.
+  running = null;
   set(() => EMPTY);
 }
 // The conversation is the account's: the next one signed in on this page starts empty.

@@ -111,3 +111,29 @@ describe("browserTool", () => {
     await expect(browserTool(root, "grep", { repo: "shop", query: "x" }, stop.signal)).rejects.toThrow();
   });
 });
+
+describe("grep with a regular expression: nothing can hold the page", () => {
+  it("a pattern that backtracks without end is refused before it runs", async () => {
+    const slow = folder("slow", { "a.txt": `${"a".repeat(26)}!` });
+    const started = Date.now();
+    const out = await browserTool(slow, "grep", { repo: "slow", query: "(a+)+$", regex: true });
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(out).toMatchObject({ ok: false, error: expect.stringContaining("could take too long") });
+  });
+
+  it("refused: backreferences, repeated groups that repeat or alternate inside, many open-ended repetitions", async () => {
+    const small = folder("small", { "a.txt": "aaa bbb" });
+    for (const query of ["(a)\\1", "(a|aa)*b", "(?:a*)*", "((a+))+", ".*.*.*.*x"]) {
+      const out = await browserTool(small, "grep", { repo: "small", query, regex: true });
+      expect(out.ok, query).toBe(false);
+    }
+  });
+
+  it("everyday patterns still run", async () => {
+    const code = folder("code", { "a.kt": "fun stockLevel(item: Item) = item.qty\nval x = MAGA-400" });
+    for (const query of ["fun\\s+\\w+\\s*\\(", "MAGA-\\d{3}", "(?:val|var) x", "stock(Level)?", "[a-z]+Level"]) {
+      const out = await browserTool(code, "grep", { repo: "code", query, regex: true });
+      expect(out.ok && "hits" in out.result && out.result.hits.length, query).toBe(1);
+    }
+  });
+});

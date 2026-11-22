@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { chatMarkdown, readEvents, type ChatMessage } from "./chat";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ask, chatMarkdown, clearChat, readEvents, useDeskChat, type ChatMessage, type ChatState } from "./chat";
 
 const body = (...parts: string[]) =>
   new ReadableStream<Uint8Array>({
@@ -36,5 +38,49 @@ describe("the desk chat's events", () => {
     expect(md).toContain("## Question\n\nWhich first?");
     expect(md).toContain("## Answer\n\nAPP-1");
     expect(md).not.toContain("unreachable");
+  });
+});
+
+describe("New chat while an answer is being written", () => {
+  /** The chat as a page would read it now. */
+  const snapshot = (): ChatState => {
+    let seen: ChatState | null = null;
+    const Probe = () => {
+      seen = useDeskChat();
+      return null;
+    };
+    renderToStaticMarkup(createElement(Probe));
+    if (!seen) throw new Error("not rendered");
+    return seen;
+  };
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  it("the next question runs at once, and what the old answer still sends stays out of the new chat", async () => {
+    const answers: ReadableStreamDefaultController<Uint8Array>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new ReadableStream<Uint8Array>({ start: c => void answers.push(c) }), { status: 200, headers: { "Content-Type": "text/event-stream" } })),
+    );
+    try {
+      const first = ask("First?", []);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      clearChat();
+      const second = ask("Second?", []);
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      // The old answer's events, already on their way.
+      answers[0].enqueue(bytes('event: context\ndata: {"issues":[{"connectionId":1,"key":"OLD-1","title":"Old"}]}\n\nevent: off\ndata: {"message":"off"}\n\n'));
+      answers[0].close();
+      await first;
+      answers[1].enqueue(bytes('event: context\ndata: {"issues":[{"connectionId":1,"key":"NEW-1","title":"New"}]}\n\nevent: done\ndata: {"markdown":"New answer","doc":{"v":1,"blocks":[]}}\n\n'));
+      answers[1].close();
+      await second;
+      const state = snapshot();
+      expect(state.off).toBe(false);
+      expect(state.context?.map(i => i.key)).toEqual(["NEW-1"]);
+      expect(state.messages.map(m => m.text)).toEqual(["Second?", "New answer"]);
+    } finally {
+      clearChat();
+      vi.unstubAllGlobals();
+    }
   });
 });
