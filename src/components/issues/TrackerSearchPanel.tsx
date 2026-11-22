@@ -39,7 +39,7 @@ export function TrackerSearchPanel({ initialQuery = "" }: { initialQuery?: strin
   const trackers = (useConnections().data ?? []).filter(c => c.role === "tracker" && isWorking(c.status));
   const answers = trpc.useQueries(q => trackers.map(c => q.issues.searchOn({ connectionId: c.id, query }, { enabled, retry: false, staleTime: 60_000 })));
   // A tracker whose question threw is named too: "not found" would read as searched.
-  const thrown = answers.flatMap((a, i) => (a.error && trackers[i] ? [{ connectionId: trackers[i].id, label: trackers[i].name, message: errorText(a.error) }] : []));
+  const thrown = answers.flatMap((a, i) => (a.error && trackers[i] ? [{ connectionId: trackers[i].id, label: trackers[i].label || trackers[i].name, message: errorText(a.error) }] : []));
   const search = {
     data: answers.some(a => a.data) ? { results: answers.flatMap(a => a.data?.results ?? []), failed: [...answers.flatMap(a => (a.data?.failed ? [a.data.failed] : [])), ...thrown] } : undefined,
     isFetching: answers.some(a => a.isFetching),
