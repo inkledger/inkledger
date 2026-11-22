@@ -1,6 +1,6 @@
-import { formatQuery, parseQuery, type QueryExpr, type QueryTerm } from "@contracts/query";
+import type { QueryTerm } from "@contracts/query";
 import { surface } from "@/components/app/surface";
-import { fieldCompletions } from "@/lib/queryAssist";
+import { fieldCompletions, hasPreset, togglePreset } from "@/lib/queryAssist";
 import { ToggleChip } from "@/components/app/ToggleChip";
 import { t, useLocale } from "@/i18n";
 
@@ -17,22 +17,13 @@ const PRESETS: { id: string; term: QueryTerm; label: () => string }[] = [
   { id: "today", term: { kind: "field", field: "logged", op: "=", value: "today" }, label: () => t("views.issues.assist.loggedToday") },
 ];
 
-const same = (a: QueryExpr, b: QueryTerm) => formatQuery(a, "en") === formatQuery(b, "en");
-/** The query's parts joined by AND (one part when there is no AND at the top). */
-const partsOf = (expr: QueryExpr | null): QueryExpr[] => (!expr ? [] : expr.kind === "and" ? expr.items : [expr]);
-
 /**
  * Under a search box: chips that switch common filters on and off (scrolling
  * sideways on a phone), and the field names the word being typed can start.
  */
 export function QueryAssist({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const lang: Lang = useLocale() === "it" ? "it" : "en";
-  const parts = partsOf(parseQuery(value).expr);
-  const toggle = (term: QueryTerm) => {
-    const on = parts.some(p => same(p, term));
-    const next = on ? parts.filter(p => !same(p, term)) : [...parts, term];
-    onChange(next.length === 0 ? "" : formatQuery(next.length === 1 ? next[0] : { kind: "and", items: next }, lang) + " ");
-  };
+  const toggle = (term: QueryTerm) => onChange(togglePreset(value, term, lang));
   const completions = fieldCompletions(value, lang);
   const complete = (name: string) => onChange(value.replace(/(-?)[^\s:()"]+$/, `$1${name}:`));
   return (
@@ -56,7 +47,7 @@ export function QueryAssist({ value, onChange }: { value: string; onChange: (val
       <div data-overflow-ok role="group" aria-label={t("views.issues.assist.quick")} className="cast-room-x cast-room-y flex snap-x gap-1.5 overflow-x-auto [--room-b:0.25rem] [--room-x:0.25rem] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
         {/* One scrolling row on a phone; from sm they wrap, so a mouse reaches every chip (none hidden past the edge). */}
         {PRESETS.map(p => (
-          <ToggleChip key={p.id} size="sm" className="shrink-0 snap-start" pressed={parts.some(x => same(x, p.term))} onClick={() => toggle(p.term)}>
+          <ToggleChip key={p.id} size="sm" className="shrink-0 snap-start" pressed={hasPreset(value, p.term)} onClick={() => toggle(p.term)}>
             {p.label()}
           </ToggleChip>
         ))}
