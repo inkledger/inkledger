@@ -8,7 +8,8 @@ import { createBroker, type BrokerEnv } from "./broker";
 import { createModuleCache, type CacheBackend } from "./cache";
 import { sheetOpen } from "./sheet";
 import type { ImportancePage } from "./importance";
-import type { ViewBox } from "./methods";
+import { frameMethods, type Cas, type ViewBox } from "./methods";
+import type { HostApiV1 } from "../types";
 import { bootFrame, settle } from "./bootFrame.testkit";
 import type { HostApiV2, LayoutState } from "../hostV2";
 import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
@@ -372,5 +373,75 @@ describe("the frame's host API (bootstrap)", () => {
     bootFrame({ capabilities: [], mod, methods, slot: "dashboard-overlay" });
     await settle(10);
     expect(got).toEqual([rect(3)]);
+  });
+});
+
+describe("storage writes from a frame", () => {
+  // The host's own methods (its rates), over a store that counts the writes reaching it.
+  function store() {
+    const rows = new Map<string, { value: unknown; revision: number }>();
+    const calls = { set: 0, setIf: 0 };
+    const cas: Cas = {
+      read: async k => rows.get(k) ?? { value: undefined, revision: 0 },
+      async setIf(k, value, ifRevision) {
+        calls.setIf++;
+        const now = rows.get(k) ?? { value: undefined, revision: 0 };
+        if (now.revision !== ifRevision) return { conflict: true, ...now };
+        rows.set(k, { value, revision: now.revision + 1 });
+        return { revision: now.revision + 1 };
+      },
+    };
+    const api = {
+      storage: {
+        get: async (k: string) => rows.get(k)?.value,
+        async set(k: string, value: unknown) {
+          calls.set++;
+          rows.set(k, { value, revision: (rows.get(k)?.revision ?? 0) + 1 });
+        },
+        delete: async (k: string) => void rows.delete(k),
+      },
+    } as unknown as HostApiV1;
+    return { rows, calls, methods: frameMethods(api, cas, null).methods };
+  }
+  const run = (methods: ReturnType<typeof store>["methods"], body: (host: HostApiV2) => void) => {
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (body(host), () => {}) } };
+    return bootFrame({ capabilities: [], mod, methods });
+  };
+
+  it("a burst of updates on one key coalesces: every change applied, in order, none refused", async () => {
+    const s = store();
+    const results: unknown[] = [];
+    run(s.methods, host => {
+      for (let i = 0; i < 40; i++) void host.storage.update<number>("n", n => (n ?? 0) + 1).then(v => results.push(v), (e: Error) => results.push(e.message));
+    });
+    await settle(30);
+    expect(results).toEqual(Array.from({ length: 40 }, (_, i) => i + 1));
+    expect(s.rows.get("n")?.value).toBe(40);
+    expect(s.calls.setIf).toBeLessThanOrEqual(4);
+  });
+
+  it("a burst of sets on one key: the latest wins, every caller answered", async () => {
+    const s = store();
+    let done = 0;
+    run(s.methods, host => {
+      for (let i = 0; i < 40; i++) void host.storage.set("k", i).then(() => void done++);
+    });
+    await settle(30);
+    expect(done).toBe(40);
+    expect(s.rows.get("k")?.value).toBe(39);
+    expect(s.calls.set).toBeLessThanOrEqual(2);
+  });
+
+  it("writes to many keys wait their turn at the host's pace instead of being refused", async () => {
+    const s = store();
+    const errors: string[] = [];
+    let done = 0;
+    run(s.methods, host => {
+      for (let i = 0; i < 20; i++) void host.storage.update<number>("k" + i, () => i).then(() => void done++, (e: Error) => errors.push(e.message));
+    });
+    await new Promise(r => setTimeout(r, 1300));
+    await settle(10);
+    expect(errors).toEqual([]);
+    expect(done).toBe(20);
   });
 });

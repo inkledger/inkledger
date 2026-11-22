@@ -100,6 +100,59 @@ const alphaMask = (pic) => {
   for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
   return { kind: "mask", w, h, alpha };
 };
+// Storage writes at the host's pace (4 a second, 16 at once): a burst waits here instead of being refused there.
+let writeTokens = 16, writeAt = Date.now();
+const paced = () => new Promise((resolve) => {
+  const go = () => {
+    const now = Date.now();
+    writeTokens = Math.min(16, writeTokens + ((now - writeAt) / 1000) * 4);
+    writeAt = now;
+    if (writeTokens >= 1) { writeTokens -= 1; resolve(); }
+    else setTimeout(go, Math.ceil(((1 - writeTokens) / 4) * 1000));
+  };
+  go();
+});
+// One write per key at a time; those waiting their turn merge: a set or delete, the latest wins;
+// an update joins the batch, its change applied in order over one read and one conditional write.
+const writeKeys = new Map();
+const runWrite = async (key, items) => {
+  const last = items[items.length - 1];
+  await paced();
+  await (last.del ? call("storage.delete", [key]) : call("storage.set", [key, last.value]));
+  for (const w of items) w.resolve();
+};
+const runUpdates = async (key, items) => {
+  let r = await call("storage.read", [key]);
+  for (let i = 0; i < 8; i++) {
+    let value = r.value;
+    const outs = items.map((w) => { try { value = w.change(value); return { ok: true, value }; } catch (error) { return { ok: false, error }; } });
+    const settleAll = () => items.forEach((w, j) => (outs[j].ok ? w.resolve(outs[j].value) : w.reject(outs[j].error)));
+    if (!outs.some((o) => o.ok)) return settleAll();
+    await paced();
+    const w = await call("storage.setIf", [key, value, r.revision]);
+    if (w.ok) return settleAll();
+    r = w;
+  }
+  throw new Error("storage.update: " + JSON.stringify(key) + " kept changing elsewhere");
+};
+const drainWrites = async (key, k) => {
+  while (k.queue.length) {
+    const batch = k.queue.shift();
+    try { await (batch.kind === "update" ? runUpdates(key, batch.items) : runWrite(key, batch.items)); }
+    catch (e) { for (const w of batch.items) w.reject(e); }
+  }
+  writeKeys.delete(key);
+};
+const queueWrite = (key, kind, item) => new Promise((resolve, reject) => {
+  let k = writeKeys.get(key);
+  const fresh = !k;
+  if (!k) writeKeys.set(key, (k = { queue: [] }));
+  const last = k.queue[k.queue.length - 1];
+  const w = Object.assign({ resolve, reject }, item);
+  if (last && last.kind === kind) last.items.push(w);
+  else k.queue.push({ kind, items: [w] });
+  if (fresh) void drainWrites(key, k);
+});
 // A value with subscribers: one subscription at the host, the latest kept for late subscribers.
 const held = (start, stop) => {
   const fns = new Set();
@@ -199,19 +252,10 @@ async function start(init, port) {
     },
     storage: {
       get: (k) => call("storage.get", [k]),
-      set: (k, v) => call("storage.set", [k, v]).then(quiet),
-      delete: (k) => call("storage.delete", [k]).then(quiet),
+      set: (k, v) => queueWrite(k, "write", { value: v }),
+      delete: (k) => queueWrite(k, "write", { del: true }),
       // Run here over a read and a write that holds only if nobody wrote meanwhile.
-      update: async (key, change) => {
-        let r = await call("storage.read", [key]);
-        for (let i = 0; i < 8; i++) {
-          const next = change(r.value);
-          const w = await call("storage.setIf", [key, next, r.revision]);
-          if (w.ok) return next;
-          r = w;
-        }
-        throw new Error("storage.update: " + JSON.stringify(key) + " kept changing elsewhere");
-      },
+      update: (k, change) => queueWrite(k, "update", { change }),
     },
   };
   if (has("surfaces.light")) {

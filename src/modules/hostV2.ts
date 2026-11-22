@@ -54,7 +54,11 @@ type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient"
    * (in an animation frame), never per scroll event. Returns the undo.
    */
   layoutChanged?(fn: () => void): () => void;
-  /** As in v1; `update` runs `change` in the frame over a read and a conditional write. */
+  /**
+   * As in v1; `update` runs `change` in the frame over a read and a conditional write.
+   * Writes keep the host's pace: a burst on one key coalesces (sets and deletes: the
+   * latest wins; updates: their changes applied in order over one write), never refused.
+   */
   storage: Required<HostApiV1["storage"]>;
   /**
    * Short strings kept for this tab's session (a reload keeps them, signing in
