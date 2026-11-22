@@ -141,7 +141,8 @@ type X = CallContext<"gitlab", GitLabOptions>;
 /** Format of this adapter's checkpoints (core/checkpoint.ts). */
 const V = 1;
 type Since = { at: number };
-type IssuePage = { page: number; at: number };
+/** `after`: the last updated_at read, the next page starts there (an issue edited mid-pass shifts no offset); `seen`: the ids read at it. */
+type IssuePage = { page: number; at: number; after?: string; seen?: string[] };
 type TimelogPageAt = { after: string | null; from: string; to: string; username: string; at: number };
 
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
@@ -489,18 +490,29 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
     const at = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { page: 1, at: Date.now() };
     // scope defaults to created_by_me, state to all, per_page tops out at 100.
     const params = new URLSearchParams({ scope: "assigned_to_me", state: "all", order_by: "updated_at", sort: "asc", per_page: String(PER_PAGE), page: String(at.page) });
-    if (since !== null) params.set("updated_after", new Date(since).toISOString());
+    // updated_after is inclusive: the issues read at `after` come back first, skipped.
+    if (at.after !== undefined) params.set("updated_after", at.after);
+    else if (since !== null) params.set("updated_after", new Date(since).toISOString());
     const r = await gl<GitLabIssue[]>(c, `/issues?${params.toString()}`);
+    const rows = r?.data ?? [];
     const items: RemoteIssue[] = [];
     const gone: { remoteId: string; reason: "transferred"; successor: IssueRef }[] = [];
-    for (const i of r?.data ?? []) {
+    for (const i of rows) {
+      if (i.updated_at === at.after && at.seen?.includes(String(i.id))) continue;
       // A moved issue stays here, closed, pointing at its successor.
       const successor = i.moved_to_id ? await byGlobalId(c, String(i.moved_to_id)) : null;
       if (successor) gone.push({ remoteId: String(i.id), reason: "transferred", successor: refOf(successor) });
       else items.push(toRemoteIssue(shape, i));
     }
     // The Link header says whether there is more (GitLab omits totals past 10,000 rows, never the next link).
-    if (r?.next) return { last: false, items, gone, next: encodePageToken(x.conn, "issues", V, q.since, { page: at.page + 1, at: at.at } satisfies IssuePage) };
+    if (r?.next) {
+      const lastAt = rows[rows.length - 1]?.updated_at;
+      const atLast = rows.filter((i) => i.updated_at === lastAt).map((i) => String(i.id));
+      // A page all at `after` (a bulk edit): the next one by number under the same `after`.
+      const next: IssuePage =
+        lastAt === undefined || lastAt === at.after ? { ...at, page: at.page + 1 } : { page: 1, at: at.at, after: lastAt, seen: atLast };
+      return { last: false, items, gone, next: encodePageToken(x.conn, "issues", V, q.since, next) };
+    }
     return { last: true, items, gone, checkpoint: encodeCheckpoint(x.conn, "issues", V, { at: at.at - OVERLAP_MS } satisfies Since) };
   },
 

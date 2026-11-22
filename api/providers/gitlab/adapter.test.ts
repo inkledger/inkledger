@@ -106,6 +106,22 @@ describe("gitlab, issues", () => {
     expect(again.items.map((i) => [i.key, i.title])).toEqual([["acme/web#1", "Login fails on Safari 18"]]);
   });
 
+  it("an issue edited while a pass reads its pages moves no other issue out of the pass", async () => {
+    const { b, sim } = simulated();
+    for (let n = 0; n < 130; n++) sim.add("acme/bulk", `Bulk ${n}`);
+    const seen = new Set<string>();
+    let q: Parameters<typeof b.listChanged>[1] = { since: null, page: null };
+    for (let page = 1; ; page++) {
+      const out = await b.listChanged(meta(), q);
+      for (const i of out.items) seen.add(i.remoteId);
+      // An issue of the first page edited meanwhile: it goes to the end of the order.
+      if (page === 1) sim.outside.retitle(sim.issues[0], "Edited mid-pass");
+      if (out.last) break;
+      q = { since: null, page: out.next };
+    }
+    expect(seen.size).toBe(133);
+  });
+
   it("a moved issue stays behind, closed: reported as transferred, with its successor", async () => {
     const { b, sim } = simulated();
     const first = await pass(b);
