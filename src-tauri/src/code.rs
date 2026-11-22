@@ -478,6 +478,9 @@ fn git_command(root: Option<&Path>) -> Command {
     .env("GIT_TERMINAL_PROMPT", "0")
     .env("GIT_PAGER", "cat")
     .env("GIT_OPTIONAL_LOCKS", "0")
+    // A partial clone's missing object is not fetched: its remote may be a program.
+    .env("GIT_NO_LAZY_FETCH", "1")
+    .env("GIT_ALLOW_PROTOCOL", "")
     .stdin(Stdio::null());
     #[cfg(windows)]
     {
@@ -1148,6 +1151,33 @@ mod tests {
         if let Ok(show) = git_show(&web, &hash.trim()[..10], None) {
             assert!(!show.text.contains("parent-secret") && !show.text.contains(".env"), "{}", show.text);
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_missing_object_is_never_fetched() {
+        if !git_available() {
+            return;
+        }
+        let t = Temp::new("git-lazy");
+        let marker = t.0.join("fetched");
+        let git = |args: &[&str]| git_command(Some(&t.0)).args(args).output().unwrap();
+        git(&["init", "-q"]);
+        t.file("a.txt", b"lazy\n");
+        git(&["add", "a.txt"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "one"]);
+        let blob = String::from_utf8(git(&["rev-parse", "HEAD:a.txt"]).stdout).unwrap();
+        let blob = blob.trim();
+        std::fs::remove_file(t.0.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+        // A partial clone whose remote is a program: showing the missing blob would fetch it.
+        git(&["config", "core.repositoryformatversion", "1"]);
+        git(&["config", "extensions.partialClone", "origin"]);
+        git(&["config", "remote.origin.promisor", "true"]);
+        git(&["config", "protocol.ext.allow", "always"]);
+        git(&["config", "remote.origin.url", &format!("ext::sh -c touch% {}", marker.display())]);
+        let log = git_log(&t.0, None, None, 5).unwrap();
+        let _ = git_show(&t.0, &log.commits[0].hash[..10], None);
+        assert!(!marker.exists(), "a lazy fetch ran the remote's program");
     }
 
     #[test]
