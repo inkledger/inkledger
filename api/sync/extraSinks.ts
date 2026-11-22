@@ -26,7 +26,7 @@ import { linkSink, roundingSlack, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
-import { ADOPT_WINDOW_MS, buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords, unbury } from "./timeWrites";
+import { ADOPT_WINDOW_MS, buriedBy, CLAIM_TTL_MS, CLOCK_SKEW_MS, holds, isLostCreate, sameWords, unbury } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
 import { callMeta } from "../lib/callMeta";
 
@@ -196,9 +196,6 @@ async function adoptTrackerId(w: Worklog, trackerId: string) {
   }
   await linkSink(w.id, connectionId, trackerId, null);
 }
-
-/** How far a sink's clock may be behind ours when it stamps an entry it just made. */
-const CLOCK_SKEW_MS = 60_000;
 
 /** How far off what was sent an entry read back may be: the service's rounding, and half a minute where it keeps minutes. */
 const slackOf = (b: BoundSink, e: RemoteWorklog, seconds: number) => roundingSlack(b.capabilities.entries.limits, seconds) + (e.minuteOnly ? 30 : 0);

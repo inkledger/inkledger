@@ -319,7 +319,7 @@ async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog)
 }
 
 /** How far the service's clock may be from ours when it stamps an entry it made. */
-const CLOCK_SKEW_MS = 60_000;
+export const CLOCK_SKEW_MS = 60_000;
 
 /** A queued delete of a create whose answer was lost: no id there, the values sent, when it may have landed. */
 export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remoteId" | "landedAfter">) => e.kind === "delete" && !e.remoteId && e.landedAfter !== null;
