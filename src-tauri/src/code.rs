@@ -457,6 +457,10 @@ fn git_command(root: Option<&Path>) -> Command {
     let mut cmd = Command::new("git");
     if let Some(root) = root {
         cmd.arg("-C").arg(root);
+        // The root's own repository only: never one in a folder above it.
+        if let Some(parent) = root.parent() {
+            cmd.env("GIT_CEILING_DIRECTORIES", parent);
+        }
     }
     // Settings a repository's own config can't turn on here: it may come from anyone, and
     // these run programs (gpg to check a "signed" commit, fsmonitor, external diffs).
@@ -1123,6 +1127,27 @@ mod tests {
             let _ = std::fs::OpenOptions::new().write(true).open(&fifo);
         }
         assert_eq!(got.expect("grep waited on a named pipe"), Ok(1));
+    }
+
+    #[test]
+    fn git_stays_in_a_root_inside_a_bigger_repository() {
+        if !git_available() {
+            return;
+        }
+        let t = Temp::new("git-parent");
+        let git = |args: &[&str]| git_command(Some(&t.0)).args(args).output().unwrap();
+        git(&["init", "-q"]);
+        t.file(".env", b"API_TOKEN=parent-secret\n");
+        t.file("web/app.txt", b"app\n");
+        git(&["add", "-A"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "one"]);
+        let hash = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout).unwrap();
+        let web = t.0.join("web");
+        // The allowed folder is not a repository of its own: nothing from the one above it.
+        assert!(git_log(&web, None, None, 5).map_or(true, |l| l.commits.is_empty()));
+        if let Ok(show) = git_show(&web, &hash.trim()[..10], None) {
+            assert!(!show.text.contains("parent-secret") && !show.text.contains(".env"), "{}", show.text);
+        }
     }
 
     #[test]
