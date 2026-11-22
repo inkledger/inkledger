@@ -273,6 +273,15 @@ export async function moduleFile(id: string, hash: string, file: string, runtime
   return checked.files.get(file) ?? null;
 }
 
+/** A framed module's entry and its SRI at this package hash, while active. */
+export async function frameEntry(id: string, hash: string): Promise<{ entry: string; integrity: string } | null> {
+  if (!moduleIdSchema.safeParse(id).success) return null;
+  const checked = readInstalled(id);
+  if (!checked.ok || checked.packageHash !== hash || checked.manifest.runtime !== "frame") return null;
+  if (statusOf(checked, await licensedProducts()).state !== "active") return null;
+  return { entry: checked.manifest.entry, integrity: integrityOf(checked.files.get(checked.manifest.entry) ?? Buffer.alloc(0)) };
+}
+
 // ---- Install / uninstall ----
 
 export type InstallResult =

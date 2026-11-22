@@ -419,6 +419,68 @@ describe("add-on modules", () => {
       }
     });
 
+    it("the frame document: its own sandboxed policy, the entry pinned to its hash, never cached", async () => {
+      const { hash } = await framed();
+      const doc = await app.request(`/modules/frame/hello/${hash}`, { headers: { cookie } });
+      expect(doc.status).toBe(200);
+      expect(doc.headers.get("content-type")).toContain("text/html");
+      expect(doc.headers.get("cache-control")).toBe("no-store");
+      expect(doc.headers.get("x-content-type-options")).toBe("nosniff");
+      const csp = doc.headers.get("content-security-policy") ?? "";
+      const nonce = /'nonce-([^']+)'/.exec(csp)?.[1] ?? "";
+      expect(nonce.length).toBeGreaterThan(16);
+      expect(csp).toBe(
+        [
+          "sandbox allow-scripts",
+          "default-src 'none'",
+          `script-src 'nonce-${nonce}' http://localhost/modules/run/`,
+          "worker-src blob:",
+          "img-src blob: data:",
+          "media-src blob:",
+          "style-src 'unsafe-inline'",
+          "font-src data:",
+          "connect-src 'none'",
+          "form-action 'none'",
+          "base-uri 'none'",
+          "frame-ancestors 'self'",
+        ].join("; "),
+      );
+      const html = await doc.text();
+      const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+      expect(scripts.length).toBe(2);
+      for (const [, attrs] of scripts) expect(attrs).toContain(`nonce="${nonce}"`);
+      const map = JSON.parse(scripts[0][2]) as { integrity: Record<string, string> };
+      expect(scripts[0][1]).toContain('type="importmap"');
+      const [[entryUrl, integrity]] = Object.entries(map.integrity);
+      expect(entryUrl).toMatch(new RegExp(`^/modules/run/[^/]+/hello/${hash}/index[.]js$`));
+      expect(integrity).toBe(`sha256-${createHash("sha256").update(ENTRY).digest("base64")}`);
+      expect(scripts[1][2]).toContain('type: "ready"');
+      // The pinned URL is served, cookie-less, with those bytes.
+      expect(await (await app.request(entryUrl)).text()).toBe(ENTRY);
+      // A fresh nonce each time.
+      const again = await app.request(`/modules/frame/hello/${hash}`, { headers: { cookie } });
+      expect(again.headers.get("content-security-policy")).not.toContain(nonce);
+    });
+
+    it("the frame document: signed-in, granted, active framed package at its hash only", async () => {
+      const { hash } = await framed();
+      expect((await app.request(`/modules/frame/hello/${hash}`)).status).toBe(401);
+      expect((await app.request(`/modules/frame/hello/${"0".repeat(32)}`, { headers: { cookie } })).status).toBe(404);
+      expect((await app.request(`/modules/frame/other/${hash}`, { headers: { cookie } })).status).toBe(404);
+      const { getDb } = await import("../queries/connection");
+      const { users } = await import("@db/schema");
+      try {
+        await getDb().update(users).set({ role: "member", permissions: JSON.stringify(["useModules"]), moduleGrants: "[]" }).where(eq(users.id, userId));
+        expect((await app.request(`/modules/frame/hello/${hash}`, { headers: { cookie } })).status).toBe(403);
+      } finally {
+        await getDb().update(users).set({ role: "admin", permissions: "[]", moduleGrants: "[]" }).where(eq(users.id, userId));
+      }
+      // A module running in the page has no frame.
+      await upload(bundle());
+      const inpage = /\/([0-9a-f]{32})\//.exec((await caller.modules.list()).modules[0].entryUrl ?? "")?.[1] ?? "";
+      expect((await app.request(`/modules/frame/hello/${inpage}`, { headers: { cookie } })).status).toBe(404);
+    });
+
     it("a module running in the page is not served by token, nor gets one", async () => {
       await upload(bundle());
       await (await import("./registry")).addLicense(license("inkledger.hello"));

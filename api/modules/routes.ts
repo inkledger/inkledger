@@ -1,11 +1,13 @@
+import { randomBytes } from "node:crypto";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
-import { MODULES_PATH, MODULES_RUN_PATH } from "@contracts/modules";
+import { MODULES_FRAME_PATH, MODULES_PATH, MODULES_RUN_PATH } from "@contracts/modules";
 import { restUser } from "../context";
 import { can, mayRunModule, userById } from "../queries/accounts";
 import { extraKey } from "./keys";
-import { installBundle, moduleFile } from "./registry";
-import { runTokenUser } from "./runToken";
+import { frameCsp, frameDocument } from "./frame";
+import { frameEntry, installBundle, moduleFile } from "./registry";
+import { runToken, runTokenUser } from "./runToken";
 
 /** Module code and uploads: signed-in users only. */
 export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
@@ -58,6 +60,24 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
       // Read by an opaque origin, never with credentials.
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "private, max-age=3600",
+      "X-Content-Type-Options": "nosniff",
+    });
+  });
+
+  // A framed module's document: a same-site navigation, so the session cookie says who.
+  app.get(`${MODULES_FRAME_PATH}/:id/:hash`, async (c) => {
+    const who = await restUser(c.req.raw, "useModules");
+    if (!("user" in who)) return c.text(who.error, who.status);
+    const { id, hash } = c.req.param();
+    if (!mayRunModule(who.user, id)) return c.text("Not allowed", 403);
+    const entry = await frameEntry(id, hash);
+    if (!entry) return c.text("Not Found", 404);
+    const nonce = randomBytes(16).toString("base64");
+    const entryUrl = `${MODULES_RUN_PATH}/${runToken(who.user.id, id, hash)}/${id}/${hash}/${entry.entry}`;
+    return c.html(frameDocument(entryUrl, entry.integrity, nonce), 200, {
+      "Content-Security-Policy": frameCsp(new URL(c.req.url).origin, nonce),
+      // It holds a token and a nonce: never kept.
+      "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     });
   });

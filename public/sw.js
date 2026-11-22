@@ -76,6 +76,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  // Framed modules' documents and code: never the app shell in their place.
+  if (url.pathname.startsWith("/modules/")) return;
 
   // Pages: network first, anonymous shell as fallback. Navigation HTML may
   // contain private SSR data and is never stored.
