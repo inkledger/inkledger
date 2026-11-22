@@ -63,7 +63,7 @@ export const issueNotesRouter = createRouter({
 
   /** Put back a note deleted by mistake (same issue, text and date; not its post-its). */
   restore: protectedProcedure
-    .input(z.object({ issueKey: issueKeyInput, connectionId: connectionInput, body, createdAt: z.number().int().nonnegative() }))
+    .input(z.object({ issueKey: issueKeyInput, connectionId: connectionInput, body, createdAt: z.number().int().nonnegative().max(8.64e15) }))
     .mutation(async ({ ctx, input }) => {
       const conn = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
       const [row] = await getDb()

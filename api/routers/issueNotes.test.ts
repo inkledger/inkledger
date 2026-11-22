@@ -90,6 +90,8 @@ describe("issue notes", () => {
     expect((await me.pinboard.list()).some((p) => p.issueNoteId === n.id)).toBe(false);
     // The issue's own post-it stays.
     expect((await me.pinboard.list()).some((p) => p.issueKey === "DEMO-7" && p.issueNoteId === null)).toBe(true);
+    // A date no clock can hold is refused as input, not a server error.
+    await expect(me.issueNotes.restore({ issueKey: removed.issueKey, body: removed.body, createdAt: 9e15 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     const back = await me.issueNotes.restore({ issueKey: removed.issueKey, body: removed.body, createdAt: removed.createdAt.getTime() });
     expect((await me.issueNotes.list({ issueKey: "DEMO-7" })).some((x) => x.id === back.id)).toBe(true);
   });
