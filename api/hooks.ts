@@ -9,13 +9,15 @@ import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import type { TrackerType } from "@contracts/providers";
 import { and, eq, isNull, lt } from "drizzle-orm";
-import { connections, webhookDeliveries, type Connection } from "@db/schema";
+import { connections, users, webhookDeliveries, type Connection } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { openSecret } from "./lib/crypto";
 import { hmacHex, sameSecret } from "./providers/core/webhooks";
 import { trackerAdapter } from "./providers/registry";
 import type { WebhookRequest } from "./providers/types";
-import { syncConnectionEntries, syncConnectionIssues } from "./sync/engine";
+import { syncUser } from "./sync/orchestrator";
+import { isShuttingDown } from "./lib/shutdown";
+import { inMaintenance } from "./lib/maintenance";
 
 /** A delivery sent longer ago than this is refused (replayed, or held somewhere). */
 const STALE_MS = 5 * 60_000;
@@ -33,15 +35,24 @@ export const webhookPath = (secret: string, connectionId: number) => `/api/hooks
 const g = globalThis as { __iklHookTimers?: Map<number, NodeJS.Timeout> };
 const timers = (g.__iklHookTimers ??= new Map<number, NodeJS.Timeout>());
 
-/** The connection reads its changes soon (deliveries in a burst make one read). */
+/**
+ * The connection reads its changes soon (deliveries in a burst make one read),
+ * through its user's background sync: Jira keeps its own pass there, and a
+ * restore or a shutdown waits for it (or it doesn't start).
+ */
 function readSoon(conn: Connection) {
   if (timers.has(conn.id)) return;
   timers.set(
     conn.id,
     setTimeout(() => {
       timers.delete(conn.id);
-      void syncConnectionIssues(conn, { full: false, background: true })
-        .then(() => syncConnectionEntries(conn, { full: false, background: true }))
+      if (isShuttingDown() || inMaintenance()) return;
+      void getDb()
+        .select()
+        .from(users)
+        .where(eq(users.id, conn.userId))
+        .limit(1)
+        .then(([user]) => (user ? syncUser(user, { full: false, background: true }) : undefined))
         .catch((e: unknown) => console.warn(`[hooks] connection ${conn.id}: ${String(e)}`));
     }, DEBOUNCE_MS).unref(),
   );

@@ -4,9 +4,30 @@ import { createHmac } from "node:crypto";
 process.env.DATABASE_URL = ":memory:";
 
 const reads = vi.hoisted(() => [] as number[]);
+const jiraPasses = vi.hoisted(() => [] as { id: number; full: boolean }[]);
 vi.mock("./sync/engine", async (importOriginal) => {
   const real = await importOriginal<typeof import("./sync/engine")>();
-  return { ...real, syncConnectionIssues: vi.fn(async (conn: { id: number }) => { reads.push(conn.id); return { ran: true }; }) };
+  return {
+    ...real,
+    syncConnectionIssues: vi.fn(async (conn: { id: number }) => { reads.push(conn.id); return { ran: true }; }),
+    syncConnectionEntries: vi.fn(async () => null),
+    syncInbox: vi.fn(async () => 0),
+  };
+});
+// Jira's own pass and worklog sync: recorded, never a request.
+vi.mock("./sync/jiraIssues", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./sync/jiraIssues")>();
+  return {
+    ...real,
+    runSync: vi.fn(async (_user: unknown, conn: { id: number }, full: boolean) => {
+      jiraPasses.push({ id: conn.id, full });
+      return { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } };
+    }),
+  };
+});
+vi.mock("./worklogSync", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./worklogSync")>();
+  return { ...real, syncWorklogs: vi.fn(async () => undefined) };
 });
 
 /** Webhooks (D5): off by default; on, each delivery is checked before the connection reads again. */
@@ -51,8 +72,8 @@ describe("webhooks", () => {
       expect(await takeDelivery(gh, token, { headers, body })).toEqual({ status: 202, reason: "accepted" });
       // A burst makes one read.
       expect(await takeDelivery(gh, token, { headers: { ...headers, "x-github-delivery": "d-2" }, body })).toMatchObject({ status: 202 });
-      vi.advanceTimersByTime(6_000);
-      expect(reads).toEqual([gh]);
+      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.waitFor(() => expect(reads).toEqual([gh]));
       // The same delivery again: taken already.
       expect(await takeDelivery(gh, token, { headers, body })).toEqual({ status: 200, reason: "replay" });
       // Wrong token, wrong signature.
@@ -90,6 +111,69 @@ describe("webhooks", () => {
     expect(await takeDelivery(jira, token, { headers: { "x-atlassian-webhook-identifier": "j-2" }, body: old }, now)).toEqual({ status: 400, reason: "stale" });
     // Signed on Jira: the signature must hold.
     expect(await takeDelivery(jira, token, { headers: { "x-atlassian-webhook-identifier": "j-3", "x-hub-signature": "sha256=00" }, body: fresh }, now)).toMatchObject({ status: 401 });
+  });
+
+  /** Pending reads from earlier tests go: each test below starts with none. */
+  const noPendingReads = () => {
+    const timers = (globalThis as { __iklHookTimers?: Map<number, NodeJS.Timeout> }).__iklHookTimers;
+    timers?.forEach((h) => clearTimeout(h));
+    timers?.clear();
+  };
+
+  it("Jira: a delivery reads through Jira's own pass, never the generic one (it would blank Jira's fields)", async () => {
+    noPendingReads();
+    const hook = await caller.connections.webhook({ id: jira });
+    if (!hook.on) throw new Error("not on");
+    const token = hook.path.split("/")[4];
+    const { takeDelivery } = await import("./hooks");
+    reads.length = 0;
+    jiraPasses.length = 0;
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      const body = JSON.stringify({ timestamp: now, webhookEvent: "jira:issue_updated" });
+      expect(await takeDelivery(jira, token, { headers: { "x-atlassian-webhook-identifier": "j-10" }, body }, now)).toMatchObject({ status: 202 });
+      await vi.advanceTimersByTimeAsync(6_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => expect(jiraPasses).toEqual([{ id: jira, full: false }]));
+    expect(reads).not.toContain(jira);
+  });
+
+  it("no read starts during a restore or a shutdown, even for a delivery taken just before", async () => {
+    noPendingReads();
+    const hook = await caller.connections.webhook({ id: jira });
+    if (!hook.on) throw new Error("not on");
+    const token = hook.path.split("/")[4];
+    const { takeDelivery } = await import("./hooks");
+    const maintenance = await import("./lib/maintenance");
+    const shutdown = await import("./lib/shutdown");
+    reads.length = 0;
+    jiraPasses.length = 0;
+    const deliver = async (id: string, during: () => void) => {
+      vi.useFakeTimers();
+      try {
+        const now = Date.now();
+        const body = JSON.stringify({ timestamp: now, webhookEvent: "jira:issue_updated" });
+        expect(await takeDelivery(jira, token, { headers: { "x-atlassian-webhook-identifier": id }, body }, now)).toMatchObject({ status: 202 });
+        during();
+        await vi.advanceTimersByTimeAsync(6_000);
+      } finally {
+        vi.useRealTimers();
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    };
+    try {
+      await deliver("j-20", () => maintenance.enterMaintenance("restore"));
+      maintenance.leaveMaintenance();
+      await deliver("j-21", () => shutdown.beginShutdown());
+    } finally {
+      maintenance.leaveMaintenance();
+      shutdown.resetShutdownForTests();
+    }
+    expect(jiraPasses).toEqual([]);
+    expect(reads).toEqual([]);
   });
 
   it("only the owner sees or changes a connection's webhooks; old delivery ids are purged", async () => {
