@@ -164,7 +164,7 @@ describe("notes in folders", () => {
     expect(trash).toEqual([expect.objectContaining({ batch, rootId: big.id, count: 6_001, parentActive: false })]);
   }, 120_000);
 
-  it("lists a trashed folder of more notes than a query can bind parameters", async () => {
+  it("lists and restores a trashed folder of more notes than a query can bind parameters", async () => {
     const [{ id: root }] = await q<{ id: string }>(
       "INSERT INTO markdown_notes (user_id, kind, title, deleted_at, delete_batch, delete_root_id, created_at, updated_at) SELECT id, 'folder', 'Old', 2, '00000000-0000-4000-8000-000000000001', NULL, 1, 1 FROM users WHERE username = 'folders' RETURNING id",
     );
@@ -174,7 +174,13 @@ describe("notes in folders", () => {
       root,
       root,
     );
-    expect(await me.notes.trash()).toEqual([expect.objectContaining({ rootId: root, count: 66_001, parentActive: false })]);
+    try {
+      expect(await me.notes.trash()).toEqual([expect.objectContaining({ rootId: root, count: 66_001, parentActive: false })]);
+      expect((await me.notes.restore({ batch: "00000000-0000-4000-8000-000000000001" })).ids).toHaveLength(66_001);
+    } finally {
+      // Row by row, each delete would scan for children (the tree index holds live notes only): all at once instead.
+      await q("TRUNCATE markdown_notes CASCADE");
+    }
   }, 120_000);
 
   it("reorders a level in a constant number of queries, whatever its size", async () => {

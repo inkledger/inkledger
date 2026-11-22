@@ -566,14 +566,12 @@ export async function restoreNoteBatch(
         contentRevision: sql`${markdownNotes.contentRevision} + 1`,
         updatedAt: now,
       })
+      // The batch by its id, never its rows' ids bound one by one: a batch of any size comes back.
       .where(
         and(
           eq(markdownNotes.userId, userId),
           eq(markdownNotes.deleteBatch, batch),
-          inArray(
-            markdownNotes.id,
-            rows.map(row => row.id)
-          )
+          sql`${markdownNotes.deletedAt} IS NOT NULL`
         )
       )
       .returning({ id: markdownNotes.id });
@@ -611,42 +609,28 @@ export async function purgeMarkdownNotes(now = Date.now()): Promise<number> {
       await lockNoteTree(tx, userId);
       const cutoff = new Date(now - NOTE_TRASH_DAYS * 86_400_000);
       const expired = await tx
-        .select({ id: markdownNotes.id, batch: markdownNotes.deleteBatch })
+        .select({ id: markdownNotes.id })
         .from(markdownNotes)
         .where(
           and(
             eq(markdownNotes.userId, userId),
             lt(markdownNotes.deletedAt, cutoff)
           )
-        );
-      if (!expired.length) return 0;
-      const ids = expired.map(row => row.id);
-      const blockedParents = await tx
-        .selectDistinct({ parentId: markdownNotes.parentId })
-        .from(markdownNotes)
-        .where(
-          and(
-            eq(markdownNotes.userId, userId),
-            inArray(markdownNotes.parentId, ids),
-            sql`(${markdownNotes.deletedAt} IS NULL OR ${markdownNotes.deletedAt} >= ${cutoff.getTime()})`
-          )
-        );
-      const blocked = new Set(blockedParents.map(row => row.parentId));
-      const eligible = expired.filter(row => !blocked.has(row.id));
-      if (!eligible.length) return 0;
-      const gone = await tx
-        .delete(markdownNotes)
-        .where(
-          and(
-            eq(markdownNotes.userId, userId),
-            inArray(
-              markdownNotes.id,
-              eligible.map(row => row.id)
-            )
-          )
         )
-        .returning({ id: markdownNotes.id });
-      return gone.length;
+        .limit(1);
+      if (!expired.length) return 0;
+      // Expired notes no live or younger note still sits in, in one statement: no id list is bound.
+      const gone = (await tx.execute(sql`
+        DELETE FROM markdown_notes n
+        WHERE n.user_id = ${userId} AND n.deleted_at < ${cutoff.getTime()}
+          AND NOT EXISTS (
+            SELECT 1 FROM markdown_notes c
+            WHERE c.user_id = ${userId} AND c.parent_id = n.id
+              AND (c.deleted_at IS NULL OR c.deleted_at >= ${cutoff.getTime()})
+          )
+        RETURNING n.id
+      `)) as { rows: { id: string }[] };
+      return gone.rows.length;
     });
   }
   return count;
