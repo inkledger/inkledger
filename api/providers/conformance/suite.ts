@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { STATUS_CATEGORIES, type EntryCapabilities } from "@contracts/providers";
 import { instant, localDate, markdown } from "@contracts/values";
+import { DAY_MS } from "@contracts/time";
 import { bindSink, bindTracker, type BoundTracker, type CallMeta, type StoredConn, type StoredSinkConn } from "../core/bind";
 import { ProviderError } from "../core/errors";
 import { providerProblems } from "../core/validate";
@@ -18,7 +19,6 @@ const meta = (signal = new AbortController().signal): CallMeta => ({ signal, cor
 /** Every page of one pass, refusing a pass that repeats a token or never ends. */
 export { readPass };
 
-const DAY_MS = 86_400_000;
 const dayKeyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /**
