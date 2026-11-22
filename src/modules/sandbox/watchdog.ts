@@ -221,16 +221,20 @@ function start() {
   raf = requestAnimationFrame(frameTick);
   document.addEventListener("visibilitychange", onVisibility);
   if (typeof IntersectionObserver === "function") {
-    seen = new IntersectionObserver(entries => {
-      for (const e of entries) {
-        const w = [...watched].find(x => x.iframe === e.target);
-        if (!w) continue;
-        if (e.isIntersecting) w.pauses.delete("offscreen");
-        else w.pauses.add("offscreen");
-        w.frame.suspend(!e.isIntersecting || w.pauses.has("hidden"));
-        apply(w);
-      }
-    });
+    seen = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          const w = [...watched].find(x => x.iframe === e.target);
+          if (!w) continue;
+          if (e.isIntersecting) w.pauses.delete("offscreen");
+          else w.pauses.add("offscreen");
+          w.frame.suspend(!e.isIntersecting || w.pauses.has("hidden"));
+          apply(w);
+        }
+      },
+      // Woken a little before it scrolls in: never a blank card on screen.
+      { rootMargin: "200px" },
+    );
   }
   // Long tasks the page can pin on a frame (where frames share the page's thread).
   if (typeof PerformanceObserver === "function" && PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
