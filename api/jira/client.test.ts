@@ -310,15 +310,15 @@ describe("server pagination and single issues", () => {
     expect(mock).toHaveBeenCalledTimes(2);
   });
 
-  it("Cloud: a token Jira hands back again, or empty pages that never end, stop the search", async () => {
+  it("Cloud: a token Jira hands back again, or empty pages that never end, fail the search (never a silent partial list)", async () => {
     const mock = fetch as ReturnType<typeof vi.fn>;
     mock.mockImplementation(async () => jsonResponse({ issues: [], isLast: false, nextPageToken: "same" }));
-    expect(await searchIssues(creds, "x", Infinity)).toEqual([]);
+    await expect(searchIssues(creds, "x", Infinity)).rejects.toBeInstanceOf(JiraApiError);
     expect(mock.mock.calls.length).toBeLessThanOrEqual(2);
     mock.mockReset();
     let n = 0;
     mock.mockImplementation(async () => jsonResponse({ issues: [], isLast: false, nextPageToken: `t${n++}` }));
-    expect(await searchIssues(creds, "x", Infinity)).toEqual([]);
+    await expect(searchIssues(creds, "x", Infinity)).rejects.toBeInstanceOf(JiraApiError);
     expect(mock.mock.calls.length).toBeLessThanOrEqual(10);
   });
 

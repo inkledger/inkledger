@@ -335,7 +335,8 @@ export async function searchIssues(
     out.push(...(page.issues ?? []));
     empty = (page.issues ?? []).length === 0 ? empty + 1 : 0;
     nextPageToken = page.isLast === false ? page.nextPageToken : undefined;
-    if (nextPageToken && (tokens.has(nextPageToken) || empty >= 5)) break;
+    // Ended, not cut short in silence: a partial list would read as issues gone (worklogs dropped).
+    if (nextPageToken && (tokens.has(nextPageToken) || empty >= 5)) throw new JiraApiError(502, "Jira's search kept answering the same page: try again later");
     if (nextPageToken) tokens.add(nextPageToken);
   } while (nextPageToken && out.length < maxTotal);
   return out.slice(0, maxTotal);
