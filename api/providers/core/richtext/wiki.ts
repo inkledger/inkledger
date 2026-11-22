@@ -2,6 +2,7 @@
 // Pure, never throws; unknown markup stays as text.
 
 import { emptyDoc, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
+import { blank, isAlnum, isSpace, segsToInlines, trimBreaks } from "./util";
 
 type Image = Extract<Block, { t: "image" }>;
 type Seg = Inline | Image;
@@ -25,19 +26,7 @@ const EMOJI: Record<string, string> = {
   "(?)": "❓",
 };
 
-const isAlnum = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
-const isSpace = (c: string | undefined): boolean => c === undefined || /\s/.test(c);
-
 // ---- inlines ----
-
-/** Images split a paragraph; elsewhere they fall back to a link or an attachment */
-function segsToInlines(segs: Seg[]): Inline[] {
-  return segs.map((s): Inline => {
-    if (s.t !== "image") return s;
-    if (s.url) return { t: "link", url: s.url, c: [{ t: "text", v: s.alt ?? s.url }] };
-    return { t: "attachment", name: s.name ?? "" };
-  });
-}
 
 function segsToBlocks(segs: Seg[]): Block[] {
   const out: Block[] = [];
@@ -54,16 +43,6 @@ function segsToBlocks(segs: Seg[]): Block[] {
   }
   flush();
   return out;
-}
-
-const blank = (x: Inline): boolean => x.t === "br" || (x.t === "text" && x.v.trim() === "");
-
-function trimBreaks(xs: Inline[]): Inline[] {
-  let a = 0;
-  let b = xs.length;
-  while (a < b && blank(xs[a])) a++;
-  while (b > a && blank(xs[b - 1])) b--;
-  return xs.slice(a, b);
 }
 
 /** Index of the closing marker for a span opened at `from`, or -1 */

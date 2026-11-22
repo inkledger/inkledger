@@ -3,6 +3,7 @@
 // only the attributes the tree needs (href, src, alt, class, type, checked) are read.
 
 import { emptyDoc, plainText, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
+import { blank, segsToInlines, trimBreaks } from "./util";
 
 type Image = Extract<Block, { t: "image" }>;
 type Seg = Inline | Image;
@@ -147,16 +148,6 @@ function parseTree(html: string): El {
 // ---- tree -> blocks ----
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ");
-const blank = (x: Inline): boolean => x.t === "br" || (x.t === "text" && x.v.trim() === "");
-
-function segsToInlines(segs: Seg[]): Inline[] {
-  return segs.map((s): Inline => {
-    if (s.t !== "image") return s;
-    if (s.url) return { t: "link", url: s.url, c: [{ t: "text", v: s.alt ?? s.url }] };
-    return { t: "attachment", name: s.name ?? "" };
-  });
-}
-
 /** Merge neighbouring text, collapse spaces, trim at line edges */
 function tidy(segs: Seg[]): Seg[] {
   const merged: Seg[] = [];
@@ -175,14 +166,6 @@ function tidy(segs: Seg[]): Seg[] {
       return { t: "text", v };
     })
     .filter((s) => !(s.t === "text" && s.v === ""));
-}
-
-function trimBreaks(xs: Inline[]): Inline[] {
-  let a = 0;
-  let b = xs.length;
-  while (a < b && blank(xs[a])) a++;
-  while (b > a && blank(xs[b - 1])) b--;
-  return xs.slice(a, b);
 }
 
 function segsToBlocks(segs: Seg[]): Block[] {

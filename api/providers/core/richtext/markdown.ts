@@ -2,6 +2,7 @@
 // recurse on stripped lines) and a scanning inline parser. Pure, never throws.
 
 import { emptyDoc, plainText, type Block, type Inline, type ListItem, type RichDoc } from "@contracts/richtext";
+import { blank, isAlnum, isSpace, segsToInlines } from "./util";
 
 type MarkdownFlavor = "commonmark" | "gfm" | "glfm";
 
@@ -26,24 +27,10 @@ const HTML_TAGS = new Set(
 );
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
-const isAlnum = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
-const isSpace = (c: string | undefined): boolean => c === undefined || /\s/.test(c);
 const isPunct = (c: string | undefined): boolean => c !== undefined && /[!-/:-@[-`{-~]/.test(c);
 const normLabel = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 // ---- seg helpers ----
-
-/** Images split a paragraph; inside a link or a cell they shrink to text, a link or an attachment */
-function segsToInlines(segs: Seg[], inLink = false): Inline[] {
-  return segs.map((s): Inline => {
-    if (s.t !== "image") return s;
-    if (inLink) return { t: "text", v: s.alt ?? s.name ?? "" };
-    if (s.url) return { t: "link", url: s.url, c: [{ t: "text", v: s.alt ?? s.url }] };
-    return { t: "attachment", name: s.name ?? "" };
-  });
-}
-
-const blank = (x: Inline): boolean => x.t === "br" || (x.t === "text" && x.v.trim() === "");
 
 function segsToBlocks(segs: Seg[]): Block[] {
   const out: Block[] = [];
