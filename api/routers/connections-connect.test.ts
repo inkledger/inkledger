@@ -34,4 +34,23 @@ describe("connecting with a token", () => {
     expect((seen.rows[0] as { archived_at: number | null }).archived_at).not.toBeNull();
     expect(await q("SELECT status, archived_at FROM connections")).toEqual([{ status: "ok", archived_at: null }]);
   });
+
+  it("a half-made connection left by a stopped process doesn't block the next connect; two at once both answer", async () => {
+    await (await import("../queries/connection")).resetDbForTests();
+    const { q, getDb } = await import("../queries/connection");
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('d', 'D', 1) RETURNING id");
+    const { appRouter } = await import("../router");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await getDb().select().from(users).where(eq(users.id, u.id));
+    const caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user, sessionId: null });
+    await caller.connections.connectToken({ type: "everhour", token: "a-token-123" });
+    const [{ base_url }] = await q<{ base_url: string }>("SELECT base_url FROM connections");
+    await q("DELETE FROM connections");
+    await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, encrypted_secret, options, status, created_at, archived_at) VALUES (?, 'everhour', ?, '', '', '{}', 'ok', 1, 1)", u.id, base_url);
+    await expect(caller.connections.connectToken({ type: "everhour", token: "a-token-123" })).resolves.toBeTruthy();
+    const both = await Promise.allSettled([1, 2].map(() => caller.connections.connectToken({ type: "everhour", token: "a-token-123" })));
+    expect(both.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(await q("SELECT remote_account_id FROM connections WHERE archived_at IS NULL")).toEqual([{ remote_account_id: "42" }]);
+  });
 });

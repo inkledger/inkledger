@@ -8,7 +8,7 @@ import { assertSafeUrl } from "../lib/security";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import {
   connections,
   connectionSync,
@@ -38,7 +38,7 @@ import {
 import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
-import { getDb } from "../queries/connection";
+import { getDb, uniqueViolation } from "../queries/connection";
 import { callMeta } from "../lib/callMeta";
 import { liveConnections } from "../queries/liveConnections";
 import {
@@ -412,6 +412,19 @@ export const connectionsRouter = createRouter({
         });
       });
       const db = getDb();
+      // One left half made by a process that stopped while asking (out of every list, never confirmed): gone.
+      await db
+        .delete(connections)
+        .where(
+          and(
+            eq(connections.userId, ctx.user.id),
+            eq(connections.type, input.type),
+            eq(connections.baseUrl, baseUrl),
+            isNotNull(connections.archivedAt),
+            or(eq(connections.remoteAccountId, ""), like(connections.remoteAccountId, "pending:%")),
+            lt(connections.createdAt, new Date(Date.now() - 5 * 60_000))
+          )
+        );
       const [made] = await db
         .insert(connections)
         .values({
@@ -419,7 +432,8 @@ export const connectionsRouter = createRouter({
           type: input.type,
           label: input.label,
           baseUrl,
-          remoteAccountId: "",
+          // Its own until confirmed: two connects at once never meet on the unique index here.
+          remoteAccountId: `pending:${randomBytes(8).toString("hex")}`,
           encryptedSecret: "",
           options: "{}",
           status: "ok",
@@ -448,50 +462,57 @@ export const connectionsRouter = createRouter({
           })
         );
         // The same account on the same server: that connection, with the new token.
-        const [same] = await db
-          .select()
-          .from(connections)
-          .where(
-            and(
-              eq(connections.userId, ctx.user.id),
-              eq(connections.type, input.type),
-              eq(connections.baseUrl, baseUrl),
-              eq(connections.remoteAccountId, me.remoteId),
-              ne(connections.id, made.id)
-            )
-          )
-          .limit(1);
-        if (same) {
-          await db.delete(connections).where(eq(connections.id, made.id));
-          await db
-            .update(connections)
-            .set({
-              archivedAt: null,
-              status: "ok",
-              displayName: me.name,
-              ...(input.label ? { label: input.label } : {}),
-            })
-            .where(eq(connections.id, same.id));
-          await storeSecret(same.id, input.token);
-          await forgetProbes(same.id);
-          const [row] = await db
+        const settle = async () => {
+          const [same] = await db
             .select()
             .from(connections)
-            .where(eq(connections.id, same.id));
+            .where(
+              and(
+                eq(connections.userId, ctx.user.id),
+                eq(connections.type, input.type),
+                eq(connections.baseUrl, baseUrl),
+                eq(connections.remoteAccountId, me.remoteId),
+                ne(connections.id, made.id)
+              )
+            )
+            .limit(1);
+          if (same) {
+            await db.delete(connections).where(eq(connections.id, made.id));
+            await db
+              .update(connections)
+              .set({
+                archivedAt: null,
+                status: "ok",
+                displayName: me.name,
+                ...(input.label ? { label: input.label } : {}),
+              })
+              .where(eq(connections.id, same.id));
+            await storeSecret(same.id, input.token);
+            await forgetProbes(same.id);
+            const [row] = await db
+              .select()
+              .from(connections)
+              .where(eq(connections.id, same.id));
+            return shown(row);
+          }
+          const [row] = await db
+            .update(connections)
+            .set({
+              remoteAccountId: me.remoteId,
+              displayName: me.name,
+              avatarUrl: me.avatarUrl ?? null,
+              status: "ok",
+              archivedAt: null,
+            })
+            .where(eq(connections.id, made.id))
+            .returning();
           return shown(row);
-        }
-        const [row] = await db
-          .update(connections)
-          .set({
-            remoteAccountId: me.remoteId,
-            displayName: me.name,
-            avatarUrl: me.avatarUrl ?? null,
-            status: "ok",
-            archivedAt: null,
-          })
-          .where(eq(connections.id, made.id))
-          .returning();
-        return shown(row);
+        };
+        // Two connects of the same account at once: the one that lands second joins the first.
+        return await settle().catch((e: unknown) => {
+          if (uniqueViolation(e)) return settle();
+          throw e;
+        });
       } catch (e) {
         await db.delete(connections).where(eq(connections.id, made.id));
         throw e;
