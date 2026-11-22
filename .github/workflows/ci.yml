@@ -279,12 +279,14 @@ jobs:
         # An empty digest would still leave "ghcr.io/…@": the image must be named by its digest.
         run: test -n "$INKLEDGER_ENV_FILE" && test -f "$INKLEDGER_ENV_FILE" && case "$INKLEDGER_RELEASE_IMAGE" in *@sha256:?*) true ;; *) false ;; esac
       - name: Log in to GHCR while the package is private
+        id: ghcr
         if: ${{ env.GHCR_READ_TOKEN != '' }}
         run: echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Back up and deploy the published image
         run: node scripts/docker-update.mjs
       - name: Log out of GHCR
-        if: always()
+        # Only a login this job made: the runner host's own stays.
+        if: always() && steps.ghcr.outcome == 'success'
         run: docker logout ghcr.io || true
       - name: Application logs
         if: failure()
