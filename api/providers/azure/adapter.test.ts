@@ -487,6 +487,15 @@ describe("azure: errors arrive in the layer's words", () => {
     expect(await kindOf(quiet.verify(meta()))).toBe("auth");
   });
 
+  it("a server error answered with a web page (an IIS or proxy outage) is out of reach, not refused credentials", async () => {
+    const { b, sim } = simulated();
+    sim.failNext(503, { "Content-Type": "text/html; charset=utf-8" });
+    expect(await kindOf(b.verify(meta()))).toBe("unavailable");
+    // A sign-in page answered with a 200 is still a refused token.
+    sim.failNext(200, { "Content-Type": "text/html; charset=utf-8" });
+    expect(await kindOf(b.verify(meta()))).toBe("auth");
+  });
+
   it("a missing item is notFound where an operation needs it, null where a lookup may miss", async () => {
     const { b } = simulated();
     expect(await kindOf(b.transitions!.list!(meta(), ref(99, "Web#99")))).toBe("notFound");
