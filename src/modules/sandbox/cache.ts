@@ -1,10 +1,12 @@
 /**
  * A framed module's local cache ("cache"): the frame's own IndexedDB throws
  * (opaque origin), so the host keeps one per module, on this device only, at
- * most 32 MB each; what was written longest ago goes first to make room.
+ * most 32 MB and 256 entries each; what was written longest ago goes first.
  */
 
 export const CACHE_MAX_BYTES = 32 * 1024 * 1024;
+/** Entries per module: each write lists them all, so their number stays small too. */
+export const CACHE_MAX_ENTRIES = 256;
 
 export type CacheEntry = { key: string; size: number; at: number };
 export type CacheBackend = {
@@ -29,10 +31,12 @@ export function createModuleCache(backend: CacheBackend, now: () => number = Dat
         if (value.size > CACHE_MAX_BYTES) throw new Error("cache: too big");
         const others = (await backend.entries(moduleId)).filter(e => e.key !== key).sort((a, b) => a.at - b.at);
         let total = others.reduce((n, e) => n + e.size, 0);
+        let count = others.length;
         for (const e of others) {
-          if (total + value.size <= CACHE_MAX_BYTES) break;
+          if (total + value.size <= CACHE_MAX_BYTES && count < CACHE_MAX_ENTRIES) break;
           await backend.delete(moduleId, e.key);
           total -= e.size;
+          count--;
         }
         await backend.put(moduleId, key, value, now());
       }),

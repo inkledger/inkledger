@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CACHE_MAX_BYTES, createModuleCache, type CacheBackend } from "./cache";
+import { CACHE_MAX_BYTES, CACHE_MAX_ENTRIES, createModuleCache, type CacheBackend } from "./cache";
 
 function memory() {
   const rows = new Map<string, { moduleId: string; key: string; value: Blob; at: number }>();
@@ -40,5 +40,15 @@ describe("a framed module's cache", () => {
     expect(await cache.get("a", "k5")).not.toBeNull();
     await cache.delete("a", "k5");
     expect(await cache.get("a", "k5")).toBeNull();
+  });
+
+  it("at most 256 entries a module, the oldest going first", async () => {
+    const { b } = memory();
+    let t = 0;
+    const cache = createModuleCache(b, () => ++t);
+    for (let i = 0; i < CACHE_MAX_ENTRIES + 10; i++) await cache.put("a", `k${i}`, new Blob(["x"]));
+    expect(await b.entries("a")).toHaveLength(CACHE_MAX_ENTRIES);
+    expect(await cache.get("a", "k0")).toBeNull();
+    expect(await cache.get("a", `k${CACHE_MAX_ENTRIES + 9}`)).not.toBeNull();
   });
 });
