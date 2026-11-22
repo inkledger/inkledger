@@ -52,7 +52,7 @@ It shows the **most a service's adapter declares**. A given connection may have 
 | notion | experimental | projectField (direct) | read, apply | text | readWrite (rich) | local | from issues | none | deleted | signal: issueChanged, commentAdded |
 | wrike | experimental | itemState (direct) | read, apply | text | readWrite (html) | date, update native, delete; feed window by change 30d; reconcile by period | from issues | none | deleted | signal: issueChanged, issueRemoved, commentAdded, worklogChanged |
 | basecamp | experimental | boolean (direct), column (move) | read, apply | text | readWrite (html) | date, update native, delete; feed window by entry date 30d; reconcile by period | from issues | none | deleted | signal: issueChanged, commentAdded |
-| todoist | experimental | boolean (direct), column (move) | read, apply | text | readWrite (commonmark) | local | from issues | none | deleted | signal: issueChanged, issueRemoved, commentAdded |
+| todoist | experimental | boolean (direct), column (move) | read, apply | text | readWrite (commonmark) | local | from issues | none | deleted, movedOut | signal: issueChanged, issueRemoved, commentAdded |
 | planner | experimental | column (move), itemState (direct) | read, apply | none | none | local | from issues | none | deleted | none |
 
 | Time sink | Adapter status | Entries | References (in order of preference) | Target | Typical budget |
