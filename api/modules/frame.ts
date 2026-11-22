@@ -152,6 +152,7 @@ async function start(init, port) {
   if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
   if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
+  if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]) };

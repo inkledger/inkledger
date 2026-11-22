@@ -3,6 +3,8 @@ import { SURFACES } from "@/components/app/surface";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
+import type { ImportancePage } from "./importance";
+import type { ViewBox } from "./methods";
 import { bootFrame, settle } from "./bootFrame.testkit";
 import type { HostApiV2 } from "../hostV2";
 import type { ModuleCapability } from "@contracts/modules";
@@ -20,9 +22,24 @@ const lightDoc = () => {
 
 const quietEnv: BrokerEnv = { active: () => true, share: async () => true, download() {}, open() {}, position: async () => null };
 
-function withModule(capabilities: ModuleCapability[], mount: (el: unknown, host: HostApiV2) => void, env: BrokerEnv = quietEnv) {
+const emptyPage: ImportancePage = {
+  width: 100,
+  height: 100,
+  documentElement: {} as HTMLElement,
+  body: {} as HTMLElement,
+  elementFromPoint: () => null,
+  createRange: () => ({}) as Range,
+  style: () => ({ cursor: "auto", backgroundColor: "" }),
+};
+
+function withModule(
+  capabilities: ModuleCapability[],
+  mount: (el: unknown, host: HostApiV2) => void,
+  env: BrokerEnv = quietEnv,
+  view: ViewBox | null = null,
+) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(doc, SURFACES), broker: createBroker(env) });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -44,6 +61,14 @@ describe("the frame's host API (bootstrap)", () => {
     withModule([], (_el, host) => (offered = "light" in (host.surfaces ?? {})));
     await settle();
     expect(offered).toBe(false);
+  });
+
+  it("page.importance: the box's points, off the page counting as important", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 0, height: 0 }) } as unknown as HTMLElement;
+    let out: unknown = null;
+    withModule(["page.importance"], (_el, host) => void host.page?.importance([[5, 5], [20, 5]]).then(r => (out = r)), quietEnv, { el, slot: "panel-edge", activate() {} });
+    await settle();
+    expect(out).toEqual([0, 1]);
   });
 
   it("share hands the host a picture; one over the message cap is refused in the frame, never left hanging", async () => {

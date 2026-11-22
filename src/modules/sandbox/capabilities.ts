@@ -5,6 +5,7 @@ export const PICTURE_MAX_BYTES = RPC_MAX_BYTES - 64 * 1024;
 import type { ViewBox } from "./methods";
 import { parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
+import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
 
 /**
  * The host API members a framed module gets only with their capability
@@ -18,6 +19,8 @@ export type CapabilityDeps = {
   view: ViewBox | null;
   light: ReturnType<typeof createPageLight>;
   broker: ReturnType<typeof createBroker>;
+  /** The page as it is now (read per call: its size changes). */
+  page: () => ImportancePage;
 };
 
 /** A picture over messages: under the message cap, with room for the rest of the call. */
@@ -44,6 +47,19 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     openImage: method({ args: z.tuple([picture]), cap: "open-image", rate: [1, 2], run: ([f]) => d.broker.openImage(f) }),
     "geo.here": method({ args: z.tuple([]), cap: "geo", rate: [0.2, 2], run: () => d.broker.here() }),
   };
+  const view = d.view;
+  if (view) {
+    // Box-bound: the frame knows only its own box, the host adds where it is.
+    methods["page.importance"] = method({
+      args: z.tuple([z.array(z.tuple([z.number().finite(), z.number().finite()])).max(IMPORTANCE_MAX_POINTS)]),
+      cap: "page.importance",
+      rate: [4, 4],
+      run([points]) {
+        const r = view.el.getBoundingClientRect();
+        return importanceAround(d.page(), r.left, r.top, points);
+      },
+    });
+  }
   return {
     methods,
     dispose() {
