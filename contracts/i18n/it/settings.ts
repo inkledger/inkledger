@@ -1171,7 +1171,13 @@ export const settings: Shape<typeof en> = {
     },
     terms: { accept: "Continuando accetti i", link: "termini dei moduli" },
     restore: { label: "Ripristina licenza…", done: "Licenza di {product} ripristinata" },
-    status: { needsActivation: "Non attiva qui", needsLicense: "Serve una licenza", invalid: "Rifiutato: {reason}" },
+    status: {
+      needsActivation: "Non attiva qui",
+      needsLicense: "Serve una licenza",
+      invalid: "Rifiutato: {reason}",
+      stoppedSlow: "Fermato: troppo lento",
+      stoppedNavigated: "Fermato: è uscito dal riquadro",
+    },
     extraKey: "È attiva una chiave di sviluppo (MODULES_TRUST_EXTRA_KEY): i moduli firmati con quella si caricano qui. Toglila fuori dallo sviluppo.",
     offTitle: "Store disattivato",
     offSwitch: {

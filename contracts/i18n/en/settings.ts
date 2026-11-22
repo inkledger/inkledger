@@ -1170,7 +1170,13 @@ export const settings = {
     },
     terms: { accept: "By continuing you accept the", link: "module terms" },
     restore: { label: "Restore licence…", done: "Licence for {product} restored" },
-    status: { needsActivation: "Not active here", needsLicense: "Needs a licence", invalid: "Refused: {reason}" },
+    status: {
+      needsActivation: "Not active here",
+      needsLicense: "Needs a licence",
+      invalid: "Refused: {reason}",
+      stoppedSlow: "Stopped: too slow",
+      stoppedNavigated: "Stopped: left its frame",
+    },
     extraKey: "A development key is trusted (MODULES_TRUST_EXTRA_KEY): modules signed with it load here. Remove it outside development.",
     offTitle: "Store turned off",
     offSwitch: {

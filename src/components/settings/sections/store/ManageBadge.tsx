@@ -1,6 +1,6 @@
 import { mediumDate } from "@/lib/dates";
 import { toastError } from "@/lib/errorText";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { ChevronDown, Copy, Download, FileDown, FileUp, KeyRound, Server, Settings2, Trash2 } from "lucide-react";
 import { ActivationDialog } from "./ActivationDialog";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { t } from "@/i18n";
 import { LicenceProof } from "@/components/settings/sections/store/LicenceProof";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { stoppedModules } from "@/modules/sandbox/watchdog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,10 +39,13 @@ const TONES = {
   muted: "bg-muted text-muted-foreground",
 } as const;
 
-function badgeOf(installed: ModuleStatus | null, licensed: boolean, off: boolean): { label: string; tone: keyof typeof TONES } {
+function badgeOf(installed: ModuleStatus | null, licensed: boolean, off: boolean, stopped: string | undefined): { label: string; tone: keyof typeof TONES } {
   switch (installed?.state) {
     case "active":
-      return off ? { label: t("settings.store.switch.badge"), tone: "muted" } : { label: t("settings.store.active"), tone: "success" };
+      if (off) return { label: t("settings.store.switch.badge"), tone: "muted" };
+      // Stopped on this page until it reloads (a framed module that slowed the page or navigated).
+      if (stopped) return { label: t(stopped === "slow" ? "settings.store.status.stoppedSlow" : "settings.store.status.stoppedNavigated"), tone: "warning" };
+      return { label: t("settings.store.active"), tone: "success" };
     case "needs-license":
       return { label: t("settings.store.status.needsLicense"), tone: "warning" };
     case "needs-activation":
@@ -79,6 +83,7 @@ export function ManageBadge({
   const list = trpc.modules.list.useQuery().data;
   const licences = (list?.licenses ?? []).filter(l => l.product === product);
   const off = list?.off.includes(moduleId) ?? false;
+  const stopped = useSyncExternalStore(stoppedModules.subscribe, stoppedModules.get).get(moduleId);
   const [confirm, setConfirm] = useState(false);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [servers, setServers] = useState(false);
@@ -140,7 +145,7 @@ export function ManageBadge({
   };
 
   if (!installed && !licensed) return null;
-  const badge = badgeOf(installed, licensed, off);
+  const badge = badgeOf(installed, licensed, off, stopped);
 
   return (
     <>
