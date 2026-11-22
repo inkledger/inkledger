@@ -23,6 +23,8 @@ const worker = {
   mode: "ok" as "ok" | "down" | "html" | "edge429",
   calls: [] as string[],
   exp: 0,
+  /** Runs after /activations has its answer, before it is sent (a click landing meanwhile). */
+  meanwhile: null as null | (() => Promise<void>),
 };
 const token = (lic: string, product: string, inst: string, iat: number, exp: number) =>
   signEnvelope(Buffer.from(JSON.stringify({ lic, product, inst, iat, exp, v: 1 })), "inkledger-activation-v1\n", STORE.privateKey);
@@ -56,7 +58,13 @@ vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit)
     const exp = worker.exp || iat + 90 * DAY;
     return Response.json({ token: token(lic, product, b.instanceId, iat, exp), exp, active: slots.size, limit: worker.limit });
   }
-  if (url.pathname === "/activations") return Response.json({ limit: worker.limit, active: [...(worker.slots.get(lic) ?? [])].map((instanceId) => ({ instanceId, iat: 1, exp: 2 })) });
+  if (url.pathname === "/activations") {
+    const answer = { limit: worker.limit, active: [...(worker.slots.get(lic) ?? [])].map((instanceId) => ({ instanceId, iat: 1, exp: 2 })) };
+    const run = worker.meanwhile;
+    worker.meanwhile = null;
+    await run?.();
+    return Response.json(answer);
+  }
   return new Response("{}", { status: 404 });
 });
 
@@ -176,6 +184,24 @@ describe("module licences active per server (WP-19)", () => {
     expect((await a.activationStates([L4])).get("L-4")).toEqual({ state: "missing" });
     // The same pass took no slot again.
     expect(worker.slots.get("L-4")!.size).toBe(0);
+  });
+
+  it("a token activated again while the pass asked the store about the old one stays", async () => {
+    const L5 = { id: "L-5", product: "inkledger.hello", text: "L-5:inkledger.hello" };
+    await a.activate(L5.text, L5.id);
+    // Deactivated in Settings, then activated again, while the pass's question is under way.
+    worker.slots.get("L-5")!.clear();
+    worker.meanwhile = async () => {
+      worker.exp = Date.now() + 80 * DAY;
+      try {
+        expect((await a.activate(L5.text, L5.id)).ok).toBe(true);
+      } finally {
+        worker.exp = 0;
+      }
+    };
+    expect(await a.renewActivations([L5])).toEqual([]);
+    a.forgetActivations();
+    expect((await a.activationStates([L5])).get("L-5")).toMatchObject({ state: "active" });
   });
 
   it("deactivated: the slot goes back; offline: the code is signed for this server, its token accepted", async () => {

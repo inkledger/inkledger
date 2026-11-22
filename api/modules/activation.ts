@@ -68,6 +68,19 @@ async function saveToken(licenseId: string, token: string | null) {
   });
 }
 
+/** Drops a licence's token only while it is still `expected` (one saved meanwhile stays); true when dropped. */
+async function dropTokenIf(licenseId: string, expected: string): Promise<boolean> {
+  let dropped = false;
+  await updateServerSetting<Tokens>(TOKENS_KEY, {}, (all) => {
+    const mine = { ...(all[instance().id] ?? {}) };
+    dropped = mine[licenseId] === expected;
+    if (!dropped) return all;
+    delete mine[licenseId];
+    return { ...all, [instance().id]: mine };
+  });
+  return dropped;
+}
+
 async function setGrace(licenseId: string, until: number | null) {
   await updateServerSetting<Record<string, number>>(GRACE_KEY, {}, (saved) => {
     const g = { ...saved };
@@ -204,8 +217,8 @@ export async function renewActivations(licenses: { id: string; product: string; 
     const p = mine[l.id] ? readActivation(mine[l.id]) : null;
     if (p && p.inst === instance().id && p.exp - now > RENEW_BEFORE_MS) {
       // Its slot freed at the store (deactivated, released): the token stops now, not at its end.
-      if (await released(l.text)) {
-        await saveToken(l.id, null);
+      // Activated again while the store was asked: that token stays.
+      if ((await released(l.text)) && (await dropTokenIf(l.id, mine[l.id]))) {
         await setGrace(l.id, null);
         forgetActivations();
         out.push({ id: l.id, result: { ok: false, reason: "revoked" } });
