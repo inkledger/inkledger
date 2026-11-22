@@ -1,3 +1,4 @@
+import "./zodJitless";
 import { StrictMode } from "react";
 import { StaticRouter } from "react-router";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -8,7 +9,6 @@ import { renderAllReady } from "@/ssrStream";
 import { setLocaleSource, type Locale } from "@contracts/i18n";
 import App from "./App";
 
-(globalThis as { __zod_globalConfig?: { jitless?: boolean } }).__zod_globalConfig = { jitless: true };
 const requestLocale = new AsyncLocalStorage<Locale>();
 setLocaleSource(() => requestLocale.getStore());
 
