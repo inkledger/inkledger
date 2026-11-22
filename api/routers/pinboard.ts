@@ -166,6 +166,8 @@ async function pinOnce(userId: number, board: Pinboard, item: { todoId: number }
   if (row) return pinned(board, row.id, false);
   // Hung by another request meanwhile: that one.
   const [there] = await db.select({ id: pinboardNotes.id }).from(pinboardNotes).where(and(eq(pinboardNotes.boardId, board.id), eq(column, itemId)));
+  // ...and taken off again before this read: hung here after all.
+  if (!there) return pinOnce(userId, board, item, color);
   return pinned(board, there.id, true);
 }
 
@@ -574,44 +576,52 @@ export const pinboardRouter = createRouter({
       const db = getDb();
       const n = await ownIssueNote(ctx.user.id, input.noteId);
       const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
-      const mine = await db
-        .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
-        .from(pinboardNotes)
-        .where(eq(pinboardNotes.boardId, board.id));
-      const already = mine.find((m) => m.issueNoteId === n.id);
-      if (already) {
-        await db.update(pinboardNotes).set({ z: await nextZ(board.id), updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
-        return pinned(board, already.id, true);
-      }
-      let issue = mine.find((m) => m.issueKey === n.issueKey && m.connectionId === n.connectionId && m.issueNoteId === null);
-      if (mine.length + (issue ? 1 : 2) > MAX_NOTES) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
-      }
-      if (!issue) {
-        const pos = firstFreeSlot(mine);
-        const [row] = await db
+      // Read before the lock: the two post-its go on top, the note above its issue.
+      const z = await nextZ(board.id);
+      // One request at a time per board: two hangs of one note (or of two notes of one issue) never
+      // meet on the unique index, nor pin the issue twice.
+      const done = await db.transaction(async (tx) => {
+        await xactLockIn(tx, "pinboard-place", board.id);
+        const mine = await tx
+          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
+          .from(pinboardNotes)
+          .where(eq(pinboardNotes.boardId, board.id));
+        const already = mine.find((m) => m.issueNoteId === n.id);
+        if (already) {
+          await tx.update(pinboardNotes).set({ z, updatedAt: new Date() }).where(eq(pinboardNotes.id, already.id));
+          return { id: already.id, existed: true };
+        }
+        let issue = mine.find((m) => m.issueKey === n.issueKey && m.connectionId === n.connectionId && m.issueNoteId === null);
+        if (mine.length + (issue ? 1 : 2) > MAX_NOTES) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }) });
+        }
+        if (!issue) {
+          const pos = firstFreeSlot(mine);
+          const [row] = await tx
+            .insert(pinboardNotes)
+            .values({ userId: ctx.user.id, boardId: board.id, issueKey: n.issueKey, connectionId: n.connectionId, note: "", color: "yellow", ...pos, rotation: randomTilt(), z })
+            .returning({ id: pinboardNotes.id });
+          issue = { id: row.id, issueKey: n.issueKey, connectionId: n.connectionId, issueNoteId: null, ...pos };
+          mine.push(issue);
+        }
+        const [row] = await tx
           .insert(pinboardNotes)
-          .values({ userId: ctx.user.id, boardId: board.id, issueKey: n.issueKey, connectionId: n.connectionId, note: "", color: "yellow", ...pos, rotation: randomTilt(), z: await nextZ(board.id) })
+          .values({
+            userId: ctx.user.id,
+            boardId: board.id,
+            issueKey: n.issueKey,
+            connectionId: n.connectionId,
+            issueNoteId: n.id,
+            note: "",
+            color: "pink",
+            ...freeSlotNear(issue, mine.filter((m) => m.id !== issue.id)),
+            rotation: randomTilt(),
+            z: z + 1,
+          })
           .returning({ id: pinboardNotes.id });
-        issue = { id: row.id, issueKey: n.issueKey, connectionId: n.connectionId, issueNoteId: null, ...pos };
-        mine.push(issue);
-      }
-      const [row] = await db
-        .insert(pinboardNotes)
-        .values({
-          userId: ctx.user.id,
-          boardId: board.id,
-          issueKey: n.issueKey,
-          connectionId: n.connectionId,
-          issueNoteId: n.id,
-          note: "",
-          color: "pink",
-          ...freeSlotNear(issue, mine.filter((m) => m.id !== issue.id)),
-          rotation: randomTilt(),
-          z: await nextZ(board.id),
-        })
-        .returning({ id: pinboardNotes.id });
-      return pinned(board, row.id, false);
+        return { id: row.id, existed: false };
+      });
+      return pinned(board, done.id, done.existed);
     }),
 
   /**

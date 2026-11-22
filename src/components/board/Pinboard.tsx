@@ -336,6 +336,8 @@ export function Pinboard({
     setNotes(old => old.filter(x => x.id !== n.id));
     try {
       const removed = await utils.client.pinboard.remove.mutate({ id: n.id });
+      // The read dropped above is made again now that it can't bring the post-it back.
+      void utils.pinboard.list.invalidate(listInput);
       void utils.pinboard.boards.invalidate();
       void utils.pinboard.where.invalidate();
       if (n.issueNoteId && n.issueKey) void utils.issueNotes.list.invalidate({ issueKey: n.issueKey, connectionId: n.connectionId ?? undefined });

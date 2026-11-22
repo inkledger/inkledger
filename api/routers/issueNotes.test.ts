@@ -81,6 +81,14 @@ describe("issue notes", () => {
     expect((await me.issueNotes.list({ issueKey: "DEMO-7" }))[0].pinnedOn).toHaveLength(1);
   });
 
+  it("hanging the same note twice at once gives one post-it, never a server error", async () => {
+    const n = await me.issueNotes.add({ issueKey: "DEMO-7", body: "twice" });
+    const both = await Promise.allSettled([me.pinboard.pinNote({ noteId: n.id }), me.pinboard.pinNote({ noteId: n.id })]);
+    expect(both.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect((await me.pinboard.list()).filter((p) => p.issueNoteId === n.id)).toHaveLength(1);
+    await me.issueNotes.remove({ id: n.id });
+  });
+
   it("writing on the hung post-it changes the note; deleting the note takes its post-its away", async () => {
     const [n] = await me.issueNotes.list({ issueKey: "DEMO-7" });
     const hung = (await me.pinboard.list()).find((p) => p.issueNoteId === n.id)!;
