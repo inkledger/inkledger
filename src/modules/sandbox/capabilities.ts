@@ -7,6 +7,7 @@ import type { ViewBox } from "./methods";
 import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
+import { ledgesAround, type LedgePage } from "./ledges";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
 import type { createModuleCache } from "./cache";
 
@@ -24,6 +25,8 @@ export type CapabilityDeps = {
   broker: ReturnType<typeof createBroker>;
   /** The page as it is now (read per call: its size changes). */
   page: () => ImportancePage;
+  /** Where the page's cards and section headers are (read per call). */
+  ledges?: () => LedgePage;
   pointer: ReturnType<typeof createPointerFeed>;
   layout: ReturnType<typeof createLayoutFeed>;
   /** The page moved under the frames (no payload); `route` adds this hub's route changes to it. */
@@ -149,6 +152,17 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         return importanceAround(d.page(), r.left, r.top, points);
       },
     });
+    const ledges = d.ledges;
+    if (ledges)
+      methods["page.ledges"] = method({
+        args: z.tuple([]),
+        cap: "page.ledges",
+        rate: [4, 4],
+        run() {
+          const r = view.el.getBoundingClientRect();
+          return ledgesAround(ledges(), { left: r.left, top: r.top, width: r.width, height: r.height });
+        },
+      });
     methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
     methods["backdrop.blur"] = method({ ...watch(push => d.blur(view.el, push)), cap: "backdrop.preblurred" });
     // The sidebar's fade over the nav's lower edge, drawn by the host (a frame draws only inside itself),

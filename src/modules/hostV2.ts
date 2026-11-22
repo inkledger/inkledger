@@ -46,6 +46,9 @@ export type LayoutState = {
   scrolling?: boolean;
 };
 
+/** The top edge of a card or section header in sight, in CSS px from the box's top left (y: the edge). */
+export type Ledge = { x: number; y: number; w: number };
+
 /** The pointer relative to the slot box, coalesced per frame; null while away. */
 export type PointerState = { x: number; y: number } | null;
 
@@ -89,6 +92,12 @@ type Capabilities = {
   surfaces?: HostApiV1["surfaces"] & { light?(vars: Readonly<Record<string, string>> | null, off?: readonly string[]): Promise<void> };
   /** "page.importance": how much each point of the page matters (password fields are always 1). */
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
+  /**
+   * "page.ledges" (a view's): the top edges of the cards and section headers in sight inside
+   * the box, top to bottom, where something drawn may stand; rects only, a few dozen at most,
+   * four calls a second.
+   */
+  ledges?(): Promise<Ledge[]>;
   /** "pointer" */
   pointer?: Sub<PointerState>;
   /**
@@ -181,6 +190,7 @@ export const CAPABILITY_OF = {
   runtime: "runtime",
   "surfaces.light": "surfaces.light",
   page: "page.importance",
+  ledges: "page.ledges",
   pointer: "pointer",
   sheet: "sheet",
   share: "share",

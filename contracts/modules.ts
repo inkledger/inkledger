@@ -36,6 +36,7 @@ export const MODULE_CAPABILITIES = [
   "runtime",
   "surfaces.light",
   "page.importance",
+  "page.ledges",
   "pointer",
   "sheet",
   "share",

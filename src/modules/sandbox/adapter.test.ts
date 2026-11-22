@@ -189,6 +189,23 @@ describe("the frame's host API (bootstrap)", () => {
     expect(out).toEqual([0, 1]);
   });
 
+  it("page.ledges: the cards' top edges in the box's px, only with its capability", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
+    const card = { getBoundingClientRect: () => ({ left: 150, top: 200, right: 550, bottom: 400 }), contains: (n: Node | null) => n === hitNode };
+    const hitNode = {} as Node;
+    const ledges = () => ({ candidates: () => [card], elementFromPoint: () => hitNode, width: 1200, height: 800 });
+    const run = async (capabilities: ModuleCapability[]) => {
+      let out: unknown = "none";
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ledges, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+      const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (void host.ledges?.().then(r => (out = r)), () => {}) } };
+      bootFrame({ capabilities, mod, methods: caps.methods });
+      await settle();
+      return out;
+    };
+    expect(await run(["page.ledges"])).toEqual([{ x: 50, y: 160, w: 400 }]);
+    expect(await run([])).toBe("none");
+  });
+
   it("share hands the host a picture; one over the message cap is refused in the frame, never left hanging", async () => {
     const shared: File[] = [];
     const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]);

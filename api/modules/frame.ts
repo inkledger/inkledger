@@ -297,6 +297,7 @@ async function start(init, port) {
   if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
+  if (has("page.ledges") && init.role === "view") host.ledges = () => call("page.ledges", []);
   if (has("cache")) host.cache = { get: (k) => call("cache.get", [k]), put: (k, b) => call("cache.put", [k, b]).then(quiet), delete: (k) => call("cache.delete", [k]).then(quiet) };
   if (has("sheet")) host.sheet = { open: () => fire("sheet.open"), close: () => fire("sheet.close") };
   if (has("geo")) host.geo = { here: () => call("geo.here") };
