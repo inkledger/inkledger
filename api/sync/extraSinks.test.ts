@@ -106,6 +106,34 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     }
   });
 
+  it("a create the sink took with its answer lost, then its worklog deleted: the entry there goes at the next pass", async () => {
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    const entries = (fakes.sink as { entries: { create: (...a: unknown[]) => Promise<{ createdAt?: unknown }> } }).entries;
+    const real = entries.create;
+    let lose = true;
+    entries.create = async (...args: unknown[]) => {
+      const made = await real(...args);
+      made.createdAt = instant(Date.now());
+      if (lose) {
+        lose = false;
+        throw new ProviderError("unavailable", "fake: timed out");
+      }
+      return made;
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-17T09:00:00+02:00", comment: "lost, then gone" });
+      await push();
+      expect(await sinkRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await caller.worklogs.delete({ id: made.id });
+      await push();
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-17")).toEqual([]);
+      expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    } finally {
+      entries.create = real;
+    }
+  });
+
   it("a worklog deleted while its create to the sink is under way: the entry that lands goes at once", async () => {
     const { pushOne, boundSink } = await import("./extraSinks");
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-18T09:00:00+02:00", comment: "under way" });

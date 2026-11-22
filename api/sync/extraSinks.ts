@@ -94,17 +94,29 @@ export const heldSinkDelete: SQL = sql`(${outbox.kind} = 'delete' and ${outbox.w
 export async function holdSinkDeletes(w: Worklog): Promise<void> {
   const db = getDb();
   const rows = await db
-    .select({ sink: worklogSinks.sinkConnectionId, remoteId: worklogSinks.remoteId })
+    .select({
+      sink: worklogSinks.sinkConnectionId,
+      type: connections.type,
+      remoteId: worklogSinks.remoteId,
+      sentAt: worklogSinks.syncedAt,
+      seconds: worklogSinks.sentSeconds,
+      started: worklogSinks.sentStarted,
+      comment: worklogSinks.sentComment,
+    })
     .from(worklogSinks)
     .innerJoin(connections, eq(connections.id, worklogSinks.sinkConnectionId))
-    .where(and(eq(worklogSinks.worklogId, w.id), sql`${worklogSinks.remoteId} IS NOT NULL`, inArray(connections.type, TIME_SINK_TYPES.filter(BESIDE))));
+    .where(and(eq(worklogSinks.worklogId, w.id), inArray(connections.type, TIME_SINK_TYPES.filter(BESIDE))));
   // Its issue, so a day-totals sink recounts its own tracker's day only (a key may be on two trackers).
   const [item] = w.connectionId === null ? [] : await db.select({ id: issues.id }).from(issues).where(issueAt(w.userId, w.connectionId, w.issueKey)).limit(1);
-  const values = rows.flatMap((r) =>
-    !r.remoteId || r.sink === w.connectionId
-      ? []
-      : [{ userId: w.userId, connectionId: r.sink, itemId: item?.id ?? null, kind: "delete", issueKey: w.issueKey, remoteId: r.remoteId, worklogId: w.id, timeSpentSeconds: w.timeSpentSeconds, started: w.started }],
-  );
+  const values = rows.flatMap((r) => {
+    if (r.sink === w.connectionId) return [];
+    const held = { userId: w.userId, connectionId: r.sink, itemId: item?.id ?? null, kind: "delete", issueKey: w.issueKey, worklogId: w.id };
+    if (r.remoteId) return [{ ...held, remoteId: r.remoteId, timeSpentSeconds: w.timeSpentSeconds, started: w.started }];
+    // No id there yet: a create sent with its answer lost, or under way, may land. Looked for by the values sent.
+    const entries = sinkAdapter(r.type as TimeSinkType)?.capabilities.entries;
+    if (entries?.model !== "entries" || entries.idempotency !== "local") return [];
+    return [{ ...held, remoteId: "", timeSpentSeconds: r.seconds ?? w.timeSpentSeconds, started: r.started ?? w.started, comment: r.comment ?? w.comment, landedAfter: r.sentAt ?? new Date() }];
+  });
   await db.transaction(async (tx) => {
     // Still here, and kept until this commits: gone (another delete got there first, its
     // own sink deletes queued), there is nothing to hold, and no row may point at it.
