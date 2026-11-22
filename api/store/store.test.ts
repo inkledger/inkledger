@@ -262,8 +262,22 @@ describe("module store", () => {
 
   it("a checkout returns the payment page; one the Worker forgot is dropped", async () => {
     expect(await caller.store.checkout({ product: "inkledger.hello", method: "card" })).toEqual({ url: "https://shop.test/buy?claim=c" });
-    expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card" });
+    expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card", email: "m@x.it" });
     expect(await caller.store.pending()).toEqual({ pending: [], installed: [] });
+  });
+
+  // The Worker hands a paid licence only to the token of an order paid with its email.
+  it("a checkout carries the account's email, and none when the account has only a login", async () => {
+    const { appRouter } = await import("../router");
+    const { userFromRequest } = await import("../context");
+    const ctx = await userFromRequest(new Request("http://localhost/", { headers: { cookie } }));
+    if (!ctx.user) throw new Error("not signed in");
+    expect(ctx.user.email).toBe("m@x.it");
+    const asLogin = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: { ...ctx.user, email: "mario" }, sessionId: ctx.sessionId });
+    await asLogin.store.checkout({ product: "inkledger.hello", method: "card" });
+    expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card" });
+    await caller.store.checkout({ product: "inkledger.hello", method: "card", email: "other@x.it" });
+    expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card", email: "other@x.it" });
   });
 
   // The page opens the Worker's url as is: a bad Worker's javascript: or file: went to the browser or the OS.

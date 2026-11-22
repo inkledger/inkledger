@@ -139,8 +139,10 @@ export const storeRouter = createRouter({
 
   checkout: store
     .input(z.object({ product, method: z.enum(["card", "bitcoin"]), email: z.email().max(254).optional() }))
-    .mutation(async ({ input }) => {
-      const { token, url } = await startCheckout(input).catch(async (e: unknown) => {
+    .mutation(async ({ input, ctx }) => {
+      // The Worker gives the licence only to an order paid with this email; a tracker login is none.
+      const email = input.email ?? (z.email().safeParse(ctx.user.email).success ? ctx.user.email : undefined);
+      const { token, url } = await startCheckout(email ? { ...input, email } : input).catch(async (e: unknown) => {
         await forgetCatalog();
         return storeFailure(e);
       });
