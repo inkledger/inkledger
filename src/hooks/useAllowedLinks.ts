@@ -27,6 +27,8 @@ export function useAllowedLinks() {
       try {
         const u = new URL(url);
         if (u.protocol === "mailto:") return true;
+        // Web addresses only: another scheme on an allowed host is not a link to open.
+        if (u.protocol !== "https:" && u.protocol !== "http:") return false;
         return hostAllowed(u.hostname, [...domains, ...trackerHosts]);
       } catch {
         return false;
