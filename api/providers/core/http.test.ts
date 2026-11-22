@@ -54,6 +54,21 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     expect([...seen[1].entries()]).toEqual([["accept", "image/*"]]);
   });
 
+  it("a hop to another origin connects as on the public internet, whatever the tracker's own network", async () => {
+    const used: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit & { dispatcher?: unknown }) => {
+        used.push(init.dispatcher);
+        return url.startsWith("https://t.example/") ? new Response(null, { status: 302, headers: { location: "https://cdn.example/file" } }) : new Response("ok");
+      }),
+    );
+    const { safeFetch, agents } = await import("./http");
+    await safeFetch({ site: "https://t.example", url: "https://t.example/file", init: {}, allowCrossOrigin: true, network: "private" });
+    expect(used[0]).toBe(agents.private);
+    expect(used[1]).toBe(agents.public);
+  });
+
   it("a redirect refused is an answer outside the contract: neither the tracker's refusal nor an outage", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } })));
     const { safeFetch } = await import("./http");

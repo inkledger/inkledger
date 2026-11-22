@@ -146,7 +146,8 @@ export async function safeFetch({ site, url, init, intent, allowCrossOrigin = fa
     const hopHeaders = new Headers(req.headers);
     if (!sameOrigin) for (const h of CREDENTIAL_HEADERS) hopHeaders.delete(h);
     if (toGet) hopHeaders.delete("Content-Type");
-    req = { ...req, headers: hopHeaders, ...(toGet ? { method: "GET", body: undefined } : {}) };
+    // Another origin was checked as public: it connects as public too (its name may resolve elsewhere by then).
+    req = { ...req, headers: hopHeaders, ...(toGet ? { method: "GET", body: undefined } : {}), ...({ dispatcher: agents[sameOrigin ? network : "public"] } as object) };
     target = next.toString();
   }
 }
