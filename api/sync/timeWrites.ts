@@ -9,7 +9,7 @@ import { connections, issues, outbox, worklogs, worklogSinks, type Connection, t
 import { PENDING_PREFIX } from "@contracts/types";
 import { COMPANION_TYPES } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
-import type { TimeZone } from "@contracts/values";
+import { instant, localDateOf, type TimeZone } from "@contracts/values";
 import { getDb, type Db } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
 import { withDeleteReason } from "../queries/trash";
@@ -18,7 +18,7 @@ import type { BoundTracker } from "../providers/core/bind";
 import { ProviderError } from "../providers/core/errors";
 import { t as tr } from "@contracts/i18n";
 import { certainRefusal, providerTrpcError } from "../providers/trpc";
-import type { IssueRef } from "../providers/types";
+import type { IssueRef, RemoteWorklog } from "../providers/types";
 import { boundTracker } from "./engine";
 import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, sameTime } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
@@ -201,6 +201,10 @@ const ADOPT_WINDOW_MS = 5 * 60_000;
 /** The same comment as words: how a tracker or a sync may store it (trimmed, spaces folded) aside. */
 export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
 
+/** The entry holds this time: a session as sameTime, a day's entry on that day in the tracker's zone; the same length. */
+const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone) =>
+  span.kind === "session" ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v) : span.kind === "date" && span.seconds === v.seconds && span.date === localDateOf(instant(v.started.getTime()), zone);
+
 async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, queuedAt: Date, replacing?: { remoteId: string; version: string | null }): Promise<boolean> {
   if (!t.b.worklogs?.list) return false;
   const db = getDb();
@@ -213,8 +217,10 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
   const notBefore = queuedAt.getTime() - ADOPT_WINDOW_MS;
   const mine = { started: local.started, seconds: local.timeSpentSeconds };
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || w.span.kind !== "session" || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
-    if (!sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, mine)) continue;
+    if (w.authorRemoteId !== conn.remoteAccountId || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
+    if (!holds(w.span, mine, t.zone)) continue;
+    // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
+    if (w.span.kind !== "session" && (!w.createdAt || !sameWords(w.comment, local.comment))) continue;
     if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
     const [linked] = await db
       .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
@@ -225,7 +231,7 @@ async function adoptLanded(t: ContractTime, conn: Connection, local: Worklog, qu
     // Another worklog's entry: only its copy a sync read back meanwhile (made after ours, the
     // same time) is ours to take; an older twin keeps it. (A twin logged while ours waited, the
     // same time, can't be told from that copy: its comment may have been edited since either.)
-    if (linked && linked.id !== local.id && (linked.id < local.id || !sameTime({ started: linked.started, seconds: linked.seconds }, mine))) continue;
+    if (linked && linked.id !== local.id && (linked.id < local.id || !(w.span.kind === "session" ? sameTime({ started: linked.started, seconds: linked.seconds }, mine) : holds(w.span, { started: linked.started, seconds: linked.seconds }, t.zone)))) continue;
     // A queued change is about an older worklog: any newer one of the same time may be a twin
     // the user logged, so only an entry linked to none is taken (read back meanwhile, it stays
     // twice, as it did; never another worklog's entry, and the old one with it, gone).
@@ -281,7 +287,7 @@ async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog)
     .limit(1);
   const id = sink?.remoteId ?? local.remoteId;
   const w = (await t.b.worklogs.list(meta(), t.ref)).find((x) => x.remoteId === id);
-  if (!w || w.span.kind !== "session" || !sameTime({ started: new Date(w.span.start), seconds: w.span.seconds }, { started: local.started, seconds: local.timeSpentSeconds }) || !sameWords(w.comment, local.comment)) return false;
+  if (!w || !holds(w.span, { started: local.started, seconds: local.timeSpentSeconds }, t.zone) || !sameWords(w.comment, local.comment)) return false;
   await linkSink(local.id, conn.id, w.remoteId, w.version ?? null);
   return true;
 }
