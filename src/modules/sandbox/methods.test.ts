@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HitActivation } from "../hit";
+import type { HitActivation } from "../hostV2";
 import type { HostApiV1, TimerState } from "../types";
 import { frameMethods, onMask, type Cas } from "./methods";
 import { createRpcPeer, type HostMessage } from "./rpc";

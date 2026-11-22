@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILE_MAX_BYTES } from "@contracts/modules";
-import { hitAreas, type HitActivation, type HitTest } from "../hit";
-import type { BudgetLevel, HitRegion } from "../hostV2";
+import { hitAreas, type HitTest } from "../hit";
+import type { BudgetLevel, HitActivation, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
 import { SESSION_KEY_MAX, SESSION_VALUE_MAX, type SessionStore } from "./session";

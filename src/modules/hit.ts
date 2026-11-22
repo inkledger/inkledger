@@ -7,11 +7,10 @@
 // shape (its `test`, e.g. a picture's alpha). Anywhere else the events go on
 // untouched to whatever lies under it.
 
+import type { HitActivation } from "./hostV2";
+
 /** Whether a point is on the module's shape: x, y from the element's top left (CSS px), and its size. */
 export type HitTest = (x: number, y: number, width: number, height: number) => boolean;
-
-/** How a hit area was activated: a click (x, y from the element's top left, CSS px), or Enter/Space on its box. */
-export type HitActivation = { via: "pointer"; x: number; y: number } | { via: "keyboard" };
 
 type Area = { el: HTMLElement; test: HitTest; activate: (how: HitActivation) => void };
 

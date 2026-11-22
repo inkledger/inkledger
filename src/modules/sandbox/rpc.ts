@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
-import type { HitActivation } from "../hit";
+import type { HitActivation } from "../hostV2";
 
 /**
  * The host's end of a framed module's messages. A sandboxed frame has an

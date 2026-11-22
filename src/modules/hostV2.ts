@@ -4,14 +4,14 @@
 // box is a capability declared in its signed manifest.
 import type { ModuleCapability } from "@contracts/modules";
 import type { HostApiV1, SlotId, Sub, ThemeState } from "./types";
-import type { HitActivation } from "./hit";
-
-export type { HitActivation };
 
 export type { ModuleCapability };
 
 /** Where a v2 module draws: the v1 slots, plus a sheet the host owns (dialog, focus, Esc). */
 export type ViewSlot = SlotId | "sheet";
+
+/** How a hit area was activated: a click (x, y from the box's top left, CSS px), or Enter/Space on its host box. */
+export type HitActivation = { via: "pointer"; x: number; y: number } | { via: "keyboard" };
 
 /** A clickable part of an overlay, in CSS px from the box's top left. */
 export type HitRegion =
