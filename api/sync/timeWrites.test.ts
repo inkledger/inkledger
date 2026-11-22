@@ -601,6 +601,37 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("a create whose replay loses its answer too, after an edit while queued: the next replay takes it, the time once", async () => {
+    const day = "2026-10-30";
+    tracker.recreating = true;
+    try {
+      tracker.offline = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 600, started: `${day}T09:00:00+01:00`, comment: "twice lost" });
+      tracker.offline = false;
+      await caller.worklogs.update({ id: made.id, seconds: 900, started: `${day}T09:00:00+01:00`, comment: "twice lost" });
+      tracker.loseAnswer = true;
+      expect(await replay()).toMatchObject({ synced: 0, failed: 1 });
+      tracker.loseAnswer = false;
+      expect(await replay()).toMatchObject({ synced: 1, failed: 0 });
+      const here = (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+      expect(here.map((w) => [w.id, w.timeSpentSeconds])).toEqual([[made.id, 900]]);
+      const { boundTracker } = await import("./engine");
+      const { getDb } = await import("../queries/connection");
+      const { connections } = await import("@db/schema");
+      const { eq } = await import("drizzle-orm");
+      const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+      const there = (await boundTracker(conn)!.worklogs!.list({ signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "FAKE-1" })).filter(
+        (w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day),
+      );
+      expect(there.map((w) => [w.remoteId, w.span.seconds])).toEqual([[(await sinkOf(made.id))?.remote_id, 900]]);
+      await caller.worklogs.delete({ id: made.id });
+    } finally {
+      tracker.loseAnswer = false;
+      tracker.offline = false;
+      tracker.recreating = false;
+    }
+  });
+
   it("on a tracker keeping only days, a create whose answer was lost is adopted at the replay, not logged twice", async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");
