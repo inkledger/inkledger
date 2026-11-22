@@ -733,7 +733,16 @@ export function ConnectionsSection() {
         </Button>
       }
     >
-      {list.isError ? (
+      {list.isError && list.data && (
+        // A failed refresh keeps the list read before: shown, said to be maybe out of date.
+        <p role="alert" className="mb-2 flex flex-wrap items-center gap-2 text-body-sm text-danger">
+          {t("pages.issues.staleError", { reason: errorText(list.error) })}
+          <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
+            {t("common.retry")}
+          </Button>
+        </p>
+      )}
+      {list.isError && !list.data ? (
         <ErrorState message={errorText(list.error)} onRetry={() => void list.refetch()} />
       ) : list.data?.length === 0 ? (
         <p className="text-body-sm text-muted-foreground">{t("settings.connections.none")}</p>

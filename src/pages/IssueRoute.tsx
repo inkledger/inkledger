@@ -32,8 +32,8 @@ export function IssueByRef() {
   // A link that names no connection is never looked up: a disabled query stays pending for good.
   if (enabled && found.isPending) return <Loading />;
   if (!found.data && key && conn > 0) return <IssueDetail issueKey={key} connectionId={conn} />;
-  // A failed lookup is not a missing issue.
-  if (found.isError) return <ErrorState message={errorText(found.error)} onRetry={() => void found.refetch()} />;
+  // A failed lookup is not a missing issue; a failed refetch keeps the issue found before.
+  if (found.isError && !found.data) return <ErrorState message={errorText(found.error)} onRetry={() => void found.refetch()} />;
   if (!found.data || "ambiguous" in found.data) return <NotFound />;
   return <IssueDetail issueKey={found.data.key} connectionId={found.data.connectionId} />;
 }

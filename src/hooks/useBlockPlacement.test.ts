@@ -27,4 +27,10 @@ describe("where new time goes", () => {
     Object.assign(queries, { "worklogs.list": { data: [] }, "timers.list": { data: [] }, "workSchedule.list": { error: new Error("offline") }, "workSchedule.days": { data: {} } });
     expect(state()).toBe("<p>waiting error</p>");
   });
+
+  // A refetch that failed keeps what was read: placing waited on a Retry although the schedule was there.
+  it("a failed refetch over a schedule already read still places on it", () => {
+    Object.assign(queries, { "worklogs.list": { data: [] }, "timers.list": { data: [] }, "workSchedule.list": { data: [], error: new Error("offline") }, "workSchedule.days": { data: {} } });
+    expect(state()).toBe("<p>ready ok</p>");
+  });
 });
