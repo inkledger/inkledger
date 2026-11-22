@@ -43,9 +43,17 @@ export default function Login() {
   const resume = trpc.auth.resume.useMutation({
     onSuccess: signedIn,
     onError: e => {
-      setError(failureText(e));
-      setManual(true);
-      void utils.auth.remembered.invalidate();
+      // Another tab of this browser came back in with the same remembered device a moment
+      // before (the device is used once): this one is signed in too.
+      void utils.auth.me
+        .fetch(undefined, { staleTime: 0 })
+        .catch(() => null)
+        .then(me => {
+          if (me) return signedIn(me);
+          setError(failureText(e));
+          setManual(true);
+          void utils.auth.remembered.invalidate();
+        });
     },
   });
   const autoTried = useRef(false);
