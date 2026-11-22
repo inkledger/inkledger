@@ -6,7 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
-import { issues, timerOps, timers, todos, type Timer } from "@db/schema";
+import { connections, issues, timerOps, timers, todos, type Timer } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { publish } from "../lib/userEvents";
@@ -310,18 +310,48 @@ async function rowOf(tx: Tx, userId: number, connectionId: number, issueKey: str
 }
 
 /**
+ * The connection a timer is let go on (paused, discarded, moved away): an
+ * archived one of the user's too, or its timers could never be ended.
+ */
+async function leavingConnection(userId: number, issueKey: string, connectionId?: number) {
+  if (connectionId === undefined) return issueConnection(userId, issueKey);
+  const [row] = await getDb()
+    .select()
+    .from(connections)
+    .where(and(eq(connections.id, connectionId), eq(connections.userId, userId)))
+    .limit(1);
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: tr("server.connections.notFound") });
+  return row;
+}
+
+/** A connection archived: its running timers pause (nothing may run on there), their owners let go. */
+export async function pauseTimersOf(userId: number, connectionId: number) {
+  const now = new Date();
+  await act(userId, undefined, async (tx) => {
+    const running = await tx
+      .select()
+      .from(timers)
+      .where(and(eq(timers.userId, userId), eq(timers.connectionId, connectionId), eq(timers.state, "running")));
+    for (const t of running) await pauseTimer(tx, t, now);
+    return { epoch: await epochOf(tx, userId) };
+  });
+}
+
+/**
  * An action on one timer: the issue's connection resolved before the lock,
  * then the timer's row (or nothing) read under it. Each action answers its
- * own not-found.
+ * own not-found. `leaving`: an action that only lets the timer go, allowed
+ * on an archived connection.
  */
 function onTimer<T extends { epoch: number }>(
   ctx: Parameters<typeof whoOf>[0],
   input: { issueKey: string; connectionId?: number; opId?: string },
   fn: (tx: Tx, t: Timer | undefined, c: { now: Date; w: Who; conn: Awaited<ReturnType<typeof issueConnection>>; decided: Decided }) => Promise<T>,
+  leaving = false,
 ): Promise<T> {
   const now = new Date();
   const w = whoOf(ctx);
-  return issueConnection(ctx.user.id, input.issueKey, input.connectionId).then((conn) =>
+  return (leaving ? leavingConnection : issueConnection)(ctx.user.id, input.issueKey, input.connectionId).then((conn) =>
     act(ctx.user.id, input.opId, async (tx, decided) => fn(tx, await rowOf(tx, ctx.user.id, conn.id, input.issueKey), { now, w, conn, decided }), w.client),
   );
 }
@@ -583,7 +613,7 @@ export const timersRouter = createRouter({
       if (!t || t.state !== "running") return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
       return { ok: true, epoch: await pauseTimer(tx, t, now) };
-    });
+    }, true);
   }),
 
   /**
@@ -651,7 +681,7 @@ export const timersRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const now = new Date();
       const w = whoOf(ctx);
-      const from = await issueConnection(ctx.user.id, input.issueKey, input.connectionId);
+      const from = await leavingConnection(ctx.user.id, input.issueKey, input.connectionId);
       const to = await issueConnection(ctx.user.id, input.toIssueKey, input.toConnectionId);
       if (from.id === to.id && input.issueKey === input.toIssueKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.moveSame") });
@@ -762,6 +792,6 @@ export const timersRouter = createRouter({
       await pruneRuns(tx, ctx.user.id, now);
       // Gone rows can't carry an epoch: the next one starts above it.
       return { ok: true, epoch: t.epoch + 1 };
-    });
+    }, true);
   }),
 });

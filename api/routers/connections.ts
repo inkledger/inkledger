@@ -38,6 +38,7 @@ import {
 import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
+import { pauseTimersOf } from "./timers";
 import { getDb, uniqueViolation } from "../queries/connection";
 import { callMeta } from "../lib/callMeta";
 import { liveConnections } from "../queries/liveConnections";
@@ -902,6 +903,8 @@ export const connectionsRouter = createRouter({
         .update(connections)
         .set({ archivedAt: new Date() })
         .where(eq(connections.id, conn.id));
+      // Nothing can run on there any more: its timers stop counting.
+      await pauseTimersOf(ctx.user.id, conn.id);
       return { ok: true };
     }),
 });
