@@ -5,6 +5,7 @@ import type { Hub } from "../host";
 import { frameMethods } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
+import { browserBroker, createBroker } from "./broker";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 
 /**
@@ -45,6 +46,7 @@ const idle = (fn: () => void) => {
 
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
+let broker: ReturnType<typeof createBroker> | null = null;
 let pageLight: ReturnType<typeof createPageLight> | null = null;
 const light = () =>
   (pageLight ??= createPageLight(
@@ -106,7 +108,7 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }) } : null;
   const served = frameMethods(api, cas, box);
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light() });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())) });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({

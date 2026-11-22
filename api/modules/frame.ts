@@ -66,7 +66,11 @@ const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
 const send = (m, transfer) => parent.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
+// Over the host's message cap a call would go unanswered: refused here instead.
+const MAX_BYTES = 1000000;
+const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
 const call = (m, a) => new Promise((resolve, reject) => {
+  if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));
   const id = ++seq;
   pending.set(id, { resolve, reject });
   send({ t: "call", id, m, a: a || [] });
@@ -145,6 +149,10 @@ async function start(init, port) {
     },
   };
   if (has("surfaces.light")) host.surfaces.light = (vars) => fire("surfaces.light", [vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, String(v)]))]);
+  if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
+  if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
+  if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
+  if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]) };
   const fail = (what, e) => send({ t: "failed", reason: (what + ": " + String((e && e.message) || e)).slice(0, 400) });
