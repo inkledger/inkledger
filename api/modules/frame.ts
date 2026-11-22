@@ -101,28 +101,31 @@ const alphaMask = (pic) => {
   for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
   return { kind: "mask", w, h, alpha };
 };
-// Storage writes at the host's pace (4 a second, 16 at once; a little under it here, the clocks differ):
-// a burst waits here instead of being refused there.
-const WRITE_RATE = 3.5;
-let writeTokens = 16, writeAt = Date.now();
-const paced = () => new Promise((resolve) => {
-  const go = () => {
-    const now = Date.now();
-    writeTokens = Math.min(16, writeTokens + ((now - writeAt) / 1000) * WRITE_RATE);
-    writeAt = now;
-    if (writeTokens >= 1) { writeTokens -= 1; resolve(); }
-    else setTimeout(go, Math.ceil(((1 - writeTokens) / WRITE_RATE) * 1000));
-  };
-  go();
-});
-// A write refused for its pace all the same (a message held up on the way): again after a moment.
-const written = async (m, a) => {
+// Storage at the host's pace (writes 4 a second, 16 at once; reads 10 and 30; a little under it here,
+// the clocks differ): a burst waits here instead of being refused there.
+const pacer = (rate, burst) => {
+  let tokens = burst, at = Date.now();
+  return () => new Promise((resolve) => {
+    const go = () => {
+      const now = Date.now();
+      tokens = Math.min(burst, tokens + ((now - at) / 1000) * rate);
+      at = now;
+      if (tokens >= 1) { tokens -= 1; resolve(); }
+      else setTimeout(go, Math.ceil(((1 - tokens) / rate) * 1000));
+    };
+    go();
+  });
+};
+const writePace = pacer(3.5, 16), readPace = pacer(9, 30);
+// Refused for its pace all the same (a message held up on the way): again after a moment.
+const paced = async (pace, m, a) => {
   for (let i = 0; ; i++) {
-    await paced();
+    await pace();
     try { return await call(m, a); }
     catch (e) { if (i >= 3 || !e || e.message !== "rate-limited") throw e; await new Promise((r) => setTimeout(r, 300)); }
   }
 };
+const written = (m, a) => paced(writePace, m, a);
 // One write per key at a time; those waiting their turn merge: a set or delete, the latest wins;
 // an update joins the batch, its change applied in order over one read and one conditional write.
 const writeKeys = new Map();
@@ -132,7 +135,7 @@ const runWrite = async (key, items) => {
   for (const w of items) w.resolve();
 };
 const runUpdates = async (key, items) => {
-  let r = await call("storage.read", [key]);
+  let r = await paced(readPace, "storage.read", [key]);
   for (let i = 0; i < 8; i++) {
     let value = r.value;
     const outs = items.map((w) => { try { value = w.change(value); return { ok: true, value }; } catch (error) { return { ok: false, error }; } });

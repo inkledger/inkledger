@@ -497,6 +497,21 @@ describe("storage writes from a frame", () => {
     expect(s.calls.set).toBeLessThanOrEqual(2);
   });
 
+  it("reads for updates of many keys keep the host's pace too (more than its burst, none refused)", async () => {
+    const s = store();
+    const errors: string[] = [];
+    run(s.methods, host => {
+      // A change that refuses: a read each, no write.
+      for (let i = 0; i < 36; i++)
+        void host.storage.update("r" + i, () => {
+          throw new Error("kept");
+        }).catch((e: Error) => errors.push(e.message));
+    });
+    await new Promise(r => setTimeout(r, 1200));
+    await settle(10);
+    expect(errors).toEqual(Array.from({ length: 36 }, () => "kept"));
+  });
+
   it("writes to many keys wait their turn at the host's pace instead of being refused", async () => {
     const s = store();
     const errors: string[] = [];
