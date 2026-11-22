@@ -21,7 +21,7 @@ vi.mock("./sync/jiraIssues", async (importOriginal) => {
     runSync: vi.fn(async (_user: unknown, conn: { id: number }, full: boolean) => {
       jiraPasses.push({ id: conn.id, full });
       await jiraGate.wait;
-      return { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } };
+      return { result: { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } }, full };
     }),
   };
 });

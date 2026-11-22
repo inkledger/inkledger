@@ -494,4 +494,30 @@ describe("notifications, incremental sync, watchers", () => {
       expect(await kinds()).toEqual(["commented:WW-1", "status:WW-1:Risolto → Riaperto"]);
     });
   });
+/** The connection as a new one (its own stream state), then back to the one from before connections (legacy) for the rest. */
+  const asNewConnection = async (run: () => Promise<void>) => {
+    await raw("UPDATE connections SET legacy = 0 WHERE user_id = ?", userId);
+    try {
+      await run();
+    } finally {
+      await raw("UPDATE connections SET legacy = 1 WHERE user_id = ?", userId);
+    }
+  };
+  const issuesStream = async () =>
+    (await raw<{ last_full_at: unknown; last_ok_at: unknown }>("SELECT last_full_at, last_ok_at FROM connection_sync WHERE stream = 'issues' AND connection_id IN (SELECT id FROM connections WHERE user_id = ?)", userId))[0];
+
+  it("a new connection's first sync, widened to full, is recorded as full on its stream", async () => {
+    await asNewConnection(async () => {
+      await raw("DELETE FROM issues");
+      await raw("DELETE FROM notifications");
+      await raw("DELETE FROM connection_sync");
+      assigned = [jiraIssue("AB-1")];
+      recent = [];
+      watched = [];
+      activity = [];
+      const r = await syncUser(await user(), { full: false });
+      expect(r.full).toBe(true);
+      expect((await issuesStream()).last_full_at).not.toBeNull();
+    });
+  });
 });

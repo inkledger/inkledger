@@ -432,7 +432,8 @@ async function syncWatchers(
 const assigneeOf = (i: JiraSearchedIssue) =>
   i.fields.assignee?.accountId ?? i.fields.assignee?.name ?? "";
 
-export async function runSync(account: User, conn: Connection, wantFull: boolean): Promise<Omit<SyncResult, "failed">> {
+/** One pass of a Jira connection, as its stream's pass (withStream): `full` is what it ran, wider than asked on a first sync. */
+export async function runSync(account: User, conn: Connection, wantFull: boolean): Promise<{ result: Omit<SyncResult, "failed">; full: boolean }> {
   const syncStart = Date.now();
   let full = wantFull;
   try {
@@ -523,7 +524,7 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     // Jira is reachable: flush any queued offline worklog operations.
     const outbox = await replayContract(conn);
     await recordSync(user.id, { ok: true, full });
-    return { synced: remote.length, at: new Date(), full, outbox };
+    return { result: { synced: remote.length, at: new Date(), full, outbox }, full };
   } catch (e) {
     await recordSync(account.id, { error: e instanceof Error ? e.message : String(e) }).catch(() => undefined);
     throw e;

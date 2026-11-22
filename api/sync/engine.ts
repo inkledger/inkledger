@@ -33,7 +33,8 @@ export async function withStream<R>(
   conn: Pick<Connection, "id">,
   stream: Stream,
   opts: { full: boolean; background: boolean },
-  pass: (checkpoint: Checkpoint | null) => Promise<{ result: R; checkpoint?: Checkpoint | null }>,
+  /** `full`: what the pass ran, when it decides (a first sync is always full). */
+  pass: (checkpoint: Checkpoint | null) => Promise<{ result: R; checkpoint?: Checkpoint | null; full?: boolean }>,
 ): Promise<StreamRun<R>> {
   let got = await acquire(conn.id, stream);
   if (!got.ok && got.reason === "waiting" && !opts.background) got = await acquire(conn.id, stream, Date.now(), { ignoreWait: true });
@@ -43,7 +44,7 @@ export async function withStream<R>(
   try {
     const out = await pass(opts.full ? null : (got.state.checkpoint as Checkpoint | null));
     clearInterval(beat);
-    await succeeded(conn.id, stream, { checkpoint: out.checkpoint, full: opts.full });
+    await succeeded(conn.id, stream, { checkpoint: out.checkpoint, full: out.full ?? opts.full });
     return { ran: true, result: out.result };
   } catch (e) {
     clearInterval(beat);
