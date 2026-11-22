@@ -293,6 +293,8 @@ async function applyPage(
     if (local && w.dayOnly && localDateOf(instant(local.started.getTime()), zone) === localDateOf(instant(values.started.getTime()), zone)) values.started = local.started;
     // A start stamped as sent (stampsStart): the user's start here stands.
     if (local && stamped && values.started.getTime() === stampedStart(local.started, local.timeSpentSeconds).getTime()) values.started = local.started;
+    // A service that keeps no words: the comment here stands.
+    if (local && w.noWords) values.comment = local.comment;
     const differs = !!local && (local.timeSpentSeconds !== values.timeSpentSeconds || local.started.getTime() !== values.started.getTime() || local.comment !== values.comment);
     // (Every entry here has its issue: the others were left out above.)
     return { w, key: w.issue?.key ?? "", values, locked: w.locked ? JSON.stringify(w.locked) : null, k, local, differs };

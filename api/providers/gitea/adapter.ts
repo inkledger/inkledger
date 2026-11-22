@@ -211,6 +211,7 @@ function toRemoteWorklog(t: GiteaTrackedTime, me: X["conn"], ref?: { key: string
     span: { kind: "session", start: created, seconds: t.time },
     // Tracked time has no note.
     comment: "",
+    noWords: true,
     authorRemoteId: String(t.user_id),
     createdAt: created,
     updatedAt: created,

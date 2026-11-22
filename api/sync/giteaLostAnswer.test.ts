@@ -160,4 +160,21 @@ describe("gitea: a write whose answer was lost, beside a twin logged by hand", (
     expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
     expect(there(at)).toEqual([[String(twin.id), 0, 300]]);
   });
+
+  it("the comment stays here through syncs and edits: Gitea keeps none, and is never sent one", async () => {
+    const at = Date.parse("2026-11-16T09:30:00+01:00");
+    const made = await caller.worklogs.create({ issueKey: key, seconds: 1800, started: new Date(at).toISOString(), comment: "standup notes" });
+    expect(made.comment).toBe("standup notes");
+    await caller.issues.syncConnection({ id: connId });
+    const mine = async () => (await caller.worklogs.list({ issueKey: key })).find((w) => w.id === made.id);
+    expect(await mine()).toMatchObject({ comment: "standup notes", timeSpentSeconds: 1800, started: new Date(at) });
+    await caller.worklogs.update({ id: made.id, seconds: 2400, started: new Date(at).toISOString(), comment: "standup and triage" });
+    await caller.issues.syncConnection({ id: connId });
+    expect(await mine()).toMatchObject({ comment: "standup and triage", timeSpentSeconds: 2400 });
+    await caller.worklogs.update({ id: made.id, seconds: 2400, started: new Date(at).toISOString(), comment: "triage only" });
+    await caller.issues.syncConnection({ id: connId });
+    expect(await mine()).toMatchObject({ comment: "triage only", timeSpentSeconds: 2400 });
+    expect(sim.times.map((t) => t.time)).toEqual([2400]);
+    expect(await sinkOf(made.id)).toMatchObject({ state: "synced" });
+  });
 });
