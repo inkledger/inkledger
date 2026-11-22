@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/table";
 import { issueHistory } from "@/lib/issueHistory";
 import { PinMenuItems } from "@/components/issue/PinMenu";
-import { useProviderName } from "@/hooks/useConnections";
+import { useProviderName, useTrackerOffers } from "@/hooks/useConnections";
 import { t } from "@/i18n";
 import { ActionRow } from "@/components/app/ActionRow";
 import { safeExternalUrl } from "@contracts/links";
@@ -206,12 +206,7 @@ function Actions({ issue, onLog, pin: pinProps, pick }: Omit<RowProps, "picked" 
             <ListChecks className="h-4 w-4" aria-hidden />
             {t("views.todos.menuAdd")}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => void act.setWatching(issue.key, issue.watching !== 1, issue.connectionId)}
-          >
-            <Eye className="h-4 w-4" />
-            {issue.watching === 1 ? t("views.issues.row.unwatch") : t("views.issues.row.watch")}
-          </DropdownMenuItem>
+          <WatchItem issue={issue} act={act} />
           {pinProps && (
             <>
               <DropdownMenuItem
@@ -261,6 +256,18 @@ function Actions({ issue, onLog, pin: pinProps, pick }: Omit<RowProps, "picked" 
 }
 
 /** Everyone's time on its tracker, only where it is more than mine. */
+/** Watch / unwatch, only on a tracker that can (as the issue page); mounted while the menu is open. */
+function WatchItem({ issue, act }: { issue: IssueItem; act: ReturnType<typeof useIssueActions> }) {
+  const offers = useTrackerOffers(issue.connectionId);
+  if (!offers.watch) return null;
+  return (
+    <DropdownMenuItem onSelect={() => void act.setWatching(issue.key, issue.watching !== 1, issue.connectionId)}>
+      <Eye className="h-4 w-4" />
+      {issue.watching === 1 ? t("views.issues.row.unwatch") : t("views.issues.row.watch")}
+    </DropdownMenuItem>
+  );
+}
+
 function TeamTotal({ issue, className }: { issue: IssueItem; className?: string }) {
   const team = issue.timeSpentSeconds ?? 0;
   if (team <= issue.mySpentSeconds) return null;
