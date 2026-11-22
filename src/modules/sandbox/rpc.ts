@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ModuleCapability } from "@contracts/modules";
+import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
 
 /**
  * The host's end of a framed module's messages. A sandboxed frame has an
@@ -12,7 +12,7 @@ import type { ModuleCapability } from "@contracts/modules";
 
 export const RPC_VERSION = 1;
 /** Estimated bytes of one message (strings, binary, blobs, bitmaps); more is dropped unread. */
-export const RPC_MAX_BYTES = 1024 * 1024;
+export const RPC_MAX_BYTES = PICTURE_MAX_BYTES + 64 * 1024;
 /** Values in one message: a large object graph costs the main thread tens of ms to clone. */
 const MAX_NODES = 4096;
 /** Calls a frame may have unanswered at once. */

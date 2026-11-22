@@ -23,9 +23,9 @@ export function sniffImage(b: Uint8Array): ImageType | null {
 
 /** A picture under its proven type, or null when its bytes are not one. */
 export async function asImage(file: Blob): Promise<{ image: Blob; type: ImageType } | null> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const type = sniffImage(bytes);
-  return type ? { image: new Blob([bytes], { type }), type } : null;
+  // Its head proves the type; the rest is wrapped as it is (a 4 MB picture never copied here).
+  const type = sniffImage(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
+  return type ? { image: new Blob([file], { type }), type } : null;
 }
 
 /** A file name a download can carry: plain characters, the picture's own extension. */

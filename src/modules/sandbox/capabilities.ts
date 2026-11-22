@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { method, RPC_MAX_BYTES, type Method, type MethodContext } from "./rpc";
+import { PICTURE_MAX_BYTES } from "@contracts/modules";
+import { method, type Method, type MethodContext } from "./rpc";
 
-export const PICTURE_MAX_BYTES = RPC_MAX_BYTES - 64 * 1024;
+export { PICTURE_MAX_BYTES };
 import type { ViewBox } from "./methods";
 import { parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";

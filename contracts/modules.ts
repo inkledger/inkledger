@@ -112,6 +112,8 @@ export const FILES_MAX_TOTAL_BYTES = 8 * 1024 * 1024;
 /** Files nobody read for this long go. */
 export const FILES_MAX_IDLE_MS = 30 * 86_400_000;
 export const FILE_TYPES = ["image/webp", "image/png", "image/avif"] as const;
+/** A picture a framed module hands the host (share, download, open, cache): crosses as a Blob, never base64. */
+export const PICTURE_MAX_BYTES = 4 * 1024 * 1024;
 
 /** How much of a dashboard backdrop shows through (veil and blur, set by the host). */
 export const BACKDROP_VISIBILITY = ["subtle", "normal", "scenic"] as const;

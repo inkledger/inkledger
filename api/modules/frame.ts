@@ -1,4 +1,4 @@
-import { MODULES_RUN_PATH } from "@contracts/modules";
+import { MODULES_RUN_PATH, PICTURE_MAX_BYTES } from "@contracts/modules";
 
 /**
  * A framed module's document: sandboxed (opaque origin: no cookie, storage or
@@ -66,8 +66,8 @@ const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
 const send = (m, transfer) => parent.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
-// Over the host's message cap a call would go unanswered: refused here instead.
-const MAX_BYTES = 1000000;
+// Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
+const MAX_BYTES = ${PICTURE_MAX_BYTES};
 const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
 const call = (m, a, transfer) => new Promise((resolve, reject) => {
   if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));

@@ -11,7 +11,7 @@ import type { ImportancePage } from "./importance";
 import type { ViewBox } from "./methods";
 import { bootFrame, settle } from "./bootFrame.testkit";
 import type { HostApiV2, LayoutState } from "../hostV2";
-import type { ModuleCapability } from "@contracts/modules";
+import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
 
 const lightDoc = () => {
   const props = new Map<string, string>();
@@ -101,13 +101,36 @@ describe("the frame's host API (bootstrap)", () => {
       ["share"],
       (_el, host) => {
         void host.share?.(png, "pic").then(r => results.push(r));
-        void host.share?.(new Blob([new Uint8Array(1_100_000)]), "big").catch((e: Error) => results.push(e.message));
+        void host.share?.(new Blob([new Uint8Array(PICTURE_MAX_BYTES + 1)]), "big").catch((e: Error) => results.push(e.message));
       },
       { ...quietEnv, share: async f => (shared.push(f), true) },
     );
     await settle(10);
     expect(results).toEqual(expect.arrayContaining([true, "share: too big to send"]));
     expect(shared[0]).toMatchObject({ name: "pic.png", type: "image/png" });
+  });
+
+  it("a large picture (a 2.3 MB PNG, and one right at the cap) is downloaded whole", async () => {
+    const saved: Blob[] = [];
+    const pngOf = (n: number) => {
+      const b = new Uint8Array(n);
+      b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      return new Blob([b]);
+    };
+    const results: unknown[] = [];
+    withModule(
+      ["download"],
+      (_el, host) => {
+        for (const n of [2_300_000, PICTURE_MAX_BYTES]) void host.download?.(pngOf(n), "week").then(() => results.push(n), (e: Error) => results.push(e.message));
+      },
+      { ...quietEnv, download: f => void saved.push(f) },
+    );
+    await settle(16);
+    expect(results.sort()).toEqual([2_300_000, PICTURE_MAX_BYTES].sort());
+    expect(saved.map(b => [b.size, b.type])).toEqual([
+      [2_300_000, "image/png"],
+      [PICTURE_MAX_BYTES, "image/png"],
+    ]);
   });
 
   it("hit.set with a picture sends its alpha, scaled to 512 px a side at most", async () => {
