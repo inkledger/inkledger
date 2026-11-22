@@ -163,6 +163,12 @@ describe("mail copies: capture", () => {
       for (const path of ["view", "attachment/0", "view", "attachment/0"]) expect((await app.request(`/api/mail/${mail.id}/${path}`, { headers: { cookie: u.cookie } })).status).toBe(200);
       expect(parse).toHaveBeenCalledTimes(1);
       expect((await q("SELECT count(*)::int AS n FROM mail_copy_reads WHERE mail_id = ?", mail.id))[0]).toEqual({ n: 4 });
+      // Deleted, nothing of it stays: the same copy made again (parsed to be kept) is parsed again to be read.
+      await u.caller.mails.deleteCopy({ id: mail.id });
+      await pin(u.caller);
+      expect(parse).toHaveBeenCalledTimes(2);
+      expect((await app.request(`/api/mail/${mail.id}/view`, { headers: { cookie: u.cookie } })).status).toBe(200);
+      expect(parse).toHaveBeenCalledTimes(3);
     } finally {
       parse.mockRestore();
     }

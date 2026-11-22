@@ -241,6 +241,7 @@ export async function purgeOrphanMailCopies(now = Date.now()): Promise<number> {
     .delete(mailCopies)
     .where(and(lt(mailCopies.orphanedAt, new Date(now - ORPHAN_KEPT_MS)), sql`NOT ${pinned}`))
     .returning({ id: mailCopies.mailId });
+  if (gone.length) forgetParsedCopies();
   return gone.length;
 }
 
@@ -288,6 +289,8 @@ type Parsed = Awaited<ReturnType<typeof PostalMime.parse>>;
  * replaced has another key (its hash). Every read still opens and records the copy first.
  */
 const parsedCopies = new LruCache<string, { parsed: Parsed; bytes: number }>({ maxEntries: 4, maxSize: 64 * 1024 * 1024, sizeOf: (v) => v.bytes, ttlMs: 5 * 60_000 });
+/** Parsed copies forgotten (a copy deleted: nothing of it stays in memory). */
+export const forgetParsedCopies = (): void => parsedCopies.clear();
 const parsedOf = async (o: Opened): Promise<Parsed> =>
   (await parsedCopies.load(o.key, async () => ({ parsed: await PostalMime.parse(o.plain), bytes: o.plain.length })))?.parsed ?? PostalMime.parse(o.plain);
 

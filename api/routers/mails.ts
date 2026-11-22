@@ -11,7 +11,7 @@ import { mailAddinKeys, mailCopies, mailLinks, mails, markdownNotes, pinboardNot
 import type { TrpcContext } from "../context";
 import { env } from "../lib/env";
 import { providerCall } from "../providers/trpc";
-import { captureFromGraph, copyInfo, mailCopyColumns } from "../mail/copies";
+import { captureFromGraph, copyInfo, forgetParsedCopies, mailCopyColumns } from "../mail/copies";
 import { checkMail } from "../mail/goneCheck";
 import { findByMessageId, mailAccount, pollMailLogin, searchMailbox, signOutMail, startMailLogin } from "../mail/microsoft";
 import { todosRouter } from "./todos";
@@ -225,6 +225,7 @@ export const mailsRouter = createRouter({
   deleteCopy: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
     await ownMail(ctx.user.id, input.id);
     await getDb().delete(mailCopies).where(and(eq(mailCopies.mailId, input.id), eq(mailCopies.userId, ctx.user.id)));
+    forgetParsedCopies();
     return { ok: true as const };
   }),
 
@@ -248,6 +249,7 @@ export const mailsRouter = createRouter({
   /** Every copy of my mails gone at once; the pins stay (R-1.12). */
   deleteAllCopies: protectedProcedure.mutation(async ({ ctx }) => {
     const gone = await getDb().delete(mailCopies).where(eq(mailCopies.userId, ctx.user.id)).returning({ id: mailCopies.mailId });
+    forgetParsedCopies();
     return { count: gone.length };
   }),
 
