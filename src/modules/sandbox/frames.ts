@@ -3,6 +3,8 @@ import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
 import { frameMethods } from "./methods";
+import { capabilityMethods } from "./capabilities";
+import { createPageLight } from "./light";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 
 /**
@@ -42,6 +44,22 @@ const idle = (fn: () => void) => {
 };
 
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
+
+let pageLight: ReturnType<typeof createPageLight> | null = null;
+const light = () =>
+  (pageLight ??= createPageLight(
+    {
+      root: document.documentElement.style,
+      addStyle(css) {
+        const el = document.createElement("style");
+        el.id = "ikl-surface-light";
+        el.textContent = css;
+        document.head.append(el);
+        return el;
+      },
+    },
+    SURFACES,
+  ));
 
 /** A module that navigated: all its frames go, and it stays off until the page reloads. */
 function kill(id: string, why: string) {
@@ -88,13 +106,14 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }) } : null;
   const served = frameMethods(api, cas, box);
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light() });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({
     source: () => iframe.contentWindow,
     post: (m: HostMessage, transfer) => iframe.contentWindow?.postMessage(m, "*", transfer),
     capabilities: entry.capabilities,
-    methods: served.methods,
+    methods: { ...served.methods, ...caps.methods },
     onReady() {
       if (initialised) return;
       initialised = true;
@@ -134,6 +153,7 @@ function openFrame(
       live--;
       removePeer();
       served.dispose();
+      caps.dispose();
       disposeApi();
       iframe.remove();
     },

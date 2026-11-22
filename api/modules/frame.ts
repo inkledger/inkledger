@@ -30,7 +30,7 @@ const inlineJson = (v: unknown) => JSON.stringify(v).replace(/</g, LT);
  * print; Worker shimmed to work in an opaque frame; the host API rebuilt over
  * messages to the parent. Says ready, gets its role, then imports the entry.
  */
-const BOOTSTRAP = `const V = 1;
+export const BOOTSTRAP = `const V = 1;
 const quiet = () => {};
 const abs = (u) => new URL(u, location.href).href;
 const report = (e) => console.error("[module]", e);
@@ -144,13 +144,14 @@ async function start(init, port) {
       },
     },
   };
+  if (has("surfaces.light")) host.surfaces.light = (vars) => fire("surfaces.light", [vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, String(v)]))]);
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]) };
   const fail = (what, e) => send({ t: "failed", reason: (what + ": " + String((e && e.message) || e)).slice(0, 400) });
   let mod;
   try {
     // Pinned by the import map's integrity: other bytes never run.
-    mod = (await import(ENTRY)).default;
+    mod = (await load()).default;
   } catch (e) {
     return fail("load", e);
   }
@@ -208,6 +209,7 @@ export const frameDocument = (entryUrl: string, integrity: string, nonce: string
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#ikl-box{position:absolute;inset:0}</style>
 <script type="importmap" nonce="${nonce}">${inlineJson({ imports: {}, integrity: { [entryUrl]: integrity } })}</script>
 <script type="module" nonce="${nonce}">const ENTRY = ${inlineJson(entryUrl)};
+const load = () => import(ENTRY);
 ${BOOTSTRAP}</script>
 </head><body></body></html>
 `;
