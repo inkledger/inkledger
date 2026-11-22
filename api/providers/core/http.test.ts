@@ -69,6 +69,17 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
     expect(used[1]).toBe(agents.public);
   });
 
+  it("a next page behind a proxy that strips the API's path prefix is put back under the API base", async () => {
+    const { onApiOrigin } = await import("./http");
+    expect(onApiOrigin("https://host/api/v4/projects?page=2", "https://host/gitlab/api/v4", "/api/v4")).toBe("https://host/gitlab/api/v4/projects?page=2");
+    expect(onApiOrigin("http://internal:8080/api/v3/repos?page=2", "https://ghe.example/github/api/v3", "/api/v3")).toBe("https://ghe.example/github/api/v3/repos?page=2");
+    // Kept: on the API's own path, and github.com (no base path) never takes a foreign host.
+    expect(onApiOrigin("https://host/gitlab/api/v4/x?page=2", "https://host/gitlab/api/v4", "/api/v4")).toBe("https://host/gitlab/api/v4/x?page=2");
+    expect(onApiOrigin("https://evil.example/api/v3/x", "https://api.github.com", "/api/v3")).toBeNull();
+    expect(onApiOrigin("https://evil.example/other/x", "https://host/gitlab/api/v4", "/api/v4")).toBeNull();
+    expect(onApiOrigin("https://evil.example/api/v4x/x", "https://host/gitlab/api/v4", "/api/v4")).toBeNull();
+  });
+
   it("a redirect refused is an answer outside the contract: neither the tracker's refusal nor an outage", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/x" } })));
     const { safeFetch } = await import("./http");

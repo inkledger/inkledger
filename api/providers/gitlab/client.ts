@@ -95,7 +95,7 @@ const networkOf = (base: string) => {
 export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Promise<{ data: T; next: string | null; headers: Headers } | null> {
   const { missingIsNull, accept, intent, ...rest } = init;
   // A full address is a next page from a Link header (data from the network): followed with the token only on the API's own origin.
-  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase) : `${trimTrailingSlash(c.apiBase)}${path}`;
+  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase, "/api/v4") : `${trimTrailingSlash(c.apiBase)}${path}`;
   if (!url) throw new ProviderError("incompatible", "GitLab: a next page on another server");
   const res = await safeFetch({
     site: c.apiBase,

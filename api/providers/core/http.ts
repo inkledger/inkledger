@@ -34,14 +34,20 @@ const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "P
  * A next page named by the service (a Link header: data from the network), on the API's own
  * origin: as it is when it's there already; rebuilt there when it names another host but a
  * path under the API's own (a self-hosted server behind a proxy that doesn't say its public
- * name); null otherwise. The token never goes to another origin.
+ * name); null otherwise. The token never goes to another origin. `root` ("/api/v4"), when the
+ * base ends with it: a path outside the base (a proxy that strips a prefix the server doesn't
+ * know) keeps only what follows the root, put back under the base, as Gitea's pages are.
  */
-export function onApiOrigin(url: string, apiBase: string): string | null {
+export function onApiOrigin(url: string, apiBase: string, root?: string): string | null {
   const api = new URL(apiBase);
   const next = new URL(url);
-  if (next.origin === api.origin) return url;
   const base = api.pathname.replace(/\/+$/, "");
-  return base && (next.pathname === base || next.pathname.startsWith(`${base}/`)) ? `${api.origin}${next.pathname}${next.search}` : null;
+  const under = base !== "" && (next.pathname === base || next.pathname.startsWith(`${base}/`));
+  if (under) return next.origin === api.origin ? url : `${api.origin}${next.pathname}${next.search}`;
+  const at = root && base.endsWith(root) ? next.pathname.lastIndexOf(root) : -1;
+  const rest = root && at >= 0 ? next.pathname.slice(at + root.length) : null;
+  if (rest !== null && (rest === "" || rest.startsWith("/"))) return `${api.origin}${base}${rest}${next.search}`;
+  return next.origin === api.origin ? url : null;
 }
 
 /** How long a tracker may stay silent: before its headers, and between two chunks of its body. */

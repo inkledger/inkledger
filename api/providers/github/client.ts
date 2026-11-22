@@ -66,7 +66,7 @@ const READ_MAX = 500;
 /** One call; 404/410 as null when `missingIsNull`. */
 export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<{ data: T; next: string | null } | null> {
   // A full address is a next page from a Link header (data from the network): followed with the token only on the API's own origin.
-  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase) : `${trimTrailingSlash(c.apiBase)}${path}`;
+  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase, "/api/v3") : `${trimTrailingSlash(c.apiBase)}${path}`;
   if (!url) throw new ProviderError("incompatible", "GitHub: a next page on another server");
   const reads = (init.method ?? "GET").toUpperCase() === "GET";
   const key = reads ? `${sha256Hex(c.token).slice(0, 16)} ${url}` : "";
