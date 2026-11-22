@@ -454,7 +454,9 @@ describe("add-on modules", () => {
       const [[entryUrl, integrity]] = Object.entries(map.integrity);
       expect(entryUrl).toMatch(new RegExp(`^/modules/run/[^/]+/hello/${hash}/index[.]js$`));
       expect(integrity).toBe(`sha256-${createHash("sha256").update(ENTRY).digest("base64")}`);
-      expect(scripts[1][2]).toContain('type: "ready"');
+      expect(scripts[1][2]).toContain('send({ t: "ready" })');
+      // Nothing but the bootstrap's own text: the entry goes in as JSON.
+      expect(scripts[1][2]).toContain(`const ENTRY = ${JSON.stringify(entryUrl)};`);
       // The pinned URL is served, cookie-less, with those bytes.
       expect(await (await app.request(entryUrl)).text()).toBe(ENTRY);
       // A fresh nonce each time.
