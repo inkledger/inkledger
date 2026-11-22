@@ -130,10 +130,42 @@ describe("FlowMap aggregation", () => {
     ]).flat(2);
     const result = aggregateEvidence(events, descriptor, shellScope, "search-evidence", 0, { "shell.search": "shell.navigation", "shell.notifications": "shell.navigation" });
     expect(result.expectations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ pattern: "discoverability", destinationControlId: "shell.nav.issues", occurrences: 5 }),
+      // Three searches a session, each with its selection: every one of them counts.
+      expect.objectContaining({ pattern: "discoverability", destinationControlId: "shell.nav.issues", occurrences: 15 }),
       expect.objectContaining({ pattern: "missing-capability", occurrences: 3, confidence: 0.25 }),
     ]));
     expect(result.expectations.find(gap => gap.pattern === "missing-capability")?.destinationControlId).toBeUndefined();
+  });
+});
+
+describe("FlowMap searches and gaps", () => {
+  const shellScope: Scope = { surfaceId: "shell-desktop", deviceClass: "desktop" };
+  const areas = { "shell.search": "shell.navigation", "shell.notifications": "shell.navigation" };
+  /** Enough use for expectations: five days of thirty activations. */
+  const busyDays = Array.from({ length: 5 }, (_, day) => Array.from({ length: 6 }, (_, step) =>
+    event({ id: `busy-${day}-${step}`, scope: shellScope, controlId: "shell.notifications.open", anchorId: "shell.notifications", occurredAt: NOW - day * 86_400_000, sessionId: `busy-${day}`, sequence: step + 1 }))).flat();
+
+  it("keeps every search of a session, not only its last one", () => {
+    const session = (day: number) => ({ scope: shellScope, controlId: "shell.search.open", anchorId: "shell.search", occurredAt: NOW - day * 86_400_000, sessionId: `search-${day}` });
+    const events = [...busyDays, ...Array.from({ length: 3 }, (_, day) => [
+      event({ ...session(day), id: `first-${day}`, kind: "search.opened", sequence: 1 }),
+      event({ ...session(day), id: `gave-up-${day}`, kind: "search.abandoned", sequence: 2 }),
+      event({ ...session(day), id: `second-${day}`, kind: "search.opened", sequence: 3 }),
+    ]).flat()];
+    const result = aggregateEvidence(events, descriptor, shellScope, "searches", 0, areas);
+    expect(result.expectations).toEqual(expect.arrayContaining([expect.objectContaining({ pattern: "missing-capability", occurrences: 3 })]));
+  });
+
+  it("counts a drop the collector announced once, not again as a sequence jump", () => {
+    const events = [
+      event({ id: "one", sequence: 1 }),
+      event({ id: "three", sequence: 3 }),
+      event({ id: "four", sequence: 4, droppedBefore: 1 }),
+    ];
+    expect(aggregateEvidence(events, descriptor, scope, "drops").coverage.gaps).toBe(1);
+    // A jump no drop explains is still a gap of its own.
+    const lost = [event({ id: "a", sequence: 1 }), event({ id: "c", sequence: 3 }), event({ id: "f", sequence: 6, droppedBefore: 1 })];
+    expect(aggregateEvidence(lost, descriptor, scope, "lost").coverage.gaps).toBe(2);
   });
 });
 

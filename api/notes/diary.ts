@@ -5,7 +5,7 @@ import { issues, mailLinks, mails, markdownNotes, plannedEntries, worklogs } fro
 import { diaryDays, diaryMarkdown, type DiaryDay } from "@contracts/diary";
 import { getDb } from "../queries/connection";
 
-/** About this many characters of diary for a local model (≈ 8k tokens): longer notes are cut, never the days. */
+/** About this many characters of diary for a local model (≈ 8k tokens): longer notes are cut first, whole days only when that is not enough. */
 const DIARY_BUDGET_CHARS = 28_000;
 
 export type DiaryRange = { fromDay: string; toDay: string; from: string; to: string; folderId?: string | null };
@@ -63,7 +63,13 @@ export async function diaryFor(userId: number, range: DiaryRange): Promise<Diary
   });
 }
 
-/** The days as Markdown within the budget: each note's text is cut shorter until it fits. */
+const LATER_DAYS_CUT = "[… later days cut]";
+
+/**
+ * The days as Markdown within the budget: each note's text is cut shorter until it fits. Still too
+ * long, whole days go from the end, and the text says so; a single day over the budget alone is cut
+ * between characters, never inside one.
+ */
 export function diaryText(days: DiaryDay[]): { markdown: string; cut: boolean } {
   let noteChars = 4000;
   let markdown = diaryMarkdown(days, { noteChars });
@@ -71,5 +77,15 @@ export function diaryText(days: DiaryDay[]): { markdown: string; cut: boolean } 
     noteChars = Math.floor(noteChars / 2);
     markdown = diaryMarkdown(days, { noteChars });
   }
-  return { markdown: markdown.slice(0, DIARY_BUDGET_CHARS), cut: noteChars < 4000 || markdown.length > DIARY_BUDGET_CHARS };
+  if (markdown.length <= DIARY_BUDGET_CHARS) return { markdown, cut: noteChars < 4000 };
+  for (let kept = days.length - 1; kept >= 1 && markdown.length > DIARY_BUDGET_CHARS; kept--) {
+    markdown = `${diaryMarkdown(days.slice(0, kept), { noteChars })}\n\n${LATER_DAYS_CUT}`;
+  }
+  if (markdown.length > DIARY_BUDGET_CHARS) {
+    markdown = markdown.slice(0, DIARY_BUDGET_CHARS);
+    // A high surrogate left last is half a character: it goes too.
+    const last = markdown.charCodeAt(markdown.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) markdown = markdown.slice(0, -1);
+  }
+  return { markdown, cut: true };
 }

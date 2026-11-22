@@ -158,7 +158,10 @@ export function aggregateEvidence(
   let gaps = droppedEvents;
   const previousBySession = new Map<string, FlowEvent>();
   const previousEventBySession = new Map<string, FlowEvent>();
-  const searches = new Map<string, { anchorId?: string; selected: FlowEvent[]; abandoned: number }>();
+  type Search = { anchorId?: string; selected: FlowEvent[]; abandoned: number };
+  const searches = new Map<string, Search>();
+  /** Searches a later one in the same session replaced: each still counts once. */
+  const finishedSearches: Search[] = [];
   const sorted = [...events].sort((a, b) => byCodeUnit(a.sessionId, b.sessionId) || a.sequence - b.sequence || a.occurredAt - b.occurredAt || byCodeUnit(a.id, b.id));
   const newestControl = new Map<string, number>();
   const newestAnchor = new Map<string, number>();
@@ -170,6 +173,13 @@ export function aggregateEvidence(
   const currentMeaning = (event: FlowEvent) => event.controlId
     ? event.semanticRevision === (semanticRevisions.controls[event.controlId] ?? newestControl.get(event.controlId))
     : !event.anchorId || event.semanticRevision === (semanticRevisions.anchors[event.anchorId] ?? newestAnchor.get(event.anchorId));
+  // Drops the collector announced (droppedBefore), per session: the sequence jumps they leave are the same loss, counted once.
+  const announcedDrops = new Map<string, number>();
+  for (const event of sorted) {
+    if (event.descriptor.effectiveRevision === descriptor.effectiveRevision && currentMeaning(event) && event.droppedBefore) {
+      announcedDrops.set(event.sessionId, (announcedDrops.get(event.sessionId) ?? 0) + event.droppedBefore);
+    }
+  }
   for (const event of sorted) {
     if (event.descriptor.effectiveRevision !== descriptor.effectiveRevision) continue;
     if (!currentMeaning(event)) {
@@ -215,7 +225,11 @@ export function aggregateEvidence(
     }
     const previous = previousBySession.get(event.sessionId);
     const previousEvent = previousEventBySession.get(event.sessionId);
-    if (event.kind === "search.opened") searches.set(event.sessionId, { anchorId: event.anchorId, selected: [], abandoned: 0 });
+    if (event.kind === "search.opened") {
+      const earlier = searches.get(event.sessionId);
+      if (earlier) finishedSearches.push(earlier);
+      searches.set(event.sessionId, { anchorId: event.anchorId, selected: [], abandoned: 0 });
+    }
     if (event.kind === "search.selected") {
       const search = searches.get(event.sessionId) ?? { anchorId: event.anchorId, selected: [], abandoned: 0 };
       search.selected.push(event);
@@ -227,7 +241,12 @@ export function aggregateEvidence(
       search.abandoned++;
       searches.set(event.sessionId, search);
     }
-    if (previousEvent && previousEvent.scope.surfaceId === event.scope.surfaceId && event.sequence > previousEvent.sequence + 1) gaps++;
+    if (previousEvent && previousEvent.scope.surfaceId === event.scope.surfaceId && event.sequence > previousEvent.sequence + 1) {
+      const missing = event.sequence - previousEvent.sequence - 1;
+      const announced = announcedDrops.get(event.sessionId) ?? 0;
+      if (missing > announced) gaps++;
+      announcedDrops.set(event.sessionId, Math.max(0, announced - missing));
+    }
     if (previous?.controlId && event.controlId && previous.controlId !== event.controlId) {
       const key = `${previous.controlId}:${event.controlId}`;
       const edge = flows.get(key) ?? { fromControlId: previous.controlId, toControlId: event.controlId, count: 0 };
@@ -278,7 +297,7 @@ export function aggregateEvidence(
       const existing = searchGaps.get(id);
       searchGaps.set(id, { ...gap, id, state: "unconfirmed", occurrences: (existing?.occurrences ?? 0) + gap.occurrences, coverage: Math.min(1, (existing?.coverage ?? 0) + gap.coverage), confidence: gap.pattern === "missing-capability" ? 0.25 : Math.min(0.85, (existing?.confidence ?? 0) + gap.confidence / 5) });
     };
-    for (const search of searches.values()) {
+    for (const search of [...finishedSearches, ...searches.values()]) {
       const areaId = search.anchorId ? areasByAnchor[search.anchorId] : undefined;
       if (!areaId) continue;
       for (const selected of search.selected) {
