@@ -6,7 +6,7 @@ import { LICENSE_FILE_FORMAT, mediaUrl, pickBuild, type StoreCatalog, type Store
 import { t, type MessageKey } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
 import { env } from "../lib/env";
-import { getServerSetting, setServerSetting } from "../lib/serverSettings";
+import { getServerSetting, updateServerSetting } from "../lib/serverSettings";
 import {
   addLicense,
   installBundle,
@@ -41,7 +41,8 @@ const PAID_MAX_AGE_MS = 30 * 86_400_000;
 type Stored = StorePending & { token: string; created: number };
 
 const readPending = () => getServerSetting<Stored[]>(PENDING_KEY, []);
-const savePending = (list: Stored[]) => setServerSetting(PENDING_KEY, list);
+/** The pending list changed from what it is now, in one step: a poll and a click at once keep each other's change. */
+const updatePending = (change: (list: Stored[]) => Stored[]) => updateServerSetting<Stored[]>(PENDING_KEY, [], change);
 const publicPending = ({ product, kind, status, reason }: Stored): StorePending =>
   reason ? { product, kind, status, reason } : { product, kind, status };
 
@@ -132,8 +133,7 @@ export const storeRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const token = await requestLicense(input).catch(storeFailure);
-      const others = (await readPending()).filter((p) => p.product !== input.product);
-      await savePending([...others, { token, product: input.product, kind: "request", status: "pending", created: Date.now() }]);
+      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "request", status: "pending", created: Date.now() }]);
       return { ok: true as const };
     }),
 
@@ -144,8 +144,7 @@ export const storeRouter = createRouter({
         await forgetCatalog();
         return storeFailure(e);
       });
-      const others = (await readPending()).filter((p) => p.product !== input.product);
-      await savePending([...others, { token, product: input.product, kind: "paid", status: "pending", created: Date.now() }]);
+      await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "paid", status: "pending", created: Date.now() }]);
       return { url };
     }),
 
@@ -162,14 +161,14 @@ export const storeRouter = createRouter({
       if (r.installed) installed.push(p.product);
     }
     // Only what this poll changed; a request saved meanwhile is kept.
-    const current = await readPending();
-    const merged = current.flatMap((c) => {
-      const was = before.find((b) => b.token === c.token);
-      if (!was) return [c];
-      const now = after.find((a) => a.token === c.token);
-      return now ? [now] : [];
-    });
-    await savePending(merged);
+    const merged = await updatePending((current) =>
+      current.flatMap((c) => {
+        const was = before.find((b) => b.token === c.token);
+        if (!was) return [c];
+        const now = after.find((a) => a.token === c.token);
+        return now ? [now] : [];
+      }),
+    );
     return { pending: merged.map(publicPending), installed };
   }),
 
@@ -206,6 +205,6 @@ export const storeRouter = createRouter({
 
   /** Forgets a declined or failed entry (the page's "OK"), or cancels waiting. */
   dismiss: store.input(z.object({ product })).mutation(async ({ input }) => {
-    await savePending((await readPending()).filter((p) => p.product !== input.product));
+    await updatePending((list) => list.filter((p) => p.product !== input.product));
   }),
 });

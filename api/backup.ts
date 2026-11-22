@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { env } from "./lib/env";
-import { getServerSetting, setServerSetting } from "./lib/serverSettings";
+import { getServerSetting, setServerSetting, updateServerSetting } from "./lib/serverSettings";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { decisions, rememberedDevices, sessions, users } from "@db/schema";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
@@ -84,10 +84,13 @@ export async function getBackupSettings(): Promise<BackupSettings> {
 }
 
 export async function setBackupSettings(patch: Partial<BackupSettings>): Promise<BackupSettings> {
-  const next = backupSettingsSchema.parse({ ...(await getBackupSettings()), ...patch });
-  await setServerSetting(SETTINGS_KEY, next);
+  // In one step: a run recording its outcome and a change in Settings at once keep both.
+  const next = await updateServerSetting<unknown>(SETTINGS_KEY, {}, (stored) => {
+    const saved = backupSettingsSchema.partial().safeParse(stored);
+    return backupSettingsSchema.parse({ ...DEFAULT_BACKUP, ...(saved.success ? saved.data : {}), ...patch });
+  });
   reschedule();
-  return next;
+  return next as BackupSettings;
 }
 
 export async function getBackupState(): Promise<BackupState> {

@@ -27,7 +27,7 @@ import {
   isActive,
   licenseIssuer,
   listModules,
-  saveLicenses,
+  updateLicenses,
   storedLicenses,
   uninstall,
   validLicenses,
@@ -252,8 +252,7 @@ export const modulesRouter = createRouter({
   removeLicense: store
     .input(z.union([z.object({ id: z.string().min(1) }), z.object({ product: z.string().min(1) })]))
     .mutation(async ({ input }) => {
-      const texts = await storedLicenses();
-      await saveLicenses(
+      await updateLicenses((texts) =>
         texts.filter((x) => {
           const v = verifyLicense(x);
           if (!v.ok) return true;

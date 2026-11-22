@@ -2,7 +2,7 @@ import { z } from "zod";
 import { serverHosts } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { env } from "./env";
-import { getServerSetting, setServerSetting } from "./serverSettings";
+import { getServerSetting, updateServerSetting } from "./serverSettings";
 import { t } from "@contracts/i18n";
 
 /**
@@ -69,9 +69,10 @@ export async function getAccess(): Promise<Access> {
 }
 
 export async function setAccess(patch: Partial<Access>): Promise<Access> {
-  const next = { ...(await getAccess()), ...patch };
-  next.customHosts = [...new Set(next.customHosts)].sort();
-  await setServerSetting(ACCESS_KEY, next);
+  await updateServerSetting<Partial<Access>>(ACCESS_KEY, {}, (saved) => {
+    const next = { ...NO_ACCESS, ...saved, ...patch };
+    return { ...next, customHosts: [...new Set(next.customHosts)].sort() };
+  });
   accessCache = null;
   return getAccess();
 }

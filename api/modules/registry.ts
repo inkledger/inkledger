@@ -21,7 +21,7 @@ import { canonicalJSON } from "../vendor/seal/canonical.ts";
 import { verifyEnvelope } from "../vendor/seal/envelope.ts";
 import { pathInside, sha256hex, verifyPackage } from "../vendor/seal/package.ts";
 import { env } from "../lib/env";
-import { getServerSetting, setServerSetting } from "../lib/serverSettings";
+import { getServerSetting, setServerSetting, updateServerSetting } from "../lib/serverSettings";
 import { asPem, extraKey, LICENSE_ISSUERS, licenseKeys, packageKeys, type LicenseIssuer } from "./keys";
 import { activationStates } from "./activation";
 
@@ -152,6 +152,8 @@ export function licenseIssuer(text: string): LicenseIssuer | null {
 /** Stored licence texts (server-wide: every user of this server shares them). */
 export const storedLicenses = () => getServerSetting<string[]>(LICENSES_KEY, []);
 export const saveLicenses = (texts: string[]) => setServerSetting(LICENSES_KEY, texts);
+/** The stored licences changed from what they are now, in one step (see updateServerSetting). */
+export const updateLicenses = (change: (texts: string[]) => string[]) => updateServerSetting<string[]>(LICENSES_KEY, [], change);
 
 /**
  * Verifies and stores a licence (one per licence id: a newer copy replaces the
@@ -160,11 +162,14 @@ export const saveLicenses = (texts: string[]) => setServerSetting(LICENSES_KEY, 
 export async function addLicense(text: string): Promise<LicenseCheck> {
   const l = verifyLicense(text);
   if (!l.ok) return l;
-  const others = (await storedLicenses()).filter((x) => {
-    const v = verifyLicense(x);
-    return !v.ok || v.payload.id !== l.payload.id;
-  });
-  await saveLicenses([...others, text]);
+  // In one step with the stored list as it is now: a removal or another add at once is kept.
+  await updateServerSetting<string[]>(LICENSES_KEY, [], (stored) => [
+    ...stored.filter((x) => {
+      const v = verifyLicense(x);
+      return !v.ok || v.payload.id !== l.payload.id;
+    }),
+    text,
+  ]);
   return l;
 }
 
