@@ -192,6 +192,11 @@ async function start(init, port) {
       put: (k, b) => call("files.put", [k, b]).then(quiet),
       delete: (k) => call("files.delete", [k]).then(quiet),
     },
+    session: {
+      get: (k) => call("session.get", [String(k)]),
+      set: (k, v) => call("session.set", [String(k), String(v)]).then(quiet),
+      delete: (k) => call("session.delete", [String(k)]).then(quiet),
+    },
     storage: {
       get: (k) => call("storage.get", [k]),
       set: (k, v) => call("storage.set", [k, v]).then(quiet),

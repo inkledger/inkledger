@@ -36,6 +36,16 @@ type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient"
   budget: Sub<BudgetLevel>;
   /** As in v1; `update` runs `change` in the frame over a read and a conditional write. */
   storage: Required<HostApiV1["storage"]>;
+  /**
+   * Short strings kept for this tab's session (a reload keeps them, signing out
+   * drops them): what happens once a session. Keys up to 64 characters, values
+   * up to 4096, 32 keys.
+   */
+  session?: {
+    get(key: string): Promise<string | null>;
+    set(key: string, value: string): Promise<void>;
+    delete(key: string): Promise<void>;
+  };
 };
 
 /** Members present only when the manifest declares their capability (and the host offers it). */

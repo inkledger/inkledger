@@ -4,6 +4,7 @@ import { hitAreas } from "../hit";
 import type { BudgetLevel, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
+import { SESSION_KEY_MAX, SESSION_VALUE_MAX, type SessionStore } from "./session";
 
 /** Every host event a framed module may hear. */
 const EVENTS = [
@@ -27,6 +28,7 @@ const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch"];
 
 const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);
+const sessionKey = z.string().min(1).max(SESSION_KEY_MAX);
 const num = z.number().finite();
 const region = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rect"), x: num, y: num, w: num.min(0), h: num.min(0) }).strict(),
@@ -71,6 +73,7 @@ export function frameMethods(
   cas: Cas,
   view: ViewBox | null,
   budget: (fn: (b: BudgetLevel) => void) => () => void = fn => (fn("normal"), () => {}),
+  session: { moduleId: string; store: SessionStore } | null = null,
 ): { methods: Record<string, Method>; dispose(): void } {
   const subs = new Map<number, () => void>();
   const subscribe = (id: number, ctx: MethodContext, off: () => void) => {
@@ -128,6 +131,13 @@ export function frameMethods(
     "storage.set": method({ args: z.tuple([key, z.unknown()]), rate: [4, 16], run: ([k, v]) => api.storage.set(k, v) }),
     "storage.delete": method({ args: z.tuple([key]), rate: [4, 16], run: ([k]) => api.storage.delete(k) }),
     "storage.read": method({ args: z.tuple([key]), rate: [10, 30], run: ([k]) => cas.read(k) }),
+    "session.get": method({ args: z.tuple([sessionKey]), rate: [10, 30], run: ([k]) => session?.store.get(session.moduleId, k) ?? null }),
+    "session.set": method({
+      args: z.tuple([sessionKey, z.string().max(SESSION_VALUE_MAX)]),
+      rate: [4, 16],
+      run: ([k, v]) => session?.store.set(session.moduleId, k, v),
+    }),
+    "session.delete": method({ args: z.tuple([sessionKey]), rate: [4, 16], run: ([k]) => session?.store.delete(session.moduleId, k) }),
     "storage.setIf": method({
       args: z.tuple([key, z.unknown(), z.number().int().min(0)]),
       rate: [4, 16],

@@ -15,6 +15,7 @@ import { createHub, type Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
 import { FramedBox } from "./sandbox/FrameHost";
 import { keepRuntimes } from "./sandbox/frames";
+import { moduleSessions } from "./sandbox/session";
 import type { SlotId } from "./types";
 import { ModulesContext } from "./context";
 import type { BackdropVisibility } from "@contracts/modules";
@@ -68,6 +69,8 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
     return () => {
       made.dispose();
       setHub(null);
+      // Signed out (or no module left): no module's session outlives it.
+      moduleSessions.clear();
     };
   }, [active, queryClient, utils]);
 

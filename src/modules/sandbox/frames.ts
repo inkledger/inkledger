@@ -17,6 +17,7 @@ import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-la
 import { sidebar } from "@/hooks/useSidebar";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 import { budgetOf, markStopped, watchFrame } from "./watchdog";
+import { moduleSessions } from "./session";
 
 /**
  * Framed modules on the page: one sandboxed view frame per slot mount, and
@@ -191,7 +192,7 @@ function openFrame(
   // The sheet is no manifest slot: its API is the module's as in its first slot.
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
-  const served = frameMethods(api, cas, box, budgetOf(entry.id));
+  const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions });
   const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(t => push(readLook(t))), fonts } });
   let initialised = false;
   let mounted = false;
