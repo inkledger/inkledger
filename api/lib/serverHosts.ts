@@ -106,7 +106,7 @@ export async function allowedHostsNow(): Promise<string[]> {
   return [...env.allowedHosts, ...(await extraHosts()), ...(a.tailscaleHost ? [a.tailscaleHost] : []), ...a.customHosts];
 }
 
-/** For tests that reset the database. */
+/** After the database is replaced (a restore, a test's reset). */
 export function resetServerHostsCache() {
   lanCache = null;
   accessCache = null;

@@ -4,8 +4,9 @@ import path from "node:path";
 import { z } from "zod";
 import { env } from "./lib/env";
 import { getServerSetting, setServerSetting, updateServerSetting } from "./lib/serverSettings";
-import { and, eq, gt, isNull } from "drizzle-orm";
-import { decisions, rememberedDevices, sessions, users } from "@db/schema";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { decisions, rememberedDevices, sessions, settings, users } from "@db/schema";
+import { resetServerHostsCache } from "./lib/serverHosts";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { enterMaintenance, leaveMaintenance } from "./lib/maintenance";
 import { t } from "@contracts/i18n";
@@ -289,6 +290,8 @@ export async function restoreBackup(
       const { settleInFlightSyncs } = await import("./sync/orchestrator");
       await settleInFlightSyncs(30_000);
       const safety = await runBackup();
+      // The newest share-link generation now: a link revoked since the backup stays revoked.
+      const [{ shares }] = await getDb().select({ shares: sql<number>`coalesce(max(${settings.shareLinkGeneration}), 0)`.mapWith(Number) }).from(settings);
       let replaced = false;
       try {
         await restoreInto(pgTarget(), file);
@@ -296,7 +299,7 @@ export async function restoreBackup(
         // A backup from an older version lacks the newest columns: bring it up to date.
         await migrateDb();
         // On the schema of now: whoever restored signs in on.
-        await signOutAfterRestore(opts.keepSession, device);
+        await signOutAfterRestore(opts.keepSession, device, shares);
       } catch (e) {
         const cause = e instanceof Error ? e.message : String(e);
         // Not replaced (the transaction never committed): the data is as it was.
@@ -311,6 +314,9 @@ export async function restoreBackup(
           throw new Error(t("server.backup.stuck", { cause, safety, again: e2 instanceof Error ? e2.message : String(e2) }), { cause: e });
         }
         throw new Error(t("server.backup.broughtBack", { cause, safety }), { cause: e });
+      } finally {
+        // What was read of the replaced data (allowed hosts, access) is read again.
+        if (replaced) resetServerHostsCache();
       }
       return { safety };
     } finally {
@@ -328,10 +334,12 @@ export async function restoreBackup(
  */
 type Keep = { id: string; userId: number; username: string; deviceId?: string };
 
-async function signOutAfterRestore(keep?: Keep, device?: { expiresAt: Date; lastUsedAt: Date; createdAt: Date }) {
+async function signOutAfterRestore(keep?: Keep, device?: { expiresAt: Date; lastUsedAt: Date; createdAt: Date }, shares = 0) {
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
+  // Share links signed before (revoked since the backup or not) stop: above any generation used.
+  await db.update(settings).set({ shareLinkGeneration: sql`greatest(${settings.shareLinkGeneration}, ${shares}) + 1` });
   // Questions open then are not questions now: the restored data says what is to log.
   await db.delete(decisions);
   if (!keep) return;

@@ -35,7 +35,7 @@ process.env.PSQL_BIN = path.join(BIN, "psql");
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi);
 
 /** Migrations failing after a restore, as many times as asked (a backup the schema of now can't take). */
-const migrate = vi.hoisted(() => ({ failures: 0 }));
+const migrate = vi.hoisted(() => ({ failures: 0, restored: null as null | (() => Promise<unknown>) }));
 vi.mock("./queries/connection", async (importOriginal) => {
   const real = await importOriginal<typeof import("./queries/connection")>();
   return {
@@ -45,6 +45,10 @@ vi.mock("./queries/connection", async (importOriginal) => {
         migrate.failures--;
         throw new Error("migration failed");
       }
+      // What the restored dump held (the fake psql writes nothing): set by a test, once.
+      const restored = migrate.restored;
+      migrate.restored = null;
+      await restored?.();
       return real.migrateDb();
     },
   };
@@ -223,6 +227,26 @@ describe("backups on disk", () => {
     // In the backup, that id is someone else's: the session isn't handed to them.
     await b.restoreBackup("inkledger-20200102-000000.dump", { keepSession: { id: "mine", userId: other.id, username: "restorer" } });
     expect(await q("SELECT id FROM sessions")).toEqual([]);
+  });
+
+  it("after a restore nothing of the replaced data stays in memory, and no share link revoked before works again", async () => {
+    const b = await import("./backup");
+    const { q } = await import("./queries/connection");
+    const { getAccess, setAccess } = await import("./lib/serverHosts");
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('sharer', 'S', 1) RETURNING id");
+    await q("INSERT INTO settings (user_id, share_link_generation) VALUES (?, 3)", u.id);
+    await setAccess({ tailscaleHost: "old.tail1.ts.net" });
+    expect((await getAccess()).tailscaleHost).toBe("old.tail1.ts.net");
+    // The backup: from before that host was added, and before the links were revoked twice.
+    migrate.restored = async () => {
+      await q("DELETE FROM server_settings WHERE key = 'access'");
+      await q("UPDATE settings SET share_link_generation = 1 WHERE user_id = ?", u.id);
+    };
+    fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
+    await b.restoreBackup("inkledger-20200102-000000.dump");
+    expect((await getAccess()).tailscaleHost).toBeNull();
+    const [s] = await q<{ g: number }>("SELECT share_link_generation AS g FROM settings WHERE user_id = ?", u.id);
+    expect(s.g).toBeGreaterThan(3);
   });
 
   it("what went wrong reaches the admin as such (the production server hides internal errors' words)", async () => {
