@@ -135,6 +135,28 @@ const views = (fn) => {
   return () => { onView = null; };
 };
 
+// A slot sized by its content (settings, sidebar): the height of what the box holds (a scroller
+// filling it counts its scrolled content), told the host on each change, never the same twice.
+const fitHeight = (box) => {
+  let last = -1, queued = false;
+  const tell = () => {
+    queued = false;
+    let h = 0;
+    for (const c of Array.from(box.children || [])) h = Math.max(h, (c.offsetTop || 0) + Math.max(c.offsetHeight || 0, c.scrollHeight || 0));
+    h = Math.min(100000, Math.ceil(h));
+    if (h !== last) { last = h; send({ t: "size", h }); }
+  };
+  const queue = () => { if (!queued) { queued = true; setTimeout(tell, 0); } };
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(queue);
+    const watchAll = () => { ro.observe(box); for (const c of Array.from(box.children || [])) ro.observe(c); };
+    watchAll();
+    if (typeof MutationObserver === "function") new MutationObserver(() => { watchAll(); queue(); }).observe(box, { childList: true, subtree: true, characterData: true });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(queue, quiet);
+  queue();
+};
+
 // The app's look: its tokens (again on every theme change) and its fonts.
 const sheet = (id) => {
   let el = document.getElementById(id);
@@ -249,6 +271,7 @@ async function start(init, port) {
       document.body.append(box);
       const off = mount(box, host);
       if (typeof off === "function") unmount = off;
+      if (init.fit) fitHeight(box);
     }
     send({ t: "mounted" });
   } catch (e) {

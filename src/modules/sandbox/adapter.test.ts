@@ -257,6 +257,33 @@ describe("the frame's host API (bootstrap)", () => {
     port1.close();
   });
 
+  it("a slot sized by its content: the frame tells the height of what it holds, again on every change, never the same twice", async () => {
+    const sizes: number[] = [];
+    let resized: (() => void) | null = null;
+    class ResizeObserver {
+      constructor(cb: () => void) {
+        resized = cb;
+      }
+      observe() {}
+      disconnect() {}
+    }
+    // A flow row, and a scroller filling the box (its content only in scrollHeight).
+    const row = { offsetTop: 0, offsetHeight: 40, scrollHeight: 40 };
+    const scroller = { offsetTop: 0, offsetHeight: 0, scrollHeight: 120 };
+    const mod = { id: "m", hostApi: 2, mount: { settings: (el: { children?: unknown[] }) => ((el.children = [row, scroller]), () => {}) } };
+    bootFrame({ capabilities: [], mod, methods: {}, slot: "settings", fit: true, onSize: h => sizes.push(h), globals: { ResizeObserver } });
+    await settle(10);
+    expect(sizes).toEqual([120]);
+    row.offsetHeight = 200.4;
+    (resized as (() => void) | null)?.();
+    (resized as (() => void) | null)?.();
+    await settle(10);
+    expect(sizes).toEqual([120, 201]);
+    (resized as (() => void) | null)?.();
+    await settle(10);
+    expect(sizes).toEqual([120, 201]);
+  });
+
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
     const got: unknown[] = [];
     const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };

@@ -25,6 +25,8 @@ export const frameMessageSchema = z.discriminatedUnion("t", [
   z.object({ v, t: z.literal("mounted") }).strict(),
   // The view's cleanup ran (asked by "unmount"): its frame may go.
   z.object({ v, t: z.literal("unmounted") }).strict(),
+  // A slot sized by its content: the height (CSS px) of what the view holds.
+  z.object({ v, t: z.literal("size"), h: z.number().min(0).max(100_000) }).strict(),
   // Twice a second, with the frame's own long-task time since the last one (the watchdog's).
   z.object({ v, t: z.literal("beat"), busy: z.number().min(0).max(60_000) }).strict(),
   z.object({ v, t: z.literal("failed"), reason: z.string().max(500) }).strict(),
@@ -51,6 +53,8 @@ export type HostMessage =
       locale: "en" | "it";
       capabilities: readonly ModuleCapability[];
       catalog: unknown;
+      /** Sized by its content: the view tells its height. */
+      fit: boolean;
     }
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: true; value: unknown }
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: false; error: string }
@@ -169,6 +173,7 @@ export type RpcPeerOptions = {
   onReady?(): void;
   onMounted?(): void;
   onUnmounted?(): void;
+  onSize?(height: number): void;
   onBeat?(busyMs: number): void;
   onFailed?(reason: string): void;
   /** A message refused (not counted: other windows' messages, which are none of this peer's business). */
@@ -232,6 +237,7 @@ export function createRpcPeer(o: RpcPeerOptions) {
       if (msg.t === "ready") o.onReady?.();
       else if (msg.t === "mounted") o.onMounted?.();
       else if (msg.t === "unmounted") o.onUnmounted?.();
+      else if (msg.t === "size") o.onSize?.(msg.h);
       else if (msg.t === "beat") o.onBeat?.(msg.busy);
       else if (msg.t === "failed") o.onFailed?.(msg.reason);
       else {

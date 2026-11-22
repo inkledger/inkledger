@@ -30,6 +30,9 @@ import { budgetOf, markStopped, watchFrame } from "./watchdog";
 const MAX_FRAMES = 8;
 /** How long a removed view's cleanup may take before its frame goes anyway. */
 const UNMOUNT_MS = 250;
+/** Slots with no height of their own: the view frame takes its content's, up to FIT_MAX_PX. */
+const FIT_SLOTS: readonly ViewSlot[] = ["settings", "sidebar-footer", "mobile-more"];
+const FIT_MAX_PX = 2000;
 
 let live = 0;
 const peers = new Set<RpcPeer>();
@@ -167,8 +170,20 @@ function openFrame(
     iframe.setAttribute("aria-hidden", "true");
     iframe.tabIndex = -1;
   }
+  const fit = role === "view" && FIT_SLOTS.includes(slot);
   // Same colour scheme as the frame's document, or the browser paints it opaque.
-  Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" ? "100%" : "0", colorScheme: "normal", background: "transparent" });
+  Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" && !fit ? "100%" : "0", colorScheme: "normal", background: "transparent" });
+  // Its content's height, once a frame at most (no 150 px default).
+  let sizeFrame = 0;
+  let sizeNext = 0;
+  const resize = (h: number) => {
+    if (!fit) return;
+    sizeNext = Math.min(h, FIT_MAX_PX);
+    sizeFrame ||= requestAnimationFrame(() => {
+      sizeFrame = 0;
+      iframe.style.height = `${sizeNext}px`;
+    });
+  };
   // The sheet is no manifest slot: its API is the module's as in its first slot.
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
@@ -188,7 +203,7 @@ function openFrame(
       initialised = true;
       const transfer = ready(peer);
       peer.send(
-        { v: RPC_VERSION, t: "init", role, moduleId: entry.id, slot: role === "view" ? slot : null, locale: locale(), capabilities: entry.capabilities, catalog: SURFACES },
+        { v: RPC_VERSION, t: "init", role, moduleId: entry.id, slot: role === "view" ? slot : null, locale: locale(), capabilities: entry.capabilities, catalog: SURFACES, fit },
         transfer,
       );
     },
@@ -197,6 +212,7 @@ function openFrame(
       iframe.dataset.state = "live";
     },
     onUnmounted: () => onUnmounted?.(),
+    onSize: resize,
     onBeat: busy => watch?.beat(busy),
     onFailed(reason) {
       iframe.dataset.state = "failed";
@@ -230,6 +246,8 @@ function openFrame(
       stopped = true;
       watch?.dispose();
       watch = null;
+      cancelAnimationFrame(sizeFrame);
+      sizeFrame = 0;
       let ended = false;
       let deadline: ReturnType<typeof setTimeout> | undefined = undefined;
       const end = () => {

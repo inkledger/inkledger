@@ -19,6 +19,9 @@ export function bootFrame(o: {
   onUnmounted?(): void;
   /** The view's port to its runtime, given with init. */
   port?: MessagePort;
+  /** A slot sized by its content: the frame tells its height. */
+  fit?: boolean;
+  onSize?(h: number): void;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const parentWin = {
@@ -70,8 +73,9 @@ export function bootFrame(o: {
     capabilities: o.capabilities,
     methods: o.methods,
     onUnmounted: () => o.onUnmounted?.(),
+    onSize: h => o.onSize?.(h),
     onReady() {
-      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {} }, o.port ? [o.port] : []);
+      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false }, o.port ? [o.port] : []);
     },
   });
   vm.runInContext(BOOTSTRAP, context);
