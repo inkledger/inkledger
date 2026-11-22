@@ -13,7 +13,7 @@ import { issueAt } from "../queries/issueAt";
 import { connections, issues, outbox, worklogs } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
 import { CLAIM_TTL_MS, replayContract, unbury } from "../sync/timeWrites";
-import { heldSinkDelete, pushSinks } from "../sync/extraSinks";
+import { dropHeldSinkDeletes, heldSinkDelete, holdSinkDeletes, pushSinks } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";
 import { singleFlight } from "../lib/locks";
 
@@ -91,9 +91,13 @@ export const outboxRouter = createRouter({
     .input(z.object({ id: z.number().int() }))
     .mutation(({ ctx, input }) =>
       // Never alongside a replay: it could post the entry right after it is dropped.
-      withOutboxLock(ctx.user.id, () =>
+      withOutboxLock(ctx.user.id, async () => {
+        // A create's worklog already filed on the sinks beside its tracker: those entries go with it (held until it is gone).
+        const filed = await createdWorklog(ctx.user.id, input.id);
+        if (filed) await holdSinkDeletes(filed);
         // Only while no replay (another process on this database included) is sending it.
-        getDb().transaction(async (db) => {
+        try {
+          return await getDb().transaction(async (db) => {
           const [entry] = await db
             .delete(outbox)
             .where(and(eq(outbox.id, input.id), eq(outbox.userId, ctx.user.id), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS))))
@@ -117,7 +121,22 @@ export const outboxRouter = createRouter({
               );
           }
           return { ok: true };
-        }),
-      ),
+          });
+        } finally {
+          // Kept (being sent, or no longer queued): its held deletes go; gone, they are due.
+          if (filed) await dropHeldSinkDeletes(filed.id);
+        }
+      }),
     ),
 });
+
+/** The worklog a queued create stands for. */
+async function createdWorklog(userId: number, id: number) {
+  const [entry] = await getDb().select().from(outbox).where(and(eq(outbox.id, id), eq(outbox.userId, userId), eq(outbox.kind, "create")));
+  if (!entry) return null;
+  const [w] = await getDb()
+    .select()
+    .from(worklogs)
+    .where(and(eq(worklogs.userId, userId), eq(worklogs.connectionId, entry.connectionId), entry.worklogId !== null ? eq(worklogs.id, entry.worklogId) : and(eq(worklogs.issueKey, entry.issueKey), eq(worklogs.remoteId, `${PENDING_PREFIX}${entry.id}`))));
+  return w ?? null;
+}

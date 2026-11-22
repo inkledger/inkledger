@@ -144,6 +144,28 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
   });
 
+  it("a queued create discarded after the sink filed its worklog: the entry there goes too", async () => {
+    const tracker = fakes.tracker as { worklogs: Record<string, (...a: unknown[]) => Promise<unknown>> };
+    const { ProviderError } = await import("../providers/core/errors");
+    const real = tracker.worklogs.create;
+    tracker.worklogs.create = async () => {
+      throw new ProviderError("unavailable", "fake: down");
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-22T09:00:00+02:00", comment: "discarded" });
+      expect(made.remoteId).toMatch(/^pending-/);
+      await push();
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-22")).toHaveLength(1);
+      const [queued] = await q<{ id: number }>("SELECT id FROM outbox WHERE kind = 'create'");
+      await caller.outbox.discard({ id: queued.id });
+      await push();
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-22")).toEqual([]);
+    } finally {
+      tracker.worklogs.create = real;
+      await q("DELETE FROM outbox");
+    }
+  });
+
   it("a worklog deleted while its create to the sink is under way: the entry that lands goes at once", async () => {
     const { pushOne, boundSink } = await import("./extraSinks");
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-18T09:00:00+02:00", comment: "under way" });
