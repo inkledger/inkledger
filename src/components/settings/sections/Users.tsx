@@ -60,6 +60,8 @@ function ModuleGrants({ value, onChange, admin }: { value: Access; onChange: (v:
 /** Role, what a member may manage (an admin may manage everything), and the modules it runs. */
 function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access) => void }) {
   const admin = value.role === "admin";
+  // Only an admin makes an account manager (the server refuses it to anyone else).
+  const byAdmin = useAuth().user?.role === "admin";
   return (
     <>
       <SegmentedControl
@@ -79,7 +81,7 @@ function AccessFields({ value, onChange }: { value: Access; onChange: (v: Access
           <label key={p} className="flex items-center gap-2 text-body-sm">
             <Checkbox
               checked={admin || value.permissions.includes(p)}
-              disabled={admin}
+              disabled={admin || (p === "manageUsers" && !byAdmin && !value.permissions.includes(p))}
               onCheckedChange={on =>
                 onChange({ ...value, permissions: on === true ? [...value.permissions, p] : value.permissions.filter(x => x !== p) })
               }
