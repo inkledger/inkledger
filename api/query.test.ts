@@ -59,8 +59,8 @@ describe("query language", () => {
 
   it("never fails: what can't be read is text or a warning", () => {
     expect(parseQuery("colour:red")).toEqual({ expr: { kind: "text", text: "colour:red" }, warnings: [{ code: "unknownField", at: "colour:red" }] });
-    expect(parseQuery("updated:someday").warnings).toEqual([{ code: "badValue", at: "updated:someday" }]);
-    expect(parseQuery("status:").warnings).toEqual([{ code: "emptyValue", at: "status:" }]);
+    expect(parseQuery("updated:someday").warnings).toEqual([{ code: "badValue", at: "updated:someday", dropped: true }]);
+    expect(parseQuery("status:").warnings).toEqual([{ code: "emptyValue", at: "status:", dropped: true }]);
     expect(parseQuery("(a b").expr).toEqual({ kind: "and", items: [{ kind: "text", text: "a" }, { kind: "text", text: "b" }] });
     expect(parseQuery("a ) b").warnings).toEqual([{ code: "unbalanced", at: ")" }]);
     expect(parseQuery('"open').expr).toEqual({ kind: "text", text: "open" });

@@ -19,9 +19,10 @@ const canonical = (text: string) => formatQuery(parseQuery(text).expr, "en") || 
 /**
  * A query kept for good (a saved search, a bucket) must read as typed: a term it can't read
  * would be dropped and the query kept wider (a bucket of only "is:foo" matches everything).
+ * A word that only looks like a field ("re:meeting") stays a text search: kept.
  */
 export function assertReadable(text: string): void {
-  const bad = parseQuery(text).warnings.filter((w) => w.code === "badValue" || w.code === "unknownField");
+  const bad = parseQuery(text).warnings.filter((w) => w.dropped);
   if (bad.length > 0) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.queries.badTerms", { terms: bad.map((w) => w.at).join(", ") }) });
 }
 

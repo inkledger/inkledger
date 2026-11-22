@@ -72,8 +72,15 @@ describe("buckets, per device", () => {
   it("a bucket's query with a term it can't read is refused, never saved wider (is:foo would match everything)", async () => {
     const phone = await onDevice("device-phone-2");
     await expect(phone.buckets.save({ name: "Odd", sources: [{ connectionId: c2, containerId: null }], query: "is:foo" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    await expect(phone.buckets.save({ name: "Odd", sources: [{ connectionId: c2, containerId: null }], query: "colour:red" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(phone.buckets.save({ name: "Odd", sources: [{ connectionId: c2, containerId: null }], query: "status:" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(phone.queries.save({ name: "Odd", query: "is:foo" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(phone.queries.save({ name: "Odd", query: "status: foo" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("a word that only looks like a field (re:meeting, a pasted error) is searched as text: saved as typed", async () => {
+    const phone = await onDevice("device-phone-2");
+    await expect(phone.queries.save({ name: "Re", query: "re:meeting" })).resolves.toBeTruthy();
+    await expect(phone.buckets.save({ name: "Errors", sources: [{ connectionId: c2, containerId: null }], query: "TypeError:undefined" })).resolves.toBeTruthy();
   });
 
   it("a bucket on one device narrows that device's lists only", async () => {

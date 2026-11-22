@@ -39,7 +39,8 @@ export type QueryTerm =
 
 export type QueryExpr = QueryTerm | { kind: "and"; items: QueryExpr[] } | { kind: "or"; items: QueryExpr[] } | { kind: "not"; item: QueryExpr };
 
-export type QueryWarning = { code: "unknownField" | "badValue" | "unbalanced" | "emptyValue"; at: string };
+/** `dropped`: the term is left out of the query (it widens), not kept as a text search. */
+export type QueryWarning = { code: "unknownField" | "badValue" | "unbalanced" | "emptyValue"; at: string; dropped?: true };
 export type ParsedQuery = { expr: QueryExpr | null; warnings: QueryWarning[] };
 
 type Lang = "en" | "it";
@@ -261,7 +262,7 @@ function termOf(word: string, quoted: boolean, warnings: QueryWarning[]): QueryT
     const op = (sign === "" ? "=" : sign) as QueryOp;
     const value = m[4];
     if (!value) {
-      warnings.push({ code: "emptyValue", at: word });
+      warnings.push({ code: "emptyValue", at: word, dropped: true });
       return null;
     }
     if (field === "field" && !m[2]) {
@@ -275,7 +276,7 @@ function termOf(word: string, quoted: boolean, warnings: QueryWarning[]): QueryT
       (field === "cat" && !(value.toLowerCase() in CAT_VALUES)) ||
       (op !== "=" && !["priority", "field", ...DATE_FIELDS].includes(field));
     if (bad) {
-      warnings.push({ code: "badValue", at: word });
+      warnings.push({ code: "badValue", at: word, dropped: true });
       return null;
     }
     // Known values in English (a priority's name by its rank): one query, whichever language wrote it.
