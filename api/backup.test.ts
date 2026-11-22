@@ -235,18 +235,24 @@ describe("backups on disk", () => {
     const { getAccess, setAccess } = await import("./lib/serverHosts");
     const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('sharer', 'S', 1) RETURNING id");
     await q("INSERT INTO settings (user_id, share_link_generation) VALUES (?, 3)", u.id);
+    const [later] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('sharer-later', 'L', 1) RETURNING id");
+    await q("INSERT INTO settings (user_id, share_link_generation) VALUES (?, 2)", later.id);
     await setAccess({ tailscaleHost: "old.tail1.ts.net" });
     expect((await getAccess()).tailscaleHost).toBe("old.tail1.ts.net");
     // The backup: from before that host was added, and before the links were revoked twice.
     migrate.restored = async () => {
       await q("DELETE FROM server_settings WHERE key = 'access'");
       await q("UPDATE settings SET share_link_generation = 1 WHERE user_id = ?", u.id);
+      // Its settings came after the backup: none in it.
+      await q("DELETE FROM settings WHERE user_id = ?", later.id);
     };
     fs.writeFileSync(path.join(DIR, "inkledger-20200102-000000.dump"), "x");
     await b.restoreBackup("inkledger-20200102-000000.dump");
     expect((await getAccess()).tailscaleHost).toBeNull();
     const [s] = await q<{ g: number }>("SELECT share_link_generation AS g FROM settings WHERE user_id = ?", u.id);
     expect(s.g).toBeGreaterThan(3);
+    const [l] = await q<{ g: number }>("SELECT share_link_generation AS g FROM settings WHERE user_id = ?", later.id);
+    expect(l?.g).toBeGreaterThan(2);
   });
 
   it("what went wrong reaches the admin as such (the production server hides internal errors' words)", async () => {

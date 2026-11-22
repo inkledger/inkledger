@@ -338,8 +338,12 @@ async function signOutAfterRestore(keep?: Keep, device?: { expiresAt: Date; last
   const db = getDb();
   await db.delete(rememberedDevices);
   await db.delete(sessions);
-  // Share links signed before (revoked since the backup or not) stop: above any generation used.
-  await db.update(settings).set({ shareLinkGeneration: sql`greatest(${settings.shareLinkGeneration}, ${shares}) + 1` });
+  // Share links signed before (revoked since the backup or not) stop: above any generation used,
+  // for every account (one whose settings came after the backup too).
+  await db.execute(
+    sql`INSERT INTO settings (user_id, share_link_generation) SELECT id, ${shares} + 1 FROM users
+      ON CONFLICT (user_id) DO UPDATE SET share_link_generation = greatest(settings.share_link_generation, ${shares}) + 1`,
+  );
   // Questions open then are not questions now: the restored data says what is to log.
   await db.delete(decisions);
   if (!keep) return;
