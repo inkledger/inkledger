@@ -75,7 +75,9 @@ const startedAt = Date.now();
 const migrations = () => {
   const r = spawnSync("docker", ["exec", DB, "psql", "-U", "inkledger", "-d", "inkledger", "-Atc", "select count(*) from drizzle.__drizzle_migrations"], { cwd: ROOT, encoding: "utf8" });
   const n = r.stdout?.trim() ?? "";
-  return r.status === 0 && /^\d+$/.test(n) ? n : null;
+  if (r.status === 0 && /^\d+$/.test(n)) return n;
+  // A database the app never migrated yet has no journal: none applied.
+  return /__drizzle_migrations" does not exist|schema "drizzle" does not exist/.test(r.stderr ?? "") ? "0" : null;
 };
 /** This run's dump, if it made one. */
 const thisRunsDump = () =>
@@ -112,6 +114,10 @@ if (!args.has("--no-backup")) {
   }
 }
 
+// The database must answer before anything changes (its migrations tell whether a rollback must restore it).
+const migratedBefore = dry ? "" : migrations();
+if (migratedBefore === null) throw new Error("docker-update: can't read the database's migrations: nothing changed");
+
 // 2. Keep the running image for a rollback.
 if (previous) run("docker", ["tag", `${IMAGE}:latest`, `${IMAGE}:prev`]);
 
@@ -127,8 +133,6 @@ if (RELEASE_IMAGE) {
 const buildMs = Date.now() - b0;
 
 // 4. Swap the app container (the database keeps running).
-const migratedBefore = dry ? "" : migrations();
-if (migratedBefore === null) throw new Error("docker-update: can't read the database's migrations: the app container was not swapped");
 const u0 = Date.now();
 run("docker", compose("up", "-d", "--no-deps", "--no-build", APP));
 if (dry) process.exit(0);
