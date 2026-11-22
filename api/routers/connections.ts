@@ -423,6 +423,8 @@ export const connectionsRouter = createRouter({
           encryptedSecret: "",
           options: "{}",
           status: "ok",
+          // Out of every pass and list until its token is confirmed (a sync must not take it half made).
+          archivedAt: new Date(),
         })
         .returning();
       try {
@@ -484,6 +486,8 @@ export const connectionsRouter = createRouter({
             remoteAccountId: me.remoteId,
             displayName: me.name,
             avatarUrl: me.avatarUrl ?? null,
+            status: "ok",
+            archivedAt: null,
           })
           .where(eq(connections.id, made.id))
           .returning();
