@@ -198,9 +198,11 @@ export const authRouter = createRouter({
         getDb()
           .update(users)
           .set({ displayName: identity.displayName, email: identity.email, avatarUrl: identity.avatarUrl, username, passwordHash, mustChangePassword: 0 })
-          .where(eq(users.id, user.id))
+          // Activated meanwhile (the same account twice at once): the first one's choice stays.
+          .where(and(eq(users.id, user.id), isNull(users.passwordHash)))
           .returning(),
       );
+      if (!activated) throw new TRPCError({ code: "CONFLICT", message: t("server.auth.alreadyActivated") });
       // The login just confirmed is the connection's credentials now.
       await storeSecret(found.connectionId, identity.secret);
       await getDb().update(connections).set({ status: "ok", archivedAt: null }).where(eq(connections.id, found.connectionId));

@@ -473,6 +473,20 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
     });
 
+    it("one account activated twice at once: the first one's username and password stay", async () => {
+      const site = "https://twice.atlassian.net";
+      const [old] = await q<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES ('w@x.it', 'Twice', ?) RETURNING id", Date.now());
+      await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, legacy, status, created_at) VALUES (?, 'jira', ?, 'acc-1', '{}', 'x', 1, 'unreadable', ?)", old.id, site, Date.now());
+      const both = await Promise.allSettled(
+        ["twice-a", "twice-b"].map((newUsername) => appRouter.createCaller(anon()).auth.activate({ siteUrl: site, deployment: "cloud", authType: "basic", username: "w@x.it", secret: "t", newUsername, newPassword: "a fine password" })),
+      );
+      const won = both.filter((r) => r.status === "fulfilled");
+      expect(won).toHaveLength(1);
+      expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
+      const [row] = await q<{ username: string }>("SELECT username FROM users WHERE id = ?", old.id);
+      expect(won[0]).toMatchObject({ value: { username: row.username } });
+    });
+
     it("a site no account waits to activate on is never contacted: no Jira call, the same answer", async () => {
       const calls = vi.mocked(fetch).mock.calls.length;
       await expect(
