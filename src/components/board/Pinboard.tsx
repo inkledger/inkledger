@@ -243,6 +243,11 @@ export function Pinboard({
   const pan = useRef<{ px: number; py: number; sl: number; st: number } | null>(null);
   const notes = useMemo(() => list.data ?? [], [list.data]);
   type Note = (typeof notes)[number];
+  const endPan = () => {
+    if (!pan.current) return;
+    pan.current = null;
+    setPanning(false);
+  };
 
   const refresh = async () => {
     // The boards first: a list asked for a board this device no longer shows would come back
@@ -721,6 +726,9 @@ export function Pinboard({
             e.currentTarget.releasePointerCapture(e.pointerId);
             setPanning(false);
           }}
+          // The pointer taken away (a system gesture, a pen out of range): no release comes, the pan ends here.
+          onPointerCancel={endPan}
+          onLostPointerCapture={endPan}
           onKeyDown={e => {
             if (e.target !== e.currentTarget) return;
             const d: Record<string, [number, number]> = {
