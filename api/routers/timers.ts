@@ -10,7 +10,7 @@ import { connections, issues, timerOps, timers, todos, type Timer } from "@db/sc
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { publish } from "../lib/userEvents";
-import { endTimerLogIn, openTimerLogIn, told } from "../decisions/store";
+import { askTimerLogIn, endTimerLogIn, openTimerLogIn, told } from "../decisions/store";
 import type { Decision } from "@db/schema";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
@@ -686,7 +686,7 @@ export const timersRouter = createRouter({
       if (from.id === to.id && input.issueKey === input.toIssueKey) {
         throw new TRPCError({ code: "BAD_REQUEST", message: tr("server.timers.moveSame") });
       }
-      return act(ctx.user.id, input.opId, async (tx) => {
+      return act(ctx.user.id, input.opId, async (tx, decided) => {
         const a = await rowOf(tx, ctx.user.id, from.id, input.issueKey);
         if (!a) throw new TRPCError({ code: "NOT_FOUND", message: tr("server.timers.moveNone", { key: input.issueKey }) });
         mayAct(a, w, now, input);
@@ -741,6 +741,12 @@ export const timersRouter = createRouter({
             })
             .where(eq(timers.id, b.id));
         }
+        // Its log question (and the target's) asked again of the timer as it is now: none left on the old issue.
+        const by = { client: w.client, label: w.label };
+        const asked = [await endTimerLogIn(tx, ctx.user.id, from.id, input.issueKey, "moved", by), b ? await endTimerLogIn(tx, ctx.user.id, to.id, input.toIssueKey, "moved", by) : null];
+        asked.forEach(decided);
+        const moved = asked.some(Boolean) && !running ? await rowOf(tx, ctx.user.id, to.id, input.toIssueKey) : undefined;
+        if (moved) decided(await askTimerLogIn(tx, moved, by));
         // The TODO worked on with it: tied to the new issue now (its comment or note stays on the old one).
         const working = await openSession(tx, ctx.user.id);
         if (working?.linked === 1 && working.todoId !== null) {
@@ -782,11 +788,13 @@ export const timersRouter = createRouter({
 
   /** Discard the timer without logging time. */
   discard: protectedProcedure.input(z.object({ ...issueInput, ...control })).mutation(async ({ ctx, input }) => {
-    return onTimer(ctx, input, async (tx, t, { now, w }) => {
+    return onTimer(ctx, input, async (tx, t, { now, w, decided }) => {
       if (!t) return { ok: true, epoch: await epochOf(tx, ctx.user.id) };
       mayAct(t, w, now, input);
       if (t.state === "running") await endLinkedSessionOf(tx, ctx.user.id, now, t);
       await tx.delete(timers).where(eq(timers.id, t.id));
+      // Nothing left to log: its question ends everywhere.
+      decided(await endTimerLogIn(tx, ctx.user.id, t.connectionId, t.issueKey, "discarded", { client: w.client, label: w.label }));
       // Its time never happened: the time it ran with others is theirs alone.
       await discardRuns(tx, refOf(t));
       await pruneRuns(tx, ctx.user.id, now);

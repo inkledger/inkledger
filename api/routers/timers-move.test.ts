@@ -75,6 +75,25 @@ describe("moving the timer to another issue", () => {
     expect((await rows()).map((r) => r.issue_key)).toEqual(["APP-1"]);
   });
 
+  it("a stopped timer's log question follows it: none left on the old issue, the merged total asked; gone once discarded", async () => {
+    await q("DELETE FROM timers");
+    const open = () => q<{ key: string; seconds: number }>("SELECT dedupe_key AS key, (payload::json->>'seconds')::int AS seconds FROM decisions WHERE state = 'open' ORDER BY dedupe_key");
+    await me.timers.start({ issueKey: "APP-1" });
+    await q("UPDATE timers SET accumulated_seconds = 3600 WHERE issue_key = 'APP-1'");
+    await me.timers.stop({ issueKey: "APP-1" });
+    await me.timers.start({ issueKey: "APP-2" });
+    await q("UPDATE timers SET accumulated_seconds = 1800 WHERE issue_key = 'APP-2'");
+    await me.timers.stop({ issueKey: "APP-2" });
+    expect(await open()).toEqual([
+      { key: `timer-log:${jira}:APP-1`, seconds: 3600 },
+      { key: `timer-log:${jira}:APP-2`, seconds: 1800 },
+    ]);
+    await me.timers.move({ issueKey: "APP-1", toIssueKey: "APP-2" });
+    expect(await open()).toEqual([{ key: `timer-log:${jira}:APP-2`, seconds: 5400 }]);
+    await me.timers.discard({ issueKey: "APP-2" });
+    expect(await open()).toEqual([]);
+  });
+
   it("paused stays paused; the TODO worked on with it follows to the new issue", async () => {
     await q("DELETE FROM timers");
     const todo = await me.todos.add({ text: "fix it", issueKey: "APP-1", connectionId: jira });
