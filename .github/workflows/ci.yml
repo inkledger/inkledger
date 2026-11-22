@@ -155,7 +155,8 @@ jobs:
 
   image:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: docker
+    # Published only after the browser tests and the advisory check pass, not just the build.
+    needs: [docker, e2e, audit]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -275,12 +276,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Check deployment configuration
-        run: test -n "$INKLEDGER_ENV_FILE" && test -f "$INKLEDGER_ENV_FILE" && test -n "$INKLEDGER_RELEASE_IMAGE"
+        # An empty digest would still leave "ghcr.io/…@": the image must be named by its digest.
+        run: test -n "$INKLEDGER_ENV_FILE" && test -f "$INKLEDGER_ENV_FILE" && case "$INKLEDGER_RELEASE_IMAGE" in *@sha256:?*) true ;; *) false ;; esac
       - name: Log in to GHCR while the package is private
         if: ${{ env.GHCR_READ_TOKEN != '' }}
         run: echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Back up and deploy the published image
         run: node scripts/docker-update.mjs
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io || true
       - name: Application logs
         if: failure()
         run: docker logs --tail 100 inkledger
