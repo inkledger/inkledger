@@ -108,16 +108,25 @@ export async function activationStates(licenses: { id: string; product: string }
   return value;
 }
 
+/** The store's JSON answer; anything else (a proxy or captive portal page) is the store not reached. */
+async function storeJson<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new StoreError("unreachable", res.status, "answer");
+  }
+}
+
 export type ActivateResult = { ok: true; exp: number; active: number; limit: number } | { ok: false; reason: "limit" | "revoked" | "license" | "unreachable" | "off" | "rate" | "invalid" };
 
 /** Asks the store to activate (or renew) a licence on this server; the token is kept. */
 export async function activate(license: string, licenseId: string, now = Date.now()): Promise<ActivateResult> {
   const me = instance();
   try {
-    const { nonce } = (await (await postStore("/nonce", undefined, "GET")).json()) as { nonce: string };
-    const r = (await (
-      await postStore("/activate", { license, instanceId: me.id, pubkey: me.pubkey, nonce, sig: me.sign(proofMessage("activate", nonce, me.id, licenseId)) })
-    ).json()) as { token: string; exp: number; active: number; limit: number };
+    const { nonce } = await storeJson<{ nonce: string }>(await postStore("/nonce", undefined, "GET"));
+    const r = await storeJson<{ token: string; exp: number; active: number; limit: number }>(
+      await postStore("/activate", { license, instanceId: me.id, pubkey: me.pubkey, nonce, sig: me.sign(proofMessage("activate", nonce, me.id, licenseId)) }),
+    );
     if (!readActivation(r.token)) return { ok: false, reason: "invalid" };
     await saveToken(licenseId, r.token);
     await setGrace(licenseId, null);

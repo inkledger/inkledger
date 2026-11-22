@@ -20,7 +20,7 @@ const DAY = 86_400_000;
 const worker = {
   limit: 2,
   slots: new Map<string, Set<string>>(),
-  mode: "ok" as "ok" | "down",
+  mode: "ok" as "ok" | "down" | "html",
   calls: [] as string[],
   exp: 0,
 };
@@ -31,6 +31,7 @@ vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit)
   const url = new URL(String(input));
   worker.calls.push(url.pathname);
   if (worker.mode === "down") return new Response("{}", { status: 503 });
+  if (worker.mode === "html") return new Response("<html>Sign in to the Wi-Fi</html>", { status: 200, headers: { "Content-Type": "text/html" } });
   if (url.pathname === "/nonce") return Response.json({ nonce: "n-1", exp: Date.now() + 300_000 });
   const b = JSON.parse(String(init?.body ?? "{}")) as { license: string; instanceId: string; pubkey: string; nonce: string; sig: string };
   const lic = b.license.split(":")[0];
@@ -167,6 +168,29 @@ describe("module licences active per server (WP-19)", () => {
     expect(await a.acceptToken(token("L-1", LIC.product, code.instanceId, Date.now(), Date.now() + 90 * DAY), "L-1", LIC.product)).toBe(true);
     a.forgetActivations();
     expect((await a.activationStates([LIC])).get("L-1")).toMatchObject({ state: "active" });
+  });
+
+  it("a page that is no store answer (a captive portal) counts as unreachable: every licence renews or gets its grace", async () => {
+    const two = [
+      { id: "H-1", product: "inkledger.one", text: "H-1:inkledger.one" },
+      { id: "H-2", product: "inkledger.two", text: "H-2:inkledger.two" },
+    ];
+    worker.exp = Date.now() + 10 * DAY;
+    try {
+      for (const l of two) await a.activate(l.text, l.id);
+    } finally {
+      worker.exp = 0;
+    }
+    worker.mode = "html";
+    try {
+      const out = await a.renewActivations(two);
+      expect(out.map((r) => r.result)).toEqual([{ ok: false, reason: "unreachable" }, { ok: false, reason: "unreachable" }]);
+    } finally {
+      worker.mode = "ok";
+    }
+    a.forgetActivations();
+    const states = await a.activationStates(two);
+    expect(two.map((l) => states.get(l.id)?.state)).toEqual(["active", "active"]);
   });
 
   it("two licences activated at once both keep their token", async () => {
