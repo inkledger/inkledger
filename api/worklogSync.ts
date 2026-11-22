@@ -47,7 +47,7 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
       failed ??= e;
     }
   }
-  if (failed) throw failed;
+  if (failed) throw failed instanceof Error ? failed : new Error("A Jira connection's worklogs could not be read");
   return total;
 }
 
