@@ -22,11 +22,11 @@ import { connectionOptions, connOf } from "../providers/connections";
 import { sinkAdapter, sinkStatus } from "../providers/registry";
 import type { ExternalRef, RemoteWorklog, SinkTarget, WorklogInput } from "../providers/types";
 import { withDeleteReason } from "../queries/trash";
-import { linkSink, sameTime, timeInput } from "./worklogs";
+import { linkSink, timeInput } from "./worklogs";
 import { COMPANIONS } from "./companions";
 import { MAX_OUTBOX_ATTEMPTS } from "@contracts/types";
 import { backoffMs } from "./state";
-import { buriedBy, CLAIM_TTL_MS, isLostCreate } from "./timeWrites";
+import { buriedBy, CLAIM_TTL_MS, holds, isLostCreate, sameWords } from "./timeWrites";
 import { inMaintenance } from "../lib/maintenance";
 import { callMeta } from "../lib/callMeta";
 
@@ -207,9 +207,11 @@ async function landedBefore(b: BoundSink, sink: Connection, w: Worklog, ref: Ext
   const day = localDateOf(instant(sent.started.getTime()), zone);
   const there = await b.entries.list(meta(), { from: day, to: day });
   for (const e of there) {
-    if (e.authorRemoteId !== sink.remoteAccountId || e.span.kind !== "session") continue;
+    if (e.authorRemoteId !== sink.remoteAccountId) continue;
     if (!e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
-    if (!sameTime({ started: new Date(e.span.start), seconds: e.span.seconds }, sent)) continue;
+    if (!holds(e.span, sent, zone, e.dayOnly)) continue;
+    // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent.
+    if ((e.span.kind !== "session" || e.dayOnly) && (e.createdAt == null || !sameWords(e.comment, sent.comment))) continue;
     if (e.createdAt != null && Number(e.createdAt) < link.sentAt.getTime() - CLOCK_SKEW_MS) continue;
     const [taken] = await db
       .select({ id: worklogSinks.id })

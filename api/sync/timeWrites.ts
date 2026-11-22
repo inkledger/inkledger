@@ -201,9 +201,14 @@ const ADOPT_WINDOW_MS = 5 * 60_000;
 /** The same comment as words: how a tracker or a sync may store it (trimmed, spaces folded) aside. */
 export const sameWords = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
 
-/** The entry holds this time: a session as sameTime, a day's entry on that day in the tracker's zone; the same length. */
-const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone) =>
-  span.kind === "session" ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v) : span.kind === "date" && span.seconds === v.seconds && span.date === localDateOf(instant(v.started.getTime()), zone);
+/**
+ * The entry holds this time: a session as sameTime, a day's entry (or a session whose service
+ * keeps only its day: dayOnly) on that day in the service's zone; the same length.
+ */
+export const holds = (span: RemoteWorklog["span"], v: { started: Date; seconds: number }, zone: TimeZone, dayOnly = false) =>
+  span.kind === "session" && !dayOnly
+    ? sameTime({ started: new Date(span.start), seconds: span.seconds }, v)
+    : span.kind !== "dayTotal" && span.seconds === v.seconds && (span.kind === "date" ? span.date : localDateOf(span.start, zone)) === localDateOf(instant(v.started.getTime()), zone);
 
 async function adoptLanded(
   t: ContractTime,

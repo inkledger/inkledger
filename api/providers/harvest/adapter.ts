@@ -188,6 +188,8 @@ function toRemoteWorklog(e: HarvestTimeEntry, zone: TimeZone): RemoteWorklog {
     approval: e.is_closed ? "approved" : "none",
     version: null,
     ...(locked ? { locked } : {}),
+    // A duration account keeps no time of day: the start is the day's.
+    ...(at === null ? { dayOnly: true } : {}),
     // A running timer is still counting: not for inkledger to change.
     editable: locked || e.is_running ? { update: false, delete: false } : { update: true, delete: true },
   };

@@ -76,6 +76,36 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
   });
 
+  it("a sink keeping only days, honouring no key: a create it took with its answer lost is found the next pass, not filed twice", async () => {
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    const entries = (fakes.sink as { entries: { create: (...a: unknown[]) => Promise<{ createdAt?: unknown }> } }).entries;
+    const real = entries.create;
+    let lose = true;
+    entries.create = async (...args: unknown[]) => {
+      const made = await real(...args);
+      made.createdAt = instant(Date.now());
+      if (lose) {
+        lose = false;
+        throw new ProviderError("unavailable", "fake: timed out");
+      }
+      return made;
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-16T09:00:00+02:00", comment: "once" });
+      await push();
+      expect(await sinkRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      await push();
+      const there = (await sinkEntries()).filter((e) => e.span.date === "2026-10-16");
+      expect(there.map((e) => [e.span.seconds, e.comment])).toEqual([[1800, "once"]]);
+      expect(await sinkRow(made.id)).toMatchObject({ state: "synced", remote_id: there[0].remoteId });
+      await caller.worklogs.delete({ id: made.id });
+      await push();
+    } finally {
+      entries.create = real;
+    }
+  });
+
   it("\"Send now\" sends a delete that background passes no longer try (past the attempts cap)", async () => {
     const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
     await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', 'gone-1', ?, 1)", userId, sinkId, MAX_OUTBOX_ATTEMPTS);

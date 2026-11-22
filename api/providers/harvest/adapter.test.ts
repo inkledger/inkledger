@@ -294,6 +294,7 @@ describe("harvest, days have no zone but the clock has", () => {
     const made = await b.entries.create!(meta(), REF, await target(b), input(3600, at(2026, 10, 14, 13, 45)), { idempotencyKey: "a" });
     // Midnight in Rome on the 14th is 22:00 UTC on the 13th.
     expect(made.span).toMatchObject({ kind: "session", start: Date.UTC(2026, 9, 13, 22, 0) });
+    expect(made.dayOnly).toBe(true);
   });
 
   it("the offset of the day itself counts (summer time ends on 25 October)", async () => {
@@ -310,6 +311,7 @@ describe("harvest, a timestamp account", () => {
     const made = await b.entries.create!(meta(), REF, await target(b), input(5400, at(2026, 10, 14, 8, 30)), { idempotencyKey: "a" });
     expect(sim.entries[0]).toMatchObject({ date: "2026-10-14", hours: 1.5, startedMinute: 10 * 60 + 30 });
     expect(made.span).toEqual({ kind: "session", start: Date.UTC(2026, 9, 14, 8, 30), seconds: 5400 });
+    expect(made.dayOnly).toBeUndefined();
     // An update moves the start along.
     const moved = await b.entries.update!(meta(), made.remoteId, input(3600, at(2026, 10, 14, 13, 0)), {});
     expect(moved.span).toEqual({ kind: "session", start: Date.UTC(2026, 9, 14, 13, 0), seconds: 3600 });

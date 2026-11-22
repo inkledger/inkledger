@@ -817,6 +817,20 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
   });
 });
 
+describe("holds", () => {
+  it("a session kept only by its day (a Harvest duration account: read at the day's start) holds a time that day, of that length", async () => {
+    const { holds } = await import("./timeWrites");
+    const { instant } = await import("@contracts/values");
+    const zone = "Europe/Rome" as import("@contracts/values").TimeZone;
+    const midnight = { kind: "session" as const, start: instant(Date.UTC(2026, 9, 13, 22, 0)), seconds: 3600 };
+    const sent = { started: new Date(Date.UTC(2026, 9, 14, 11, 45)), seconds: 3600 };
+    expect(holds(midnight, sent, zone)).toBe(false);
+    expect(holds(midnight, sent, zone, true)).toBe(true);
+    expect(holds(midnight, { ...sent, seconds: 3000 }, zone, true)).toBe(false);
+    expect(holds(midnight, { ...sent, started: new Date(Date.UTC(2026, 9, 14, 23, 0)) }, zone, true)).toBe(false);
+  });
+});
+
 describe("sameWords", () => {
   it("a comment read back trimmed (Jira's copy) is the same comment; other words are not", async () => {
     const { sameWords } = await import("./timeWrites");
