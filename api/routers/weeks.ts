@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { withWriteLease } from "../queries/writeLease";
 import { weekLocks } from "@db/schema";
-import { addDays, parseDayKey, startOfWeek, weekStartKey } from "@contracts/time";
+import { parseDayKey, startOfWeek, weekStartKey } from "@contracts/time";
 import { t } from "@contracts/i18n";
 
 const weekInput = z.object({
@@ -43,13 +43,15 @@ export async function assertWeekOpen(userId: number, date: Date): Promise<void> 
 /** Every week touched by [startsAt, endsAt), including both sides of a midnight or month boundary. */
 export async function assertWeeksOpen(userId: number, startsAt: Date, endsAt: Date): Promise<void> {
   const last = new Date(endsAt.getTime() - 1);
-  const weeks: string[] = [];
-  for (let week = startOfWeek(startsAt); week <= last; week = addDays(week, 7)) weeks.push(weekStartKey(week));
-  if (weeks.length === 0) return;
+  const first = startOfWeek(startsAt);
+  if (first > last) return;
+  // A range, not every week listed: a span of years would be thousands of parameters.
+  // Keys compare as text, so from a four-digit year on.
+  const from = first.getFullYear() < 1000 ? "1000-01-01" : weekStartKey(first);
   const rows = await getDb()
     .select({ id: weekLocks.id })
     .from(weekLocks)
-    .where(and(eq(weekLocks.userId, userId), inArray(weekLocks.weekStart, weeks)))
+    .where(and(eq(weekLocks.userId, userId), gte(weekLocks.weekStart, from), lte(weekLocks.weekStart, weekStartKey(startOfWeek(last)))))
     .limit(1);
   if (rows.length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.weeks.closed") });
 }
