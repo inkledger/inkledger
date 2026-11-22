@@ -34,7 +34,7 @@ export function WorkspaceMore({ busy, shown, collectionOpen, onCollectionOpen, d
   collectionOpen: boolean;
   onCollectionOpen: (open: boolean) => void;
   draft: Draft | null;
-  onPatch: (patch: SuggestionPatch) => Promise<void>;
+  onPatch: (patch: SuggestionPatch) => Promise<boolean>;
   onRestore: (draft: Draft, workspace: ResolvedWorkspace) => void;
   onRollback: (revisionId: string) => Promise<void>;
   onError: (message: unknown) => void;

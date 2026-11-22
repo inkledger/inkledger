@@ -57,7 +57,8 @@ function EvidencePicker({ label, value, evidence, disabled, onChange }: { label:
 export default function PlannerPanel({ part, draft, onPatch, onRestore }: {
   part: "suggest" | "compare";
   draft: Draft | null;
-  onPatch: (patch: SuggestionPatch) => Promise<void>;
+  /** Resolves whether the change was added to the draft. */
+  onPatch: (patch: SuggestionPatch) => Promise<boolean>;
   onRestore: (draft: Draft, workspace: ResolvedWorkspace) => void;
 }) {
   const { scope, workspace } = useWorkspace();
@@ -124,8 +125,8 @@ export default function PlannerPanel({ part, draft, onPatch, onRestore }: {
   const accept = async (candidate: { patch: SuggestionPatch }) => {
     const ids = selected[candidate.patch.patchId] ?? [];
     const operations = candidate.patch.operations.filter(operation => ids.includes(operation.operationId));
-    if (operations.length === 0) return;
-    await onPatch({
+    if (operations.length === 0) return false;
+    return onPatch({
       ...candidate.patch,
       patchId: `patch_${randomUUID()}`,
       author: "user",
@@ -137,8 +138,8 @@ export default function PlannerPanel({ part, draft, onPatch, onRestore }: {
   };
   const acceptRequest = async () => {
     if (!requestCandidate) return;
-    await accept(requestCandidate);
-    setRequestCandidate(null);
+    // Refused (offline, a conflict): the change stays here to add again, not typed and paid for twice.
+    if (await accept(requestCandidate)) setRequestCandidate(null);
   };
   const messages = (
     <>
@@ -213,7 +214,7 @@ export default function PlannerPanel({ part, draft, onPatch, onRestore }: {
           <div><dt className="text-muted-foreground">{t(key("instability"))}</dt><dd className="tabular-nums">{score(candidate.ranking.instability)}</dd></div>
         </dl>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={busy || (selected[candidate.patch.patchId] ?? []).length === 0} onClick={() => void run(() => accept(candidate))}>{t(key("addDraft"))}</Button>
+          <Button size="sm" variant="outline" disabled={busy || (selected[candidate.patch.patchId] ?? []).length === 0} onClick={() => void run(async () => { await accept(candidate); })}>{t(key("addDraft"))}</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSuggestions(current => current.filter(item => item.patch.patchId !== candidate.patch.patchId))}>{t(key("notNow"))}</Button>
           <Button size="sm" variant="ghost" disabled={busy || !candidate.patch.suggestionSignature} onClick={() => void run(async () => {
             if (!candidate.patch.suggestionSignature) return;

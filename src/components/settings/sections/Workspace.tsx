@@ -207,7 +207,8 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
     restoreFocus.current = undefined;
   }, [busy, pending]);
 
-  const preview = (patch: Parameters<typeof draftFromWorkspace>[1][number], local?: LocalChange): Promise<void> => {
+  /** Resolves whether the change was saved into the draft (a refusal is shown in the footer). */
+  const preview = (patch: Parameters<typeof draftFromWorkspace>[1][number], local?: LocalChange): Promise<boolean> => {
     if (local) {
       setShowApplied(false);
       setOptimistic(current => applyLocally(current ?? placements, local));
@@ -224,19 +225,21 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
     setNotice(null);
     setStale(null);
     setNotKept([]);
-    const save = async () => {
+    const save = async (): Promise<boolean> => {
       try {
         const result = await actions.saveDraft(draft);
         if (latestDraft.current === draft) {
           latestDraft.current = result.draft;
           setPending({ draft: result.draft, workspace: result.preview.workspace });
         }
+        return true;
       } catch (e) {
         if (latestDraft.current === draft) {
           // Never built on: the next change starts again from what is shown (the server's last draft).
           latestDraft.current = null;
           refused(e, draft);
         }
+        return false;
       } finally {
         queuedPreviews.current--;
         // Once every queued change has its answer, the server's preview is what is drawn.
@@ -246,8 +249,9 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
         }
       }
     };
-    previewQueue.current = previewQueue.current.then(save);
-    return previewQueue.current;
+    const saved = previewQueue.current.then(save);
+    previewQueue.current = saved.then(() => undefined);
+    return saved;
   };
 
   /** A save refused: its words, and for a draft made on an older layout, what of it could be kept. */
