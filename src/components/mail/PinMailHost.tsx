@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { pinMailDialog } from "@/lib/flag";
 import { trpc } from "@/lib/trpc";
 import { lazyPart } from "@/components/app/lazyPart";
-import { openPinMail, takePinMailStart, type PinMailStart } from "./pinMail";
+import { toastError } from "@/lib/errorText";
+import { mayBeMail, openPinMail, takePinMailStart, type PinMailStart } from "./pinMail";
 // The parsers (and zod, through contracts) stay out of the first load: fetched on a drop or a paste.
 const readMail = () => import("./readMail");
 
@@ -34,12 +35,12 @@ export function PinMailHost() {
   );
 
   useEffect(() => {
-    const carries = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).some(t => t === "Files" || t === "text/uri-list" || t === "text/plain");
+    const carries = (e: DragEvent) => !!e.dataTransfer && mayBeMail(Array.from(e.dataTransfer.types));
     const onDragOver = (e: DragEvent) => {
       if (!e.defaultPrevented && !editable(e.target) && carries(e)) e.preventDefault();
     };
     const onDrop = (e: DragEvent) => {
-      if (e.defaultPrevented || editable(e.target) || !e.dataTransfer) return;
+      if (e.defaultPrevented || editable(e.target) || !carries(e) || !e.dataTransfer) return;
       e.preventDefault();
       const data = e.dataTransfer;
       const text = data.getData("text/plain").trim();
@@ -48,7 +49,9 @@ export function PinMailHost() {
         .then(draft => {
         if (draft) openPinMail({ draft });
         else if (signedIn && text && text.length <= 200 && !text.includes("\n")) openPinMail({ query: text });
-      });
+      })
+        // Its code not loaded (a deploy meanwhile), a file not read: said, not lost.
+        .catch(toastError);
     };
     const onPaste = (e: ClipboardEvent) => {
       if (editable(e.target) || !e.clipboardData) return;
@@ -57,17 +60,20 @@ export function PinMailHost() {
         e.preventDefault();
         void readMail()
           .then(m => m.draftFromFile(file))
-          .then(d => d && openPinMail({ draft: d }));
+          .then(d => d && openPinMail({ draft: d }))
+          .catch(toastError);
         return;
       }
       const text = e.clipboardData.getData("text/plain");
       // Only an Outlook web link is taken (checked again by the parser): other pastes go on as usual.
       if (!/^\s*https:\/\/outlook\.(office|office365|live)\.com\/|^\s*https:\/\/outlook\.cloud\.microsoft\//i.test(text)) return;
       e.preventDefault();
-      void readMail().then(m => {
-        const draft = m.draftFromLink(text);
-        if (draft) openPinMail({ draft });
-      });
+      void readMail()
+        .then(m => {
+          const draft = m.draftFromLink(text);
+          if (draft) openPinMail({ draft });
+        })
+        .catch(toastError);
     };
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);
