@@ -316,6 +316,9 @@ export async function searchIssues(
 
   const out: JiraSearchedIssue[] = [];
   let nextPageToken: string | undefined;
+  // A token handed back again, or empty pages that keep going, end the search (Jira misbehaving).
+  const tokens = new Set<string>();
+  let empty = 0;
   do {
     const params = new URLSearchParams({
       jql,
@@ -330,7 +333,10 @@ export async function searchIssues(
       isLast?: boolean;
     }>(creds, `${apiBase(creds)}/search/jql?${params.toString()}`);
     out.push(...(page.issues ?? []));
+    empty = (page.issues ?? []).length === 0 ? empty + 1 : 0;
     nextPageToken = page.isLast === false ? page.nextPageToken : undefined;
+    if (nextPageToken && (tokens.has(nextPageToken) || empty >= 5)) break;
+    if (nextPageToken) tokens.add(nextPageToken);
   } while (nextPageToken && out.length < maxTotal);
   return out.slice(0, maxTotal);
 }
