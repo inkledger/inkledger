@@ -93,6 +93,22 @@ describe("Microsoft mailbox", () => {
     expect(await me.mails.signInPoll({ flowId: flow.flowId })).toEqual({ state: "failed", reason: "expired" });
   });
 
+  it("two polls at once ask Microsoft once; a user keeps a few sign-ins pending, the oldest go", async () => {
+    const start = (code: string) => {
+      microsoft([200, { device_code: code, user_code: "X", verification_uri: "https://microsoft.com/devicelogin", expires_in: 900, interval: 5 }]);
+      return other.mails.signInStart();
+    };
+    const flow = await start("dev-race");
+    const fetcher = vi.fn(async () => Response.json({ error: "authorization_pending" }, { status: 400 }));
+    vi.stubGlobal("fetch", fetcher);
+    const polls = await Promise.all([other.mails.signInPoll({ flowId: flow.flowId }), other.mails.signInPoll({ flowId: flow.flowId })]);
+    expect(polls.map((p) => p.state)).toEqual(["pending", "pending"]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // Five more started: the first one is let go.
+    for (let n = 0; n < 5; n++) await start(`dev-${n}`);
+    expect(await other.mails.signInPoll({ flowId: flow.flowId })).toEqual({ state: "failed", reason: "expired" });
+  });
+
   it("searches the mailbox, headers only, with ids that survive a move", async () => {
     const fetcher = microsoft([200, { value: [message] }]);
     const [found] = (await me.mails.search({ query: 'budget "2027"' }))!;
@@ -110,6 +126,29 @@ describe("Microsoft mailbox", () => {
     expect(await me.mails.search({})).toEqual([]);
     expect(new URLSearchParams(String(fetcher.mock.calls[0][1].body)).get("grant_type")).toBe("refresh_token");
     expect(new Headers(fetcher.mock.calls[1][1].headers).get("Authorization")).toBe("Bearer at-2");
+  });
+
+  it("a message's content is read only up to the copy limit, never buffered whole first", async () => {
+    const [{ user_id: userId }] = await q<{ user_id: number }>("SELECT user_id FROM mail_accounts");
+    const chunk = new Uint8Array(64 * 1024).fill(65);
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled >= 100 * chunk.length) return c.close();
+        pulled += chunk.length;
+        c.enqueue(chunk);
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(body, { headers: { "Content-Type": "message/rfc822" } })));
+    const { messageContent } = await import("./microsoft");
+    expect(await messageContent(userId, "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AAAAA", 100_000)).toBe("tooLarge");
+    expect(pulled).toBeLessThan(10 * chunk.length);
+    // Said too large up front: nothing read.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("x".repeat(200_000), { headers: { "Content-Length": "200000" } })));
+    expect(await messageContent(userId, "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AAAAA", 100_000)).toBe("tooLarge");
+    // Within the limit: the whole of it.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("From: a@b.c\r\n\r\nhi")));
+    expect(String(await messageContent(userId, "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0AAAAA", 100_000))).toBe("From: a@b.c\r\n\r\nhi");
   });
 
   it("gives a mail from a file its Outlook link, and pins anywhere in one go", async () => {

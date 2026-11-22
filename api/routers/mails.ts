@@ -211,7 +211,7 @@ export const mailsRouter = createRouter({
   /** How many copies of my mails are kept, and their size in clear (docs/work/ideas/mail-copies.md R-1.12). */
   copyUsage: protectedProcedure.query(async ({ ctx }) => {
     const [row] = await getDb()
-      .select({ count: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${mailCopies.plainBytes}), 0)::int` })
+      .select({ count: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${mailCopies.plainBytes}), 0)::float8` })
       .from(mailCopies)
       .where(eq(mailCopies.userId, ctx.user.id));
     // Whether the server keeps copies at all (MAIL_COPIES): the Settings group is absent otherwise (R-0.1).

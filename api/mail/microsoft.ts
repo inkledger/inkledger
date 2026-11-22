@@ -99,6 +99,8 @@ const tokensOf = (r: TokenAnswer, previous: string | null = null, now = Date.now
 
 type Flow = { userId: number; deviceCode: string; intervalMs: number; nextAt: number; expiresAt: number };
 const flows = new Map<string, Flow>();
+/** Sign-ins one user may have pending at once: a newer one lets the oldest go. */
+const FLOWS_PER_USER = 5;
 
 /** A new sign-in: the code to enter at Microsoft, and where. */
 export async function startMailLogin(userId: number) {
@@ -110,6 +112,8 @@ export async function startMailLogin(userId: number) {
   const interval = Math.max(5, r.interval ?? 5);
   flows.set(id, { userId, deviceCode: r.device_code, intervalMs: interval * 1000, nextAt: now, expiresAt: now + r.expires_in * 1000 });
   for (const [k, f] of flows) if (f.expiresAt < now) flows.delete(k);
+  const mine = [...flows].filter(([, f]) => f.userId === userId);
+  for (const [k] of mine.slice(0, Math.max(0, mine.length - FLOWS_PER_USER))) flows.delete(k);
   return { flowId: id, userCode: r.user_code, verificationUri: r.verification_uri, intervalSeconds: interval, expiresIn: r.expires_in };
 }
 
@@ -128,6 +132,8 @@ export async function pollMailLogin(userId: number, flowId: string): Promise<Mai
     return { state: "failed", reason: "expired" };
   }
   if (Date.now() < f.nextAt) return { state: "pending", retryInSeconds: Math.ceil((f.nextAt - Date.now()) / 1000) };
+  // Taken before asking: a poll meanwhile waits its turn instead of asking too.
+  f.nextAt = Date.now() + f.intervalMs;
   const { body } = await postForm("token", {
     client_id: clientId(),
     device_code: f.deviceCode,
@@ -230,9 +236,32 @@ async function asUser<T>(userId: number, path: string, read?: (res: Response) =>
   }
 }
 
-/** A message in full, as Outlook stores it (MIME), for its copy (docs/work/ideas/mail-copies.md R-1.6); null when not signed in. */
-export async function messageContent(userId: number, exchangeId: string): Promise<Buffer | null> {
-  return asUser(userId, `/me/messages/${encodeURIComponent(exchangeId)}/$value`, async (res) => Buffer.from(await res.arrayBuffer()));
+/**
+ * A message in full, as Outlook stores it (MIME), for its copy (docs/work/ideas/mail-copies.md R-1.6);
+ * null when not signed in; "tooLarge" past `maxBytes`, read no further than that.
+ */
+export async function messageContent(userId: number, exchangeId: string, maxBytes = Infinity): Promise<Buffer | "tooLarge" | null> {
+  return asUser<Buffer | "tooLarge">(userId, `/me/messages/${encodeURIComponent(exchangeId)}/$value`, async (res) => {
+    if (Number(res.headers.get("Content-Length") ?? 0) > maxBytes) {
+      await res.body?.cancel().catch(() => undefined);
+      return "tooLarge";
+    }
+    if (!res.body) return Buffer.alloc(0);
+    const reader: ReadableStreamDefaultReader<Uint8Array> = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return "tooLarge";
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  });
 }
 
 const foundMail = (m: GraphMessage): FoundMail => ({

@@ -85,6 +85,16 @@ async function plainOf(userId: number, mailId: number): Promise<Buffer> {
   return openBytesFor(Buffer.from(row.sealed), `mailcopy:${userId}:${mailId}`);
 }
 
+describe("mail copies: sizes", () => {
+  it("copies adding up past 2 GiB are still counted", async () => {
+    const a = await makeUser("big1");
+    const ids = [await a.copied("Big", 10), await a.copied("Bigger", 10)];
+    await q("UPDATE mail_copies SET plain_bytes = 2000000000 WHERE mail_id IN (?, ?)", ids[0], ids[1]);
+    expect(await a.caller.mails.copyUsage()).toEqual({ available: true, count: 2, bytes: 4_000_000_000 });
+    await q("DELETE FROM mails WHERE id IN (?, ?)", ids[0], ids[1]);
+  });
+});
+
 describe("mail copies: capture", () => {
   const env = envModule;
   const saved = { sim: env.mailSimulator, max: env.mailCopyMaxMb };
@@ -140,6 +150,22 @@ describe("mail copies: capture", () => {
     // The same mail pinned again: the same copy, not a second one.
     await pin(u.caller);
     expect((await q("SELECT count(*)::int AS n FROM mail_copies WHERE mail_id = ?", mail.id))[0]).toEqual({ n: 1 });
+  });
+
+  it("a full copy is parsed once for its view and its attachments, each read still recorded", async () => {
+    const u = await signedIn("parse1");
+    await u.caller.settings.update({ mailCopies: "full", mailCopiesConsent: true });
+    const { mail } = await pin(u.caller);
+    const PostalMime = (await import("postal-mime")).default;
+    const parse = vi.spyOn(PostalMime, "parse");
+    try {
+      const app = (await import("../boot")).default;
+      for (const path of ["view", "attachment/0", "view", "attachment/0"]) expect((await app.request(`/api/mail/${mail.id}/${path}`, { headers: { cookie: u.cookie } })).status).toBe(200);
+      expect(parse).toHaveBeenCalledTimes(1);
+      expect((await q("SELECT count(*)::int AS n FROM mail_copy_reads WHERE mail_id = ?", mail.id))[0]).toEqual({ n: 4 });
+    } finally {
+      parse.mockRestore();
+    }
   });
 
   it("another user's copy is not found", async () => {

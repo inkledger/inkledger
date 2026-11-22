@@ -19,6 +19,7 @@ import { restUser } from "../context";
 import { env } from "../lib/env";
 import { sealBytesFor } from "../lib/crypto";
 import { findByMessageId, mailAccount, messageContent } from "./microsoft";
+import { LruCache } from "../lib/lruCache";
 
 type App = Hono<{ Bindings: HttpBindings }>;
 type Ctx = Context<{ Bindings: HttpBindings }>;
@@ -191,8 +192,9 @@ export async function captureFromGraph(userId: number, mail: { id: number; inter
     if (!mail.exchangeId && !(await mailAccount(userId))) return;
     const id = mail.exchangeId ?? (mail.internetMessageId ? (await findByMessageId(userId, mail.internetMessageId))?.exchangeId : null);
     if (!id) return void (await fail(t("server.mails.copy.notInMailbox")));
-    const raw = await messageContent(userId, id);
+    const raw = await messageContent(userId, id, maxBytes());
     if (!raw) return; // not signed in: a file or the add-in may still bring it
+    if (raw === "tooLarge") return void (await fail(t("server.mails.copy.tooLarge", { mb: env.mailCopyMaxMb })));
     await keepCopy(userId, mail.id, raw, "graph");
   } catch (e) {
     await fail(e instanceof CopyError ? e.message : t("server.mails.copy.graphFailed"));
@@ -259,12 +261,12 @@ const VIEW_HEADERS = {
   "Cache-Control": "private, no-store",
 };
 
-type Opened = { mode: "body" | "full"; plain: Buffer; subject: string };
+type Opened = { mode: "body" | "full"; plain: Buffer; subject: string; key: string };
 
 /** A copy of the user's in clear, for one of the reading routes; null when there is none. Each read is recorded (R-1.9). */
 async function openCopy(userId: number, mailId: number, via: "view" | "eml" | "attachment"): Promise<Opened | null | "locked"> {
   const [row] = await getDb()
-    .select({ mode: mailCopies.mode, sealed: mailCopies.sealed, subject: mails.subject })
+    .select({ mode: mailCopies.mode, sealed: mailCopies.sealed, subject: mails.subject, sha: mailCopies.plainSha256 })
     .from(mailCopies)
     .innerJoin(mails, eq(mails.id, mailCopies.mailId))
     .where(and(eq(mailCopies.mailId, mailId), eq(mailCopies.userId, userId), eq(mails.userId, userId)));
@@ -276,8 +278,18 @@ async function openCopy(userId: number, mailId: number, via: "view" | "eml" | "a
     return "locked";
   }
   await getDb().insert(mailCopyReads).values({ userId, mailId, via });
-  return { mode: row.mode as "body" | "full", plain, subject: row.subject };
+  return { mode: row.mode as "body" | "full", plain, subject: row.subject, key: `${userId}:${mailId}:${row.sha}` };
 }
+
+type Parsed = Awaited<ReturnType<typeof PostalMime.parse>>;
+/**
+ * Full copies parsed, kept a few minutes: a view and its attachments are opened one after
+ * the other, each would parse up to MAIL_COPY_MAX_MB again. A few, bounded in size; a copy
+ * replaced has another key (its hash). Every read still opens and records the copy first.
+ */
+const parsedCopies = new LruCache<string, { parsed: Parsed; bytes: number }>({ maxEntries: 4, maxSize: 64 * 1024 * 1024, sizeOf: (v) => v.bytes, ttlMs: 5 * 60_000 });
+const parsedOf = async (o: Opened): Promise<Parsed> =>
+  (await parsedCopies.load(o.key, async () => ({ parsed: await PostalMime.parse(o.plain), bytes: o.plain.length })))?.parsed ?? PostalMime.parse(o.plain);
 
 /** The mail's date as the user reads dates (their language, the server's zone), or as written when unreadable. */
 const shownDate = (raw: string | null): string => {
@@ -296,7 +308,7 @@ async function viewOf(o: Opened): Promise<{ headers: ViewHeaders } & ({ html: st
     const body = mailCopyBodySchema.parse(JSON.parse(o.plain.toString("utf8")));
     return body.html ? { headers: body.headers, html: body.html } : { headers: body.headers, text: body.text };
   }
-  const parsed = await PostalMime.parse(o.plain);
+  const parsed = await parsedOf(o);
   const headers: ViewHeaders = {
     from: addressOf(parsed.from),
     to: (parsed.to ?? []).map(addressOf),
@@ -371,7 +383,7 @@ export function registerCopyRoutes(app: App) {
     reading("attachment", async (o, c) => {
       if (o.mode !== "full") return c.json({ error: t("server.mails.copy.bodyOnly") }, 404);
       const n = Number(c.req.param("n"));
-      const a = Number.isInteger(n) && n >= 0 ? (await PostalMime.parse(o.plain)).attachments?.[n] : undefined;
+      const a = Number.isInteger(n) && n >= 0 ? (await parsedOf(o)).attachments?.[n] : undefined;
       if (!a) return c.json({ error: t("server.mails.notFound") }, 404);
       // Always a download from here, sandboxed, never kept by a cache.
       const headers = asSandboxedDownload(attachmentHeaders(a.mimeType ?? "application/octet-stream", a.filename ?? "attachment"));
