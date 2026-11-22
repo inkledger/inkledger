@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { trpc } from "@/lib/trpc";
 import { focusMode, screensaver } from "@/lib/flag";
 import { expectedSeconds, scheduleFor, workBounds } from "@contracts/workSchedule";
+import { FILE_TYPES } from "@contracts/modules";
 import { onAppEvent } from "./appEvents";
 import { currentLocale } from "@/i18n";
 import { hitAreas } from "./hit";
@@ -75,7 +76,6 @@ const toBase64 = async (b: Blob) => {
   return btoa(s);
 };
 const fromBase64 = (data: string, type: string) => new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], { type });
-const FILE_TYPES = ["image/webp", "image/png", "image/avif"] as const;
 
 /** Rank of a Jira priority by name (English or Italian), 0 = highest; null if unknown. */
 export function priorityRank(name: string): number | null {
