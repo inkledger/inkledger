@@ -14,6 +14,7 @@ import { isShuttingDown } from "../lib/shutdown";
 import { inMaintenance } from "../lib/maintenance";
 import { syncWorklogs } from "../worklogSync";
 import { runSync, type SyncResult } from "./jiraIssues";
+import { pendingHookReads } from "../hooks";
 
 type InFlightSync = { run: Promise<SyncResult>; full: boolean };
 
@@ -21,9 +22,9 @@ type InFlightSync = { run: Promise<SyncResult>; full: boolean };
 const g = globalThis as { __iklSyncRuns?: Map<number, InFlightSync> };
 const syncInFlight = (g.__iklSyncRuns ??= new Map<number, InFlightSync>());
 
-/** Wait (at most `timeoutMs`) for running syncs and outbox replays; used on shutdown. */
+/** Wait (at most `timeoutMs`) for running syncs, webhook reads and outbox replays; used on shutdown. */
 export async function settleInFlightSyncs(timeoutMs: number): Promise<void> {
-  const pending = [...[...syncInFlight.values()].map((s) => s.run), ...pendingReplays()];
+  const pending = [...[...syncInFlight.values()].map((s) => s.run), ...pendingHookReads(), ...pendingReplays()];
   if (pending.length === 0) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([

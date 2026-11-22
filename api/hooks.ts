@@ -15,7 +15,8 @@ import { openSecret } from "./lib/crypto";
 import { hmacHex, sameSecret } from "./providers/core/webhooks";
 import { trackerAdapter } from "./providers/registry";
 import type { WebhookRequest } from "./providers/types";
-import { syncUser } from "./sync/orchestrator";
+import { syncConnectionEntries, syncConnectionIssues, withStream } from "./sync/engine";
+import { runSync } from "./sync/jiraIssues";
 import { isShuttingDown } from "./lib/shutdown";
 import { inMaintenance } from "./lib/maintenance";
 
@@ -32,14 +33,33 @@ const webhookToken = (secret: string, connectionId: number) => hmacHex(secret, `
 /** The address to register on the service. */
 export const webhookPath = (secret: string, connectionId: number) => `/api/hooks/${connectionId}/${webhookToken(secret, connectionId)}`;
 
-const g = globalThis as { __iklHookTimers?: Map<number, NodeJS.Timeout> };
+const g = globalThis as { __iklHookTimers?: Map<number, NodeJS.Timeout>; __iklHookReads?: Set<Promise<void>> };
 const timers = (g.__iklHookTimers ??= new Map<number, NodeJS.Timeout>());
+const running = (g.__iklHookReads ??= new Set<Promise<void>>());
 
-/**
- * The connection reads its changes soon (deliveries in a burst make one read),
- * through its user's background sync: Jira keeps its own pass there, and a
- * restore or a shutdown waits for it (or it doesn't start).
- */
+/** Reads under way: a shutdown or a restore waits for them. */
+export const pendingHookReads = (): Promise<void>[] => [...running];
+
+/** One read of the connection as it is now; Jira through its own pass (the generic one would blank Jira's fields). */
+async function readNow(connectionId: number): Promise<void> {
+  const db = getDb();
+  const [conn] = await db
+    .select()
+    .from(connections)
+    .where(and(eq(connections.id, connectionId), isNull(connections.archivedAt)))
+    .limit(1);
+  if (!conn) return;
+  const opts = { full: false, background: true };
+  if (conn.type === "jira") {
+    const [user] = await db.select().from(users).where(eq(users.id, conn.userId)).limit(1);
+    if (user) await withStream(conn, "issues", opts, async () => ({ result: await runSync(user, conn, false) }));
+    return;
+  }
+  await syncConnectionIssues(conn, opts);
+  await syncConnectionEntries(conn, opts);
+}
+
+/** The connection reads its changes soon (deliveries in a burst make one read); none starts during a restore or a shutdown. */
 function readSoon(conn: Connection) {
   if (timers.has(conn.id)) return;
   timers.set(
@@ -47,13 +67,10 @@ function readSoon(conn: Connection) {
     setTimeout(() => {
       timers.delete(conn.id);
       if (isShuttingDown() || inMaintenance()) return;
-      void getDb()
-        .select()
-        .from(users)
-        .where(eq(users.id, conn.userId))
-        .limit(1)
-        .then(([user]) => (user ? syncUser(user, { full: false, background: true }) : undefined))
-        .catch((e: unknown) => console.warn(`[hooks] connection ${conn.id}: ${String(e)}`));
+      const read: Promise<void> = readNow(conn.id)
+        .catch((e: unknown) => console.warn(`[hooks] connection ${conn.id}: ${String(e)}`))
+        .finally(() => running.delete(read));
+      running.add(read);
     }, DEBOUNCE_MS).unref(),
   );
 }

@@ -5,29 +5,25 @@ process.env.DATABASE_URL = ":memory:";
 
 const reads = vi.hoisted(() => [] as number[]);
 const jiraPasses = vi.hoisted(() => [] as { id: number; full: boolean }[]);
+const jiraGate = vi.hoisted(() => ({ wait: Promise.resolve() }));
 vi.mock("./sync/engine", async (importOriginal) => {
   const real = await importOriginal<typeof import("./sync/engine")>();
   return {
     ...real,
     syncConnectionIssues: vi.fn(async (conn: { id: number }) => { reads.push(conn.id); return { ran: true }; }),
-    syncConnectionEntries: vi.fn(async () => null),
-    syncInbox: vi.fn(async () => 0),
   };
 });
-// Jira's own pass and worklog sync: recorded, never a request.
+// Jira's own pass: recorded, never a request.
 vi.mock("./sync/jiraIssues", async (importOriginal) => {
   const real = await importOriginal<typeof import("./sync/jiraIssues")>();
   return {
     ...real,
     runSync: vi.fn(async (_user: unknown, conn: { id: number }, full: boolean) => {
       jiraPasses.push({ id: conn.id, full });
+      await jiraGate.wait;
       return { synced: 0, at: new Date(), full, outbox: { synced: 0, failed: 0, remaining: 0 } };
     }),
   };
-});
-vi.mock("./worklogSync", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./worklogSync")>();
-  return { ...real, syncWorklogs: vi.fn(async () => undefined) };
 });
 
 /** Webhooks (D5): off by default; on, each delivery is checked before the connection reads again. */
@@ -174,6 +170,36 @@ describe("webhooks", () => {
     }
     expect(jiraPasses).toEqual([]);
     expect(reads).toEqual([]);
+  });
+
+  it("a read under way is waited for by a shutdown or a restore", async () => {
+    noPendingReads();
+    const hook = await caller.connections.webhook({ id: jira });
+    if (!hook.on) throw new Error("not on");
+    const token = hook.path.split("/")[4];
+    const { takeDelivery } = await import("./hooks");
+    const { settleInFlightSyncs } = await import("./sync/orchestrator");
+    jiraPasses.length = 0;
+    let release = () => {};
+    jiraGate.wait = new Promise<void>((r) => (release = r));
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      const body = JSON.stringify({ timestamp: now, webhookEvent: "jira:issue_updated" });
+      expect(await takeDelivery(jira, token, { headers: { "x-atlassian-webhook-identifier": "j-30" }, body }, now)).toMatchObject({ status: 202 });
+      await vi.advanceTimersByTimeAsync(6_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => expect(jiraPasses).toHaveLength(1));
+    let settled = false;
+    const settling = settleInFlightSyncs(10_000).then(() => (settled = true));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(settled).toBe(false);
+    release();
+    await settling;
+    expect(settled).toBe(true);
+    jiraGate.wait = Promise.resolve();
   });
 
   it("only the owner sees or changes a connection's webhooks; old delivery ids are purged", async () => {
