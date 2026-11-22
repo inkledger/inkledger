@@ -331,6 +331,31 @@ test("The layout editor draws each change at once on the block, and shows what i
   });
 });
 
+test("A change whose save failed is not carried into the next one", async () => {
+  await withApp({ viewport: { width: 1280, height: 1400 } }, async ({ page, base, db }) => {
+    await page.goto(`${base}/settings/workspace`);
+    let failed = false;
+    await page.route("**/api/trpc/workspace.saveDraft*", route => {
+      if (failed) return route.continue();
+      failed = true;
+      return route.abort();
+    });
+    const activity = page.locator('[data-anchor="dashboard.activity"]');
+    await activity.getByRole("button", { name: "Show Recent activity", exact: true }).click();
+    // Not saved: the block is drawn as it was.
+    await page.locator('[data-anchor="dashboard.activity"][data-visible="true"]').waitFor();
+    assert.ok(failed);
+    const summary = page.locator('[data-anchor="dashboard.summary"]');
+    await summary.getByRole("button", { name: "More for Summary", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: "Compact", exact: true }).click();
+    await page.getByText(/Preview, not applied yet/).waitFor();
+    await page.locator('[data-anchor="dashboard.activity"][data-visible="true"]').waitFor();
+    const [draft] = await db.q("SELECT patches FROM workspace_drafts WHERE status NOT IN ('applied','discarded','aborted')");
+    const operations = JSON.parse(draft.patches).flatMap(patch => patch.operations);
+    assert.deepEqual(operations.map(operation => [operation.type, operation.anchorId]), [["variant", "dashboard.summary"]]);
+  });
+});
+
 test("A block moves with a finger on its handle, which alone keeps the finger from scrolling the page", async () => {
   await withApp({ viewport: { width: 390, height: 900 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" }, async ({ page, base }) => {
     await page.goto(`${base}/settings/workspace`);

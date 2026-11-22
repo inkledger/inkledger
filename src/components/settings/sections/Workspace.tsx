@@ -232,7 +232,11 @@ function WorkspaceEditor({ scopeKey }: { scopeKey: ScopeKey }) {
           setPending({ draft: result.draft, workspace: result.preview.workspace });
         }
       } catch (e) {
-        if (latestDraft.current === draft) refused(e, draft);
+        if (latestDraft.current === draft) {
+          // Never built on: the next change starts again from what is shown (the server's last draft).
+          latestDraft.current = null;
+          refused(e, draft);
+        }
       } finally {
         queuedPreviews.current--;
         // Once every queued change has its answer, the server's preview is what is drawn.
