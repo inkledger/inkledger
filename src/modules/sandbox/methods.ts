@@ -23,8 +23,11 @@ const EVENTS = [
 const allEvents: Exclude<HostEventName, (typeof EVENTS)[number]> extends never ? true : never = true;
 void allEvents;
 
-/** Drawn over the page: the frame never takes pointer events there, the host tests its regions. */
-const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge"];
+/**
+ * Drawn over the page: the frame never takes pointer events there, the host tests its regions.
+ * The dock too, once it sets a shape (its box marked data-hit): taps around the pill reach the page.
+ */
+const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge", "mobile-dock"];
 
 const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);
@@ -160,6 +163,7 @@ export function frameMethods(
     }),
   };
   const dispose = () => {
+    if (view) delete view.el.dataset.hit;
     unhit?.();
     unhit = null;
     shapeTest = null;
@@ -187,6 +191,7 @@ export function frameMethods(
           const a11y = { focusable: opts?.focusable === true, label: opts?.label };
           const key = JSON.stringify(a11y);
           shapeTest = test;
+          box.dataset.hit = "";
           if (unhit && key === hitA11y) return;
           unhit?.();
           hitA11y = key;

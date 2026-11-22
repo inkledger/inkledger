@@ -181,9 +181,12 @@ const FRAMED_BOX: Partial<Record<SlotId, string>> = {
   // below the edge; it takes no pointer events (the host tests its shape).
   "panel-edge": "pointer-events-none absolute inset-x-0 -bottom-[10px] h-[84px] [&_*]:!pointer-events-none",
   // Above the tab bar's right end, room for a control (a player pill); it takes
-  // the pointer only while the module says it shows one (dock.set).
+  // the pointer only while the module says it shows one (dock.set), and never
+  // once the module sets its shape (hit.set): the host tests that, taps around
+  // it reach the page, and its frame shows its room (the pill's shadow).
   // (52 px: a 44 px pill lifted 8 px off the bar.)
-  "mobile-dock": "pointer-events-none absolute bottom-0 right-0 h-[52px] w-[min(260px,calc(100vw-24px))] data-[docked]:pointer-events-auto",
+  "mobile-dock":
+    "pointer-events-none absolute bottom-0 right-0 h-[52px] w-[min(260px,calc(100vw-24px))] data-[docked]:pointer-events-auto data-[hit]:!pointer-events-none [&[data-hit]_*]:!pointer-events-none [&[data-hit]>iframe]:![clip-path:none]",
 };
 
 function ModuleBox({ hub, loaded, slot }: { hub: Hub; loaded: LoadedModule; slot: SlotId }) {

@@ -356,6 +356,9 @@ async function start(init, port) {
       if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); }, true);
       const box = document.createElement("div");
       box.id = "ikl-box";
+      // The frame is larger than its slot (room for a shadow): the module's box keeps the slot's size.
+      const room = init.room;
+      if (room) Object.assign(box.style, { top: room.top + "px", right: room.right + "px", bottom: room.bottom + "px", left: room.left + "px" });
       document.body.append(box);
       const off = mount(box, host);
       if (typeof off === "function") unmount = off;

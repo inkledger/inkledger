@@ -22,7 +22,7 @@ function setup({ capabilities = [] as string[], conflict = false } = {}) {
     setIf: () => Promise.resolve(conflict ? { conflict: true as const, value: 5, revision: 4 } : { revision: 4 }),
   };
   const el = { dataset: {} as Record<string, string> } as unknown as HTMLElement;
-  const served = frameMethods(api, cas, { el, slot: "mobile-dock", activate: () => {} });
+  const served = frameMethods(api, cas, { el, slot: "mobile-dock", activate: () => {}, hits: { add: () => () => {} } });
   const sent: HostMessage[] = [];
   const peer = createRpcPeer({ source: () => frame, post: m => sent.push(m), capabilities: capabilities as never, methods: served.methods });
   const call = (id: number, m: string, a: unknown[]) => peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id, m, a } });
@@ -160,5 +160,20 @@ describe("the host API a framed module reaches", () => {
     p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 0, y: 0, w: 10, h: 10 }], {}] } });
     await settle();
     expect(added).toBe(1);
+  });
+
+  it("hit.set on the phone's dock: honoured, its box marked as shaped until the shape is cleared", async () => {
+    let added = 0;
+    let undone = 0;
+    const hits = { add: () => (added++, () => void undone++) };
+    const el = { dataset: {} as Record<string, string> } as unknown as HTMLElement;
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "mobile-dock", activate() {}, hits });
+    const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 0, y: 0, w: 10, h: 10 }], {}] } });
+    await settle();
+    expect([added, "hit" in el.dataset]).toEqual([1, true]);
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 2, m: "hit.set", a: [[], {}] } });
+    await settle();
+    expect([undone, "hit" in el.dataset]).toEqual([1, false]);
   });
 });

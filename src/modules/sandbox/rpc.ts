@@ -56,6 +56,8 @@ export type HostMessage =
       catalog: unknown;
       /** Sized by its content: the view tells its height. */
       fit: boolean;
+      /** Room (CSS px) the frame has past its box on each side, e.g. for a shadow: the module's box keeps the slot's size. */
+      room?: { top: number; right: number; bottom: number; left: number };
     }
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: true; value: unknown }
   | { v: typeof RPC_VERSION; t: "res"; id: number; ok: false; error: string }

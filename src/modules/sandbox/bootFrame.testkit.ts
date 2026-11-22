@@ -22,6 +22,8 @@ export function bootFrame(o: {
   /** A slot sized by its content: the frame tells its height. */
   fit?: boolean;
   onSize?(h: number): void;
+  /** Room the frame has past its box. */
+  room?: { top: number; right: number; bottom: number; left: number };
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
@@ -76,7 +78,7 @@ export function bootFrame(o: {
     onUnmounted: () => o.onUnmounted?.(),
     onSize: h => o.onSize?.(h),
     onReady() {
-      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false }, o.port ? [o.port] : []);
+      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false, ...(o.room ? { room: o.room } : {}) }, o.port ? [o.port] : []);
     },
   });
   vm.runInContext(BOOTSTRAP, context);

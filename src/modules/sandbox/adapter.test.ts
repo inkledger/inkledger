@@ -390,6 +390,13 @@ describe("the frame's host API (bootstrap)", () => {
     expect(heard).toEqual([[true, true], { via: "keyboard" }, { via: "pointer", x: 3, y: 4 }, [false, false]]);
   });
 
+  it("a frame with room past its box (the dock's shadow): the module's box keeps the slot's size", async () => {
+    const mod = { id: "m", hostApi: 2, mount: { "mobile-dock": () => () => {} } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, slot: "mobile-dock", room: { top: 16, right: 8, bottom: 16, left: 16 } });
+    await settle();
+    expect(f.box.style).toEqual({ top: "16px", right: "8px", bottom: "16px", left: "16px" });
+  });
+
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
     const got: unknown[] = [];
     const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };

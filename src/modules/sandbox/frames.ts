@@ -33,6 +33,10 @@ const UNMOUNT_MS = 1300;
 /** Slots with no height of their own: the view frame takes its content's, up to FIT_MAX_PX. */
 const FIT_SLOTS: readonly ViewSlot[] = ["settings", "sidebar-footer", "mobile-more"];
 const FIT_MAX_PX = 2000;
+/** A view frame larger than its box (the module's box inside keeps the slot's size): the dock pill's shadow. */
+const ROOM: Partial<Record<ViewSlot, { top: number; right: number; bottom: number; left: number }>> = {
+  "mobile-dock": { top: 16, right: 8, bottom: 16, left: 16 },
+};
 
 const budget = createFrameBudget();
 const peers = new Set<RpcPeer>();
@@ -207,6 +211,19 @@ function openFrame(
   const fit = role === "view" && FIT_SLOTS.includes(slot);
   // Same colour scheme as the frame's document, or the browser paints it opaque.
   Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" && !fit ? "100%" : "0", colorScheme: "normal", background: "transparent" });
+  const room = role === "view" ? ROOM[slot] : undefined;
+  if (room) {
+    Object.assign(iframe.style, {
+      position: "absolute",
+      top: `-${room.top}px`,
+      left: `-${room.left}px`,
+      width: `calc(100% + ${room.left + room.right}px)`,
+      height: `calc(100% + ${room.top + room.bottom}px)`,
+      // Clipped to the box until the module sets a shape (the box then takes no pointer): a box that
+      // takes the pointer itself never takes a tap in its room (ModuleHost lifts the clip).
+      clipPath: `inset(${room.top}px ${room.right}px ${room.bottom}px ${room.left}px)`,
+    });
+  }
   // Its content's height, once a frame at most (no 150 px default).
   let sizeFrame = 0;
   let sizeNext = 0;
@@ -252,7 +269,7 @@ function openFrame(
       initialised = true;
       const transfer = ready(peer);
       peer.send(
-        { v: RPC_VERSION, t: "init", role, moduleId: entry.id, slot: role === "view" ? slot : null, locale: locale(), capabilities: entry.capabilities, catalog: SURFACES, fit },
+        { v: RPC_VERSION, t: "init", role, moduleId: entry.id, slot: role === "view" ? slot : null, locale: locale(), capabilities: entry.capabilities, catalog: SURFACES, fit, ...(room ? { room } : {}) },
         transfer,
       );
     },

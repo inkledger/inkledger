@@ -115,7 +115,8 @@ test("the phone's dock: room for the pill above the tab bar, the pointer only wh
     async ({ page }) => {
       const sel = '[data-module-slot="mobile-dock"] [data-module="dock1"]';
       await page.locator(`${sel}[data-docked] ${LIVE}`).waitFor();
-      const box = await page.locator(`${sel} iframe`).boundingBox();
+      // The slot's box (its frame has room past it for the pill's shadow).
+      const box = await page.locator(sel).boundingBox();
       const bar = await page.locator("[data-tab-bar]").boundingBox();
       assert.ok(Math.abs(box.height - 52) <= 1 && Math.abs(box.width - 260) <= 1 && Math.abs(box.y + box.height - bar.y) <= 1, JSON.stringify({ box, bar }));
       assert.equal(await page.locator(sel).evaluate(el => getComputedStyle(el).pointerEvents), "auto");
