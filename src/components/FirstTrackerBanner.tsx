@@ -1,12 +1,11 @@
 import { readStored, writeStored } from "@/lib/storage";
+import { FIRST_TRACKER_SKIPPED as SKIPPED } from "@/lib/accountData";
 import { useState } from "react";
 import { Plug, X } from "lucide-react";
 import { Link } from "react-router";
 import { useConnections } from "@/hooks/useConnections";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
-
-const SKIPPED = "ikl-first-tracker-skipped";
 
 function skipped(): boolean {
   return readStored(SKIPPED) === "1";

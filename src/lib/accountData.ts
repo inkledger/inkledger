@@ -1,10 +1,13 @@
-import { removeStoredPrefix } from "@/lib/storage";
+import { removeStoredPrefix, writeStored } from "@/lib/storage";
 import { forgetAllFolders } from "@/lib/desk/folders";
 import { pinboardBoard } from "@/hooks/usePinboardPanel";
 import { forgetCollapsedSaves } from "@/hooks/useCollapsedColumns";
 
 /** Where a timer's note waits on this device after a failed save: `<prefix><connection>:<issue key>`. */
 export const TIMER_NOTE_DRAFT_PREFIX = "ikl.timerNote.";
+
+/** The first-tracker banner's "not now": the next account on this device is asked again. */
+export const FIRST_TRACKER_SKIPPED = "ikl-first-tracker-skipped";
 
 /** Resets registered by parts loaded on demand (the Desk chat), so the shell never has to load them. */
 const sessionResets = new Set<() => void>();
@@ -32,5 +35,6 @@ export function forgetAccountData(): void {
   forgetSessionState();
   forgetAllFolders();
   removeStoredPrefix(TIMER_NOTE_DRAFT_PREFIX);
+  writeStored(FIRST_TRACKER_SKIPPED, null);
   pinboardBoard.forget();
 }
