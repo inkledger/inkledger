@@ -102,9 +102,12 @@ function zoneOffsetMs(at: number, zone: TimeZone): number {
 export function instantAtLocal(day: LocalDate, hour: number, zone: TimeZone, minute = 0): Instant {
   const [y, m, d] = day.split("-").map(Number);
   const wall = Date.UTC(y, m - 1, d) + hour * 3_600_000 + minute * 60_000;
-  // The offset where the wall time falls, read twice: once at a guess, then at the answer (DST).
-  const guess = wall - zoneOffsetMs(wall, zone);
-  return instant(wall - zoneOffsetMs(guess, zone));
+  // The offsets a day before and after (one clock change at most between them): an answer is a
+  // candidate whose own offset is the one it was made with; two (a repeated hour) or none
+  // (a skipped hour, the offset before it then gives the later instant) take the later one.
+  const candidates = [wall - zoneOffsetMs(wall - 86_400_000, zone), wall - zoneOffsetMs(wall + 86_400_000, zone)];
+  const real = candidates.filter((c) => wall - zoneOffsetMs(c, zone) === c);
+  return instant(Math.max(...(real.length ? real : candidates)));
 }
 
 /** A JSON value (what may be kept from a service's payload). */
