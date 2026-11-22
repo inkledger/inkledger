@@ -52,6 +52,12 @@ export function interpolate(text: string, vars?: Vars): string {
   return text.replace(/\{(\w+)\}/g, (m, name: string) => (name in vars ? String(vars[name]) : m));
 }
 
+/** A text with its per-use placeholders dropped ("Start timer {key}" → "Start timer"): the name of a control, not of one use of it. */
+export function withoutPlaceholders(text: string): string {
+  const rest = text.replace(/\s*\(?\{\w+\}\)?\s*/g, " ").trim();
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
 const pluralRules = new Map<Locale, Intl.PluralRules>();
 
 export function pick(value: string | Plural, locale: Locale, vars?: Vars): string {

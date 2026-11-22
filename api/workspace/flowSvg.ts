@@ -2,13 +2,13 @@ import type { EvidenceSet, FlowMapView } from "@contracts/workspace/flowMap";
 import type { ResolvedPlacement } from "@contracts/workspace/model";
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { blocksIn, dashboardSegments, heatLayerOf, hitStep, sidebarActionSegments, sketchFor, HIT_GRID_SIZE, type HeatLayer, type Sketch, type SketchArea } from "@contracts/workspace/sketch";
-import { t, type MessageKey } from "@contracts/i18n";
+import { t, withoutPlaceholders, type MessageKey } from "@contracts/i18n";
 
 const escape = (value: string) => value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
 // The picture is shown and shared: controls, areas and the period by name, never by internal id.
 const controlName = (controlId: string) => {
   const control = CATALOG_V1.controls.find(item => item.id === controlId);
-  return control ? t(control.accessibility.labelKey as MessageKey, { provider: t("common.tracker") }) : controlId;
+  return control ? withoutPlaceholders(t(control.accessibility.labelKey as MessageKey, { provider: t("common.tracker") })) : controlId;
 };
 const anchorName = (anchorId: string) => {
   const anchor = CATALOG_V1.anchors.find(item => item.id === anchorId);

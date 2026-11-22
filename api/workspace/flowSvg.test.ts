@@ -40,6 +40,17 @@ describe("the FlowMap picture", () => {
   });
 });
 
+describe("the FlowMap picture, per-use controls", () => {
+  it("names a control without the placeholder of one use of it", () => {
+    const ids = ["dashboard.activity.start", "board.card.start", "dashboard.timer.logStopped", "dashboard.timeline.pendingLog", "dashboard.tasks.more"];
+    const flows = ids.slice(1).map((to, index) => ({ fromControlId: ids[index], toControlId: to, count: 1 }));
+    const svg = renderFlowMapSvg({ ...evidence, flows }, [], "flow");
+    expect(svg).not.toMatch(/\{\w+\}|\(\)/);
+    expect(svg).toContain("Start timer → Start timer");
+    expect(svg).toContain("Show all");
+  });
+});
+
 describe("the FlowMap picture of use, drawn on the layout", () => {
   const placements: ResolvedPlacement[] = productDefaultFor(PRODUCT_DEFAULTS_V1, "dashboard").placements.map(placement => ({ ...placement, origin: "product" as const }));
   const drawnAreas = new Set(sketchFor(evidence.scope)!.areas.filter(area => area.region !== "tray").map(area => area.areaId));

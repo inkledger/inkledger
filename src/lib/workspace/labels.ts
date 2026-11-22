@@ -1,5 +1,6 @@
 import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 import { t, type MessageKey } from "@/i18n";
+import { withoutPlaceholders } from "@contracts/i18n/core";
 import type { EvidenceSet } from "@contracts/workspace/flowMap";
 import { dayMonth } from "@/lib/dates";
 import type { BlockFriction } from "@/lib/workspace/layers";
@@ -15,7 +16,8 @@ export const areaLabel = (areaId: string): string =>
 /** A catalogued control by the name its button carries. */
 export function controlLabel(controlId: string): string {
   const control = CATALOG_V1.controls.find(item => item.id === controlId);
-  return control ? t(control.accessibility.labelKey as MessageKey, { provider: t("common.tracker") }) : controlId;
+  // Some name a button of one issue or count ("Start timer {key}"): the control, not that use.
+  return control ? withoutPlaceholders(t(control.accessibility.labelKey as MessageKey, { provider: t("common.tracker") })) : controlId;
 }
 
 /** A block of the layout by the name the Studio shows for it. */
