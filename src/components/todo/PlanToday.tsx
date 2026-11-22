@@ -59,9 +59,14 @@ export function PlanToday({
   );
   const done = () => plannedOn.set(todayKey);
   const moveLate = (dueOn: string | null) =>
-    void Promise.all(
+    void Promise.allSettled(
       late.map(x => utils.client.todos.update.mutate({ id: x.id, dueOn }))
-    ).then(onChanged, toastError);
+    ).then(results => {
+      // Some moved even when one failed: the list shows those, then the failure is said.
+      onChanged();
+      const failed = results.find(r => r.status === "rejected");
+      if (failed) toastError(failed.reason);
+    });
   const take = (s: (typeof shown)[number], dueOn: string) =>
     void utils.client.todos.add
       .mutate({
