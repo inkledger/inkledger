@@ -21,7 +21,7 @@ import { t as tr } from "@contracts/i18n";
 import { certainRefusal, providerTrpcError } from "../providers/trpc";
 import type { IssueRef, RemoteWorklog } from "../providers/types";
 import { boundTracker } from "./engine";
-import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, roundingSlack, sameTime, startOf } from "./worklogs";
+import { createThere, deleteThere, dropOld, entriesOf, landed, linkSink, pushCreate, pushUpdate, roundingSlack, sameTime, stampedStart, stampsStart, startOf } from "./worklogs";
 import { oneReplay, withOutboxLock, type ReplayResult } from "./outboxLocks";
 import { trackerOfSink } from "./extraSinks";
 import { callMeta } from "../lib/callMeta";
@@ -239,12 +239,18 @@ async function adoptLanded(
   const words = sent?.comment ?? local.comment;
   // A service that rounds lengths stores one a little off what was sent.
   const slack = roundingSlack(entriesOf(t.b)?.limits, mine.seconds);
+  // Sent with a stamped start (no words, no creation time of its own there): that very second is ours.
+  const stamp = stampsStart(t.b) ? stampedStart(mine.started, mine.seconds).getTime() : null;
   for (const w of there) {
     if (w.authorRemoteId !== conn.remoteAccountId || w.remoteId === replacing?.remoteId || deleting.has(w.remoteId)) continue;
-    if (!holds(w.span, mine, t.zone, w.dayOnly, slack)) continue;
-    // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent (where it keeps any).
-    if ((w.span.kind !== "session" || w.dayOnly) && (!w.createdAt || (!w.noWords && !sameWords(w.comment, words)))) continue;
-    if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
+    if (stamp !== null) {
+      if (w.span.kind !== "session" || w.span.start !== stamp || Math.abs(w.span.seconds - mine.seconds) > slack) continue;
+    } else {
+      if (!holds(w.span, mine, t.zone, w.dayOnly, slack)) continue;
+      // Only its day known: a twin is easier to mistake for it, so it must be bounded in time and carry the very words sent (where it keeps any).
+      if ((w.span.kind !== "session" || w.dayOnly) && (!w.createdAt || (!w.noWords && !sameWords(w.comment, words)))) continue;
+      if (w.createdAt && new Date(w.createdAt).getTime() < notBefore) continue;
+    }
     const [linked] = await db
       .select({ id: worklogs.id, started: worklogs.started, seconds: worklogs.timeSpentSeconds })
       .from(worklogSinks)
@@ -261,7 +267,7 @@ async function adoptLanded(
     // twice, as it did; never another worklog's entry, and the old one with it, gone).
     // Nor one of the same time the user logged on the tracker itself (with no creation time to
     // bound it, on GitLab, of any age): ours carries the very words sent.
-    if (replacing && ((linked && linked.id !== local.id) || !sameWords(w.comment, local.comment))) continue;
+    if (replacing && ((linked && linked.id !== local.id) || (stamp === null && !sameWords(w.comment, local.comment)))) continue;
     await landedOn(local, conn, w.remoteId, w.version ?? null);
     // The entry it replaces goes, as after a recreate that was answered (queued if it can't now).
     if (replacing) await dropOld(t.b, conn, local, t.ref, meta(), replacing.remoteId, replacing.version);
@@ -327,16 +333,19 @@ export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remot
 /**
  * The entry is the lost create such a delete is about: the values sent, the very words, made
  * while its sends could land (from its first to shortly after its last; one with no creation
- * time known never: it is deleted, so never a guess).
+ * time known never: it is deleted, so never a guess). Where the tracker stampsStart, the very
+ * start it was sent with instead (its words and creation time there say nothing).
  */
 export function buriedBy(
   tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "landedBefore">,
   e: Pick<RemoteWorklog, "span" | "comment" | "createdAt" | "dayOnly">,
   zone: TimeZone,
   slack = 0,
+  stamped = false,
 ): boolean {
   // No last send known (queued before it was kept): nothing is taken for it.
   if (!tomb.started || !tomb.landedAfter || !tomb.landedBefore) return false;
+  if (stamped) return e.span.kind === "session" && e.span.start === stampedStart(tomb.started, tomb.timeSpentSeconds).getTime() && Math.abs(e.span.seconds - tomb.timeSpentSeconds) <= slack;
   if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, e.dayOnly, slack) || !sameWords(e.comment, tomb.comment)) return false;
   // No creation time to bound it: any twin of any age could be it, so none is.
   if (e.createdAt == null) return false;
@@ -428,7 +437,7 @@ async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox
   const there = await t.b.worklogs.list(meta(), t.ref);
   const found: string[] = [];
   for (const w of there) {
-    if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone, roundingSlack(entriesOf(t.b)?.limits, tomb.timeSpentSeconds))) continue;
+    if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone, roundingSlack(entriesOf(t.b)?.limits, tomb.timeSpentSeconds), stampsStart(t.b))) continue;
     const [linked] = await getDb()
       .select({ id: worklogSinks.id })
       .from(worklogSinks)

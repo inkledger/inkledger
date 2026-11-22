@@ -5,6 +5,7 @@
 // entries read back into the registry. Every tracker that keeps entries
 // writes through here (sync/timeWrites.ts); Jira's feed is still read by
 // its own sync (worklogSync.ts).
+import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { outbox, worklogs, worklogSinks, type Connection } from "@db/schema";
 import type { EntryCapabilities } from "@contracts/providers";
@@ -83,10 +84,27 @@ export async function linkSink(worklogId: number, sinkConnectionId: number, remo
   }
 }
 
+/**
+ * A tracker whose entries keep no words and report the start sent as their creation time
+ * (Gitea): a lost answer's entry can't be told from a twin logged by hand, so its start is
+ * sent with a second drawn from the time itself (stampedStart).
+ */
+export const stampsStart = (b: Pick<BoundTracker, "type">) => b.type === "gitea";
+
+/** The start as sent where the tracker stampsStart: its minute, at a second (1–59, never 0) drawn from that minute and the length. */
+export function stampedStart(started: Date, seconds: number): Date {
+  const minute = Math.floor(started.getTime() / 60_000) * 60_000;
+  const h = createHash("sha256").update(`${minute}:${seconds}`).digest().readUInt32BE(0);
+  return new Date(minute + (1 + (h % 59)) * 1000);
+}
+
 function inputOf(b: BoundTracker, local: Local, zone: TimeZone): WorklogInput {
   const e = entriesOf(b);
   if (!e) throw cannotDoIt(b);
-  return { time: timeInput(e.shape, local, zone), comment: local.comment };
+  const time = timeInput(e.shape, local, zone);
+  // Only what is sent: the worklog keeps the user's start.
+  if (time.kind === "session" && stampsStart(b)) return { time: { ...time, start: instant(stampedStart(local.started, local.timeSpentSeconds).getTime()) }, comment: local.comment };
+  return { time, comment: local.comment };
 }
 
 /** A new worklog on the service, nothing recorded here yet: a retry with the same uuid lands once (natively, or by inkledger's own key). */
@@ -222,6 +240,7 @@ async function applyPage(
   gone: { remoteId: string }[],
   zone: TimeZone,
   slackOf: (seconds: number) => number = () => 0,
+  stamped = false,
 ): Promise<{ upserted: number; removed: number }> {
   const db = getDb();
   const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
@@ -272,6 +291,8 @@ async function applyPage(
     const local = k ? locals.get(k.worklogId) : undefined;
     // A service that keeps only the day: the clock time here stands while the day is the same.
     if (local && w.dayOnly && localDateOf(instant(local.started.getTime()), zone) === localDateOf(instant(values.started.getTime()), zone)) values.started = local.started;
+    // A start stamped as sent (stampsStart): the user's start here stands.
+    if (local && stamped && values.started.getTime() === stampedStart(local.started, local.timeSpentSeconds).getTime()) values.started = local.started;
     const differs = !!local && (local.timeSpentSeconds !== values.timeSpentSeconds || local.started.getTime() !== values.started.getTime() || local.comment !== values.comment);
     // (Every entry here has its issue: the others were left out above.)
     return { w, key: w.issue?.key ?? "", values, locked: w.locked ? JSON.stringify(w.locked) : null, k, local, differs };
@@ -310,8 +331,10 @@ async function applyPage(
       continue;
     }
     // Never read back meanwhile: linked here, it would be no longer the delete's to take.
-    if (buried.some((t) => t.issueKey === r.key && buriedBy(t, w, zone, slackOf(t.timeSpentSeconds)))) continue;
-    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
+    if (buried.some((t) => t.issueKey === r.key && buriedBy(t, w, zone, slackOf(t.timeSpentSeconds), stamped))) continue;
+    // Stamped as sent: only the very start ours was sent with, never a twin logged by hand that minute.
+    const sentAs = (c: Local) => (stamped ? values.started.getTime() === stampedStart(c.started, c.timeSpentSeconds).getTime() && Math.abs(c.timeSpentSeconds - values.timeSpentSeconds) <= slackOf(c.timeSpentSeconds) : sameTime({ started: c.started, seconds: c.timeSpentSeconds }, { started: values.started, seconds: values.timeSpentSeconds }));
+    const at = unconfirmed.findIndex((c) => c.issueKey === r.key && sentAs(c));
     if (at >= 0) {
       // Ours, read back before its answer came: the same worklog, never a second one.
       const [ours] = unconfirmed.splice(at, 1);
@@ -386,7 +409,7 @@ export async function syncEntries(
       // takes 65535 parameters at most).
       // Only the user's own, on an issue, count as copies (the others are left out anyway).
       const mine = items.filter((w) => w.authorRemoteId === conn.remoteAccountId && !!w.issue?.key);
-      for (const round of rounds(mine, (w) => w.remoteId)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone, (s) => roundingSlack(entriesOf(b)?.limits, s))).upserted;
+      for (const round of rounds(mine, (w) => w.remoteId)) for (const some of slices(round)) upserted += (await applyPage(conn, some, [], opts.zone, (s) => roundingSlack(entriesOf(b)?.limits, s), stampsStart(b))).upserted;
       for (const round of rounds(gone, (g) => g.remoteId)) for (const some of slices(round)) removed += (await applyPage(conn, [], some, opts.zone)).removed;
     },
   );
