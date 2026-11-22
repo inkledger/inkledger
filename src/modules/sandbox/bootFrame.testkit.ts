@@ -14,6 +14,8 @@ export function bootFrame(o: {
   methods: Record<string, Method>;
   role?: "view" | "runtime";
   slot?: string;
+  /** More of the frame's window (an OffscreenCanvas, say). */
+  globals?: Record<string, unknown>;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const parentWin = {
@@ -46,6 +48,7 @@ export function bootFrame(o: {
     queueMicrotask,
     structuredClone,
     console: { error: (...a: unknown[]) => errors.push(a), warn() {}, log() {} },
+    ...o.globals,
   });
   const sent: HostMessage[] = [];
   const peer = createRpcPeer({

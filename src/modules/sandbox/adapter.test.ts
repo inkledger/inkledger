@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SURFACES } from "@/components/app/surface";
+import { z } from "zod";
 import { capabilityMethods } from "./capabilities";
+import { method } from "./rpc";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
 import type { ImportancePage } from "./importance";
@@ -86,5 +88,29 @@ describe("the frame's host API (bootstrap)", () => {
     await settle(10);
     expect(results).toEqual(expect.arrayContaining([true, "share: too big to send"]));
     expect(shared[0]).toMatchObject({ name: "pic.png", type: "image/png" });
+  });
+
+  it("hit.set with a picture sends its alpha, scaled to 512 px a side at most", async () => {
+    const got: unknown[] = [];
+    const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
+    class OffscreenCanvas {
+      width: number;
+      height: number;
+      constructor(width: number, height: number) {
+        this.width = width;
+        this.height = height;
+      }
+      getContext() {
+        const n = this.width * this.height;
+        return { drawImage() {}, getImageData: () => ({ data: Uint8ClampedArray.from({ length: n * 4 }, (_, i) => (i % 4 === 3 && i < 8 ? 200 : 0)) }) };
+      }
+    }
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-overlay": (_el: unknown, host: HostApiV2) => (host.hit.set({ width: 1024, height: 256 } as ImageBitmap, () => {}), () => {}) } };
+    bootFrame({ capabilities: [], mod, methods, slot: "dashboard-overlay", globals: { OffscreenCanvas } });
+    await settle();
+    const m = got[0] as { kind: string; w: number; h: number; alpha: Uint8Array };
+    expect(m).toMatchObject({ kind: "mask", w: 512, h: 128 });
+    expect(m.alpha).toBeInstanceOf(Uint8Array);
+    expect([...m.alpha.slice(0, 3)]).toEqual([200, 200, 0]);
   });
 });

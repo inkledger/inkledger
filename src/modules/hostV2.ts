@@ -75,8 +75,10 @@ export type HostApiV2 = Basics &
      * Makes these regions of an overlay clickable ("dashboard-overlay",
      * "dashboard-perch"): the frame itself never takes pointer events there; the
      * host tests a gesture against the regions and calls `activate`. [] clears.
+     * A picture instead: its alpha over the whole box is the shape (sent at most
+     * 512 px a side; ten changes a second at most).
      */
-    hit: { set(regions: readonly HitRegion[], activate: () => void): void };
+    hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void): void };
     /** "runtime": a port to this module's runtime (one per view). */
     runtime?: MessagePort;
   };

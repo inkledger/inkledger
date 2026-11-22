@@ -69,13 +69,25 @@ const send = (m, transfer) => parent.postMessage(Object.assign({ v: V }, m), "*"
 // Over the host's message cap a call would go unanswered: refused here instead.
 const MAX_BYTES = 1000000;
 const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
-const call = (m, a) => new Promise((resolve, reject) => {
+const call = (m, a, transfer) => new Promise((resolve, reject) => {
   if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));
   const id = ++seq;
   pending.set(id, { resolve, reject });
-  send({ t: "call", id, m, a: a || [] });
+  send({ t: "call", id, m, a: a || [] }, transfer);
 });
-const fire = (m, a) => void call(m, a).catch(report);
+const fire = (m, a, transfer) => void call(m, a, transfer).catch(report);
+// A picture's alpha, scaled to at most 512 px a side: the overlay's shape for the host's hit test.
+const alphaMask = (pic) => {
+  const k = Math.min(1, 512 / Math.max(pic.width, pic.height, 1));
+  const w = Math.max(1, Math.round(pic.width * k)), h = Math.max(1, Math.round(pic.height * k));
+  const c = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(w, h) : Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const g = c.getContext("2d");
+  g.drawImage(pic, 0, 0, w, h);
+  const rgba = g.getImageData(0, 0, w, h).data;
+  const alpha = new Uint8Array(w * h);
+  for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3];
+  return { kind: "mask", w, h, alpha };
+};
 // A value with subscribers: one subscription at the host, the latest kept for late subscribers.
 const state = (name) => {
   const fns = new Set();
@@ -172,7 +184,14 @@ async function start(init, port) {
       const mount = mod.mount[init.slot];
       if (typeof mount !== "function") throw new Error("nothing to mount in " + init.slot);
       host.slot = init.slot;
-      host.hit = { set: (regions, fn) => { activate = typeof fn === "function" ? fn : null; fire("hit.set", [regions]); } };
+      host.hit = {
+        set: (shape, fn) => {
+          activate = typeof fn === "function" ? fn : null;
+          if (Array.isArray(shape)) return fire("hit.set", [shape]);
+          const m = alphaMask(shape);
+          fire("hit.set", [m], [m.alpha.buffer]);
+        },
+      };
       if (port) host.runtime = port;
       const box = document.createElement("div");
       box.id = "ikl-box";
