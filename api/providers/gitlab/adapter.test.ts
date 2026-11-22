@@ -144,6 +144,26 @@ describe("gitlab, issues", () => {
     expect([...reads].filter(([id, n]) => n > 1 && !edited.includes(id))).toEqual([]);
   });
 
+  it("a bulk edit read by page number: more issues leaving the run between two reads than the rows read again skip none", async () => {
+    const { b, sim } = simulated();
+    const bulk = Array.from({ length: 230 }, (_, n) => sim.add("acme/bulk", `Bulk ${n}`));
+    const stamp = bulk[0].updated;
+    for (const i of bulk) i.updated = stamp;
+    const reads = new Map<string, number>();
+    let q: Parameters<typeof b.listChanged>[1] = { since: null, page: null };
+    for (let page = 1; page < 50; page++) {
+      const out = await b.listChanged(meta(), q);
+      for (const i of out.items) reads.set(i.remoteId, (reads.get(i.remoteId) ?? 0) + 1);
+      // Fifteen already read leave the run: the rest shift back past the rows read again.
+      if (page === 3) for (const i of bulk.slice(0, 15)) sim.outside.retitle(i, "Edited mid-pass");
+      if (out.last) break;
+      q = { since: null, page: out.next };
+    }
+    expect(bulk.filter((i) => !reads.has(String(i.id))).map((i) => i.title)).toEqual([]);
+    const edited = bulk.slice(0, 15).map((i) => String(i.id));
+    expect([...reads].filter(([id, n]) => n > 1 && !edited.includes(id))).toEqual([]);
+  });
+
   it("a moved issue stays behind, closed: reported as transferred, with its successor", async () => {
     const { b, sim } = simulated();
     const first = await pass(b);

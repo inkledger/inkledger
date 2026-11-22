@@ -141,8 +141,11 @@ type X = CallContext<"gitlab", GitLabOptions>;
 /** Format of this adapter's checkpoints (core/checkpoint.ts). */
 const V = 1;
 type Since = { at: number };
-/** `after`: the last updated_at read, the next page starts there (an issue edited mid-pass shifts no offset); `seen`: the ids read at it; `per`: the page size, when paging by number. */
-type IssuePage = { page: number; at: number; after?: string; seen?: string[]; per?: number };
+/**
+ * `after`: the last updated_at read, the next page starts there (an issue edited mid-pass shifts no offset); `seen`: the ids read at it;
+ * `per`: the page size, when paging by number; `end`, `back`: this page starts `back` rows before `end`, the end of the rows read.
+ */
+type IssuePage = { page: number; at: number; after?: string; seen?: string[]; per?: number; end?: number; back?: number };
 type TimelogPageAt = { after: string | null; from: string; to: string; username: string; at: number };
 
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
@@ -150,6 +153,8 @@ const OVERLAP_MS = 60_000;
 const PER_PAGE = 50;
 /** Rows read again when paging by number: an issue that leaves the run meanwhile shifts the rest back, up to this many is no skip. */
 const REREAD = 10;
+/** Ids kept to drop when rows are read again, enough for a step back of most of a page. */
+const SEEN_MAX = 200;
 /** The feed window the capabilities declare. */
 const WINDOW_DAYS = 30;
 
@@ -159,16 +164,35 @@ const WINDOW_DAYS = 30;
  * The rows of this page from there on are `seen`, skipped when read again.
  */
 function rereadFrom(at: IssuePage, per: number, rows: GitLabIssue[]): IssuePage {
-  const start = (at.page - 1) * per;
-  const end = start + rows.length;
-  let best: { from: number; size: number } | null = null;
-  for (let size = 100; size > REREAD; size--) {
-    const from = Math.floor((end - REREAD) / size) * size;
-    if (from >= start && from + size > end && (!best || from + size > best.from + best.size)) best = { from, size };
-  }
+  const end = (at.page - 1) * per + rows.length;
+  const ids = rows.map((i) => String(i.id));
+  const seen = [...(at.seen ?? []).filter((id) => !ids.includes(id)), ...ids].slice(-SEEN_MAX);
+  const best = gridBack(end, REREAD, rows.length);
   // None (not met below 20,000 rows): the next page as it is, no overlap.
-  if (!best) return { ...at, page: at.page + 1, seen: [] };
-  return { ...at, page: best.from / best.size + 1, per: best.size, seen: rows.slice(best.from - start).map((i) => String(i.id)) };
+  if (!best) return { page: at.page + 1, at: at.at, after: at.after, per: at.per, seen: [] };
+  return { page: best.from / best.size + 1, at: at.at, after: at.after, per: best.size, seen, end, back: REREAD };
+}
+
+/** The page (on the grid) starting `back` or more rows before `end`, no further back than `known` rows, read past `end`. */
+function gridBack(end: number, back: number, known: number): { from: number; size: number } | null {
+  let best: { from: number; size: number } | null = null;
+  for (let size = 100; size > back; size--) {
+    const from = Math.floor((end - back) / size) * size;
+    if (from >= end - known && from + size > end && (!best || from + size > best.from + best.size)) best = { from, size };
+  }
+  return best;
+}
+
+/**
+ * A page read again that starts on none of the rows read: more left the run meanwhile than were read again.
+ * Twice as far back, while a page on the grid still reaches; then from the run's start. Rows in `seen` are dropped.
+ */
+function stepBack(at: IssuePage): IssuePage {
+  const back = (at.back ?? REREAD) * 2;
+  const seen = at.seen ?? [];
+  const best = at.end === undefined ? null : gridBack(at.end, back, seen.length);
+  if (!best) return { page: 1, at: at.at, after: at.after, seen };
+  return { ...at, page: best.from / best.size + 1, per: best.size, back };
 }
 
 async function credsOf(x: X): Promise<GitLabCreds> {
@@ -507,15 +531,24 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
     const shape = shapeOf(x);
     const since = decodeCheckpoint<Since>(x.conn, "issues", V, q.since)?.at ?? null;
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
-    const at = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { page: 1, at: Date.now() };
-    // scope defaults to created_by_me, state to all, per_page tops out at 100.
-    const per = at.per ?? PER_PAGE;
-    const params = new URLSearchParams({ scope: "assigned_to_me", state: "all", order_by: "updated_at", sort: "asc", per_page: String(per), page: String(at.page) });
-    // updated_after is inclusive: the issues read at `after` come back first, skipped.
-    if (at.after !== undefined) params.set("updated_after", at.after);
-    else if (since !== null) params.set("updated_after", new Date(since).toISOString());
-    const r = await gl<GitLabIssue[]>(c, `/issues?${params.toString()}`);
-    const rows = r?.data ?? [];
+    let at = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { page: 1, at: Date.now() };
+    let per: number;
+    let r: Awaited<ReturnType<typeof gl<GitLabIssue[]>>>;
+    let rows: GitLabIssue[];
+    // At most a few steps back (each doubles), then the run's start, read with no check.
+    for (;;) {
+      // scope defaults to created_by_me, state to all, per_page tops out at 100.
+      per = at.per ?? PER_PAGE;
+      const params = new URLSearchParams({ scope: "assigned_to_me", state: "all", order_by: "updated_at", sort: "asc", per_page: String(per), page: String(at.page) });
+      // updated_after is inclusive: the issues read at `after` come back first, skipped.
+      if (at.after !== undefined) params.set("updated_after", at.after);
+      else if (since !== null) params.set("updated_after", new Date(since).toISOString());
+      r = await gl<GitLabIssue[]>(c, `/issues?${params.toString()}`);
+      rows = r?.data ?? [];
+      const first = rows[0];
+      if (at.back === undefined || (first !== undefined && first.updated_at === at.after && at.seen?.includes(String(first.id)))) break;
+      at = stepBack(at);
+    }
     const items: RemoteIssue[] = [];
     const gone: { remoteId: string; reason: "transferred"; successor: IssueRef }[] = [];
     for (const i of rows) {
