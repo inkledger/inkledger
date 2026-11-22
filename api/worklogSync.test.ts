@@ -33,6 +33,7 @@ const wl = (id: string, author: string, startedMs: number, seconds = 3600, issue
   started: iso(startedMs),
   author: { accountId: author, displayName: author },
   comment: "work",
+  created: iso(Date.now()),
   updated: iso(Date.now()),
 });
 

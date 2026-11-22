@@ -49,7 +49,9 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
             const id = (out as { remoteId: string }).remoteId;
             if (!tracker.made.has(id)) tracker.made.set(id, Date.now());
           }
-          if (name === "list") return (out as { remoteId: string }[]).map((w) => (tracker.made.has(w.remoteId) ? { ...w, createdAt: tracker.made.get(w.remoteId) } : w));
+          const dated = (w: { remoteId: string }) => (tracker.made.has(w.remoteId) ? { ...w, createdAt: tracker.made.get(w.remoteId) } : w);
+          if (name === "list") return (out as { remoteId: string }[]).map(dated);
+          if (name === "changed") return { ...(out as { items: { remoteId: string }[] }), items: (out as { items: { remoteId: string }[] }).items.map(dated) };
           // It landed, but the answer never came back.
           if (tracker.loseAnswer && name === "create") throw new ProviderError("unavailable", "fake: timed out");
           const after = tracker.afterLanding?.[name];
@@ -840,6 +842,35 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
       tracker.unresolved = false;
       tracker.unresolvedOnly = undefined;
       await q("DELETE FROM outbox");
+    }
+  });
+
+  it("a lost create deleted while queued, on a tracker whose entries carry no creation time: nothing there is deleted for it, the entry is read back", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const day = "2026-11-07";
+    const there = async () => (await boundTracker(conn)!.worklogs!.list(meta, { remoteId: "r-1", key: "FAKE-1" })).filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day)).map((w) => w.remoteId);
+    const here = async () => (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "undated" });
+      tracker.loseAnswer = false;
+      const landed = await there();
+      expect(landed).toHaveLength(1);
+      // As GitLab's timelogs: no creation time.
+      tracker.made.delete(landed[0]);
+      await caller.worklogs.delete({ id: made.id });
+      expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+      expect(await there()).toEqual(landed);
+      await caller.issues.syncConnection({ id: connId });
+      expect((await here()).map((w) => w.remoteId)).toEqual(landed);
+      await caller.worklogs.delete({ id: (await here())[0].id });
+    } finally {
+      tracker.loseAnswer = false;
     }
   });
 

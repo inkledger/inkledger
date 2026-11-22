@@ -326,8 +326,8 @@ export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remot
 
 /**
  * The entry is the lost create such a delete is about: the values sent, the very words, made
- * while its sends could land (from its first to shortly after its last; a day's entry, or one
- * with no creation time known, only where it keeps a start: it is deleted, so never a guess).
+ * while its sends could land (from its first to shortly after its last; one with no creation
+ * time known never: it is deleted, so never a guess).
  */
 export function buriedBy(
   tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "landedBefore">,
@@ -338,7 +338,8 @@ export function buriedBy(
   // No last send known (queued before it was kept): nothing is taken for it.
   if (!tomb.started || !tomb.landedAfter || !tomb.landedBefore) return false;
   if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, e.dayOnly, slack) || !sameWords(e.comment, tomb.comment)) return false;
-  if (e.createdAt == null) return e.span.kind === "session" && !e.dayOnly;
+  // No creation time to bound it: any twin of any age could be it, so none is.
+  if (e.createdAt == null) return false;
   const at = Number(e.createdAt);
   return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.landedBefore.getTime() + CLOCK_SKEW_MS;
 }
