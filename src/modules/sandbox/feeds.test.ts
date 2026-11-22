@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LayoutState, PointerState } from "../hostV2";
-import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, type LayoutChangedWin, type PointerWin } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent, type LayoutChangedWin, type PointerWin } from "./feeds";
 
 function fakeWin() {
   const on = new Map<string, Set<(e: unknown) => void>>();
@@ -176,5 +176,35 @@ describe("what Desk Radio reads of the layout", () => {
       { sidebar: "full", docked: false, viewport: { width: 390, height: 700 }, navMore: true, scrolling: false },
       { sidebar: "full", docked: false, viewport: { width: 390, height: 900 }, navMore: true, scrolling: false },
     ]);
+  });
+});
+
+describe("the page's content changing", () => {
+  it("tells elements added or removed under the root, never text alone (a ticking timer), until undone", () => {
+    let records: (r: { addedNodes: { nodeType: number }[]; removedNodes: { nodeType: number }[] }[]) => void = () => {};
+    let watched: unknown = null;
+    let disconnected = 0;
+    class Observer {
+      constructor(cb: typeof records) {
+        records = cb;
+      }
+      observe(root: unknown, opts: unknown) {
+        watched = [root, opts];
+      }
+      disconnect() {
+        disconnected++;
+      }
+    }
+    let told = 0;
+    const root = {} as Node;
+    const off = watchContent(root, () => void told++, Observer as unknown as typeof MutationObserver);
+    expect(watched).toEqual([root, { childList: true, subtree: true }]);
+    records([{ addedNodes: [{ nodeType: 3 }], removedNodes: [{ nodeType: 3 }] }]);
+    expect(told).toBe(0);
+    records([{ addedNodes: [{ nodeType: 1 }], removedNodes: [] }]);
+    records([{ addedNodes: [], removedNodes: [{ nodeType: 1 }] }]);
+    expect(told).toBe(2);
+    off();
+    expect(disconnected).toBe(1);
   });
 });

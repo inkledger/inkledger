@@ -179,6 +179,19 @@ export function createLayoutChangedFeed(win: LayoutChangedWin, sources: readonly
 }
 
 /**
+ * The page's content changing with no scroll or resize (a route's content
+ * arriving, a list growing): elements added or removed under `root`. Text
+ * alone (a ticking timer) never counts. Returns the undo.
+ */
+export function watchContent(root: Node, fn: () => void, Observer: typeof MutationObserver = MutationObserver): () => void {
+  const o = new Observer(records => {
+    if (records.some(r => [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1))) fn();
+  });
+  o.observe(root, { childList: true, subtree: true });
+  return () => o.disconnect();
+}
+
+/**
  * Whether the page is scrolling: true at a gesture's first scroll event, false
  * once it has been quiet LAYOUT_SETTLE_MS (two changes a gesture, not one a
  * frame). Listens only while subscribed.

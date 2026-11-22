@@ -9,7 +9,7 @@ import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
 import { browserPage } from "./importance";
-import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
 import { createModuleCache, indexedDbCache } from "./cache";
 import { fontLoader, themeSheet } from "./themeSheet";
 import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
@@ -86,7 +86,9 @@ const readLook = (theme: object) => {
   return css;
 };
 let layoutChanged: ReturnType<typeof createLayoutChangedFeed> | null = null;
-const layoutChangedFeed = () => (layoutChanged ??= createLayoutChangedFeed(window, [sidebar.subscribe, sheetOpen.subscribe]));
+// The main region's content too (a route's page arriving, a list growing), not only scrolls and resizes.
+const mainContent = (fn: () => void) => watchContent(document.querySelector("main") ?? document.body, fn);
+const layoutChangedFeed = () => (layoutChanged ??= createLayoutChangedFeed(window, [sidebar.subscribe, sheetOpen.subscribe, mainContent]));
 let layout: ReturnType<typeof createLayoutFeed> | null = null;
 let scrolling: ReturnType<typeof createScrollingFlag> | null = null;
 /** The sidebar's scrollers: the favorites, and the whole column on a short screen. */

@@ -56,7 +56,8 @@ type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient"
   budget: Sub<BudgetLevel>;
   /**
    * The page moved under the frame: a scroll, a resize, a route change, the
-   * sidebar folding, a sheet opening or closing. Told once things settle
+   * sidebar folding, a sheet opening or closing, the main region's content
+   * changing (elements added or removed; text alone never counts). Told once things settle
    * (in an animation frame), never per scroll event. Returns the undo.
    */
   layoutChanged?(fn: () => void): () => void;
