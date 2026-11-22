@@ -24,6 +24,23 @@ describe("env", () => {
     expect(sessionSecretFrom("a-real-random-value", true)).toBe("a-real-random-value");
   });
 
+  it("the downloads folder defaults to data/downloads, never a path made from the database URL", async () => {
+    const { vi } = await import("vitest");
+    const saved = { url: process.env.DATABASE_URL, dir: process.env.DOWNLOADS_DIR };
+    process.env.DATABASE_URL = "postgres://ikl:s3cret@db:5432/inkledger";
+    delete process.env.DOWNLOADS_DIR;
+    vi.resetModules();
+    try {
+      const fresh = (await import("./env")).env;
+      expect(fresh.downloadsDir.endsWith(`${"data"}/downloads`)).toBe(true);
+      expect(fresh.downloadsDir).not.toContain("s3cret");
+    } finally {
+      process.env.DATABASE_URL = saved.url;
+      if (saved.dir !== undefined) process.env.DOWNLOADS_DIR = saved.dir;
+      vi.resetModules();
+    }
+  });
+
   it("defaults allowed hosts to loopback in production only", () => {
     expect(parseAllowedHosts(undefined, true)).toEqual(["localhost", "127.0.0.1", "::1"]);
     expect(parseAllowedHosts(undefined, false)).toEqual([]);

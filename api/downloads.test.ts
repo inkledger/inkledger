@@ -65,6 +65,20 @@ describe("app downloads (public, tailnet only)", () => {
     }
   });
 
+  it("a HEAD answers the headers and opens no file (a stream never read would hold its descriptor)", async () => {
+    fs.writeFileSync(path.join(DIR, "inkledger.apk"), Buffer.alloc(1 << 20, 1));
+    fs.writeFileSync(path.join(DIR, "manifest.json"), JSON.stringify(manifest({ size: 1 << 20 })));
+    const open = () => fs.readdirSync("/dev/fd").length;
+    await app.request("/api/downloads/inkledger.apk", { method: "HEAD", headers: { host: "my-mac.tail1.ts.net" } });
+    const before = open();
+    for (let i = 0; i < 20; i++) {
+      const res = await app.request("/api/downloads/inkledger.apk", { method: "HEAD", headers: { host: "my-mac.tail1.ts.net" } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-length")).toBe(String(1 << 20));
+    }
+    expect(open() - before).toBeLessThan(5);
+  });
+
   it("serves only the file the manifest names", async () => {
     fs.writeFileSync(path.join(DIR, "inkledger.apk"), APK);
     fs.writeFileSync(path.join(DIR, "other.apk"), APK);

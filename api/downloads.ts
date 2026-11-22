@@ -49,14 +49,14 @@ export function registerDownloadRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     } catch {
       return c.json({ error: "Not Found" }, 404);
     }
-    return new Response(Readable.toWeb(fs.createReadStream(full)) as ReadableStream<Uint8Array>, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/vnd.android.package-archive",
-        "Content-Disposition": `attachment; filename="${android.file}"`,
-        "Content-Length": String(size),
-        "Cache-Control": "no-cache",
-      },
-    });
+    const headers = {
+      "Content-Type": "application/vnd.android.package-archive",
+      "Content-Disposition": `attachment; filename="${android.file}"`,
+      "Content-Length": String(size),
+      "Cache-Control": "no-cache",
+    };
+    // A HEAD (answered by this route) drops the body unread: a stream opened for it would hold its file open.
+    if (c.req.method === "HEAD") return new Response(null, { status: 200, headers });
+    return new Response(Readable.toWeb(fs.createReadStream(full)) as ReadableStream<Uint8Array>, { status: 200, headers });
   });
 }

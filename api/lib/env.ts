@@ -133,9 +133,7 @@ export const env = {
    */
   allowedHosts: parseAllowedHosts(process.env.ALLOWED_HOSTS, isProduction),
   /** Published app builds for new devices (APK + manifest.json) */
-  downloadsDir:
-    process.env.DOWNLOADS_DIR ||
-    path.join(path.dirname(process.env.DATABASE_URL || "./data/app.db"), "downloads"),
+  downloadsDir: process.env.DOWNLOADS_DIR || path.resolve("data/downloads"),
   /** Installed add-on modules (signed folders); /app/data/modules in Docker */
   modulesDir: process.env.MODULES_DIR || path.resolve("data/modules"),
   /** This server's own Ed25519 key (WP-19: licences are activated per instance); made once, never in the database. */
