@@ -457,7 +457,10 @@ export const jiraProvider: TrackerProvider<"jira", JiraOptions> = {
         last: true,
         items,
         gone: deleted.ids.map((id) => ({ remoteId: id, reason: "deleted" as const })),
-        checkpoint: encodeCheckpoint(x.conn, "worklogs", V, { at: Math.max(updated.until, deleted.until) } satisfies Since),
+        // A feed stopped at its page cap holds the checkpoint where it stopped (the other's later time would skip its rest).
+        checkpoint: encodeCheckpoint(x.conn, "worklogs", V, {
+          at: !updated.complete || !deleted.complete ? Math.min(...[updated, deleted].filter((f) => !f.complete).map((f) => f.until)) : Math.max(updated.until, deleted.until),
+        } satisfies Since),
       };
     },
     async get(x, ref, id) {

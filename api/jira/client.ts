@@ -604,7 +604,7 @@ async function worklogIdsSince(
   creds: JiraCredentials,
   what: "updated" | "deleted",
   since: number,
-): Promise<{ ids: string[]; until: number }> {
+): Promise<{ ids: string[]; until: number; complete: boolean }> {
   const ids: string[] = [];
   let cursor = since;
   let until = since;
@@ -616,10 +616,11 @@ async function worklogIdsSince(
     }>(creds, `${apiBase(creds)}/worklog/${what}?since=${cursor}`);
     ids.push(...(res.values ?? []).map((v) => String(v.worklogId)));
     until = res.until ?? until;
-    if (res.lastPage !== false || !res.until || res.until === cursor) break;
+    if (res.lastPage !== false || !res.until || res.until === cursor) return { ids, until, complete: true };
     cursor = res.until;
   }
-  return { ids, until };
+  // Stopped at the page cap: the feed goes on past `until`.
+  return { ids, until, complete: false };
 }
 
 export function fetchUpdatedWorklogIds(creds: JiraCredentials, since: number) {

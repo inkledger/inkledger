@@ -33,14 +33,21 @@ export type WorklogSyncResult = { imported: number; deleted: number; initial: bo
  */
 export async function syncWorklogs(user: User, opts: { reimport?: boolean; background?: boolean } = {}): Promise<WorklogSyncResult> {
   const total: WorklogSyncResult = { imported: 0, deleted: 0, initial: false };
+  // One connection failing doesn't stop the others; the first failure is still the caller's.
+  let failed: unknown = null;
   for (const conn of await jiraConnections(user.id)) {
     // In the background, a connection out of reach waits like its issues: paused for the user, or in its backoff.
     if (opts.background && (!isWorking(conn.status) || (await waiting(conn.id)))) continue;
-    const r = await syncConnectionWorklogs(user, conn, opts);
-    total.imported += r.imported;
-    total.deleted += r.deleted;
-    total.initial ||= r.initial;
+    try {
+      const r = await syncConnectionWorklogs(user, conn, opts);
+      total.imported += r.imported;
+      total.deleted += r.deleted;
+      total.initial ||= r.initial;
+    } catch (e) {
+      failed ??= e;
+    }
   }
+  if (failed) throw failed;
   return total;
 }
 
@@ -130,6 +137,8 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
     }
     deleted += await dropMissing(user.id, user.connectionId, issue.key, local.get(issue.key) ?? [], mine.map((w) => w.id), queued, from);
   }
+  // An issue the search no longer finds holds none of the user's worklogs in the window any more.
+  for (const [key, rows] of local) if (!seen.has(key)) deleted += await dropMissing(user.id, user.connectionId, key, rows, [], queued, from);
   if (added) await refreshActivity(user.id);
   return { imported, deleted };
 }
@@ -157,15 +166,19 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
   if (added) await refreshActivity(user.id);
   const gone = removed.ids.filter((id) => !queued.has(id));
   let deleted = 0;
-  if (gone.length) {
-    deleted = (
+  // The site-wide feed may hold more ids than one statement's parameters: in slices.
+  for (let i = 0; i < gone.length; i += 10_000) {
+    deleted += (
       await getDb()
         .delete(worklogs)
-        .where(and(eq(worklogs.userId, user.id), eq(worklogs.connectionId, user.connectionId), inArray(worklogs.remoteId, gone)))
+        .where(and(eq(worklogs.userId, user.id), eq(worklogs.connectionId, user.connectionId), inArray(worklogs.remoteId, gone.slice(i, i + 10_000))))
         .returning({ id: worklogs.id })
     ).length;
   }
-  return { imported, deleted, until: Math.max(updated.until, removed.until) || undefined };
+  // A feed stopped at its page cap holds the checkpoint where it stopped: the other's later time would skip its rest.
+  const cut = [updated, removed].filter((f) => !f.complete).map((f) => f.until);
+  const until = cut.length ? Math.min(...cut) : Math.max(updated.until, removed.until);
+  return { imported, deleted, until: until || undefined };
 }
 
 /** Local issue keys by Jira id. */

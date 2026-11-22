@@ -46,6 +46,12 @@ const jira = {
   posts: [] as string[],
   /** A first import over more issues than one search used to read (5000): 51 pages, the last one new. */
   big: false,
+  /** The updated feed never reaching its last page (each page one step further). */
+  endlessUpdated: false,
+  /** The issues the worklog search finds (default: PRJ-1). */
+  found: null as null | string[],
+  /** Where the deleted feed says it reached (default: just after now). */
+  deletedUntil: 0,
 };
 
 vi.stubGlobal(
@@ -62,12 +68,16 @@ vi.stubGlobal(
           ? json({ isLast: false, nextPageToken: String(page + 1), issues: Array.from({ length: 100 }, () => issue("10", "PRJ-1")) })
           : json({ isLast: true, issues: [issue("19", "PRJ-9")] });
       }
-      return json({ isLast: true, issues: jql.includes("worklogAuthor") ? [issue("10", "PRJ-1")] : [] });
+      return json({ isLast: true, issues: jql.includes("worklogAuthor") ? (jira.found ?? ["PRJ-1"]).map((k) => issue(k === "PRJ-1" ? "10" : "12", k)) : [] });
     }
     if (p.endsWith("/issue/PRJ-9/worklog")) return json({ worklogs: [wl("900", "acc-1", now - 3 * DAY)], total: 1 });
     if (p.endsWith("/issue/PRJ-1/worklog")) return json({ worklogs: jira.prj1, total: jira.prj1.length });
+    if (p.endsWith("/worklog/updated") && jira.endlessUpdated) {
+      const since = Number(url.searchParams.get("since"));
+      return json({ values: [], lastPage: false, until: since + 1 });
+    }
     if (p.endsWith("/worklog/updated")) return json({ values: jira.updated, lastPage: true, until: now + 1000 });
-    if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: now + 1000 });
+    if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: jira.deletedUntil || now + 1000 });
     if (p.endsWith("/worklog/list")) {
       jira.posts.push(String(init?.body));
       return json(jira.list);
@@ -134,6 +144,46 @@ describe("worklogs from Jira", () => {
     jira.deleted = [];
     const r = await me.worklogs.reimport();
     expect(r.initial).toBe(true);
+    expect((await mine()).map(w => w.id)).toEqual(["100"]);
+  });
+
+  /** Where the worklog pass stands (the connection's stream, or the user's for one from before). */
+  const checkpoint = async () => {
+    const [s] = await q<{ checkpoint: string }>("SELECT checkpoint FROM connection_sync WHERE stream = 'worklogs'");
+    if (s) return Number(s.checkpoint);
+    return Number((await q<{ at: number }>("SELECT last_worklog_sync_at AS at FROM sync_state"))[0].at);
+  };
+
+  it("a feed stopped at its page cap holds the checkpoint back: the other feed's later time never skips its rest", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const before = await checkpoint();
+    jira.endlessUpdated = true;
+    jira.deletedUntil = before + 10_000_000;
+    try {
+      await syncWorklogs(user);
+    } finally {
+      jira.endlessUpdated = false;
+      jira.deletedUntil = 0;
+    }
+    const after = await checkpoint();
+    // 200 pages of one step each: where the updated feed stopped, not the deleted feed's "now".
+    expect(after).toBe(before + 200);
+  });
+
+  it("a site-wide deleted feed longer than one statement's parameters still deletes", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    jira.deleted = Array.from({ length: 70_000 }, (_, i) => ({ worklogId: 1_000_000 + i }));
+    try {
+      await expect(syncWorklogs(user)).resolves.toMatchObject({ deleted: 0 });
+    } finally {
+      jira.deleted = [];
+    }
+  });
+
+  it("«Reimporta» drops a copy whose issue the search no longer finds (my last worklog there deleted in Jira)", async () => {
+    (await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) SELECT user_id, connection_id, '13', 'PRJ-3', 'Gone', 'To Do', 'PRJ', 'P', 'u', 1 FROM issues WHERE key = 'PRJ-1'"));
+    (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'PRJ-3', '300', 600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 5 * DAY));
+    await me.worklogs.reimport();
     expect((await mine()).map(w => w.id)).toEqual(["100"]);
   });
 
