@@ -52,6 +52,27 @@ describe("GitHub device login", () => {
     });
   });
 
+  it("two polls at once ask GitHub once; a user's oldest sign-ins go past a few", async () => {
+    const code = () => Response.json({ device_code: "dev", user_code: "ABCD", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
+    const tokenCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).includes("/login/device/code")) return code();
+        tokenCalls.push(String(url));
+        return Response.json({ error: "authorization_pending" });
+      }),
+    );
+    const flow = await startDeviceLogin(7, "GitHub");
+    await Promise.all([pollDeviceLogin(7, flow.flowId), pollDeviceLogin(7, flow.flowId)]);
+    expect(tokenCalls).toHaveLength(1);
+    const later = [];
+    for (let i = 0; i < 6; i++) later.push(await startDeviceLogin(7, "GitHub"));
+    // The first one (and the oldest of the later ones) were dropped.
+    await expect(pollDeviceLogin(7, flow.flowId)).resolves.toEqual({ state: "failed", reason: "expired" });
+    await expect(pollDeviceLogin(7, later[0].flowId)).resolves.toEqual({ state: "failed", reason: "expired" });
+  });
+
   it("still accepts a long-lived token without refresh fields", async () => {
     vi.stubGlobal(
       "fetch",

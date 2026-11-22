@@ -57,6 +57,9 @@ async function post<T>(path: string, form: Record<string, string>): Promise<T> {
 }
 
 /** A new login: the code to enter on GitHub, and where. */
+/** Device sign-ins under way per user, at most. */
+const MAX_FLOWS_PER_USER = 5;
+
 export async function startDeviceLogin(userId: number, label: string) {
   const r = await post<{
     device_code: string;
@@ -79,6 +82,9 @@ export async function startDeviceLogin(userId: number, label: string) {
     label,
   });
   for (const [k, f] of flows) if (f.expiresAt < now) flows.delete(k);
+  // At most a few under way per user: the oldest go (a loop of starts can't grow the map).
+  const mine = [...flows].filter(([, f]) => f.userId === userId);
+  for (const [k] of mine.slice(0, Math.max(0, mine.length - MAX_FLOWS_PER_USER))) flows.delete(k);
   return {
     flowId: id,
     userCode: r.user_code,
@@ -108,6 +114,8 @@ export async function pollDeviceLogin(
       state: "pending",
       retryInSeconds: Math.ceil((f.nextAt - Date.now()) / 1000),
     };
+  // Taken now, before the call: two polls at once ask GitHub once.
+  f.nextAt = Date.now() + f.intervalMs;
   const r = await post<GitHubOAuthResponse & { interval?: number }>(
     "/login/oauth/access_token",
     {
