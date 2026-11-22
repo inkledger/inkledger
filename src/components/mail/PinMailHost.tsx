@@ -8,7 +8,7 @@ import { mayBeMail, openPinMail, takePinMailStart, type PinMailStart } from "./p
 const readMail = () => import("./readMail");
 
 // Its code stays out of the first load: fetched when the browser is free.
-const PinMailDialog = lazyPart(() => import("./PinMailDialog").then(m => m.PinMailDialog));
+const PinMailDialog = lazyPart(() => import("./PinMailDialog").then(m => m.PinMailDialog), p => p.open);
 
 /** Typing, or dropping into, a field: never taken for a mail. */
 const editable = (el: EventTarget | null) =>

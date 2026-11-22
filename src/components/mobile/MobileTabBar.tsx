@@ -20,8 +20,8 @@ import { isPlaced, placementsFor } from "@/lib/workspace/utils";
 import { prefersReducedMotion } from "@/lib/dom";
 import { focusTimer, runningTimers } from "@/lib/timerFocus";
 
-const MobileTimerSheet = lazyPart(() => import("@/components/mobile/MobileTimerSheet").then(m => m.MobileTimerSheet));
-const MobileMoreSheet = lazyPart(() => import("@/components/mobile/MobileMoreSheet").then(m => m.MobileMoreSheet));
+const MobileTimerSheet = lazyPart(() => import("@/components/mobile/MobileTimerSheet").then(m => m.MobileTimerSheet), p => p.open);
+const MobileMoreSheet = lazyPart(() => import("@/components/mobile/MobileMoreSheet").then(m => m.MobileMoreSheet), p => p.open);
 
 const CELL =
   "relative flex min-h-touch min-w-0 flex-col items-center justify-center gap-0.5 rounded-md text-2xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
