@@ -114,3 +114,19 @@ test("Reports on a phone sort too, and the count says what it counts", async () 
     await app.stop();
   }
 });
+
+test("A period Reports can't show leaves the Accuracy tab reachable", async () => {
+  const app = await start();
+  try {
+    const { page, base } = app;
+    await page.goto(base + "/reports?from=2020-01-01&to=2026-11-30&tab=accuracy");
+    // The accuracy panel, not only the period's error.
+    await page.getByText("The last 90 days, whatever the period and the search above.").waitFor({ timeout: 10_000 });
+    await page.getByRole("tab", { name: "Period" }).click();
+    await page.getByRole("alert").filter({ hasText: "Range too long" }).waitFor();
+    await page.getByRole("tab", { name: "Estimate accuracy" }).click();
+    assert.match(page.url(), /[?&]tab=accuracy/);
+  } finally {
+    await app.stop();
+  }
+});

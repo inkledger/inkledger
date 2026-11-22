@@ -271,42 +271,9 @@ export default function Reports() {
     </>
   );
 
-  if (!rangeValid) {
-    return (
-      <>
-        {header}
-        <PanelSection>
-          <p role="alert" className="text-body-sm text-danger">
-            {rangeTooLong
-              ? t("pages.reports.rangeTooLong", { max: REPORT_MAX_DAYS })
-              : t("pages.reports.rangeInvalid")}
-          </p>
-        </PanelSection>
-      </>
-    );
-  }
-
   const failed = report.error ?? byDay.error ?? (groupBy === "days" ? daily.error : null);
   const loading =
     report.isPending || byDay.isPending || (groupBy === "days" && daily.isPending);
-
-  if (failed) {
-    return (
-      <>
-        {header}
-        <PanelSection>
-          <ErrorState
-            message={errorText(failed)}
-            onRetry={() => {
-              void report.refetch();
-              void byDay.refetch();
-              if (groupBy === "days") void daily.refetch();
-            }}
-          />
-        </PanelSection>
-      </>
-    );
-  }
 
   const empty = !loading && data?.rows.length === 0;
   const stats: StatItem[] = !data
@@ -340,7 +307,27 @@ export default function Reports() {
         />
       </div>
       <TabPanel idBase="reports" value="period" current={tab}>
-        {empty ? (
+        {/* Only the period's own tab: Accuracy and Forecast don't depend on it. */}
+        {!rangeValid ? (
+          <PanelSection>
+            <p role="alert" className="text-body-sm text-danger">
+              {rangeTooLong
+                ? t("pages.reports.rangeTooLong", { max: REPORT_MAX_DAYS })
+                : t("pages.reports.rangeInvalid")}
+            </p>
+          </PanelSection>
+        ) : failed ? (
+          <PanelSection>
+            <ErrorState
+              message={errorText(failed)}
+              onRetry={() => {
+                void report.refetch();
+                void byDay.refetch();
+                if (groupBy === "days") void daily.refetch();
+              }}
+            />
+          </PanelSection>
+        ) : empty ? (
           <PanelSection>
             <EmptyState art="chart" title={t("pages.reports.emptyTitle")} message={t("pages.reports.emptyMessage")} />
           </PanelSection>
