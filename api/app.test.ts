@@ -753,9 +753,15 @@ describe("app router (integration, in-memory SQLite)", () => {
         issueKey: "OPS-7",
         remoteId: row.remoteId,
       });
-      expect(await caller.outbox.list()).toHaveLength(0);
+      expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
+      // Its create may have landed (no answer came): only a delete looking for it stays queued.
+      expect((await caller.outbox.list()).map((o) => [o.kind, o.remoteId, o.timeSpentSeconds])).toEqual([["delete", "", 1800]]);
       const local = await caller.worklogs.list({ issueKey: "OPS-7" });
       expect(local.some((w) => w.remoteId === row.remoteId)).toBe(false);
+      // Jira back, nothing of it there: nothing deleted, the queue empty.
+      expect(await caller.outbox.retry()).toMatchObject({ failed: 0, remaining: 0 });
+      const sent = (fetch as ReturnType<typeof vi.fn>).mock.calls.slice(callsBefore) as [unknown, RequestInit | undefined][];
+      expect(sent.some(([, init]) => init?.method === "DELETE" || init?.method === "POST")).toBe(false);
     });
 
     it("queues delete when offline and tolerates 404 on replay", async () => {
@@ -982,6 +988,8 @@ describe("app router (integration, in-memory SQLite)", () => {
       // In the user's words, not the socket's ("fetch failed").
       expect(entry.lastError).toBe("The tracker can’t be reached right now. Try again later.");
       await caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId });
+      // The delete looking for its create on Jira: nothing landed there.
+      expect(await caller.outbox.retry()).toMatchObject({ remaining: 0 });
     });
 
     it("leaves an entry claimed by another server process alone", async () => {
@@ -1004,6 +1012,8 @@ describe("app router (integration, in-memory SQLite)", () => {
       await expect(caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId })).rejects.toMatchObject({ code: "CONFLICT" });
       await db.update(outbox).set({ claimedAt: null });
       await caller.worklogs.delete({ issueKey: "OPS-7", remoteId: row.remoteId });
+      // The delete looking for its create on Jira: nothing landed there.
+      expect(await caller.outbox.retry()).toMatchObject({ remaining: 0 });
     });
 
     it("deleting a worklog already gone on Jira removes the local copy", async () => {

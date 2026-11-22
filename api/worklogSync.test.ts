@@ -253,6 +253,25 @@ describe("worklogs from Jira", () => {
     expect(await mine()).toEqual([]);
   });
 
+  it("a create deleted here whose answer was lost: its entry on Jira is never read back while its delete is queued", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const at = now - 3 * DAY;
+    await q(
+      "INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, time_spent_seconds, started, comment, landed_after, created_at) VALUES (?, ?, 'delete', 'PRJ-1', '', 1800, ?, 'work', ?, ?)",
+      user.id, conn.id, at, Date.now() - 600_000, Date.now(),
+    );
+    // Ours, landed; and one of another length, the user's own.
+    jira.updated = [{ worklogId: 600 }, { worklogId: 601 }];
+    jira.list = [wl("600", "acc-1", at, 1800, "10"), wl("601", "acc-1", at + 3_600_000, 900, "10")];
+    await syncWorklogs(user);
+    expect((await mine()).filter((w) => ["600", "601"].includes(w.id as string)).map((w) => w.id)).toEqual(["601"]);
+    await q("DELETE FROM outbox");
+    await q("DELETE FROM worklogs WHERE jira_worklog_id = '601'");
+    jira.updated = [];
+    jira.list = [];
+  });
+
   it("a worklog still being created (its answer on the way) survives a pass that doesn't see it on Jira; one left by a dead process doesn't", async () => {
     const { CLAIM_TTL_MS } = await import("./sync/timeWrites");
     const [conn] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);

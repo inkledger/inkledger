@@ -16,9 +16,10 @@ import {
 import { PENDING_PREFIX } from "@contracts/types";
 import { rowFromJira, upsertLocal } from "./routers/worklogs";
 import { refreshActivity, upsertIssue } from "./sync/jiraIssues";
-import { contextFor, jiraConnections, type JiraUser } from "./providers/connections";
+import { connOf, contextFor, jiraConnections, type JiraUser } from "./providers/connections";
 import { streamState } from "./sync/state";
-import { creationInFlight } from "./sync/timeWrites";
+import { buriedBy, creationInFlight } from "./sync/timeWrites";
+import { instant } from "@contracts/values";
 import { isWorking } from "@contracts/sync";
 
 /** How far back the first import reaches. */
@@ -51,6 +52,24 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
   }
   if (failed) throw failed instanceof Error ? failed : new Error("A Jira connection's worklogs could not be read");
   return total;
+}
+
+/**
+ * Creates deleted here whose answer was lost (their delete looks for the entry on Jira):
+ * such an entry is never read back as new meanwhile.
+ */
+export async function buriedOn(userId: number, conn: Connection): Promise<(issueKey: string, w: JiraWorklog) => boolean> {
+  const tombs = await getDb()
+    .select()
+    .from(outbox)
+    .where(and(eq(outbox.userId, userId), eq(outbox.connectionId, conn.id), eq(outbox.kind, "delete"), eq(outbox.remoteId, ""), isNotNull(outbox.landedAfter)));
+  if (tombs.length === 0) return () => false;
+  const zone = connOf(conn).timeZone;
+  return (issueKey, w) => {
+    const row = rowFromJira(userId, issueKey, w);
+    const e = { span: { kind: "session" as const, start: instant(row.started.getTime()), seconds: row.timeSpentSeconds }, comment: row.comment, createdAt: w.created ? instant(Date.parse(w.created)) : null };
+    return tombs.some((t) => t.issueKey === issueKey && buriedBy(t, e, zone));
+  };
 }
 
 /** The connection's issue stream waits (a backoff or a rate limit): its worklogs wait too. */
@@ -86,9 +105,10 @@ async function syncConnectionWorklogs(account: User, conn: Connection, opts: { r
       .where(and(eq(worklogTrash.userId, account.id), eq(worklogTrash.connectionId, conn.id), eq(worklogTrash.reason, "user"), isNotNull(worklogTrash.remoteId))),
   ]);
   const queued = new Set([...queuedOps.map((o) => o.id), ...trashed.flatMap((o) => (o.id ? [o.id] : []))]);
+  const buried = await buriedOn(account.id, conn);
   const startedAt = Date.now();
   const ctx = contextFor(account, conn);
-  const result = since ? await incremental(ctx, since.getTime(), queued) : await initial(ctx, queued);
+  const result = since ? await incremental(ctx, since.getTime(), queued, buried) : await initial(ctx, queued, buried);
   const until = new Date(result.until ?? startedAt);
   if (conn.legacy) {
     await db.insert(syncState)
@@ -107,7 +127,9 @@ type Pass = { imported: number; deleted: number; until?: number };
 
 type Ctx = ReturnType<typeof contextFor>;
 
-async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass> {
+type Buried = (issueKey: string, w: JiraWorklog) => boolean;
+
+async function initial({ user, creds }: Ctx, queued: Set<string>, buried: Buried): Promise<Pass> {
   const from = Date.now() - WORKLOG_HISTORY_DAYS * 86_400_000;
   // Every page, however many: the checkpoint written after this pass says the history is
   // complete, so a cap here would leave the rest out for good. Each issue once (paging over
@@ -135,7 +157,7 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
       (w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from,
     );
     for (const w of mine) {
-      if (queued.has(w.id)) continue;
+      if (queued.has(w.id) || buried(issue.key, w)) continue;
       await upsertLocal(rowFromJira(user.id, issue.key, w, user.connectionId));
       imported++;
     }
@@ -149,7 +171,7 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
     if (!there) continue;
     const mine = there.filter((w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from);
     for (const w of mine) {
-      if (queued.has(w.id)) continue;
+      if (queued.has(w.id) || buried(key, w)) continue;
       await upsertLocal(rowFromJira(user.id, key, w, user.connectionId));
       imported++;
     }
@@ -169,7 +191,7 @@ async function worklogsStillOn(creds: Ctx["creds"], key: string): Promise<JiraWo
   }
 }
 
-async function incremental({ user, creds }: Ctx, since: number, queued: Set<string>): Promise<Pass> {
+async function incremental({ user, creds }: Ctx, since: number, queued: Set<string>, buried: Buried): Promise<Pass> {
   const [updated, removed] = await Promise.all([fetchUpdatedWorklogIds(creds, since), fetchDeletedWorklogIds(creds, since)]);
   let imported = 0;
   let added = false;
@@ -185,6 +207,7 @@ async function incremental({ user, creds }: Ctx, since: number, queued: Set<stri
         key = remote.key;
         keyOf.set(w.issueId, key);
       }
+      if (buried(key, w)) continue;
       await upsertLocal(rowFromJira(user.id, key, w, user.connectionId));
       imported++;
     }

@@ -632,6 +632,63 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("a lost create deleted while queued: the entry that landed goes at the replay (as sent, not as edited), never read back", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const there = async (day: string) =>
+      (await boundTracker(conn)!.worklogs!.list({ signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "FAKE-1" }))
+        .filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day))
+        .map((w) => w.remoteId);
+    const day = "2026-10-31";
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "wrong issue" });
+      tracker.loseAnswer = false;
+      expect(made.remoteId).toMatch(/^pending-/);
+      expect(await there(day)).toHaveLength(1);
+      await caller.worklogs.update({ id: made.id, seconds: 1500, started: `${day}T09:00:00+01:00`, comment: "wrong issue" });
+      await caller.worklogs.delete({ id: made.id });
+      // The user's Sync (its queue first) and a replay: deleted there, nothing read back.
+      await caller.issues.syncConnection({ id: connId });
+      expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+      expect(await there(day)).toEqual([]);
+      await caller.issues.syncConnection({ id: connId });
+      expect((await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day))).toEqual([]);
+    } finally {
+      tracker.loseAnswer = false;
+    }
+  });
+
+  it("a lost create deleted, then restored from the trash: the replay deletes only the lost entry, the restored one stays", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const there = async (day: string) =>
+      (await boundTracker(conn)!.worklogs!.list({ signal: new AbortController().signal, correlationId: "t" }, { remoteId: "r-1", key: "FAKE-1" }))
+        .filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day))
+        .map((w) => w.remoteId);
+    const day = "2026-11-01";
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: `${day}T09:00:00+01:00`, comment: "back" });
+      tracker.loseAnswer = false;
+      await caller.worklogs.delete({ id: made.id });
+      const trashed = (await caller.worklogs.trash()).find((t) => t.started.getTime() === Date.parse(`${day}T09:00:00+01:00`));
+      const back = await caller.worklogs.restore({ id: trashed!.id });
+      expect(await there(day)).toHaveLength(2);
+      expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+      expect(await there(day)).toEqual([(await sinkOf(back.id))?.remote_id]);
+      await caller.worklogs.delete({ id: back.id });
+    } finally {
+      tracker.loseAnswer = false;
+    }
+  });
+
   it("on a tracker keeping only days, a create whose answer was lost is adopted at the replay, not logged twice", async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");

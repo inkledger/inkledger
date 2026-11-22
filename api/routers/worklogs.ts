@@ -30,13 +30,13 @@ import { withOutboxLock } from "./outbox";
 import { assertNoOverlap } from "../queries/overlap";
 import { occupiedId } from "@contracts/placement";
 import { TRASH_DAYS, withDeleteReason } from "../queries/trash";
-import { syncWorklogs } from "../worklogSync";
+import { buriedOn, syncWorklogs } from "../worklogSync";
 import { issueKeyInput, LIST_MAX_ROWS } from "../lib/inputs";
 import { t } from "@contracts/i18n";
 import { isPendingId, PENDING_PREFIX } from "@contracts/types";
 import { contextFor, issueConnection } from "../providers/connections";
 import { trackerAdapter } from "../providers/registry";
-import { CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
+import { buryLostCreate, CLAIM_TTL_MS, contractTime, createThrough, creationInFlight, deleteThrough, updateThrough } from "../sync/timeWrites";
 import { withWriteLease } from "../queries/writeLease";
 import { deleteThere } from "../sync/worklogs";
 import { callMeta } from "../lib/callMeta";
@@ -440,8 +440,9 @@ export const worklogsRouter = createRouter({
         ).map((o) => o.id),
       );
       const mine = remote.filter((w) => isAuthor(w.author, user.accountId));
+      const buried = await buriedOn(ctx.user.id, conn);
       for (const w of mine) {
-        if (queued.has(w.id)) continue;
+        if (queued.has(w.id) || buried(input.issueKey, w)) continue;
         await upsertLocal(rowFromJira(ctx.user.id, input.issueKey, w, user.connectionId));
       }
       // Drop local copies of worklogs deleted on Jira (pending ones stay queued).
@@ -704,15 +705,17 @@ export const worklogsRouter = createRouter({
             await deleteLocalWorklog(ctx.user.id, input.issueKey, input.remoteId, conn.id);
             return deleted();
           }
-          // Pending worklog: drop the queued operation, nothing to tell its tracker.
+          // Pending worklog: its queued create goes (a delete looks for it there, should it have landed).
           if (isPendingId(input.remoteId)) {
             const oid = pendingOutboxId(input.remoteId);
             return await withOutboxLock(ctx.user.id, async () => {
               // Only while no replay (another process on this database included) is sending it.
               await withDeleteReason("user", async (tx) => {
-                const [taken] = await tx.delete(outbox).where(stillQueued(ctx.user.id, oid)).returning({ id: outbox.id });
+                const [taken] = await tx.delete(outbox).where(stillQueued(ctx.user.id, oid)).returning();
                 if (!taken) throw new TRPCError({ code: "CONFLICT", message: t("server.worklogs.justSynced") });
                 await tx.delete(worklogs).where(where);
+                // Its create may have landed, the answer lost: looked for there and deleted.
+                await buryLostCreate(taken, tx);
               });
               return deleted();
             });

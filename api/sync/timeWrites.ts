@@ -304,6 +304,67 @@ async function alreadyUpdated(t: ContractTime, conn: Connection, local: Worklog)
   return true;
 }
 
+/** How far the service's clock may be from ours when it stamps an entry it made. */
+const CLOCK_SKEW_MS = 60_000;
+
+/** A queued delete of a create whose answer was lost: no id there, the values sent, when it may have landed. */
+export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remoteId" | "landedAfter">) => e.kind === "delete" && !e.remoteId && e.landedAfter !== null;
+
+/**
+ * The entry is the lost create such a delete is about: the values sent, the very words, made
+ * after its first send and before the delete (a day's entry, or one with no creation time
+ * known, only where it keeps a start: it is deleted, so never a guess).
+ */
+export function buriedBy(
+  tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "createdAt">,
+  e: Pick<RemoteWorklog, "span" | "comment" | "createdAt">,
+  zone: TimeZone,
+): boolean {
+  if (!tomb.started || !tomb.landedAfter) return false;
+  if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone) || !sameWords(e.comment, tomb.comment)) return false;
+  if (e.createdAt == null) return e.span.kind === "session";
+  const at = Number(e.createdAt);
+  return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.createdAt.getTime() + CLOCK_SKEW_MS;
+}
+
+/**
+ * A queued create dropped with its worklog (deleted while queued): sent at least once, it
+ * may have landed with its answer lost, so a delete carrying the values sent looks for it.
+ */
+export async function buryLostCreate(taken: typeof outbox.$inferSelect, db: Db | Tx = getDb()) {
+  if (taken.kind !== "create") return;
+  await db.insert(outbox).values({
+    userId: taken.userId,
+    connectionId: taken.connectionId,
+    itemId: taken.itemId,
+    kind: "delete",
+    issueKey: taken.issueKey,
+    remoteId: "",
+    timeSpentSeconds: taken.timeSpentSeconds,
+    started: taken.started,
+    comment: taken.comment,
+    landedAfter: new Date(taken.createdAt.getTime() - ADOPT_WINDOW_MS),
+  });
+}
+
+/** The entry a lost create left, found by its delete (only one linked to no worklog: never another's), deleted there. */
+async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox.$inferSelect) {
+  // No list there: nothing to look for.
+  if (!t.b.worklogs?.list) return;
+  const there = await t.b.worklogs.list(meta(), t.ref);
+  for (const w of there) {
+    if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone)) continue;
+    const [linked] = await getDb()
+      .select({ id: worklogSinks.id })
+      .from(worklogSinks)
+      .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
+      .limit(1);
+    if (linked) continue;
+    await deleteThere(t.b, meta(), t.ref, w.remoteId);
+    return;
+  }
+}
+
 /** The worklog's time is no longer what was sent. */
 const movedSince = (sent: { started: Date; seconds: number }, local: Worklog) => sent.seconds !== local.timeSpentSeconds || sent.started.getTime() !== local.started.getTime();
 
@@ -380,7 +441,7 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
           await withDeleteReason("merged", (tx) =>
             tx.delete(worklogs).where(and(eq(worklogs.userId, conn.userId), eq(worklogs.connectionId, conn.id), eq(worklogs.issueKey, entry.issueKey), eq(worklogs.remoteId, entry.remoteId))),
           );
-        }
+        } else if (isLostCreate(entry)) await dropLanded(t, conn, entry);
       } else {
         const local = await queuedWorklog(entry, conn);
         // Gone here meanwhile (deleted while queued): nothing left to send.
