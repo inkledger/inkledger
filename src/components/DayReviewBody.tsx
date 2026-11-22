@@ -278,8 +278,15 @@ export function DayReviewBody({ onDirty }: { onDirty?: (dirty: boolean) => void 
         for (const p of placed.parts ?? [{ start: placed.start, seconds: d.seconds }]) occupied.push({ ...p, label: d.issueKey });
         setStatus(s => ({ ...s, [issueId(d)]: "done" }));
       } catch (e) {
-        // Not logged: the timer we paused keeps running as before.
-        if (paused === issueId(d))
+        // Not logged: the timer we paused keeps running as before. Logged with the answer lost,
+        // the timer went with the log: none to start again (nor when that can't be read).
+        const kept =
+          paused === issueId(d) &&
+          (await utils.timers.list.fetch(undefined, { staleTime: 0 }).then(
+            list => list.some(x => issueId(x) === paused),
+            () => false
+          ));
+        if (kept)
           await utils.client.timers.start
             .mutate({ issueKey: d.issueKey, connectionId: timer?.connectionId, mode: "alongside" })
             .catch(() => undefined);
