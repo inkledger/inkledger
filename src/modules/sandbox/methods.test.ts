@@ -118,4 +118,35 @@ describe("the host API a framed module reaches", () => {
     expect(onMask(m, 199.9, 0, 200, 100)).toBe(true);
     expect(onMask(m, 10, 10, 0, 0)).toBe(false);
   });
+
+  it("hit.set: no Tab stop of the host's by default; a new shape keeps its place, new keyboard options remake it", async () => {
+    const added: { focusable: boolean; label?: string }[] = [];
+    let undone = 0;
+    let test: (x: number, y: number, w: number, h: number) => boolean = () => false;
+    const hits = {
+      add: (_el: HTMLElement, t: typeof test, _a: () => void, a11y?: { focusable: boolean; label?: string }) => {
+        test = t;
+        added.push(a11y ?? { focusable: true });
+        return () => void undone++;
+      },
+    };
+    const el = { dataset: {} } as unknown as HTMLElement;
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "dashboard-overlay", activate() {}, hits });
+    const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+    const rect = (x: number) => [{ kind: "rect", x, y: 0, w: 10, h: 10 }];
+    let id = 0;
+    const set = (a: unknown[]) => p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: ++id, m: "hit.set", a } });
+    set([rect(0), {}]);
+    set([rect(50), {}]);
+    await settle();
+    expect(added).toEqual([{ focusable: false }]);
+    expect([test(55, 5, 100, 100), test(5, 5, 100, 100)]).toEqual([true, false]);
+    set([rect(50), { focusable: true, label: "Bunny" }]);
+    await settle();
+    expect(added).toEqual([{ focusable: false }, { focusable: true, label: "Bunny" }]);
+    expect(undone).toBe(1);
+    set([[], {}]);
+    await settle();
+    expect(undone).toBe(2);
+  });
 });

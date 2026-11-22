@@ -81,27 +81,39 @@ export function createHitAreas(win: Window = window) {
   };
 
   return {
-    /** Makes `el`'s shape clickable (and `el` focusable, Enter/Space activate). Returns the undo. */
-    add(el: HTMLElement, test: HitTest, activate: () => void): () => void {
+    /**
+     * Makes `el`'s shape clickable and, unless `a11y.focusable` is false (a
+     * framed module whose own control takes the keyboard), `el` a focusable
+     * button named `a11y.label` that Enter/Space activate. Returns the undo.
+     */
+    add(el: HTMLElement, test: HitTest, activate: () => void, a11y: { focusable: boolean; label?: string } = { focusable: true }): () => void {
       const area: Area = { el, test, activate };
       if (areas.size === 0) listen(true);
       areas.add(area);
       const hadTab = el.getAttribute("tabindex");
       const hadRole = el.getAttribute("role");
-      el.tabIndex = 0;
-      if (!hadRole) el.setAttribute("role", "button");
+      const hadLabel = el.getAttribute("aria-label");
       const onKey = (e: KeyboardEvent) => {
         if (e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
         activate();
       };
-      el.addEventListener("keydown", onKey);
+      if (a11y.focusable) {
+        el.tabIndex = 0;
+        if (!hadRole) el.setAttribute("role", "button");
+        if (a11y.label) el.setAttribute("aria-label", a11y.label);
+        el.addEventListener("keydown", onKey);
+      }
       return () => {
         if (!areas.delete(area)) return;
-        el.removeEventListener("keydown", onKey);
-        if (hadTab === null) el.removeAttribute("tabindex");
-        else el.setAttribute("tabindex", hadTab);
-        if (!hadRole) el.removeAttribute("role");
+        if (a11y.focusable) {
+          el.removeEventListener("keydown", onKey);
+          if (hadTab === null) el.removeAttribute("tabindex");
+          else el.setAttribute("tabindex", hadTab);
+          if (!hadRole) el.removeAttribute("role");
+          if (hadLabel === null) el.removeAttribute("aria-label");
+          else el.setAttribute("aria-label", hadLabel);
+        }
         if (owner === area) owner = null;
         if (areas.size === 0) {
           listen(false);

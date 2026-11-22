@@ -121,4 +121,18 @@ describe("module hit areas", () => {
     el.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Enter" }));
     expect(opened).toBe(1);
   });
+
+  it("a framed module's area adds no Tab stop unless asked; asked, it is a button with the module's name", () => {
+    const { win } = page();
+    const areas = createHitAreas(win);
+    const el = box();
+    const quiet = areas.add(el, leftHalf, () => {}, { focusable: false, label: "Ignored" });
+    expect([el.getAttribute("role"), el.getAttribute("aria-label")]).toEqual([null, null]);
+    expect(el.tabIndex).toBe(-1);
+    quiet();
+    const named = areas.add(el, leftHalf, () => {}, { focusable: true, label: "Kanbunny" });
+    expect([el.tabIndex, el.getAttribute("role"), el.getAttribute("aria-label")]).toEqual([0, "button", "Kanbunny"]);
+    named();
+    expect([el.getAttribute("role"), el.getAttribute("aria-label"), el.getAttribute("tabindex")]).toEqual([null, null, null]);
+  });
 });

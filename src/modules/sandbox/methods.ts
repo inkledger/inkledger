@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILE_MAX_BYTES } from "@contracts/modules";
-import { hitAreas } from "../hit";
+import { hitAreas, type HitTest } from "../hit";
 import type { BudgetLevel, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
@@ -30,6 +30,7 @@ const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);
 const sessionKey = z.string().min(1).max(SESSION_KEY_MAX);
 const num = z.number().finite();
+const hitOptions = z.object({ label: z.string().max(120).optional(), focusable: z.boolean().optional() }).strict();
 const region = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rect"), x: num, y: num, w: num.min(0), h: num.min(0) }).strict(),
   z.object({ kind: z.literal("circle"), x: num, y: num, r: num.min(0) }).strict(),
@@ -61,8 +62,8 @@ export type Cas = {
   setIf(key: string, value: unknown, ifRevision: number): Promise<{ revision: number } | { conflict: true; value: unknown; revision: number }>;
 };
 
-/** Where a view draws, for what touches its box (hit regions, dock, preblurred); none for the runtime. */
-export type ViewBox = { el: HTMLElement; slot: string; activate: () => void; onDock?: () => void };
+/** Where a view draws, for what touches its box (hit regions, dock, preblurred); none for the runtime. `hits`: the page's hit areas. */
+export type ViewBox = { el: HTMLElement; slot: string; activate: () => void; onDock?: () => void; hits?: Pick<ReturnType<typeof hitAreas>, "add"> };
 
 /**
  * The host API a framed module reaches over messages, from the same hub API
@@ -81,6 +82,9 @@ export function frameMethods(
     subs.set(id, ctx.own(off));
   };
   let unhit: (() => void) | null = null;
+  // The shape now: a new one replaces it in place (the box keeps its focus and name).
+  let shapeTest: HitTest | null = null;
+  let hitA11y = "";
   const methods: Record<string, Method> = {
     sub: method({
       args: z.union([
@@ -150,6 +154,8 @@ export function frameMethods(
   const dispose = () => {
     unhit?.();
     unhit = null;
+    shapeTest = null;
+    hitA11y = "";
   };
   if (!view) return { methods, dispose };
   const box = view.el;
@@ -158,18 +164,25 @@ export function frameMethods(
     methods: {
       ...methods,
       "hit.set": method({
-        args: z.union([z.tuple([z.array(region).max(32)]), z.tuple([mask])]),
+        args: z.union([z.tuple([z.array(region).max(32)]), z.tuple([mask]), z.tuple([z.union([z.array(region).max(32), mask]), hitOptions])]),
         rate: [10, 10],
-        run([shape]) {
-          dispose();
-          if (!OVERLAYS.includes(view.slot)) return;
-          if (!Array.isArray(shape)) {
-            unhit = hitAreas().add(box, (x, y, w, h) => onMask(shape, x, y, w, h), view.activate);
-            return;
+        run([shape, opts]) {
+          if (!OVERLAYS.includes(view.slot)) return dispose();
+          let test: HitTest | null = null;
+          if (!Array.isArray(shape)) test = (x, y, w, h) => onMask(shape, x, y, w, h);
+          else if (shape.length > 0) {
+            const regions: readonly HitRegion[] = shape;
+            test = (x, y) => regions.some(r => inRegion(r, x, y));
           }
-          const regions: readonly HitRegion[] = shape;
-          if (regions.length === 0) return;
-          unhit = hitAreas().add(box, (x, y) => regions.some(r => inRegion(r, x, y)), view.activate);
+          if (!test) return dispose();
+          // No Tab stop of the host's own unless asked: the frame's control takes the keyboard.
+          const a11y = { focusable: opts?.focusable === true, label: opts?.label };
+          const key = JSON.stringify(a11y);
+          shapeTest = test;
+          if (unhit && key === hitA11y) return;
+          unhit?.();
+          hitA11y = key;
+          unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, a11y);
         },
       }),
       "dock.set": method({

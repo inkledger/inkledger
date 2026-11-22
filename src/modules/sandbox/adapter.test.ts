@@ -157,7 +157,7 @@ describe("the frame's host API (bootstrap)", () => {
 
   it("hit.set with a picture sends its alpha, scaled to 512 px a side at most", async () => {
     const got: unknown[] = [];
-    const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
+    const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
     class OffscreenCanvas {
       width: number;
       height: number;
@@ -308,7 +308,7 @@ describe("the frame's host API (bootstrap)", () => {
 
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
     const got: unknown[] = [];
-    const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
+    const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
     const rect = (x: number) => [{ kind: "rect", x, y: 0, w: 1, h: 1 }] as const;
     const mod = {
       id: "m",

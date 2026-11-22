@@ -15,6 +15,9 @@ export type HitRegion =
   | { kind: "rect"; x: number; y: number; w: number; h: number }
   | { kind: "circle"; x: number; y: number; r: number };
 
+/** A hit area's keyboard side: a focusable button of the host's, and its accessible name. */
+export type HitOptions = { label?: string; focusable?: boolean };
+
 /** How much a module may spend: "reduce" draws less often, "still" keeps a still picture. */
 export type BudgetLevel = "normal" | "reduce" | "still";
 
@@ -96,8 +99,11 @@ export type HostApiV2 = Basics &
      * host tests a gesture against the regions and calls `activate`. [] clears.
      * A picture instead: its alpha over the whole box is the shape (sent at most
      * 512 px a side; ten changes a second at most).
+     * `opts.focusable`: the host's box takes Tab and Enter/Space as a button named
+     * `opts.label`; without it the host adds no Tab stop (the frame's own control
+     * takes the keyboard).
      */
-    hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void): void };
+    hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void, opts?: HitOptions): void };
     /** "runtime": a port to this module's runtime (one per view); absent when the host made none. */
     runtime?: MessagePort;
     /**
