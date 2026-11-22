@@ -144,6 +144,18 @@ describe("the frame's host API (bootstrap)", () => {
     expect(closed).toBe(1);
   });
 
+  it("the document going (its box removed with it) still runs the view's cleanup, once, and says so", async () => {
+    let cleaned = 0;
+    let unmounted = 0;
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => void cleaned++ } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, onUnmounted: () => void unmounted++ });
+    await settle();
+    f.pagehide();
+    f.pagehide();
+    await settle();
+    expect([cleaned, unmounted]).toEqual([1, 1]);
+  });
+
   it("page.importance: the box's points, off the page counting as important", async () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 0, height: 0 }) } as unknown as HTMLElement;
     let out: unknown = null;

@@ -24,6 +24,7 @@ export function bootFrame(o: {
   onSize?(h: number): void;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
+  const pagehides: (() => void)[] = [];
   const parentWin = {
     postMessage(m: unknown, _origin: string, transfer: Transferable[] = []) {
       // Into the host's realm, as the browser's structured clone would.
@@ -48,7 +49,7 @@ export function bootFrame(o: {
     window: {},
     document: doc,
     location: { href: "http://app.test/modules/frame/x/0" },
-    addEventListener: (t: string, fn: (e: unknown) => void) => t === "message" && frameListeners.push(fn),
+    addEventListener: (t: string, fn: (e: unknown) => void) => (t === "message" ? frameListeners.push(fn) : t === "pagehide" && pagehides.push(() => fn({}))),
     load: async () => ({ default: o.mod }),
     URL,
     Blob,
@@ -79,7 +80,7 @@ export function bootFrame(o: {
     },
   });
   vm.runInContext(BOOTSTRAP, context);
-  return { peer, sent, box, errors, styles, keydown: (key: string) => keys.forEach(fn => fn({ key })) };
+  return { peer, sent, box, errors, styles, keydown: (key: string) => keys.forEach(fn => fn({ key })), pagehide: () => pagehides.forEach(fn => fn()) };
 }
 
 /** Lets the messages both ways go round. */

@@ -356,6 +356,15 @@ addEventListener("message", (e) => {
     void start(d, e.ports[0]);
   }
 });
+// Its box removed with this frame in it (nothing could park it): the cleanup still runs as the
+// document goes (what it then asks of the host is lost with it).
+addEventListener("pagehide", () => {
+  const off = unmount;
+  unmount = null;
+  if (!off) return;
+  safe(off);
+  send({ t: "unmounted" });
+});
 send({ t: "ready" });
 `;
 
