@@ -122,12 +122,20 @@ const anywhere = z.union([
   z.object({ board: z.object({ boardId: z.number().int().positive().optional(), newBoard: z.string().trim().min(1).max(60).optional() }) }),
 ]);
 
-/** A mail from a file has no link: the mailbox, when signed in, knows it by its Message-ID. */
-async function withLink(userId: number, input: z.infer<typeof headers>): Promise<z.infer<typeof headers>> {
+/**
+ * A mail from a file has no link: the mailbox, when signed in, knows it by its Message-ID.
+ * `mailbox`: the signed-in mailbox's account when the mail is known to be in it (found there, or
+ * picked from its search), else null (another mailbox's, a file's: never called gone from this one).
+ */
+async function withLink(userId: number, input: z.infer<typeof headers>): Promise<z.infer<typeof headers> & { mailbox: string | null }> {
+  const inBox = async () => (await mailAccount(userId))?.account.toLowerCase() ?? null;
+  if (input.source === "graph") return { ...input, mailbox: await inBox() };
   // The add-in's link is built from an id that changes when the mail moves: the mailbox's (immutable) one is better.
-  if (!input.internetMessageId || (input.webLink && input.source !== "addin")) return input;
+  if (!input.internetMessageId || (input.webLink && input.source !== "addin")) return { ...input, mailbox: null };
   const found = await findByMessageId(userId, input.internetMessageId).catch(() => null);
-  return found ? { ...input, webLink: parseOutlookUrl(found.webLink ?? "")?.webLink ?? found.webLink, exchangeId: input.exchangeId ?? found.exchangeId } : input;
+  return found
+    ? { ...input, webLink: parseOutlookUrl(found.webLink ?? "")?.webLink ?? found.webLink, exchangeId: input.exchangeId ?? found.exchangeId, mailbox: await inBox() }
+    : { ...input, mailbox: null };
 }
 
 /** The add-in's key: shown once, kept as its hash. */
@@ -159,6 +167,7 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
     ...(input.webLink ? { webLink: input.webLink } : {}),
     ...(input.internetMessageId ? { internetMessageId: input.internetMessageId } : {}),
     ...(input.exchangeId ? { exchangeId: input.exchangeId } : {}),
+    ...(input.mailbox ? { mailbox: input.mailbox } : {}),
   };
   return getDb().transaction(async tx => {
     const [known] = same.length
@@ -179,6 +188,7 @@ async function saveMail(userId: number, given: z.infer<typeof headers>): Promise
             ...(!known.receivedAt && values.receivedAt ? { receivedAt: values.receivedAt } : {}),
             ...((fromBox || !known.webLink) && values.webLink ? { webLink: values.webLink } : {}),
             ...((fromBox || !known.exchangeId) && values.exchangeId ? { exchangeId: values.exchangeId } : {}),
+            ...(values.mailbox ? { mailbox: values.mailbox } : {}),
           };
       const [row] = await tx.update(mails).set({ ...change, updatedAt: now }).where(eq(mails.id, known.id)).returning(columns);
       return row;
@@ -243,10 +253,15 @@ export const mailsRouter = createRouter({
   /** Is it still in my mailbox? Looked for now (R-1.11); E-1.6 when not signed in. */
   checkGone: protectedProcedure.input(z.object({ id: idInput })).mutation(async ({ ctx, input }) => {
     const mail = await ownMail(ctx.user.id, input.id);
-    if (!(await mailAccount(ctx.user.id))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
-    if (!mail.internetMessageId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.notInMailbox") });
-    const goneAt = await providerCall(() => checkMail(ctx.user.id, { id: mail.id, internetMessageId: mail.internetMessageId!, goneAt: mail.goneAt }, Date.now()));
-    return { goneAt };
+    const account = await mailAccount(ctx.user.id);
+    if (!account) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.noGraph") });
+    // Pinned from another mailbox: not looked for in this one.
+    if (!mail.internetMessageId || (mail.mailbox !== null && mail.mailbox !== account.account.toLowerCase()))
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.notInMailbox") });
+    const r = await providerCall(() => checkMail(ctx.user.id, account.account, { id: mail.id, internetMessageId: mail.internetMessageId!, goneAt: mail.goneAt, mailbox: mail.mailbox }, Date.now()));
+    // Never known to be in this mailbox and not found: not "still there".
+    if (!r.found && mail.mailbox === null) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.mails.copy.notInMailbox") });
+    return { goneAt: r.goneAt };
   }),
 
   /** Every copy of my mails gone at once; the pins stay (R-1.12). */

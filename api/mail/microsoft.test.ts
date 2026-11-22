@@ -156,6 +156,9 @@ describe("Microsoft mailbox", () => {
     const r = await me.mails.pinTo({ mail: { subject: "Budget 2027", internetMessageId: "budget-2027@example.com", source: "eml" }, to: { issueKey: "APP-1" } });
     expect(r.mail.webLink).toBe(`https://outlook.office.com/mail/deeplink/read/${encodeURIComponent("AAkALgAAAAAAHYQDEapmEc2byACqAC_EWg0AAAAA")}`);
     expect(await me.mails.forIssue({ issueKey: "APP-1" })).toHaveLength(1);
+    // Found in the signed-in mailbox: that mailbox is kept (the daily check looks only there).
+    const [{ account }] = await q<{ account: string }>("SELECT account FROM mail_accounts");
+    expect(await q("SELECT mailbox FROM mails WHERE id = ?", r.mail.id)).toEqual([{ mailbox: account.toLowerCase() }]);
 
     microsoft();
     const todo = await me.mails.pinTo({ mail: { subject: "Budget 2027", internetMessageId: "budget-2027@example.com", webLink: r.mail.webLink, source: "graph" }, to: { todo: {} } });
@@ -163,6 +166,15 @@ describe("Microsoft mailbox", () => {
     expect(await q("SELECT text, mail_id FROM todos")).toEqual([{ text: "Budget 2027", mail_id: r.mail.id }]);
     const board = await me.mails.pinTo({ mail: { subject: "Budget 2027", internetMessageId: "budget-2027@example.com", source: "graph" }, to: { board: {} } });
     expect(board.boardName).toBeTruthy();
+
+    // Pinned through the add-in from another mailbox (shared, a second account): not in this one, none kept.
+    microsoft([200, { value: [] }]);
+    const shared = await me.mails.pinTo({ mail: { subject: "Team plan", internetMessageId: "team-plan@example.com", exchangeId: "EX-TEAM-PLAN", source: "addin" }, to: { board: {} } });
+    expect(await q("SELECT mailbox FROM mails WHERE id = ?", shared.mail.id)).toEqual([{ mailbox: null }]);
+    // Looked for by hand, not found: not "still there", nor gone.
+    microsoft([200, { value: [] }]);
+    await expect(me.mails.checkGone({ id: shared.mail.id })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(await q("SELECT gone_at FROM mails WHERE id = ?", shared.mail.id)).toEqual([{ gone_at: null }]);
   });
 
   it("signs out: the tokens are gone", async () => {

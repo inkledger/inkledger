@@ -17,11 +17,11 @@ async function signedIn(name: string) {
   return userId;
 }
 
-const mail = async (userId: number, messageId: string, checkedAt: number | null = null) =>
+const mail = async (userId: number, messageId: string, checkedAt: number | null = null, mailbox: string | null = null) =>
   (
     await q<{ id: number }>(
-      "INSERT INTO mails (user_id, subject, internet_message_id, source, checked_at, created_at, updated_at) VALUES (?, ?, ?, 'graph', ?, 1, 1) RETURNING id",
-      userId, messageId, messageId, checkedAt,
+      "INSERT INTO mails (user_id, subject, internet_message_id, source, checked_at, mailbox, created_at, updated_at) VALUES (?, ?, ?, 'graph', ?, ?, 1, 1) RETURNING id",
+      userId, messageId, messageId, checkedAt, mailbox,
     )
   )[0].id;
 
@@ -53,6 +53,28 @@ describe("gone check", () => {
     expect((await q("SELECT gone_at FROM mails WHERE id = ?", id))[0]).toEqual({ gone_at: null });
   });
 
+  it("a mail pinned from another mailbox is never called gone: only the signed-in one is looked in", async () => {
+    const userId = await signedIn("gone5");
+    const id = await mail(userId, "shared-1@example.com", null, "team@example.com");
+    const { checkGonePass, checkMail } = await import("./goneCheck");
+    await checkGonePass(Date.now());
+    expect((await q("SELECT gone_at FROM mails WHERE id = ?", id))[0]).toEqual({ gone_at: null });
+    await expect(checkMail(userId, "mario.rossi@example.com", { id, internetMessageId: "shared-1@example.com", goneAt: null, mailbox: "team@example.com" }, Date.now())).resolves.toEqual({ found: false, goneAt: null });
+    expect((await q("SELECT gone_at FROM mails WHERE id = ?", id))[0]).toEqual({ gone_at: null });
+  });
+
+  it("a mail not known to be in the mailbox: found, its mailbox is kept; not found, never called gone", async () => {
+    const userId = await signedIn("gone6");
+    const there = await mail(userId, "sim-1@example.com");
+    const elsewhere = await mail(userId, "from-a-file@example.com");
+    const { checkGonePass } = await import("./goneCheck");
+    await checkGonePass(Date.now());
+    expect(await q("SELECT id, gone_at, mailbox FROM mails WHERE id IN (?, ?) ORDER BY id", there, elsewhere)).toEqual([
+      { id: there, gone_at: null, mailbox: "mario.rossi@example.com" },
+      { id: elsewhere, gone_at: null, mailbox: null },
+    ]);
+  });
+
   it("a pass checks at most 200, oldest first, and stops on throttling", async () => {
     const userId = await signedIn("gone2");
     // Only this user signed in: the calls counted below are all theirs.
@@ -80,7 +102,7 @@ describe("gone check", () => {
     const { signOutMail } = await import("./microsoft");
     // Signed out while a pass is under way.
     await signOutMail(userId);
-    await expect(checkMail(userId, { id, internetMessageId: "sim-2@example.com", goneAt: null }, Date.now())).rejects.toThrow();
+    await expect(checkMail(userId, "mario.rossi@example.com", { id, internetMessageId: "sim-2@example.com", goneAt: null, mailbox: null }, Date.now())).rejects.toThrow();
     expect((await q("SELECT gone_at FROM mails WHERE id = ?", id))[0]).toEqual({ gone_at: null });
   });
 
