@@ -103,7 +103,13 @@ describe("module store", () => {
       }
       if (url.pathname === `/request/${"t".repeat(43)}`) return json(worker.requestStatus);
       if (url.pathname === "/checkout") return json({ token: "c".repeat(43), url: worker.checkoutUrl });
-      if (url.pathname === `/claim/${"c".repeat(43)}`) return json({ error: "unknown" }, 404);
+      if (url.pathname === `/claim/${"c".repeat(43)}`) return json({ status: "paid" });
+      if (url.pathname === "/claim-paid") {
+        const { code } = JSON.parse(String(init?.body)) as { code: string };
+        if (code === "PAID-HELLO") return json({ license: license("inkledger.hello"), product: "inkledger.hello" });
+        if (code === "PAID-OTHER") return json({ license: license("inkledger.svg"), product: "inkledger.svg" });
+        return code === "NOT-YET" ? json({ error: "pending" }, 409) : json({ error: "code" }, 404);
+      }
       if (url.pathname === "/download/inkledger.hello") return new Response(bundle());
       if (url.pathname === "/bundle/inkledger.hello") return new Response(bundle());
       return json({ error: "nope" }, 404);
@@ -260,13 +266,29 @@ describe("module store", () => {
     expect((await caller.store.pending()).pending).toEqual([]);
   });
 
-  it("a checkout returns the payment page; one the Worker forgot is dropped", async () => {
+  // The checkout's token is no proof of paying (anyone can slip a checkout link to a buyer):
+  // only the code the payer is shown after paying gets the licence.
+  it("a paid checkout waits for the payer's code, never asks for its token's licence, and installs with the code", async () => {
     expect(await caller.store.checkout({ product: "inkledger.hello", method: "card" })).toEqual({ url: "https://shop.test/buy?claim=c" });
     expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card", email: "m@x.it" });
-    expect(await caller.store.pending()).toEqual({ pending: [], installed: [] });
+    worker.calls = [];
+    expect(await caller.store.pending()).toEqual({ pending: [{ product: "inkledger.hello", kind: "paid", status: "pending" }], installed: [] });
+    expect(worker.calls.filter((c) => c.path.startsWith("/claim/") || c.path.startsWith("/download/"))).toEqual([]);
+
+    await caller.modules.removeLicense({ product: "inkledger.hello" });
+    await expect(caller.store.claimPaid({ product: "inkledger.hello", code: "WRONG" })).rejects.toThrow(/code isn’t right/);
+    await expect(caller.store.claimPaid({ product: "inkledger.hello", code: "NOT-YET" })).rejects.toThrow(/not confirmed yet/);
+    // A code bought for another module installs nothing here.
+    await expect(caller.store.claimPaid({ product: "inkledger.hello", code: "PAID-OTHER" })).rejects.toThrow(/another module/);
+    expect((await caller.modules.list()).licenses).toEqual([]);
+
+    expect(await caller.store.claimPaid({ product: "inkledger.hello", code: " PAID-HELLO " })).toEqual({ ok: true });
+    expect(worker.calls.find((c) => c.path === "/claim-paid" && (c.body as { code: string }).code === "PAID-HELLO")).toBeTruthy();
+    expect((await caller.modules.list()).licenses[0]).toMatchObject({ product: "inkledger.hello" });
+    expect((await caller.store.catalog()).entries[0]).toMatchObject({ installed: { state: "active" }, licensed: true, pending: null });
   });
 
-  // The Worker hands a paid licence only to the token of an order paid with its email.
+  // The Worker prefills the checkout with this email; the code, not the email, gets the licence.
   it("a checkout carries the account's email, and none when the account has only a login", async () => {
     const { appRouter } = await import("../router");
     const { userFromRequest } = await import("../context");
@@ -282,6 +304,8 @@ describe("module store", () => {
 
   // The page opens the Worker's url as is: a bad Worker's javascript: or file: went to the browser or the OS.
   it("a checkout page that isn't https is refused, and nothing waits on it", async () => {
+    // The checkouts above wait for a code until dismissed.
+    await caller.store.dismiss({ product: "inkledger.hello" });
     for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "http://shop.test/buy"]) {
       worker.checkoutUrl = bad;
       await expect(caller.store.checkout({ product: "inkledger.hello", method: "card" })).rejects.toThrow();

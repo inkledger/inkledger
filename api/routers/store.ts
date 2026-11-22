@@ -18,6 +18,7 @@ import {
 import {
   StoreError,
   bundleForLicense,
+  claimPaid,
   downloadBundle,
   fetchCatalog,
   forgetCatalog,
@@ -52,6 +53,8 @@ const ERRORS: Record<string, MessageKey> = {
   requested: "server.store.requested",
   product: "server.store.product",
   method: "server.store.method",
+  code: "server.store.code",
+  pending: "server.store.codePending",
 };
 
 function storeFailure(e: unknown): never {
@@ -80,11 +83,13 @@ type Settled = { next: Stored | null; installed: boolean };
 async function settle(p: Stored): Promise<Settled> {
   const keep = (next: Stored | null): Settled => ({ next, installed: false });
   if (p.status !== "pending") return keep(p);
-  const s = await tokenStatus(p.kind, p.token);
-  // The Worker forgot it: an abandoned checkout goes, a request says so.
-  if (!s) return keep(p.kind === "paid" ? null : { ...p, status: "failed", reason: "expired" });
+  // A checkout waits for its payer's code (claimPaid), never for its token; an abandoned one goes.
+  if (p.kind === "paid") return keep(Date.now() - p.created > PAID_MAX_AGE_MS ? null : p);
+  const s = await tokenStatus(p.token);
+  // The Worker forgot it: the request says so.
+  if (!s) return keep({ ...p, status: "failed", reason: "expired" });
   if (s.status === "declined") return keep({ ...p, status: "declined" });
-  if (!s.license) return keep(p.kind === "paid" && Date.now() - p.created > PAID_MAX_AGE_MS ? null : p);
+  if (!s.license) return keep(p);
   const l = await addLicense(s.license);
   if (!l.ok) return keep({ ...p, status: "failed", reason: l.reason });
   // Bought or approved: this server takes its slot now (over the limit, the licence waits: Settings says so).
@@ -144,7 +149,7 @@ export const storeRouter = createRouter({
   checkout: store
     .input(z.object({ product, method: z.enum(["card", "bitcoin"]), email: z.email().max(254).optional() }))
     .mutation(async ({ input, ctx }) => {
-      // The Worker gives the licence only to an order paid with this email; a tracker login is none.
+      // Prefills the checkout; a tracker login is no email.
       const email = input.email ?? (z.email().safeParse(ctx.user.email).success ? ctx.user.email : undefined);
       const { token, url } = await startCheckout(email ? { ...input, email } : input).catch(async (e: unknown) => {
         await forgetCatalog();
@@ -153,6 +158,20 @@ export const storeRouter = createRouter({
       await updatePending((list) => [...list.filter((p) => p.product !== input.product), { token, product: input.product, kind: "paid", status: "pending", created: Date.now() }]);
       return { url };
     }),
+
+  /** A paid order's licence, for the code its payer was shown after paying: stored, activated, installed. */
+  claimPaid: store.input(z.object({ product, code: z.string().trim().min(1).max(64) })).mutation(async ({ input }) => {
+    const { license, product: bought } = await claimPaid(input.code).catch(storeFailure);
+    if (bought !== input.product) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.store.codeProduct") });
+    const l = await addLicense(license);
+    if (!l.ok) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.store.badLicence") });
+    await activateNew(license, l.payload.id);
+    const installed = installBundle(await bundleForLicense(input.product, license, await tokenFor(l.payload.id)).catch(storeFailure));
+    // An older version than the installed one is fine: the licence is what was missing.
+    if (!installed.ok && installed.reason !== "older-version") throw new TRPCError({ code: "BAD_REQUEST", message: t("server.store.installFailed", { reason: installed.reason }) });
+    await updatePending((list) => list.filter((p) => p.product !== input.product));
+    return { ok: true as const };
+  }),
 
   /** Polled by the page while something is pending; installs what has arrived. */
   pending: store.query(async () => {

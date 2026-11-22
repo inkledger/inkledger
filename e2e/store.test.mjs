@@ -1,6 +1,7 @@
 // Settings → Store end to end against a stub store Worker: the catalog drives
 // the button, a licence request installs the module by itself once approved,
-// a paid module shows its price and the payment methods.
+// a paid module shows its price and the payment methods, and installs with the code
+// its payer is shown after paying.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
@@ -63,7 +64,8 @@ async function stubWorker(state) {
     if (req.url === `/request/${TOKEN}`) return send(state.approved ? { status: "approved", license: state.license } : { status: "pending" });
     if (req.url === "/checkout") return send({ token: "c".repeat(43), url: `http://127.0.0.1:${server.address().port}/buy` });
     if (req.url === "/buy") return send("checkout");
-    if (req.url === `/claim/${"c".repeat(43)}`) return send({ status: "pending" });
+    if (req.url === `/claim/${"c".repeat(43)}`) return send({ status: "paid" });
+    if (req.url === "/claim-paid") return /abcd/i.test(body) ? send({ license: license(), product: "inkledger.hello" }) : send({ error: "code" }, 404);
     if (req.url?.startsWith("/download/inkledger.hello?token=")) return send(bundle());
     if (req.url === "/bundle/inkledger.hello") return send(bundle());
     // A licence's timestamp proof, and the explorer it is checked against (docs/work/ideas/onchain-licences.md).
@@ -139,7 +141,7 @@ test("a free-release module: request a licence, it installs by itself once appro
     },
   ));
 
-test("a paid module shows its price; Bitcoin is listed as coming soon", () =>
+test("a paid module shows its price, Bitcoin coming soon; the code shown after payment installs it", () =>
   withStore({ items: [item({ mode: "paid" })] }, async ({ page, context, state }) => {
     const row = page.locator('[data-store-item="hello"]');
     await row.getByRole("button", { name: "€2.99" }).click();
@@ -151,6 +153,19 @@ test("a paid module shows its price; Bitcoin is listed as coming soon", () =>
     await (await popup).waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/buy$/);
     assert.deepEqual(state.calls.find(c => c.path === "/checkout")?.body, { product: "inkledger.hello", method: "card" });
     await sheet.getByText("Finish the payment in the browser").waitFor();
+
+    // The checkout's token is never asked for the licence: only the payer's code gets it.
+    const code = sheet.getByLabel("Code shown after payment");
+    await code.fill("WRONG");
+    await sheet.getByRole("button", { name: "Install" }).click();
+    await sheet.getByRole("alert").getByText("That code isn’t right", { exact: false }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-invalid") === "true");
+    await code.fill("abcd-efgh-jkmn-pqrs");
+    await sheet.getByRole("button", { name: "Install" }).click();
+    await page.getByText("Hello installed and active").waitFor();
+    await row.getByText("Active").waitFor();
+    assert.deepEqual(state.calls.filter(c => c.path === "/claim-paid").map(c => c.body), [{ code: "WRONG" }, { code: "abcd-efgh-jkmn-pqrs" }]);
+    assert.ok(!state.calls.some(c => c.path?.startsWith("/claim/")));
   }));
 
 test("a module removed by hand reinstalls from the store with its licence", () =>

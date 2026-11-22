@@ -127,16 +127,24 @@ export async function startCheckout(r: { product: string; method: PaymentMethod;
   return { token: answer.token, url: answer.url };
 }
 
-export type TokenStatus = { status: "pending" | "approved" | "declined" | "paid"; license?: string };
+export type TokenStatus = { status: "pending" | "approved" | "declined"; license?: string };
 
-export async function tokenStatus(kind: "request" | "paid", token: string): Promise<TokenStatus | null> {
+/** A licence request's state. A checkout's token never reads a licence: its payer's code does (claimPaid). */
+export async function tokenStatus(token: string): Promise<TokenStatus | null> {
   try {
-    return (await (await call(kind === "request" ? `/request/${token}` : `/claim/${token}`)).json()) as TokenStatus;
+    return (await (await call(`/request/${token}`)).json()) as TokenStatus;
   } catch (e) {
-    // The Worker forgot it (expired checkout): nothing will ever come.
+    // The Worker forgot it: nothing will ever come.
     if (e instanceof StoreError && e.status === 404) return null;
     throw e;
   }
+}
+
+/** The licence of a paid order, for the code its payer was shown after paying. */
+export async function claimPaid(code: string): Promise<{ license: string; product: string }> {
+  const answer = (await (await postJson("/claim-paid", { code })).json()) as { license?: unknown; product?: unknown };
+  if (typeof answer.license !== "string" || typeof answer.product !== "string") throw new StoreError("unreachable", 0, "claim");
+  return { license: answer.license, product: answer.product };
 }
 
 /** The signed bundle for whoever holds a licence of the product (reinstall, update). */

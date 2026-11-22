@@ -1,5 +1,6 @@
 import { toastError } from "@/lib/errorText";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft, Bitcoin, Check, CreditCard, KeyRound, ShoppingBag } from "lucide-react";
 import type { PaymentMethod, StoreEntry } from "@contracts/store";
 import { trpc } from "@/lib/trpc";
@@ -138,7 +139,19 @@ export function PayPanel({ entry, locale, onBack }: { entry: StoreEntry; locale:
   const price = formatPrice(entry, locale);
   const [method, setMethod] = useState<PaymentMethod>("card");
   const [url, setUrl] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const codeId = useId();
+  const codeRef = useRef<HTMLInputElement>(null);
   const waiting = entry.pending?.status === "pending";
+  // The licence comes only with the code the payer is shown after paying.
+  const claim = trpc.store.claimPaid.useMutation({
+    onSuccess: () => {
+      toast.success(t("settings.store.installed", { name }));
+      void utils.store.catalog.invalidate();
+      void utils.modules.list.invalidate();
+    },
+    onError: () => codeRef.current?.focus(),
+  });
   const checkout = trpc.store.checkout.useMutation({
     onSuccess: r => {
       setUrl(r.url);
@@ -197,7 +210,47 @@ export function PayPanel({ entry, locale, onBack }: { entry: StoreEntry; locale:
               </Button>
             )}
           </div>
-        ) : (
+        ) : null}
+        {waiting && entry.pending?.kind === "paid" ? (
+          <form
+            className="mt-6 grid gap-1.5"
+            onSubmit={ev => {
+              ev.preventDefault();
+              claim.mutate({ product: entry.product, code: code.trim() });
+            }}
+          >
+            <label htmlFor={codeId} className="font-medium">
+              {t("settings.store.paySheet.code")}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                ref={codeRef}
+                id={codeId}
+                className="min-w-0 flex-1 basis-48"
+                value={code}
+                maxLength={64}
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                aria-describedby={`${codeId}-hint${claim.isError ? ` ${codeId}-error` : ""}`}
+                aria-invalid={claim.isError || undefined}
+                onChange={ev => setCode(ev.target.value)}
+              />
+              <Button type="submit" disabled={!code.trim() || claim.isPending}>
+                {claim.isPending && <Spinner />}
+                {t("settings.store.paySheet.claim")}
+              </Button>
+            </div>
+            <p id={`${codeId}-hint`} className="text-caption text-muted-foreground">
+              {t("settings.store.paySheet.codeHint")}
+            </p>
+            {claim.isError && (
+              <p id={`${codeId}-error`} role="alert" className="text-caption text-danger">
+                {claim.error.message}
+              </p>
+            )}
+          </form>
+        ) : waiting ? null : (
           <fieldset className="mt-6 grid gap-2">
             <legend className="mb-2 font-medium">{t("settings.store.paySheet.method")}</legend>
             {shown.map(m => (

@@ -281,6 +281,7 @@ export interface FrozenIn {
   "stats.dashboard": void;
   "store.catalog": void;
   "store.checkout": { email?: string | undefined; method: "bitcoin" | "card"; product: string };
+  "store.claimPaid": { code: string; product: string };
   "store.dismiss": { product: string };
   "store.install": { product: string };
   "store.pending": void;
@@ -635,6 +636,7 @@ export interface FrozenOut {
   "stats.dashboard": { issueCount: number; monthSeconds: number; openIssueCount: number; perDay: { date: string; seconds: number }[]; perProject: { projectKey: string; projectName: string; seconds: number }[]; todaySeconds: number; weekSeconds: number };
   "store.catalog": { enabled: boolean; entries: ({ badge?: "beta" | "free" | "new" | undefined; builds?: undefined | { build: string; hostApi: { max: number; min: number }; slots: string[]; version: string }[]; description?: undefined | { en: string[]; it: string[] }; docsUrl?: string | undefined; highlights?: undefined | { body: { en: string; it: string }; icon: "calendar" | "carrot" | "heart" | "moon" | "shield" | "shirt" | "sparkles" | "sprout" | "sun" | "trophy"; title: { en: string; it: string } }[]; hostApi: { max: number; min: number }; id: string; methods: { bitcoin: "off" | "on" | "soon"; card: boolean }; mode: "paid" | "request" | "soon"; name: { en: string; it: string }; price?: undefined | { amount: number; currency: string }; product: string; requires: "webgl2"[] | undefined; tagline: { en: string; it: string }; version: string } & { gallery?: undefined | { caption: { en: string; it: string }; src: string }[]; hero?: string | undefined; image?: string | undefined; installed: null | { reason: string; state: "invalid" } | { state: "active" } | { state: "needs-activation" } | { state: "needs-license" } | { state: "unsupported-host-api" }; installedVersion: null | string; licensed: boolean; needsNewerHost: boolean; outdated: boolean; pending: null | { kind: "paid" | "request"; product: string; reason?: string | undefined; status: "declined" | "failed" | "pending" }; supported: boolean })[] };
   "store.checkout": { url: string };
+  "store.claimPaid": { ok: true };
   "store.dismiss": void;
   "store.install": { id: string; version: string };
   "store.pending": { installed: string[]; pending: { kind: "paid" | "request"; product: string; reason?: string | undefined; status: "declined" | "failed" | "pending" }[] };

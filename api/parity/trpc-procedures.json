@@ -1104,6 +1104,10 @@
     "type": "mutation"
   },
   {
+    "path": "store.claimPaid",
+    "type": "mutation"
+  },
+  {
     "path": "store.dismiss",
     "type": "mutation"
   },
