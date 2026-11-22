@@ -210,6 +210,11 @@ describe("a TODO on the pinboard", () => {
     expect(new Set(both.map((b) => b.id)).size).toBe(1);
   });
 
+  it("two pins of one issue at once: one post-it", async () => {
+    const both = await Promise.all([me.pinboard.add({ issueKey: "DEMO-2" }), me.pinboard.add({ issueKey: "DEMO-2" })]);
+    expect(new Set(both.map((b) => b.id)).size).toBe(1);
+  });
+
   it("a new account's first two board reads at once make one default board; boards past the maximum are refused even at once", async () => {
     const fresh = await callerFor("https://fresh.atlassian.net");
     const [a, b] = await Promise.all([fresh.pinboard.boards({}), fresh.pinboard.boards({})]);

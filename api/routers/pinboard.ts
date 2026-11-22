@@ -521,49 +521,54 @@ export const pinboardRouter = createRouter({
       const db = getDb();
       const board = await pinTarget(ctx.user.id, ctx.deviceId, input.boardId);
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : undefined;
-      const mine = await db
-        .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
-        .from(pinboardNotes)
-        .where(eq(pinboardNotes.boardId, board.id));
       const z = await nextZ(board.id);
-      // The issue's own post-it (not one of its private notes hung beside it).
-      const existing = input.issueKey ? mine.find((m) => m.issueKey === input.issueKey && m.connectionId === connectionId && m.issueNoteId === null) : undefined;
-      if (existing) {
+      // One request at a time per board: two pins of one issue never hang it twice, nor pass the cap.
+      const done = await db.transaction(async (tx) => {
+        await xactLockIn(tx, "pinboard-place", board.id);
+        const mine = await tx
+          .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, x: pinboardNotes.x, y: pinboardNotes.y })
+          .from(pinboardNotes)
+          .where(eq(pinboardNotes.boardId, board.id));
+        // The issue's own post-it (not one of its private notes hung beside it).
+        const existing = input.issueKey ? mine.find((m) => m.issueKey === input.issueKey && m.connectionId === connectionId && m.issueNoteId === null) : undefined;
+        if (existing) {
+          const pos =
+            input.x !== undefined && input.y !== undefined
+              ? clampToCanvas(input.x, input.y)
+              : { x: existing.x, y: existing.y };
+          await tx
+            .update(pinboardNotes)
+            .set({ ...pos, z, updatedAt: new Date() })
+            .where(eq(pinboardNotes.id, existing.id));
+          return { id: existing.id, existed: true };
+        }
+        if (mine.length >= MAX_NOTES) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }),
+          });
+        }
         const pos =
           input.x !== undefined && input.y !== undefined
             ? clampToCanvas(input.x, input.y)
-            : { x: existing.x, y: existing.y };
-        await db
-          .update(pinboardNotes)
-          .set({ ...pos, z, updatedAt: new Date() })
-          .where(eq(pinboardNotes.id, existing.id));
-        return pinned(board, existing.id, true);
-      }
-      if (mine.length >= MAX_NOTES) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: t("server.pinboard.boardFullNotes", { count: MAX_NOTES }),
-        });
-      }
-      const pos =
-        input.x !== undefined && input.y !== undefined
-          ? clampToCanvas(input.x, input.y)
-          : firstFreeSlot(mine);
-      const [row] = await db
-        .insert(pinboardNotes)
-        .values({
-          userId: ctx.user.id,
-          boardId: board.id,
-          issueKey: input.issueKey ?? null,
-          connectionId: connectionId ?? null,
-          note: input.note,
-          color: input.color,
-          ...pos,
-          rotation: randomTilt(),
-          z,
-        })
-        .returning({ id: pinboardNotes.id });
-      return pinned(board, row.id, false);
+            : firstFreeSlot(mine);
+        const [row] = await tx
+          .insert(pinboardNotes)
+          .values({
+            userId: ctx.user.id,
+            boardId: board.id,
+            issueKey: input.issueKey ?? null,
+            connectionId: connectionId ?? null,
+            note: input.note,
+            color: input.color,
+            ...pos,
+            rotation: randomTilt(),
+            z,
+          })
+          .returning({ id: pinboardNotes.id });
+        return { id: row.id, existed: false };
+      });
+      return pinned(board, done.id, done.existed);
     }),
 
   /**
@@ -809,6 +814,7 @@ export const pinboardRouter = createRouter({
       if (target.id === row.boardId) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.pinboard.sameBoard") });
       const z = await nextZ(target.id);
       return getDb().transaction(async (tx) => {
+        await xactLockIn(tx, "pinboard-place", target.id);
         const there = await tx
           .select({ id: pinboardNotes.id, issueKey: pinboardNotes.issueKey, connectionId: pinboardNotes.connectionId, issueNoteId: pinboardNotes.issueNoteId, todoId: pinboardNotes.todoId, mailId: pinboardNotes.mailId, x: pinboardNotes.x, y: pinboardNotes.y })
           .from(pinboardNotes)
@@ -889,31 +895,36 @@ export const pinboardRouter = createRouter({
         : [];
       const [mail] = input.mailId ? await getDb().select({ id: mails.id }).from(mails).where(and(eq(mails.id, input.mailId), eq(mails.userId, ctx.user.id))) : [];
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : null;
-      const [c] = await getDb()
-        .select({ n: sql<number>`count(*)` })
-        .from(pinboardNotes)
-        .where(eq(pinboardNotes.boardId, board.id));
-      if ((c?.n ?? 0) >= MAX_NOTES) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFull") });
-      }
-      await getDb()
-        .insert(pinboardNotes)
-        .values({
-          userId: ctx.user.id,
-          boardId: board.id,
-          issueKey: input.issueKey,
-          connectionId,
-          issueNoteId: input.issueNoteId ?? null,
-          todoId: todo?.id ?? null,
-          mailId: mail?.id ?? null,
-          note: input.note,
-          color: input.color,
-          ...clampToCanvas(input.x, input.y),
-          rotation: input.rotation,
-          z: await nextZ(board.id),
-        })
-        // Its TODO, mail or note hung on the board again meanwhile: it is there already.
-        .onConflictDoNothing();
+      const z = await nextZ(board.id);
+      // Counted and hung under the board's lock: two at once can't pass the cap.
+      await getDb().transaction(async (tx) => {
+        await xactLockIn(tx, "pinboard-place", board.id);
+        const [c] = await tx
+          .select({ n: sql<number>`count(*)` })
+          .from(pinboardNotes)
+          .where(eq(pinboardNotes.boardId, board.id));
+        if ((c?.n ?? 0) >= MAX_NOTES) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.boardFull") });
+        }
+        await tx
+          .insert(pinboardNotes)
+          .values({
+            userId: ctx.user.id,
+            boardId: board.id,
+            issueKey: input.issueKey,
+            connectionId,
+            issueNoteId: input.issueNoteId ?? null,
+            todoId: todo?.id ?? null,
+            mailId: mail?.id ?? null,
+            note: input.note,
+            color: input.color,
+            ...clampToCanvas(input.x, input.y),
+            rotation: input.rotation,
+            z,
+          })
+          // Its TODO, mail or note hung on the board again meanwhile: it is there already.
+          .onConflictDoNothing();
+      });
       return { ok: true };
     }),
 
