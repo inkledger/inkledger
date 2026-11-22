@@ -135,11 +135,12 @@ export default function Reports() {
     const list: Date[] = [];
     const a = parseDayKey(from);
     const b = parseDayKey(to);
-    if (a && b && from <= to) {
+    // Only a range the page shows: a far-off year typed would build centuries of days first.
+    if (rangeValid && a && b) {
       for (let d = a; d <= b; d = addDays(d, 1)) list.push(d);
     }
     return list;
-  }, [from, to]);
+  }, [from, to, rangeValid]);
 
   const stacks: DayStack[] = useMemo(() => {
     const secs = new Map((byDay.data?.rows ?? []).map(r => [r.key, r.seconds]));
