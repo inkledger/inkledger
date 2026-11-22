@@ -89,12 +89,12 @@ function cookie(req: Request, name: string, value: string, maxAgeSeconds: number
   return parts.join("; ");
 }
 
-/** Set-Cookie values that remove the session cookie (and the old plain one). */
+/**
+ * Set-Cookie values that remove this server's session cookie only: on an explicit port the
+ * plain name is the default port's server (cookies know no port), never read here.
+ */
 export function clearedSessionCookies(req: Request): string[] {
-  const current = sessionCookie(req, "deleted", 0);
-  if (sessionCookieName(req) === SESSION_COOKIE) return [current];
-  const plain = current.replace(`${sessionCookieName(req)}=`, `${SESSION_COOKIE}=`);
-  return [current, plain];
+  return [sessionCookie(req, "deleted", 0)];
 }
 
 /** An address written as one: no brackets, an IPv4-mapped IPv6 as its IPv4. */

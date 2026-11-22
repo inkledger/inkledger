@@ -115,7 +115,7 @@ describe("auth: sessions, cookies, login hardening", () => {
     expect(onDev.sessionId).not.toBe(onProd.sessionId);
   });
 
-  it("a server on its own port takes only its own cookie (another port's app could set the plain one); logout clears both names", async () => {
+  it("a server on its own port takes only its own cookie (another port's app could set the plain one); logout clears only its own", async () => {
     const { userFromRequest } = await import("../context");
     const plain = (await login(anon("https://mac.tail1.ts.net/api/trpc"))).split(";")[0];
     expect((await userFromRequest(new Request("http://localhost:47823/api/trpc", { headers: { cookie: plain } }))).user).toBeNull();
@@ -127,7 +127,8 @@ describe("auth: sessions, cookies, login hardening", () => {
     await appRouter.createCaller(ctx).auth.logout();
     const cleared = ctx.resHeaders.get("set-cookie") ?? "";
     expect(cleared).toMatch(/ikl_session_47823=deleted/);
-    expect(cleared).toMatch(/ikl_session=deleted/);
+    // The plain name is the default port's server: signing out here leaves it signed in.
+    expect(cleared).not.toMatch(/ikl_session=deleted/);
   });
 
   it("COOKIE_SECURE=1 forces Secure behind a proxy that hides the scheme", async () => {
