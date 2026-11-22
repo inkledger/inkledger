@@ -47,6 +47,8 @@ let watched: JiraIssue[] | null = [];
 const byKey = new Map<string, JiraIssue>();
 /** Every JQL asked, in order */
 let jqls: string[] = [];
+/** Run when the activity search is read (late in a pass) */
+let onActivity: (() => void) | null = null;
 
 type Who = { accountId: string };
 type Comment = { id: string; created: string; author: Who };
@@ -80,6 +82,7 @@ vi.stubGlobal(
       const jql = params.get("jql") ?? "";
       jqls.push(jql);
       if (params.get("fields") === "comment") {
+        onActivity?.();
         return json({ isLast: true, issues: activity.map((a) => ({ id: a.key, key: a.key, fields: { comment: { comments: a.comments ?? [] } }, changelog: { histories: a.histories ?? [] } })) });
       }
       const keys = /^key in \((.*)\)$/.exec(jql);
@@ -520,4 +523,25 @@ describe("notifications, incremental sync, watchers", () => {
       expect((await issuesStream()).last_full_at).not.toBeNull();
     });
   });
+it("the next incremental window starts where the last pass fetched, not where it ended", async () => {
+    const MIN = 60_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const t0 = Date.now();
+      await freshStart();
+      // A pass fetches at t0+1m, and its later steps (activity) take it to t0+7m.
+      vi.setSystemTime(t0 + MIN);
+      onActivity = () => vi.setSystemTime(t0 + 7 * MIN);
+      await syncUser(await user(), { full: false });
+      onActivity = null;
+      vi.setSystemTime(t0 + 12 * MIN);
+      jqls = [];
+      await syncUser(await user(), { full: false });
+      expect(jqls[0]).toContain('updated >= "-13m"');
+    } finally {
+      onActivity = null;
+      vi.useRealTimers();
+    }
+  });
 });
+

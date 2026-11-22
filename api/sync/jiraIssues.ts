@@ -5,6 +5,8 @@ import type { ReplayResult } from "./outboxLocks";
 import { issues, type Connection, syncState, type User } from "@db/schema";
 import { replayContract } from "./timeWrites";
 import { streamState } from "./state";
+import { decodeCheckpoint, encodeCheckpoint } from "../providers/core/checkpoint";
+import type { Checkpoint } from "../providers/types";
 import { knownRanks, priorityRanks } from "../jira/priorities";
 import { categoryOfGroup } from "@contracts/categories";
 import type { JiraCredentials } from "@contracts/types";
@@ -432,8 +434,19 @@ async function syncWatchers(
 const assigneeOf = (i: JiraSearchedIssue) =>
   i.fields.assignee?.accountId ?? i.fields.assignee?.name ?? "";
 
+/** The issues stream's checkpoint: when the pass fetched (its later steps take time, changes meanwhile are the next window's). */
+type Fetched = { fetchedAt: number };
+const fetchedCheckpoint = (conn: Connection, at: number): Checkpoint => encodeCheckpoint({ type: "jira", id: conn.id }, "issues", 1, { fetchedAt: at } satisfies Fetched);
+function lastFetchedAt(conn: Connection, cp: string | null | undefined): number | null {
+  try {
+    return decodeCheckpoint<Fetched>({ type: "jira", id: conn.id }, "issues", 1, (cp ?? null) as Checkpoint | null)?.fetchedAt ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** One pass of a Jira connection, as its stream's pass (withStream): `full` is what it ran, wider than asked on a first sync. */
-export async function runSync(account: User, conn: Connection, wantFull: boolean): Promise<{ result: Omit<SyncResult, "failed">; full: boolean }> {
+export async function runSync(account: User, conn: Connection, wantFull: boolean, checkpoint: Checkpoint | null = null): Promise<{ result: Omit<SyncResult, "failed">; full: boolean; checkpoint: Checkpoint }> {
   const syncStart = Date.now();
   let full = wantFull;
   try {
@@ -457,11 +470,14 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     full = wantFull || firstSync;
     // Covers the time since the last successful sync too: a failed pass or downtime
     // must not leave gaps until the next full sync.
-    const windowMin = lastSyncAt
-      ? Math.max(incrementalWindowMin(), Math.ceil((syncStart - lastSyncAt.getTime()) / 60_000) + 2)
+    // From where the last pass fetched, when it says (it ended later).
+    const windowFrom = lastFetchedAt(conn, checkpoint ?? stream?.checkpoint) ?? lastSyncAt?.getTime() ?? null;
+    const windowMin = lastSyncAt && windowFrom !== null
+      ? Math.max(incrementalWindowMin(), Math.ceil((syncStart - windowFrom) / 60_000) + 2)
       : incrementalWindowMin();
     // Which issues are mine on this connection (Settings → Connections → Options).
     const mine = jiraMineOf(conn);
+    const fetchedAt = Date.now();
     const fetched = full
       ? await fetchAssignedIssues(creds, mine)
       : await fetchRecentlyAssignedIssues(creds, windowMin, mine);
@@ -524,7 +540,7 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     // Jira is reachable: flush any queued offline worklog operations.
     const outbox = await replayContract(conn);
     await recordSync(user.id, { ok: true, full });
-    return { result: { synced: remote.length, at: new Date(), full, outbox }, full };
+    return { result: { synced: remote.length, at: new Date(), full, outbox }, full, checkpoint: fetchedCheckpoint(conn, fetchedAt) };
   } catch (e) {
     await recordSync(account.id, { error: e instanceof Error ? e.message : String(e) }).catch(() => undefined);
     throw e;

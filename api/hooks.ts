@@ -52,7 +52,7 @@ async function readNow(connectionId: number): Promise<void> {
   const opts = { full: false, background: true };
   if (conn.type === "jira") {
     const [user] = await db.select().from(users).where(eq(users.id, conn.userId)).limit(1);
-    if (user) await withStream(conn, "issues", opts, () => runSync(user, conn, false));
+    if (user) await withStream(conn, "issues", opts, (cp) => runSync(user, conn, false, cp));
     return;
   }
   await syncConnectionIssues(conn, opts);

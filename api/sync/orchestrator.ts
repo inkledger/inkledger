@@ -66,7 +66,7 @@ async function syncConnections(user: User, full: boolean, background: boolean): 
     if (background && !isWorking(conn.status)) return;
     tried++;
     if (conn.type === "jira") {
-      const run = await withStream(conn, "issues", { full, background }, () => runSync(user, conn, full));
+      const run = await withStream(conn, "issues", { full, background }, (cp) => runSync(user, conn, full, cp));
       if (run.ran) result = run.result;
       else if (!background) throw new TRPCError({ code: "CONFLICT", message: t("server.issues.syncBusy") });
     } else {

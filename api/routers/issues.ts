@@ -280,7 +280,7 @@ export const issuesRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const conn = await ownConnection(ctx.user.id, input.id);
       if (conn.type === "jira") {
-        const run = await withStream(conn, "issues", { full: input.reconcile, background: false }, () => runSync(ctx.user, conn, input.reconcile));
+        const run = await withStream(conn, "issues", { full: input.reconcile, background: false }, (cp) => runSync(ctx.user, conn, input.reconcile, cp));
         if (!run.ran) throw new TRPCError({ code: "CONFLICT", message: t("server.issues.syncBusy") });
         return { synced: run.result.synced };
       }
