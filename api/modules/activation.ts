@@ -14,7 +14,7 @@
 import { verifyEnvelope } from "../vendor/seal/envelope";
 import { env } from "../lib/env";
 import { DAY_MS } from "@contracts/time";
-import { getServerSetting, setServerSetting } from "../lib/serverSettings";
+import { getServerSetting, updateServerSetting } from "../lib/serverSettings";
 import { StoreError, postStore } from "../store/client";
 import { ACTIVATION_KEYS, asPem, extraKey } from "./keys";
 import { instance, proofMessage } from "./instance";
@@ -58,19 +58,23 @@ const tokens = async () => getServerSetting<Tokens>(TOKENS_KEY, {});
 /** Licence id → until when the store being unreachable is forgiven. */
 const graces = async () => getServerSetting<Record<string, number>>(GRACE_KEY, {});
 
+// Changed in one step: two licences activated at once (a renewal, a restore) both keep theirs.
 async function saveToken(licenseId: string, token: string | null) {
-  const all = await tokens();
-  const mine = { ...(all[instance().id] ?? {}) };
-  if (token) mine[licenseId] = token;
-  else delete mine[licenseId];
-  await setServerSetting(TOKENS_KEY, { ...all, [instance().id]: mine });
+  await updateServerSetting<Tokens>(TOKENS_KEY, {}, (all) => {
+    const mine = { ...(all[instance().id] ?? {}) };
+    if (token) mine[licenseId] = token;
+    else delete mine[licenseId];
+    return { ...all, [instance().id]: mine };
+  });
 }
 
 async function setGrace(licenseId: string, until: number | null) {
-  const g = { ...(await graces()) };
-  if (until === null) delete g[licenseId];
-  else g[licenseId] = until;
-  await setServerSetting(GRACE_KEY, g);
+  await updateServerSetting<Record<string, number>>(GRACE_KEY, {}, (saved) => {
+    const g = { ...saved };
+    if (until === null) delete g[licenseId];
+    else g[licenseId] = until;
+    return g;
+  });
 }
 
 export type ActivationState =

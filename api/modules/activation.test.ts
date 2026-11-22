@@ -168,4 +168,15 @@ describe("module licences active per server (WP-19)", () => {
     a.forgetActivations();
     expect((await a.activationStates([LIC])).get("L-1")).toMatchObject({ state: "active" });
   });
+
+  it("two licences activated at once both keep their token", async () => {
+    const two = [
+      { id: "T-1", product: "inkledger.one", text: "T-1:inkledger.one" },
+      { id: "T-2", product: "inkledger.two", text: "T-2:inkledger.two" },
+    ];
+    await Promise.all(two.map((l) => a.activate(l.text, l.id)));
+    a.forgetActivations();
+    const states = await a.activationStates(two);
+    expect(two.map((l) => states.get(l.id)?.state)).toEqual(["active", "active"]);
+  });
 });
