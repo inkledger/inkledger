@@ -212,8 +212,9 @@ function openFrame(
     iframe.tabIndex = -1;
   }
   const fit = role === "view" && FIT_SLOTS.includes(slot);
-  // Same colour scheme as the frame's document, or the browser paints it opaque.
-  Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" && !fit ? "100%" : "0", colorScheme: "normal", background: "transparent" });
+  // Same colour scheme as the frame's document (light: it declares none), or the browser paints it
+  // opaque. Not "normal": under the app's "light dark" meta that turns dark with a dark system.
+  Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" && !fit ? "100%" : "0", colorScheme: "light", background: "transparent" });
   const room = role === "view" ? ROOM[slot] : undefined;
   if (room) {
     Object.assign(iframe.style, {
