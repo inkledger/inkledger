@@ -203,12 +203,22 @@ async function start(init, port) {
       const mount = mod.mount[init.slot];
       if (typeof mount !== "function") throw new Error("nothing to mount in " + init.slot);
       host.slot = init.slot;
+      // Ten shapes a second at most, the latest winning: the host refuses faster, and a refused last shape would stay wrong.
+      let hitAt = -1000, hitTimer = 0, hitNext = null;
+      const sendHit = () => {
+        hitTimer = 0;
+        hitAt = Date.now();
+        const shape = hitNext;
+        hitNext = null;
+        if (Array.isArray(shape)) return fire("hit.set", [shape]);
+        const m = alphaMask(shape);
+        fire("hit.set", [m], [m.alpha.buffer]);
+      };
       host.hit = {
         set: (shape, fn) => {
           activate = typeof fn === "function" ? fn : null;
-          if (Array.isArray(shape)) return fire("hit.set", [shape]);
-          const m = alphaMask(shape);
-          fire("hit.set", [m], [m.alpha.buffer]);
+          hitNext = shape;
+          if (!hitTimer) hitTimer = setTimeout(sendHit, Math.max(0, hitAt + 100 - Date.now()));
         },
       };
       if (port) host.runtime = port;

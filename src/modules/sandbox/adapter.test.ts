@@ -198,4 +198,23 @@ describe("the frame's host API (bootstrap)", () => {
     await settle();
     expect(sheetOpen.get()).toBeNull();
   });
+
+  it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
+    const got: unknown[] = [];
+    const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };
+    const rect = (x: number) => [{ kind: "rect", x, y: 0, w: 1, h: 1 }] as const;
+    const mod = {
+      id: "m",
+      hostApi: 2,
+      mount: {
+        "dashboard-overlay": (_el: unknown, host: HostApiV2) => {
+          for (let x = 1; x <= 3; x++) host.hit.set(rect(x), () => {});
+          return () => {};
+        },
+      },
+    };
+    bootFrame({ capabilities: [], mod, methods, slot: "dashboard-overlay" });
+    await settle(10);
+    expect(got).toEqual([rect(3)]);
+  });
 });
