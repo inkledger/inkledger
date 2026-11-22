@@ -241,7 +241,7 @@ export interface FrozenIn {
   "pinboard.pinTodo": { boardId?: number | undefined; todoId: number };
   "pinboard.remove": { id: number };
   "pinboard.renameBoard": { id: number; name: string };
-  "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; note: string; rotation: number; todoId?: null | number | undefined; x: number; y: number };
+  "pinboard.restore": { boardId: number; color: "blue" | "green" | "orange" | "pink" | "yellow"; connectionId?: number | undefined; issueKey: null | string; issueNoteId?: null | number | undefined; mailId?: null | number | undefined; note: string; rotation: number; todoId?: null | number | undefined; x: number; y: number };
   "pinboard.setBoardScope": { bucketId: null | number; id: number };
   "pinboard.tags": void;
   "pinboard.unpinIssue": { boardId: number; connectionId?: number | undefined; issueKey: string };

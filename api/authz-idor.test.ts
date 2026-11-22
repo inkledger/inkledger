@@ -430,8 +430,8 @@ const CASES: Case[] = [
   { proc: "pinboard.restore", fields: ["boardId"], call: (c, a) => c.pinboard.restore({ boardId: a.board, issueKey: a.key, connectionId: a.conn, note: "", color: "yellow", x: 1, y: 1, rotation: 0 }) },
   {
     proc: "pinboard.restore",
-    fields: ["issueKey", "connectionId", "issueNoteId", "todoId"],
-    call: (c, a, b) => c.pinboard.restore({ boardId: b.board, issueKey: a.key, connectionId: a.conn, issueNoteId: a.issueNote, todoId: a.todo, note: "", color: "yellow", x: 1, y: 1, rotation: 0 }),
+    fields: ["issueKey", "connectionId", "issueNoteId", "todoId", "mailId"],
+    call: (c, a, b) => c.pinboard.restore({ boardId: b.board, issueKey: a.key, connectionId: a.conn, issueNoteId: a.issueNote, todoId: a.todo, mailId: a.mail, note: "", color: "yellow", x: 1, y: 1, rotation: 0 }),
   },
   { proc: "pinboard.link", fields: ["id"], call: (c, a) => c.pinboard.link({ id: a.pin, issueKey: a.key, connectionId: a.conn }) },
   { proc: "pinboard.link", fields: ["issueKey", "connectionId"], call: (c, a, b) => c.pinboard.link({ id: b.pin, issueKey: a.key, connectionId: a.conn }) },
