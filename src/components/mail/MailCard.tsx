@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
-const MailCopyDialog = lazyPart(() => import("@/components/mail/MailCopyDialog").then(m => m.MailCopyDialog), p => p.open);
+const MailCopyDialog = lazyPart(() => import("@/components/mail/MailCopyDialog").then(m => m.MailCopyDialog));
 
 /** A pinned mail as the pages show it, with what is known of its copy (docs/work/ideas/mail-copies.md). */
 export type MailView = {

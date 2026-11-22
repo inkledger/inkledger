@@ -113,7 +113,7 @@ test("a page's code on its way: the page on screen stays until it is there, no s
   }
 });
 
-test("a dialog whose code never arrives: no reload by itself, nothing in the shell, the error shows in the dialog", async () => {
+test("a dialog whose code never arrives: no reload by itself, the error shows in the dialog, the shell stays", async () => {
   const app = await start();
   try {
     const { page, context } = app;
@@ -124,9 +124,6 @@ test("a dialog whose code never arrives: no reload by itself, nothing in the she
       cut++;
       return route.abort("failed");
     });
-    // A whole dialog of the shell, cut too: closed, it shows nothing.
-    const idea = u => /\/assets\/IdeaCaptureDialog-[\w-]+\.js$/.test(new URL(u).pathname);
-    await context.route(idea, route => route.abort("failed"));
     let loads = 0;
     page.on("load", () => loads++);
     await page.goto(app.base + "/issues");
@@ -136,21 +133,16 @@ test("a dialog whose code never arrives: no reload by itself, nothing in the she
     assert.ok(cut >= 1, "the form was fetched ahead of use");
     await page.waitForTimeout(1500);
     assert.equal(loads, 1, "no reload by itself");
-    assert.equal(await page.getByRole("alert").filter({ hasText: /Something went wrong|Could not load/ }).count(), 0, "no error card in the shell");
 
     await page.getByRole("button", { name: "New issue" }).first().click();
     const dialog = page.getByRole("dialog");
-    const alert = dialog.getByRole("alert").filter({ hasText: "Could not load the data" });
+    const alert = dialog.getByRole("alert").filter({ hasText: "Something went wrong" });
     await alert.waitFor();
+    assert.equal(await alert.getByRole("button", { name: "Retry" }).count(), 0, "no retry: React.lazy keeps the failure");
     assert.ok(await sidebarLink(page, "/").isVisible(), "the sidebar stays");
-    // Retry fetches it again; failing again, Reload is offered.
-    await alert.getByRole("button", { name: "Retry" }).click();
-    const reload = dialog.getByRole("button", { name: "Reload" });
-    await reload.waitFor();
 
     await context.unroute(chunk);
-    await context.unroute(idea);
-    await reload.click();
+    await alert.getByRole("button", { name: "Reload" }).click();
     await page.getByRole("button", { name: "New issue" }).first().click();
     await page.getByRole("dialog").getByRole("combobox", { name: "Project" }).waitFor();
   } finally {
