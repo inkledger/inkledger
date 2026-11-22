@@ -13,7 +13,7 @@
 // (it refuses a newer schema): the database goes back to this run's dump first. Without a
 // dump the script stops there and says how to recover, never claiming a rollback.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, openSync, closeSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, closeSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -35,6 +35,11 @@ for (const name of [PROJECT, APP, DB, IMAGE]) {
   if (/^jtt/.test(name)) throw new Error(`docker-update: refusing to touch ${name}`);
 }
 if (!existsSync(ENV_FILE)) throw new Error(`docker-update: ${ENV_FILE} is missing (see .env.example)`);
+// Nor through the env file: a database URL naming the old stack's database or host.
+for (const line of readFileSync(ENV_FILE, "utf8").split("\n")) {
+  const url = /^\s*DATABASE_URL\s*=\s*["']?([^"'\s]+)/.exec(line)?.[1];
+  if (url && /@jtt[\w-]*[:/]|\/jtt(?:[?]|$)/.test(url)) throw new Error(`docker-update: ${ENV_FILE} points DATABASE_URL at the jtt stack: refusing`);
+}
 
 const out = (cmd, argv) => spawnSync(cmd, argv, { cwd: ROOT, encoding: "utf8" }).stdout?.trim() ?? "";
 function run(cmd, argv, opts = {}) {
@@ -66,8 +71,12 @@ async function waitHealthy(timeoutMs) {
 }
 
 const startedAt = Date.now();
-/** Migrations the database has applied (the new image applies its own at boot). */
-const migrations = () => out("docker", ["exec", DB, "psql", "-U", "inkledger", "-d", "inkledger", "-Atc", "select count(*) from drizzle.__drizzle_migrations"]);
+/** Migrations the database has applied (the new image applies its own at boot); null when they can't be read. */
+const migrations = () => {
+  const r = spawnSync("docker", ["exec", DB, "psql", "-U", "inkledger", "-d", "inkledger", "-Atc", "select count(*) from drizzle.__drizzle_migrations"], { cwd: ROOT, encoding: "utf8" });
+  const n = r.stdout?.trim() ?? "";
+  return r.status === 0 && /^\d+$/.test(n) ? n : null;
+};
 /** This run's dump, if it made one. */
 const thisRunsDump = () =>
   existsSync(BACKUPS)
@@ -94,7 +103,11 @@ if (!args.has("--no-backup")) {
     const fd = openSync(file, "w", 0o600);
     const r = spawnSync("docker", ["exec", DB, "pg_dump", "-U", "inkledger", "-Fc", "inkledger"], { stdio: ["ignore", fd, "inherit"] });
     closeSync(fd);
-    if (r.status !== 0 || statSync(file).size === 0) throw new Error("docker-update: backup failed, nothing changed");
+    if (r.status !== 0 || statSync(file).size === 0) {
+      // No empty or half dump left behind to be taken for a backup later.
+      unlinkSync(file);
+      throw new Error("docker-update: backup failed, nothing changed");
+    }
     console.log(`✓ Backup ${file} (${(statSync(file).size / 1024 / 1024).toFixed(1)} MB)`);
   }
 }
@@ -115,6 +128,7 @@ const buildMs = Date.now() - b0;
 
 // 4. Swap the app container (the database keeps running).
 const migratedBefore = dry ? "" : migrations();
+if (migratedBefore === null) throw new Error("docker-update: can't read the database's migrations: the app container was not swapped");
 const u0 = Date.now();
 run("docker", compose("up", "-d", "--no-deps", "--no-build", APP));
 if (dry) process.exit(0);
@@ -131,7 +145,9 @@ if (healthyMs === null || rehearse) {
     console.error("✗ No previous image to go back to: the stack is left as it is.");
     process.exit(1);
   }
-  const migrated = migrations() !== migratedBefore;
+  // Unknown counts as migrated: the dump goes back rather than the old image on a newer schema.
+  const migratedAfter = migrations();
+  const migrated = migratedAfter === null || migratedAfter !== migratedBefore;
   if (migrated) {
     const dump = thisRunsDump();
     run("docker", compose("stop", APP));
