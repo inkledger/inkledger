@@ -165,11 +165,13 @@ export async function az<T>(c: AzureCreds, path: string, init: AzCall = {}): Pro
   });
   // A 203 (or a web page where JSON was asked) is the sign-in page: the token wasn't accepted.
   // A web page with an error status is the server's (an IIS or proxy outage): its status says.
-  if (res.status === 203 || (res.ok && /text\/html/i.test(res.headers.get("content-type") ?? ""))) {
+  const page = /text\/html/i.test(res.headers.get("content-type") ?? "");
+  if (res.status === 203 || (res.ok && page)) {
     await discardBody(res);
     throw new ProviderError("auth", "Azure DevOps did not accept the token (it answered with its sign-in page)", { status: res.status });
   }
-  if (res.status === 404 && missingIsNull) {
+  // A proxy's 404 page says nothing about the item: never "missing".
+  if (res.status === 404 && missingIsNull && !page) {
     await discardBody(res);
     return null;
   }

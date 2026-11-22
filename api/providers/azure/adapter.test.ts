@@ -496,6 +496,12 @@ describe("azure: errors arrive in the layer's words", () => {
     expect(await kindOf(b.verify(meta()))).toBe("auth");
   });
 
+  it("a web page answered 404 (a proxy's) is no missing item: the pass fails, nothing is marked missing", async () => {
+    const { b, sim } = simulated();
+    sim.failNext(404, { "Content-Type": "text/html; charset=utf-8" });
+    expect(await kindOf(b.getIssue(meta(), ref(1, "1")))).toBe("notFound");
+  });
+
   it("a missing item is notFound where an operation needs it, null where a lookup may miss", async () => {
     const { b } = simulated();
     expect(await kindOf(b.transitions!.list!(meta(), ref(99, "Web#99")))).toBe("notFound");
