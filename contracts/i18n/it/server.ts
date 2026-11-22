@@ -118,6 +118,7 @@ export const server: Shape<typeof en> = {
     exitedWith: "{bin} uscito con {code}",
     invalid: "Backup non valido",
     notFound: "Backup non trovato",
+    busy: "Un ripristino è già in corso: aspetta che finisca.",
   },
   outbox: {
     unknownOperation: "Operazione outbox sconosciuta: {kind}",

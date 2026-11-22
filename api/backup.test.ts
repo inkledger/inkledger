@@ -146,6 +146,9 @@ describe("backups on disk", () => {
       await expect.poll(() => m.inMaintenance()).toBe(true);
       const { syncUser } = await import("./sync/orchestrator");
       await expect(syncUser({ id: 1 } as Parameters<typeof syncUser>[0])).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+      // One restore at a time: a second one is refused, and doesn't end the first's maintenance.
+      await expect(b.restoreBackup("inkledger-20200102-000000.dump")).rejects.toMatchObject({ kind: "busy" });
+      expect(m.inMaintenance()).toBe(true);
       await restoring;
     } finally {
       delete process.env.FAKE_RESTORE_SLOW;

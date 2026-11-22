@@ -117,6 +117,7 @@ export const server = {
     exitedWith: "{bin} exited with {code}",
     invalid: "Invalid backup",
     notFound: "Backup not found",
+    busy: "A restore is already under way: wait for it to finish.",
   },
   outbox: {
     unknownOperation: "Unknown outbox operation: {kind}",

@@ -156,8 +156,8 @@ const EMPTY_DATABASE = "SET client_min_messages = warning;\nDROP SCHEMA IF EXIST
 
 /** A request about a backup that can't be (no such name, no such file), as opposed to one that failed. */
 export class BackupError extends Error {
-  readonly kind: "invalid" | "notFound";
-  constructor(kind: "invalid" | "notFound", message: string) {
+  readonly kind: "invalid" | "notFound" | "busy";
+  constructor(kind: "invalid" | "notFound" | "busy", message: string) {
     super(message);
     this.kind = kind;
   }
@@ -260,6 +260,8 @@ export async function restoreBackup(
   if (!BACKUP_FILE.test(name)) throw new BackupError("invalid", t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
   if (!fs.existsSync(file)) throw new BackupError("notFound", t("server.backup.notFound"));
+  // One at a time: a second one's end would reopen the server while the first still replaces the data.
+  if (restoring) throw new BackupError("busy", t("server.backup.busy"));
   restoring = name;
   try {
     // The restorer's remembered device as it is now (the backup's goes with everyone's).

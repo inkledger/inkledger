@@ -38,7 +38,7 @@ const fail = (e: unknown) => {
   // The tools' failures in the server's log too, as every internal error is.
   if (!(e instanceof BackupError)) console.error("[backup]", e);
   return new TRPCError({
-    code: e instanceof BackupError ? (e.kind === "invalid" ? "BAD_REQUEST" : "NOT_FOUND") : "SERVICE_UNAVAILABLE",
+    code: e instanceof BackupError ? (e.kind === "invalid" ? "BAD_REQUEST" : e.kind === "busy" ? "CONFLICT" : "NOT_FOUND") : "SERVICE_UNAVAILABLE",
     message: e instanceof Error ? e.message : String(e),
     cause: e,
   });
