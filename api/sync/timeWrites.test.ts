@@ -874,6 +874,38 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     }
   });
 
+  it("a lost create deleted while queued, the same time also logged on the tracker by hand meanwhile: neither twin is deleted, both are read back", async () => {
+    const { boundTracker } = await import("./engine");
+    const { getDb } = await import("../queries/connection");
+    const { connections } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { instant } = await import("@contracts/values");
+    const [conn] = await getDb().select().from(connections).where(eq(connections.id, connId));
+    const meta = { signal: new AbortController().signal, correlationId: "t" };
+    const ref = { remoteId: "r-1", key: "FAKE-1" };
+    const day = "2026-11-08";
+    const at = `${day}T09:00:00+01:00`;
+    const there = async () => (await boundTracker(conn)!.worklogs!.list(meta, ref)).filter((w) => w.span.kind === "session" && new Date(w.span.start).toISOString().startsWith(day)).map((w) => w.remoteId);
+    const here = async () => (await caller.worklogs.list({ issueKey: "FAKE-1" })).filter((w) => new Date(w.started).toISOString().startsWith(day));
+    try {
+      tracker.loseAnswer = true;
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1200, started: at, comment: "twins" });
+      tracker.loseAnswer = false;
+      await boundTracker(conn)!.worklogs!.create!(meta, ref, { time: { kind: "session", start: instant(Date.parse(at)), seconds: 1200 }, comment: "twins" }, { idempotencyKey: "by-hand-3" });
+      const both = await there();
+      expect(both).toHaveLength(2);
+      await caller.worklogs.delete({ id: made.id });
+      await caller.issues.syncConnection({ id: connId });
+      expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+      expect(await there()).toEqual(both);
+      await caller.issues.syncConnection({ id: connId });
+      expect((await here()).map((w) => w.remoteId).sort()).toEqual([...both].sort());
+      for (const w of await here()) await caller.worklogs.delete({ id: w.id });
+    } finally {
+      tracker.loseAnswer = false;
+    }
+  });
+
   it("on a tracker keeping a session's day and no words (GitLab's notes), a create whose answer was lost is adopted at the replay, not logged twice", async () => {
     const { fakeTracker } = await import("../providers/fake/adapter");
     const { ProviderError } = await import("../providers/core/errors");

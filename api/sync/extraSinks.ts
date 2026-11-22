@@ -261,14 +261,15 @@ async function createOnce(b: BoundSink, sink: Connection, w: Worklog, ref: Exter
 }
 
 /**
- * A create of a worklog deleted before its answer came (queued with the values sent): its
- * entry on the sink, as landedBefore finds one, made before the delete; or null.
+ * A create of a worklog deleted before its answer came (queued with the values sent): the
+ * entries on the sink that could be it, as landedBefore finds one, made while its sends could land.
  */
-async function buriedEntry(b: BoundSink, sink: Connection, g: typeof outbox.$inferSelect): Promise<RemoteWorklog | null> {
-  if (!g.started) return null;
+async function buriedEntries(b: BoundSink, sink: Connection, g: typeof outbox.$inferSelect): Promise<RemoteWorklog[]> {
+  if (!g.started) return [];
   const zone = connOf(sink).timeZone;
   const { ref } = await refOf({ userId: g.userId, connectionId: trackerOfSink(sink), issueKey: g.issueKey });
   const day = localDateOf(instant(g.started.getTime()), zone);
+  const found: RemoteWorklog[] = [];
   for (const e of await b.entries.list(meta(), { from: day, to: day })) {
     if (e.authorRemoteId !== sink.remoteAccountId || !e.issue || (e.issue.remoteId !== ref.issue.remoteId && e.issue.key !== ref.issue.key)) continue;
     if (!buriedBy(g, e, zone, slackOf(b, e, g.timeSpentSeconds))) continue;
@@ -276,9 +277,9 @@ async function buriedEntry(b: BoundSink, sink: Connection, g: typeof outbox.$inf
       .select({ id: worklogSinks.id })
       .from(worklogSinks)
       .where(and(eq(worklogSinks.sinkConnectionId, sink.id), eq(worklogSinks.remoteId, e.remoteId)));
-    if (!taken) return e;
+    if (!taken) found.push(e);
   }
-  return null;
+  return found;
 }
 
 /** One worklog onto one sink: created, changed, or its day's total set. */
@@ -457,9 +458,17 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
           const g = claimed[i];
           try {
             if (isLostCreate(g)) {
-              // No id there: the entry its create may have left, looked for and deleted.
-              const e = await buriedEntry(b, sink, g);
-              if (e && b.entries.delete) await goneIsDone(b.entries.delete(meta(), e.remoteId, {}));
+              // No id there: the entry its create may have left, looked for and deleted (only one could be it).
+              const found = await buriedEntries(b, sink, g);
+              if (found.length === 1) {
+                if (b.entries.delete) await goneIsDone(b.entries.delete(meta(), found[0].remoteId, {}));
+              } else {
+                // None, or twins it can't tell apart: it ends undone, and what reads kept out comes back.
+                await db.transaction(async (tx) => {
+                  await tx.delete(outbox).where(eq(outbox.id, g.id));
+                  await unbury(g, tx);
+                });
+              }
             } else if (b.capabilities.entries.model === "dayTotals") {
               // A day's total without the deleted worklog (0 removes the day): its own
               // tracker's time only, as its issue (item_id) says; a delete from before that

@@ -138,6 +138,37 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     }
   });
 
+  it("a create the sink took with its answer lost, the same time also logged on the sink by hand, then its worklog deleted: neither twin there is deleted", async () => {
+    const { ProviderError } = await import("../providers/core/errors");
+    const { instant } = await import("@contracts/values");
+    const entries = (fakes.sink as { entries: { create: (...a: unknown[]) => Promise<{ createdAt?: unknown }> } }).entries;
+    const real = entries.create;
+    let lost: unknown[] = [];
+    entries.create = async (...args: unknown[]) => {
+      const made = await real(...args);
+      made.createdAt = instant(Date.now());
+      if (lost.length === 0) {
+        lost = args;
+        throw new ProviderError("unavailable", "fake: timed out");
+      }
+      return made;
+    };
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-26T09:00:00+02:00", comment: "twins" });
+      await push();
+      expect(await sinkRow(made.id)).toMatchObject({ state: "pending", remote_id: null });
+      // The twin, by hand: the very values, another key.
+      await entries.create(lost[0], lost[1], lost[2], lost[3], { idempotencyKey: "by-hand" });
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-26")).toHaveLength(2);
+      await caller.worklogs.delete({ id: made.id });
+      await push();
+      expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-26")).toHaveLength(2);
+      expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    } finally {
+      entries.create = real;
+    }
+  });
+
   it("a worklog never sent to the sink, deleted: nothing is queued for it there", async () => {
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-21T09:00:00+02:00", comment: "never sent" });
     await caller.worklogs.delete({ id: made.id });

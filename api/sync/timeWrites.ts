@@ -394,11 +394,16 @@ export async function unbury(tomb: typeof outbox.$inferSelect, db: Db | Tx = get
   if (s?.cp && Number(s.cp) > at) await db.update(connectionSync).set({ checkpoint: String(at) }).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));
 }
 
-/** The entry a lost create left, found by its delete (only one linked to no worklog: never another's), deleted there. */
-async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox.$inferSelect) {
+/**
+ * The entry a lost create left, found by its delete, deleted there: only when exactly one
+ * linked to no worklog could be it (never another's, never one of twins). False when none or
+ * several were: nothing deleted.
+ */
+async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox.$inferSelect): Promise<boolean> {
   // No list there: nothing to look for.
-  if (!t.b.worklogs?.list) return;
+  if (!t.b.worklogs?.list) return true;
   const there = await t.b.worklogs.list(meta(), t.ref);
+  const found: string[] = [];
   for (const w of there) {
     if (w.authorRemoteId !== conn.remoteAccountId || !buriedBy(tomb, w, t.zone, roundingSlack(entriesOf(t.b)?.limits, tomb.timeSpentSeconds))) continue;
     const [linked] = await getDb()
@@ -407,9 +412,11 @@ async function dropLanded(t: ContractTime, conn: Connection, tomb: typeof outbox
       .where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.remoteId, w.remoteId)))
       .limit(1);
     if (linked) continue;
-    await deleteThere(t.b, meta(), t.ref, w.remoteId);
-    return;
+    found.push(w.remoteId);
   }
+  if (found.length !== 1) return false;
+  await deleteThere(t.b, meta(), t.ref, found[0]);
+  return true;
 }
 
 /** The worklog's time is no longer what was sent. */
@@ -488,7 +495,13 @@ async function doReplay(conn: Connection): Promise<ReplayResult> {
           await withDeleteReason("merged", (tx) =>
             tx.delete(worklogs).where(and(eq(worklogs.userId, conn.userId), eq(worklogs.connectionId, conn.id), eq(worklogs.issueKey, entry.issueKey), eq(worklogs.remoteId, entry.remoteId))),
           );
-        } else if (isLostCreate(entry)) await dropLanded(t, conn, entry);
+        } else if (isLostCreate(entry) && !(await dropLanded(t, conn, entry))) {
+          // None, or twins it can't tell apart: it ends undone, and what reads kept out comes back.
+          await db.transaction(async (tx) => {
+            await tx.delete(outbox).where(eq(outbox.id, entry.id));
+            await unbury(entry, tx);
+          });
+        }
       } else {
         const local = await queuedWorklog(entry, conn);
         // Gone here meanwhile (deleted while queued): nothing left to send.
