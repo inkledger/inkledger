@@ -141,15 +141,35 @@ type X = CallContext<"gitlab", GitLabOptions>;
 /** Format of this adapter's checkpoints (core/checkpoint.ts). */
 const V = 1;
 type Since = { at: number };
-/** `after`: the last updated_at read, the next page starts there (an issue edited mid-pass shifts no offset); `seen`: the ids read at it. */
-type IssuePage = { page: number; at: number; after?: string; seen?: string[] };
+/** `after`: the last updated_at read, the next page starts there (an issue edited mid-pass shifts no offset); `seen`: the ids read at it; `per`: the page size, when paging by number. */
+type IssuePage = { page: number; at: number; after?: string; seen?: string[]; per?: number };
 type TimelogPageAt = { after: string | null; from: string; to: string; username: string; at: number };
 
 /** Overlap read again at each pass: updates may land after the clock that stamps them. */
 const OVERLAP_MS = 60_000;
 const PER_PAGE = 50;
+/** Rows read again when paging by number: an issue that leaves the run meanwhile shifts the rest back, up to this many is no skip. */
+const REREAD = 10;
 /** The feed window the capabilities declare. */
 const WINDOW_DAYS = 30;
+
+/**
+ * The next page by number, starting at least REREAD rows before this one's end: GitLab pages on a grid
+ * (page × per_page), so the widest size whose grid starts in that span and still reads past the end.
+ * The rows of this page from there on are `seen`, skipped when read again.
+ */
+function rereadFrom(at: IssuePage, per: number, rows: GitLabIssue[]): IssuePage {
+  const start = (at.page - 1) * per;
+  const end = start + rows.length;
+  let best: { from: number; size: number } | null = null;
+  for (let size = 100; size > REREAD; size--) {
+    const from = Math.floor((end - REREAD) / size) * size;
+    if (from >= start && from + size > end && (!best || from + size > best.from + best.size)) best = { from, size };
+  }
+  // None (not met below 20,000 rows): the next page as it is, no overlap.
+  if (!best) return { ...at, page: at.page + 1, seen: [] };
+  return { ...at, page: best.from / best.size + 1, per: best.size, seen: rows.slice(best.from - start).map((i) => String(i.id)) };
+}
 
 async function credsOf(x: X): Promise<GitLabCreds> {
   const cred = await x.conn.credential();
@@ -489,7 +509,8 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
     // The pass starts now: its checkpoint (on the last page) is this moment, less the overlap.
     const at = decodePageToken<IssuePage>(x.conn, "issues", V, q.since, q.page) ?? { page: 1, at: Date.now() };
     // scope defaults to created_by_me, state to all, per_page tops out at 100.
-    const params = new URLSearchParams({ scope: "assigned_to_me", state: "all", order_by: "updated_at", sort: "asc", per_page: String(PER_PAGE), page: String(at.page) });
+    const per = at.per ?? PER_PAGE;
+    const params = new URLSearchParams({ scope: "assigned_to_me", state: "all", order_by: "updated_at", sort: "asc", per_page: String(per), page: String(at.page) });
     // updated_after is inclusive: the issues read at `after` come back first, skipped.
     if (at.after !== undefined) params.set("updated_after", at.after);
     else if (since !== null) params.set("updated_after", new Date(since).toISOString());
@@ -508,9 +529,9 @@ export const gitlabProvider: TrackerProvider<"gitlab", GitLabOptions> = {
     if (r?.next) {
       const lastAt = rows[rows.length - 1]?.updated_at;
       const atLast = rows.filter((i) => i.updated_at === lastAt).map((i) => String(i.id));
-      // A page all at `after` (a bulk edit): the next one by number under the same `after`.
+      // A page all at `after` (a bulk edit): the next one by number under the same `after`, a few rows back.
       const next: IssuePage =
-        lastAt === undefined || lastAt === at.after ? { ...at, page: at.page + 1 } : { page: 1, at: at.at, after: lastAt, seen: atLast };
+        lastAt === undefined || lastAt === at.after ? rereadFrom(at, per, rows) : { page: 1, at: at.at, after: lastAt, seen: atLast };
       return { last: false, items, gone, next: encodePageToken(x.conn, "issues", V, q.since, next) };
     }
     return { last: true, items, gone, checkpoint: encodeCheckpoint(x.conn, "issues", V, { at: at.at - OVERLAP_MS } satisfies Since) };
