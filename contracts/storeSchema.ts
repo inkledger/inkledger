@@ -16,7 +16,8 @@ export const storeItemSchema = z.object({
   methods: z
     .object({ card: z.boolean().default(false), bitcoin: z.enum(["on", "soon", "off"]).catch("off").default("off") })
     .default({ card: false, bitcoin: "off" }),
-  docsUrl: z.url({ protocol: /^https?$/ }).optional(),
+  // A link off the web is dropped, never the item with it.
+  docsUrl: z.url({ protocol: /^https?$/ }).optional().catch(undefined),
   /** Small square picture (list fallback). */
   image: z.url().optional(),
   /** 16:10 picture without text, on the card and atop the product page. */
