@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { t } from "@/i18n";
+import { isTyping } from "@/lib/dom";
 import { NoteMails } from "@/components/mail/NoteMails";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 import { ConflictBanner } from "./ConflictBanner";
@@ -106,6 +107,9 @@ export function NoteEditor({
     if (key === "s") {
       event.preventDefault();
       void saveAndPreview();
+    } else if (isTyping(event.target) && event.target !== area.current) {
+      // Typed in another field (the title, the day, a dialog): its own keys, not the body's.
+      return;
     } else if (!preview && key === "b") {
       event.preventDefault();
       apply("bold");

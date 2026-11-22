@@ -121,6 +121,29 @@ test("Markdown notes autosave, render, search from the page and palette, recover
     }, "empty document save");
   }));
 
+test("undo and bold typed in the title stay in the title: the body is left as it is", () =>
+  withApp({}, async ({ page, base, db }) => {
+    const created = await createNote(page, base, db, "Plan", "first");
+    const body = page.getByLabel("Markdown source");
+    await body.focus();
+    await body.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
+    await page.keyboard.type(" second");
+    const typed = await body.inputValue();
+    const title = page.getByLabel("Note title");
+    await title.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type("s");
+    await page.keyboard.press("ControlOrMeta+z");
+    await page.keyboard.press("ControlOrMeta+b");
+    assert.equal(await body.inputValue(), typed);
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "note-title");
+    await title.blur();
+    await waitFor(async () => {
+      const [row] = await db.q("SELECT body FROM markdown_notes WHERE id = ?", created.id);
+      return row?.body === typed;
+    }, "body kept");
+  }));
+
 test("the editor fills its area, has an explicit Save action and keeps a safe source fallback in preview", () =>
   withApp({}, async ({ page, base, db }) => {
     const created = await createNote(page, base, db, "Safe preview", "Initial");
