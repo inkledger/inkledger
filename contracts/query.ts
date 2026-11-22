@@ -286,7 +286,8 @@ function termOf(word: string, quoted: boolean, warnings: QueryWarning[]): QueryT
     return { kind: "field", field, op, value: canon, ...(m[2] ? { name: m[2].trim() } : {}) };
   }
   // A state word on its own (osservata, preferita…) reads as is: — never one typed in quotes.
-  if (lower in BARE_IS) return { kind: "field", field: "is", op: "=", value: BARE_IS[lower] };
+  // Own keys only: "constructor" is a word, not a state.
+  if (Object.hasOwn(BARE_IS, lower)) return { kind: "field", field: "is", op: "=", value: BARE_IS[lower] };
   return word ? { kind: "text", text: word } : null;
 }
 
@@ -357,10 +358,10 @@ const quote = (v: string) => (/[\s()"]/.test(v) || v === "" ? `"${v.replaceAll('
 /**
  * A searched word, quoted also when bare it would read as something else: a
  * leading - or ! (not), a leading | or OR (or), @me, an issue key. Unquoted,
- * a saved "-draft" came back as "not draft".
+ * a saved "-draft" came back as "not draft"; a state word (preferita), as is:.
  */
 const quoteText = (v: string) =>
-  /^[-!|@]/.test(v) || v === "OR" || KEY_RE.test(v) ? `"${v.replaceAll('"', "")}"` : quote(v);
+  /^[-!|@]/.test(v) || v === "OR" || KEY_RE.test(v) || Object.hasOwn(BARE_IS, v.toLowerCase()) ? `"${v.replaceAll('"', "")}"` : quote(v);
 
 /** Fields whose value can be the user themselves (me / io). */
 const PERSON_FIELDS = new Set<QueryField>(["assignee", "author"]);

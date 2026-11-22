@@ -108,6 +108,20 @@ describe("query language", () => {
     expect(parseQuery('"osservata"').expr).toEqual({ kind: "text", text: "osservata" });
     expect(parseQuery("aperta").expr).toEqual({ kind: "text", text: "aperta" });
   });
+
+  it("writes a quoted state word back quoted: a saved search for it stays a word search", () => {
+    const words = ["osservata", "osservate", "seguita", "seguite", "preferita", "preferite", "nonletta", "nonlette", "nascosta", "nascoste"];
+    for (const word of [...words, "Preferita", "NASCOSTA"]) {
+      for (const query of [`"${word}"`, `-"${word}"`, `"${word}" OR login`]) {
+        const first = p(query);
+        for (const lang of ["en", "it"] as const) expect(p(formatQuery(first, lang)), `${query} (${lang})`).toEqual(first);
+      }
+    }
+  });
+
+  it("reads a word that is only an object's own key (constructor) as a word", () => {
+    expect(p("constructor")).toEqual({ kind: "text", text: "constructor" });
+  });
 });
 
 describe("queryFieldNames", () => {
