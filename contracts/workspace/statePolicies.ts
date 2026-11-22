@@ -1,26 +1,10 @@
+import { CATALOG_V1 } from "./catalogV1";
 import type { StatePolicy } from "./model";
 
-export const INITIAL_ANCHOR_STATE_POLICIES = {
-  "dashboard.timeline": "local",
-  "dashboard.stats": "stateless",
-  "dashboard.summary": "local",
-  "dashboard.tasks": "external",
-  "dashboard.activity": "stateless",
-  "dashboard.recap": "stateless",
-  "dashboard.period": "local",
-  "dashboard.quick-log": "dirty",
-  "dashboard.planned-dialog": "dirty",
-  "dashboard.gap-cutter": "dirty",
-  "shell.navigation": "stateless",
-  "shell.command-palette": "external",
-  "shell.notifications": "external",
-  "shell.quick-start": "external",
-  "shell.sync": "external",
-  "shell.timer.active": "critical",
-  "mobile.tabs": "local",
-  "mobile.more": "local",
-  "mobile.timer.active": "critical",
-} as const satisfies Readonly<Record<string, StatePolicy>>;
+// Read from the catalog: a hand-kept copy drifted from it.
+export const INITIAL_ANCHOR_STATE_POLICIES: Readonly<Record<string, StatePolicy>> = Object.fromEntries(
+  CATALOG_V1.anchors.map(anchor => [anchor.id, anchor.statePolicy]),
+);
 
 export const CRITICAL_STATE_ANCHOR_IDS = [
   "dashboard.quick-log",
@@ -31,7 +15,7 @@ export const CRITICAL_STATE_ANCHOR_IDS = [
 ] as const;
 
 export function statePolicyFor(anchorId: string): StatePolicy {
-  const policy = INITIAL_ANCHOR_STATE_POLICIES[anchorId as keyof typeof INITIAL_ANCHOR_STATE_POLICIES] as StatePolicy | undefined;
+  const policy: StatePolicy | undefined = INITIAL_ANCHOR_STATE_POLICIES[anchorId];
   if (!policy) throw new Error(`Missing state policy for ${anchorId}`);
   return policy;
 }

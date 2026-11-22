@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CATALOG_V1 } from "./catalogV1";
 import {
   assertCriticalStatePolicies,
   canMoveBetweenParents,
@@ -25,10 +26,15 @@ describe("anchor state policies", () => {
   });
 
   it("allows local reorder only inside the stable parent and defers dirty activation", () => {
-    expect(canReorderWithinParent("mobile.tabs")).toBe(true);
+    expect(canReorderWithinParent("mobile.more")).toBe(true);
     expect(canReorderWithinParent("mobile.timer.active")).toBe(false);
     expect(requiresActivationDefer("dashboard.gap-cutter")).toBe(true);
     expect(requiresActivationDefer("dashboard.stats")).toBe(false);
     expect(() => statePolicyFor("dashboard.unknown")).toThrow("Missing state policy");
+  });
+
+  it("reads every anchor's policy from the catalog", () => {
+    for (const anchor of CATALOG_V1.anchors) expect(statePolicyFor(anchor.id), anchor.id).toBe(anchor.statePolicy);
+    expect(Object.keys(INITIAL_ANCHOR_STATE_POLICIES).sort()).toEqual(CATALOG_V1.anchors.map(anchor => anchor.id).sort());
   });
 });
