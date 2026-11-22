@@ -247,6 +247,27 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     await q("DELETE FROM outbox");
   });
 
+  it("a lost create's delete on Tempo out of attempts: \"Send now\" leaves its entry alone (read back since, it may be a worklog again)", async () => {
+    const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
+    const at = "2026-10-26T09:00:00+02:00";
+    garbleNext = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "kept" });
+      await caller.worklogs.delete({ id: made.id });
+      expect(sim.worklogs.filter((w) => w.startDate === "2026-10-26")).toHaveLength(1);
+      // Given up: no more tries, its entry read back as any other.
+      await q("UPDATE outbox SET attempts = ? WHERE kind = 'delete'", MAX_OUTBOX_ATTEMPTS);
+      await caller.sinks.push({ id: tempoId });
+      expect(sim.worklogs.filter((w) => w.startDate === "2026-10-26")).toHaveLength(1);
+    } finally {
+      garbleNext = false;
+      quiet.mockRestore();
+      sim.worklogs.splice(0, sim.worklogs.length, ...sim.worklogs.filter((w) => w.startDate !== "2026-10-26"));
+      await q("DELETE FROM outbox");
+    }
+  });
+
   it("a create to Tempo that never left (its connection refused), deleted: no delete looks for it there", async () => {
     const at = "2026-10-27T09:00:00+02:00";
     down = true;

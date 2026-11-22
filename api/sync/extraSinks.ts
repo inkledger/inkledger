@@ -426,7 +426,10 @@ export async function pushSinks(userId: number, now: () => number = Date.now, o:
             eq(outbox.kind, "delete"),
             // Held while its worklog is still here (heldSinkDelete).
             isNull(outbox.worklogId),
-            ...(o.force ? [] : [lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now()))]),
+            // A lost create's delete given up stays given up: its entry may be read back as a worklog since.
+            ...(o.force
+              ? [or(lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), ne(outbox.remoteId, ""), isNull(outbox.landedAfter))]
+              : [lt(outbox.attempts, MAX_OUTBOX_ATTEMPTS), or(isNull(outbox.nextAttemptAt), lte(outbox.nextAttemptAt, now()))]),
           ),
         )
         .orderBy(asc(outbox.createdAt), asc(outbox.id))
