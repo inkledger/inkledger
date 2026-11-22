@@ -61,6 +61,18 @@ describe("FlowMap service", () => {
     expect((await q<{ n: number }>("SELECT count(*)::int AS n FROM workspace_presentations WHERE user_id = ? AND client_instance_id = 'tab-a'", userId))[0].n).toBe(2);
   });
 
+  it("keeps only the newest FlowMap imports of a scope", async () => {
+    await setFlowConsent(userId, true);
+    const evidence = await generateFlowEvidence(userId, scope);
+    const document = JSON.parse((await exportFlowMap(userId, scope, evidence.evidenceId, "heat")).contents) as Parameters<typeof import("./flowStore").saveFlowImport>[1];
+    const { saveFlowImport } = await import("./flowStore");
+    for (let index = 0; index < 25; index++) await saveFlowImport(userId, document, `import-${String(index).padStart(2, "0")}`);
+    const rows = await q<{ id: string }>("SELECT id FROM workspace_flow_imports WHERE user_id = ? ORDER BY id", userId);
+    expect(rows.length).toBe(20);
+    expect(rows.map(row => row.id)).toContain("import-24");
+    expect(rows.map(row => row.id)).not.toContain("import-00");
+  });
+
   it("aggregates, exports and imports without sharing raw events or creating constraints", async () => {
     await setFlowConsent(userId, true);
     const events = Array.from({ length: 5 }, (_, day) => [

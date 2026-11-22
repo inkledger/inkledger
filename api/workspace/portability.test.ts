@@ -3,7 +3,7 @@ import { q, resetDbForTests } from "../queries/connection";
 import type { Scope } from "@contracts/workspace/model";
 import type { WorkspaceDocument } from "@contracts/workspace/portability";
 import { fingerprint, createOpaqueEntry } from "./crypto";
-import { commitWorkspace, getWorkspace, prepareWorkspace, saveWorkspaceDraft } from "./service";
+import { commitWorkspace, discardWorkspaceDraft, getWorkspace, prepareWorkspace, saveWorkspaceDraft } from "./service";
 import { confirmImportedConstraint, exportWorkspace, importWorkspace } from "./portability";
 import { upsertDraft } from "./store";
 
@@ -99,6 +99,58 @@ describe("workspace portability", () => {
     delete body.checksum;
     const contents = JSON.stringify({ ...body, checksum: fingerprint("workspace", body).value });
     await expect(importWorkspace(userId, scope, contents)).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+  });
+
+  it("leaves no open draft behind when an imported file does not resolve, so the next import still works", async () => {
+    const original = await documentForUser();
+    const broken = JSON.parse(JSON.stringify(original)) as WorkspaceDocument;
+    const brokenBody: Partial<WorkspaceDocument> = { ...broken, revision: { ...broken.revision, operations: [{ ...broken.revision.operations[0], operation: { type: "visibility" as const, operationId: "op-unknown", anchorId: "dashboard.not-an-anchor", visible: false } }] } };
+    delete brokenBody.checksum;
+    await expect(importWorkspace(userId, scope, JSON.stringify({ ...brokenBody, checksum: fingerprint("workspace", brokenBody).value }))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await q("SELECT id FROM workspace_drafts")).toEqual([]);
+    expect(await q("SELECT id FROM workspace_imports")).toEqual([]);
+    const result = await importWorkspace(userId, scope, JSON.stringify(original));
+    expect(result.preview?.draft.status).toBe("ready");
+  });
+
+  it("keeps only what an imported draft patch is made of", async () => {
+    const original = await documentForUser();
+    const body: Record<string, unknown> = {
+      ...original,
+      draft: { draftId: "draft-file", draftRevision: 1, baseRevision: "default", scope, status: "ready" as const, patches: [{
+        patchId: "patch-file", patchSchemaVersion: 7, scope, baseRevision: "default", catalogVersion: "1.0.0", author: "AI" as const,
+        provenance: { model: "forged-model", modelVersion: "9", parentPatchId: "earlier" }, intent: { kind: "custom" as const, status: "proposed" as const },
+        operations: [], evidence: [], proposedConstraints: [], revokedConstraintIds: ["constraint-original"],
+        expectedOutcome: "from the file", suggestionSignature: "sig-from-file", causalParentRevision: "rev-file",
+      }] },
+    };
+    delete body.checksum;
+    const result = await importWorkspace(userId, scope, JSON.stringify({ ...body, checksum: fingerprint("workspace", body).value }));
+    const imported = result.draft.patches.find(patch => patch.provenance.parentPatchId === "patch-file");
+    expect(imported).toBeDefined();
+    expect(imported).toMatchObject({ patchSchemaVersion: 1, author: "import", causalParentRevision: "rev-file" });
+    expect(imported?.provenance).toEqual({ parentPatchId: "patch-file", importSource: result.importId });
+    for (const key of ["expectedOutcome", "suggestionSignature", "revokedConstraintIds"]) expect(imported).not.toHaveProperty(key);
+  });
+
+  it("keeps a bounded number of finished imports per scope", async () => {
+    const exported = await exportWorkspace(userId, scope);
+    let last = "";
+    for (let index = 0; index < 23; index++) {
+      const result = await importWorkspace(userId, scope, exported.contents);
+      last = result.importId;
+      await discardWorkspaceDraft(userId, scope, result.draft.draftId);
+    }
+    const rows = await q<{ id: string }>("SELECT id FROM workspace_imports WHERE user_id = ?", userId);
+    expect(rows.length).toBe(20);
+    expect(rows.map(row => row.id)).toContain(last);
+  });
+
+  it("refuses a saved draft whose explicit constraint is not the user's own", async () => {
+    const forged = { id: "constraint-ai", kind: "expectHere" as const, status: "explicit" as const, author: "AI" as const, scope, anchorId: "dashboard.stats", areaId: "dashboard.secondary" };
+    const draft = { draftId: "draft-ai", draftRevision: 1, baseRevision: "default", scope, status: "ready" as const, patches: [{ patchId: "patch-ai", patchSchemaVersion: 1, scope, baseRevision: "default", catalogVersion: "1.0.0", author: "AI" as const, provenance: {}, intent: { kind: "custom" as const, status: "proposed" as const }, operations: [], evidence: [], proposedConstraints: [forged] }] };
+    await expect(saveWorkspaceDraft(userId, scope, draft)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(await q("SELECT id FROM workspace_drafts")).toEqual([]);
   });
 
   it("preserves unknown content in quarantine and denies writes", async () => {

@@ -240,10 +240,23 @@ async function refuseUnknownContent(userId: number, scope: Scope): Promise<void>
   if (draft && await importHasUnknownContent(userId, scope, draft.draftId)) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.readOnly") });
 }
 
+/** Throws CONFLICT when `draft` would not resolve on the current layout; writes nothing. */
+export async function assertDraftResolves(userId: number, scope: Scope, draft: Draft): Promise<void> {
+  await resolvedFor(userId, scope, draft);
+}
+
+/** An explicit constraint is the user's own: one claimed by the AI, the planner or an import is refused (D-06). */
+function refuseUnconfirmedConstraints(draft: Draft): void {
+  if (draft.patches.some(patch => patch.proposedConstraints.some(constraint => constraint.status === "explicit" && constraint.author !== "user"))) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.invalidRequest") });
+  }
+}
+
 export async function saveWorkspaceDraft(userId: number, scope: Scope, draft: Draft) {
   if (draft.scope.surfaceId !== scope.surfaceId || draft.scope.deviceClass !== scope.deviceClass) {
     throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.invalidRequest") });
   }
+  refuseUnconfirmedConstraints(draft);
   if (await importHasUnknownContent(userId, scope, draft.draftId)) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.readOnly") });
   const previous = await latestDraft(userId, scope);
   if (previous?.draftId === draft.draftId && (draft.draftRevision < previous.draftRevision || (draft.draftRevision === previous.draftRevision && fingerprint("input", previous.patches).value !== fingerprint("input", draft.patches).value))) {
@@ -286,6 +299,7 @@ export async function reproposeWorkspaceDraft(userId: number, scope: Scope, draf
   if (draft.scope.surfaceId !== scope.surfaceId || draft.scope.deviceClass !== scope.deviceClass) {
     throw new TRPCError({ code: "BAD_REQUEST", message: t("server.workspace.invalidRequest") });
   }
+  refuseUnconfirmedConstraints(draft);
   if (await importHasUnknownContent(userId, scope, draft.draftId)) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.readOnly") });
   const current = await inputFor(userId, scope, null);
   if (draft.baseRevision === current.activeRevision.revisionId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.changed") });

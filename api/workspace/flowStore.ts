@@ -145,6 +145,9 @@ export async function evidenceById(userId: number, id: string, scope: Scope): Pr
   return withExpectationFeedback(flowEvidenceSchema.parse(JSON.parse(rows[0].payload)), await feedbackById(userId));
 }
 
+/** FlowMap imports kept per user and scope: as many as the list shows, the newest. */
+const MAX_FLOW_IMPORTS_PER_SCOPE = 20;
+
 export async function saveFlowImport(userId: number, document: FlowMapDocument, id: string): Promise<void> {
   const validated = flowMapDocumentSchema.parse(document);
   await getDb().transaction(async tx => {
@@ -153,6 +156,8 @@ export async function saveFlowImport(userId: number, document: FlowMapDocument, 
     const settings = await tx.select({ enabled: workspaceFlowSettings.enabled }).from(workspaceFlowSettings).where(eq(workspaceFlowSettings.userId, userId)).limit(1);
     if (!settings[0]?.enabled) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.workspace.flowOff") });
     await tx.insert(workspaceFlowImports).values({ userId, id, surfaceId: document.scope.surfaceId, deviceClass: document.scope.deviceClass, document: JSON.stringify(validated) });
+    await tx.execute(sql`DELETE FROM workspace_flow_imports WHERE user_id = ${userId} AND surface_id = ${document.scope.surfaceId} AND device_class = ${document.scope.deviceClass}
+      AND id NOT IN (SELECT id FROM workspace_flow_imports WHERE user_id = ${userId} AND surface_id = ${document.scope.surfaceId} AND device_class = ${document.scope.deviceClass} ORDER BY created_at DESC, id DESC LIMIT ${MAX_FLOW_IMPORTS_PER_SCOPE})`);
   });
 }
 

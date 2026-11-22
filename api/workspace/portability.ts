@@ -7,7 +7,7 @@ import { CANONICALIZATION_VERSION } from "@contracts/workspace/versions";
 import type { Constraint, Draft, Scope, SuggestionPatch } from "@contracts/workspace/model";
 import { WORKSPACE_FORMAT_VERSION, type WorkspaceDocument } from "@contracts/workspace/portability";
 import { fingerprint } from "./crypto";
-import { getWorkspace, saveWorkspaceDraft } from "./service";
+import { assertDraftResolves, getWorkspace, saveWorkspaceDraft } from "./service";
 import { activeRevisionSchema, draftSchema, workspaceInputSchemas } from "./validation";
 import { quarantineWorkspace } from "./plannerStore";
 import { latestDraft } from "./store";
@@ -93,18 +93,20 @@ export async function importWorkspace(userId: number, scope: Scope, text: string
   }
   for (const patch of document.draft?.patches ?? []) {
     if (patch.scope.surfaceId !== scope.surfaceId || patch.scope.deviceClass !== scope.deviceClass) throw new TRPCError({ code: "CONFLICT", message: t("server.workspace.invalidRequest") });
+    // Only what an imported proposal is made of: the file's model, signature, outcome or revocations are not carried over.
     patches.push({
-      ...patch,
       patchId: `patch_${randomUUID()}`,
+      patchSchemaVersion: 1,
       scope,
       baseRevision: current.workspace.sourceActiveRevision,
       catalogVersion: CATALOG_V1.catalogVersion,
       author: "import",
-      provenance: { ...patch.provenance, parentPatchId: patch.patchId, importSource: importId },
+      provenance: { parentPatchId: patch.patchId, importSource: importId },
       intent: { ...patch.intent, status: "proposed" },
       operations: patch.operations.map(operation => ({ ...operation, operationId: `op_${randomUUID()}` })),
-      proposedConstraints: patch.proposedConstraints.map(constraint => ({ ...constraint, id: `constraint_${randomUUID()}`, author: "import", status: "proposed", scope })),
       evidence: [],
+      proposedConstraints: patch.proposedConstraints.map(constraint => ({ ...constraint, id: `constraint_${randomUUID()}`, author: "import", status: "proposed", scope })),
+      ...(patch.causalParentRevision ? { causalParentRevision: patch.causalParentRevision } : {}),
     });
   }
   const draft: Draft = {
@@ -116,6 +118,8 @@ export async function importWorkspace(userId: number, scope: Scope, text: string
     status: "editing",
   };
   const unknownContent = document.revision.opaque.length > 0;
+  // Checked before anything is stored: an import that cannot resolve leaves no open draft blocking the next one.
+  if (!unknownContent) await assertDraftResolves(userId, scope, draft);
   await quarantineWorkspace(userId, importId, draft, document, unknownContent, await latestDraft(userId, scope));
   return { importId, status: "quarantined" as const, unknownContent, draft, preview: unknownContent ? null : await saveWorkspaceDraft(userId, scope, draft) };
 }

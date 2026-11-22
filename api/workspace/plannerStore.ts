@@ -1,5 +1,5 @@
 import { t } from "@contracts/i18n";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { workspaceDrafts, workspaceImports, workspacePlannerFeedback } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -16,6 +16,9 @@ export async function plannerFeedback(userId: number): Promise<{ suppressedSugge
 export async function suppressPlannerSuggestion(userId: number, signature: string): Promise<void> {
   await getDb().insert(workspacePlannerFeedback).values({ userId, signature, updatedAt: Date.now() }).onConflictDoNothing();
 }
+
+/** Quarantined imports kept per user and scope: the newest ones; an import whose draft is still open is never dropped. */
+const MAX_IMPORTS_PER_SCOPE = 20;
 
 export async function quarantineWorkspace(userId: number, id: string, draft: Draft, document: WorkspaceDocument, hasUnknownContent: boolean, expected: Draft | null): Promise<void> {
   const validated = draftSchema.parse(draft);
@@ -36,6 +39,9 @@ export async function quarantineWorkspace(userId: number, id: string, draft: Dra
       patches: JSON.stringify(validated.patches),
       updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1),
     });
+    await tx.execute(sql`DELETE FROM workspace_imports i WHERE i.user_id = ${userId} AND i.surface_id = ${draft.scope.surfaceId} AND i.device_class = ${draft.scope.deviceClass}
+      AND i.id NOT IN (SELECT id FROM workspace_imports WHERE user_id = ${userId} AND surface_id = ${draft.scope.surfaceId} AND device_class = ${draft.scope.deviceClass} ORDER BY created_at DESC, id DESC LIMIT ${MAX_IMPORTS_PER_SCOPE})
+      AND NOT EXISTS (SELECT 1 FROM workspace_drafts d WHERE d.user_id = i.user_id AND d.surface_id = i.surface_id AND d.device_class = i.device_class AND d.id = i.draft_id AND d.status NOT IN ('applied', 'discarded', 'aborted'))`);
   });
 }
 
