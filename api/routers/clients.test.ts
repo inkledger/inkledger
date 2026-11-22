@@ -66,6 +66,13 @@ describe("clients: who the work is for, across trackers", () => {
     ]);
   });
 
+  it("a project named twice is linked once", async () => {
+    const { containers } = await caller.clients.list();
+    const web = containers.find((c) => c.key === "acme/web")!;
+    const { id } = await caller.clients.save({ name: "Twice", containerIds: [web.id, web.id] });
+    expect((await caller.clients.list()).clients.find((c) => c.id === id)!.containerIds).toEqual([web.id]);
+  });
+
   it("only the user's own projects, and only their own clients", async () => {
     await expect(caller.clients.save({ name: "Sneaky", containerIds: [999999] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(caller.clients.delete({ id: 999999 })).rejects.toMatchObject({ code: "NOT_FOUND" });

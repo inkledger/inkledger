@@ -9,6 +9,7 @@ import { clientContainers, clients, connections, containers } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
+import { xactLockIn } from "../queries/locks";
 import { liveConnections, ofLiveConnection } from "../queries/liveConnections";
 import { parseStringList } from "../lib/json";
 import { ensureContainer } from "../queries/containers";
@@ -80,7 +81,10 @@ export const clientsRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const own = new Set((await userContainers(ctx.user.id)).map((b) => b.id));
       if (input.containerIds.some((id) => !own.has(id))) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.clients.badContainer") });
+      const containerIds = [...new Set(input.containerIds)];
       return getDb().transaction(async (tx) => {
+        // One save at a time per user: two moving the same project don't collide on its link.
+        await xactLockIn(tx, "clients", ctx.user.id);
         const values = { name: input.name, aliases: JSON.stringify(input.aliases), color: input.color };
         let id = input.id;
         if (id !== undefined) {
@@ -89,11 +93,11 @@ export const clientsRouter = createRouter({
         } else {
           id = (await tx.insert(clients).values({ userId: ctx.user.id, ...values }).returning({ id: clients.id }))[0].id;
         }
-        await tx.delete(clientContainers).where(and(eq(clientContainers.clientId, id), input.containerIds.length ? notInArray(clientContainers.containerId, input.containerIds) : undefined));
-        if (input.containerIds.length) {
+        await tx.delete(clientContainers).where(and(eq(clientContainers.clientId, id), containerIds.length ? notInArray(clientContainers.containerId, containerIds) : undefined));
+        if (containerIds.length) {
           // A container is one client's: moved here from any other.
-          await tx.delete(clientContainers).where(inArray(clientContainers.containerId, input.containerIds));
-          await tx.insert(clientContainers).values(input.containerIds.map((containerId) => ({ clientId: id, containerId })));
+          await tx.delete(clientContainers).where(inArray(clientContainers.containerId, containerIds));
+          await tx.insert(clientContainers).values(containerIds.map((containerId) => ({ clientId: id, containerId })));
         }
         return { id };
       });
