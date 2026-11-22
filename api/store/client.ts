@@ -66,7 +66,9 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
     } catch {
       // not JSON: no detail
     }
-    throw new StoreError(res.status >= 500 ? "unreachable" : "rejected", res.status, error);
+    // Not the store's own refusal (its answers say why): a page in front of it (a rate limit, a
+    // challenge, a route not there) is no answer, never a "no" that drops a licence.
+    throw new StoreError(res.status >= 500 || !error ? "unreachable" : "rejected", res.status, error);
   }
   return new Response(body, { status: res.status, headers: res.headers });
 }

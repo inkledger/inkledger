@@ -20,7 +20,7 @@ const DAY = 86_400_000;
 const worker = {
   limit: 2,
   slots: new Map<string, Set<string>>(),
-  mode: "ok" as "ok" | "down" | "html",
+  mode: "ok" as "ok" | "down" | "html" | "edge429",
   calls: [] as string[],
   exp: 0,
 };
@@ -31,6 +31,7 @@ vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit)
   const url = new URL(String(input));
   worker.calls.push(url.pathname);
   if (worker.mode === "down") return new Response("{}", { status: 503 });
+  if (worker.mode === "edge429") return new Response("error code: 1015", { status: 429 });
   if (worker.mode === "html") return new Response("<html>Sign in to the Wi-Fi</html>", { status: 200, headers: { "Content-Type": "text/html" } });
   if (url.pathname === "/nonce") return Response.json({ nonce: "n-1", exp: Date.now() + 300_000 });
   const b = JSON.parse(String(init?.body ?? "{}")) as { license: string; instanceId: string; pubkey: string; nonce: string; sig: string };
@@ -211,6 +212,25 @@ describe("module licences active per server (WP-19)", () => {
     a.forgetActivations();
     const states = await a.activationStates(two);
     expect(two.map((l) => states.get(l.id)?.state)).toEqual(["active", "active"]);
+  });
+
+  it("a page in front of the store refusing (a rate limit, a challenge, not its JSON) is no answer: the token stays", async () => {
+    const one = [{ id: "E-1", product: "inkledger.one", text: "E-1:inkledger.one" }];
+    worker.exp = Date.now() + 10 * DAY;
+    try {
+      await a.activate(one[0].text, one[0].id);
+    } finally {
+      worker.exp = 0;
+    }
+    worker.mode = "edge429";
+    try {
+      const out = await a.renewActivations(one);
+      expect(out.map((r) => r.result)).toEqual([{ ok: false, reason: "unreachable" }]);
+    } finally {
+      worker.mode = "ok";
+    }
+    a.forgetActivations();
+    expect((await a.activationStates(one)).get("E-1")?.state).toBe("active");
   });
 
   it("two licences activated at once both keep their token", async () => {
