@@ -48,6 +48,21 @@ describe("a framed module's session store", () => {
     expect(createSessionStore(() => null).get("a", "k")).toBeNull();
   });
 
+  it("signing in or out (the session's end on this page) drops every module's keys", async () => {
+    const b = memory();
+    const g = globalThis as { sessionStorage?: unknown };
+    g.sessionStorage = b;
+    try {
+      const { moduleSessions } = await import("./session");
+      const { forgetSessionState } = await import("@/lib/accountData");
+      moduleSessions.set("a", "greeted", "1");
+      forgetSessionState();
+      expect(moduleSessions.get("a", "greeted")).toBeNull();
+    } finally {
+      delete g.sessionStorage;
+    }
+  });
+
   it("reaches the frame as host.session, with no capability", async () => {
     const b = memory();
     const store = createSessionStore(() => b);

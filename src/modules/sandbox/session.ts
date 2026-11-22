@@ -2,8 +2,10 @@
  * A framed module's session store: a few short strings that last as long as
  * the tab (a reload keeps them), for what happens once a session. The host
  * keeps them in its own sessionStorage under the module's name (a sandboxed
- * frame has none), and drops them all when the person signs out.
+ * frame has none), and drops them all when someone signs in or out.
  */
+
+import { onSessionEnd } from "@/lib/accountData";
 
 export const SESSION_KEY_MAX = 64;
 export const SESSION_VALUE_MAX = 4096;
@@ -61,3 +63,5 @@ const browserSession = () => {
 
 /** The page's session store (the browser's sessionStorage). */
 export const moduleSessions = createSessionStore(browserSession);
+// Signing in or out: the next account on this tab starts with none.
+onSessionEnd(moduleSessions.clear);
