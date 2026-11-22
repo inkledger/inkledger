@@ -40,11 +40,11 @@ async function writeCurrent(userId: number, layout: DeskLayout, db: Executor = g
 }
 
 /** Each pane under its issue's key today, found by its identity on its connection (empty slots stay as they are). */
-async function refreshKeys(userId: number, desk: DeskLayout): Promise<DeskLayout> {
+async function refreshKeys(userId: number, desk: DeskLayout, db: Executor = getDb()): Promise<DeskLayout> {
   const all = [...deskIssues(desk), ...desk.parked];
   const ids = all.filter(pane => pane.remoteId !== null);
   if (!ids.length) return desk;
-  const rows = await getDb()
+  const rows = await db
     .select({ connectionId: issues.connectionId, remoteId: issues.remoteId, key: issues.key })
     .from(issues)
     .where(and(eq(issues.userId, userId), inArray(issues.remoteId, ids.map(pane => pane.remoteId ?? ""))));
@@ -104,8 +104,14 @@ export const desksRouter = createRouter({
   current: protectedProcedure.query(async ({ ctx }) => {
     const stored = await readCurrent(ctx.user.id);
     const desk = await refreshKeys(ctx.user.id, stored);
-    if (desk !== stored) await writeCurrent(ctx.user.id, desk);
-    return desk;
+    if (desk === stored) return desk;
+    // Rewritten under the desk lock from the desk as it is then: an add meanwhile stays.
+    return getDb().transaction(async tx => {
+      await xactLockIn(tx, "desk", ctx.user.id);
+      const now = await readCurrent(ctx.user.id, tx);
+      const fresh = await refreshKeys(ctx.user.id, now, tx);
+      return fresh === now ? now : writeCurrent(ctx.user.id, fresh, tx);
+    });
   }),
 
   /** The desk as the page has it now (made safe first). */

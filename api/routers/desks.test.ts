@@ -5,6 +5,31 @@ process.env.DATABASE_URL = ":memory:";
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(async () => [{ address: "203.0.113.10", family: 4 }]),
 }));
+// Run by a test just before the desk's key refresh reads the catalogue (once).
+const during = vi.hoisted(() => ({ refresh: null as null | (() => Promise<unknown>) }));
+vi.mock("../queries/connection", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../queries/connection")>();
+  type Query = { from: (t: unknown) => { where: (w: unknown) => PromiseLike<unknown> } };
+  return {
+    ...real,
+    getDb: () => {
+      const db = real.getDb();
+      const hook = during.refresh;
+      if (!hook) return db;
+      return new Proxy(db, {
+        get(target, prop, receiver) {
+          if (prop !== "select") return Reflect.get(target, prop, receiver) as unknown;
+          return (fields?: Record<string, unknown>) => {
+            const query = (target.select as (f?: Record<string, unknown>) => Query)(fields);
+            if (!fields || !("connectionId" in fields) || !("remoteId" in fields)) return query;
+            during.refresh = null;
+            return { from: (t: unknown) => ({ where: (w: unknown) => ({ then: (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => hook().then(() => query.from(t).where(w)).then(ok, ko) }) }) };
+          };
+        },
+      });
+    },
+  };
+});
 // Nothing here asks a tracker.
 vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ errorMessages: ["unexpected call"] }), { status: 500 }));
 
@@ -117,6 +142,14 @@ describe("the current desk", () => {
     await expect(ann.desks.add({ connectionId: bobConn, key: "BOB-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(bob.desks.add({ connectionId: conn, key: "APP-1" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await q("SELECT count(*)::int AS n FROM desks WHERE name IS NULL")).toEqual([{ n: 2 }]);
+  });
+
+  it("a read that refreshes a renamed key doesn't drop an issue added meanwhile", async () => {
+    const base = { v: 1, preset: "quad", tracks: {}, parked: [], maximized: null, compare: false, onlyDifferences: false, noteId: null };
+    await ann.desks.setCurrent({ layout: { ...base, panes: [{ connectionId: conn, key: "APP-6", remoteId: "106" }] } });
+    during.refresh = () => ann.desks.add({ key: "APP-3", connectionId: conn });
+    await ann.desks.current();
+    expect((await ann.desks.current()).panes.map(slotKey).sort()).toEqual(["APP-3", "NEW-6"]);
   });
 
   it("two issues added at once both land: neither add loses the other's", async () => {
