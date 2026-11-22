@@ -86,6 +86,8 @@ test("six framed modules, a runtime and two views each: all within the budget, a
     });
     console.info(`[frame budget] 18 frames: worst frame gap ${perf.worstGap.toFixed(1)} ms, p95 ${perf.p95Gap.toFixed(1)} ms, long tasks ${perf.longTasks.map(t => Math.round(t.duration)).join(",") || "none"}`);
     assert.deepEqual(perf.longTasks.filter(t => t.duration > 50), [], "no long task while 18 frames mount");
+    // The perf guard leaves every one of them alone.
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll("iframe[data-module-frame]")].map(f => f.dataset.watch ?? "normal").filter(w => w !== "normal")), []);
   });
 });
 
