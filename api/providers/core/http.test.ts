@@ -56,13 +56,13 @@ describe("read-only trackers (PROVIDERS_READ_ONLY)", () => {
 
   it("a tracker that goes silent is cut by idle timeouts on the guarded agents, never by a total deadline", async () => {
     const { agents, AGENT_TIMEOUTS } = await import("./http");
-    expect(AGENT_TIMEOUTS.headersTimeout).toBeGreaterThan(0);
-    expect(AGENT_TIMEOUTS.bodyTimeout).toBeGreaterThan(0);
-    for (const agent of Object.values(agents)) {
+    for (const [network, agent] of Object.entries(agents) as [keyof typeof AGENT_TIMEOUTS, (typeof agents)[keyof typeof agents]][]) {
+      expect(AGENT_TIMEOUTS[network].headersTimeout).toBeGreaterThan(0);
+      expect(AGENT_TIMEOUTS[network].bodyTimeout).toBeGreaterThan(0);
       const options = Object.getOwnPropertySymbols(agent)
         .map((s) => (agent as unknown as Record<symbol, unknown>)[s])
         .find((v): v is { headersTimeout?: number; bodyTimeout?: number } => typeof v === "object" && v !== null && "connect" in v);
-      expect(options).toMatchObject(AGENT_TIMEOUTS);
+      expect(options).toMatchObject(AGENT_TIMEOUTS[network]);
     }
   });
 });

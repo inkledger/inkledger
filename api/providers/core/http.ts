@@ -30,8 +30,26 @@ const MAX_REDIRECTS = 3;
 /** The headers credentials ride in, across the providers: never sent on to another origin. */
 const CREDENTIAL_HEADERS = ["Authorization", "Proxy-Authorization", "Cookie", "PRIVATE-TOKEN", "X-Api-Key", "X-Redmine-API-Key", "Shortcut-Token"];
 
+/**
+ * A next page named by the service (a Link header: data from the network), on the API's own
+ * origin: as it is when it's there already; rebuilt there when it names another host but a
+ * path under the API's own (a self-hosted server behind a proxy that doesn't say its public
+ * name); null otherwise. The token never goes to another origin.
+ */
+export function onApiOrigin(url: string, apiBase: string): string | null {
+  const api = new URL(apiBase);
+  const next = new URL(url);
+  if (next.origin === api.origin) return url;
+  const base = api.pathname.replace(/\/+$/, "");
+  return base && (next.pathname === base || next.pathname.startsWith(`${base}/`)) ? `${api.origin}${next.pathname}${next.search}` : null;
+}
+
 /** How long a tracker may stay silent: before its headers, and between two chunks of its body. */
-export const AGENT_TIMEOUTS = { headersTimeout: 120_000, bodyTimeout: 120_000 } as const;
+export const AGENT_TIMEOUTS = {
+  public: { headersTimeout: 120_000, bodyTimeout: 120_000 },
+  // A self-hosted server (Jira Server and the like) may take minutes over a heavy search: undici's own default.
+  private: { headersTimeout: 300_000, bodyTimeout: 300_000 },
+} as const;
 
 /**
  * Connections made only to addresses the network allows, checked when the
@@ -41,7 +59,7 @@ export const AGENT_TIMEOUTS = { headersTimeout: 120_000, bodyTimeout: 120_000 } 
 function guardedAgent(network: Network): Agent {
   return new Agent({
     // Idle limits, not a total one: a server that sends no headers, or stops sending the body, is cut; a large body that keeps coming is not.
-    ...AGENT_TIMEOUTS,
+    ...AGENT_TIMEOUTS[network],
     connect: {
       lookup: (host, options, done) => {
         lookup(host, { ...options, all: true }, (err, found: LookupAddress[]) => {
