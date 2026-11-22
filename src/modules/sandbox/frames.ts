@@ -244,6 +244,8 @@ function openFrame(
     stop() {
       if (stopped) return;
       stopped = true;
+      // Counted off now: a box remounted while this one is parked gets its frame.
+      live--;
       watch?.dispose();
       watch = null;
       cancelAnimationFrame(sizeFrame);
@@ -255,7 +257,6 @@ function openFrame(
         ended = true;
         clearTimeout(deadline);
         onUnmounted = null;
-        live--;
         removePeer();
         served.dispose();
         caps.dispose();
