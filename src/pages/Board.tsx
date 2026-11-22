@@ -176,7 +176,7 @@ export default function Board() {
     return c ? c.label || c.name : String(id);
   };
   const [localMode, setLocalMode] = useState<BoardMode>(readMode);
-  const setBucketMode = trpc.buckets.setBoardMode.useMutation({ onSuccess: () => void utils.buckets.list.invalidate() });
+  const setBucketMode = trpc.buckets.setBoardMode.useMutation({ onSuccess: () => void utils.buckets.list.invalidate(), onError: e => toastError(e) });
   const customColumns = active?.columns ?? [];
   const mode: BoardMode = active ? (active.boardMode === "custom" && customColumns.length === 0 ? "lanes" : active.boardMode) : localMode;
   const setMode = (m: BoardMode) => {
