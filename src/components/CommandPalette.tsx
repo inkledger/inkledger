@@ -340,7 +340,10 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
       query={typed}
       onQueryChange={setTyped}
       onSelect={id => {
-        if (id) byId.get(id)?.run();
+        const chosen = id ? byId.get(id) : undefined;
+        // A server result of the text before the last keys (the search waits 300 ms): Enter never opens it.
+        if (chosen?.forceShow && query !== typed.trim()) return;
+        chosen?.run();
       }}
       renderOption={o => byId.get(o.id)?.view ?? null}
       placeholder={t("ui.palette.placeholder")}
