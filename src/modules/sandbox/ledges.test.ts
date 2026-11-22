@@ -11,14 +11,16 @@ const el = (id: string, left: number, top: number, right: number, bottom: number
   },
   contains: other => !!other && [id, ...inner].includes((other as unknown as { id: string }).id),
 });
-/** `top`: the page's top element at a point (by default the last candidate whose box holds it). */
+/** `top`: the page's top element at a point (by default the last candidate whose box holds it, else the page). */
 function page(els: Fake[], top?: (x: number, y: number) => string | null): LedgePage<Fake> {
   return {
     candidates: () => els,
     elementFromPoint(x, y) {
-      const id = top ? top(x, y) : [...els].reverse().find(e => x >= e.rect.left && x < e.rect.right && y >= e.rect.top && y < e.rect.bottom)?.id;
+      const id = top ? top(x, y) : ([...els].reverse().find(e => x >= e.rect.left && x < e.rect.right && y >= e.rect.top && y < e.rect.bottom)?.id ?? "page");
       return id ? node(id) : null;
     },
+    // The page leaves room; so does the card itself (and what it lists); anything else is in the way.
+    clear: (probe, el) => (probe as unknown as { id: string }).id === "page" || el.contains(probe),
     width: 1200,
     height: 800,
   };
@@ -44,13 +46,24 @@ describe("page.ledges", () => {
     expect(got).toEqual([]);
   });
 
+  it("something right above an edge (a header bar over a card): no place to stand", () => {
+    const bar = el("bar", 300, 60, 700, 92);
+    const card = el("card", 300, 100, 700, 300);
+    // The bar is no candidate; only the card's edge is asked about, with the bar 8 px over it.
+    const got = ledgesAround(page([card], (x, y) => (y >= 60 && y < 92 && x >= 300 && x < 700 ? "bar" : y >= 100 && y < 300 ? "card" : "page")), box);
+    expect(got).toEqual([]);
+    void bar;
+    // Clear above (only the page): a ledge.
+    expect(ledgesAround(page([card]), box)).toEqual([{ x: 100, y: 50, w: 400 }]);
+  });
+
   it("the card's own content at its edge still counts as the card", () => {
-    const got = ledgesAround(page([el("a", 300, 100, 700, 200, ["title"])], () => "title"), box);
+    const got = ledgesAround(page([el("a", 300, 100, 700, 200, ["title"])], (_x, y) => (y >= 100 ? "title" : "page")), box);
     expect(got).toEqual([{ x: 100, y: 50, w: 400 }]);
   });
 
   it("a card in a card on the same line is one ledge, the wider", () => {
-    const got = ledgesAround(page([el("outer", 300, 100, 900, 400, ["inner"]), el("inner", 320, 100, 600, 200)], () => "inner"), box);
+    const got = ledgesAround(page([el("outer", 300, 100, 900, 400, ["inner"]), el("inner", 320, 100, 600, 200)], (_x, y) => (y >= 100 ? "inner" : "page")), box);
     expect(got).toEqual([{ x: 100, y: 50, w: 600 }]);
   });
 
@@ -59,8 +72,18 @@ describe("page.ledges", () => {
     expect(got).toEqual([]);
   });
 
+  it("a bounded number of hit tests a call, however many cards fail late", () => {
+    let probes = 0;
+    const many = Array.from({ length: 150 }, (_, i) => el(`c${i}`, 200 + (i % 10) * 100, 60 + Math.floor(i / 10) * 50, 298 + (i % 10) * 100, 64 + Math.floor(i / 10) * 50));
+    const p = page(many);
+    const counted = { ...p, elementFromPoint: (x: number, y: number) => (probes++, p.elementFromPoint(x, y)) };
+    ledgesAround({ ...counted, clear: () => false }, box);
+    expect(probes).toBeLessThanOrEqual(240);
+  });
+
   it("capped, however busy the page", () => {
-    const many = Array.from({ length: 200 }, (_, i) => el(`c${i}`, 300, 60 + i * 3, 700, 62 + i * 3));
+    // A grid of cards, ten a row, room above each.
+    const many = Array.from({ length: 150 }, (_, i) => el(`c${i}`, 200 + (i % 10) * 100, 60 + Math.floor(i / 10) * 50, 298 + (i % 10) * 100, 64 + Math.floor(i / 10) * 50));
     const got = ledgesAround(page(many), box);
     expect(got.length).toBe(LEDGES_MAX);
   });

@@ -94,8 +94,8 @@ type Capabilities = {
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /**
    * "page.ledges" (a view's): the top edges of the cards and section headers in sight inside
-   * the box, top to bottom, where something drawn may stand; rects only, a few dozen at most,
-   * four calls a second.
+   * the box with clear room above them, top to bottom, where something drawn may stand; rects
+   * only, a few dozen at most, four calls a second.
    */
   ledges?(): Promise<Ledge[]>;
   /** "pointer" */

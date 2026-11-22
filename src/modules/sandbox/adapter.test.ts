@@ -193,7 +193,7 @@ describe("the frame's host API (bootstrap)", () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
     const card = { getBoundingClientRect: () => ({ left: 150, top: 200, right: 550, bottom: 400 }), contains: (n: Node | null) => n === hitNode };
     const hitNode = {} as Node;
-    const ledges = () => ({ candidates: () => [card], elementFromPoint: () => hitNode, width: 1200, height: 800 });
+    const ledges = () => ({ candidates: () => [card], elementFromPoint: () => hitNode, clear: () => true, width: 1200, height: 800 });
     const run = async (capabilities: ModuleCapability[]) => {
       let out: unknown = "none";
       const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ledges, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
