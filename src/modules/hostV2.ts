@@ -23,7 +23,8 @@ export type ThemeStateV2 = ThemeState & {
   skyDim?: number;
 };
 
-export type LayoutState = { sidebar: "full" | "rail" };
+/** `docked`: a module shows a control on the phone's tab bar (the page keeps its last row clear). */
+export type LayoutState = { sidebar: "full" | "rail"; docked: boolean };
 
 /** The pointer relative to the slot box, coalesced per frame; null while away. */
 export type PointerState = { x: number; y: number } | null;
@@ -62,7 +63,11 @@ type Capabilities = {
   /** "dock": in "mobile-dock", whether a control shows (the page keeps its last row clear). */
   dock?: { set(docked: boolean): void };
   /** "backdrop.preblurred": the picture carries its own blur, the host adds none. */
-  backdrop?: { preblurred(on: boolean): void };
+  backdrop?: {
+    preblurred(on: boolean): void;
+    /** The blur (px) the host would add: a picture that bakes it in draws it itself. */
+    blur: Sub<number>;
+  };
   /** "layout" */
   layout?: Sub<LayoutState>;
 };

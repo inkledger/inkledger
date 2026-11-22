@@ -59,7 +59,7 @@ export function readStoredJson(key: string): unknown {
  * Another tab's change applies here on the next load, not live.
  */
 export function deviceSetting<T>(key: string, parse: (raw: string | null) => T, format: (value: T) => string | null = String) {
-  const { get, set, use } = createStore(parse(readStored(key)));
+  const { get, set, use, subscribe } = createStore(parse(readStored(key)));
   return {
     get,
     set(next: T) {
@@ -67,5 +67,6 @@ export function deviceSetting<T>(key: string, parse: (raw: string | null) => T, 
       set(next);
     },
     use,
+    subscribe,
   };
 }

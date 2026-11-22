@@ -89,7 +89,7 @@ const alphaMask = (pic) => {
   return { kind: "mask", w, h, alpha };
 };
 // A value with subscribers: one subscription at the host, the latest kept for late subscribers.
-const state = (name) => {
+const held = (start, stop) => {
   const fns = new Set();
   let id = 0, has = false, last;
   return (fn) => {
@@ -98,17 +98,19 @@ const state = (name) => {
     if (!id) {
       id = ++seq;
       pushes.set(id, (v) => { last = v; has = true; for (const f of [...fns]) safe(f, v); });
-      fire("sub", [id, name]);
+      start(id);
     }
     return () => {
       if (!fns.delete(fn) || fns.size > 0 || !id) return;
       pushes.delete(id);
-      fire("unsub", [id]);
+      stop(id);
       id = 0;
       has = false;
     };
   };
 };
+const state = (name) => held((id) => fire("sub", [id, name]), (id) => fire("unsub", [id]));
+const watched = (m) => held((id) => fire(m, [id]), (id) => fire("unwatch", [id]));
 const on = (name, fn) => {
   const id = ++seq;
   pushes.set(id, (d) => safe(fn, d));
@@ -167,7 +169,9 @@ async function start(init, port) {
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
-  if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]) };
+  if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
+  if (has("pointer") && init.role === "view") host.pointer = watched("pointer");
+  if (has("layout")) host.layout = watched("layout");
   const fail = (what, e) => send({ t: "failed", reason: (what + ": " + String((e && e.message) || e)).slice(0, 400) });
   let mod;
   try {

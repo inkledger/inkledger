@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { SURFACES } from "@/components/app/surface";
 import { z } from "zod";
-import { capabilityMethods } from "./capabilities";
+import { capabilityMethods, type CapabilityDeps } from "./capabilities";
 import { method } from "./rpc";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
 import type { ImportancePage } from "./importance";
 import type { ViewBox } from "./methods";
 import { bootFrame, settle } from "./bootFrame.testkit";
-import type { HostApiV2 } from "../hostV2";
+import type { HostApiV2, LayoutState } from "../hostV2";
 import type { ModuleCapability } from "@contracts/modules";
 
 const lightDoc = () => {
@@ -23,6 +23,12 @@ const lightDoc = () => {
 };
 
 const quietEnv: BrokerEnv = { active: () => true, share: async () => true, download() {}, open() {}, position: async () => null };
+
+const feeds = {
+  pointer: { watch: (_r: unknown, push: (v: { x: number; y: number } | null) => void) => (push({ x: 1, y: 2 }), () => {}) },
+  layout: { poke() {}, watch: (push: (v: LayoutState) => void) => (push({ sidebar: "rail", docked: false }), () => {}) },
+  blur: (_b: Element, push: (px: number) => void) => (push(5), () => {}),
+} as unknown as Pick<CapabilityDeps, "pointer" | "layout" | "blur">;
 
 const emptyPage: ImportancePage = {
   width: 100,
@@ -41,7 +47,7 @@ function withModule(
   view: ViewBox | null = null,
 ) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -112,5 +118,28 @@ describe("the frame's host API (bootstrap)", () => {
     expect(m).toMatchObject({ kind: "mask", w: 512, h: 128 });
     expect(m.alpha).toBeInstanceOf(Uint8Array);
     expect([...m.alpha.slice(0, 3)]).toEqual([200, 200, 0]);
+  });
+
+  it("pointer, layout and blur arrive as subscriptions, each with its capability, pointer and blur in a view only", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
+    const got: unknown[] = [];
+    withModule(
+      ["pointer", "layout", "backdrop.preblurred"],
+      (_el, host) => {
+        host.pointer?.(v => got.push(["pointer", v]));
+        host.layout?.(v => got.push(["layout", v]));
+        host.backdrop?.blur(v => got.push(["blur", v]));
+      },
+      quietEnv,
+      { el, slot: "dashboard-backdrop", activate() {} },
+    );
+    await settle();
+    expect(got).toEqual(expect.arrayContaining([["pointer", { x: 1, y: 2 }], ["layout", { sidebar: "rail", docked: false }], ["blur", 5]]));
+
+    const none: string[] = [];
+    withModule(["layout"], (_el, host) => none.push(String(host.pointer), String(host.layout)));
+    await settle();
+    expect(none[0]).toBe("undefined");
+    expect(none[1]).not.toBe("undefined");
   });
 });

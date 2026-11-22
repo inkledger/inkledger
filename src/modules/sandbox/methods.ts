@@ -60,7 +60,7 @@ export type Cas = {
 };
 
 /** Where a view draws, for what touches its box (hit regions, dock, preblurred); none for the runtime. */
-export type ViewBox = { el: HTMLElement; slot: string; activate: () => void };
+export type ViewBox = { el: HTMLElement; slot: string; activate: () => void; onDock?: () => void };
 
 /**
  * The host API a framed module reaches over messages, from the same hub API
@@ -168,6 +168,7 @@ export function frameMethods(api: HostApiV1, cas: Cas, view: ViewBox | null): { 
         run([on]) {
           if (on) box.dataset.docked = "";
           else delete box.dataset.docked;
+          view.onDock?.();
         },
       }),
       "backdrop.preblurred": method({

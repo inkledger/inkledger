@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { method, RPC_MAX_BYTES, type Method } from "./rpc";
+import { method, RPC_MAX_BYTES, type Method, type MethodContext } from "./rpc";
 
 export const PICTURE_MAX_BYTES = RPC_MAX_BYTES - 64 * 1024;
 import type { ViewBox } from "./methods";
 import { parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
+import type { createLayoutFeed, createPointerFeed } from "./feeds";
 
 /**
  * The host API members a framed module gets only with their capability
@@ -21,7 +22,14 @@ export type CapabilityDeps = {
   broker: ReturnType<typeof createBroker>;
   /** The page as it is now (read per call: its size changes). */
   page: () => ImportancePage;
+  pointer: ReturnType<typeof createPointerFeed>;
+  layout: ReturnType<typeof createLayoutFeed>;
+  /** Watches the blur wanted over a backdrop box. */
+  blur(box: Element, push: (px: number) => void): () => void;
 };
+
+const subId = z.number().int().min(1).max(2 ** 31);
+const MAX_WATCHES = 16;
 
 /** A picture over messages: under the message cap, with room for the rest of the call. */
 const picture = z.instanceof(Blob).refine(b => b.size > 0 && b.size <= PICTURE_MAX_BYTES);
@@ -30,7 +38,26 @@ const fileName = z.string().max(200);
 export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, Method>; dispose(): void } {
   // This frame, as owner of what it set (the light).
   const token = {};
+  const watches = new Map<number, () => void>();
+  const watch = (start: (push: (v: unknown) => void) => () => void) => ({
+    args: z.tuple([subId]),
+    rate: [4, 8] as const,
+    run([id]: [number], ctx: MethodContext) {
+      if (watches.size >= MAX_WATCHES && !watches.has(id)) throw new Error("too many watches");
+      watches.get(id)?.();
+      watches.set(id, ctx.own(start(v => ctx.push(id, v))));
+    },
+  });
   const methods: Record<string, Method> = {
+    unwatch: method({
+      args: z.tuple([subId]),
+      rate: [8, 16],
+      run([id]) {
+        watches.get(id)?.();
+        watches.delete(id);
+      },
+    }),
+    layout: method({ ...watch(push => d.layout.watch(push)), cap: "layout" }),
     "surfaces.light": method({
       args: z.tuple([z.union([z.null(), z.record(z.string().max(32), z.unknown()).refine(v => Object.keys(v).length <= 8)])]),
       cap: "surfaces.light",
@@ -59,10 +86,14 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         return importanceAround(d.page(), r.left, r.top, points);
       },
     });
+    methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
+    methods["backdrop.blur"] = method({ ...watch(push => d.blur(view.el, push)), cap: "backdrop.preblurred" });
   }
   return {
     methods,
     dispose() {
+      watches.forEach(off => off());
+      watches.clear();
       d.light.release(token);
     },
   };

@@ -7,6 +7,8 @@ import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
 import { browserPage } from "./importance";
+import { createLayoutFeed, createPointerFeed, watchBlur } from "./feeds";
+import { sidebar } from "@/hooks/useSidebar";
 import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
 
 /**
@@ -48,6 +50,23 @@ const idle = (fn: () => void) => {
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
 let broker: ReturnType<typeof createBroker> | null = null;
+let pointer: ReturnType<typeof createPointerFeed> | null = null;
+let layout: ReturnType<typeof createLayoutFeed> | null = null;
+const layoutFeed = () =>
+  (layout ??= createLayoutFeed({
+    rail: sidebar.collapsed,
+    docked: () => document.querySelector('[data-module-slot="mobile-dock"] [data-docked]') !== null,
+    subscribe: sidebar.subscribe,
+  }));
+const blur = (box: Element, push: (px: number) => void) =>
+  watchBlur(box, push, {
+    style: e => getComputedStyle(e),
+    observe(e, fn) {
+      const o = new MutationObserver(fn);
+      o.observe(e, { attributes: true, attributeFilter: ["style"] });
+      return () => o.disconnect();
+    },
+  });
 let pageLight: ReturnType<typeof createPageLight> | null = null;
 const light = () =>
   (pageLight ??= createPageLight(
@@ -107,9 +126,9 @@ function openFrame(
   // Same colour scheme as the frame's document, or the browser paints it opaque.
   Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" ? "100%" : "0", colorScheme: "normal", background: "transparent" });
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
-  const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }) } : null;
+  const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box);
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({
