@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { errorText } from "@/lib/errorText";
 import {
+  clearSavedDraft,
   deleteDraft,
   findDraft,
   listDrafts,
@@ -241,13 +242,9 @@ export function useNoteDocument(options: Options) {
   }, [dirty, loaded, userId]);
 
   const clearMatchingDraft = useCallback(
-    (savedTitle: string, savedBody: string) => {
+    (saved: { title: string; body: string; contentRevision: number }) => {
       if (!userId) return;
-      const local =
-        findDraft(userId, currentIdRef.current, activeDraftId.current) ??
-        findDraft(userId, null, activeDraftId.current);
-      if (local && local.title === savedTitle && local.body === savedBody)
-        deleteDraft(local);
+      clearSavedDraft(userId, currentIdRef.current, activeDraftId.current, saved);
     },
     [userId]
   );
@@ -325,7 +322,7 @@ export function useNoteDocument(options: Options) {
             cacheNote(note);
             if (sequence.current === capturedSequence) {
               setStatus("saved");
-              clearMatchingDraft(captured.title, captured.body);
+              clearMatchingDraft({ ...captured, contentRevision: note.contentRevision });
             } else {
               setStatus("draft");
             }
@@ -521,7 +518,7 @@ export function useNoteDocument(options: Options) {
       conflictRef.current = null;
       setConflict(null);
       setStatus("saved");
-      clearMatchingDraft(latest.current.title, latest.current.body);
+      clearMatchingDraft({ ...latest.current, contentRevision: result.note.contentRevision });
       return result.note;
     } finally {
       setBusy(false);

@@ -247,17 +247,23 @@ export async function searchNotes(
     );
   const byId = new Map(rows.map(row => [row.id, row]));
   const visibleIds = pageIds.filter(id => byId.has(id));
-  const active = visibleIds.length
-    ? await db
-        .select({
-          id: markdownNotes.id,
-          parentId: markdownNotes.parentId,
-          title: markdownNotes.title,
-        })
-        .from(markdownNotes)
-        .where(
-          and(eq(markdownNotes.userId, userId), isNull(markdownNotes.deletedAt))
+  // Only the page's ancestors, never the whole tree: up from each result's parent, as deep as a path is drawn.
+  const startIds = [...new Set(rows.map(row => row.parentId).filter((value): value is string => value !== null))];
+  const active = startIds.length
+    ? ((await db.execute(sql`
+        WITH RECURSIVE up(id, parent_id, title, depth) AS (
+          SELECT n.id, n.parent_id, n.title, 1
+          FROM markdown_notes n
+          WHERE n.user_id = ${userId} AND n.deleted_at IS NULL
+            AND n.id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(startIds)}::jsonb))
+          UNION
+          SELECT n.id, n.parent_id, n.title, u.depth + 1
+          FROM markdown_notes n
+          JOIN up u ON n.id = u.parent_id
+          WHERE n.user_id = ${userId} AND n.deleted_at IS NULL AND u.depth < 32
         )
+        SELECT DISTINCT id, parent_id AS "parentId", title FROM up
+      `)) as { rows: { id: string; parentId: string | null; title: string }[] }).rows
     : [];
   const tree = new Map(active.map(row => [row.id, row]));
   const results = visibleIds.map(id => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clearSavedDraft,
   deleteDraft,
   draftPath,
   findDraft,
@@ -69,6 +70,21 @@ describe("local note drafts", () => {
     deleteDraft(value);
     expect(findDraft(7, "note-one", "draft-one")).toBeNull();
     expect(listDrafts(7)).toHaveLength(1);
+  });
+
+  it("never leaves a new note's draft behind once the note exists", () => {
+    // Typed on while the note was being created: the newer text was kept under the note's id.
+    writeDraft(draft({ title: "T", body: "first" }));
+    writeDraft(draft({ noteId: "note-one", title: "T", body: "first and more", baseContentRevision: 1 }));
+    clearSavedDraft(7, "note-one", "draft-one", { title: "T", body: "first and more", contentRevision: 2 });
+    expect(listDrafts(7)).toEqual([]);
+  });
+
+  it("moves a new note's unsaved text under the note's id instead of dropping it", () => {
+    writeDraft(draft({ title: "T", body: "first and more" }));
+    clearSavedDraft(7, "note-one", "draft-one", { title: "T", body: "first", contentRevision: 1 });
+    expect(findDraft(7, null, "draft-one")).toBeNull();
+    expect(findDraft(7, "note-one", "draft-one")).toMatchObject({ body: "first and more", baseContentRevision: 1 });
   });
 
   it("ignores malformed or oversized stored values", () => {

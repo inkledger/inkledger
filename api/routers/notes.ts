@@ -489,7 +489,14 @@ export const notesRouter = createRouter({
   trash: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const rows = await db
-      .select()
+      .select({
+        id: markdownNotes.id,
+        parentId: markdownNotes.parentId,
+        title: markdownNotes.title,
+        deletedAt: markdownNotes.deletedAt,
+        deleteBatch: markdownNotes.deleteBatch,
+        deleteRootId: markdownNotes.deleteRootId,
+      })
       .from(markdownNotes)
       .where(
         and(
@@ -498,22 +505,32 @@ export const notesRouter = createRouter({
         )
       )
       .orderBy(desc(markdownNotes.deletedAt), desc(markdownNotes.id));
-    const parents = rows
-      .map(row => row.parentId)
-      .filter((value): value is string => value !== null);
-    const active = parents.length
-      ? await db
-          .select({ id: markdownNotes.id })
-          .from(markdownNotes)
-          .where(
-            and(
-              eq(markdownNotes.userId, ctx.user.id),
-              isNull(markdownNotes.deletedAt),
-              inArray(markdownNotes.id, parents)
-            )
+    const byId = new Map(rows.map(row => [row.id, row]));
+    const sizes = new Map<string, number>();
+    for (const row of rows)
+      if (row.deleteBatch) sizes.set(row.deleteBatch, (sizes.get(row.deleteBatch) ?? 0) + 1);
+    // Only the batch roots' parents matter, each once, looked up in slices well under the parameter limit.
+    const parents = [
+      ...new Set(
+        rows
+          .map(row => (row.deleteRootId ? (byId.get(row.deleteRootId) ?? row) : row).parentId)
+          .filter((value): value is string => value !== null)
+      ),
+    ];
+    const activeParents = new Set<string>();
+    for (let start = 0; start < parents.length; start += 10_000) {
+      const active = await db
+        .select({ id: markdownNotes.id })
+        .from(markdownNotes)
+        .where(
+          and(
+            eq(markdownNotes.userId, ctx.user.id),
+            isNull(markdownNotes.deletedAt),
+            inArray(markdownNotes.id, parents.slice(start, start + 10_000))
           )
-      : [];
-    const activeParents = new Set(active.map(row => row.id));
+        );
+      for (const row of active) activeParents.add(row.id);
+    }
     const batches = new Map<
       string,
       {
@@ -534,16 +551,13 @@ export const notesRouter = createRouter({
         batches.has(row.deleteBatch)
       )
         continue;
-      const root =
-        rows.find(candidate => candidate.id === row.deleteRootId) ?? row;
+      const root = byId.get(row.deleteRootId) ?? row;
       batches.set(row.deleteBatch, {
         batch: row.deleteBatch,
         rootId: row.deleteRootId,
         title: root.title,
         deletedAt: root.deletedAt ?? row.deletedAt,
-        count: rows.filter(
-          candidate => candidate.deleteBatch === row.deleteBatch
-        ).length,
+        count: sizes.get(row.deleteBatch) ?? 0,
         parentId: root.parentId,
         parentActive:
           root.parentId !== null && activeParents.has(root.parentId),

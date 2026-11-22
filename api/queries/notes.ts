@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import {
   NOTE_MAX_DEPTH,
-  NOTE_MAX_SUBTREE,
   NOTE_TRASH_DAYS,
   NOTE_VERSION_DAYS,
   NOTE_VERSION_MAX,
@@ -144,15 +143,10 @@ async function noteSubtree(
       JOIN subtree s ON n.parent_id = s.id
       WHERE n.user_id = ${userId} AND n.deleted_at IS NULL AND NOT n.id = ANY(s.path) AND s.depth < ${NOTE_MAX_DEPTH + 1}
     )
-    SELECT id, depth FROM subtree LIMIT ${NOTE_MAX_SUBTREE + 1}
+    SELECT id, depth FROM subtree
   `)) as { rows: SubtreeNode[] };
-  const rows = result.rows;
-  if (rows.length > NOTE_MAX_SUBTREE)
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: t("server.notes.tooLarge", { count: NOTE_MAX_SUBTREE }),
-    });
-  return rows;
+  // Ids and depths only, never bound as parameters: a folder of any size can still be moved.
+  return result.rows;
 }
 
 async function checkPlacement(
@@ -199,12 +193,14 @@ async function normalizeSiblings(
   // Folders first, then notes, each in the order asked: a move never mixes them.
   const folders = new Set(rows.filter(row => row.kind === "folder").map(row => row.id));
   const wanted = [...asked.filter(id => folders.has(id)), ...asked.filter(id => !folders.has(id))];
-  for (const [position, id] of wanted.entries()) {
-    await tx
-      .update(markdownNotes)
-      .set({ position })
-      .where(and(eq(markdownNotes.id, id), eq(markdownNotes.userId, userId)));
-  }
+  if (!wanted.length) return;
+  // One statement for the whole level, whatever its size: the order travels as one JSON parameter.
+  const order = JSON.stringify(wanted.map((id, position) => ({ id, position })));
+  await tx.execute(sql`
+    UPDATE markdown_notes n SET position = v.position
+    FROM jsonb_to_recordset(${order}::jsonb) AS v(id uuid, position integer)
+    WHERE n.id = v.id AND n.user_id = ${userId} AND n.position IS DISTINCT FROM v.position
+  `);
 }
 
 export async function pruneNoteVersions(
@@ -356,11 +352,17 @@ export async function moveNote(
     }
     await checkPlacement(tx, userId, parent, subtree);
     const oldParentId = row.parentId;
+    const level = (levelId: string | null) =>
+      levelId ? eq(markdownNotes.parentId, levelId) : isNull(markdownNotes.parentId);
     const siblingRows = await tx
       .select({ id: markdownNotes.id, parentId: markdownNotes.parentId })
       .from(markdownNotes)
       .where(
-        and(eq(markdownNotes.userId, userId), isNull(markdownNotes.deletedAt))
+        and(
+          eq(markdownNotes.userId, userId),
+          isNull(markdownNotes.deletedAt),
+          or(level(oldParentId), level(parentId))
+        )
       )
       .orderBy(asc(markdownNotes.position), asc(markdownNotes.id));
     const oldSiblings = siblingRows
@@ -473,29 +475,27 @@ export async function deleteNote(
   return getDb().transaction(async tx => {
     await lockNoteTree(tx, userId);
     await ownNote(tx, userId, id, true);
-    const subtree = await noteSubtree(tx, userId, id);
     const now = new Date();
     const batch = randomUUID();
-    const changed = await tx
-      .update(markdownNotes)
-      .set({
-        deletedAt: now,
-        deleteBatch: batch,
-        deleteRootId: id,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(markdownNotes.userId, userId),
-          isNull(markdownNotes.deletedAt),
-          inArray(
-            markdownNotes.id,
-            subtree.map(node => node.id)
-          )
-        )
+    // The whole subtree in one statement, whatever its size: no id list is ever bound as parameters.
+    const changed = (await tx.execute(sql`
+      WITH RECURSIVE subtree(id, depth, path) AS (
+        SELECT n.id, 0, ARRAY[n.id]::uuid[]
+        FROM markdown_notes n
+        WHERE n.id = ${id} AND n.user_id = ${userId} AND n.deleted_at IS NULL
+        UNION ALL
+        SELECT n.id, s.depth + 1, s.path || n.id
+        FROM markdown_notes n
+        JOIN subtree s ON n.parent_id = s.id
+        WHERE n.user_id = ${userId} AND n.deleted_at IS NULL AND NOT n.id = ANY(s.path) AND s.depth < ${NOTE_MAX_DEPTH + 1}
       )
-      .returning({ id: markdownNotes.id });
-    return { batch, count: changed.length };
+      UPDATE markdown_notes n
+      SET deleted_at = ${now.getTime()}, delete_batch = ${batch}, delete_root_id = ${id}, updated_at = ${now.getTime()}
+      FROM subtree
+      WHERE n.id = subtree.id AND n.user_id = ${userId} AND n.deleted_at IS NULL
+      RETURNING n.id
+    `)) as { rows: { id: string }[] };
+    return { batch, count: changed.rows.length };
   });
 }
 
@@ -520,8 +520,9 @@ export async function restoreNoteBatch(
     const root = rows.find(row => row.id === rows[0].deleteRootId);
     if (!root) throw notFound();
     let parentId = root.parentId;
+    let parent: MarkdownNote | undefined;
     if (parentId) {
-      const [parent] = await tx
+      [parent] = await tx
         .select()
         .from(markdownNotes)
         .where(
@@ -539,6 +540,20 @@ export async function restoreNoteBatch(
           });
         parentId = null;
       }
+    }
+    // Back under its parent only within the depth limit: that parent may have moved deeper meanwhile.
+    if (parent) {
+      const depthOf = new Map<string, number>([[root.id, 0]]);
+      const children = new Map<string | null, MarkdownNote[]>();
+      for (const row of rows) {
+        const list = children.get(row.parentId);
+        if (list) list.push(row);
+        else children.set(row.parentId, [row]);
+      }
+      for (const [nodeId, depth] of depthOf)
+        for (const child of children.get(nodeId) ?? [])
+          if (!depthOf.has(child.id)) depthOf.set(child.id, depth + 1);
+      await checkPlacement(tx, userId, parent, [...depthOf].map(([nodeId, depth]) => ({ id: nodeId, depth })));
     }
     const now = new Date();
     const restored = await tx

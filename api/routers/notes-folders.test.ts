@@ -133,6 +133,55 @@ describe("notes in folders", () => {
     expect((await me.notes.tree()).map(n => `${n.kind}:${n.title}`).sort()).toEqual(["folder:Box", "note:Inside"]);
   });
 
+  it("brings a trashed note back under its parent only within the depth limit, however deep that parent moved", async () => {
+    let parent: string | null = null;
+    const chain: string[] = [];
+    for (let level = 0; level <= 30; level++) {
+      const folder = await me.notes.createFolder({ title: `c${level}`, parentId: parent });
+      chain.push(folder.id);
+      parent = folder.id;
+    }
+    const box = await me.notes.createFolder({ title: "Box", parentId: null });
+    const kept = await me.notes.createFolder({ title: "Kept", parentId: box.id });
+    await me.notes.create({ title: "Inside", body: "x", parentId: kept.id });
+    const { batch } = await me.notes.remove({ id: kept.id });
+    await me.notes.move({ id: box.id, parentId: chain[30], index: 0 });
+    await expect(me.notes.restore({ batch })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect((await me.notes.tree()).some(n => n.id === kept.id)).toBe(false);
+  });
+
+  it("moves and trashes a folder of any size, and lists it in the trash", async () => {
+    const big = await me.notes.createFolder({ title: "Archive", parentId: null });
+    await q(
+      "INSERT INTO markdown_notes (user_id, parent_id, kind, position, title, created_at, updated_at) SELECT (SELECT id FROM users WHERE username = 'folders'), ?, 'note', g, 'n' || g, 1, 1 FROM generate_series(1, 6000) g",
+      big.id,
+    );
+    await me.notes.createFolder({ title: "Other", parentId: null });
+    await me.notes.move({ id: big.id, parentId: null, index: 1 });
+    const { batch, count } = await me.notes.remove({ id: big.id });
+    expect(count).toBe(6_001);
+    const trash = await me.notes.trash();
+    expect(trash).toEqual([expect.objectContaining({ batch, rootId: big.id, count: 6_001, parentActive: false })]);
+  }, 120_000);
+
+  it("reorders a level in a constant number of queries, whatever its size", async () => {
+    const folder = await me.notes.createFolder({ title: "Level", parentId: null });
+    await q(
+      "INSERT INTO markdown_notes (user_id, parent_id, kind, position, title, created_at, updated_at) SELECT (SELECT id FROM users WHERE username = 'folders'), ?, 'note', g, 'n' || g, 1, 1 FROM generate_series(1, 40) g",
+      folder.id,
+    );
+    const moved = (await me.notes.tree()).find(n => n.parentId === folder.id && n.title === "n40")!;
+    const { countQueries } = await import("../testing/countQueries");
+    const counter = countQueries();
+    try {
+      await me.notes.move({ id: moved.id, parentId: folder.id, index: 0 });
+    } finally {
+      counter.stop();
+    }
+    expect(counter.n).toBeLessThan(20);
+    expect((await titles(folder.id)).slice(0, 2)).toEqual(["note:n40", "note:n1"]);
+  });
+
   it("another user's folders are not found", async () => {
     const folder = await me.notes.createFolder({ title: "Mine", parentId: null });
     await expect(other.notes.createFolder({ title: "Theirs", parentId: folder.id })).rejects.toThrow(/Note not found/);

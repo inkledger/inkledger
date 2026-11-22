@@ -112,6 +112,31 @@ export function deleteDraft(
   return writeStored(draftKey(draft), null);
 }
 
+/**
+ * After a save: the local draft of what was saved goes. A new note's draft (kept under no id) never
+ * outlives the note's creation: text it holds beyond what was saved moves under the note's id.
+ */
+export function clearSavedDraft(
+  userId: number,
+  noteId: string | null,
+  draftId: string,
+  saved: { title: string; body: string; contentRevision: number }
+): void {
+  const same = (draft: NoteDraft) =>
+    draft.title === saved.title && draft.body === saved.body;
+  const own = noteId ? findDraft(userId, noteId, draftId) : null;
+  if (own && same(own)) deleteDraft(own);
+  const fresh = findDraft(userId, null, draftId);
+  if (!fresh) return;
+  if (!noteId) {
+    if (same(fresh)) deleteDraft(fresh);
+    return;
+  }
+  if (!own && !same(fresh))
+    writeDraft({ ...fresh, noteId, baseContentRevision: saved.contentRevision });
+  deleteDraft(fresh);
+}
+
 export function listDrafts(userId: number): NoteDraft[] {
   const result: NoteDraft[] = [];
   try {
