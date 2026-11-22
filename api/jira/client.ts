@@ -624,8 +624,13 @@ async function worklogIdsSince(
     ids.push(...(res.values ?? []).map((v) => String(v.worklogId)));
     until = res.until ?? until;
     if (res.lastPage !== false) return { ids, until, complete: true };
-    // More pages, but the feed doesn't move (a bulk import stamped one instant): held there, never skipped past.
-    if (!res.until || res.until === cursor) return { ids, until, complete: false };
+    // More pages, but the feed doesn't move (a bulk import stamped a page's worth in one instant):
+    // the rest of that instant can't be paged, so on past it; held there, every later pass would stop again.
+    if (!res.until || res.until === cursor) {
+      console.warn(`[jira] worklog feed (${what}) stuck at ${cursor}: going on past that instant`);
+      cursor += 1;
+      continue;
+    }
     cursor = res.until;
   }
   // Stopped at the page cap: the feed goes on past `until`.

@@ -179,7 +179,7 @@ describe("worklogs from Jira", () => {
     expect(after).toBe(before + 200);
   });
 
-  it("an updated feed that says 'more' without moving holds the checkpoint where it stuck", async () => {
+  it("an updated feed that says 'more' without moving steps past that instant: never stuck there for good", async () => {
     const { syncWorklogs } = await import("./worklogSync");
     const before = await checkpoint();
     jira.stuckUpdated = true;
@@ -190,7 +190,22 @@ describe("worklogs from Jira", () => {
       jira.stuckUpdated = false;
       jira.deletedUntil = 0;
     }
-    expect(await checkpoint()).toBe(before);
+    const after = await checkpoint();
+    expect(after).toBeGreaterThan(before);
+    expect(after).toBeLessThan(before + 10_000_000);
+  });
+
+  it("both feeds read to the end: the checkpoint is the earlier clock (the later would skip what changed between the reads)", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    await q("UPDATE connection_sync SET checkpoint = ? WHERE stream = 'worklogs'", String(now - 1000));
+    await q("UPDATE sync_state SET last_worklog_sync_at = ?", now - 1000);
+    jira.deletedUntil = now + 5_000_000;
+    try {
+      await syncWorklogs(user);
+    } finally {
+      jira.deletedUntil = 0;
+    }
+    expect(await checkpoint()).toBe(now + 1000);
   });
 
   it("a site-wide deleted feed longer than one statement's parameters still deletes", async () => {
