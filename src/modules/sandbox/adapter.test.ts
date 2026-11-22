@@ -232,6 +232,31 @@ describe("the frame's host API (bootstrap)", () => {
     expect(order).toEqual(["cleanup", "unmounted"]);
   });
 
+  it("runtime gone: a view told so falls back; refused from the start, it has no port and hears so at once", async () => {
+    const heard: string[] = [];
+    const watchGone = (name: string) => ({
+      id: "m",
+      hostApi: 2,
+      mount: {
+        "dashboard-widget": (_el: unknown, host: HostApiV2) => {
+          heard.push(`${name}:port=${host.runtime ? "yes" : "no"}`);
+          host.runtimeGone?.(() => heard.push(`${name}:gone`));
+          return () => {};
+        },
+      },
+    });
+    bootFrame({ capabilities: ["runtime"], mod: watchGone("refused"), methods: {} });
+    const { port1, port2 } = new MessageChannel();
+    const later = bootFrame({ capabilities: ["runtime"], mod: watchGone("later"), methods: {}, port: port2 });
+    await settle();
+    expect(heard).toEqual(expect.arrayContaining(["refused:port=no", "refused:gone", "later:port=yes"]));
+    expect(heard).not.toContain("later:gone");
+    later.peer.send({ v: RPC_VERSION, t: "runtime-gone" });
+    await settle();
+    expect(heard).toContain("later:gone");
+    port1.close();
+  });
+
   it("hit shapes set faster than ten a second: the latest is the one the host gets", async () => {
     const got: unknown[] = [];
     const methods = { "hit.set": method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };

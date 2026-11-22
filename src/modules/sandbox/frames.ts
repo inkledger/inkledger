@@ -154,6 +154,7 @@ function openFrame(
   parent: HTMLElement,
   role: "view" | "runtime",
   ready: (peer: RpcPeer) => Transferable[],
+  failed?: () => void,
 ): Frame | null {
   if (!entry.frameUrl || killed.has(entry.id) || live >= MAX_FRAMES) return null;
   const iframe = document.createElement("iframe");
@@ -200,6 +201,7 @@ function openFrame(
     onFailed(reason) {
       iframe.dataset.state = "failed";
       console.error(`[module ${entry.id}] ${reason}`);
+      failed?.();
     },
     onRefused(why, m) {
       if (warned.has(why)) return;
@@ -253,8 +255,11 @@ function openFrame(
 
 // ---- Runtime frames: one per module, in a container that never moves ----
 
-type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, ViewSlot][]; peer: RpcPeer | null; offKill: () => void };
+/** `views`: the peers of the views linked to it, told when it goes. */
+type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, ViewSlot][]; peer: RpcPeer | null; views: Set<RpcPeer>; offKill: () => void };
 const runtimes = new Map<string, Runtime>();
+/** Modules whose runtime failed: not made again this session (each new view would only fail it again). */
+const failedRuntimes = new Set<string>();
 let shelf: HTMLElement | null = null;
 
 const shelfEl = () => {
@@ -274,34 +279,55 @@ function stopRuntime(id: string) {
   r.offKill();
   r.frame?.stop();
   r.waiting.forEach(([p]) => p.close());
+  // Never a dead port without a word: the views fall back on their own.
+  r.views.forEach(v => v.send({ v: RPC_VERSION, t: "runtime-gone" }));
+  r.views.clear();
 }
 
-/** The module's runtime, made with its first view; a view's port reaches it once it is ready. */
-function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, port: MessagePort) {
+/**
+ * The module's runtime, made with its first view; a view's port reaches it
+ * once it is ready. Returns the view's leave, or null when there is no
+ * runtime for it (refused, failed): the view then gets no port.
+ */
+function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, port: MessagePort, view: RpcPeer): (() => void) | null {
+  if (failedRuntimes.has(entry.id)) return null;
   let r = runtimes.get(entry.id);
   if (r && r.hub !== hub) {
     stopRuntime(entry.id);
     r = undefined;
   }
   if (!r) {
-    const made: Runtime = { hub, frame: null, ready: false, waiting: [], peer: null, offKill: () => {} };
+    const made: Runtime = { hub, frame: null, ready: false, waiting: [], peer: null, views: new Set(), offKill: () => {} };
     runtimes.set(entry.id, made);
-    made.frame = openFrame(hub, entry, entry.slots[0] ?? slot, shelfEl(), "runtime", peer => {
-      made.ready = true;
-      made.peer = peer;
-      queueMicrotask(() => made.waiting.splice(0).forEach(([p, s]) => peer.send({ v: RPC_VERSION, t: "port", slot: s }, [p])));
-      return [];
-    });
+    made.frame = openFrame(
+      hub,
+      entry,
+      entry.slots[0] ?? slot,
+      shelfEl(),
+      "runtime",
+      peer => {
+        made.ready = true;
+        made.peer = peer;
+        queueMicrotask(() => made.waiting.splice(0).forEach(([p, s]) => peer.send({ v: RPC_VERSION, t: "port", slot: s }, [p])));
+        return [];
+      },
+      () => {
+        failedRuntimes.add(entry.id);
+        if (runtimes.get(entry.id) === made) stopRuntime(entry.id);
+      },
+    );
     if (!made.frame) {
       runtimes.delete(entry.id);
-      port.close();
-      return;
+      return null;
     }
     made.offKill = whenKilled(entry.id, () => stopRuntime(entry.id));
     r = made;
   }
   if (r.ready && r.peer) r.peer.send({ v: RPC_VERSION, t: "port", slot }, [port]);
   else r.waiting.push([port, slot]);
+  const linked = r;
+  linked.views.add(view);
+  return () => void linked.views.delete(view);
 }
 
 /** Lets go of the runtimes of modules no longer running (all of them with no list). */
@@ -311,17 +337,24 @@ export function keepRuntimes(ids: readonly string[] = []) {
 
 export function mountView(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, box: HTMLElement): () => void {
   let frame: Frame | null = null;
+  let leaveRuntime: (() => void) | null = null;
   const stop = () => {
+    leaveRuntime?.();
+    leaveRuntime = null;
     frame?.stop();
     frame = null;
   };
   // After the page has painted: a frame never costs a route change its frame.
   const cancel = idle(() => {
-    frame = openFrame(hub, entry, slot, box, "view", () => {
+    frame = openFrame(hub, entry, slot, box, "view", peer => {
       if (!entry.capabilities.includes("runtime")) return [];
       const channel = new MessageChannel();
-      connectRuntime(hub, entry, slot, channel.port1);
-      return [channel.port2];
+      leaveRuntime = connectRuntime(hub, entry, slot, channel.port1, peer);
+      if (leaveRuntime) return [channel.port2];
+      // No runtime for it: no port, which the view reads as its runtime gone.
+      channel.port1.close();
+      channel.port2.close();
+      return [];
     });
     // No frame for it (too many, or the module was stopped): no empty dialog.
     if (!frame && slot === "sheet") sheetOpen.close(entry.id);

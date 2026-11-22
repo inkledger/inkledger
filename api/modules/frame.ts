@@ -63,6 +63,17 @@ let started = false;
 let activate = null;
 let onView = null;
 let unmount = null;
+// The module's runtime frame gone (or never made): told once, to every listener, late ones too.
+let runtimePort = null;
+let runtimeGone = false;
+const goneFns = new Set();
+const runtimeIsGone = () => {
+  if (runtimeGone) return;
+  runtimeGone = true;
+  if (runtimePort) runtimePort.close();
+  for (const f of [...goneFns]) safe(f);
+  goneFns.clear();
+};
 const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
@@ -222,7 +233,15 @@ async function start(init, port) {
           if (!hitTimer) hitTimer = setTimeout(sendHit, Math.max(0, hitAt + 100 - Date.now()));
         },
       };
-      if (port) host.runtime = port;
+      if (has("runtime")) {
+        if (port) host.runtime = runtimePort = port;
+        else runtimeGone = true;
+        host.runtimeGone = (fn) => {
+          if (runtimeGone) { safe(fn); return quiet; }
+          goneFns.add(fn);
+          return () => { goneFns.delete(fn); };
+        };
+      } else if (port) host.runtime = port;
       // Esc in the sheet's frame never reaches the host's dialog: told here.
       if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); });
       const box = document.createElement("div");
@@ -263,6 +282,8 @@ addEventListener("message", (e) => {
     if (f) f(d.value);
   } else if (d.t === "activate") {
     if (activate) safe(activate);
+  } else if (d.t === "runtime-gone") {
+    runtimeIsGone();
   } else if (d.t === "unmount") {
     // The view is going: its cleanup runs now, and the host removes the frame once told (or past its deadline).
     const off = unmount;

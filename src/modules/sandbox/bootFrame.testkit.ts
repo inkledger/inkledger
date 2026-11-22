@@ -17,6 +17,8 @@ export function bootFrame(o: {
   /** More of the frame's window (an OffscreenCanvas, say). */
   globals?: Record<string, unknown>;
   onUnmounted?(): void;
+  /** The view's port to its runtime, given with init. */
+  port?: MessagePort;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const parentWin = {
@@ -69,7 +71,7 @@ export function bootFrame(o: {
     methods: o.methods,
     onUnmounted: () => o.onUnmounted?.(),
     onReady() {
-      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {} });
+      peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {} }, o.port ? [o.port] : []);
     },
   });
   vm.runInContext(BOOTSTRAP, context);

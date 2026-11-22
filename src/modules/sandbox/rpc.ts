@@ -57,6 +57,7 @@ export type HostMessage =
   | { v: typeof RPC_VERSION; t: "push"; id: number; value: unknown }
   | { v: typeof RPC_VERSION; t: "activate" }
   | { v: typeof RPC_VERSION; t: "unmount" }
+  | { v: typeof RPC_VERSION; t: "runtime-gone" }
   | { v: typeof RPC_VERSION; t: "port"; slot: string };
 
 export type MethodContext = {

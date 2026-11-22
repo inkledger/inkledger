@@ -84,8 +84,14 @@ export type HostApiV2 = Basics &
      * 512 px a side; ten changes a second at most).
      */
     hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void): void };
-    /** "runtime": a port to this module's runtime (one per view). */
+    /** "runtime": a port to this module's runtime (one per view); absent when the host made none. */
     runtime?: MessagePort;
+    /**
+     * "runtime": `fn` runs once the runtime is gone (it failed, or was never
+     * made: then at once); its port is closed, the view falls back on its own.
+     * Returns the undo.
+     */
+    runtimeGone?(fn: () => void): () => void;
   };
 
 /** What the module's runtime gets: one per module, as long as it runs, holding what its views share. */
