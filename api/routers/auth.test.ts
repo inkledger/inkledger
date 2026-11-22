@@ -586,9 +586,13 @@ describe("auth: sessions, cookies, login hardening", () => {
       const remember = rememberOf(await login(anon(), { username: "twin" }));
       const [{ id }] = await q<{ id: number }>("SELECT id FROM users WHERE username = 'twin'");
       const sessionsBefore = (await q<{ n: number }>("SELECT count(*)::int AS n FROM sessions WHERE user_id = ?", id))[0].n;
-      const both = await Promise.allSettled([0, 1].map(() => appRouter.createCaller(anon("http://localhost/api/trpc", { cookie: remember })).auth.resume()));
+      const ctxs = [0, 1].map(() => anon("http://localhost/api/trpc", { cookie: remember }));
+      const both = await Promise.allSettled(ctxs.map((c) => appRouter.createCaller(c).auth.resume()));
       expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
       expect(both.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "UNAUTHORIZED" } });
+      // The one that lost never deletes the device's cookie (the winner just set its new token).
+      const loser = ctxs[both.findIndex((r) => r.status === "rejected")];
+      expect(loser.resHeaders.get("set-cookie") ?? "").not.toMatch(/ikl_remember=deleted/);
       expect(await q("SELECT count(*)::int AS n FROM remembered_devices WHERE user_id = ?", id)).toEqual([{ n: 1 }]);
       expect(await q("SELECT count(*)::int AS n FROM sessions WHERE user_id = ?", id)).toEqual([{ n: sessionsBefore + 1 }]);
     });

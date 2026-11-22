@@ -295,16 +295,19 @@ export const authRouter = createRouter({
     if (!found) throw refused();
     // The token is taken in one step (two requests with it: one resumes), under the account's
     // row as signOutEverywhere locks it: a password change meanwhile ends what this starts.
-    const resumed = await getDb().transaction(async (tx) => {
+    const outcome = await getDb().transaction(async (tx) => {
       const [now] = await tx.select({ disabledAt: users.disabledAt }).from(users).where(eq(users.id, found.user.id)).for("share");
-      if (!now || now.disabledAt) return false;
+      if (!now || now.disabledAt) return "off" as const;
       const [taken] = await tx.delete(rememberedDevices).where(eq(rememberedDevices.id, found.id)).returning({ id: rememberedDevices.id });
-      if (!taken) return false;
+      if (!taken) return "taken" as const;
       await startSession(ctx, found.user.id, tx);
       await rememberDevice(ctx, found.user.id, undefined, tx);
-      return true;
+      return "resumed" as const;
     });
-    if (!resumed) throw refused();
+    if (outcome === "off") throw refused();
+    // Taken by another request of this device at the same moment (another tab): it set the new
+    // token, so this answer leaves the cookie alone instead of deleting it after that one.
+    if (outcome === "taken") throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInWithCredentials") });
     return publicUser(found.user);
   }),
 
