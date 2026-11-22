@@ -326,13 +326,13 @@ export const isLostCreate = (e: Pick<typeof outbox.$inferSelect, "kind" | "remot
  */
 export function buriedBy(
   tomb: Pick<typeof outbox.$inferSelect, "started" | "timeSpentSeconds" | "comment" | "landedAfter" | "createdAt">,
-  e: Pick<RemoteWorklog, "span" | "comment" | "createdAt">,
+  e: Pick<RemoteWorklog, "span" | "comment" | "createdAt" | "dayOnly">,
   zone: TimeZone,
   slack = 0,
 ): boolean {
   if (!tomb.started || !tomb.landedAfter) return false;
-  if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, false, slack) || !sameWords(e.comment, tomb.comment)) return false;
-  if (e.createdAt == null) return e.span.kind === "session";
+  if (!holds(e.span, { started: tomb.started, seconds: tomb.timeSpentSeconds }, zone, e.dayOnly, slack) || !sameWords(e.comment, tomb.comment)) return false;
+  if (e.createdAt == null) return e.span.kind === "session" && !e.dayOnly;
   const at = Number(e.createdAt);
   return at >= tomb.landedAfter.getTime() - CLOCK_SKEW_MS && at <= tomb.createdAt.getTime() + CLOCK_SKEW_MS;
 }
