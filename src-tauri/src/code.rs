@@ -457,7 +457,9 @@ fn git_command(root: Option<&Path>) -> Command {
     let mut cmd = Command::new("git");
     if let Some(root) = root {
         cmd.arg("-C").arg(root);
-        // The root's own repository only: never one in a folder above it.
+        // The root's own repository only: never one in a folder above it. Named outright (no
+        // discovery at all), as a ceiling alone may not match a verbatim Windows path.
+        cmd.env("GIT_DIR", root.join(".git")).env("GIT_WORK_TREE", root);
         if let Some(parent) = root.parent() {
             cmd.env("GIT_CEILING_DIRECTORIES", parent);
         }
