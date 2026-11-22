@@ -50,6 +50,21 @@ describe("app downloads (public, tailnet only)", () => {
     expect(Buffer.from(await res.arrayBuffer())).toEqual(APK);
   });
 
+  it("streams the APK: never read whole into memory (tens of MB per request)", async () => {
+    fs.writeFileSync(path.join(DIR, "inkledger.apk"), APK);
+    fs.writeFileSync(path.join(DIR, "manifest.json"), JSON.stringify(manifest()));
+    const { vi } = await import("vitest");
+    const whole = vi.spyOn(fs.promises, "readFile");
+    try {
+      const res = await get("/api/downloads/inkledger.apk");
+      expect(res.headers.get("content-length")).toBe(String(APK.length));
+      expect(Buffer.from(await res.arrayBuffer())).toEqual(APK);
+      expect(whole).not.toHaveBeenCalled();
+    } finally {
+      whole.mockRestore();
+    }
+  });
+
   it("serves only the file the manifest names", async () => {
     fs.writeFileSync(path.join(DIR, "inkledger.apk"), APK);
     fs.writeFileSync(path.join(DIR, "other.apk"), APK);

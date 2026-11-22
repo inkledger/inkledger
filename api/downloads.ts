@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { Readable } from "node:stream";
 import path from "node:path";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
@@ -40,12 +41,22 @@ export function registerDownloadRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const android = readManifest().android;
     const file = c.req.param("file");
     if (!android || file !== android.file) return c.json({ error: "Not Found" }, 404);
-    const body = await fs.promises.readFile(path.join(env.downloadsDir, android.file));
-    return c.body(body, 200, {
-      "Content-Type": "application/vnd.android.package-archive",
-      "Content-Disposition": `attachment; filename="${android.file}"`,
-      "Content-Length": String(body.length),
-      "Cache-Control": "no-cache",
+    // Streamed from disk: a request never holds the whole build in memory.
+    const full = path.join(env.downloadsDir, android.file);
+    let size: number;
+    try {
+      size = (await fs.promises.stat(full)).size;
+    } catch {
+      return c.json({ error: "Not Found" }, 404);
+    }
+    return new Response(Readable.toWeb(fs.createReadStream(full)) as ReadableStream<Uint8Array>, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.android.package-archive",
+        "Content-Disposition": `attachment; filename="${android.file}"`,
+        "Content-Length": String(size),
+        "Cache-Control": "no-cache",
+      },
     });
   });
 }
