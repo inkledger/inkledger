@@ -247,6 +247,30 @@ describe("a time sink standing in for its tracker (Tempo for its Jira)", () => {
     await q("DELETE FROM outbox");
   });
 
+  it("deleted while its create to Tempo is under way: the entry that lands goes at once, Jira's copy with it", async () => {
+    const { pushOne, boundSink } = await import("./extraSinks");
+    const { getDb } = await import("../queries/connection");
+    const { connections, worklogs } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const at = "2026-10-26T09:00:00+02:00";
+    down = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 900, started: at, comment: "under way" });
+      down = false;
+      // Never sent yet: the push read the worklog, then it was deleted before its create went out.
+      await q("UPDATE worklog_sinks SET synced_at = NULL, sent_seconds = NULL, sent_started = NULL, sent_comment = NULL WHERE worklog_id = ?", made.id);
+      const [w] = await getDb().select().from(worklogs).where(eq(worklogs.id, made.id));
+      await caller.worklogs.delete({ id: made.id });
+      const [tempo] = await getDb().select().from(connections).where(eq(connections.id, tempoId));
+      await pushOne(boundSink(tempo)!, tempo, w, null);
+      expect(sim.worklogs.filter((x) => x.startDate === "2026-10-26")).toEqual([]);
+    } finally {
+      down = false;
+      quiet.mockRestore();
+    }
+  });
+
   it("a pending entry another server process is sending is left to it; past its lease, sent", async () => {
     const at = "2026-10-20T09:00:00+02:00";
     down = true;

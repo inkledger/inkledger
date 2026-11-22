@@ -106,6 +106,22 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     }
   });
 
+  it("a worklog deleted while its create to the sink is under way: the entry that lands goes at once", async () => {
+    const { pushOne, boundSink } = await import("./extraSinks");
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-18T09:00:00+02:00", comment: "under way" });
+    const { getDb } = await import("../queries/connection");
+    const { connections, worklogs } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    // The push read the worklog, then it was deleted before its create went out.
+    const [w] = await getDb().select().from(worklogs).where(eq(worklogs.id, made.id));
+    await caller.worklogs.delete({ id: made.id });
+    const [sink] = await getDb().select().from(connections).where(eq(connections.id, sinkId));
+    await pushOne(boundSink(sink)!, sink, w, null);
+    expect((await sinkEntries()).filter((e) => e.span.date === "2026-10-18")).toEqual([]);
+    await push();
+    expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
   it("\"Send now\" sends a delete that background passes no longer try (past the attempts cap)", async () => {
     const { MAX_OUTBOX_ATTEMPTS } = await import("@contracts/types");
     await q("INSERT INTO outbox (user_id, connection_id, kind, issue_key, jira_worklog_id, attempts, created_at) VALUES (?, ?, 'delete', 'FAKE-1', 'gone-1', ?, 1)", userId, sinkId, MAX_OUTBOX_ATTEMPTS);

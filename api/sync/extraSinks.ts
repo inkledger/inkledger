@@ -307,10 +307,25 @@ export async function pushOne(b: BoundSink, sink: Connection, w: Worklog, remote
     .where(and(linkOf, eq(worklogSinks.revision, link?.revision ?? 0)))
     .returning({ id: worklogSinks.id });
   // Changed while it was sending: what landed is kept (the next push updates it), the link stays due.
-  if (done.length === 0) await getDb().update(worklogSinks).set(sent).where(linkOf);
+  if (done.length === 0) {
+    const kept = await getDb().update(worklogSinks).set(sent).where(linkOf).returning({ id: worklogSinks.id });
+    // Its worklog deleted while this create was under way: the entry it left goes too.
+    if (kept.length === 0 && !remoteId && landed && c.entries.model !== "dayTotals") return dropOrphan(b, sink, w, landed.remoteId);
+  }
   const companion = COMPANIONS[sink.type as TimeSinkType];
   const trackerId = companion && landed ? companion.trackerIdOf(landed) : null;
   if (trackerId) await adoptTrackerId(w, trackerId);
+}
+
+/** An entry left by a create whose worklog was deleted meanwhile: deleted there, or queued to be. */
+async function dropOrphan(b: BoundSink, sink: Connection, w: Worklog, entryId: string) {
+  if (!b.entries.delete) return;
+  try {
+    await goneIsDone(b.entries.delete(meta(), entryId, {}));
+  } catch (e) {
+    if (!(e instanceof ProviderError && e.transient)) console.error(e);
+    await getDb().insert(outbox).values({ userId: w.userId, connectionId: sink.id, kind: "delete", issueKey: w.issueKey, remoteId: entryId, timeSpentSeconds: w.timeSpentSeconds, started: w.started });
+  }
 }
 
 const running = new Set<number>();
