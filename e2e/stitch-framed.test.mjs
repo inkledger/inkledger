@@ -19,7 +19,8 @@ const V2 = process.env.STITCH_V2_SRC ?? join(MODS, ".claude/worktrees/port-stitc
 const V1 = process.env.STITCH_V1_SRC ?? MODS;
 const meta = src => JSON.parse(readFileSync(join(src, "packages/stitch/meta.json"), "utf8"));
 const ported = src => existsSync(join(src, "packages/stitch/meta.json")) && meta(src).hostApi?.min === 2;
-const skip = !ported(V2) ? "no ported Stitch sources (STITCH_V2_SRC)" : !existsSync(join(V1, "packages/stitch/meta.json")) || ported(V1) ? "no in-page Stitch sources (STITCH_V1_SRC)" : false;
+const skipV2 = ported(V2) ? false : "no ported Stitch sources (STITCH_V2_SRC)";
+const skipV1 = existsSync(join(V1, "packages/stitch/meta.json")) && !ported(V1) ? false : "no in-page Stitch sources (STITCH_V1_SRC)";
 
 /** Stitch from `src`, bundled as the modules repo bundles it, signed with `key`, in a new modules folder. */
 async function install(src, key) {
@@ -95,7 +96,17 @@ const SHEET = '[role="dialog"] iframe[data-module-frame="view"]';
 const SETTINGS = '[data-module-slot="settings"] iframe[data-module-frame="view"]';
 const measured = {};
 
-/** The dashboard's card on screen, idle for 3 s, then its panel opened: what each phase cost the page. */
+/** In `frame`: the card's canvas has pixels (it drew). */
+const cardDrawn = frame =>
+  frame.waitForFunction(() => {
+    const cv = document.querySelector("[data-stitch-card] canvas");
+    if (!cv || !cv.width || !cv.height) return false;
+    const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) return true;
+    return false;
+  });
+
+/** The dashboard's card on screen and drawn, idle for 3 s, then its panel opened: what each phase cost the page. */
 async function dashboardPhases(page, card, panelOpen) {
   await card.scrollIntoViewIfNeeded();
   await card.waitFor();
@@ -110,16 +121,18 @@ async function dashboardPhases(page, card, panelOpen) {
   return { idle, open };
 }
 
-test("in-page Stitch (v1): the frame gaps to compare with", { skip, timeout: 300_000 }, () =>
+test("in-page Stitch (v1): the frame gaps to compare with", { skip: skipV1 || skipV2, timeout: 300_000 }, () =>
   withStitch(V1, async ({ page, base }) => {
     await page.goto(base + "/");
     const card = page.locator("[data-stitch-card]").first();
+    await card.scrollIntoViewIfNeeded();
+    await cardDrawn(page.mainFrame());
     measured.v1 = await dashboardPhases(page, card, () => page.locator("[data-stitch-panel]").waitFor());
     console.info(`[stitch] ${show("v1 idle", measured.v1.idle)}`);
     console.info(`[stitch] ${show("v1 panel", measured.v1.open)}`);
   }));
 
-test("framed Stitch (v2): the card draws, the panel opens in the host's sheet, a large PNG downloads, settings take their content height", { skip, timeout: 300_000 }, () =>
+test("framed Stitch (v2): the card draws, the panel opens in the host's sheet, a large PNG downloads, settings take their content height", { skip: skipV2, timeout: 300_000 }, () =>
   withStitch(V2, async ({ page, base, consoleErrors }) => {
     await page.goto(base + "/");
     await page.locator(WIDGET).scrollIntoViewIfNeeded();
@@ -128,14 +141,7 @@ test("framed Stitch (v2): the card draws, the panel opens in the host's sheet, a
     const card = widget.locator("[data-stitch-card]");
     // The card draws: its canvas has pixels.
     await card.waitFor();
-    const frame = await (await page.locator(WIDGET).elementHandle()).contentFrame();
-    await frame.waitForFunction(() => {
-      const cv = document.querySelector("[data-stitch-card] canvas");
-      if (!cv || !cv.width || !cv.height) return false;
-      const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
-      for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) return true;
-      return false;
-    });
+    await cardDrawn(await (await page.locator(WIDGET).elementHandle()).contentFrame());
 
     measured.v2 = await dashboardPhases(page, card, () => page.locator(`${SHEET}[data-state="live"]`).waitFor());
     console.info(`[stitch] ${show("v2 idle", measured.v2.idle)}`);
@@ -185,14 +191,17 @@ test("framed Stitch (v2): the card draws, the panel opens in the host's sheet, a
     await page.waitForFunction(sel => (document.querySelector(sel)?.getBoundingClientRect().height ?? 0) > 0, SETTINGS);
     await page.waitForTimeout(300);
     const height = await page.locator(SETTINGS).evaluate(el => el.getBoundingClientRect().height);
+    // Its content measured on its own: from the root's top to its last row's bottom (the root itself fills the frame).
     const inside = await settings.evaluate(() => {
       const root = document.querySelector("[data-stitch-settings]");
-      return { content: root.scrollHeight, shown: root.clientHeight };
+      const top = root.getBoundingClientRect().top - root.scrollTop;
+      const bottom = Math.max(...[...root.children].map(c => c.getBoundingClientRect().bottom));
+      return { content: bottom - top + parseFloat(getComputedStyle(root).paddingBottom), scrolls: root.scrollHeight > root.clientHeight + 1 };
     });
-    console.info(`[stitch] settings frame ${height} px; content ${inside.content} px, shown ${inside.shown} px`);
+    console.info(`[stitch] settings frame ${height} px; content ${inside.content.toFixed(1)} px`);
     assert.notEqual(height, 150, "not the browser's default frame height");
-    assert.ok(Math.abs(height - inside.content) <= 1, `the frame is as tall as its content (${height} vs ${inside.content})`);
-    assert.ok(inside.content <= inside.shown + 1, "nothing of it hidden behind a scroll");
+    assert.ok(Math.abs(height - inside.content) <= 2, `the frame is as tall as its content (${height} vs ${inside.content})`);
+    assert.equal(inside.scrolls, false, "nothing of it hidden behind a scroll");
 
     assert.deepEqual(consoleErrors, [], "no console errors");
     if (measured.v1) console.info(`[stitch] gap p95 v1 → v2: idle ${measured.v1.idle.p95.toFixed(1)} → ${measured.v2.idle.p95.toFixed(1)} ms, panel ${measured.v1.open.p95.toFixed(1)} → ${measured.v2.open.p95.toFixed(1)} ms`);
