@@ -112,10 +112,10 @@ export async function holdSinkDeletes(w: Worklog): Promise<void> {
     if (r.sink === w.connectionId) return [];
     const held = { userId: w.userId, connectionId: r.sink, itemId: item?.id ?? null, kind: "delete", issueKey: w.issueKey, worklogId: w.id };
     if (r.remoteId) return [{ ...held, remoteId: r.remoteId, timeSpentSeconds: w.timeSpentSeconds, started: w.started }];
-    // No id there yet: a create sent with its answer lost, or under way, may land. Looked for by the values sent.
+    // No id there yet, sent (its answer lost, or under way): it may land. Looked for by the values sent.
     const entries = sinkAdapter(r.type as TimeSinkType)?.capabilities.entries;
-    if (entries?.model !== "entries" || entries.idempotency !== "local") return [];
-    return [{ ...held, remoteId: "", timeSpentSeconds: r.seconds ?? w.timeSpentSeconds, started: r.started ?? w.started, comment: r.comment ?? w.comment, landedAfter: r.sentAt ?? new Date() }];
+    if (entries?.model !== "entries" || entries.idempotency !== "local" || !r.sentAt || r.seconds === null || !r.started) return [];
+    return [{ ...held, remoteId: "", timeSpentSeconds: r.seconds, started: r.started, comment: r.comment ?? "", landedAfter: r.sentAt }];
   });
   await db.transaction(async (tx) => {
     // Still here, and kept until this commits: gone (another delete got there first, its

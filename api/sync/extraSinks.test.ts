@@ -138,6 +138,12 @@ describe("time sinks beside the trackers: every worklog filed there too, in the 
     }
   });
 
+  it("a worklog never sent to the sink, deleted: nothing is queued for it there", async () => {
+    const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-21T09:00:00+02:00", comment: "never sent" });
+    await caller.worklogs.delete({ id: made.id });
+    expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+  });
+
   it("a worklog deleted while its create to the sink is under way: the entry that lands goes at once", async () => {
     const { pushOne, boundSink } = await import("./extraSinks");
     const made = await caller.worklogs.create({ issueKey: "FAKE-1", seconds: 1800, started: "2026-10-18T09:00:00+02:00", comment: "under way" });
