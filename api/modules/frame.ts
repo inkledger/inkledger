@@ -225,12 +225,17 @@ async function start(init, port) {
       lightWaiting = [];
       call("surfaces.light", args).then(() => { for (const w of waiting) w.resolve(); }, (e) => { report(e); for (const w of waiting) w.reject(e); });
     };
-    host.surfaces.light = (vars, off) => new Promise((resolve, reject) => {
-      const v = vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, x]) => [k, String(x)]));
-      lightNext = off == null ? [v] : [v, Array.from(off, String)];
-      lightWaiting.push({ resolve, reject });
-      if (!lightTimer) lightTimer = setTimeout(castLight, Math.max(0, lightAt + 34 - Date.now()));
-    });
+    host.surfaces.light = (vars, off) => {
+      const p = new Promise((resolve, reject) => {
+        const v = vars == null ? null : Object.fromEntries(Object.entries(vars).map(([k, x]) => [k, String(x)]));
+        lightNext = off == null ? [v] : [v, Array.from(off, String)];
+        lightWaiting.push({ resolve, reject });
+        if (!lightTimer) lightTimer = setTimeout(castLight, Math.max(0, lightAt + 34 - Date.now()));
+      });
+      // A caller that ignores it (the refusal is reported above) leaves no unhandled rejection.
+      p.catch(quiet);
+      return p;
+    };
   }
   if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
   if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
