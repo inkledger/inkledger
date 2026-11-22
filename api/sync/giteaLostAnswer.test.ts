@@ -77,6 +77,9 @@ describe("gitea: a write whose answer was lost, beside a twin logged by hand", (
     const made = await lost(at, 1800, "standup");
     expect(made.remoteId).toMatch(/^pending-/);
     const [, ours] = there(at);
+    // Sent at a second of its minute, never the whole minute a twin is logged at.
+    expect(ours[1]).toBeGreaterThanOrEqual(1);
+    expect(ours[1]).toBeLessThanOrEqual(59);
     expect(await replay()).toMatchObject({ synced: 1, failed: 0, remaining: 0 });
     // The time once: ours linked, the twin untouched.
     expect(there(at)).toEqual([[String(twin.id), 0, 1800], ours]);
@@ -128,5 +131,33 @@ describe("gitea: a write whose answer was lost, beside a twin logged by hand", (
     const [landed] = sim.times;
     expect(sim.times.map((t) => t.time)).toEqual([1500]);
     expect(await sinkOf(made.id)).toEqual({ remote_id: String(landed.id), state: "synced" });
+  });
+  it("a lost create read back by a sync before its replay is linked to its own entry, the twin read back beside it", async () => {
+    const at = Date.parse("2026-11-13T11:00:00+01:00");
+    const twin = sim.time(sim.issues[0], { seconds: 2400, created: at });
+    const made = await lost(at, 2400, "design");
+    const [, ours] = there(at);
+    // Its replay held by another process: the sync reads the entries first.
+    await q("UPDATE outbox SET claimed_at = ?", Date.now());
+    await caller.issues.syncConnection({ id: connId });
+    expect(await sinkOf(made.id)).toEqual({ remote_id: ours[0], state: "synced" });
+    const here = await caller.worklogs.list({ issueKey: key });
+    expect(here.map((w) => w.remoteId).sort()).toEqual([String(twin.id), String(ours[0])].sort());
+    expect(here.find((w) => w.id === made.id)).toMatchObject({ started: new Date(at) });
+    expect(await q("SELECT count(*)::int AS n FROM outbox")).toEqual([{ n: 0 }]);
+    expect(there(at)).toHaveLength(2);
+  });
+
+  it("a lost create deleted while queued, its delete held during a sync: only its own entry is kept out of reads, then deleted", async () => {
+    const at = Date.parse("2026-11-14T16:00:00+01:00");
+    const twin = sim.time(sim.issues[0], { seconds: 300, created: at });
+    const made = await lost(at, 300, "call");
+    await caller.worklogs.delete({ id: made.id });
+    await q("UPDATE outbox SET claimed_at = ?", Date.now());
+    await caller.issues.syncConnection({ id: connId });
+    expect((await caller.worklogs.list({ issueKey: key })).map((w) => w.remoteId)).toEqual([String(twin.id)]);
+    await q("UPDATE outbox SET claimed_at = NULL");
+    expect(await replay()).toMatchObject({ failed: 0, remaining: 0 });
+    expect(there(at)).toEqual([[String(twin.id), 0, 300]]);
   });
 });
