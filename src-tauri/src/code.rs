@@ -229,7 +229,8 @@ fn glob_target<'a>(glob: &str, path: &'a str) -> &'a str {
 /// A file's text, or None when it is too big or not text (a NUL in its first 8 KB).
 fn text_of(path: &Path) -> Option<String> {
     let meta = std::fs::metadata(path).ok()?;
-    if meta.len() > FILE_BYTES_MAX {
+    // A named pipe or a device would block the read, or never end.
+    if !meta.is_file() || meta.len() > FILE_BYTES_MAX {
         return None;
     }
     let bytes = std::fs::read(path).ok()?;
@@ -1102,6 +1103,26 @@ mod tests {
         let log = git_log(&t.0, None, None, 5).unwrap();
         let _ = git_show(&t.0, &log.commits[0].hash[..10], None);
         assert!(!marker.exists(), "the repository's config ran a program");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn grep_never_waits_on_a_named_pipe() {
+        let t = Temp::new("fifo");
+        t.file("a.txt", b"needle\n");
+        let fifo = t.0.join("pipe");
+        assert!(Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+        let root = t.0.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(grep(&root, "needle", false, None).map(|r| r.hits.len()));
+        });
+        let got = rx.recv_timeout(std::time::Duration::from_secs(5));
+        if got.is_err() {
+            // Lets the stuck read end before the folder goes.
+            let _ = std::fs::OpenOptions::new().write(true).open(&fifo);
+        }
+        assert_eq!(got.expect("grep waited on a named pipe"), Ok(1));
     }
 
     #[test]
