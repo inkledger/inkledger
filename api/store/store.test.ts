@@ -68,6 +68,7 @@ const worker = {
   }), item({ id: "svg", product: "inkledger.svg", image: "https://img.test/x.svg" }), item({ id: "future", product: "inkledger.future", hostApi: { min: 2, max: 2 }, mode: "warp" }), { id: "broken" }] as unknown[],
   requestStatus: { status: "pending" } as Record<string, unknown>,
   calls: [] as { path: string; body?: unknown }[],
+  checkoutUrl: "https://shop.test/buy?claim=c",
 };
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
@@ -101,7 +102,7 @@ describe("module store", () => {
         return b.email.endsWith("@spam.test") ? json({ error: "rate" }, 429) : json({ token: "t".repeat(43) });
       }
       if (url.pathname === `/request/${"t".repeat(43)}`) return json(worker.requestStatus);
-      if (url.pathname === "/checkout") return json({ token: "c".repeat(43), url: "https://shop.test/buy?claim=c" });
+      if (url.pathname === "/checkout") return json({ token: "c".repeat(43), url: worker.checkoutUrl });
       if (url.pathname === `/claim/${"c".repeat(43)}`) return json({ error: "unknown" }, 404);
       if (url.pathname === "/download/inkledger.hello") return new Response(bundle());
       if (url.pathname === "/bundle/inkledger.hello") return new Response(bundle());
@@ -262,6 +263,16 @@ describe("module store", () => {
   it("a checkout returns the payment page; one the Worker forgot is dropped", async () => {
     expect(await caller.store.checkout({ product: "inkledger.hello", method: "card" })).toEqual({ url: "https://shop.test/buy?claim=c" });
     expect(worker.calls.at(-1)?.body).toEqual({ product: "inkledger.hello", method: "card" });
+    expect(await caller.store.pending()).toEqual({ pending: [], installed: [] });
+  });
+
+  // The page opens the Worker's url as is: a bad Worker's javascript: or file: went to the browser or the OS.
+  it("a checkout page that isn't https is refused, and nothing waits on it", async () => {
+    for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "http://shop.test/buy"]) {
+      worker.checkoutUrl = bad;
+      await expect(caller.store.checkout({ product: "inkledger.hello", method: "card" })).rejects.toThrow();
+    }
+    worker.checkoutUrl = "https://shop.test/buy?claim=c";
     expect(await caller.store.pending()).toEqual({ pending: [], installed: [] });
   });
 });

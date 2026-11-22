@@ -116,7 +116,10 @@ export async function requestLicense(r: { product: string; email: string; messag
 }
 
 export async function startCheckout(r: { product: string; method: PaymentMethod; email?: string }) {
-  return (await (await postJson("/checkout", r)).json()) as { token: string; url: string };
+  const answer = (await (await postJson("/checkout", r)).json()) as { token: string; url: unknown };
+  // The page opens it as is (browser or OS opener): a payment page, never javascript: or file:.
+  if (typeof answer.url !== "string" || !URL.canParse(answer.url) || new URL(answer.url).protocol !== "https:") throw new StoreError("unreachable", 0, "checkout url");
+  return { token: answer.token, url: answer.url };
 }
 
 export type TokenStatus = { status: "pending" | "approved" | "declined" | "paid"; license?: string };
