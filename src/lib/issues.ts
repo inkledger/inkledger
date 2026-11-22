@@ -1,5 +1,6 @@
 import { DAY_MS, startOfDay } from "@contracts/time";
 import { relativeFormat, t } from "@contracts/i18n";
+import { withoutControls } from "@contracts/analyze";
 
 /** Issue fields used by the helpers below (any issue list row fits). */
 type ActivityFields = {
@@ -97,7 +98,8 @@ export function branchName(
  * messages, not in branch names alone), then the summary.
  */
 export function commitMessage(key: string, summary: string): string {
-  const title = summary.replace(/\s+/g, " ").trim();
+  // On one line, then without what a terminal may act on when it is pasted.
+  const title = withoutControls(summary.replace(/\s+/g, " ")).trim();
   return title ? `${key} ${title}` : key;
 }
 

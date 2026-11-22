@@ -152,7 +152,7 @@ test("Analyse: with the project's repositories set, the issue's menu copies a te
         await page.getByRole("menuitem", { name: "Analyse in the code (1 repositories)" }).click();
         await page.getByText("Command copied: paste it in a terminal").waitFor();
         const cmd = await page.evaluate(() => navigator.clipboard.readText());
-        assert.match(cmd, /^cd ~\/'code\/demo app' && claude 'Analyse this issue against the code in these repositories:\n- app: ~\/code\/demo app\n/);
+        assert.match(cmd, /^cd ~\/'code\/demo app' && claude 'Analyse the issue below against the code in these repositories:\n- app: ~\/code\/demo app\n/);
         assert.match(cmd, /# DEMO-101: Test task number 1/);
         assert.ok(cmd.endsWith("'"), "the prompt is the last, quoted word");
       }

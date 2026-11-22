@@ -3,6 +3,17 @@
 import { escapeMd, toMarkdown, type Block, type RichDoc } from "./richtext";
 import { dayKey, hhmm } from "./time";
 
+/**
+ * Text from elsewhere (an issue as copied) as one fenced block inside a prompt: the fence is
+ * longer than any run of backticks in it, so no line of it can close the block and pass for
+ * the prompt's own words (a heading, an instruction).
+ */
+export function dataBlock(text: string): string {
+  const longest = (text.match(/`+/g) ?? []).reduce((n, run) => Math.max(n, run.length), 0);
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return `${fence}markdown\n${text.trimEnd()}\n${fence}`;
+}
+
 /** The lives a copied link may be given, in minutes (the server allows 5–1440). */
 export const AGENT_LINK_MINUTES = [15, 60, 240, 1440] as const;
 

@@ -43,6 +43,8 @@ describe("commitMessage", () => {
   it("starts with the key, as Jira links commits by it", () => {
     expect(commitMessage("MAGA-399", "  Creazione inventario\n da app ")).toBe("MAGA-399 Creazione inventario da app");
     expect(commitMessage("MAGA-1", "")).toBe("MAGA-1");
+    // Control characters dropped: a terminal may act on them when the message is pasted.
+    expect(commitMessage("APP-1", "Fix\x1b[31m red\x07 now\x9bx\x7f\r\nend")).toBe("APP-1 Fix[31m red nowx end");
   });
 });
 

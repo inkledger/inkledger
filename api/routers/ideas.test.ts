@@ -183,7 +183,8 @@ describe("ideas", () => {
       );
       const idea = await caller.ideas.fromIssue({ issueKey: "APP-4", connectionId: conn });
       const { markdown } = await caller.ideas.handoff({ id: idea.id, minutes: 15 });
-      expect(markdown).toContain("## Issue\n\n### APP-4: Crash on save");
+      // Fenced as data: whatever the issue says, it can't write a section of the prompt.
+      expect(markdown).toMatch(/## Issue\n.+\n\n`{3,}markdown\n### APP-4: Crash on save/);
       expect(markdown).toContain("#### Description\n\nSteps to reproduce");
       expect(markdown).toMatch(/- \[trace\.log\]\(http:\/\/ikl\.test\/api\/shared\/[^)]+\)/);
       // The issue sits before the constraints, which still close the prompt.

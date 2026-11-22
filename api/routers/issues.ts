@@ -39,7 +39,7 @@ import { runSync, toRow, upsertIssue } from "../sync/jiraIssues";
 import { syncUser } from "../sync/orchestrator";
 import { searchConnection } from "../issues/search";
 import { callMeta } from "../lib/callMeta";
-import { analyzeCommand, analyzeInstructions } from "@contracts/analyze";
+import { analyzeCommand, analyzePrompt } from "@contracts/analyze";
 import { pathsOf } from "./projectPaths";
 import { getSettings } from "./settings";
 
@@ -697,7 +697,7 @@ export const issuesRouter = createRouter({
       if (!repos.length) throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.projectPaths.none") });
       const copy = await agentCopy(ctx.user, input.key, { connectionId: conn.id, minutes: input.minutes ?? 60, origin: new URL(ctx.req.url).origin, depth: 2 });
       const { agentCommand } = await getSettings(ctx.user.id);
-      return { command: analyzeCommand(agentCommand, repos, `${analyzeInstructions(repos)}\n\n${copy.markdown}`), expiresAt: copy.expiresAt };
+      return { command: analyzeCommand(agentCommand, repos, analyzePrompt(repos, copy.markdown)), expiresAt: copy.expiresAt };
     }),
 
   /** Links to other services on the issue (read only); only http(s) URLs. */
