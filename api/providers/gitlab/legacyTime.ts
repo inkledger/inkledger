@@ -170,7 +170,7 @@ export async function deleteByNote(c: GitLabCreds, i: GitLabIssue, remoteId: str
   const e = list[at];
   if (!e || e.span.kind !== "session") return;
   const day = localDay(e.span.start);
-  const twin = list.slice(at + 1).some((x) => x.authorRemoteId === e.authorRemoteId && x.span.seconds === e.span.seconds && localDay(x.span.start) === day);
+  const twin = list.slice(at + 1).some((x) => x.authorRemoteId === e.authorRemoteId && x.span.seconds === e.span.seconds && x.span.kind === "session" && localDay(x.span.start) === day);
   if (twin) throw new ProviderError("invalid", "GitLab (older server): a later entry of the same length on the same day would be taken back instead; delete that one first");
   await spend(c, i, `/spend -${spendDuration(e.span.seconds)} ${day}`);
 }
