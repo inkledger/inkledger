@@ -707,10 +707,16 @@ describe("gitlab, status history", () => {
 });
 
 describe("gitlab, pages", () => {
-  it("a next page on another host is refused: the token never leaves the API's origin", async () => {
-    const fetchMock = vi.fn(async () => new Response("[1]", { headers: { "Content-Type": "application/json", link: '<http://gitlab.corp/api/v4/issues?page=2>; rel="next"' } }));
+  it("a next page on another host is read on the API's own server (a proxy naming itself wrong), or refused: the token never leaves the API's origin", async () => {
+    let page = 0;
+    const fetchMock = vi.fn(async () =>
+      new Response(++page === 1 ? "[1]" : "[2]", { headers: { "Content-Type": "application/json", ...(page === 1 ? { link: '<http://gitlab.corp/api/v4/issues?page=2>; rel="next"' } : {}) } }),
+    );
     vi.stubGlobal("fetch", fetchMock);
+    expect(await glPages({ apiBase: "https://gitlab.example.com/api/v4", token: "glpat" }, "/issues")).toEqual([1, 2]);
+    expect(String((fetchMock.mock.calls as unknown[][])[1][0])).toBe("https://gitlab.example.com/api/v4/issues?page=2");
+    page = 0;
+    fetchMock.mockImplementation(async () => new Response("[1]", { headers: { "Content-Type": "application/json", link: '<https://evil.example/elsewhere?page=2>; rel="next"' } }));
     await expect(glPages({ apiBase: "https://gitlab.example.com/api/v4", token: "glpat" }, "/issues")).rejects.toMatchObject({ name: "ProviderError", kind: "incompatible" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

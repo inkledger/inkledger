@@ -3,7 +3,7 @@
 // servers, redirects re-checked), the personal token in PRIVATE-TOKEN, errors
 // in the layer's words, pages by the Link header.
 import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { safeFetch, discardBody, onApiOrigin, trimTrailingSlash } from "../core/http";
 import { collectPages, nextLink } from "../core/paging";
 
 export type GitLabCreds = {
@@ -94,9 +94,9 @@ const networkOf = (base: string) => {
 /** One call. */
 export async function gl<T>(c: GitLabCreds, path: string, init: Call = {}): Promise<{ data: T; next: string | null; headers: Headers } | null> {
   const { missingIsNull, accept, intent, ...rest } = init;
-  const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   // A full address is a next page from a Link header (data from the network): followed with the token only on the API's own origin.
-  if (new URL(url).origin !== new URL(c.apiBase).origin) throw new ProviderError("incompatible", "GitLab: a next page on another server");
+  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase) : `${trimTrailingSlash(c.apiBase)}${path}`;
+  if (!url) throw new ProviderError("incompatible", "GitLab: a next page on another server");
   const res = await safeFetch({
     site: c.apiBase,
     network: networkOf(c.apiBase),

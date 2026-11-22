@@ -3,7 +3,7 @@
 // layer's words, pages by the Link header.
 import { sha256Hex } from "../../lib/hash";
 import { ProviderError, kindOfStatus, mustAnswer, readRefusal, retryAfterMs } from "../core/errors";
-import { safeFetch, discardBody, trimTrailingSlash } from "../core/http";
+import { safeFetch, discardBody, onApiOrigin, trimTrailingSlash } from "../core/http";
 import { nextLink } from "../core/paging";
 
 export type GitHubCreds = {
@@ -65,9 +65,9 @@ const READ_MAX = 500;
 
 /** One call; 404/410 as null when `missingIsNull`. */
 export async function gh<T>(c: GitHubCreds, path: string, init: RequestInit & { missingIsNull?: boolean } = {}): Promise<{ data: T; next: string | null } | null> {
-  const url = path.startsWith("http") ? path : `${trimTrailingSlash(c.apiBase)}${path}`;
   // A full address is a next page from a Link header (data from the network): followed with the token only on the API's own origin.
-  if (new URL(url).origin !== new URL(c.apiBase).origin) throw new ProviderError("incompatible", "GitHub: a next page on another server");
+  const url = path.startsWith("http") ? onApiOrigin(path, c.apiBase) : `${trimTrailingSlash(c.apiBase)}${path}`;
+  if (!url) throw new ProviderError("incompatible", "GitHub: a next page on another server");
   const reads = (init.method ?? "GET").toUpperCase() === "GET";
   const key = reads ? `${sha256Hex(c.token).slice(0, 16)} ${url}` : "";
   const known = reads ? READ.get(key) : undefined;
