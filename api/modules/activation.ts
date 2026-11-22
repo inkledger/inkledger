@@ -202,10 +202,29 @@ export async function renewActivations(licenses: { id: string; product: string; 
   const out: { id: string; result: ActivateResult }[] = [];
   for (const l of licenses) {
     const p = mine[l.id] ? readActivation(mine[l.id]) : null;
-    if (p && p.inst === instance().id && p.exp - now > RENEW_BEFORE_MS) continue;
+    if (p && p.inst === instance().id && p.exp - now > RENEW_BEFORE_MS) {
+      // Its slot freed at the store (deactivated, released): the token stops now, not at its end.
+      if (await released(l.text)) {
+        await saveToken(l.id, null);
+        await setGrace(l.id, null);
+        forgetActivations();
+        out.push({ id: l.id, result: { ok: false, reason: "revoked" } });
+      }
+      continue;
+    }
     out.push({ id: l.id, result: await activate(l.text, l.id, now) });
   }
   return out;
+}
+
+/** The store answered, and this server holds no slot of the licence; anything else (out of reach, refused, odd) keeps the token. */
+async function released(license: string): Promise<boolean> {
+  try {
+    const { active } = await activationsOf(license);
+    return Array.isArray(active) && !active.some((a) => a?.instanceId === instance().id);
+  } catch {
+    return false;
+  }
 }
 
 export const ACTIVATION_DEFAULTS = { renewEveryMs: 12 * 3_600_000 };

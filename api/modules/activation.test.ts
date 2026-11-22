@@ -103,7 +103,8 @@ describe("module licences active per server (WP-19)", () => {
     const now = Date.now();
     worker.calls = [];
     expect(await a.renewActivations([LIC], now)).toEqual([]);
-    expect(worker.calls).toEqual([]);
+    // Not due: only asked whether it still holds its slot.
+    expect(worker.calls).toEqual(["/activations"]);
     // 80 days on: renewed.
     const later = now + 80 * DAY;
     const done = await a.renewActivations([LIC], later);
@@ -155,6 +156,25 @@ describe("module licences active per server (WP-19)", () => {
     } finally {
       worker.mode = "ok";
     }
+  });
+
+  it("a slot released at the store (another server, the owner's release) stops its token at the next pass, not at its end; the store out of reach keeps it", async () => {
+    const L4 = { id: "L-4", product: "inkledger.hello", text: "L-4:inkledger.hello" };
+    await a.activate(L4.text, L4.id);
+    worker.mode = "down";
+    try {
+      expect(await a.renewActivations([L4])).toEqual([]);
+    } finally {
+      worker.mode = "ok";
+    }
+    a.forgetActivations();
+    expect((await a.activationStates([L4])).get("L-4")).toMatchObject({ state: "active" });
+    worker.slots.get("L-4")!.clear();
+    expect((await a.renewActivations([L4])).map((d) => d.result)).toEqual([{ ok: false, reason: "revoked" }]);
+    a.forgetActivations();
+    expect((await a.activationStates([L4])).get("L-4")).toEqual({ state: "missing" });
+    // The same pass took no slot again.
+    expect(worker.slots.get("L-4")!.size).toBe(0);
   });
 
   it("deactivated: the slot goes back; offline: the code is signed for this server, its token accepted", async () => {
