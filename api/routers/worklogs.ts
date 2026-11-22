@@ -734,6 +734,7 @@ export const worklogsRouter = createRouter({
           }
           // Not read back here yet: the lock still follows its own week, read from the tracker; gone there too, nothing to do.
           // The tracker unreachable: the delete is queued, the replay sends it later.
+          let checked = false;
           try {
             const there = through.b.worklogs?.get
               ? await through.b.worklogs.get(callMeta("time"), through.ref, input.remoteId)
@@ -743,12 +744,14 @@ export const worklogsRouter = createRouter({
             if (there.authorRemoteId && there.authorRemoteId !== conn.remoteAccountId) {
               throw new TRPCError({ code: "FORBIDDEN", message: t("server.worklogs.notYours") });
             }
+            checked = true;
             if (there.span.kind === "session") await assertWeekOpen(ctx.user.id, new Date(there.span.start));
             await deleteThere(through.b, callMeta("time"), through.ref, input.remoteId);
           } catch (e) {
             // Gone there meanwhile (read, then deleted elsewhere): done, as for an entry read back.
             if (e instanceof ProviderError && e.kind === "notFound") return deleted();
-            if (!(e instanceof ProviderError && e.transient)) throw e;
+            // Its author not read yet: never queued unchecked (it may be someone else's).
+            if (!(e instanceof ProviderError && e.transient) || !checked) throw e;
             await db.insert(outbox).values({ userId: ctx.user.id, connectionId: conn.id, kind: "delete", issueKey: input.issueKey, remoteId: input.remoteId });
           }
           return deleted();

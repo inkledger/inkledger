@@ -18,6 +18,8 @@ const remote = [
   { id: "wl-2", started: "2026-10-21T08:00:00.000+0200", timeSpentSeconds: 5400, created: "2026-10-21T09:30:00.000+0200", author: { accountId: "acc-2", displayName: "Anna" } },
 ];
 const deletes: string[] = [];
+/** Jira unreachable for reads of TEAM-1's entries. */
+let readsDown = false;
 
 vi.stubGlobal(
   "fetch",
@@ -25,6 +27,7 @@ vi.stubGlobal(
     const url = String(input);
     const method = init?.method ?? "GET";
     if (url.endsWith("/myself")) return json({ accountId: "acc-1", displayName: "Mario", avatarUrls: {} });
+    if (readsDown && method === "GET" && url.includes("/issue/TEAM-1/worklog")) throw new TypeError("fetch failed");
     const one = /\/issue\/TEAM-1\/worklog\/([^/?]+)(\?.*)?$/.exec(url);
     const w = one ? remote.find((r) => r.id === decodeURIComponent(one[1])) : undefined;
     if (one && method === "DELETE") {
@@ -56,6 +59,17 @@ describe("deleting a worklog by its id on the tracker", () => {
     await expect(caller.worklogs.delete({ issueKey: "TEAM-1", remoteId: "wl-2" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(deletes).toEqual([]);
     expect(await q("SELECT id FROM outbox")).toEqual([]);
+  });
+
+  it("an entry whose author can't be read (Jira unreachable) isn't queued to go later", async () => {
+    readsDown = true;
+    try {
+      await expect(caller.worklogs.delete({ issueKey: "TEAM-1", remoteId: "wl-2" })).rejects.toThrow();
+    } finally {
+      readsDown = false;
+    }
+    expect(await q("SELECT id FROM outbox")).toEqual([]);
+    expect(deletes).toEqual([]);
   });
 
   it("still deletes one of mine not read back here yet", async () => {
