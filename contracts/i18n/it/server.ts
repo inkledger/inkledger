@@ -239,6 +239,7 @@ export const server: Shape<typeof en> = {
   },
   ideas: {
     notFound: "Quell'idea non c'è più.",
+    openTwin: "Questa issue ha già un'idea aperta: completa o scarta prima quella.",
     tooMany: "Al massimo 50 idee alla volta: dividi l'elenco.",
     empty: "Scrivi almeno un'idea.",
     noContainer: "Quel progetto non è tra i tuoi.",

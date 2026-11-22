@@ -143,6 +143,13 @@ describe("ideas", () => {
     expect(await u.caller.ideas.forIssue({ issueKey: "APP-3", connectionId: conn })).toBeNull();
     const second = await u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn });
     expect(second.id).not.toBe(first.id);
+    // The discarded one opened again, or a trashed one put back, while the second is open: said, not a server error.
+    await expect(u.caller.ideas.move({ id: first.id, state: "refining", index: 0 })).rejects.toMatchObject({ code: "CONFLICT" });
+    await u.caller.ideas.remove({ id: second.id });
+    const third = await u.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn });
+    await expect(u.caller.ideas.restore({ id: second.id })).rejects.toMatchObject({ code: "CONFLICT" });
+    await u.caller.ideas.remove({ id: third.id });
+    await u.caller.ideas.restore({ id: second.id });
     // Another user's issue, or one of an archived connection: not found.
     const other = await makeUser("i7b");
     await expect(other.caller.ideas.fromIssue({ issueKey: "APP-3", connectionId: conn })).rejects.toMatchObject({ code: "NOT_FOUND" });

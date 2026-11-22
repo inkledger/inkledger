@@ -9,7 +9,17 @@ import { connections, containers, ideas, issues } from "@db/schema";
 import { t } from "@contracts/i18n";
 import { askMailUrl, canMove, CAPTURE_MAX, handoffPrompt, IDEA_ROUTES, IDEA_STATES, splitIdeas, ideaSuggestionSchema, type Criterion, type IdeaRoute, type IdeaState, type Question } from "@contracts/ideas";
 import { createRouter, protectedProcedure } from "../middleware";
-import { getDb } from "../queries/connection";
+import { getDb, uniqueViolation } from "../queries/connection";
+
+/** A write that would leave an issue two open ideas (the partial unique index): said as such. */
+async function oneOpen<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (e) {
+    if (uniqueViolation(e)) throw new TRPCError({ code: "CONFLICT", message: t("server.ideas.openTwin") });
+    throw e;
+  }
+}
 import { ofLiveConnection } from "../queries/liveConnections";
 import { issueAt } from "../queries/issueAt";
 import { TRASH_DAYS } from "../queries/trash";
@@ -265,7 +275,7 @@ export const ideasRouter = createRouter({
       const idea = await ownIdea(ctx.user.id, input.id);
       const ok = canMove(idea, input.state);
       if (!ok.ok) throw new TRPCError({ code: "BAD_REQUEST", message: t(`server.ideas.move.${ok.reason}`) });
-      await getDb().transaction(async (tx) => {
+      await oneOpen(() => getDb().transaction(async (tx) => {
         await tx
           .update(ideas)
           .set({ position: sql`${ideas.position} + 1` })
@@ -279,7 +289,7 @@ export const ideasRouter = createRouter({
             updatedAt: new Date(),
           })
           .where(eq(ideas.id, input.id));
-      });
+      }));
       return ownIdea(ctx.user.id, input.id);
     }),
 
@@ -386,7 +396,7 @@ export const ideasRouter = createRouter({
 
   restore: protectedProcedure.input(z.object({ id })).mutation(async ({ ctx, input }) => {
     await ownIdea(ctx.user.id, input.id, true);
-    await getDb().update(ideas).set({ deletedAt: null, updatedAt: new Date() }).where(eq(ideas.id, input.id));
+    await oneOpen(() => getDb().update(ideas).set({ deletedAt: null, updatedAt: new Date() }).where(eq(ideas.id, input.id)));
     return ownIdea(ctx.user.id, input.id);
   }),
 });

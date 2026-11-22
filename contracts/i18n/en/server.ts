@@ -238,6 +238,7 @@ export const server = {
   },
   ideas: {
     notFound: "That idea is gone.",
+    openTwin: "This issue already has an open idea: finish or discard that one first.",
     tooMany: "Up to 50 ideas at a time: split the list.",
     empty: "Write at least one idea.",
     noContainer: "That project isn't one of yours.",
