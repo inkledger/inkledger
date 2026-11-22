@@ -55,12 +55,13 @@ export const sinksRouter = createRouter({
         .innerJoin(connections, eq(connections.id, containers.connectionId))
         .where(ofLiveConnection(ctx.user.id))
         .orderBy(asc(containers.key)),
-      db.select({ n: worklogSinks.worklogId }).from(worklogSinks).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed"))),
+      // Counted in the database, not by reading every failed row.
+      db.select({ n: sql<number>`count(*)::int` }).from(worklogSinks).where(and(eq(worklogSinks.sinkConnectionId, conn.id), eq(worklogSinks.state, "failed"))),
     ]);
     return {
       mappings: rows.map((r) => ({ containerId: r.containerId, target: { remoteId: r.targetRemoteId, name: r.targetName }, activityId: r.activityId })),
       containers: boxes,
-      failed: failed.length,
+      failed: failed[0]?.n ?? 0,
     };
   }),
 
