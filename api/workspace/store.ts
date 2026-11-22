@@ -390,9 +390,10 @@ function revisionRow(userId: number, scope: Scope, revision: ActiveRevision, rev
 
 /** The scope's saved layouts, oldest first: when each was saved and how many changes it holds (the Studio's history). */
 export async function revisionSummaries(userId: number, scope: Scope): Promise<{ revisionId: string; committedAt: number; changes: number }[]> {
-  const rows = await getDb().select({ id: workspaceRevisions.id, committedAt: workspaceRevisions.committedAt, operations: workspaceRevisions.operations })
+  // Counted by the database: the operations themselves are never loaded nor parsed for a count.
+  const rows = await getDb().select({ id: workspaceRevisions.id, committedAt: workspaceRevisions.committedAt, changes: sql<number>`jsonb_array_length(${workspaceRevisions.operations}::jsonb)` })
     .from(workspaceRevisions).where(and(eq(workspaceRevisions.userId, userId), scopeWhere(scope)(workspaceRevisions))).orderBy(workspaceRevisions.revisionNumber);
-  return rows.map(row => ({ revisionId: row.id, committedAt: row.committedAt, changes: (parseJson(row.operations) as unknown[]).length }));
+  return rows.map(row => ({ revisionId: row.id, committedAt: row.committedAt, changes: Number(row.changes) }));
 }
 
 /**

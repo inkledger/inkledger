@@ -108,6 +108,21 @@ describe("workspace application service", () => {
     expect((await q<{ status: string }>("SELECT status FROM workspace_drafts WHERE user_id = ?", userId))[0].status).toBe("ready");
   });
 
+  it("reads a scope's state once per look, not once per layout it resolves", async () => {
+    await saveWorkspaceDraft(userId, scope, draft(false));
+    const { countQueries } = await import("../testing/countQueries");
+    const counter = countQueries();
+    let current: Awaited<ReturnType<typeof getWorkspace>>;
+    try {
+      current = await getWorkspace(userId, scope);
+    } finally {
+      counter.stop();
+    }
+    expect(current.draftWorkspace).not.toBeNull();
+    // Twelve before: the revision, feedback and discovery were read again for each layout resolved.
+    expect(counter.n).toBeLessThanOrEqual(9);
+  });
+
   it("starts from ProductDefault without inventing an active revision", async () => {
     const result = await getWorkspace(userId, scope, "tab-a");
     expect(result.committedRevision).toBeNull();

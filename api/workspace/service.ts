@@ -165,7 +165,14 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
   let presentation = clientInstanceId && !serverRender ? state.presentations[clientInstanceId] ?? null : null;
   const sourceRevision = presentation?.presented?.descriptor.sourceActiveRevision;
   const active = sourceRevision === "default" ? defaultRevision(scope) : sourceRevision ? await revisionById(userId, scope, sourceRevision) ?? undefined : undefined;
-  const resolved = await resolvedFor(userId, scope, null, active);
+  // The scope's state is read once: the layouts below (presented, latest, draft) are resolved from it.
+  const base = await inputFor(userId, scope, null);
+  const resolvedOn = (input: ResolveInput) => {
+    const workspace = resolvedOrThrow(resolve(input));
+    return { input, workspace, descriptor: descriptorFor(workspace, input) };
+  };
+  const latestResolved = resolvedOn(base);
+  const resolved = active ? resolvedOn({ ...base, activeRevision: active, explicitConstraints: active.constraints }) : latestResolved;
   const ssr = clientInstanceId
     ? serverRender
       ? { kind: "activate", descriptor: resolved.descriptor } as const
@@ -193,7 +200,7 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
   let draftDescriptor: PresentationDescriptor | null = null;
   let draftWorkspace: ResolvedWorkspace | null = null;
   if (draft) {
-    const input = await inputFor(userId, scope, draft);
+    const input = { ...base, draft };
     const preview = resolve(input);
     if (preview.kind === "resolved") {
       draftDescriptor = descriptorFor(preview.workspace, input);
@@ -202,7 +209,7 @@ export async function getWorkspace(userId: number, scope: Scope, clientInstanceI
   }
   // The layout a page load would show now: a tab presenting another one (saved elsewhere, or the same
   // revision drawn differently since, e.g. a block seen) is moved by openPage, so its events keep counting.
-  const latest = active ? await resolvedFor(userId, scope, null) : resolved;
+  const latest = latestResolved;
   return {
     ...resolved,
     descriptor: presentation?.presented?.descriptor ?? resolved.descriptor,
