@@ -164,6 +164,19 @@ describe("notes in folders", () => {
     expect(trash).toEqual([expect.objectContaining({ batch, rootId: big.id, count: 6_001, parentActive: false })]);
   }, 120_000);
 
+  it("lists a trashed folder of more notes than a query can bind parameters", async () => {
+    const [{ id: root }] = await q<{ id: string }>(
+      "INSERT INTO markdown_notes (user_id, kind, title, deleted_at, delete_batch, delete_root_id, created_at, updated_at) SELECT id, 'folder', 'Old', 2, '00000000-0000-4000-8000-000000000001', NULL, 1, 1 FROM users WHERE username = 'folders' RETURNING id",
+    );
+    await q("UPDATE markdown_notes SET delete_root_id = id WHERE id = ?", root);
+    await q(
+      "INSERT INTO markdown_notes (user_id, parent_id, kind, position, title, deleted_at, delete_batch, delete_root_id, created_at, updated_at) SELECT (SELECT id FROM users WHERE username = 'folders'), ?, 'note', g, 'n', 2, '00000000-0000-4000-8000-000000000001', ?, 1, 1 FROM generate_series(1, 66000) g",
+      root,
+      root,
+    );
+    expect(await me.notes.trash()).toEqual([expect.objectContaining({ rootId: root, count: 66_001, parentActive: false })]);
+  }, 120_000);
+
   it("reorders a level in a constant number of queries, whatever its size", async () => {
     const folder = await me.notes.createFolder({ title: "Level", parentId: null });
     await q(
