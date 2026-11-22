@@ -542,3 +542,33 @@ test("editing a TODO: clicking away keeps the new text, Esc drops it", () =>
     },
   ));
 
+// A key that failed (x, Space, 1, 2, 0) said so in a toast and left an uncaught rejection too.
+test("a list key whose change fails: said once, no uncaught error", () =>
+  withApp(
+    {
+      seed: async db => {
+        const now = Date.now();
+        await db.q("INSERT INTO todos (user_id, text, due_on, position, created_at, updated_at) VALUES (1, 'first', NULL, 0, ?, ?)", now, now);
+      },
+    },
+    async ({ page, base }) => {
+      await page.route(u => new URL(u).pathname.startsWith("/api/trpc/"), async route => {
+        const procs = trpcProcs(route.request().url());
+        if (!procs.includes("todos.update")) return route.continue();
+        const out = procs.map(p => ({ error: { json: { message: "down", code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500, path: p } } } }));
+        return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify(out) });
+      });
+      await page.goto(base + "/issues");
+      await page.getByRole("heading", { name: "Issues" }).first().waitFor();
+      await page.keyboard.press("d");
+      const float = page.getByRole("region", { name: "Floating TODO list" });
+      await float.getByRole("radio", { name: /^Someday/ }).click();
+      await float.getByRole("listitem", { name: "first" }).focus();
+      const answered = page.waitForResponse(r => r.url().includes("todos.update"));
+      await page.keyboard.press("x");
+      await answered;
+      await page.locator("[data-sonner-toast]").first().waitFor();
+      await page.waitForTimeout(300);
+      // withApp asserts no page errors.
+    },
+  ));

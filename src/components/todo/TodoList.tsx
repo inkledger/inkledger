@@ -206,7 +206,10 @@ export function TodoList({
       )?.focus();
     });
   const keep = (at: number, p: Promise<unknown>) =>
-    void p.then(() => refresh().then(() => focusRow(at)));
+    void p
+      .then(() => refresh().then(() => focusRow(at)))
+      // Already said by update's toast: not an uncaught rejection too.
+      .catch(() => undefined);
 
   const rowKeys = (e: KeyboardEvent<HTMLLIElement>, x: Todo) => {
     if (e.target !== e.currentTarget || e.metaKey || e.ctrlKey) return;
