@@ -146,7 +146,7 @@ function EndedElsewhere({ d, onClose }: { d: View; onClose: () => void }) {
   const reason = str(d.resolution.reason);
   const choice = str(d.resolution.choice);
   const text =
-    reason === "resumed" ? t("ui.decisions.resumed", { device }) : reason === "logged" ? t("ui.decisions.gone") : choice === "later" ? t("ui.decisions.laterElsewhere", { device }) : t("ui.decisions.loggedElsewhere", { device });
+    reason === "resumed" ? t("ui.decisions.resumed", { device }) : reason === "moved" ? t("ui.decisions.moved", { device }) : reason === "discarded" ? t("ui.decisions.discarded", { device }) : reason === "logged" ? t("ui.decisions.gone") : choice === "later" ? t("ui.decisions.laterElsewhere", { device }) : t("ui.decisions.loggedElsewhere", { device });
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent>

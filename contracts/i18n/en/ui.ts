@@ -491,6 +491,8 @@ export const ui = {
     loggedElsewhere: "Logged on {device}",
     laterElsewhere: "Put off on {device}",
     resumed: "No longer needed: the timer was resumed on {device}",
+    moved: "No longer needed: the timer was moved to another issue on {device}",
+    discarded: "No longer needed: the timer was discarded on {device}",
     gone: "No longer needed: the time was logged elsewhere",
     waiting: "Waiting for you: log time on {key}",
     open: "Open",

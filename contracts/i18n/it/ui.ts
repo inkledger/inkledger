@@ -493,6 +493,8 @@ export const ui: Shape<typeof en> = {
     loggedElsewhere: "Registrato su {device}",
     laterElsewhere: "Rimandato su {device}",
     resumed: "Non serve più: il timer è stato ripreso su {device}",
+    moved: "Non serve più: su {device} il timer è stato spostato su un'altra issue",
+    discarded: "Non serve più: su {device} il timer è stato scartato",
     gone: "Non serve più: il tempo è stato registrato altrove",
     waiting: "In attesa: registra il tempo di {key}",
     open: "Apri",
