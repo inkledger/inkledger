@@ -3,13 +3,13 @@ import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
 import type { ViewSlot } from "../hostV2";
-import { sheetOpen } from "./sheet";
+import { mobileMore, sheetOpen } from "./sheet";
 import { frameMethods } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
 import { browserPage } from "./importance";
-import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, watchBlur } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur } from "./feeds";
 import { createModuleCache, indexedDbCache } from "./cache";
 import { fontLoader, themeSheet } from "./themeSheet";
 import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
@@ -85,11 +85,22 @@ const readLook = (theme: object) => {
 let layoutChanged: ReturnType<typeof createLayoutChangedFeed> | null = null;
 const layoutChangedFeed = () => (layoutChanged ??= createLayoutChangedFeed(window, [sidebar.subscribe, sheetOpen.subscribe]));
 let layout: ReturnType<typeof createLayoutFeed> | null = null;
+let scrolling: ReturnType<typeof createScrollingFlag> | null = null;
+/** The sidebar's scrollers: the favorites, and the whole column on a short screen. */
+const SIDEBAR_SCROLLERS = 'aside [class*="overflow-y-auto"]';
 const layoutFeed = () =>
   (layout ??= createLayoutFeed({
     rail: sidebar.collapsed,
     docked: () => document.querySelector('[data-module-slot="mobile-dock"] [data-docked]') !== null,
-    subscribe: sidebar.subscribe,
+    viewport: () => ({ width: Math.round(window.innerWidth), height: Math.round(window.innerHeight) }),
+    navMore: () => [...document.querySelectorAll(SIDEBAR_SCROLLERS)].some(e => e.scrollHeight - e.clientHeight - e.scrollTop > 2),
+    scrolling: () => scrolling?.get() ?? false,
+    // Read again on a fold, once the page settles after a scroll or resize, and as a scroll starts and ends.
+    subscribe(fn) {
+      const flag = (scrolling ??= createScrollingFlag(window));
+      const offs = [sidebar.subscribe(fn), layoutChangedFeed().watch(fn), flag.subscribe(fn)];
+      return () => offs.forEach(off => off());
+    },
   }));
 const blur = (box: Element, push: (px: number) => void) =>
   watchBlur(box, push, {
@@ -195,7 +206,7 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions });
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;

@@ -78,10 +78,27 @@ export function createPointerFeed(win: PointerWin) {
   };
 }
 
-/** The layout's state from its sources; `poke` when one without its own signal changed (a dock). */
-export function createLayoutFeed(src: { rail(): boolean; docked(): boolean; subscribe(fn: () => void): () => void }) {
+/**
+ * The layout's state from its sources; `poke` when one without its own signal
+ * changed (a dock). The optional readers add the window's size, whether the
+ * sidebar's scroller has more below, and whether the page is scrolling.
+ */
+export function createLayoutFeed(src: {
+  rail(): boolean;
+  docked(): boolean;
+  subscribe(fn: () => void): () => void;
+  viewport?(): { width: number; height: number };
+  navMore?(): boolean;
+  scrolling?(): boolean;
+}) {
   const watchers = new Set<{ push: (v: LayoutState) => void; last: string }>();
-  const read = (): LayoutState => ({ sidebar: src.rail() ? "rail" : "full", docked: src.docked() });
+  const read = (): LayoutState => ({
+    sidebar: src.rail() ? "rail" : "full",
+    docked: src.docked(),
+    ...(src.viewport ? { viewport: src.viewport() } : {}),
+    ...(src.navMore ? { navMore: src.navMore() } : {}),
+    ...(src.scrolling ? { scrolling: src.scrolling() } : {}),
+  });
   const tell = () => {
     const v = read();
     const key = JSON.stringify(v);
@@ -156,6 +173,44 @@ export function createLayoutChangedFeed(win: LayoutChangedWin, sources: readonly
         offs = [];
         win.clearTimeout(timer);
         timer = undefined;
+      };
+    },
+  };
+}
+
+/**
+ * Whether the page is scrolling: true at a gesture's first scroll event, false
+ * once it has been quiet LAYOUT_SETTLE_MS (two changes a gesture, not one a
+ * frame). Listens only while subscribed.
+ */
+export function createScrollingFlag(win: LayoutChangedWin) {
+  const fns = new Set<() => void>();
+  let on = false;
+  let timer: number | undefined;
+  const tell = () => fns.forEach(fn => fn());
+  const onScroll = () => {
+    win.clearTimeout(timer);
+    timer = win.setTimeout(() => {
+      timer = undefined;
+      on = false;
+      tell();
+    }, LAYOUT_SETTLE_MS);
+    if (on) return;
+    on = true;
+    tell();
+  };
+  const opts = { passive: true, capture: true };
+  return {
+    get: () => on,
+    subscribe(fn: () => void): () => void {
+      if (fns.size === 0) win.addEventListener("scroll", onScroll, opts);
+      fns.add(fn);
+      return () => {
+        if (!fns.delete(fn) || fns.size > 0) return;
+        win.removeEventListener("scroll", onScroll, opts);
+        win.clearTimeout(timer);
+        timer = undefined;
+        on = false;
       };
     },
   };

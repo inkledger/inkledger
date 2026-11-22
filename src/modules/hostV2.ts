@@ -26,8 +26,19 @@ export type ThemeStateV2 = ThemeState & {
   skyDim?: number;
 };
 
-/** `docked`: a module shows a control on the phone's tab bar (the page keeps its last row clear). */
-export type LayoutState = { sidebar: "full" | "rail"; docked: boolean };
+/**
+ * `docked`: a module shows a control on the phone's tab bar (the page keeps its last row clear).
+ * `viewport`: the window's size in CSS px (a frame's own media queries measure the frame).
+ * `navMore`: the sidebar's scroller has more below what shows. `scrolling`: the page is
+ * scrolling now (false once it has been still a moment).
+ */
+export type LayoutState = {
+  sidebar: "full" | "rail";
+  docked: boolean;
+  viewport?: { width: number; height: number };
+  navMore?: boolean;
+  scrolling?: boolean;
+};
 
 /** The pointer relative to the slot box, coalesced per frame; null while away. */
 export type PointerState = { x: number; y: number } | null;
@@ -110,6 +121,8 @@ export type HostApiV2 = Basics &
      * takes the keyboard).
      */
     hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: () => void, opts?: HitOptions): void };
+    /** In "mobile-more" only: closes the phone's More sheet (e.g. as the module's own sheet opens). */
+    more?: { close(): void };
     /** "runtime": a port to this module's runtime (one per view); absent when the host made none. */
     runtime?: MessagePort;
     /**

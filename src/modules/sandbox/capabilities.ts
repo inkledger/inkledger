@@ -34,6 +34,8 @@ export type CapabilityDeps = {
   /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
   look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
   sheet: { open(moduleId: string): void; close(moduleId: string): void };
+  /** The phone's More sheet, closed from a module row in it. */
+  more?: { close(): void };
 };
 
 const subId = z.number().int().min(1).max(2 ** 31);
@@ -148,6 +150,8 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     });
     methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
     methods["backdrop.blur"] = method({ ...watch(push => d.blur(view.el, push)), cap: "backdrop.preblurred" });
+    // A row in the More sheet may close it (e.g. before its own sheet opens): only from there.
+    if (view.slot === "mobile-more") methods["more.close"] = method({ args: z.tuple([]), rate: [1, 2], run: () => d.more?.close() });
   }
   return {
     methods,

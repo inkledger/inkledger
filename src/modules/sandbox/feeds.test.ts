@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LayoutState, PointerState } from "../hostV2";
-import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, watchBlur, type LayoutChangedWin, type PointerWin } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, type LayoutChangedWin, type PointerWin } from "./feeds";
 
 function fakeWin() {
   const on = new Map<string, Set<(e: unknown) => void>>();
@@ -132,5 +132,49 @@ describe("the layout-changed feed", () => {
     off();
     expect(w.listeners()).toBe(0);
     expect(switches.size).toBe(0);
+  });
+});
+
+describe("what Desk Radio reads of the layout", () => {
+  const timed = () => {
+    const w = fakeWin();
+    const timers = new Map<number, () => void>();
+    let next = 0;
+    const win = Object.assign(w.win, {
+      setTimeout: (fn: () => void) => (timers.set(++next, fn), next),
+      clearTimeout: (id: number) => void timers.delete(id),
+    }) as unknown as LayoutChangedWin;
+    return { ...w, win, runTimers: () => [...timers.entries()].forEach(([id, fn]) => (timers.delete(id), fn())) };
+  };
+
+  it("the page scrolling: two changes a gesture, not one per scroll event", () => {
+    const w = timed();
+    const flag = createScrollingFlag(w.win);
+    const seen: boolean[] = [];
+    const off = flag.subscribe(() => seen.push(flag.get()));
+    for (let i = 0; i < 5; i++) w.fire("scroll", {});
+    w.runTimers();
+    expect(seen).toEqual([true, false]);
+    off();
+    expect(w.listeners()).toBe(0);
+  });
+
+  it("the window's size, the sidebar's overflow and the scrolling, each pushed when it changes", () => {
+    let fn: () => void = () => {};
+    let size = { width: 390, height: 700 };
+    let more = false;
+    const feed = createLayoutFeed({ rail: () => false, docked: () => false, subscribe: f => ((fn = f), () => {}), viewport: () => size, navMore: () => more, scrolling: () => false });
+    const got: LayoutState[] = [];
+    feed.watch(v => got.push(v));
+    fn();
+    more = true;
+    fn();
+    size = { width: 390, height: 900 };
+    fn();
+    expect(got).toEqual([
+      { sidebar: "full", docked: false, viewport: { width: 390, height: 700 }, navMore: false, scrolling: false },
+      { sidebar: "full", docked: false, viewport: { width: 390, height: 700 }, navMore: true, scrolling: false },
+      { sidebar: "full", docked: false, viewport: { width: 390, height: 900 }, navMore: true, scrolling: false },
+    ]);
   });
 });

@@ -266,6 +266,8 @@ async function start(init, port) {
       const mount = mod.mount[init.slot];
       if (typeof mount !== "function") throw new Error("nothing to mount in " + init.slot);
       host.slot = init.slot;
+      // A row in the phone's More sheet may close it.
+      if (init.slot === "mobile-more") host.more = { close: () => fire("more.close") };
       // Ten shapes a second at most, the latest winning: the host refuses faster, and a refused last shape would stay wrong.
       let hitAt = -1000, hitTimer = 0, hitNext = null, hitOpts = {};
       const sendHit = () => {

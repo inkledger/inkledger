@@ -7,6 +7,15 @@ import { createStore } from "@/lib/store";
  */
 const open = createStore<string | null>(null);
 
+// Each request to close the phone's More sheet (from a module row in it): the tab bar listens.
+const moreCloses = createStore(0);
+
+export const mobileMore = {
+  close: () => moreCloses.set(moreCloses.get() + 1),
+  /** Calls `fn` on each request; returns the undo. */
+  onClose: (fn: () => void) => moreCloses.subscribe(fn),
+};
+
 export const sheetOpen = {
   get: open.get,
   use: open.use,

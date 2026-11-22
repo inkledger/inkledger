@@ -129,6 +129,21 @@ describe("the frame's host API (bootstrap)", () => {
     expect(watching).toBe(0);
   });
 
+  it("more.close: only a row of the phone's More sheet may close it", async () => {
+    let closed = 0;
+    const offered: boolean[] = [];
+    for (const slot of ["mobile-more", "sidebar-footer"]) {
+      const el = { dataset: {}, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot, activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen, more: { close: () => void closed++ } });
+      const mod = { id: "m", hostApi: 2, mount: { [slot]: (_el: unknown, host: HostApiV2) => (offered.push(host.more !== undefined), host.more?.close(), () => {}) } };
+      bootFrame({ capabilities: [], mod, methods: caps.methods, slot });
+      await settle();
+      expect("more.close" in caps.methods).toBe(slot === "mobile-more");
+    }
+    expect(offered).toEqual([true, false]);
+    expect(closed).toBe(1);
+  });
+
   it("page.importance: the box's points, off the page counting as important", async () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 0, height: 0 }) } as unknown as HTMLElement;
     let out: unknown = null;

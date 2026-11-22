@@ -9,6 +9,7 @@ import { navEntryFor, navItems, TAB_ROUTES } from "@/lib/nav";
 import { TimerRing } from "@/components/TimerControls";
 import { lazyPart } from "@/components/app/lazyPart";
 import { ModuleSlot } from "@/modules/ModuleHost";
+import { mobileMore } from "@/modules/sandbox/sheet";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 import { surface } from "@/components/app/surface";
@@ -145,6 +146,8 @@ function MobileTabBarContent() {
   const { workspace } = useWorkspace();
   const [timersOpen, setTimersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // A framed module's row in it may ask it to close (its own sheet opening).
+  useEffect(() => mobileMore.onClose(() => setMoreOpen(false)), []);
   // Mounted at first open (their clocks and queries stay off until then), kept after so closing animates.
   const [timersSeen, setTimersSeen] = useState(false);
   const [moreSeen, setMoreSeen] = useState(false);
