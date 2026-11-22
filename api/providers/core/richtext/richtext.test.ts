@@ -169,6 +169,13 @@ describe("fromAdf", () => {
 });
 
 describe("fromJiraWiki", () => {
+  it("a list nested past any real depth keeps its text, never the whole description lost", () => {
+    const d = fromJiraWiki(`before\n\n${"*".repeat(6000)} deep\n\nafter`);
+    expect(plainText(d)).toBe("before\n\ndeep\n\nafter");
+    // A normal nesting reads as before.
+    expect(fromJiraWiki("* a\n** b").blocks).toEqual([{ t: "list", ordered: false, items: [{ checked: null, c: [p(t("a")), { t: "list", ordered: false, items: [{ checked: null, c: [p(t("b"))] }] }] }] }]);
+  });
+
   it("reads headings and inline marks", () => {
     expect(fromJiraWiki("h2. Title").blocks).toEqual([{ t: "h", level: 2, c: [t("Title")] }]);
     expect(fromJiraWiki("a *bold* and _em_ and -gone- and +under+ ok").blocks).toEqual([

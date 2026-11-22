@@ -258,13 +258,16 @@ function bare(params: string | undefined): string | undefined {
 
 type Item = { depth: number; ordered: boolean; text: string };
 
+/** Lists nested this deep are read as structure; deeper items join the deepest list (never the whole document lost to the stack). */
+const MAX_DEPTH = 256;
+
 function buildList(items: Item[], depth: number): Block[] {
   const blocks: Block[] = [];
   let cur: { ordered: boolean; items: ListItem[] } | null = null;
   let i = 0;
   while (i < items.length) {
     const it = items[i];
-    if (it.depth > depth) {
+    if (it.depth > depth && depth < MAX_DEPTH) {
       // a deeper run belongs to the previous item
       let j = i;
       while (j < items.length && items[j].depth > depth) j++;
