@@ -35,6 +35,8 @@ export function PinSearch({
     { enabled: search.length > 0, placeholderData: prev => prev, staleTime: 30_000 }
   );
   const items: Found[] = search ? (found.data?.issues ?? []) : [];
+  // The list still answers the text before the last keys (debounce, then the fetch): Enter waits for this one's.
+  const current = search === typed.trim() && !found.isPlaceholderData;
   const shown = open && search.length > 0;
   const at = Math.min(active, Math.max(0, items.length - 1));
   const pick = (i: Found | undefined) => {
@@ -48,7 +50,7 @@ export function PinSearch({
       setActive(Math.min(Math.max(0, items.length - 1), Math.max(0, at + step)));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      pick(items[at]);
+      if (current) pick(items[at]);
     } else if (e.key === "Escape" && (typed || shown)) {
       // Used here: the pinboard around stays open.
       e.preventDefault();
