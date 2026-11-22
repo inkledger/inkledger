@@ -111,8 +111,8 @@ export function createHitAreas(win: Window = window) {
           if (hadTab === null) el.removeAttribute("tabindex");
           else el.setAttribute("tabindex", hadTab);
           if (!hadRole) el.removeAttribute("role");
-          if (hadLabel === null) el.removeAttribute("aria-label");
-          else el.setAttribute("aria-label", hadLabel);
+          if (a11y.label && hadLabel === null) el.removeAttribute("aria-label");
+          else if (a11y.label && hadLabel !== null) el.setAttribute("aria-label", hadLabel);
         }
         if (owner === area) owner = null;
         if (areas.size === 0) {
