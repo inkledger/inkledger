@@ -359,7 +359,10 @@ describe("auth: sessions, cookies, login hardening", () => {
       // Within what it holds, it still manages.
       await expect(k.users.invite({ username: "x4", displayName: "X", role: "member", permissions: ["useModules"] })).resolves.toBeTruthy();
       await expect(k.users.resetPassword({ id: plain.id })).resolves.toBeTruthy();
-      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).resolves.toMatchObject({ permissions: ["manageUsers"] });
+      // Nor another account manager: once made, it would be beyond it (an admin's to manage).
+      await expect(k.users.setAccess({ id: plain.id, role: "member", permissions: ["manageUsers"] })).rejects.toMatchObject(forbidden);
+      await expect(k.users.invite({ username: "x7", displayName: "X", role: "member", permissions: ["manageUsers"] })).rejects.toMatchObject(forbidden);
+      await q("UPDATE users SET permissions = '[\"manageUsers\"]' WHERE id = ?", plain.id);
       // A peer that manages accounts too is an admin's to change: else either could take the other over.
       await expect(k.users.resetPassword({ id: plain.id })).rejects.toMatchObject(forbidden);
       await expect(k.users.setDisabled({ id: plain.id, disabled: true })).rejects.toMatchObject(forbidden);

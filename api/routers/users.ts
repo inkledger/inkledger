@@ -47,6 +47,8 @@ const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.a
  */
 function assertWithin(me: User, granted: { role: string; permissions: readonly string[]; modules: readonly string[] }) {
   if (!within(me, granted)) throw notAllowed();
+  // Nor another account manager: a non-admin couldn't manage it afterwards (assertAbove).
+  if (roleOf(me) !== "admin" && granted.permissions.includes("manageUsers")) throw notAllowed();
 }
 
 /**
