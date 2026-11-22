@@ -60,6 +60,7 @@ import { useWorkspace } from "@/lib/workspace/context";
 import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentation";
 import { routeControlId } from "@/lib/workspace/searchEvents";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
+import { ModuleSheet } from "@/modules/sandbox/ModuleSheet";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { cn } from "@/lib/utils";
@@ -858,6 +859,7 @@ export function AppLayout() {
         <IdeaCaptureDialog />
         <IssueHistoryDialog />
         <ModuleSettingsSheet />
+        <ModuleSheet />
       </div>
       </ModulesProvider>
       </WorkspaceScopeProvider>

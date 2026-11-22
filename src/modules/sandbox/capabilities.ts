@@ -30,6 +30,7 @@ export type CapabilityDeps = {
   cache: ReturnType<typeof createModuleCache>;
   /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
   look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
+  sheet: { open(moduleId: string): void; close(moduleId: string): void };
 };
 
 const subId = z.number().int().min(1).max(2 ** 31);
@@ -98,6 +99,17 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     share: method({ args: z.tuple([picture, fileName]), cap: "share", rate: [1, 2], run: ([f, name]) => d.broker.share(f, name) }),
     download: method({ args: z.tuple([picture, fileName]), cap: "download", rate: [1, 3], run: ([f, name]) => d.broker.download(f, name) }),
     openImage: method({ args: z.tuple([picture]), cap: "open-image", rate: [1, 2], run: ([f]) => d.broker.openImage(f) }),
+    "sheet.open": method({
+      args: z.tuple([]),
+      cap: "sheet",
+      rate: [1, 2],
+      run() {
+        // A dialog only on the person's gesture: never one that pops up by itself.
+        if (!d.broker.active()) throw new Error("needs the person's gesture");
+        d.sheet.open(d.moduleId);
+      },
+    }),
+    "sheet.close": method({ args: z.tuple([]), cap: "sheet", rate: [2, 4], run: () => d.sheet.close(d.moduleId) }),
     "geo.here": method({ args: z.tuple([]), cap: "geo", rate: [0.2, 2], run: () => d.broker.here() }),
   };
   const view = d.view;

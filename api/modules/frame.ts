@@ -181,6 +181,7 @@ async function start(init, port) {
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("cache")) host.cache = { get: (k) => call("cache.get", [k]), put: (k, b) => call("cache.put", [k, b]).then(quiet), delete: (k) => call("cache.delete", [k]).then(quiet) };
+  if (has("sheet")) host.sheet = { open: () => fire("sheet.open"), close: () => fire("sheet.close") };
   if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
@@ -211,6 +212,8 @@ async function start(init, port) {
         },
       };
       if (port) host.runtime = port;
+      // Esc in the sheet's frame never reaches the host's dialog: told here.
+      if (init.slot === "sheet" && has("sheet")) document.addEventListener("keydown", (e) => { if (e.key === "Escape") fire("sheet.close"); });
       const box = document.createElement("div");
       box.id = "ikl-box";
       document.body.append(box);

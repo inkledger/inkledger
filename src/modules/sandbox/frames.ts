@@ -1,7 +1,9 @@
-import type { ModuleListEntry, SlotId } from "@contracts/modules";
+import type { ModuleListEntry } from "@contracts/modules";
 import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
+import type { ViewSlot } from "../hostV2";
+import { sheetOpen } from "./sheet";
 import { frameMethods } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
@@ -123,7 +125,7 @@ type Frame = { iframe: HTMLIFrameElement; stop: () => void };
 function openFrame(
   hub: Hub,
   entry: ModuleListEntry,
-  slot: SlotId,
+  slot: ViewSlot,
   parent: HTMLElement,
   role: "view" | "runtime",
   ready: (peer: RpcPeer) => Transferable[],
@@ -141,10 +143,11 @@ function openFrame(
   }
   // Same colour scheme as the frame's document, or the browser paints it opaque.
   Object.assign(iframe.style, { display: "block", border: "0", width: role === "view" ? "100%" : "0", height: role === "view" ? "100%" : "0", colorScheme: "normal", background: "transparent" });
-  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot);
+  // The sheet is no manifest slot: its API is the module's as in its first slot.
+  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const box = role === "view" ? { el: parent, slot, activate: () => peer.send({ v: RPC_VERSION, t: "activate" }), onDock: () => layoutFeed().poke() } : null;
   const served = frameMethods(api, cas, box);
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), look: { watch: push => api.theme(() => push(readLook())), fonts } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet: sheetOpen, look: { watch: push => api.theme(() => push(readLook())), fonts } });
   let initialised = false;
   const warned = new Set<string>();
   const peer = createRpcPeer({
@@ -200,7 +203,7 @@ function openFrame(
 
 // ---- Runtime frames: one per module, in a container that never moves ----
 
-type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, SlotId][]; peer: RpcPeer | null; offKill: () => void };
+type Runtime = { hub: Hub; frame: Frame | null; ready: boolean; waiting: [MessagePort, ViewSlot][]; peer: RpcPeer | null; offKill: () => void };
 const runtimes = new Map<string, Runtime>();
 let shelf: HTMLElement | null = null;
 
@@ -224,7 +227,7 @@ function stopRuntime(id: string) {
 }
 
 /** The module's runtime, made with its first view; a view's port reaches it once it is ready. */
-function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: SlotId, port: MessagePort) {
+function connectRuntime(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, port: MessagePort) {
   let r = runtimes.get(entry.id);
   if (r && r.hub !== hub) {
     stopRuntime(entry.id);
@@ -256,7 +259,7 @@ export function keepRuntimes(ids: readonly string[] = []) {
   for (const id of [...runtimes.keys()]) if (!ids.includes(id)) stopRuntime(id);
 }
 
-export function mountView(hub: Hub, entry: ModuleListEntry, slot: SlotId, box: HTMLElement): () => void {
+export function mountView(hub: Hub, entry: ModuleListEntry, slot: ViewSlot, box: HTMLElement): () => void {
   let frame: Frame | null = null;
   const stop = () => {
     frame?.stop();

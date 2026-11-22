@@ -6,6 +6,7 @@ import { method } from "./rpc";
 import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
 import { createModuleCache, type CacheBackend } from "./cache";
+import { sheetOpen } from "./sheet";
 import type { ImportancePage } from "./importance";
 import type { ViewBox } from "./methods";
 import { bootFrame, settle } from "./bootFrame.testkit";
@@ -60,7 +61,7 @@ function withModule(
   view: ViewBox | null = null,
 ) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -173,5 +174,28 @@ describe("the frame's host API (bootstrap)", () => {
     expect(atMount).toBe("mounted");
     expect(f.styles.get("ikl-theme")?.textContent).toBe(":root{--primary:1 2% 3%}");
     expect(f.styles.get("ikl-fonts")?.textContent).toBe("@font-face{}");
+  });
+
+  it("sheet: opened on the person's gesture only, closed by its module or by Esc in its frame", async () => {
+    withModule(["sheet"], (_el, host) => host.sheet?.open(), { ...quietEnv, active: () => false });
+    await settle();
+    expect(sheetOpen.get()).toBeNull();
+    withModule(["sheet"], (_el, host) => host.sheet?.open());
+    await settle();
+    expect(sheetOpen.get()).toBe("m");
+    sheetOpen.open("other");
+    withModule(["sheet"], (_el, host) => host.sheet?.close());
+    await settle();
+    expect(sheetOpen.get()).toBe("other");
+    sheetOpen.open("m");
+    const caps = ["sheet"] as ModuleCapability[];
+    const { doc } = lightDoc();
+    const methods = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen }).methods;
+    const mod = { id: "m", hostApi: 2, mount: { sheet: () => () => {} } };
+    const frame = bootFrame({ capabilities: caps, mod, methods, slot: "sheet" });
+    await settle();
+    frame.keydown("Escape");
+    await settle();
+    expect(sheetOpen.get()).toBeNull();
   });
 });

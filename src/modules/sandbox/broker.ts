@@ -58,6 +58,7 @@ export function createBroker(env: BrokerEnv) {
     return proven;
   };
   return {
+    active: () => env.active(),
     async share(file: Blob, name: string): Promise<boolean> {
       const { image, type } = await picture(file);
       return env.share(new File([image], safeName(name, type), { type }));
