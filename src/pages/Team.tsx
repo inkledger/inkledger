@@ -1,5 +1,6 @@
 import { flowControlProps, type FlowControlAttributes } from "@/lib/workspace/instrumentation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { REPORT_MAX_DAYS } from "@contracts/types";
 import { useNavigate } from "react-router";
 import { keepPreviousData } from "@tanstack/react-query";
 import { Lock, Search } from "lucide-react";
@@ -38,7 +39,6 @@ type Show = "all" | "below" | "check";
 type Cols = "auto" | Granularity;
 
 /** Same cap as the server (team.overview reads a report's range). */
-const REPORT_MAX_DAYS = 366;
 
 /** The one line saying what the pointer or the focus is on: its own store, so a hover re-renders nothing else. */
 function createReadout() {

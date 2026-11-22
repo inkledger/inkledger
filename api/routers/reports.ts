@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REPORT_MAX_DAYS } from "@contracts/types";
 import { TRPCError } from "@trpc/server";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -30,7 +31,7 @@ export const issueIdentity = sql<string>`coalesce(${issues.id}::text, 'k:' || ${
 export const projectGroup = sql<string>`coalesce(${containers.id}::text, 'k:' || ${keyProject})`;
 
 /** Longest report span: a leap year. */
-export const REPORT_MAX_DAYS = 366;
+export { REPORT_MAX_DAYS };
 
 const rangeInput = z.object({
   /** First day included, "YYYY-MM-DD" (local) */

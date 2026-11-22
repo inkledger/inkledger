@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { t } from "@/i18n";
 
-export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+import { UPLOAD_MAX_BYTES } from "@contracts/types";
+export { UPLOAD_MAX_BYTES };
 
 type UploadState = { progress: number | null; error: string | null };
 

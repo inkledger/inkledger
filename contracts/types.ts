@@ -25,3 +25,9 @@ export const isPendingId = (remoteId: string): boolean => remoteId.startsWith(PE
 
 /** Offline-queue entries failing this many times are no longer replayed. */
 export const MAX_OUTBOX_ATTEMPTS = 10;
+
+/** The longest period a report or the team view reads at once (days); the server refuses longer. */
+export const REPORT_MAX_DAYS = 366;
+
+/** The most an issue attachment upload may carry (bytes), checked by the page and the server. */
+export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;

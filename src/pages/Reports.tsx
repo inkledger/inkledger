@@ -1,5 +1,6 @@
 import { Toolbar } from "@/components/app/Toolbar";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { REPORT_MAX_DAYS } from "@contracts/types";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { errorText } from "@/lib/errorText";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -55,7 +56,6 @@ const groupOptions = (): {
   { value: "days", label: t("pages.reports.groupDays"), icon: CalendarRange, control: flowControlProps("reports.groupBy.days") },
 ];
 
-const REPORT_MAX_DAYS = 366;
 
 type Tab = "period" | "accuracy" | "forecast";
 
