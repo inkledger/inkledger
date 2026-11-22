@@ -565,6 +565,8 @@ export const worklogSinks = pgTable(
     sentSeconds: integer("sent_seconds"),
     sentStarted: ms("sent_started"),
     sentComment: text("sent_comment"),
+    /** Not on the sink yet: when its create was last sent (a lost one is looked for up to shortly after) */
+    lastSentAt: ms("last_sent_at"),
   },
   (t) => [
     uniqueIndex("uq_worklog_sinks_worklog_sink").on(t.worklogId, t.sinkConnectionId),
@@ -776,6 +778,11 @@ export const outbox = pgTable(
      * is looked for by the values sent, among those made after this and before the row.
      */
     landedAfter: ms("landed_after"),
+    /**
+     * A queued create: its first send's time less the adopt window (landedAfter) and its last
+     * send's plus it (this), null while never sent. A lost create's delete: the same, copied.
+     */
+    landedBefore: ms("landed_before"),
     createdAt: ms("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
