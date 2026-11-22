@@ -1,6 +1,7 @@
 import type { JiraCredentials } from "@contracts/types";
 import { originate, originOf } from "../providers/core/origin";
 import { safeFetch, type Intent } from "../providers/core/http";
+import { NETWORK_CODES } from "../providers/core/errors";
 import { t } from "@contracts/i18n";
 
 /**
@@ -36,8 +37,6 @@ export function isNetworkError(e: unknown): boolean {
   const code = (e.cause as { code?: unknown } | undefined)?.code;
   return typeof code === "string" && NETWORK_CODES.test(code);
 }
-
-const NETWORK_CODES = /^(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EPIPE|UND_ERR_\w+)$/;
 
 /** Jira issue key, e.g. "PRJ-123". */
 export const ISSUE_KEY_RE = /^[A-Z][A-Z0-9_]*-\d+$/;

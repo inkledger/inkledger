@@ -179,7 +179,8 @@ export function neverSent(e: unknown): boolean {
   return false;
 }
 
-const NETWORK_CODES = /^(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EPIPE|UND_ERR_\w+)$/;
+/** Socket error codes that mean the service couldn't be reached (shared with the Jira client). */
+export const NETWORK_CODES = /^(ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EPIPE|UND_ERR_\w+)$/;
 
 /** undici's way of saying the service couldn't be reached: TypeError("fetch failed"), the socket error as cause. */
 function unreachable(e: TypeError): boolean {
