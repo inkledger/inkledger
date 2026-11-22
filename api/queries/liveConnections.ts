@@ -22,14 +22,16 @@ export const ofLiveConnection = (userId: number): SQL | undefined => and(eq(conn
  * The issue is still there, on a live (not archived) connection, and shown
  * once: the same issue reached by two connections of one service (two
  * GitHub accounts following one repository, two logins on one Jira site)
- * is the same item (§4.5, dedup by ref): the first connection shows it.
+ * is the same item (§4.5, dedup by ref): the first working connection shows it
+ * (a broken one's copy is stale), else the first.
  */
 export const onLiveConnection: SQL = sql`(${issues.goneAt} IS NULL AND ${issues.connectionId} IN (SELECT ${connections.id} FROM ${connections} WHERE ${connections.archivedAt} IS NULL)
   AND NOT EXISTS (
     SELECT 1 FROM ${issues} twin
       JOIN ${connections} tc ON tc.id = twin.connection_id
       JOIN ${connections} mc ON mc.id = ${issues.connectionId}
-     WHERE twin.user_id = ${issues.userId} AND twin.jira_id = ${issues.remoteId} AND twin.connection_id < ${issues.connectionId}
+     WHERE twin.user_id = ${issues.userId} AND twin.jira_id = ${issues.remoteId}
+       AND (CASE WHEN tc.status = 'ok' THEN 0 ELSE 1 END, twin.connection_id) < (CASE WHEN mc.status = 'ok' THEN 0 ELSE 1 END, ${issues.connectionId})
        AND twin.gone_at IS NULL AND tc.archived_at IS NULL AND tc.type = mc.type AND tc.base_url = mc.base_url))`;
 
 /** A notification's connection is live (one with no connection stays). */

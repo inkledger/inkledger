@@ -207,7 +207,12 @@ describe("two connections with the same issue key", () => {
       await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) SELECT user_id, ?, jira_id, key, summary, status, project_key, project_name, url, synced_at FROM issues WHERE connection_id = ? AND key = 'APP-1'", c3, c1);
       const all = await caller.issues.all({ scope: "all" });
       expect(all.filter((i) => i.key === "APP-1").map((i) => i.connectionId).sort()).toEqual([c1, c2].sort());
+      // The first login's token broken: the working one's fresh copy shows, once.
+      await q("UPDATE connections SET status = 'authFailed' WHERE id = ?", c1);
+      const then = await caller.issues.all({ scope: "all" });
+      expect(then.filter((i) => i.key === "APP-1").map((i) => i.connectionId).sort()).toEqual([c2, c3].sort());
     } finally {
+      await q("UPDATE connections SET status = 'ok' WHERE id = ?", c1);
       await q("DELETE FROM issues WHERE connection_id = ?", c3);
       await q("DELETE FROM connections WHERE id = ?", c3);
     }
