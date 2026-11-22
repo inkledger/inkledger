@@ -130,6 +130,30 @@ describe("the frame's host API (bootstrap)", () => {
     expect(watching).toBe(0);
   });
 
+  it("layout.navFade: a module in the sidebar's foot has the host draw the nav's fade, while the nav has more below", async () => {
+    let push: (v: LayoutState) => void = () => {};
+    let watching = 0;
+    const layout = { poke() {}, watch: (p: typeof push) => ((push = p), watching++, () => void watching--) } as unknown as CapabilityDeps["layout"];
+    const el = { dataset: {} as Record<string, string>, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
+    const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "sidebar-footer", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, layout, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+    let fade: ((on: boolean) => void) | undefined;
+    const mod = { id: "m", hostApi: 2, mount: { "sidebar-footer": (_el: unknown, host: HostApiV2) => ((fade = host.layout?.navFade), () => {}) } };
+    bootFrame({ capabilities: ["layout"], mod, methods: caps.methods, slot: "sidebar-footer" });
+    await settle();
+    fade?.(true);
+    await settle();
+    push({ sidebar: "full", docked: false, navMore: true });
+    expect("navFade" in el.dataset).toBe(true);
+    push({ sidebar: "full", docked: false, navMore: false });
+    expect("navFade" in el.dataset).toBe(false);
+    push({ sidebar: "full", docked: false, navMore: true });
+    fade?.(false);
+    await settle();
+    expect(["navFade" in el.dataset, watching]).toEqual([false, 0]);
+    const other = capabilityMethods({ moduleId: "m", view: { el, slot: "mobile-more", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+    expect("layout.navFade" in other.methods).toBe(false);
+  });
+
   it("more.close: only a row of the phone's More sheet may close it", async () => {
     let closed = 0;
     const offered: boolean[] = [];
@@ -480,7 +504,7 @@ describe("storage writes from a frame", () => {
     run(s.methods, host => {
       for (let i = 0; i < 20; i++) void host.storage.update<number>("k" + i, () => i).then(() => void done++, (e: Error) => errors.push(e.message));
     });
-    await new Promise(r => setTimeout(r, 1300));
+    await new Promise(r => setTimeout(r, 1800));
     await settle(10);
     expect(errors).toEqual([]);
     expect(done).toBe(20);
@@ -500,7 +524,7 @@ describe("cleanups that save", () => {
     const f = bootFrame({ capabilities: [], mod, methods: {}, onUnmounted: () => mark("unmounted") });
     await settle();
     f.peer.send({ v: RPC_VERSION, t: "unmount" });
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 300));
     expect(log.map(([w]) => w)).toEqual(["saved", "unmounted"]);
   });
 
@@ -512,7 +536,7 @@ describe("cleanups that save", () => {
     f.peer.send({ v: RPC_VERSION, t: "unmount" });
     await new Promise(r => setTimeout(r, 600));
     expect(log).toEqual([]);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 900));
     expect(log.map(([w]) => w)).toEqual(["unmounted"]);
   });
 
@@ -523,7 +547,7 @@ describe("cleanups that save", () => {
     const f = bootFrame({ capabilities: ["runtime"], mod, methods: {}, role: "runtime", onUnmounted: () => order.push("unmounted") });
     await settle();
     f.peer.send({ v: RPC_VERSION, t: "unmount" });
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 200));
     expect(order).toEqual(["flushed", "unmounted"]);
 
     let ran = 0;

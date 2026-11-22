@@ -292,7 +292,11 @@ async function start(init, port) {
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
   if (has("pointer") && init.role === "view") host.pointer = watched("pointer");
-  if (has("layout")) host.layout = watched("layout");
+  if (has("layout")) {
+    host.layout = watched("layout");
+    // The host's fade over the nav above, while it has more below (the sidebar's foot only).
+    if (init.role === "view" && init.slot === "sidebar-footer") host.layout.navFade = (on) => fire("layout.navFade", [Boolean(on)]);
+  }
   // The page moved under the frame (scroll, resize, a route, a fold, a sheet): told once it settles.
   host.layoutChanged = (fn) => {
     const id = ++seq;

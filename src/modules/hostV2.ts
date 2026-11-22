@@ -117,8 +117,11 @@ type Capabilities = {
     /** The blur (px) the host would add: a picture that bakes it in draws it itself. */
     blur: Sub<number>;
   };
-  /** "layout" */
-  layout?: Sub<LayoutState>;
+  /**
+   * "layout". `navFade` (in "sidebar-footer"): the host draws its fade over the nav's lower
+   * edge, above the box, while the nav has more below; false takes it away.
+   */
+  layout?: Sub<LayoutState> & { navFade?: (on: boolean) => void };
 };
 
 /** What a view (one slot mount) gets. */

@@ -151,6 +151,28 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     });
     methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
     methods["backdrop.blur"] = method({ ...watch(push => d.blur(view.el, push)), cap: "backdrop.preblurred" });
+    // The sidebar's fade over the nav's lower edge, drawn by the host (a frame draws only inside itself),
+    // shown while the nav has more below: a module in the sidebar's foot opts in.
+    if (view.slot === "sidebar-footer") {
+      let offFade: (() => void) | null = null;
+      methods["layout.navFade"] = method({
+        args: z.tuple([z.boolean()]),
+        cap: "layout",
+        rate: [2, 4],
+        run([on], ctx) {
+          offFade?.();
+          offFade = null;
+          delete view.el.dataset.navFade;
+          if (!on) return;
+          offFade = ctx.own(
+            d.layout.watch(v => {
+              if (v.navMore) view.el.dataset.navFade = "";
+              else delete view.el.dataset.navFade;
+            }),
+          );
+        },
+      });
+    }
     // A row in the More sheet may close it (e.g. before its own sheet opens): only from there.
     if (view.slot === "mobile-more") methods["more.close"] = method({ args: z.tuple([]), rate: [1, 2], run: () => d.more?.close() });
   }
@@ -160,6 +182,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       watches.forEach(off => off());
       watches.clear();
       d.light.release(token);
+      if (d.view) delete d.view.el.dataset.navFade;
     },
   };
 }
