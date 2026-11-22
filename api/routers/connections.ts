@@ -301,6 +301,11 @@ export const connectionsRouter = createRouter({
               encryptedSecret: "",
               ...jiraColumns(identity),
             })
+            // Added meanwhile (a double click): the same connection, as above.
+            .onConflictDoUpdate({
+              target: [connections.userId, connections.type, connections.baseUrl, connections.remoteAccountId],
+              set: { ...jiraColumns(identity), archivedAt: null, ...(input.label ? { label: input.label } : {}) },
+            })
             .returning();
       await storeSecret(saved.id, identity.secret);
       await forgetProbes(saved.id);

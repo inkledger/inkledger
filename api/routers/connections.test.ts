@@ -42,6 +42,13 @@ describe("Settings → Connections", () => {
     expect(catalog.find((c) => c.type === "shortcut")).toMatchObject({ name: "Shortcut", status: "experimental", how: "token", asksAddress: false });
   });
 
+  it("the same Jira added twice at once is one connection, both told so", async () => {
+    const both = await Promise.allSettled([caller.connections.addJira({ ...login, label: "" }), caller.connections.addJira({ ...login, label: "" })]);
+    expect(both.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    const ids = both.map((r) => (r.status === "fulfilled" ? r.value.id : 0));
+    expect(ids[0]).toBe(ids[1]);
+  });
+
   it("adds a Jira (confirmed live); the same account again is the same connection; another user can't take it", async () => {
     const added = await caller.connections.addJira({ ...login, label: "Client B" });
     expect(added).toMatchObject({ type: "jira", name: "Jira", host: "two.atlassian.net", label: "Client B", status: "ok", legacy: false });
