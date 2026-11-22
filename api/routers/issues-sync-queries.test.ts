@@ -65,7 +65,8 @@ vi.stubGlobal(
  * Queries by K: first sync, then a sync where all K changed status. Before the residuals
  * mini-wave: 21 / 29 / 59 and 22 / 34 / 79 (2 and 3 per issue); now the same at any K.
  */
-const MEASURED = { first: { 1: 21, 5: 21, 20: 21 }, changed: { 1: 22, 5: 22, 20: 22 } } as const;
+// first: +1 since a first worklog pass that finds nothing still reads the local copies (one may be gone in Jira).
+const MEASURED = { first: { 1: 22, 5: 22, 20: 22 }, changed: { 1: 22, 5: 22, 20: 22 } } as const;
 
 describe("a sync of K issues assigned to the user", () => {
   let caller: ReturnType<typeof import("../router").appRouter.createCaller>;

@@ -9,7 +9,9 @@ import {
   fetchWorklogs,
   fetchWorklogsByIds,
   isAuthor,
+  JiraApiError,
   searchIssues,
+  type JiraWorklog,
 } from "./jira/client";
 import { PENDING_PREFIX } from "@contracts/types";
 import { rowFromJira, upsertLocal } from "./routers/worklogs";
@@ -118,9 +120,11 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
   const seen = new Set<string>();
   let imported = 0;
   let deleted = 0;
-  if (found.length === 0) return { imported, deleted };
   // Known issues and local worklogs read once, not once per issue.
-  const [keys, local] = await Promise.all([issueKeysById(user.id, user.connectionId), localWorklogs(user.id, user.connectionId)]);
+  const [keys, local] = await Promise.all([
+    found.length ? issueKeysById(user.id, user.connectionId) : Promise.resolve(new Map<string, string>()),
+    localWorklogs(user.id, user.connectionId),
+  ]);
   const known = new Set(keys.values());
   let added = false;
   for (const issue of found) {
@@ -137,10 +141,32 @@ async function initial({ user, creds }: Ctx, queued: Set<string>): Promise<Pass>
     }
     deleted += await dropMissing(user.id, user.connectionId, issue.key, local.get(issue.key) ?? [], mine.map((w) => w.id), queued, from);
   }
-  // An issue the search no longer finds holds none of the user's worklogs in the window any more.
-  for (const [key, rows] of local) if (!seen.has(key)) deleted += await dropMissing(user.id, user.connectionId, key, rows, [], queued, from);
+  // An issue the search no longer finds may still hold them: the search lags behind writes and
+  // leaves archived issues out. Asked directly, and only for keys with copies in the window.
+  for (const [key, rows] of local) {
+    if (seen.has(key) || !rows.some((w) => w.started.getTime() >= from && !queued.has(w.id))) continue;
+    const there = await worklogsStillOn(creds, key);
+    if (!there) continue;
+    const mine = there.filter((w) => isAuthor(w.author, user.accountId) && Date.parse(w.started) >= from);
+    for (const w of mine) {
+      if (queued.has(w.id)) continue;
+      await upsertLocal(rowFromJira(user.id, key, w, user.connectionId));
+      imported++;
+    }
+    deleted += await dropMissing(user.id, user.connectionId, key, rows, mine.map((w) => w.id), queued, from);
+  }
   if (added) await refreshActivity(user.id);
   return { imported, deleted };
+}
+
+/** An issue's worklogs read directly; [] when the issue is gone, null when it can't be read now (kept as is). */
+async function worklogsStillOn(creds: Ctx["creds"], key: string): Promise<JiraWorklog[] | null> {
+  try {
+    return await fetchWorklogs(creds, key);
+  } catch (e) {
+    if (e instanceof JiraApiError && e.status === 404) return [];
+    return null;
+  }
 }
 
 async function incremental({ user, creds }: Ctx, since: number, queued: Set<string>): Promise<Pass> {

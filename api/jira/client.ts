@@ -623,7 +623,9 @@ async function worklogIdsSince(
     }>(creds, `${apiBase(creds)}/worklog/${what}?since=${cursor}`);
     ids.push(...(res.values ?? []).map((v) => String(v.worklogId)));
     until = res.until ?? until;
-    if (res.lastPage !== false || !res.until || res.until === cursor) return { ids, until, complete: true };
+    if (res.lastPage !== false) return { ids, until, complete: true };
+    // More pages, but the feed doesn't move (a bulk import stamped one instant): held there, never skipped past.
+    if (!res.until || res.until === cursor) return { ids, until, complete: false };
     cursor = res.until;
   }
   // Stopped at the page cap: the feed goes on past `until`.

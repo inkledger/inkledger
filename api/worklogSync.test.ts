@@ -48,6 +48,8 @@ const jira = {
   big: false,
   /** The updated feed never reaching its last page (each page one step further). */
   endlessUpdated: false,
+  /** The updated feed saying "more" without moving (a bulk import stamped one instant). */
+  stuckUpdated: false,
   /** The issues the worklog search finds (default: PRJ-1). */
   found: null as null | string[],
   /** Where the deleted feed says it reached (default: just after now). */
@@ -72,6 +74,9 @@ vi.stubGlobal(
     }
     if (p.endsWith("/issue/PRJ-9/worklog")) return json({ worklogs: [wl("900", "acc-1", now - 3 * DAY)], total: 1 });
     if (p.endsWith("/issue/PRJ-1/worklog")) return json({ worklogs: jira.prj1, total: jira.prj1.length });
+    if (p.endsWith("/issue/PRJ-3/worklog")) return json({ worklogs: [], total: 0 });
+    if (p.endsWith("/issue/PRJ-4/worklog")) return json({ errorMessages: ["Issue does not exist"] }, 404);
+    if (p.endsWith("/worklog/updated") && jira.stuckUpdated) return json({ values: [], lastPage: false, until: Number(url.searchParams.get("since")) });
     if (p.endsWith("/worklog/updated") && jira.endlessUpdated) {
       const since = Number(url.searchParams.get("since"));
       return json({ values: [], lastPage: false, until: since + 1 });
@@ -170,6 +175,20 @@ describe("worklogs from Jira", () => {
     expect(after).toBe(before + 200);
   });
 
+  it("an updated feed that says 'more' without moving holds the checkpoint where it stuck", async () => {
+    const { syncWorklogs } = await import("./worklogSync");
+    const before = await checkpoint();
+    jira.stuckUpdated = true;
+    jira.deletedUntil = before + 10_000_000;
+    try {
+      await syncWorklogs(user);
+    } finally {
+      jira.stuckUpdated = false;
+      jira.deletedUntil = 0;
+    }
+    expect(await checkpoint()).toBe(before);
+  });
+
   it("a site-wide deleted feed longer than one statement's parameters still deletes", async () => {
     const { syncWorklogs } = await import("./worklogSync");
     jira.deleted = Array.from({ length: 70_000 }, (_, i) => ({ worklogId: 1_000_000 + i }));
@@ -185,6 +204,28 @@ describe("worklogs from Jira", () => {
     (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'PRJ-3', '300', 600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 5 * DAY));
     await me.worklogs.reimport();
     expect((await mine()).map(w => w.id)).toEqual(["100"]);
+  });
+
+  it("«Reimporta» keeps a copy the search leaves out while Jira still has it (index lag, archived issue): asked directly", async () => {
+    (await q("INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, project_key, project_name, url, synced_at) SELECT user_id, connection_id, '19', 'PRJ-9', 'Lagging', 'To Do', 'PRJ', 'P', 'u', 1 FROM issues WHERE key = 'PRJ-1'"));
+    (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'PRJ-9', '900', 3600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 3 * DAY));
+    // An issue deleted in Jira: its copies go.
+    (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'PRJ-4', '400', 600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 4 * DAY));
+    await me.worklogs.reimport();
+    expect((await mine()).map((w) => w.id)).toEqual(["100", "900"]);
+    await q("DELETE FROM worklogs WHERE jira_worklog_id = '900'");
+  });
+
+  it("a reimport whose search finds nothing still drops copies Jira no longer has", async () => {
+    (await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, comment, synced_at) SELECT user_id, connection_id, 'PRJ-3', '301', 600, ?, '', 1 FROM issues WHERE key = 'PRJ-1'", now - 5 * DAY));
+    jira.found = [];
+    try {
+      await me.worklogs.reimport();
+    } finally {
+      jira.found = null;
+    }
+    expect((await q<{ id: string }>("SELECT jira_worklog_id id FROM worklogs WHERE jira_worklog_id = '301'"))).toEqual([]);
+    await me.worklogs.reimport();
   });
 
   it("a first import over more than 5000 issues reads them all (none left out by a cap)", async () => {
