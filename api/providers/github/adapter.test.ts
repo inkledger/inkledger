@@ -263,6 +263,27 @@ describe("github, a refused call", () => {
     warn.mockRestore();
   });
 
+  it("an identity call that can't answer (5xx, a rate limit) settles nothing: out of reach for now, asked again next time", async () => {
+    const { sim, conn } = simulated();
+    let identity: "down" | "limited" | "up" = "down";
+    vi.stubGlobal("fetch", async (input: Request | URL | string, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("/user/repos")) return Response.json({ message: "Bad credentials" }, { status: 401 });
+      if (url.endsWith("/user") && identity === "down") return Response.json({ message: "Server Error" }, { status: 503 });
+      if (url.endsWith("/user") && identity === "limited") return Response.json({ message: "Slow down" }, { status: 429, headers: { "retry-after": "30" } });
+      return sim.fetch(input, init);
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const b = bindTracker(githubProvider, conn);
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "unavailable", status: 401 });
+    identity = "limited";
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "unavailable", status: 401 });
+    // Not kept as a verdict: once /user answers, the refusal is that call's alone.
+    identity = "up";
+    await expect(b.containers!(meta())).rejects.toMatchObject({ kind: "forbidden", status: 401 });
+    warn.mockRestore();
+  });
+
   it("an expired token is refreshed and the original call retried once with the new Bearer", async () => {
     const { sim, conn: base } = simulated();
     let token = "gho_old";

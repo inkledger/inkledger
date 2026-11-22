@@ -212,7 +212,9 @@ export const forgetRefusalVerdicts = () => verdicts.clear();
  * calls were refused meanwhile (a basic-auth server may lock an account that
  * is hammered with bad credentials): still accepted, the refusal is that
  * call's alone (forbidden, the connection stays usable); refused too, it is
- * the connection's (auth, marked to reconnect upstream). A call its caller
+ * the connection's (auth, marked to reconnect upstream); not answered (a
+ * timeout, a rate limit, a server error), nothing is settled and the call is
+ * out of reach for now (unavailable). A call its caller
  * gave up on asks nothing. Said in the log either way.
  */
 async function confirmRefused(
@@ -227,15 +229,30 @@ async function confirmRefused(
     return { error: e, refused: false };
   const said = `[provider] refused: connection ${connectionId} (${type}) ${name}, ${e.status ?? "no status"} "${e.message}"`;
   let why = "";
-  const verdict = await verdicts.load(connectionId, async () => {
-    try {
-      await verify();
-      return "accepted";
-    } catch (v) {
-      why = ` (${v instanceof Error ? v.message : String(v)})`;
-      return "refused";
-    }
-  });
+  let verdict: "accepted" | "refused" | undefined;
+  try {
+    verdict = await verdicts.load(connectionId, async () => {
+      try {
+        await verify();
+        return "accepted";
+      } catch (v) {
+        const err = normalizeError(v, signal);
+        // Only verify refused too settles it: no answer (timeout, 429, 5xx) is no verdict, kept or given.
+        if (err.kind !== "auth" && err.kind !== "forbidden") throw err;
+        why = ` (${err.message})`;
+        return "refused";
+      }
+    });
+  } catch (v) {
+    console.warn(`${said}; verify could not tell (${v instanceof Error ? v.message : String(v)}): tried again later`);
+    return {
+      error: new ProviderError("unavailable", e.message, {
+        status: e.status,
+        cause: e,
+      }),
+      refused: false,
+    };
+  }
   if (verdict !== "accepted") {
     console.warn(`${said}; verify refused too${why}: waits to be reconnected`);
     return { error: e, refused: true };
