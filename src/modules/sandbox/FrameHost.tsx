@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { ModuleListEntry } from "@contracts/modules";
 import type { ViewSlot } from "../hostV2";
 import type { Hub } from "../host";
@@ -8,8 +8,9 @@ import { mountView } from "./frames";
 export function FramedBox({ hub, entry, slot, className }: { hub: Hub; entry: ModuleListEntry; slot: ViewSlot; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   // The latest entry, without remaking the frame when the list is fetched again (a fresh token, same package).
+  // Set before the mount below (layout effects run in order): a new package mounts with its own entry.
   const latest = useRef(entry);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = entry;
   });
   const { id, frameUrl } = entry;
