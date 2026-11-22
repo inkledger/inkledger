@@ -326,7 +326,10 @@ test("no syntax needed: day, issue, priority, estimate and repeat from chips; st
     await step.press("Enter");
     await row.getByRole("checkbox", { name: "Step done: Slides" }).click();
     await row.getByRole("button", { name: "1 of 1 steps done: show them" }).waitFor();
-    assert.deepEqual(JSON.parse((await db.q("SELECT steps FROM todos"))[0].steps).map(s => [s.text, s.done]), [["Slides", true]]);
+    // Shown at once, stored a moment later.
+    const storedSteps = async () => JSON.parse((await db.q("SELECT steps FROM todos"))[0].steps).map(s => [s.text, s.done]);
+    for (let i = 0; i < 50 && JSON.stringify(await storedSteps()) !== JSON.stringify([["Slides", true]]); i++) await page.waitForTimeout(100);
+    assert.deepEqual(await storedSteps(), [["Slides", true]]);
     // Another issue, searched, from the row's menu.
     await row.getByRole("button", { name: "Actions for “Prepare the demo”" }).click();
     await page.getByRole("menuitem", { name: "Tie to another issue…" }).click();
