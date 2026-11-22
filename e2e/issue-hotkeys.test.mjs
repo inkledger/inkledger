@@ -33,3 +33,21 @@ test("issue page: C copies the key once, L opens one Log time dialog", () =>
     await dialog.first().waitFor();
     assert.equal(await dialog.count(), 1, "one Log time dialog again");
   }));
+
+test("issue page: S held down flips the favorite once, not once per repeat", () =>
+  withApp({}, async ({ page, base }) => {
+    const toggles = [];
+    page.on("request", r => {
+      if (r.url().includes("issues.toggleFavorite")) toggles.push(r.url());
+    });
+    await page.goto(`${base}/issues/DEMO-101`);
+    await page.getByRole("heading", { name: /Test task number 1/ }).first().waitFor();
+    await page.getByRole("button", { name: "Log time" }).waitFor();
+    // Held: the second and third keydowns are repeats.
+    await page.keyboard.down("s");
+    await page.keyboard.down("s");
+    await page.keyboard.down("s");
+    await page.keyboard.up("s");
+    await page.waitForTimeout(1000);
+    assert.equal(toggles.length, 1, "one toggle for one held key");
+  }));

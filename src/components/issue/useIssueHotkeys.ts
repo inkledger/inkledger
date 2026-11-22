@@ -57,7 +57,8 @@ export function useIssueHotkeys({
   useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      // A held key repeats: "s" would flip the favorite once per repeat.
+      if (e.repeat || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTyping(e.target) || isDialogOpen() || inFloat(e.target)) return;
       if (hotkeySequence.pending()) return; // "g b" navigates, it doesn't copy
       const { key: k, connection: c, flags: f, act: a, named: n, onLogTime: log } = keyRef.current;
