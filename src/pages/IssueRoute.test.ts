@@ -33,4 +33,10 @@ describe("opening an issue by its identity", () => {
     queries["issues.locate"] = { data: { key: "APP-1", connectionId: 3 } };
     expect(draw("/issues/3/10001")).toContain("detail APP-1");
   });
+
+  // TanStack keeps the data on a failed refetch: the issue went behind an error screen.
+  it("a failed refetch keeps the issue found before", () => {
+    queries["issues.locate"] = { data: { key: "APP-1", connectionId: 3 }, error: new Error("offline") };
+    expect(draw("/issues/3/10001")).toContain("detail APP-1");
+  });
 });

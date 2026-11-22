@@ -16,4 +16,12 @@ describe("the connections list", () => {
     queries["connections.list"] = { error: new Error("offline") };
     expect(draw()).toContain("Retry");
   });
+
+  // A failed refresh swapped the list read before for an error screen.
+  it("a failed refresh keeps the list read before, said to be maybe out of date", () => {
+    queries["connections.list"] = { data: [], error: new Error("offline") };
+    const html = draw();
+    expect(html).toContain("out of date");
+    expect(html).toContain("No tracker connected yet.");
+  });
 });
