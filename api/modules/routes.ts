@@ -1,10 +1,11 @@
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
-import { MODULES_PATH } from "@contracts/modules";
+import { MODULES_PATH, MODULES_RUN_PATH } from "@contracts/modules";
 import { restUser } from "../context";
-import { mayRunModule } from "../queries/accounts";
+import { can, mayRunModule, userById } from "../queries/accounts";
 import { extraKey } from "./keys";
 import { installBundle, moduleFile } from "./registry";
+import { runTokenUser } from "./runToken";
 
 /** Module code and uploads: signed-in users only. */
 export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
@@ -30,6 +31,33 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     return c.body(new Uint8Array(body), 200, {
       "Content-Type": "text/javascript; charset=utf-8",
       "Cache-Control": "private, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+    });
+  });
+
+  // Framed modules' code: the opaque frame sends no cookie (nor may it read
+  // anything with one), the token says who asked. Every refusal looks the same.
+  app.get(`${MODULES_RUN_PATH}/:token/:id/:hash/*`, async (c) => {
+    const notFound = () => c.text("Not Found", 404);
+    const { token, id, hash } = c.req.param();
+    const userId = runTokenUser(token, id, hash);
+    if (userId === null) return notFound();
+    // Held to what the cookie route holds the account to, now: a revoked grant doesn't last the hour.
+    const user = await userById(userId);
+    if (!user || user.disabledAt || user.mustChangePassword || !can(user, "useModules") || !mayRunModule(user, id)) return notFound();
+    let file: string;
+    try {
+      file = decodeURIComponent(c.req.path.slice(`${MODULES_RUN_PATH}/${token}/${id}/${hash}/`.length));
+    } catch {
+      return notFound();
+    }
+    const body = await moduleFile(id, hash, file, "frame");
+    if (!body) return notFound();
+    return c.body(new Uint8Array(body), 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      // Read by an opaque origin, never with credentials.
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "private, max-age=3600",
       "X-Content-Type-Options": "nosniff",
     });
   });

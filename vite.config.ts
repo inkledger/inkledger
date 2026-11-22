@@ -67,7 +67,8 @@ const csv = (raw: string | undefined) => (raw ?? "").split(",").map(s => s.trim(
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
+    // Framed modules' code and documents (/modules/run, /modules/frame) are the server's too.
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|modules\/(?:run|frame)\/).*$/] }),
     react(),
     clientI18n(),
     appBuild(),

@@ -344,6 +344,92 @@ describe("add-on modules", () => {
     expect((await app.request(`/api/modules/hello/${hash}/index.js`, { headers: { cookie } })).status).toBe(404);
   });
 
+  describe("framed modules' code, by token", () => {
+    const framed = async () => {
+      await upload(bundle({ "index.js": ENTRY, "lib/w.js": "export {};\n" }, { hostApi: { min: 1, max: 2 }, runtime: "frame" }));
+      await (await import("./registry")).addLicense(license("inkledger.hello"));
+      const [m] = (await caller.modules.list()).modules;
+      const hash = (m.frameUrl ?? "").split("/").pop() ?? "";
+      return { token: m.token ?? "", hash, url: (file: string, token = m.token ?? "", h = hash, id = "hello") => `/modules/run/${token}/${id}/${h}/${file}` };
+    };
+
+    it("serves a framed module's files without a cookie, for any origin, never with credentials", async () => {
+      const { token, url } = await framed();
+      expect(token).toMatch(/^\d+\.\d+\.[\w-]{43}$/);
+      const res = await app.request(url("index.js"), { headers: { origin: "null", "sec-fetch-site": "cross-site" } });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe(ENTRY);
+      expect(res.headers.get("access-control-allow-origin")).toBe("*");
+      expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+      expect(res.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(res.headers.get("cache-control")).not.toContain("immutable");
+      expect((await app.request(url("lib/w.js"))).status).toBe(200);
+    });
+
+    it("a token runs out", async () => {
+      const { hash, url } = await framed();
+      const { runToken, runTokenUser } = await import("./runToken");
+      const { RUN_TOKEN_MS } = await import("@contracts/modules");
+      const old = runToken(userId, "hello", hash, Date.now() - RUN_TOKEN_MS - 2000);
+      expect((await app.request(url("index.js", old))).status).toBe(404);
+      const fresh = runToken(userId, "hello", hash, 0);
+      expect(runTokenUser(fresh, "hello", hash, RUN_TOKEN_MS - 1000)).toBe(userId);
+      expect(runTokenUser(fresh, "hello", hash, RUN_TOKEN_MS + 1000)).toBeNull();
+    });
+
+    it("a token is bound to its module, package and signature", async () => {
+      const { token, hash, url } = await framed();
+      const [u, exp, sig] = token.split(".");
+      const flipped = `${u}.${exp}.${sig.slice(0, -1)}${sig.endsWith("A") ? "B" : "A"}`;
+      expect((await app.request(url("index.js", flipped))).status).toBe(404);
+      expect((await app.request(url("index.js", `${u}.${Number(exp) + 3600}.${sig}`))).status).toBe(404);
+      expect((await app.request(url("index.js", token, "0".repeat(32)))).status).toBe(404);
+      expect((await app.request(url("index.js", token, hash, "other"))).status).toBe(404);
+      expect((await app.request(url("index.js", "garbage"))).status).toBe(404);
+      expect((await app.request(url("index.js", token, hash))).status).toBe(200);
+    });
+
+    it("a token is the account's own, held to its grants now", async () => {
+      const { token, hash, url } = await framed();
+      const { runToken } = await import("./runToken");
+      const [, exp, sig] = token.split(".");
+      // Another account's id over this account's signature.
+      expect((await app.request(url("index.js", `${userId + 1}.${exp}.${sig}`))).status).toBe(404);
+      // Well signed, for an account that isn't there.
+      expect((await app.request(url("index.js", runToken(userId + 999, "hello", hash)))).status).toBe(404);
+      const { getDb } = await import("../queries/connection");
+      const { users } = await import("@db/schema");
+      try {
+        await getDb().update(users).set({ role: "member", permissions: JSON.stringify(["useModules"]), moduleGrants: "[]" }).where(eq(users.id, userId));
+        expect((await app.request(url("index.js"))).status).toBe(404);
+        await getDb().update(users).set({ moduleGrants: JSON.stringify(["hello"]) }).where(eq(users.id, userId));
+        expect((await app.request(url("index.js"))).status).toBe(200);
+        await getDb().update(users).set({ disabledAt: new Date() }).where(eq(users.id, userId));
+        expect((await app.request(url("index.js"))).status).toBe(404);
+      } finally {
+        await getDb().update(users).set({ role: "admin", permissions: "[]", moduleGrants: "[]", disabledAt: null }).where(eq(users.id, userId));
+      }
+    });
+
+    it("only declared code files of the package, nothing outside it", async () => {
+      const { url } = await framed();
+      for (const f of ["manifest.json", "manifest.sig", "..%2Fmanifest.json", "%2e%2e/%2e%2e/package.json", "lib/..%2Findex.js", "nope.js", "bad%E0%A4%A.js"]) {
+        expect((await app.request(url(f))).status, f).toBe(404);
+      }
+    });
+
+    it("a module running in the page is not served by token, nor gets one", async () => {
+      await upload(bundle());
+      await (await import("./registry")).addLicense(license("inkledger.hello"));
+      const [m] = (await caller.modules.list()).modules;
+      expect(m.token).toBeNull();
+      const hash = /\/([0-9a-f]{32})\//.exec(m.entryUrl ?? "")?.[1] ?? "";
+      const { runToken } = await import("./runToken");
+      expect((await app.request(`/modules/run/${runToken(userId, "hello", hash)}/hello/${hash}/index.js`)).status).toBe(404);
+    });
+  });
+
   it("a licence holds for every version of its product, older or newer than when it was bought", async () => {
     const { addLicense } = await import("./registry");
     await addLicense(license("inkledger.hello", KEY, { issued: Date.parse("2026-01-01") }));

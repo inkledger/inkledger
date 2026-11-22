@@ -20,6 +20,7 @@ import { extraKey } from "../modules/keys";
 import { acceptToken, activate, activationsOf, activationStates, deactivate, offlineCode } from "../modules/activation";
 import { StoreError } from "../store/client";
 import { proofFile, proofOf } from "../modules/proof";
+import { runToken } from "../modules/runToken";
 import { createRateLimiter } from "../lib/security";
 import { throttle } from "../workspace/limits";
 import { LICENSE_FILE_FORMAT } from "@contracts/store";
@@ -185,7 +186,7 @@ export const modulesRouter = createRouter({
       .from(moduleStorage)
       .where(and(eq(moduleStorage.userId, ctx.user.id), eq(moduleStorage.key, OFF)));
     // Who may not use modules runs none (a store manager still sees them, to manage).
-    const modules = await listModules();
+    const modules = await listModules((id, hash) => (can(ctx.user, "useModules") && mayRunModule(ctx.user, id) ? runToken(ctx.user.id, id, hash) : null));
     return {
       modules,
       licenses,
