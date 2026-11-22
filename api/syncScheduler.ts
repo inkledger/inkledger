@@ -1,7 +1,7 @@
 import { pushSinks } from "./sync/extraSinks";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, max } from "drizzle-orm";
 import { getDb } from "./queries/connection";
-import { connections, sessions, syncState, users, type User } from "@db/schema";
+import { connectionSync, connections, sessions, syncState, users, type User } from "@db/schema";
 import { markConnection, markJiraConnection } from "./providers/connections";
 import { originOf } from "./providers/core/origin";
 import { syncUser } from "./sync/orchestrator";
@@ -41,13 +41,26 @@ export async function activeUsers(now: Date = new Date()): Promise<User[]> {
 /** A background sync is full at least this often (catalog refresh + watchers). */
 const FULL_SYNC_EVERY_MS = 60 * 60_000;
 
-/** Full when the user never had one, or the last is older than FULL_SYNC_EVERY_MS. */
+/**
+ * Full when the user never had one, or the last is older than FULL_SYNC_EVERY_MS.
+ * With a working Jira, Jira's own record says; without one, the newest full
+ * issue pass of the user's working trackers (Jira's record never moves then).
+ */
 export async function needsFullSync(userId: number, now: number = Date.now()): Promise<boolean> {
-  const [row] = await getDb()
-    .select({ at: syncState.lastFullSyncAt })
-    .from(syncState)
-    .where(eq(syncState.userId, userId))
+  const db = getDb();
+  const working = and(eq(connections.userId, userId), isNull(connections.archivedAt), eq(connections.status, "ok"));
+  const [jira] = await db
+    .select({ id: connections.id })
+    .from(connections)
+    .where(and(working, eq(connections.type, "jira")))
     .limit(1);
+  const [row] = jira
+    ? await db.select({ at: syncState.lastFullSyncAt }).from(syncState).where(eq(syncState.userId, userId)).limit(1)
+    : await db
+        .select({ at: max(connectionSync.lastFullAt) })
+        .from(connectionSync)
+        .innerJoin(connections, eq(connections.id, connectionSync.connectionId))
+        .where(and(working, eq(connectionSync.stream, "issues")));
   const last = row?.at;
   return !last || now - last.getTime() >= FULL_SYNC_EVERY_MS;
 }

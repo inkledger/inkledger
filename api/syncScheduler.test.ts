@@ -119,6 +119,19 @@ describe("background Jira sync", () => {
     expect(await mod.needsFullSync(users[0].id)).toBe(false);
   });
 
+  it("a user with no working Jira goes full hourly by its trackers' own full passes, not every pass", async () => {
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES ('nojira', 'N', 1) RETURNING id");
+    const [gl] = await q<{ id: number }>("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'gitlab', 'https://gitlab.com', '1', '{}', 'x', 1) RETURNING id", u.id);
+    // Its Jira waits to be reconnected: Jira's own record stays old.
+    await q("INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, status, created_at) VALUES (?, 'jira', 'https://other.atlassian.net', 'me', '{}', 'x', 'auth_failed', 1)", u.id);
+    await q("INSERT INTO sync_state (user_id, last_full_sync_at) VALUES (?, ?)", u.id, Date.now() - 5 * 60 * 60_000);
+    expect(await mod.needsFullSync(u.id)).toBe(true);
+    await q("INSERT INTO connection_sync (connection_id, stream, last_full_at) VALUES (?, 'issues', ?)", gl.id, Date.now() - 10 * 60_000);
+    expect(await mod.needsFullSync(u.id)).toBe(false);
+    await q("UPDATE connection_sync SET last_full_at = ? WHERE connection_id = ?", Date.now() - 61 * 60_000, gl.id);
+    expect(await mod.needsFullSync(u.id)).toBe(true);
+  });
+
   it("records failures without throwing", async () => {
     jiraDown = true;
     expect(await mod.syncActiveUsers()).toEqual({ ok: 0, failed: 1 });
