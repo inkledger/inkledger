@@ -190,4 +190,34 @@ describe("a TODO on the pinboard", () => {
     await me.todos.remove({ id: todo.id });
     expect((await me.pinboard.list({ boardId: second.id })).some((x) => x.todoId === todo.id)).toBe(false);
   });
+
+  it("a mail's post-it put back by Undo is the mail again; putting back one already there again is no error", async () => {
+    const { q } = await import("../queries/connection");
+    const [{ id: userId }] = await q<{ id: number }>("SELECT user_id AS id FROM connections WHERE base_url = 'https://acme.atlassian.net'");
+    const [{ id: mailId }] = await q<{ id: number }>("INSERT INTO mails (user_id, subject, source, created_at, updated_at) VALUES (?, 'invoice', 'eml', 1, 1) RETURNING id", userId);
+    const a = await me.pinboard.pinMail({ mailId });
+    const gone = await me.pinboard.remove({ id: a.id });
+    const back = { boardId: gone.boardId ?? 0, issueKey: null, mailId: gone.mailId, note: gone.note, color: gone.color as "blue", x: gone.x, y: gone.y, rotation: gone.rotation };
+    await me.pinboard.restore(back);
+    expect((await me.pinboard.list({ boardId: gone.boardId ?? undefined })).filter((x) => x.mail?.id === mailId)).toHaveLength(1);
+    await expect(me.pinboard.restore(back)).resolves.toEqual({ ok: true });
+    expect((await me.pinboard.list({ boardId: gone.boardId ?? undefined })).filter((x) => x.mail?.id === mailId)).toHaveLength(1);
+  });
+
+  it("two pins of one TODO at once: one post-it, no error", async () => {
+    const todo = await me.todos.add({ text: "twice" });
+    const both = await Promise.all([me.pinboard.pinTodo({ todoId: todo.id }), me.pinboard.pinTodo({ todoId: todo.id })]);
+    expect(new Set(both.map((b) => b.id)).size).toBe(1);
+  });
+
+  it("a new account's first two board reads at once make one default board; boards past the maximum are refused even at once", async () => {
+    const fresh = await callerFor("https://fresh.atlassian.net");
+    const [a, b] = await Promise.all([fresh.pinboard.boards({}), fresh.pinboard.boards({})]);
+    expect(a.length).toBe(1);
+    expect(b.length).toBe(1);
+    const { MAX_BOARDS } = await import("@contracts/pinboard");
+    const made = await Promise.allSettled(Array.from({ length: MAX_BOARDS + 3 }, (_, i) => fresh.pinboard.createBoard({ name: `B${i}` })));
+    expect((await fresh.pinboard.boards({})).length).toBeLessThanOrEqual(MAX_BOARDS);
+    expect(made.some((m) => m.status === "rejected")).toBe(true);
+  });
 });

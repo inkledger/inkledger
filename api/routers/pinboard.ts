@@ -69,7 +69,12 @@ async function boardsOf(userId: number) {
       .orderBy(asc(pinboards.position), asc(pinboards.id));
   let rows = await read();
   if (rows.length === 0) {
-    await db.insert(pinboards).values({ userId, name: defaultBoardName(), position: 0 });
+    // Made once under the user's board lock: two first reads at once can't each make one.
+    await db.transaction(async (tx) => {
+      await xactLockIn(tx, "pinboards", userId);
+      const [any] = await tx.select({ id: pinboards.id }).from(pinboards).where(eq(pinboards.userId, userId)).limit(1);
+      if (!any) await tx.insert(pinboards).values({ userId, name: defaultBoardName(), position: 0 });
+    });
     rows = await read();
   }
   return rows;
@@ -156,8 +161,12 @@ async function pinOnce(userId: number, board: Pinboard, item: { todoId: number }
   const [row] = await db
     .insert(pinboardNotes)
     .values({ userId, boardId: board.id, ...item, note: "", color, ...firstFreeSlot(mine), rotation: randomTilt(), z: await nextZ(board.id) })
+    .onConflictDoNothing()
     .returning({ id: pinboardNotes.id });
-  return pinned(board, row.id, false);
+  if (row) return pinned(board, row.id, false);
+  // Hung by another request meanwhile: that one.
+  const [there] = await db.select({ id: pinboardNotes.id }).from(pinboardNotes).where(and(eq(pinboardNotes.boardId, board.id), eq(column, itemId)));
+  return pinned(board, there.id, true);
 }
 
 /** A TODO hung on a board, as it is now (its text, day, done, its issue). */
@@ -374,7 +383,7 @@ export const pinboardRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-    const boards = await boardsOf(ctx.user.id);
+    await boardsOf(ctx.user.id);
     const bucketId = input.bucketId === undefined ? await activeBucket(ctx.user.id, ctx.deviceId) : input.bucketId;
     if (bucketId !== null) await ownBoardBucket(ctx.user.id, bucketId);
     if (input.follow?.connectionId) {
@@ -384,19 +393,25 @@ export const pinboardRouter = createRouter({
         .where(and(eq(connections.id, input.follow.connectionId), eq(connections.userId, ctx.user.id)));
       if (!own) throw new TRPCError({ code: "NOT_FOUND", message: t("server.pinboard.trackerNotFound") });
     }
-    if (boards.length >= MAX_BOARDS) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.maxBoards", { count: MAX_BOARDS }) });
-    }
-    const [row] = await getDb()
-      .insert(pinboards)
-      .values({
-        userId: ctx.user.id,
-        name: input.name,
-        position: Math.max(0, ...boards.map((b) => b.position)) + 1,
-        bucketId,
-        ...(input.follow ? { followField: input.follow.field, followValue: input.follow.value, followConnectionId: input.follow.connectionId } : {}),
-      })
-      .returning({ id: pinboards.id });
+    // Counted and made under the user's board lock: boards made at once can't pass the maximum.
+    const row = await getDb().transaction(async (tx) => {
+      await xactLockIn(tx, "pinboards", ctx.user.id);
+      const boards = await tx.select({ position: pinboards.position }).from(pinboards).where(eq(pinboards.userId, ctx.user.id));
+      if (boards.length >= MAX_BOARDS) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: t("server.pinboard.maxBoards", { count: MAX_BOARDS }) });
+      }
+      const [made] = await tx
+        .insert(pinboards)
+        .values({
+          userId: ctx.user.id,
+          name: input.name,
+          position: Math.max(0, ...boards.map((b) => b.position)) + 1,
+          bucketId,
+          ...(input.follow ? { followField: input.follow.field, followValue: input.follow.value, followConnectionId: input.follow.connectionId } : {}),
+        })
+        .returning({ id: pinboards.id });
+      return made;
+    });
     return { id: row.id };
   }),
 
@@ -845,6 +860,8 @@ export const pinboardRouter = createRouter({
         issueNoteId: z.number().int().positive().nullable().optional(),
         /** A TODO's post-it: hung again while the TODO is there (else a free note with its words). */
         todoId: z.number().int().positive().nullable().optional(),
+        /** A mail's post-it: hung again while the mail is pinned (else a free note with its words). */
+        mailId: z.number().int().positive().nullable().optional(),
         note,
         color,
         x: coord,
@@ -860,6 +877,7 @@ export const pinboardRouter = createRouter({
       const [todo] = input.todoId
         ? await getDb().select().from(todos).where(and(eq(todos.id, input.todoId), eq(todos.userId, ctx.user.id)))
         : [];
+      const [mail] = input.mailId ? await getDb().select({ id: mails.id }).from(mails).where(and(eq(mails.id, input.mailId), eq(mails.userId, ctx.user.id))) : [];
       const connectionId = input.issueKey ? (await issueConnection(ctx.user.id, input.issueKey, input.connectionId)).id : null;
       const [c] = await getDb()
         .select({ n: sql<number>`count(*)` })
@@ -877,12 +895,15 @@ export const pinboardRouter = createRouter({
           connectionId,
           issueNoteId: input.issueNoteId ?? null,
           todoId: todo?.id ?? null,
+          mailId: mail?.id ?? null,
           note: input.note,
           color: input.color,
           ...clampToCanvas(input.x, input.y),
           rotation: input.rotation,
           z: await nextZ(board.id),
-        });
+        })
+        // Its TODO, mail or note hung on the board again meanwhile: it is there already.
+        .onConflictDoNothing();
       return { ok: true };
     }),
 

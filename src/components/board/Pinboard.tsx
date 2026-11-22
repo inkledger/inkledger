@@ -322,6 +322,7 @@ export function Pinboard({
       connectionId: removed.connectionId ?? undefined,
       issueNoteId: removed.issueNoteId,
       todoId: removed.todoId,
+      mailId: removed.mailId,
       note: removed.note,
       color: removed.color as NoteColor,
       x: removed.x,
