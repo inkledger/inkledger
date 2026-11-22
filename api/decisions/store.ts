@@ -141,6 +141,9 @@ export async function listDecisions(userId: number): Promise<DecisionView[]> {
   return rows.map(viewOf);
 }
 
+/** A draft's whole size, every field together: each patch is bounded, so is what they add up to. */
+const DRAFT_MAX_CHARS = 16_000;
+
 /** Draft fields typed on one page, for all the others (last writer per field). */
 export async function patchDraft(userId: number, id: string, fields: Record<string, unknown>, by: Actor) {
   const d = await getDb().transaction(async (tx) => {
@@ -149,6 +152,7 @@ export async function patchDraft(userId: number, id: string, fields: Record<stri
     if (cur.state !== "open") return cur;
     const at = Date.now();
     const draft = { ...parse(cur.draft), ...fields };
+    if (JSON.stringify(draft).length > DRAFT_MAX_CHARS) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "draft too large" });
     const draftBy = { ...parse(cur.draftBy), ...Object.fromEntries(Object.keys(fields).map((k) => [k, { client: by.client ?? "", at }])) };
     const [next] = await tx
       .update(decisions)
@@ -196,7 +200,8 @@ export async function answer<T>(userId: number, ref: { id: string; revision: num
     const [back] = await db
       .update(decisions)
       .set({ state: "open", busyBy: null, busyUntil: null, resolution: JSON.stringify({ lastError: e instanceof Error ? e.message : String(e) }), revision: sql`${decisions.revision} + 1`, updatedAt: new Date() })
-      .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving")))
+      // Only this claim: one taken over after its lease ran out (reconciled, claimed again) is not this answer's to reopen.
+      .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving"), eq(decisions.revision, claimed.revision)))
       .returning();
     if (back) told(userId, back, by.client);
     throw e;
@@ -204,7 +209,7 @@ export async function answer<T>(userId: number, ref: { id: string; revision: num
   const [done] = await db
     .update(decisions)
     .set({ state: "resolved", busyBy: null, busyUntil: null, resolution: JSON.stringify({ choice, by: by.label, client: by.client ?? "", at: Date.now(), ...resultOf(r) }), revision: sql`${decisions.revision} + 1`, updatedAt: new Date() })
-    .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving")))
+    .where(and(eq(decisions.id, ref.id), eq(decisions.state, "resolving"), eq(decisions.revision, claimed.revision)))
     .returning();
   if (done) told(userId, done, by.client);
   return r;

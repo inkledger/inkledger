@@ -8,6 +8,7 @@ import { ideaFiles, ideas } from "@db/schema";
 import { IDEA_FILE_MAX_BYTES, IDEA_FILES_PER_IDEA, IDEA_FILES_QUOTA_BYTES, ideaFileIds, ideaFileMarkdown, replaceIdeaFiles } from "@contracts/ideaFiles";
 import { t } from "@contracts/i18n";
 import { getDb } from "./queries/connection";
+import { xactLockIn } from "./queries/locks";
 import { restUser } from "./context";
 import { openBytesFor, sealBytesFor } from "./lib/crypto";
 import { attachmentHeaders } from "./attachments";
@@ -85,18 +86,20 @@ export function registerIdeaFileRoutes(app: App) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const type = sniffImage(bytes);
     if (!type) return c.json({ error: t("server.ideas.fileNotImage") }, 415);
-    const [{ count, total }] = await db
-      .select({
-        count: sql<number>`count(*) FILTER (WHERE ${ideaFiles.ideaId} = ${ideaId})::int`,
-        total: sql<number>`coalesce(sum(${ideaFiles.size}), 0)::bigint`,
-      })
-      .from(ideaFiles)
-      .where(eq(ideaFiles.userId, userId));
-    if (count >= IDEA_FILES_PER_IDEA) return c.json({ error: t("server.ideas.tooManyFiles", { count: IDEA_FILES_PER_IDEA }) }, 400);
-    if (Number(total) + bytes.length > IDEA_FILES_QUOTA_BYTES) return c.json({ error: t("server.ideas.filesQuota", { mb: IDEA_FILES_QUOTA_BYTES / 1024 / 1024 }) }, 400);
     // A name to read, not to obey: no control characters, at most 200.
     const name = [...(file.name || "image")].filter((ch) => ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) !== 127).join("").slice(0, 200) || "image";
     const id = await db.transaction(async (tx) => {
+      // Counted under the user's lock, in the insert's own transaction: uploads at once never pass the quota together.
+      await xactLockIn(tx, "idea-files", userId);
+      const [{ count, total }] = await tx
+        .select({
+          count: sql<number>`count(*) FILTER (WHERE ${ideaFiles.ideaId} = ${ideaId})::int`,
+          total: sql<number>`coalesce(sum(${ideaFiles.size}), 0)::bigint`,
+        })
+        .from(ideaFiles)
+        .where(eq(ideaFiles.userId, userId));
+      if (count >= IDEA_FILES_PER_IDEA) return { error: t("server.ideas.tooManyFiles", { count: IDEA_FILES_PER_IDEA }) };
+      if (Number(total) + bytes.length > IDEA_FILES_QUOTA_BYTES) return { error: t("server.ideas.filesQuota", { mb: IDEA_FILES_QUOTA_BYTES / 1024 / 1024 }) };
       // Sealed for its own id: the row first (a placeholder), then its bytes.
       const [row] = await tx
         .insert(ideaFiles)
@@ -105,6 +108,7 @@ export function registerIdeaFileRoutes(app: App) {
       await tx.update(ideaFiles).set({ data: sealBytesFor(bytes, scopeOf(userId, row.id)) }).where(eq(ideaFiles.id, row.id));
       return row.id;
     });
+    if (typeof id !== "number") return c.json(id, 400);
     return c.json({ id, name, markdown: ideaFileMarkdown(id, name) });
   });
 

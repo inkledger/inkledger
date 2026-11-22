@@ -219,3 +219,49 @@ describe("decisions: the same question on every page, the first answer wins", ()
     expect((await a.decisions.list()).map((x) => [x.kind, x.state, x.payload.issueKey])).toEqual([["timer-log", "open", "DEC-11"]]);
   });
 });
+
+describe("an answer that outlived its lease", () => {
+  beforeAll(async () => {
+    await (await import("../queries/connection")).resetDbForTests();
+  });
+  const setup = async (name: string) => {
+    const [u] = await q<{ id: number }>("INSERT INTO users (username, display_name, created_at) VALUES (?, 'L', 1) RETURNING id", name);
+    const [d] = await q<{ id: string; revision: number }>("INSERT INTO decisions (user_id, kind, dedupe_key, created_at, updated_at) VALUES (?, 'timer-log', 'lease', 1, 1) RETURNING id, revision", u.id);
+    return { userId: u.id, d };
+  };
+  /** Its lease ran out mid-run: reconciled open, then claimed again by another page. */
+  const takenOver = async (userId: number, id: string) => {
+    const { reconcile } = await import("./store");
+    await q("UPDATE decisions SET busy_until = 1 WHERE id = ?", id);
+    await reconcile(userId);
+    await q("UPDATE decisions SET state = 'resolving', busy_by = 'page-b', revision = revision + 1 WHERE id = ? AND state = 'open'", id);
+  };
+
+  it("never marks the newer claim resolved", async () => {
+    const { answer } = await import("./store");
+    const { userId, d } = await setup("lease-done");
+    await answer(userId, d, { client: "page-a", label: "A" }, "log", () => takenOver(userId, d.id));
+    const [after] = await q<{ state: string; busy_by: string }>("SELECT state, busy_by FROM decisions WHERE id = ?", d.id);
+    expect(after).toMatchObject({ state: "resolving", busy_by: "page-b" });
+  });
+
+  it("never reopens the newer claim when it fails", async () => {
+    const { answer } = await import("./store");
+    const { userId, d } = await setup("lease-failed");
+    await expect(answer(userId, d, { client: "page-a", label: "A" }, "log", async () => {
+      await takenOver(userId, d.id);
+      throw new Error("late failure");
+    })).rejects.toThrow("late failure");
+    const [after] = await q<{ state: string; busy_by: string }>("SELECT state, busy_by FROM decisions WHERE id = ?", d.id);
+    expect(after).toMatchObject({ state: "resolving", busy_by: "page-b" });
+  });
+
+  it("refuses a draft that grows past its size across patches", async () => {
+    const { patchDraft } = await import("./store");
+    const { userId, d } = await setup("draft-grows");
+    const by = { client: "page-a", label: "A" };
+    await patchDraft(userId, d.id, { a: "x".repeat(9_000) }, by);
+    await expect(patchDraft(userId, d.id, { b: "x".repeat(9_000) }, by)).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    await patchDraft(userId, d.id, { a: "short" }, by);
+  });
+});

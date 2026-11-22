@@ -95,4 +95,32 @@ describe("idea pictures", () => {
     await caller.settings.revokeShareLinks();
     expect((await app.request(new URL(link!).pathname)).status).not.toBe(200);
   });
+
+  it("parallel uploads never pass the quota together", async () => {
+    const { IDEA_FILES_QUOTA_BYTES } = await import("@contracts/ideaFiles");
+    const { q } = await import("./queries/connection");
+    const [filler] = await caller.ideas.capture({ text: "Filler" });
+    const [{ id: fillerFile }] = await q<{ id: number }>(
+      "INSERT INTO idea_files (user_id, idea_id, name, content_type, size, data, created_at) VALUES (?, ?, 'big.png', 'image/png', ?, ?, 1) RETURNING id",
+      userId, filler.id, 0, Buffer.from([1])
+    );
+    const [{ used }] = await q<{ used: string }>("SELECT coalesce(sum(size), 0)::bigint AS used FROM idea_files WHERE user_id = ?", userId);
+    await q("UPDATE idea_files SET size = ? WHERE id = ?", IDEA_FILES_QUOTA_BYTES - Number(used) - 2 * PNG.length, fillerFile);
+    const [idea] = await caller.ideas.capture({ text: "Race" });
+    // As on a server with a pool: every upload has checked what it can before any of them writes.
+    const db = (await import("./queries/connection")).getDb();
+    const transaction = db.transaction.bind(db);
+    let arrived = 0;
+    const spy = vi.spyOn(db, "transaction").mockImplementation((async (...args: Parameters<typeof db.transaction>) => {
+      arrived++;
+      for (let waited = 0; arrived < 5 && waited < 40; waited++) await new Promise((r) => setTimeout(r, 5));
+      return transaction(...args);
+    }));
+    const answers = await Promise.all(Array.from({ length: 5 }, async () => upload(idea.id, PNG))).finally(() => spy.mockRestore());
+    expect(answers.filter((res) => res.status === 200)).toHaveLength(2);
+    expect(answers.filter((res) => res.status === 400)).toHaveLength(3);
+    const [{ total }] = await q<{ total: string }>("SELECT coalesce(sum(size), 0)::bigint AS total FROM idea_files WHERE user_id = ?", userId);
+    expect(Number(total)).toBeLessThanOrEqual(IDEA_FILES_QUOTA_BYTES);
+    await q("DELETE FROM idea_files WHERE user_id = ?", userId);
+  });
 });
