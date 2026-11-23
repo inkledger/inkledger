@@ -1,6 +1,6 @@
 import type { JiraCredentials } from "@contracts/types";
 import { originate, originOf } from "../providers/core/origin";
-import { safeFetch, type Intent } from "../providers/core/http";
+import { discardBody, safeFetch, type Intent } from "../providers/core/http";
 import { NETWORK_CODES } from "../providers/core/errors";
 import { t } from "@contracts/i18n";
 
@@ -18,6 +18,17 @@ export class JiraApiError extends Error {
     this.name = "JiraApiError";
     this.status = status;
   }
+}
+
+/**
+ * Jira Server's own word that it refused the sign-in (too many failed logins:
+ * a CAPTCHA until a browser sign-in), whatever the status says; null otherwise.
+ */
+function signInDenied(headers: Headers): string | null {
+  const reason = headers.get("x-authentication-denied-reason");
+  if (reason) return reason.split(";")[0].trim() || "AUTHENTICATION_DENIED";
+  const login = headers.get("x-seraph-loginreason") ?? "";
+  return /AUTHENTICATION_DENIED|AUTHENTICATED_FAILED/.test(login) ? login.split(",")[0].trim() : null;
 }
 
 /** Upper bound for a single Jira HTTP call. */
@@ -116,9 +127,18 @@ async function jiraCall<T>(creds: JiraCredentials, path: string, init: RequestIn
     } catch {
       /* keep statusText */
     }
-    throw new JiraApiError(res.status, detail);
+    // A denied sign-in is the credentials' problem (reconnect), never a permission nor an outage to retry.
+    const denied = res.status === 403 ? signInDenied(res.headers) : null;
+    if (denied) throw new JiraApiError(401, `Jira refused the sign-in (${denied}): sign in to Jira in a browser, then reconnect`);
+    // Tomcat sends no reason phrase: the status is all there is.
+    throw new JiraApiError(res.status, detail || `Jira answered ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
+  // Sent elsewhere on the site (an SSO's sign-in page) instead of the API: the credentials no longer open it.
+  if (res.url && new URL(res.url).pathname !== new URL(url).pathname && !(res.headers.get("content-type") ?? "").includes("json")) {
+    await discardBody(res);
+    throw new JiraApiError(401, "Jira sent its sign-in page instead of an answer: reconnect");
+  }
   return (await res.json()) as T;
 }
 
@@ -1034,7 +1054,7 @@ export async function fetchFromSite(creds: JiraCredentials, absoluteUrl: string)
       { headers: { Authorization: authHeader(creds) }, signal: ctrl.signal },
       { allowCrossOrigin: creds.deployment === "cloud" },
     );
-    if (!res.ok) throw new JiraApiError(res.status, res.statusText);
+    if (!res.ok) throw new JiraApiError(res.status, res.statusText || `Jira answered ${res.status}`);
     return res;
   } finally {
     clearTimeout(timer);

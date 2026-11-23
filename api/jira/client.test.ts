@@ -233,6 +233,44 @@ describe("Jira Server / DC 8.x mode", () => {
   });
 });
 
+describe("Jira Server's refusals", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const mock = () => fetch as ReturnType<typeof vi.fn>;
+  const html = (status: number, headers: Record<string, string> = {}) =>
+    new Response("<html><body>Error</body></html>", { status, headers: { "Content-Type": "text/html", ...headers } });
+
+  it("names the status when Jira says nothing (Tomcat sends no reason phrase, the body is a page)", async () => {
+    mock().mockResolvedValueOnce(html(503));
+    await expect(getMyself(serverCreds)).rejects.toMatchObject({ name: "JiraApiError", status: 503, message: "Jira answered 503" });
+  });
+
+  it("a sign-in denied (CAPTCHA after failed logins) is refused credentials, not a permission or an outage", async () => {
+    mock().mockResolvedValueOnce(html(403, { "X-Seraph-LoginReason": "AUTHENTICATION_DENIED", "X-Authentication-Denied-Reason": "CAPTCHA_CHALLENGE; login-url=https://jira.example.it/login.jsp" }));
+    const e = await getMyself(serverCreds).catch((x: unknown) => x);
+    expect(e).toMatchObject({ name: "JiraApiError", status: 401 });
+    expect((e as Error).message).toContain("CAPTCHA_CHALLENGE");
+    expect(normalizeError(e).kind).toBe("auth");
+    // A plain 403 stays a permission.
+    mock().mockResolvedValueOnce(jsonResponse({ errorMessages: ["No permission"] }, 403));
+    await expect(getMyself(serverCreds)).rejects.toMatchObject({ status: 403, message: "No permission" });
+  });
+
+  it("sent to the sign-in page instead of the API: refused credentials", async () => {
+    mock().mockResolvedValueOnce(new Response(null, { status: 302, headers: { Location: "/login.jsp?os_destination=%2Frest%2Fapi%2F2%2Fmyself" } }));
+    const page = html(200);
+    Object.defineProperty(page, "url", { value: "https://jira.example.it/login.jsp?os_destination=%2Frest%2Fapi%2F2%2Fmyself" });
+    mock().mockResolvedValueOnce(page);
+    const e = await getMyself(serverCreds).catch((x: unknown) => x);
+    expect(e).toMatchObject({ name: "JiraApiError", status: 401 });
+    expect(normalizeError(e).kind).toBe("auth");
+  });
+});
+
 describe("redirects (SSRF)", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());

@@ -13,6 +13,7 @@ vi.mock("node:dns/promises", () => ({
 const SITE = "https://acme.atlassian.net";
 let jiraDown = false;
 let tokenRevoked = false;
+let captcha = false;
 let searches = 0;
 
 function json(body: unknown, status = 200) {
@@ -34,6 +35,7 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
   if (url.includes("/search/jql")) {
     searches++;
     if (tokenRevoked) return json({ errorMessages: ["Unauthorized"] }, 401);
+    if (captcha) return new Response("<html></html>", { status: 403, headers: { "Content-Type": "text/html", "X-Seraph-LoginReason": "AUTHENTICATION_DENIED", "X-Authentication-Denied-Reason": "CAPTCHA_CHALLENGE; login-url=https://acme.atlassian.net/login.jsp" } });
     if (jiraDown) return json({ errorMessages: ["Jira is down"] }, 503);
     return json({
       isLast: true,
@@ -201,6 +203,27 @@ describe("background Jira sync", () => {
       expect(searches).toBe(before);
     } finally {
       tokenRevoked = false;
+      warn.mockRestore();
+    }
+  });
+
+  it("a sign-in Jira denies (CAPTCHA) waits to be reconnected: never retried, never \"unreachable\"", async () => {
+    // The revoked token above set the connection aside: working again.
+    await q("UPDATE connections SET status = 'ok'");
+    await q("DELETE FROM connection_sync");
+    captcha = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      expect(await mod.syncActiveUsers()).toEqual({ ok: 0, failed: 1 });
+      expect(await q("SELECT status FROM connections WHERE type = 'jira' AND legacy = 1")).toEqual([{ status: "auth_failed" }]);
+      const [s] = await q<{ e: string }>("SELECT last_error e FROM connection_sync WHERE stream = 'issues'");
+      expect(s.e).toMatch(/^auth \(401\): .*CAPTCHA_CHALLENGE/);
+      const before = searches;
+      await mod.syncActiveUsers();
+      expect(searches).toBe(before);
+    } finally {
+      captcha = false;
+      await q("UPDATE connections SET status = 'ok'");
       warn.mockRestore();
     }
   });
