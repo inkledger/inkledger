@@ -62,9 +62,11 @@ describe("confirmJiraLogin", () => {
       Object.defineProperty(sso, "url", { value: "https://acme.atlassian.net/login.jsp?os_destination=%2Frest%2Fapi%2F2%2Fmyself" });
       expect((await refused(() => sso)).e).toMatchObject({ message: t("server.auth.jiraSsoPage") });
       for (const down of [() => page(503), () => Promise.reject(new TypeError("fetch failed"))]) {
-        const { e, logged } = await refused(down);
+        const { e, logged } = await refused(down, { knownSite: true });
         expect(e).toMatchObject({ code: "BAD_REQUEST", message: t("server.auth.jiraUnreachable") });
         expect(logged).toMatch(/\(unreachable\)/);
+        // A typed address gets the one answer: the form can't tell a host that is down from one that isn't Jira.
+        expect((await refused(down)).e).toMatchObject({ code: "BAD_REQUEST", message: t("server.auth.loginFailed") });
       }
     });
   });

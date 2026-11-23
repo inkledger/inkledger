@@ -319,10 +319,14 @@ export const connectionsRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       if (!isJiraCloud(input.siteUrl)) assertMayAddSelfHosted(ctx.user);
       const conn = await ownConnection(ctx.user.id, input.id);
-      const failures = await getDb().select({ lastError: connectionSync.lastError }).from(connectionSync).where(eq(connectionSync.connectionId, conn.id));
+      const failures = await getDb()
+        .select({ lastError: connectionSync.lastError, lastErrorAt: connectionSync.lastErrorAt, lastOkAt: connectionSync.lastOkAt })
+        .from(connectionSync)
+        .where(eq(connectionSync.connectionId, conn.id));
       const identity = await confirmJiraLogin(input, {
         refusedCode: "PRECONDITION_FAILED",
-        captchaBefore: failures.some(f => failureOf(f.lastError ?? "")?.signInDenied === true),
+        captchaBefore: failures.some(f => failureOf(freshError(f.lastError, f.lastErrorAt, f.lastOkAt) ?? "")?.signInDenied === true),
+        knownSite: input.siteUrl === conn.baseUrl,
       });
       if (
         identity.siteUrl !== conn.baseUrl ||

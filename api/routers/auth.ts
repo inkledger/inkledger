@@ -178,7 +178,7 @@ export const authRouter = createRouter({
         .where(and(eq(connections.type, "jira"), eq(connections.baseUrl, input.siteUrl), isNull(users.disabledAt)))
         .limit(1);
       if (!onSite) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.noAccountToActivate") });
-      const identity = await confirmJiraLogin(input);
+      const identity = await confirmJiraLogin(input, { knownSite: true });
       // The account whose connection this Jira login is.
       const [found] = await getDb()
         .select({ user: users, connectionId: connections.id })

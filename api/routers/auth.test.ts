@@ -510,7 +510,7 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(vi.mocked(fetch).mock.calls.length, "no request to the site").toBe(calls);
     });
 
-    it("a Jira login with no account behind it gets nothing; Jira failures answer as before", async () => {
+    it("a Jira login with no account behind it gets nothing; Jira out of reach is said", async () => {
       // A site an account from before local accounts waits on (its Jira says who logs in).
       const [waiting] = await q<{ id: number }>("INSERT INTO users (email, display_name, created_at) VALUES ('w@x.it', 'Waiting', ?) RETURNING id", Date.now());
       await q(

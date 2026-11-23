@@ -96,6 +96,9 @@ describe("Settings → Connections", () => {
         Date.now(),
       );
       await expect(caller.connections.reconnectJira({ id: c.id, ...login })).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: t("server.auth.captchaMaybe") });
+      // A sync that went through since: that CAPTCHA is over, the credentials are the reason.
+      await q("UPDATE connection_sync SET last_ok_at = ? WHERE connection_id = ?", Date.now() + 1000, c.id);
+      await expect(caller.connections.reconnectJira({ id: c.id, ...login })).rejects.toMatchObject({ message: t("server.auth.invalidCredentialsCloud") });
     } finally {
       warn.mockRestore();
       await q("DELETE FROM connection_sync WHERE connection_id = ?", c.id);

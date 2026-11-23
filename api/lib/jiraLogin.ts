@@ -1,6 +1,7 @@
 // Checking a Jira login live (activating an account, connecting Jira): the
-// URL is vetted (only then is Jira asked), Jira confirms who the credentials
-// belong to, and a refusal says why: what Jira gave as its reason, out of reach, or else one answer.
+// URL is vetted, Jira confirms who the credentials belong to, and a refusal
+// says Jira's own reason; any other failure on a typed address gets one
+// answer, so the form can't be used to probe hosts.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { t } from "@contracts/i18n";
@@ -51,6 +52,8 @@ export type ConfirmOptions = {
   refusedCode?: "UNAUTHORIZED" | "PRECONDITION_FAILED";
   /** Jira asked this connection for a CAPTCHA before: a bare refusal may still be that, not the password. */
   captchaBefore?: boolean;
+  /** A site already connected here: saying it is out of reach probes nothing (a typed address gets the one answer). */
+  knownSite?: boolean;
 };
 
 export async function confirmJiraLogin(input: JiraLoginInput, opts: ConfirmOptions = {}): Promise<JiraIdentity> {
@@ -96,7 +99,8 @@ export async function confirmJiraLogin(input: JiraLoginInput, opts: ConfirmOptio
               : t("server.auth.invalidCredentialsCloud"),
         );
       case "unreachable":
-        throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.jiraUnreachable") });
+        if (opts.knownSite) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.jiraUnreachable") });
+        throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.loginFailed") });
       default:
         throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.loginFailed") });
     }
