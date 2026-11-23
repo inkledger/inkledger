@@ -51,7 +51,15 @@ export function QuickLog({
   const [openedAt] = useState(() => new Date());
   // By end time (as in LogTimeDialog): the start shown when it was chosen, then in its field.
   const [started, setStarted] = useState("");
-  const timeAs = useTimeAs({ pinStart: setStarted, toDuration: s => setTimeSpent(durationInput(s)) });
+  // Pinned once an end is chosen: from then the start is the field's, emptied too.
+  const [startPinned, setStartPinned] = useState(false);
+  const timeAs = useTimeAs({
+    pinStart: s => {
+      setStarted(s);
+      setStartPinned(true);
+    },
+    toDuration: s => setTimeSpent(durationInput(s)),
+  });
   const byEnd = timeAs.mode === "end";
   // One log asked for: a retry is answered, not logged twice; a new one after each success.
   const opId = useRef(newOpId());
@@ -69,6 +77,7 @@ export function QuickLog({
       setTimeSpent("");
       setComment("");
       setStarted("");
+      setStartPinned(false);
       timeAs.reset();
       invalidate();
       onLogged?.();
@@ -95,14 +104,14 @@ export function QuickLog({
   const tooLong = !!parsed && parsed > MAX_WORKLOG_SECONDS;
   // Placed by the shared rule until an end pins its start (an hour stands in for a length not typed yet).
   const seconds = parsed && parsed > 0 ? parsed : (timeAs.pending ?? 3600);
-  const pinned = byEnd && started !== "";
+  const pinned = byEnd && startPinned;
   const auto = !pinned && placement.ready ? placement.place(seconds, { now: openedAt }) : null;
   const shown = { start: pinned ? started : auto?.ok ? toLocalInputValue(auto.start) : "", placed: placement.ready, seconds };
   timeAs.settle(byEnd, shown);
   const placed = !byEnd && parsed && parsed > 0 ? auto : null;
   // By end the block is the one typed: over time already logged, warned or refused as in LogTimeDialog.
   const overlapPolicy = trpc.settings.get.useQuery(undefined, { staleTime: 60_000 }).data?.overlapPolicy ?? "warn";
-  const typedBlock = pinned && parsed && parsed > 0 && placement.ready ? { start: new Date(started), seconds: parsed } : null;
+  const typedBlock = pinned && started && parsed && parsed > 0 && placement.ready ? { start: new Date(started), seconds: parsed } : null;
   const overlap = typedBlock ? placement.conflictOf(typedBlock) : null;
   const conflict = overlap && overlapPolicy === "block" ? overlap : null;
   const start = byEnd ? typedBlock?.start : placed?.ok ? placed.start : undefined;
