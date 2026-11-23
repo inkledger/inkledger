@@ -25,12 +25,14 @@ describe("SQLite → Postgres transfer (scripts/sqlite-to-postgres.mjs)", () => 
       CREATE TABLE users (id INTEGER PRIMARY KEY, site_url TEXT, deployment TEXT, auth_type TEXT, account_id TEXT, email TEXT, display_name TEXT, avatar_url TEXT, encrypted_token TEXT, created_at INTEGER);
       CREATE TABLE worklogs (id INTEGER PRIMARY KEY, user_id INTEGER, issue_key TEXT, jira_worklog_id TEXT, time_spent_seconds INTEGER, started INTEGER, comment TEXT, author_account_id TEXT, jira_created TEXT, jira_updated TEXT, synced_at INTEGER);
       CREATE TABLE settings (user_id INTEGER PRIMARY KEY, daily_target_seconds INTEGER, weekly_target_seconds INTEGER, timer_alert_minutes INTEGER, notify_enabled INTEGER);
+      CREATE TABLE sync_state (user_id INTEGER PRIMARY KEY, last_sync_at INTEGER, last_error TEXT, last_error_at INTEGER, last_full_sync_at INTEGER, last_worklog_sync_at INTEGER);
     `);
     sqlite
       .prepare("INSERT INTO users VALUES (7, 'https://j.it', 'server', 'basic', 'mrossi', 'm', 'Mario', NULL, ?, 1)")
       .run(enc("token-123", "old-secret"));
     sqlite.prepare("INSERT INTO worklogs VALUES (41, 7, 'A-1', '9001', 3600, 1760000000000, '', 'mrossi', NULL, NULL, 0)").run();
     sqlite.prepare("INSERT INTO settings VALUES (7, 28800, 144000, 90, 1)").run();
+    sqlite.prepare("INSERT INTO sync_state VALUES (7, 300, NULL, NULL, 200, 100)").run();
 
     const { PGlite } = await import("@electric-sql/pglite");
     const { pg_trgm } = await import("@electric-sql/pglite/contrib/pg_trgm");
@@ -51,6 +53,12 @@ describe("SQLite → Postgres transfer (scripts/sqlite-to-postgres.mjs)", () => 
     expect(c).toMatchObject({ user_id: 7, base_url: "https://j.it", remote_account_id: "mrossi" });
     expect(JSON.parse(c.options)).toEqual({ deployment: "server", authType: "basic", username: "m" });
     expect(dec(c.encrypted_secret, "new-secret")).toBe("token-123");
+    // Its syncs go on from where the old storage stood: a connection like any other, no first sync again.
+    expect((await pgl.query("SELECT legacy FROM connections")).rows).toEqual([{ legacy: 0 }]);
+    expect((await pgl.query("SELECT stream, checkpoint, last_ok_at, last_full_at FROM connection_sync ORDER BY stream")).rows).toEqual([
+      { stream: "issues", checkpoint: null, last_ok_at: 300, last_full_at: 200 },
+      { stream: "worklogs", checkpoint: "100", last_ok_at: 100, last_full_at: null },
+    ]);
     // Columns the old database lacked take their defaults.
     expect((await pgl.query("SELECT idle_minutes, allowed_link_domains FROM settings")).rows).toEqual([
       { idle_minutes: 10, allowed_link_domains: "[]" },

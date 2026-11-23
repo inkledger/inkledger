@@ -149,6 +149,9 @@ export async function transfer({ sqlite, client, fromSecret, toSecret, wipe = fa
       counts[t] = [rows.length, after];
       if (after !== rows.length) throw new Error(`${t}: ${rows.length} rows read, ${after} written`);
     }
+    // The schema is already past the migration that converts legacy connections: the ones made here go the same way.
+    const convert = readFileSync(path.join(ROOT, "drizzle/0047_legacy_connections.sql"), "utf8");
+    for (const statement of convert.split("--> statement-breakpoint")) if (statement.trim()) await client.query(statement);
     await client.query("COMMIT");
     return counts;
   } catch (e) {
