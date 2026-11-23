@@ -350,6 +350,15 @@ async function start(init, port) {
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };
   if (has("pointer") && init.role === "view") host.pointer = watched("pointer");
+  if (has("pointer.page") && init.role === "view") host.pagePointer = watched("pointer.page");
+  if (has("page.anchors") && init.role === "view") host.anchors = () => call("page.anchors", []);
+  // Events, not a value: none held for a late listener.
+  if (has("page.events") && init.role === "view") host.pageEvents = (fn) => {
+    const id = ++seq;
+    pushes.set(id, (e) => safe(fn, e));
+    fire("page.events", [id]);
+    return () => { if (pushes.delete(id)) fire("unwatch", [id]); };
+  };
   if (has("layout")) {
     host.layout = watched("layout");
     // The host's fade over the nav above, while it has more below (the sidebar's foot only).

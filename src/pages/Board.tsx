@@ -55,6 +55,7 @@ import { TransitionDialog, type TransitionTarget } from "@/components/issue/Tran
 import { CATEGORY_ORDER, categoryRank, isClosed } from "@contracts/categories";
 import { BUCKET_SCOPE, useBuckets } from "@/hooks/useBuckets";
 import { columnOf, dropTargets, reachable, type BoardColumn, type Way } from "@/lib/boardTargets";
+import { cardId, pageSignals } from "@/modules/pageSignals";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -208,8 +209,7 @@ export default function Board() {
               }
             : i
         )
-      );
-      return { previous };
+      );      return { previous };
     },
     onSuccess: r => toast.success(`${r.moved} → ${r.to}`),
     onError: (e, v, ctx) => {
@@ -351,8 +351,16 @@ export default function Board() {
     () => (dragging?.ways ? dropTargets({ connectionId: dragging.card.connectionId, status: dragging.card.status }, dragging.ways, allColumns) : new Map<string, string[]>()),
     [dragging, allColumns]
   );
+  /** Moves a card to a status; a framed module watching hears from which column to which (rects only). */
+  const move = (card: Row, toStatus: string) => {
+    transition.mutate({ key: card.key, connectionId: card.connectionId, toStatus });
+    const category = statuses.find(s => s.connectionId === card.connectionId && s.status === toStatus)?.category ?? card.category;
+    const from = columnOf(card, allColumns);
+    const to = columnOf({ connectionId: card.connectionId, status: toStatus, category }, allColumns);
+    if (from && to && from !== to) pageSignals.emit({ kind: "card-moved", card: cardId(card.connectionId, card.key), from, to });
+  };
   const go = (card: Row, to: string[]) => {
-    if (to.length === 1) transition.mutate({ key: card.key, connectionId: card.connectionId, toStatus: to[0] });
+    if (to.length === 1) move(card, to[0]);
     else if (to.length > 1) setChoosing({ card, statuses: to });
   };
   /** A card moved from its menu or by keyboard: the column's statuses it can reach. */
@@ -414,6 +422,9 @@ export default function Board() {
     return s ? `/issues?${s}` : "/issues";
   };
 
+  /** A column as a landmark framed modules may see (its place and category; its id stays the host's). */
+  const columnAnchor = (col: Lane["columns"][number]) => ({ "data-anchor": "board-column", "data-anchor-column": col.id, "data-anchor-category": col.category || undefined });
+
   const renderColumn = (col: Lane["columns"][number]) => {
     const items = cardsOf(col);
     const isDone = col.category !== "" && isClosed(col.category);
@@ -445,6 +456,7 @@ export default function Board() {
         <section
           key={col.id}
           aria-label={t("pages.board.collapsedLabel", { status: col.title })}
+          {...columnAnchor(col)}
           data-drop={dragging ? (allowed ? "on" : "off") : undefined}
           className={cn("flex w-11 shrink-0 snap-start flex-col transition-opacity", off && "opacity-40")}
           {...dropHandlers}
@@ -473,6 +485,7 @@ export default function Board() {
       <section
         key={col.id}
         aria-label={col.title}
+        {...columnAnchor(col)}
         data-drop={dragging ? (allowed ? "on" : "off") : undefined}
         className={cn(
           "flex min-h-0 min-w-[16rem] flex-1 basis-0 snap-start flex-col rounded-xl transition-opacity",
@@ -732,7 +745,7 @@ export default function Board() {
                 key={s}
                 variant="outline"
                 onClick={() => {
-                  transition.mutate({ key: choosing.card.key, connectionId: choosing.card.connectionId, toStatus: s });
+                  move(choosing.card, s);
                   setChoosing(null);
                 }}
               >

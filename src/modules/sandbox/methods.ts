@@ -27,7 +27,7 @@ void allEvents;
  * Drawn over the page: the frame never takes pointer events there, the host tests its regions.
  * The dock too, once it sets a shape (its box marked data-hit): taps around the pill reach the page.
  */
-const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge", "mobile-dock"];
+const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge", "mobile-dock", "page-overlay"];
 
 const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);

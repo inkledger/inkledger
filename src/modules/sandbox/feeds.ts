@@ -20,7 +20,7 @@ export const POINTER_RANGE_PX = 160;
  * hidden, the box is off screen or the pointer is away from the box (then null, once).
  */
 export function createPointerFeed(win: PointerWin) {
-  type Watcher = { rect: () => Rect; push: (v: PointerState) => void; last: string };
+  type Watcher = { rect: () => Rect; push: (v: PointerState) => void; last: string; range: number };
   const watchers = new Set<Watcher>();
   let at: { x: number; y: number } | null = null;
   let frame = 0;
@@ -28,7 +28,7 @@ export function createPointerFeed(win: PointerWin) {
     let v: PointerState = null;
     if (at && !win.document.hidden) {
       const r = w.rect();
-      const near = at.x >= r.left - POINTER_RANGE_PX && at.x <= r.right + POINTER_RANGE_PX && at.y >= r.top - POINTER_RANGE_PX && at.y <= r.bottom + POINTER_RANGE_PX;
+      const near = at.x >= r.left - w.range && at.x <= r.right + w.range && at.y >= r.top - w.range && at.y <= r.bottom + w.range;
       if (near && r.right >= 0 && r.bottom >= 0 && r.left <= win.innerWidth && r.top <= win.innerHeight) v = { x: Math.round(at.x - r.left), y: Math.round(at.y - r.top) };
     }
     const key = v ? `${v.x},${v.y}` : "";
@@ -66,8 +66,9 @@ export function createPointerFeed(win: PointerWin) {
     }
   };
   return {
-    watch(rect: () => Rect, push: (v: PointerState) => void): () => void {
-      const w: Watcher = { rect, push, last: "" };
+    /** `range`: how far past the box the pointer is told (the page-wide pointer: Infinity). */
+    watch(rect: () => Rect, push: (v: PointerState) => void, range = POINTER_RANGE_PX): () => void {
+      const w: Watcher = { rect, push, last: "", range };
       if (watchers.size === 0) listen(true);
       watchers.add(w);
       push(null);

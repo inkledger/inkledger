@@ -247,7 +247,7 @@ function DashboardHeaderActions({ range, setKind, prev, next, reset, openAdd, fu
     ),
     "dashboard.headerTimer": <FlowControlHost.Provider value="dashboard.headerTimer"><HeaderTimer /></FlowControlHost.Provider>,
     "dashboard.quickActions": (
-      <Button onClick={openAdd} {...flowControlProps(futureDay ? "dashboard.plan" : "dashboard.logTime")}>
+      <Button onClick={openAdd} data-anchor="log-time" {...flowControlProps(futureDay ? "dashboard.plan" : "dashboard.logTime")}>
         <Plus className="h-4 w-4" />
         {futureDay ? t("ui.planned.plan") : t("pages.dashboard.logTime")}
       </Button>

@@ -8,6 +8,7 @@ import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
 import { ledgesAround, type LedgePage } from "./ledges";
+import { anchorsAround, type AnchorPage, type createPageEvents, type SignalPage } from "./anchors";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
 import type { createModuleCache } from "./cache";
 
@@ -27,6 +28,10 @@ export type CapabilityDeps = {
   page: () => ImportancePage;
   /** Where the page's cards and section headers are (read per call). */
   ledges?: () => LedgePage;
+  /** The app's landmarks (read per call). */
+  anchors?: () => AnchorPage;
+  /** What the person does on the page, measured per watcher. */
+  pageEvents?: { feed: ReturnType<typeof createPageEvents>; page: () => SignalPage };
   pointer: ReturnType<typeof createPointerFeed>;
   layout: ReturnType<typeof createLayoutFeed>;
   /** The page moved under the frames (no payload); `route` adds this hub's route changes to it. */
@@ -173,7 +178,20 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
           return ledgesAround(ledges(), { left: r.left, top: r.top, width: r.width, height: r.height });
         },
       });
+    const anchors = d.anchors;
+    if (anchors)
+      methods["page.anchors"] = method({
+        args: z.tuple([]),
+        cap: "page.anchors",
+        rate: [4, 4],
+        shared: true,
+        run: () => anchorsAround(anchors(), view.el.getBoundingClientRect()),
+      });
+    const events = d.pageEvents;
+    if (events) methods["page.events"] = method({ ...watch(push => events.feed.watch(() => view.el.getBoundingClientRect(), events.page, push)), cap: "page.events" });
     methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
+    // The whole window's pointer (a creature over the page follows it anywhere), the same one listener and frame.
+    methods["pointer.page"] = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push, Infinity)), cap: "pointer.page" });
     methods["backdrop.blur"] = method({ ...watch(push => d.blur(view.el, push)), cap: "backdrop.preblurred" });
     // The sidebar's fade over the nav's lower edge, drawn by the host (a frame draws only inside itself),
     // shown while the nav has more below: a module in the sidebar's foot opts in.

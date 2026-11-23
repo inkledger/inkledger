@@ -284,6 +284,37 @@ describe("the frame's host API (bootstrap)", () => {
     expect(await run([])).toBe("none");
   });
 
+  it("page.anchors, page.events and pointer.page reach a view only with their capabilities", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
+    const bell = { getBoundingClientRect: () => ({ left: 10, top: 20, right: 40, bottom: 50 }), getAttribute: (k: string) => (k === "data-anchor" ? "notifications" : null) };
+    const anchors = () => ({ anchors: () => [bell], width: 1200, height: 800 });
+    const pageEvents = {
+      feed: { watch: (_b: unknown, _p: unknown, push: (e: unknown) => void) => (push({ kind: "goal-reached" }), () => {}) },
+      page: () => ({ card: () => null, column: () => null, anchor: () => null, width: 1200, height: 800 }),
+    } as unknown as CapabilityDeps["pageEvents"];
+    const run = async (capabilities: ModuleCapability[]) => {
+      const out: Record<string, unknown> = {};
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "page-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, anchors, pageEvents, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
+      const mod = {
+        id: "m",
+        hostApi: 2,
+        mount: {
+          "dashboard-widget": (_el: unknown, host: HostApiV2) => {
+            void host.anchors?.().then(r => (out.anchors = r));
+            host.pageEvents?.(e => (out.event = e));
+            host.pagePointer?.(p => (out.pointer = p));
+            return () => {};
+          },
+        },
+      };
+      bootFrame({ capabilities, mod, methods: caps.methods });
+      await settle();
+      return out;
+    };
+    expect(await run(["page.anchors", "page.events", "pointer.page"])).toEqual({ anchors: [{ kind: "notifications", x: -90, y: -20, w: 30, h: 30 }], event: { kind: "goal-reached" }, pointer: { x: 1, y: 2 } });
+    expect(await run([])).toEqual({});
+  });
+
   it("share hands the host a picture; one over the message cap is refused in the frame, never left hanging", async () => {
     const shared: File[] = [];
     const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]);

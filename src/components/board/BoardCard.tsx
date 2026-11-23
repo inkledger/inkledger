@@ -1,4 +1,5 @@
 import { StartIssueButton } from "@/components/issue/StartIssueButton";
+import { cardId } from "@/modules/pageSignals";
 import { flowControlProps } from "@/lib/workspace/instrumentation";
 import { makeTodo } from "@/lib/makeTodo";
 import { errorText } from "@/lib/errorText";
@@ -110,6 +111,7 @@ export function BoardCard({
     <div
       draggable
       {...surface("card")}
+      data-anchor-card={cardId(issue.connectionId, issue.key)}
       onPointerEnter={onPrefetch}
       onFocus={onPrefetch}
       onTouchStart={() => {

@@ -93,6 +93,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
       <button
         type="button"
         aria-label={t("ui.layout.startTimer")}
+        data-anchor="timer"
         onClick={() => quickStart.set(true)}
         {...surface("control")}
         {...flowControlProps("mobile.timer.start")}
@@ -115,6 +116,7 @@ function TimerButton({ onOpen }: { onOpen: () => void }) {
         time: hms,
       })}${more > 0 ? `, ${t("ui.timer.moreRunning", { count: more })}` : ""}`}
       onClick={onOpen}
+      data-anchor="timer"
       {...surface("control")}
       {...flowControlProps("mobile.timer.open")}
       className={cn(round, "border bg-card active:bg-accent")}

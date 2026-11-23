@@ -7,6 +7,7 @@ import { showBrowserNotification } from "@/lib/browserNotifications";
 import { notificationCenter } from "@/lib/flag";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
+import { pageSignals } from "@/modules/pageSignals";
 
 /** One line per kind, used by toasts and the "For you" card (read when asked: it follows the language). */
 const KIND_TITLE: Record<string, string> = {
@@ -86,6 +87,8 @@ export function useNotificationAlerts(): void {
     seen.current = latest;
     // First load: what is already there is not "new".
     if (before === null || latest <= before) return;
+    // Framed modules watching the page hear that something landed (where the bell is, nothing more).
+    pageSignals.emit({ kind: "notification" });
     void utils.notifications.list.invalidate();
     void utils.client.notifications.list.query().then(list => {
       const fresh = list.filter(n => n.id > before);

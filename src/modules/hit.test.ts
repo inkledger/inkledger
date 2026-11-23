@@ -72,6 +72,22 @@ describe("module hit areas", () => {
     expect(reached).toEqual(["pointerdown", "pointerup", "click", "pointerdown", "pointerup", "click"]);
   });
 
+  it("over the whole window (a page overlay), any control of the app keeps its click; plain page does not", () => {
+    const control = { closest: (s: string) => (s.includes("button") ? {} : null) };
+    const plain = { closest: () => null };
+    for (const [under, takes] of [[control, false], [plain, true]] as const) {
+      const { win, fire } = page();
+      (win.document as unknown as { elementFromPoint: () => unknown }).elementFromPoint = () => under;
+      let opened = 0;
+      const b = Object.assign(box(), { closest: (s: string) => (s === "[data-page-overlay]" ? {} : null) });
+      createHitAreas(win).add(b, leftHalf, () => opened++);
+      fire("pointerdown", 20, 20);
+      fire("pointerup", 20, 20);
+      fire("click", 20, 20);
+      expect(opened).toBe(takes ? 1 : 0);
+    }
+  });
+
   // The tree at the timeline's left end lay under the running timer's Pause and Stop: they could not be pressed (3 Nov).
   it("leaves a page control drawn over its shape to the page (Pause over the tree)", () => {
     const { win, reached, fire, pageListens } = page(false, true);

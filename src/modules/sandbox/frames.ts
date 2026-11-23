@@ -11,6 +11,10 @@ import { browserBroker, createBroker } from "./broker";
 import { focusBack, frameTookFocus, ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
+import { browserAnchors, browserSignalPage, createPageEvents, type PageSignal } from "./anchors";
+import { cardId, pageSignals } from "../pageSignals";
+import { commandPalette } from "@/lib/commandPalette";
+import type { HostApiV1 } from "../types";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
 import { pageCache } from "./cache";
 import { fontLoader, themeSheet } from "./themeSheet";
@@ -144,6 +148,43 @@ const light = () =>
     SURFACES,
   ));
 
+/**
+ * What the person does, as the host sees it ("page.events"): the hub's events, the page's own
+ * (Board moves, notifications), the search palette and any search field taking the focus.
+ */
+function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => void) => () => void)[] {
+  const isSearch = (t: EventTarget | null): t is HTMLInputElement => t instanceof HTMLInputElement && t.type === "search";
+  return [
+    fn => pageSignals.subscribe(fn),
+    fn => {
+      const offs = [
+        api.on("timer-started", () => fn({ kind: "timer-started" })),
+        api.on("timer-stopped", () => fn({ kind: "timer-stopped" })),
+        api.on("issue-closed", d => fn({ kind: "card-closed", card: cardId(d.ref?.connectionId, d.issueKey) })),
+        api.on("goal-reached", () => fn({ kind: "goal-reached" })),
+      ];
+      return () => offs.forEach(off => off());
+    },
+    fn => {
+      let open = commandPalette.get();
+      const off = commandPalette.subscribe(() => {
+        if (commandPalette.get() === open) return;
+        open = commandPalette.get();
+        fn({ kind: "search", focused: open });
+      });
+      const onIn = (e: FocusEvent) => isSearch(e.target) && fn({ kind: "search", focused: true, field: e.target });
+      const onOut = (e: FocusEvent) => isSearch(e.target) && fn({ kind: "search", focused: false, field: e.target });
+      document.addEventListener("focusin", onIn);
+      document.addEventListener("focusout", onOut);
+      return () => {
+        off();
+        document.removeEventListener("focusin", onIn);
+        document.removeEventListener("focusout", onOut);
+      };
+    },
+  ];
+}
+
 /** A module that navigated or slowed the page: all its frames go, and it stays off until the page reloads. */
 function kill(id: string, why: string, reason: "slow" | "navigated" | "focus") {
   if (killed.has(id)) return;
@@ -246,8 +287,8 @@ function openFrame(
       iframe.style.height = `${sizeNext}px`;
     });
   };
-  // The sheet is no manifest slot: its API is the module's as in its first slot.
-  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
+  // The sheet and the page overlay are no manifest slots: their API is the module's as in its first slot.
+  const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" || slot === "page-overlay" ? (entry.slots[0] ?? "settings") : slot);
   const gestures = pageGestures();
   // The person's gesture, as this frame's own: in its view (its frame, its host box); a runtime has none.
   const gesture = role === "view" ? (ms?: number) => gestures.has(iframe, parent, document.activeElement === iframe, ms) : () => false;
@@ -271,7 +312,7 @@ function openFrame(
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, anchors: browserAnchors, pageEvents: { feed: createPageEvents({ requestAnimationFrame: fn => requestAnimationFrame(fn), now: () => performance.now() }, signalSources(api)), page: browserSignalPage }, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   // When this view's frame reached for the focus by itself.
   const grabbedAt: number[] = [];

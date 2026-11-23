@@ -7,8 +7,12 @@ import type { HostApiV1, SlotId, Sub, ThemeState } from "./types";
 
 export type { ModuleCapability };
 
-/** Where a v2 module draws: the v1 slots, plus a sheet the host owns (dialog, focus, Esc). */
-export type ViewSlot = SlotId | "sheet";
+/**
+ * Where a v2 module draws: the v1 slots, plus a sheet the host owns (dialog, focus, Esc) and
+ * "page-overlay" ("page.overlay"): the whole window, over the page and the sidebar but under
+ * the page's banners, headers and dialogs, on every page; it never takes pointer events.
+ */
+export type ViewSlot = SlotId | "sheet" | "page-overlay";
 
 /** How a hit area was activated: a click (x, y from the box's top left, CSS px), or Enter/Space on its host box. */
 export type HitActivation = { via: "pointer"; x: number; y: number } | { via: "keyboard" };
@@ -51,6 +55,33 @@ export type Ledge = { x: number; y: number; w: number };
 
 /** The pointer relative to the slot box, coalesced per frame; null while away. */
 export type PointerState = { x: number; y: number } | null;
+
+/** A rectangle in CSS px from the box's top left (it may lie past the box). */
+export type BoxRect = { x: number; y: number; w: number; h: number };
+
+/**
+ * One of the app's landmarks in sight: where it is, never what it holds. A board column says
+ * only its place (index, left to right) and its status category, never its name.
+ */
+export type Anchor = BoxRect &
+  (
+    | { kind: "timer" | "log-time" | "notifications" | "search" | "sidebar" }
+    | { kind: "board-column"; index: number; category: "todo" | "doing" | "done" | null }
+  );
+
+/**
+ * Something the person just did, where it shows (rects in the box's px, null when out of sight):
+ * a card moved between board columns, a ticket closed, the timer started or stopped (the timer's
+ * control), a notification arrived (the bell), a search field took or lost the focus, the day's
+ * goal reached. Never which ticket, column or text.
+ */
+export type PageEvent =
+  | { kind: "card-moved"; from: BoxRect | null; to: BoxRect | null; card: BoxRect | null }
+  | { kind: "card-closed"; card: BoxRect | null }
+  | { kind: "timer-started" | "timer-stopped"; at: BoxRect | null }
+  | { kind: "notification"; at: BoxRect | null }
+  | { kind: "search"; focused: boolean; at: BoxRect | null }
+  | { kind: "goal-reached" };
 
 /** The basics every framed module gets (no capability needed). */
 type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient" | "hitArea" | "storage"> & {
@@ -100,6 +131,12 @@ type Capabilities = {
   ledges?(): Promise<Ledge[]>;
   /** "pointer" (a view's): null while the pointer is more than 160 px from the box. */
   pointer?: Sub<PointerState>;
+  /** "pointer.page" (a view's): the pointer anywhere in the window, in the box's px; null while it is out of the window, the page hidden or the box out of sight. */
+  pagePointer?: Sub<PointerState>;
+  /** "page.anchors" (a view's): the app's landmarks in sight (a few dozen at most, four calls a second); ask again on layoutChanged. */
+  anchors?(): Promise<Anchor[]>;
+  /** "page.events" (a view's): what the person does, with where it shows (eight a second at most). Returns the undo. */
+  pageEvents?(fn: (e: PageEvent) => void): () => void;
   /**
    * "sheet": opens (on the person's gesture in this view, never from the runtime) or closes this module's sheet slot. Open, its frame takes the focus and Esc
    * in it closes it; closed, the focus goes back to the opening view's box (its host button,
@@ -195,6 +232,9 @@ export const CAPABILITY_OF = {
   page: "page.importance",
   ledges: "page.ledges",
   pointer: "pointer",
+  pagePointer: "pointer.page",
+  anchors: "page.anchors",
+  pageEvents: "page.events",
   sheet: "sheet",
   share: "share",
   download: "download",

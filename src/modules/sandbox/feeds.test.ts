@@ -64,6 +64,20 @@ describe("the pointer feed", () => {
     expect(got).toEqual([null, { x: 5, y: 5 }, null, { x: 6, y: 6 }, null, { x: 7, y: 7 }, null]);
   });
 
+  it("the page-wide pointer (range Infinity): anywhere in the window, in the box's px", () => {
+    const w = fakeWin();
+    const feed = createPointerFeed(w.win);
+    const near: PointerState[] = [];
+    const far: PointerState[] = [];
+    const rect = () => ({ left: 100, top: 100, right: 120, bottom: 120 });
+    feed.watch(rect, v => near.push(v));
+    feed.watch(rect, v => far.push(v), Infinity);
+    w.fire("pointermove", { clientX: 700, clientY: 500 });
+    w.frame();
+    expect(near).toEqual([null]);
+    expect(far).toEqual([null, { x: 600, y: 400 }]);
+  });
+
   it("only in range of the box: a move across the rest of the window is not the module's", () => {
     const w = fakeWin();
     const feed = createPointerFeed(w.win);

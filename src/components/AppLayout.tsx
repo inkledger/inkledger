@@ -61,6 +61,7 @@ import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentati
 import { routeControlId } from "@/lib/workspace/searchEvents";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { ModuleSheet } from "@/modules/sandbox/ModuleSheet";
+import { ModulePageOverlay } from "@/modules/sandbox/ModulePageOverlay";
 import { ModuleFocusBadge } from "@/modules/sandbox/ModuleFocusBadge";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
@@ -316,7 +317,7 @@ function SidebarNow({ collapsed, timerPlaced, start }: { collapsed: boolean; tim
   if (!shown && !start) return null;
   if (collapsed)
     return (
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5" data-anchor="timer">
         {shown && (
           <FlowControlHost.Provider value="shell.timer.active">
             <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active">
@@ -328,7 +329,7 @@ function SidebarNow({ collapsed, timerPlaced, start }: { collapsed: boolean; tim
       </div>
     );
   return (
-    <div {...surface("card")} className="grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl border bg-card p-1">
+    <div {...surface("card")} data-anchor="timer" className="grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl border bg-card p-1">
       {shown ? (
         <FlowControlHost.Provider value="shell.timer.active">
           <div data-workspace-area="shell.timer" data-workspace-anchor="shell.timer.active" className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
@@ -479,14 +480,14 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     if (anchorId === "shell.navigation") content = navigation;
     else if (anchorId === "shell.search") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.searchTip", { shortcut: PALETTE_SHORTCUT })}>
-        <button type="button" onClick={() => commandPalette.set(true)} aria-label={collapsed ? t("ui.layout.search") : undefined} {...surface("control")} {...flowControlProps("shell.search.open")} className={cn(row, "mb-1 border border-border/80 bg-background pl-5 font-normal hover:bg-background")}>
+        <button type="button" onClick={() => commandPalette.set(true)} aria-label={collapsed ? t("ui.layout.search") : undefined} data-anchor="search" {...surface("control")} {...flowControlProps("shell.search.open")} className={cn(row, "mb-1 border border-border/80 bg-background pl-5 font-normal hover:bg-background")}>
           <Search className={icon} aria-hidden /><span className={label}>{t("ui.layout.searchEllipsis")}</span>{!collapsed && <Kbd className="ml-auto">{PALETTE_SHORTCUT}</Kbd>}
         </button>
       </RailTip>
     );
     else if (anchorId === "shell.notifications") content = (
       <RailTip collapsed={collapsed} label={t("ui.layout.notificationsTip")}>
-        <button type="button" onClick={() => notificationCenter.set(true)} {...flowControlProps("shell.notifications.open")} aria-label={collapsed || inbox > 0 ? inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications") : undefined} className={row}>
+        <button type="button" onClick={() => notificationCenter.set(true)} data-anchor="notifications" {...flowControlProps("shell.notifications.open")} aria-label={collapsed || inbox > 0 ? inbox > 0 ? t("ui.layout.notificationsUnseen", { count: inbox }) : t("ui.layout.notifications") : undefined} className={row}>
           <Bell className={icon} aria-hidden /><span className={label}>{t("ui.layout.notifications")}</span>{inbox > 0 && <span aria-hidden><CountChip count={inbox} collapsed={collapsed} /></span>}
         </button>
       </RailTip>
@@ -664,6 +665,7 @@ function MobileBell() {
           ? t("ui.layout.notificationsUnseen", { count: inbox })
           : t("ui.layout.notifications")
       }
+      data-anchor="notifications"
       {...flowControlProps("mobile.notifications.open")}
       onClick={() => notificationCenter.set(true)}
     >
@@ -739,6 +741,7 @@ export function AppLayout() {
 
         <aside
           {...surface("ground")}
+          data-anchor="sidebar"
           className={cn(
             // Never scrolls: only the favorites list inside does.
             // Clipped with a margin: its rows' shadows fall past its edge (a shadow is paint, never layout).
@@ -765,6 +768,7 @@ export function AppLayout() {
             size="icon"
             className="ml-auto shrink-0"
             aria-label={t("ui.layout.search")}
+            data-anchor="search"
             onClick={() => commandPalette.set(true)}
           >
             <Search className="h-5 w-5" />
@@ -864,6 +868,7 @@ export function AppLayout() {
         <IdeaCaptureDialog />
         <IssueHistoryDialog />
         <ModuleSettingsSheet />
+        <ModulePageOverlay />
         <ModuleSheet />
         <ModuleFocusBadge />
       </div>

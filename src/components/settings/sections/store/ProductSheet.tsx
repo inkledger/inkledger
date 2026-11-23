@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MODULE_TERMS_URL, type StoreEntry, type StoreIcon } from "@contracts/store";
+import type { ModuleCapability } from "@contracts/modules";
 import { trpc } from "@/lib/trpc";
 import { t } from "@/i18n";
 import { LicenceProof } from "@/components/settings/sections/store/LicenceProof";
@@ -167,6 +168,7 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
                 <dd>{t("settings.store.info.requiresWebgl2")}</dd>
               </>
             )}
+            <ModuleCapabilities id={e.id} />
             <dt className="text-muted-foreground">{t("settings.store.info.price")}</dt>
             <dd className="tabular">
               <PriceTag entry={e} locale={locale} />
@@ -205,6 +207,48 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
         )}
         <Action entry={e} locale={locale} size="default" priceOnButton={false} onOpen={onView} />
       </SheetFooter>
+    </>
+  );
+}
+
+/** Each capability's line in the Store. */
+const CAPABILITY_KEY = {
+  runtime: "runtime",
+  "surfaces.light": "surfacesLight",
+  "page.importance": "pageImportance",
+  "page.ledges": "pageLedges",
+  pointer: "pointer",
+  "pointer.page": "pointerPage",
+  "page.overlay": "pageOverlay",
+  "page.anchors": "pageAnchors",
+  "page.events": "pageEvents",
+  sheet: "sheet",
+  share: "share",
+  download: "download",
+  "open-image": "openImage",
+  geo: "geo",
+  cache: "cache",
+  dock: "dock",
+  "backdrop.preblurred": "backdropPreblurred",
+  layout: "layout",
+} as const satisfies Record<ModuleCapability, string>;
+
+/** What an installed framed module declared it may use beyond its own box (its signed manifest's capabilities). */
+function ModuleCapabilities({ id }: { id: string }) {
+  const caps = trpc.modules.list.useQuery().data?.modules.find(m => m.id === id)?.capabilities ?? [];
+  if (caps.length === 0) return null;
+  return (
+    <>
+      <dt className="text-muted-foreground">{t("settings.store.info.capabilities")}</dt>
+      <dd>
+        <ul className="grid gap-1">
+          {caps.map(c => (
+            <li key={c} className="[overflow-wrap:anywhere]">
+              {t(`settings.store.info.capability.${CAPABILITY_KEY[c]}`)}
+            </li>
+          ))}
+        </ul>
+      </dd>
     </>
   );
 }
