@@ -114,6 +114,35 @@ test("a module hears time logged, as the server confirmed it, with the issue it 
     },
   ));
 
+test("a module hears an issue closed while the app was closed, once", () =>
+  withModules(
+    {
+      modules: ["hello"],
+      seed: async db => {
+        await licensed("hello")(db);
+        await db.q(
+          `INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, status_category, category, project_key, project_name, issue_type, priority, priority_rank, labels, assignee_id, url, synced_at)
+           VALUES (1, 1, 'closed-1', 'DEMO-901', 'Closed elsewhere', 'In corso', 'In Progress', 'doing', 'DEMO', 'Demo', 'Task', 'Urgente', 1, '[]', '', 'https://example.test/DEMO-901', ?)`,
+          Date.now(),
+        );
+      },
+    },
+    async ({ page, db }) => {
+      await page.getByTestId("module-hello").waitFor();
+      // Closed in the tracker meanwhile (the sync writes it): no tab saw it move.
+      await db.q("UPDATE issues SET category = 'done', status = 'Chiuso', status_changed_at = ? WHERE jira_id = 'closed-1'", Date.now() + 1000);
+      await page.reload();
+      await page.waitForFunction(() => (document.querySelector('[data-testid="module-hello"]')?.dataset.heard ?? "").includes("issue-closed"));
+      const heard = JSON.parse(await page.getByTestId("module-hello").getAttribute("data-heard"));
+      assert.deepEqual(heard.filter(h => h.e === "issue-closed"), [{ e: "issue-closed", issueKey: "DEMO-901", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-901" } }]);
+      // Told once: a reload hears nothing again.
+      await page.reload();
+      await page.getByTestId("module-hello").waitFor();
+      await page.waitForTimeout(3000);
+      assert.ok(!((await page.getByTestId("module-hello").getAttribute("data-heard")) ?? "").includes("issue-closed"));
+    },
+  ));
+
 test("without a licence a module stays off; the Store badge says so and can uninstall it", () =>
   withModules({ modules: ["hello"], path: "/settings/store" }, async ({ page }) => {
     const card = page.locator('[data-store-item="hello"]');

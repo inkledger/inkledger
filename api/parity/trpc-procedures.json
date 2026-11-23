@@ -664,6 +664,10 @@
     "type": "query"
   },
   {
+    "path": "modules.claimClosures",
+    "type": "mutation"
+  },
+  {
     "path": "modules.deactivate",
     "type": "mutation"
   },

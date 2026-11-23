@@ -171,6 +171,7 @@ export interface FrozenIn {
   "modules.acceptToken": { product: string; token: string };
   "modules.activate": { product: string };
   "modules.activation": { product: string };
+  "modules.claimClosures": { moduleId: string };
   "modules.deactivate": { product: string };
   "modules.exportLicense": { product: string };
   "modules.exportProgress": { id: string };
@@ -526,6 +527,7 @@ export interface FrozenOut {
   "modules.acceptToken": { ok: boolean };
   "modules.activate": { active: number; exp: number; limit: number; ok: true };
   "modules.activation": { offline: boolean; required: boolean; servers: null | { active: { exp: number; iat: number; instanceId: string }[]; here: string; limit: number }; state: { exp: number; state: "active" } | { state: "grace"; until: number } | { state: "missing" } } | { offline: boolean; required: boolean; servers: null; state: { exp: number; state: "active" } | { state: "grace"; until: number } | { state: "missing" } | { state: "not-required" } };
+  "modules.claimClosures": { connectionId: number; issueKey: string; priority: string; priorityRank: null | number }[];
   "modules.deactivate": { ok: boolean };
   "modules.exportLicense": { format: string; license: string; product: string };
   "modules.exportProgress": { data: { [key: string]: unknown }; format: string; module: string; sig: string; since: number };

@@ -232,6 +232,61 @@ describe("host hub: cache notifications", () => {
   });
 });
 
+describe("host hub: issue-closed", () => {
+  // Closures only seen in the open app's cache missed those made in the tracker, while it was closed, or leaving the list.
+  it("comes from the server's closures, told to the module that claimed them, one at a time, never from the cache", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    try {
+      const { createHub } = await import("./host");
+      type Claimed = { connectionId: number; issueKey: string; priority: string; priorityRank: number | null };
+      const batches: Record<string, Claimed[][]> = {
+        kanbunny: [
+          [
+            { connectionId: 1, issueKey: "DEMO-1", priority: "Urgente", priorityRank: 1 },
+            { connectionId: 2, issueKey: "DEMO-2", priority: "Critical", priorityRank: null },
+          ],
+        ],
+      };
+      const asked: string[] = [];
+      let issues = [{ connectionId: 1, key: "DEMO-3", status: "To Do", category: "todo", priority: "", priorityRank: null }];
+      const qc = new QueryClient();
+      const utils = {
+        ...fakeUtils(() => []),
+        issues: { all: { getData: () => issues, prefetch: async () => {}, invalidate: async () => {} } },
+        client: { modules: { claimClosures: { mutate: async ({ moduleId }: { moduleId: string }) => (asked.push(moduleId), batches[moduleId]?.shift() ?? []) } } },
+      };
+      const hub = createHub(qc, utils as never);
+      const a = hub.apiFor("kanbunny", "dashboard-widget");
+      const b = hub.apiFor("other", "dashboard-widget");
+      const heardA: unknown[] = [];
+      const heardB: unknown[] = [];
+      a.api.on("issue-closed", d => heardA.push(d));
+      b.api.on("issue-closed", d => heardB.push(d));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(heardA).toEqual([{ issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } }]);
+      await vi.advanceTimersByTimeAsync(5_000);
+      // No rank from the server: by its name, as before.
+      expect(heardA).toEqual([
+        { issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } },
+        { issueKey: "DEMO-2", priorityRank: 0, ref: { connectionId: 2, key: "DEMO-2" } },
+      ]);
+      expect(heardB).toEqual([]);
+      // A move into done in the cache: the server is asked, nothing told twice.
+      const before = asked.filter(m => m === "kanbunny").length;
+      issues = [{ ...issues[0], status: "Done", category: "done" }];
+      qc.setQueryData(["tick"], 1);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(asked.filter(m => m === "kanbunny").length).toBeGreaterThan(before);
+      expect(heardA).toHaveLength(2);
+      a.dispose();
+      b.dispose();
+      hub.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("host hub: theme", () => {
   it("carries the night's dimming the light set on the page", async () => {
     vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: (k: string) => (k === "--sky-dim" ? " 0.42" : "0 0% 0%") }));

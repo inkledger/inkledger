@@ -669,6 +669,56 @@ describe("add-on modules", () => {
     expect(await caller.modules.totals({ moduleId: "hello" })).toEqual({ lifetimeLoggedSeconds: 3600, weekLoggedSeconds: 3600, since: first.since });
   });
 
+  it("closures: each told once, oldest first, only since the module counts, ranked by the site's order now", async () => {
+    await activate();
+    const { getDb, q } = await import("../queries/connection");
+    const { moduleStorage } = await import("@db/schema");
+    const { forgetPriorityRanks } = await import("../jira/priorities");
+    await caller.modules.totals({ moduleId: "hello" });
+    const since = Date.now() - 10 * 86_400_000;
+    await getDb().update(moduleStorage).set({ value: String(since) }).where(eq(moduleStorage.key, "__since"));
+    const [{ id: connectionId }] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? LIMIT 1", userId);
+    const close = async (key: string, priority: string, rank: number, at: number) => {
+      const [{ id }] = await q<{ id: number }>(
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, priority, priority_rank, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 's', 'In corso', 'doing', ?, ?, 'CL', 'CL', 'u', 1) ON CONFLICT (user_id, connection_id, jira_id) DO UPDATE SET category = 'doing' RETURNING id",
+        userId, connectionId, key, key, priority, rank,
+      );
+      await q("UPDATE issues SET category = 'done', status_changed_at = ? WHERE id = ?", at, id);
+    };
+    // Synced while the site's order was ranked the old way: Urgente on Normale's step.
+    await close("CL-1", "Urgente", 2, since + 2000);
+    await close("CL-0", "Critica", 1, since - 1000);
+    await close("CL-2", "Normale", 2, since + 1000);
+    const before = globalThis.fetch;
+    forgetPriorityRanks();
+    vi.stubGlobal("fetch", async (input: string | URL | Request) =>
+      String(input).endsWith("/rest/api/3/priority")
+        ? new Response(JSON.stringify(["Bloccante", "Critica", "Urgente", "Normale", "Basso", "Minore"].map((name, i) => ({ id: String(i + 1), name }))), { headers: { "content-type": "application/json" } })
+        : before(input),
+    );
+    try {
+      expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([
+        { connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 },
+        { connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 },
+      ]);
+      expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([]);
+      // Reopened and closed again: a new closure, told again.
+      await close("CL-2", "Normale", 2, since + 5000);
+      expect((await caller.modules.claimClosures({ moduleId: "hello" })).map((c) => c.issueKey)).toEqual(["CL-2"]);
+      // Many at once: a few per claim, two tabs asking together never share one.
+      for (let i = 0; i < 14; i++) await close(`CL-B${i}`, "Basso", 3, since + 10_000 + i);
+      const [a, b] = await Promise.all([caller.modules.claimClosures({ moduleId: "hello" }), caller.modules.claimClosures({ moduleId: "hello" })]);
+      const c = await caller.modules.claimClosures({ moduleId: "hello" });
+      const keys = [...a, ...b, ...c].map((x) => x.issueKey);
+      expect(Math.max(a.length, b.length, c.length)).toBeLessThanOrEqual(10);
+      expect(new Set(keys).size).toBe(14);
+      expect(keys).toHaveLength(14);
+    } finally {
+      vi.stubGlobal("fetch", before);
+      forgetPriorityRanks();
+    }
+  });
+
   it("a user can switch one module off and on; progress import keeps the switch", async () => {
     await activate();
     expect((await caller.modules.list()).off).toEqual([]);

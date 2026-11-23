@@ -42,6 +42,9 @@ const guard = (moduleId: string, fn: () => unknown) => {
   }
 };
 
+/** Closures told one at a time: a catch-up after days away never lands at once. */
+const CLOSED_PACE_MS = 1500;
+
 /** storage.update: tries before giving up on a key that keeps changing elsewhere. */
 const UPDATE_TRIES = 8;
 
@@ -134,6 +137,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   let seenIssues: unknown;
   let lastLogged: number | null = null;
   let goalDay = "";
+  // Each module hearing issue-closed: what asks the server for its new closures.
+  const closureAsks = new Set<() => void>();
 
   const look = () => {
     // Only the night preference may have changed in the cache (no style read on every look).
@@ -173,11 +178,10 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         if (!before || before.status === i.status) continue;
         const ref = { connectionId: i.connectionId, key: i.key };
         emit("issue-moved", { issueKey: i.key, from: before.status, to: i.status, ref });
-        if (i.category === "done" && before.category !== "done") {
-          emit("issue-closed", { issueKey: i.key, priorityRank: i.priorityRank ?? priorityRank(i.priority), ref });
-        }
       }
       lastStatus = next;
+      // Closures are the server's (made anywhere, also while the app was closed): asked again now.
+      closureAsks.forEach(ask => ask());
     }
 
     const stats = utils.stats.dashboard.getData();
@@ -227,6 +231,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
   const refresh = setInterval(() => {
     void utils.stats.dashboard.invalidate();
     look();
+    closureAsks.forEach(ask => ask());
   }, 60_000);
 
   const themeObserver = new MutationObserver(() => theme.set(readTheme(nightOf())));
@@ -282,6 +287,48 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           owned.delete(off);
         };
       };
+      // issue-closed: this module's closures, claimed on the server (each told once to it, whichever tab asks), then told one by one.
+      const closedFns = new Set<(d: HostEvents["issue-closed"]) => void>();
+      let closedQueue: HostEvents["issue-closed"][] = [];
+      let claiming = false;
+      let askAgain = false;
+      let pace: ReturnType<typeof setTimeout> | undefined;
+      const tellClosed = () => {
+        pace = undefined;
+        const next = closedQueue.shift();
+        if (disposed) return;
+        if (!next) {
+          if (askAgain) void claimClosed();
+          return;
+        }
+        closedFns.forEach(fn => fn(next));
+        pace = setTimeout(tellClosed, CLOSED_PACE_MS);
+      };
+      const claimClosed = async () => {
+        if (disposed || closedFns.size === 0) return;
+        if (claiming || pace !== undefined) {
+          askAgain = true;
+          return;
+        }
+        claiming = true;
+        askAgain = false;
+        try {
+          const got = await utils.client.modules.claimClosures.mutate({ moduleId });
+          closedQueue = got.map(c => ({
+            issueKey: c.issueKey,
+            priorityRank: c.priorityRank ?? priorityRank(c.priority),
+            ref: { connectionId: c.connectionId, key: c.issueKey },
+          }));
+          // A full step may have more behind it.
+          if (got.length > 0) askAgain = true;
+        } catch {
+          // Refused or offline: the next look asks again.
+        } finally {
+          claiming = false;
+        }
+        tellClosed();
+      };
+      const askClosed = () => void claimClosed();
       // Nothing added after a stop: dispose has already let go of what it owned.
       const sub =
         <T>(s: { subscribe: (fn: (v: T) => void) => () => void }): Sub<T> =>
@@ -330,6 +377,21 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         },
         on(event, fn) {
           if (disposed) return () => {};
+          if (event === "issue-closed") {
+            const wrapped = (d: HostEvents["issue-closed"]) => guard(moduleId, () => (fn as (d: HostEvents["issue-closed"]) => void)(d));
+            closedFns.add(wrapped);
+            if (closedFns.size === 1) {
+              closureAsks.add(askClosed);
+              queueMicrotask(askClosed);
+            }
+            return own(() => {
+              closedFns.delete(wrapped);
+              if (closedFns.size > 0) return;
+              closureAsks.delete(askClosed);
+              clearTimeout(pace);
+              pace = undefined;
+            });
+          }
           const set = listeners.get(event) ?? new Set();
           listeners.set(event, set);
           const wrapped = (d: never) => guard(moduleId, () => fn(d));

@@ -22,7 +22,7 @@ export default {
       }, () => {});
       // What the host tells (WP-17), for the tests to read.
       const heard = [];
-      const offs = ["worklog-logged", "worklog-changed", "timer-stopped"].map(e => host.on(e, d => {
+      const offs = ["worklog-logged", "worklog-changed", "timer-stopped", "issue-closed"].map(e => host.on(e, d => {
         heard.push({ e, ...d });
         button.dataset.heard = JSON.stringify(heard);
       }));

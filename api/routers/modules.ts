@@ -7,7 +7,7 @@ import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can, mayRunModule } from "../queries/accounts";
 import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { moduleStorage, worklogs } from "@db/schema";
+import { moduleClosureClaims, moduleStorage, worklogs } from "@db/schema";
 import { FILE_MAX_BYTES, FILE_TYPES, PROGRESS_FILE_FORMAT, STORAGE_MAX_BYTES, STORAGE_MAX_KEYS } from "@contracts/modules";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { deleteModuleFile, getModuleFile, putModuleFile, removeModuleFiles } from "../modules/files";
@@ -20,6 +20,7 @@ import { extraKey } from "../modules/keys";
 import { acceptToken, activate, activationsOf, activationStates, deactivate, offlineCode } from "../modules/activation";
 import { StoreError } from "../store/client";
 import { proofFile, proofOf } from "../modules/proof";
+import { claimClosures } from "../modules/closures";
 import { runToken } from "../modules/runToken";
 import { createRateLimiter } from "../lib/security";
 import { throttle } from "../workspace/limits";
@@ -58,6 +59,8 @@ const SINCE = "__since";
 const OFF = "__off";
 const moduleKeys = like(moduleStorage.key, "\\_\\_%");
 const storageRef = z.object({ moduleId: moduleIdSchema, key: storageKey });
+// Closures per claim: a long catch-up comes in small steps (the host paces them).
+const CLAIM_BATCH = 10;
 const fileRef = z.object({ moduleId: moduleIdSchema, key: z.string().regex(/^[\w.|,:-]{1,120}$/) });
 // Base64 of FILE_MAX_BYTES, rounded up.
 const FILE_MAX_B64 = Math.ceil(FILE_MAX_BYTES / 3) * 4;
@@ -269,6 +272,7 @@ export const modulesRouter = createRouter({
       // Reinstalling starts from zero: its saved progress goes too (exportProgress keeps a copy).
       if (removed) {
         await getDb().delete(moduleStorage).where(eq(moduleStorage.moduleId, input.id));
+        await getDb().delete(moduleClosureClaims).where(eq(moduleClosureClaims.moduleId, input.id));
         await removeModuleFiles(input.id);
       }
       return { removed };
@@ -447,6 +451,15 @@ export const modulesRouter = createRouter({
       weekLoggedSeconds: realSecondsTotal(rows.filter((r) => r.start >= weekFrom)),
       since,
     };
+  }),
+
+  /**
+   * For the host API: issues closed since the module started counting (see sinceOf) that it was
+   * not told yet, a few at a time; each is told once, so the host may ask whenever it likes.
+   */
+  claimClosures: use.input(z.object({ moduleId: moduleIdSchema })).mutation(async ({ ctx, input }) => {
+    await requireActive(ctx.user, input.moduleId);
+    return claimClosures(ctx.user, input.moduleId, await sinceOf(getDb(), ctx.user.id, input.moduleId), CLAIM_BATCH);
   }),
 
   /**
