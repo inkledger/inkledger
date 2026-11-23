@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { holdRoute, start } from "./harness.mjs";
+import { ENGINE, engineNoise, holdRoute, start } from "./harness.mjs";
 
 test("dashboard arrives with data and hydrates without browser or server errors", async () => {
   const app = await start();
   try {
     const consoleErrors = [];
     app.page.on("console", message => {
-      if (message.type() === "error") consoleErrors.push(message.text());
+      if (message.type() === "error" && !engineNoise(message.text())) consoleErrors.push(message.text());
     });
     const response = await app.page.goto(`${app.base}/`);
     assert.equal(response.status(), 200);
@@ -41,7 +41,7 @@ test("a local layout opts out before the first paint, without hydration errors o
     });
     const consoleErrors = [];
     app.page.on("console", message => {
-      if (message.type() === "error") consoleErrors.push(message.text());
+      if (message.type() === "error" && !engineNoise(message.text())) consoleErrors.push(message.text());
     });
     const { release } = await holdRoute(app.page, /\/assets\/index-.*\.js$/);
     const navigation = app.page.goto(`${app.base}/`);
@@ -91,7 +91,7 @@ test("mobile Italian SSR uses the request locale and hydrates cleanly", async ()
     await app.context.addCookies([{ name: "ikl-locale", value: "it", url: app.base }]);
     const errors = [];
     app.page.on("console", message => {
-      if (message.type() === "error") errors.push(message.text());
+      if (message.type() === "error" && !engineNoise(message.text())) errors.push(message.text());
     });
     const response = await app.page.goto(`${app.base}/`);
     const html = await response.text();
@@ -131,7 +131,7 @@ test("SSR state escapes markup and never includes another user's issues", async 
 });
 
 test("service worker caches only the anonymous shell, never private SSR HTML", async () => {
-  const app = await start();
+  const app = await start({ serviceWorkers: "allow" });
   try {
     await app.page.goto(`${app.base}/`);
     await app.page.waitForFunction(() => navigator.serviceWorker?.controller);
@@ -143,6 +143,8 @@ test("service worker caches only the anonymous shell, never private SSR HTML", a
     assert.ok(cached.includes("/offline.html"));
     assert.ok(!cached.includes("/"));
     assert.ok(!cached.includes("/login"));
+    // Playwright's WebKit fails every navigation offline, the service worker's too: not measurable there.
+    if (ENGINE === "webkit") return;
     await app.context.setOffline(true);
     await app.page.reload({ waitUntil: "domcontentloaded" });
     assert.equal(await app.page.locator("#inkledger-ssr-state").count(), 0);

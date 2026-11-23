@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { AXE, start } from "./harness.mjs";
+import { AXE, start, TAB } from "./harness.mjs";
 import { signedMods, unsignedIds } from "./unsigned-mods.mjs";
 
 const BUILD = process.env.MODS_BUILD ?? new URL("../../inkledger-modules/build-unsigned/", import.meta.url).pathname;
@@ -89,7 +89,7 @@ test("Stitch's sheet on a phone is modal: Tab stays inside, a redraw keeps the f
     // Inside the host's sheet, and round the panel's own controls (not only its close button and frame).
     const reached = new Set();
     for (let i = 0; i < 25; i++) {
-      await page.keyboard.press("Tab");
+      await page.keyboard.press(TAB);
       assert.equal(await sheet.evaluate(el => el.contains(document.activeElement)), true, `Tab ${i + 1} stays inside`);
       const at = await inside.evaluate(() => {
         const el = document.hasFocus() ? document.activeElement : null;
@@ -154,7 +154,7 @@ test("Bonsai's film is a modal dialog: Tab stays inside, the slider says where i
     await film.waitFor({ timeout: 30_000 });
     assert.equal(await film.getAttribute("aria-modal"), "true");
     for (let i = 0; i < 8; i++) {
-      await page.keyboard.press("Tab");
+      await page.keyboard.press(TAB);
       assert.equal(await film.evaluate(el => el.contains(document.activeElement)), true, `Tab ${i + 1} stays inside`);
     }
     const slider = film.getByRole("slider", { name: "Position in the film" });

@@ -15,10 +15,11 @@ export default {
         timer = t;
         render();
       });
+      // Caught: WebKit fails a read still in flight when the page reloads.
       void host.storage.get("clicks").then(v => {
         clicks = v ?? 0;
         render();
-      });
+      }, () => {});
       // What the host tells (WP-17), for the tests to read.
       const heard = [];
       const offs = ["worklog-logged", "worklog-changed", "timer-stopped"].map(e => host.on(e, d => {

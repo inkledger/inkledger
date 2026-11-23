@@ -17,6 +17,8 @@ export const APP = new URL("..", import.meta.url).pathname;
 
 /** The engine the pages run on: E2E_BROWSER=webkit is Playwright's WebKit (the macOS app's family), else Chromium. */
 export const ENGINE = process.env.E2E_BROWSER === "webkit" ? "webkit" : "chromium";
+/** The key that moves the focus through every control: WebKit's plain Tab skips buttons and links (as Safari does). */
+export const TAB = ENGINE === "webkit" ? "Alt+Tab" : "Tab";
 /** A console error the engine logs about the page's markup, not the app's (WebKit doesn't know interactive-widget). */
 export const engineNoise = text => ENGINE === "webkit" && text === 'Viewport argument key "interactive-widget" not recognized and ignored.';
 
@@ -97,9 +99,10 @@ export async function startTimer(page, key, { mode = "switch" } = {}) {
  * `viewport` overrides the 1400×900 default; `env` adds server variables
  * (e.g. ALLOWED_HOSTS); `userAgent` sets the browser's (a phone). `devBuild`
  * serves the production bundle through tsx; `viteDev` starts the real Vite dev
- * server. Each run has its own Postgres database, dropped at stop().
+ * server. Each run has its own Postgres database, dropped at stop(). `serviceWorkers`: "allow" or
+ * "block"; WebKit blocks them by default, as its page.route misses what passes through one.
  */
-export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false } = {}) {
+export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false, serviceWorkers = ENGINE === "webkit" ? "block" : "allow" } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would
   // answer for a server still starting.
@@ -224,6 +227,7 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       viewport: viewport ?? { width: 1400, height: 900 },
       timezoneId: "Europe/Rome",
       locale: "en-US",
+      serviceWorkers,
       ...(userAgent ? { userAgent, isMobile: true, hasTouch: true } : {}),
     });
     if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
@@ -240,7 +244,11 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       };
     }
     const errors = [];
-    page.on("pageerror", e => errors.push(String(e)));
+    // WebKit reports a same-origin fetch started while the page unloads (a refetch after a cancelled save) as a page error, caught or not.
+    const unloading = e => ENGINE === "webkit" && /^Fetch API cannot load http:\s*\/*([^/\s]+)\/\S* due to access control checks\.$/.exec(String(e))?.[1] === new URL(base).host;
+    // Playwright's own service-worker block, refused in a sandboxed frame (WebKit): no error of the app's.
+    const blockRefused = e => ENGINE === "webkit" && serviceWorkers === "block" && String(e) === "SecurityError: Service Worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag";
+    page.on("pageerror", e => unloading(e) || blockRefused(e) || errors.push(String(e)));
     return {
       base,
       dir,
