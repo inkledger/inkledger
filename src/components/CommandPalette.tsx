@@ -86,7 +86,7 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={commandPalette.set}>
-      <DialogContent className="overflow-hidden p-0">
+      <DialogContent className="overflow-hidden p-0" modulesOver>
         <DialogHeader className="sr-only">
           <DialogTitle>{t("ui.palette.title")}</DialogTitle>
           <DialogDescription>{t("ui.palette.description")}</DialogDescription>

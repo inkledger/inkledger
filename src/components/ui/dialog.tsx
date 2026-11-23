@@ -38,8 +38,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        // Just under the dialog (z-49): the modules' page overlay may come between them (ModulePageOverlay).
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[49] bg-overlay/45 backdrop-blur-[2px]",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-overlay/45 backdrop-blur-[2px]",
         className
       )}
       {...props}
@@ -53,6 +52,7 @@ function DialogContent({
   showCloseButton = true,
   cast = true,
   closeProps,
+  modulesOver = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
@@ -60,10 +60,12 @@ function DialogContent({
   closeProps?: Readonly<Record<`data-${string}`, string>>;
   /** Off for a dialog that is not a floating box (full screen, see-through): it casts nothing. */
   cast?: boolean;
+  /** The modules' page overlay comes between its backdrop (then z-49) and it: a creature by it is seen, not blurred. */
+  modulesOver?: boolean;
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      {modulesOver ? <DialogOverlay data-modules-over="" className="z-[49]" /> : <DialogOverlay />}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         {...surface("dialog", { elevation: 3, on: cast })}
