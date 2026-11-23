@@ -75,8 +75,8 @@ test("Stitch's sheet on a phone is modal: Tab stays inside, a redraw keeps the f
     const cardFrame = box.locator('iframe[data-module-frame="view"]');
     const card = page.frameLocator('[data-module-slot="dashboard-widget"] [data-module="stitch"] iframe[data-module-frame="view"]').locator("[data-stitch-card]").first();
     await card.waitFor({ timeout: 30_000 });
-    await card.focus();
-    await page.keyboard.press("Enter");
+    // A tap on the card: a script's focus inside a frame is no person's, so Enter there would open nothing.
+    await card.click();
     // The host's sheet, modal on a phone: the page behind is out of reach, the panel in its frame.
     const sheet = moduleSheet(page, "Stitch");
     await sheet.waitFor();

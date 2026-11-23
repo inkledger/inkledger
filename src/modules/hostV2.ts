@@ -90,7 +90,7 @@ type Capabilities = {
    * page, the latest winning; it rejects when the host refused it (a value, a kind).
    */
   surfaces?: HostApiV1["surfaces"] & { light?(vars: Readonly<Record<string, string>> | null, off?: readonly string[]): Promise<void> };
-  /** "page.importance": how much each point of the page matters (password fields are always 1). */
+  /** "page.importance" (a view's): how much each point of the box matters (password fields always 1, a point past the box 1); four calls a second for the whole module. */
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /**
    * "page.ledges" (a view's): the top edges of the cards and section headers in sight inside
@@ -98,19 +98,19 @@ type Capabilities = {
    * only, a few dozen at most, four calls a second.
    */
   ledges?(): Promise<Ledge[]>;
-  /** "pointer" */
+  /** "pointer" (a view's): null while the pointer is more than 160 px from the box. */
   pointer?: Sub<PointerState>;
   /**
-   * "sheet": opens or closes this module's sheet slot. Open, its frame takes the focus and Esc
+   * "sheet": opens (on the person's gesture in this view, never from the runtime) or closes this module's sheet slot. Open, its frame takes the focus and Esc
    * in it closes it; closed, the focus goes back to the opening view's box (its host button,
    * else its frame).
    */
   sheet?: { open(): void; close(): void };
-  /** "share", "download", "open-image": brokered, need the person's gesture. */
+  /** "share", "download", "open-image": brokered, need the person's gesture in this view (a click, or a key once they put the focus there) in the last five seconds. */
   share?(file: Blob, name: string): Promise<boolean>;
   download?(file: Blob, name: string): Promise<void>;
   openImage?(file: Blob): Promise<void>;
-  /** "geo": where the person is, after their gesture; null when refused. */
+  /** "geo": where the person is, right after their gesture in this view; null when refused. */
   geo?: { here(): Promise<{ lat: number; lon: number } | null> };
   /** "cache": a local per-module cache the host owns. */
   cache?: {
@@ -144,7 +144,8 @@ export type HostApiV2 = Basics &
      * `activate`. [] clears. In "mobile-dock" the frame has room past the box
      * (16 px, 8 px on the right) for the pill's shadow, shown once a shape is set.
      * A picture instead: its alpha over the whole box is the shape (sent at most
-     * 512 px a side; ten changes a second at most).
+     * 512 px a side; ten changes a second at most). A shape over more of the box than
+     * a quarter (or 256 × 256 px in a small one) is ignored: no catch-all over the page.
      * `opts.focusable`: the host's box takes Tab and Enter/Space as a button named
      * `opts.label`; without it the host adds no Tab stop (the frame's own control
      * takes the keyboard). `activate` hears how: a click (where, in the box) or the keyboard.
