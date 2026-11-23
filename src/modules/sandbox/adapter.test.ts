@@ -335,6 +335,35 @@ describe("the frame's host API (bootstrap)", () => {
     expect(sheetOpen.get()).toBeNull();
   });
 
+  it("sheet: closed, the focus the host gives back to the frame goes on to the control that opened it", async () => {
+    sheetOpen.close();
+    let focused = 0;
+    const card = { isConnected: true, focus: () => void focused++ };
+    let open = () => {};
+    const f = withModule(["sheet"], (_el, host) => void (open = () => host.sheet?.open()));
+    await settle();
+    f.setActive(card);
+    open();
+    await settle();
+    expect(sheetOpen.get()).toBe("m");
+    // The frame lost the focus to the sheet; the host focuses this iframe again as it closes.
+    sheetOpen.close();
+    f.setActive(f.body);
+    f.focus();
+    expect(focused).toBe(1);
+    // Once: a later return to the frame (a click, a Tab) is the person's own.
+    f.focus();
+    expect(focused).toBe(1);
+    // Focus already on a control as the frame gets it back: left there.
+    f.setActive(card);
+    open();
+    await settle();
+    sheetOpen.close();
+    f.setActive({ isConnected: true, focus() {} });
+    f.focus();
+    expect(focused).toBe(1);
+  });
+
   it("sheet: the opening view's box is kept, once, for the focus to go back to", async () => {
     sheetOpen.close();
     const el = { dataset: {}, isConnected: true, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;

@@ -299,7 +299,23 @@ async function start(init, port) {
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("page.ledges") && init.role === "view") host.ledges = () => call("page.ledges", []);
   if (has("cache")) host.cache = { get: (k) => call("cache.get", [k]), put: (k, b) => call("cache.put", [k, b]).then(quiet), delete: (k) => call("cache.delete", [k]).then(quiet) };
-  if (has("sheet")) host.sheet = { open: () => fire("sheet.open"), close: () => fire("sheet.close") };
+  if (has("sheet")) {
+    // The control that opened the sheet: the host hands the focus back to this frame, the frame to it (once).
+    let opener = null;
+    host.sheet = {
+      open: () => {
+        const at = document.activeElement;
+        opener = at && at !== document.body ? at : null;
+        fire("sheet.open");
+      },
+      close: () => fire("sheet.close"),
+    };
+    addEventListener("focus", () => {
+      const el = opener;
+      opener = null;
+      if (el && el.isConnected && document.activeElement === document.body) el.focus({ preventScroll: true });
+    });
+  }
   if (has("geo")) host.geo = { here: () => call("geo.here") };
   if (has("dock")) host.dock = { set: (on) => fire("dock.set", [Boolean(on)]) };
   if (has("backdrop.preblurred")) host.backdrop = { preblurred: (on) => fire("backdrop.preblurred", [Boolean(on)]), blur: watched("backdrop.blur") };

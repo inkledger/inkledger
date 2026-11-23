@@ -27,6 +27,7 @@ export function bootFrame(o: {
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
+  const focuses: (() => void)[] = [];
   const parentWin = {
     postMessage(m: unknown, _origin: string, transfer: Transferable[] = []) {
       // Into the host's realm, as the browser's structured clone would.
@@ -38,7 +39,8 @@ export function bootFrame(o: {
   const box = { id: "", style: {}, dataset: {} as Record<string, string> };
   const styles = new Map<string, { id: string; textContent: string }>();
   const keys: ((e: { key: string }) => void)[] = [];
-  const doc = {
+  const doc: { activeElement: unknown; [k: string]: unknown } = {
+    activeElement: null,
     createElement: (tag: string) => (tag === "style" ? { id: "", textContent: "" } : box),
     getElementById: (id: string) => styles.get(id) ?? null,
     body: { append() {} },
@@ -51,7 +53,7 @@ export function bootFrame(o: {
     window: {},
     document: doc,
     location: { href: "http://app.test/modules/frame/x/0" },
-    addEventListener: (t: string, fn: (e: unknown) => void) => (t === "message" ? frameListeners.push(fn) : t === "pagehide" && pagehides.push(() => fn({}))),
+    addEventListener: (t: string, fn: (e: unknown) => void) => (t === "message" ? frameListeners.push(fn) : t === "pagehide" ? pagehides.push(() => fn({})) : t === "focus" && focuses.push(() => fn({}))),
     load: async () => ({ default: o.mod }),
     URL,
     Blob,
@@ -82,7 +84,21 @@ export function bootFrame(o: {
     },
   });
   vm.runInContext(BOOTSTRAP, context);
-  return { peer, sent, box, errors, styles, keydown: (key: string) => keys.forEach(fn => fn({ key })), pagehide: () => pagehides.forEach(fn => fn()) };
+  return {
+    peer,
+    sent,
+    box,
+    errors,
+    styles,
+    keydown: (key: string) => keys.forEach(fn => fn({ key })),
+    pagehide: () => pagehides.forEach(fn => fn()),
+    /** The fake document's body: what has the focus when nothing else does. */
+    body: doc.body,
+    /** The frame's focused element (the fake document's). */
+    setActive: (el: unknown) => void (doc.activeElement = el),
+    /** The frame's window takes the focus (the host focused its iframe). */
+    focus: () => focuses.forEach(fn => fn()),
+  };
 }
 
 /** Lets the messages both ways go round. */
