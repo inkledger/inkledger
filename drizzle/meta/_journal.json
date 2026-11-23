@@ -330,6 +330,13 @@
       "when": 1795358202034,
       "tag": "0046_mail_mailbox",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795424534806,
+      "tag": "0047_legacy_connections",
+      "breakpoints": true
     }
   ]
 }

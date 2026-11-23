@@ -161,6 +161,33 @@ describe("data migrations", () => {
   });
 });
 
+describe("legacy Jira connections (0047)", () => {
+  it("take the user's sync state onto their own streams, keep a stream already later, and become connections like any other", async () => {
+    const { query, up } = await fresh();
+    await up();
+    const user = async (name: string) => ((await query("insert into users (username, display_name, created_at) values ($1, $1, 1) returning id", [name])).rows[0] as { id: number }).id;
+    const jira = async (userId: number, legacy: number) =>
+      ((await query("insert into connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, legacy, created_at) values ($1, 'jira', $3, 'a', '{}', 'x', $2, 1) returning id", [userId, legacy, `https://j${legacy}.example.com`])).rows[0] as { id: number }).id;
+    const [ann, bob, cy] = [await user("ann"), await user("bob"), await user("cy")];
+    const [annJira, annSecond, bobJira, cyJira] = [await jira(ann, 1), await jira(ann, 0), await jira(bob, 1), await jira(cy, 1)];
+    await query("insert into sync_state (user_id, last_sync_at, last_full_sync_at, last_worklog_sync_at) values ($1, 300, 200, 100), ($2, 300, 200, 100)", [ann, bob]);
+    // Bob's worklog stream already stands later, and his issue stream has its own record.
+    await query("insert into connection_sync (connection_id, stream, checkpoint, last_ok_at, last_full_at) values ($1, 'worklogs', '150', 150, null), ($1, 'issues', null, 400, null)", [bobJira]);
+    await query("delete from drizzle.__drizzle_migrations where created_at = $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
+    await up();
+    const streams = await query("select connection_id, stream, checkpoint, last_ok_at, last_full_at from connection_sync order by connection_id, stream");
+    expect(streams.rows).toEqual([
+      { connection_id: annJira, stream: "issues", checkpoint: null, last_ok_at: 300, last_full_at: 200 },
+      { connection_id: annJira, stream: "worklogs", checkpoint: "100", last_ok_at: 100, last_full_at: null },
+      { connection_id: bobJira, stream: "issues", checkpoint: null, last_ok_at: 400, last_full_at: 200 },
+      { connection_id: bobJira, stream: "worklogs", checkpoint: "150", last_ok_at: 150, last_full_at: null },
+    ]);
+    // Cy never synced: nothing to carry, his first sync stays one. Ann's second connection was never legacy.
+    expect(streams.rows.some(r => [annSecond, cyJira].includes((r as { connection_id: number }).connection_id))).toBe(false);
+    expect((await query("select count(*)::int as n from connections where legacy = 1")).rows).toEqual([{ n: 0 }]);
+  });
+});
+
 describe("migrations over a draft of 0010", () => {
   it("a database that took the draft 0010 (claimed_at only) still migrates to the end", async () => {
     const { query, up } = await fresh();

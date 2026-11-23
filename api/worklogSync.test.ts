@@ -59,6 +59,8 @@ const jira = {
   updatedAt: 0,
   /** Runs while a pass reads the worklogs (something the user does meanwhile). */
   duringList: null as null | (() => Promise<void>),
+  /** Where each pass asked the updated feed to start. */
+  sinces: [] as number[],
 };
 
 vi.stubGlobal(
@@ -88,6 +90,7 @@ vi.stubGlobal(
       const since = Number(url.searchParams.get("since"));
       return json({ values: [], lastPage: false, until: since + 1 });
     }
+    if (p.endsWith("/worklog/updated")) jira.sinces.push(Number(url.searchParams.get("since")));
     if (p.endsWith("/worklog/updated")) return json({ values: jira.updatedAt && Number(url.searchParams.get("since")) >= jira.updatedAt ? [] : jira.updated, lastPage: true, until: now + 1000 });
     if (p.endsWith("/worklog/deleted")) return json({ values: jira.deleted, lastPage: true, until: jira.deletedUntil || now + 1000 });
     if (p.endsWith("/worklog/list")) {
@@ -466,5 +469,26 @@ describe("worklogs from Jira", () => {
       await q("UPDATE connections SET status = 'ok' WHERE id = ?", jc.id);
       await q("UPDATE connection_sync SET retry_after = NULL WHERE connection_id = ?", jc.id);
     }
+  });
+
+  it("a connection from before connections, once migrated, goes on from the user's checkpoint: no reimport, no window lost", async () => {
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const { syncWorklogs } = await import("./worklogSync");
+    const [jc] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
+    const at = now - 5_000;
+    // As an upgrade finds it: the user's checkpoint, none of its own.
+    await q("UPDATE connections SET legacy = 1 WHERE id = ?", jc.id);
+    await q("DELETE FROM connection_sync WHERE connection_id = ? AND stream = 'worklogs'", jc.id);
+    await q("INSERT INTO sync_state (user_id, last_worklog_sync_at) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET last_worklog_sync_at = excluded.last_worklog_sync_at", user.id, at);
+    const sql = readFileSync(path.resolve(process.cwd(), "drizzle/0047_legacy_connections.sql"), "utf8");
+    // Twice: a second run changes nothing.
+    for (let i = 0; i < 2; i++) for (const statement of sql.split("--> statement-breakpoint")) await q(statement);
+    expect(await q("SELECT legacy FROM connections WHERE id = ?", jc.id)).toEqual([{ legacy: 0 }]);
+    expect(await q("SELECT checkpoint, last_ok_at FROM connection_sync WHERE connection_id = ? AND stream = 'worklogs'", jc.id)).toEqual([{ checkpoint: String(at), last_ok_at: at }]);
+    jira.sinces = [];
+    const r = await syncWorklogs(user);
+    expect(r.initial).toBe(false);
+    expect(jira.sinces).toEqual([at]);
   });
 });
