@@ -46,6 +46,7 @@ export const server = {
     },
     invalidCredentialsServer: "Invalid Jira credentials. Check your username and password (or PAT).",
     invalidCredentialsCloud: "Invalid Jira credentials. Check your email and API token.",
+    signInDenied: "Jira is asking for a CAPTCHA after too many failed sign-ins: sign in to Jira once in a browser, then try again here.",
     signInWithCredentials: "Sign in with your username and password.",
     noConnection: "Connect a tracker (Jira, GitHub…) to work with issues.",
     notAllowed: "Your account isn't allowed to do this.",

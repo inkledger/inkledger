@@ -12,11 +12,14 @@ import { t } from "@contracts/i18n";
 
 export class JiraApiError extends Error {
   status: number;
+  /** Jira Server refused the sign-in itself (CAPTCHA_CHALLENGE…): the reason it gave. */
+  readonly signInDenied?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, signInDenied?: string) {
     super(message);
     this.name = "JiraApiError";
     this.status = status;
+    this.signInDenied = signInDenied;
   }
 }
 
@@ -129,7 +132,7 @@ async function jiraCall<T>(creds: JiraCredentials, path: string, init: RequestIn
     }
     // A denied sign-in is the credentials' problem (reconnect), never a permission nor an outage to retry.
     const denied = res.status === 403 ? signInDenied(res.headers) : null;
-    if (denied) throw new JiraApiError(401, `Jira refused the sign-in (${denied}): sign in to Jira in a browser, then reconnect`);
+    if (denied) throw new JiraApiError(401, `Jira refused the sign-in (${denied}): sign in to Jira in a browser, then reconnect`, denied);
     // Tomcat sends no reason phrase: the status is all there is.
     throw new JiraApiError(res.status, detail || `Jira answered ${res.status}`);
   }

@@ -56,6 +56,8 @@ export async function confirmJiraLogin(input: JiraLoginInput): Promise<JiraIdent
               : String(err)
       }`,
     );
+    // Another try with the same password would be one more failed login: a browser sign-in clears it.
+    if (err instanceof JiraApiError && err.signInDenied) throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInDenied") });
     if (err instanceof JiraApiError && (err.status === 401 || err.status === 403)) {
       throw new TRPCError({
         code: "UNAUTHORIZED",

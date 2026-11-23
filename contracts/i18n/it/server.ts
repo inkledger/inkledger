@@ -47,6 +47,7 @@ export const server: Shape<typeof en> = {
     },
     invalidCredentialsServer: "Credenziali Jira non valide. Controlla nome utente e password (o PAT).",
     invalidCredentialsCloud: "Credenziali Jira non valide. Controlla email e API token.",
+    signInDenied: "Jira chiede un CAPTCHA dopo troppi accessi falliti: accedi una volta a Jira dal browser, poi riprova qui.",
     signInWithCredentials: "Accedi con nome utente e password.",
     noConnection: "Collega un tracker (Jira, GitHub…) per lavorare con le issue.",
     notAllowed: "Il tuo account non ha il permesso per farlo.",
