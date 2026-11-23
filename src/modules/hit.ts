@@ -20,7 +20,7 @@ const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="l
 /**
  * Page controls drawn over modules on purpose (the running timer's Pause and Stop, Play on the open hole: over
  * the tree at the timeline's start), marked `data-above-modules`: a point on one is the control's, even where
- * a module's shape lies under it. Not every control: a gap of the timeline is a button too, and a tap on the
+ * a module's shape lies under it, and the page's own chrome over an overlay (its header, banners). Not every control: a gap of the timeline is a button too, and a tap on the
  * tree over it is the tree's.
  */
 const ABOVE_MODULES = "[data-above-modules]";
@@ -30,13 +30,16 @@ const POINTER_EVENTS = ["pointerdown", "pointerup", "mousedown", "mouseup", "cli
 export function createHitAreas(win: Window = window) {
   const doc = win.document;
   const areas = new Set<Area>();
+  /** When each element first took a shape: setting it again never makes it newer. */
+  const born = new WeakMap<HTMLElement, number>();
+  let births = 0;
   /** The area that owns the gesture under way (it started on its shape). */
   let owner: Area | null = null;
   let hovering = false;
 
   const at = (x: number, y: number): Area | null => {
-    // The newest first: a module registered later is drawn over an older one.
-    for (const a of [...areas].reverse()) {
+    // The oldest first: a module come later never takes the clicks of one already there.
+    for (const a of [...areas].sort((p, q) => (born.get(p.el) ?? 0) - (born.get(q.el) ?? 0))) {
       if (!a.el.isConnected) continue;
       const r = a.el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0 || x < r.left || y < r.top || x >= r.right || y >= r.bottom) continue;
@@ -97,6 +100,7 @@ export function createHitAreas(win: Window = window) {
       a11y: { focusable: boolean; label?: string; onFocus?: (focused: boolean, visible: boolean) => void } = { focusable: true },
     ): () => void {
       const area: Area = { el, test, activate };
+      if (!born.has(el)) born.set(el, births++);
       if (areas.size === 0) listen(true);
       areas.add(area);
       const hadTab = el.getAttribute("tabindex");

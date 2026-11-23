@@ -147,6 +147,29 @@ describe("module hit areas", () => {
     expect(how).toEqual([{ via: "pointer", x: 20, y: 30 }, { via: "keyboard" }]);
   });
 
+  it("where two modules' shapes overlap, the older keeps its clicks, even after the newer sets its shape again", () => {
+    const { win, fire } = page();
+    const areas = createHitAreas(win);
+    const opened: string[] = [];
+    const older = box();
+    const newer = box();
+    areas.add(older, leftHalf, () => opened.push("older"));
+    let undo = areas.add(newer, leftHalf, () => opened.push("newer"));
+    fire("pointerdown", 20, 20);
+    fire("click", 20, 20);
+    undo();
+    undo = areas.add(newer, leftHalf, () => opened.push("newer"));
+    fire("pointerdown", 20, 20);
+    fire("click", 20, 20);
+    expect(opened).toEqual(["older", "older"]);
+    // Its own shape alone is still its.
+    undo();
+    areas.add(newer, () => true, () => opened.push("newer"));
+    fire("pointerdown", 80, 20);
+    fire("click", 80, 20);
+    expect(opened).toEqual(["older", "older", "newer"]);
+  });
+
   it("forwards its box taking and losing the focus, until undone", () => {
     const { win } = page();
     const heard: [boolean, boolean][] = [];
