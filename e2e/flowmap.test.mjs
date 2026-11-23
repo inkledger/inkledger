@@ -409,3 +409,25 @@ test("Clicks across the Dashboard count: the period, the quick actions and their
     for (let i = 0; i < 80 && (await counted()).length < 4; i++) await new Promise(resolve => setTimeout(resolve, 100));
     assert.deepEqual(await counted(), ["dashboard.logTime", "dashboard.period.day", "dashboard.period.week", "dashboard.quickLog.cancel"]);
   }));
+
+test("Clicks made while FlowMap was off never count, not even once it is turned on in the same tab", { timeout: 120_000 }, () =>
+  withApp({}, async ({ page, base, db }) => {
+    // Within the app, never a reload: what the page held since it started is what must not count.
+    const go = path => page.evaluate(to => {
+      history.pushState({}, "", to);
+      dispatchEvent(new PopStateEvent("popstate"));
+    }, path);
+    await page.goto(base + "/");
+    await page.getByRole("radio", { name: "Week" }).click();
+    await page.getByRole("radio", { name: "Day" }).click();
+    await go("/settings/workspace");
+    await (await collectionSwitch(page)).click();
+    await page.waitForFunction(() => document.querySelector('[role="checkbox"][aria-label="Collect interaction maps"]')?.getAttribute("aria-checked") === "true");
+    await go("/");
+    await page.getByRole("button", { name: "Log time", exact: true }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await go("/settings");
+    const counted = async () => (await db.q("SELECT DISTINCT payload::json->>'controlId' AS id FROM workspace_flow_events WHERE surface_id = 'dashboard' AND payload::json->>'kind' = 'control.activate'")).map(row => row.id).sort();
+    for (let i = 0; i < 80 && (await counted()).length < 2; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.deepEqual(await counted(), ["dashboard.logTime", "dashboard.quickLog.cancel"]);
+  }));

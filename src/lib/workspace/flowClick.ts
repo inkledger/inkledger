@@ -59,26 +59,43 @@ const surfaceOf = new Map(CATALOG_V1.controls.map(control => [control.id, CATALO
 const fromStart: FlowClick[] = [];
 const claimed = new Set<string>();
 let holdingFromStart = false;
+let dropped = false;
+let stopHoldingFromStart = () => {};
 
 /**
  * Holds the clicks made from the page's first script on (before React takes the page over): a
  * collection starts only once its layout has loaded, which a slow machine leaves well after a
- * person's first clicks. In memory only, at most 50; nothing is sent unless a collection takes them.
+ * person's first clicks. In memory only, at most 50; nothing is sent unless a collection takes them,
+ * and all of it is dropped for good once FlowMap is known to be off (dropClicksFromStart).
  */
 export function holdClicksFromStart(): void {
-  if (holdingFromStart || typeof document === "undefined") return;
+  if (holdingFromStart || dropped || typeof document === "undefined") return;
   holdingFromStart = true;
   const hold = (read: FlowClick | null) => {
     const surface = read && surfaceOf.get(read.controlId);
     if (read && surface && !claimed.has(surface) && fromStart.length < 50) fromStart.push(read);
   };
-  document.addEventListener("click", event => hold(flowClickOf(event)), true);
-  window.addEventListener("workspace:key", event => hold(flowKeyOf(event)));
+  const click = (event: MouseEvent) => hold(flowClickOf(event));
+  const key = (event: Event) => hold(flowKeyOf(event));
+  document.addEventListener("click", click, true);
+  window.addEventListener("workspace:key", key);
+  stopHoldingFromStart = () => {
+    document.removeEventListener("click", click, true);
+    window.removeEventListener("workspace:key", key);
+  };
+}
+
+/** FlowMap is off: what was held goes, and nothing more is (turned on later, it counts from then on). */
+export function dropClicksFromStart(): void {
+  dropped = true;
+  fromStart.length = 0;
+  stopHoldingFromStart();
 }
 
 /** The clicks held from the page's start on `surfaceId`, once: from then on its collections count their own. */
 export function takeClicksFromStart(surfaceId: string): FlowClick[] {
   claimed.add(surfaceId);
+  if (dropped) return [];
   const taken = fromStart.filter(read => surfaceOf.get(read.controlId) === surfaceId);
   const rest = fromStart.filter(read => surfaceOf.get(read.controlId) !== surfaceId);
   fromStart.splice(0, fromStart.length, ...rest);
