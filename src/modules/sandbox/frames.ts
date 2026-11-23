@@ -293,6 +293,7 @@ function openFrame(
     onUnmounted: () => onUnmounted?.(),
     onSize: resize,
     onBeat: busy => watch?.beat(busy),
+    onFlood: () => watch?.flood(),
     onFailed(reason) {
       iframe.dataset.state = "failed";
       console.error(`[module ${entry.id}] ${reason}`);

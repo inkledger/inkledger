@@ -129,6 +129,36 @@ describe("framed module messages", () => {
     expect([call(0, "local"), call(0, "local"), call(1, "local")]).toEqual([true, true, true]);
   });
 
+  it("cuts off a frame flooding the page: past its bytes or messages a second, refused ones counted too", () => {
+    const floods: number[] = [];
+    let t = 0;
+    const p = createRpcPeer({ source: () => frame, post: () => {}, capabilities: [], methods: {}, now: () => t, onFlood: () => floods.push(t) });
+    const send = (data: unknown) => {
+      const r = p.receive({ source: frame, origin: "null", data });
+      return r.ok ? "ok" : r.why;
+    };
+    // Oversized: refused unread, yet the page paid for its copy.
+    const big = { v: 1, t: "call", id: 1, m: "x", a: ["x".repeat(RPC_MAX_BYTES)] };
+    expect(Array.from({ length: 5 }, () => send(big))).toEqual(["size", "size", "size", "flood", "flood"]);
+    t += 10_000;
+    const junk = Array.from({ length: 1000 }, () => send({ v: 1, t: "junk" }));
+    expect(junk.filter(w => w === "schema").length).toBeGreaterThan(100);
+    expect(junk.at(-1)).toBe("flood");
+    expect(floods.length).toBeGreaterThan(0);
+  });
+
+  it("an honest frame never floods: ten shapes a second and its beats", () => {
+    let floods = 0;
+    let t = 0;
+    const p = createRpcPeer({ source: () => frame, post: () => {}, capabilities: [], methods: {}, now: () => t, onFlood: () => floods++ });
+    for (let i = 0; i < 600; i++) {
+      t += 100;
+      p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: i + 1, m: "hit.set", a: [{ kind: "mask", w: 512, h: 512, alpha: new Uint8Array(512 * 512) }] } });
+      if (i % 5 === 0) p.receive({ source: frame, origin: "null", data: { v: 1, t: "beat", busy: 0 } });
+    }
+    expect(floods).toBe(0);
+  });
+
   it("refuses arguments outside the method's schema", async () => {
     const { call, sent } = peer();
     call("echo", ["far too long a string"], 9);

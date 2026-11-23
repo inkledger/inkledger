@@ -33,17 +33,22 @@ const RECOVER_TICKS = 10;
 const HOST_LAG_MS = 250;
 /** A module seen busy this recently is the one stalling the frames it shares a process with. */
 const BLAME_MS = 3000;
+/** Seconds of flooding the page with messages, within FLOOD_WINDOW_MS, that stop a module (the first holds it to "reduce"). */
+const FLOOD_STOP = 3;
+const FLOOD_WINDOW_MS = 10_000;
 
 export const budgetOfStep = (step: Step): BudgetLevel => (step === "reduce" ? "reduce" : STEPS.indexOf(step) >= STEPS.indexOf("still") ? "still" : "normal");
 
-type FrameState = { moduleId: string; runtime: boolean; started: number; judgeFrom: number; lastBeat: number; busy: number; suspended: boolean };
-type ModuleState = { step: number; clean: number; blamedAt: number };
+type FrameState = { moduleId: string; runtime: boolean; started: number; judgeFrom: number; lastBeat: number; busy: number; suspended: boolean; flooded: boolean };
+type ModuleState = { step: number; clean: number; blamedAt: number; floods: number[] };
 
 export type LadderFrame = {
   /** A beat, with the frame's own long-task time since the last one. */
   beat(busyMs: number): void;
   /** A long task the host attributed to this frame. */
   longTask(ms: number): void;
+  /** It sent more messages than the page may read: dropped, and counted against it. */
+  flood(): void;
   /** Off screen or the page hidden: its beats slow down, lateness is not judged. */
   suspend(on: boolean): void;
   dispose(): void;
@@ -54,7 +59,7 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
   const frames = new Set<FrameState>();
   const modules = new Map<string, ModuleState>();
   const mod = (id: string) => {
-    const m = modules.get(id) ?? { step: 0, clean: 0, blamedAt: -Infinity };
+    const m = modules.get(id) ?? { step: 0, clean: 0, blamedAt: -Infinity, floods: [] };
     modules.set(id, m);
     return m;
   };
@@ -67,7 +72,7 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
   return {
     frame(moduleId: string, role: "view" | "runtime"): LadderFrame {
       const t = o.now();
-      const f: FrameState = { moduleId, runtime: role === "runtime", started: t, judgeFrom: t + GRACE_MS, lastBeat: t, busy: 0, suspended: false };
+      const f: FrameState = { moduleId, runtime: role === "runtime", started: t, judgeFrom: t + GRACE_MS, lastBeat: t, busy: 0, suspended: false, flooded: false };
       frames.add(f);
       mod(moduleId);
       return {
@@ -77,6 +82,9 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         },
         longTask(ms) {
           if (ms >= LONG_TASK_MS) f.busy += ms;
+        },
+        flood() {
+          f.flooded = true;
         },
         suspend(on) {
           if (f.suspended === on) return;
@@ -94,9 +102,13 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
       const lagging = hostLagMs > HOST_LAG_MS;
       const struck = new Set<string>();
       const late = new Set<string>();
+      const flooded = new Set<string>();
       for (const f of frames) {
         const m = mod(f.moduleId);
         if (m.step === STEPS.indexOf("killed")) continue;
+        // Flooding costs the page whatever else happened, startup included.
+        if (f.flooded) flooded.add(f.moduleId);
+        f.flooded = false;
         // Its own long tasks are its own, whatever else happened.
         if (f.busy >= LONG_TASK_MS && t > f.started + GRACE_MS) {
           struck.add(f.moduleId);
@@ -117,7 +129,12 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
       const watched = new Set([...frames].map(f => f.moduleId));
       for (const [id, m] of modules) {
         if (m.step === STEPS.indexOf("killed") || !watched.has(id)) continue;
-        if (struck.has(id)) {
+        if (flooded.has(id)) {
+          // Paused or not, a frame still posts: reduce at once, then stopped if it keeps on.
+          m.floods = [...m.floods.filter(at => t - at < FLOOD_WINDOW_MS), t];
+          m.clean = 0;
+          set(id, m, m.floods.length >= FLOOD_STOP ? STEPS.indexOf("killed") : Math.max(m.step, STEPS.indexOf("reduce")));
+        } else if (struck.has(id)) {
           m.clean = 0;
           set(id, m, m.step + 1);
         } else if (m.step > 0 && ++m.clean >= RECOVER_TICKS) {
@@ -284,6 +301,7 @@ export function watchFrame(moduleId: string, iframe: HTMLIFrameElement, role: "v
   if (role === "view") seen?.observe(iframe);
   return {
     beat: (busyMs: number) => w.frame.beat(busyMs),
+    flood: () => w.frame.flood(),
     dispose() {
       if (!watched.delete(w)) return;
       seen?.unobserve(iframe);

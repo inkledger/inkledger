@@ -18,6 +18,13 @@ export const RPC_MAX_BYTES = PICTURE_MAX_BYTES + 64 * 1024;
 const MAX_NODES = 4096;
 /** Calls a frame may have unanswered at once. */
 const MAX_IN_FLIGHT = 32;
+/**
+ * What a frame may make the page read a second, refused messages included (the
+ * page copied them all the same): messages, and bytes copied (a Blob or a bitmap
+ * crosses as a handle). Ten hit masks a second and every paced call fit well under.
+ */
+const FLOOD_MESSAGES = [200, 400] as const;
+const FLOOD_BYTES = [8 * 1024 * 1024, 16 * 1024 * 1024] as const;
 
 const v = z.literal(RPC_VERSION);
 /** Frame → host. */
@@ -118,7 +125,13 @@ const isA = (x: object, name: string) => {
  * the app and a module frame breaks the frame; class instances, functions).
  */
 export function messageBytes(value: unknown, max = RPC_MAX_BYTES): number | null {
+  return measure(value, max)?.total ?? null;
+}
+
+/** A message's estimated size, and how much of it the page copies (strings, arrays, binary). */
+function measure(value: unknown, max: number): { total: number; copied: number } | null {
   let total = 0;
+  let handles = 0;
   let nodes = 0;
   const stack: unknown[] = [value];
   const seen = new Set<object>();
@@ -142,10 +155,16 @@ export function messageBytes(value: unknown, max = RPC_MAX_BYTES): number | null
         if (seen.has(x)) break;
         seen.add(x);
         if (isA(x, "OffscreenCanvas")) return null;
-        if (x instanceof Blob) total += x.size;
-        else if (x instanceof ArrayBuffer) total += x.byteLength;
+        if (x instanceof Blob) {
+          total += x.size;
+          handles += x.size;
+        } else if (x instanceof ArrayBuffer) total += x.byteLength;
         else if (ArrayBuffer.isView(x)) total += x.byteLength;
-        else if (isA(x, "ImageBitmap")) total += (x as ImageBitmap).width * (x as ImageBitmap).height * 4;
+        else if (isA(x, "ImageBitmap")) {
+          const px = (x as ImageBitmap).width * (x as ImageBitmap).height * 4;
+          total += px;
+          handles += px;
+        }
         else if (isA(x, "MessagePort")) total += 8;
         else if (Array.isArray(x)) {
           if (x.length > MAX_NODES) return null;
@@ -167,14 +186,14 @@ export function messageBytes(value: unknown, max = RPC_MAX_BYTES): number | null
     }
     if (total > max) return null;
   }
-  return total;
+  return { total, copied: total - handles };
 }
 
 /** Token buckets by method: a peer's own, or one module's for its shared methods. */
 export const createRateBuckets = () => new Map<string, { tokens: number; at: number }>();
 export type RateBuckets = ReturnType<typeof createRateBuckets>;
 
-export type Refusal = "source" | "origin" | "size" | "schema" | "unknown-method" | "capability" | "rate-limited" | "busy" | "disposed";
+export type Refusal = "source" | "origin" | "flood" | "size" | "schema" | "unknown-method" | "capability" | "rate-limited" | "busy" | "disposed";
 
 export type RpcPeerOptions = {
   /** The frame's window now (`iframe.contentWindow`); null before it exists. */
@@ -191,6 +210,8 @@ export type RpcPeerOptions = {
   onSize?(height: number): void;
   onBeat?(busyMs: number): void;
   onFailed?(reason: string): void;
+  /** A message dropped: the frame sends more than the page may read (it is told once a message). */
+  onFlood?(): void;
   /** A message refused (not counted: other windows' messages, which are none of this peer's business). */
   onRefused?(why: Refusal, method?: string): void;
 };
@@ -202,6 +223,19 @@ export function createRpcPeer(o: RpcPeerOptions) {
   const now = o.now ?? (() => performance.now());
   const buckets = createRateBuckets();
   const owned = new Set<() => void>();
+  // What this frame may still make the page read (refilled with time).
+  const flood: { messages: number; bytes: number; at: number } = { messages: FLOOD_MESSAGES[1], bytes: FLOOD_BYTES[1], at: now() };
+  const afford = (bytes: number) => {
+    const t = now();
+    const s = (t - flood.at) / 1000;
+    flood.at = t;
+    flood.messages = Math.min(FLOOD_MESSAGES[1], flood.messages + s * FLOOD_MESSAGES[0]);
+    flood.bytes = Math.min(FLOOD_BYTES[1], flood.bytes + s * FLOOD_BYTES[0]);
+    if (flood.messages < 1 || flood.bytes < bytes) return false;
+    flood.messages -= 1;
+    flood.bytes -= bytes;
+    return true;
+  };
   let inFlight = 0;
   let disposed = false;
 
@@ -246,7 +280,13 @@ export function createRpcPeer(o: RpcPeerOptions) {
       if (mine === null || mine === undefined || e.source !== mine) return { ok: false, why: "source" };
       if (disposed) return { ok: false, why: "disposed" };
       if (e.origin !== "null") return refuse("origin");
-      if (messageBytes(e.data) === null) return refuse("size");
+      const size = measure(e.data, RPC_MAX_BYTES);
+      // An oversized one cost the page its copy all the same: counted at the cap.
+      if (!afford(size ? size.copied : RPC_MAX_BYTES)) {
+        o.onFlood?.();
+        return refuse("flood");
+      }
+      if (size === null) return refuse("size");
       const parsed = frameMessageSchema.safeParse(e.data);
       if (!parsed.success) return refuse("schema");
       const msg = parsed.data;

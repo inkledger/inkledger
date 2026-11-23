@@ -29,6 +29,25 @@ describe("the watchdog's ladder", () => {
     expect(steps).toHaveLength(5);
   });
 
+  it("holds a frame flooding the page to reduce at once, and stops it if it keeps on", () => {
+    const { ladder, steps, second } = setup();
+    const f = ladder.frame("flood", "view");
+    const other = ladder.frame("other", "view");
+    second([{ frame: f }, { frame: other }]);
+    second([{ frame: f }, { frame: other }]);
+    f.flood();
+    second([{ frame: f }, { frame: other }]);
+    expect(ladder.step("flood")).toBe("reduce");
+    second([{ frame: f }, { frame: other }]);
+    f.flood();
+    second([{ frame: f }, { frame: other }]);
+    expect(ladder.step("flood")).toBe("reduce");
+    f.flood();
+    second([{ frame: f }, { frame: other }]);
+    expect(ladder.step("flood")).toBe("killed");
+    expect(steps.filter(([id]) => id === "other")).toEqual([]);
+  });
+
   it("holds the module to its budget: reduce, then a still picture from there on", () => {
     expect((["normal", "warn", "reduce", "still", "paused", "killed"] as const).map(budgetOfStep)).toEqual(["normal", "normal", "reduce", "still", "still", "still"]);
   });
