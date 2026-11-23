@@ -802,9 +802,12 @@ export function AppLayout() {
                 "lg:has-[[data-fill-page]]:flex lg:has-[[data-fill-page]]:flex-col lg:has-[[data-fill-page]]:overflow-hidden"
               )}
             >
-              <ReconnectBanner />
-              <FirstTrackerBanner />
-              <OutboxBanner />
+              {/* Over modules drawn over the page (z-10): never painted over, nor their clicks taken. */}
+              <div data-above-modules className="relative z-20">
+                <ReconnectBanner />
+                <FirstTrackerBanner />
+                <OutboxBanner />
+              </div>
               {/* The page alone waits for its code or fails: the shell (sidebar, header, timer) stays.
                   Outside the page's keyed box, so they outlive a navigation: the page on screen
                   stays until the next one's code is there (the router navigates in a transition). */}
