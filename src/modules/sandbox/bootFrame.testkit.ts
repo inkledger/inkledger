@@ -24,10 +24,13 @@ export function bootFrame(o: {
   onSize?(h: number): void;
   /** Room the frame has past its box. */
   room?: { top: number; right: number; bottom: number; left: number };
+  /** The bootstrap's own port for the person's gestures, handed before init. */
+  own?: MessagePort;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
   const focuses: (() => void)[] = [];
+  const inputs = new Map<string, ((e: unknown) => void)[]>();
   const parentWin = {
     postMessage(m: unknown, _origin: string, transfer: Transferable[] = []) {
       // Into the host's realm, as the browser's structured clone would.
@@ -53,7 +56,10 @@ export function bootFrame(o: {
     window: {},
     document: doc,
     location: { href: "http://app.test/modules/frame/x/0" },
-    addEventListener: (t: string, fn: (e: unknown) => void) => (t === "message" ? frameListeners.push(fn) : t === "pagehide" ? pagehides.push(() => fn({})) : t === "focus" && focuses.push(() => fn({}))),
+    addEventListener: (t: string, fn: (e: unknown) => void) =>
+      t === "message" ? frameListeners.push(fn) : t === "pagehide" ? pagehides.push(() => fn({})) : t === "focus" ? focuses.push(() => fn({})) : inputs.set(t, [...(inputs.get(t) ?? []), fn]),
+    MessagePort,
+    Reflect,
     load: async () => ({ default: o.mod }),
     URL,
     Blob,
@@ -71,8 +77,9 @@ export function bootFrame(o: {
     source: () => frameWin,
     post(m, transfer) {
       sent.push(m);
-      const data: unknown = structuredClone(m, { transfer });
+      // Ports go with the event, as the browser's would (cloning them over would close them).
       const ports = transfer.filter(t => t instanceof MessagePort);
+      const data: unknown = structuredClone(m, { transfer: transfer.filter(t => !(t instanceof MessagePort)) });
       queueMicrotask(() => frameListeners.forEach(fn => fn({ source: parentWin, data, ports })));
     },
     capabilities: o.capabilities,
@@ -80,6 +87,7 @@ export function bootFrame(o: {
     onUnmounted: () => o.onUnmounted?.(),
     onSize: h => o.onSize?.(h),
     onReady() {
+      if (o.own) peer.send({ v: RPC_VERSION, t: "own" }, [o.own]);
       peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false, ...(o.room ? { room: o.room } : {}) }, o.port ? [o.port] : []);
     },
   });
@@ -98,6 +106,8 @@ export function bootFrame(o: {
     setActive: (el: unknown) => void (doc.activeElement = el),
     /** The frame's window takes the focus (the host focused its iframe). */
     focus: () => focuses.forEach(fn => fn()),
+    /** An input event on the frame's window (`isTrusted`: the browser's, not a script's). */
+    input: (type: string, e: { isTrusted: boolean }) => inputs.get(type)?.forEach(fn => fn(e)),
   };
 }
 

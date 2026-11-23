@@ -69,6 +69,22 @@ function withModule(
 }
 
 describe("the frame's host API (bootstrap)", () => {
+  it("tells the host the person's real gestures in the frame, over a port the module never gets", async () => {
+    const ch = new MessageChannel();
+    const told: unknown[] = [];
+    ch.port1.onmessage = e => told.push(e.data);
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => {} } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, own: ch.port2 });
+    await settle();
+    f.input("pointerdown", { isTrusted: true });
+    // A script's own event is no gesture.
+    f.input("pointerdown", { isTrusted: false });
+    f.input("keydown", { isTrusted: true });
+    await new Promise(r => setTimeout(r, 50));
+    ch.port1.close();
+    expect(told).toEqual(["pointer", "key"]);
+  });
+
   it("surfaces.light reaches the page's light, only with its capability", async () => {
     let seen: HostApiV2 | null = null;
     const f = withModule(["surfaces.light"], (_el, host) => {

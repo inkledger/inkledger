@@ -1,7 +1,7 @@
 /**
  * What a framed module hands the person through the host: a picture to
- * share, save or open, and where they are. Each needs their gesture (the
- * frame's click activates the page too), and a picture is re-wrapped under
+ * share, save or open, and where they are. Each needs their gesture in the
+ * module's own view (gesture.ts), and a picture is re-wrapped under
  * the type its bytes prove: a blob URL made here has the app's origin, so
  * HTML or SVG passed off as a picture must never be opened from it.
  */
@@ -40,7 +40,7 @@ export function safeName(name: string, type: ImageType): string {
 }
 
 export type BrokerEnv = {
-  /** Whether the person's gesture is still fresh (navigator.userActivation). */
+  /** Whether the person's gesture is still fresh (navigator.userActivation), and for a frame its own (gesture.ts). */
   active(): boolean;
   share(file: File): Promise<boolean>;
   download(file: Blob, name: string): void;

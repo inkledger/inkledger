@@ -86,6 +86,8 @@ export function frameMethods(
   view: ViewBox | null,
   budget: (fn: (b: BudgetLevel) => void) => () => void = fn => (fn("normal"), () => {}),
   session: { moduleId: string; store: SessionStore } | null = null,
+  /** Whether the person's latest gesture was in this frame's own view (never, for a runtime). */
+  gesture: () => boolean = () => false,
 ): { methods: Record<string, Method>; dispose(): void } {
   const subs = new Map<number, () => void>();
   const subscribe = (id: number, ctx: MethodContext, off: () => void) => {
@@ -136,7 +138,15 @@ export function frameMethods(
       run: ([at]) => api.weather(at),
     }),
     geocode: method({ args: z.tuple([z.string().max(100)]), rate: [2, 4], shared: true, run: ([q]) => api.geocode(q) }),
-    openSettings: method({ args: z.tuple([]), rate: [1, 2], run: () => api.openSettings?.() }),
+    // A dialog over the app: only on the person's gesture in this module's view, never by itself.
+    openSettings: method({
+      args: z.tuple([]),
+      rate: [1, 2],
+      run() {
+        if (!gesture()) throw new Error("needs the person's gesture");
+        api.openSettings?.();
+      },
+    }),
     "files.get": method({ args: z.tuple([key]), rate: [4, 16], shared: true, run: ([k]) => api.files?.get(k) ?? null }),
     "files.put": method({
       args: z.tuple([key, z.instanceof(Blob).refine(b => b.size <= FILE_MAX_BYTES)]),

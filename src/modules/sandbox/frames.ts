@@ -8,6 +8,7 @@ import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
+import { pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -73,7 +74,6 @@ const idle = (fn: () => void) => {
 
 const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
-let broker: ReturnType<typeof createBroker> | null = null;
 let pointer: ReturnType<typeof createPointerFeed> | null = null;
 const fonts = fontLoader(
   [
@@ -247,25 +247,32 @@ function openFrame(
   };
   // The sheet is no manifest slot: its API is the module's as in its first slot.
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
+  const gestures = pageGestures();
+  // The person's gesture, as this frame's own: in its view (its frame, its host box); a runtime has none.
+  const gesture = role === "view" ? () => gestures.has(iframe, parent, document.activeElement === iframe) : () => false;
   const box: ViewBox | null =
     role === "view"
       ? {
           el: parent,
           slot,
-          activate: how => peer.send({ v: RPC_VERSION, t: "activate", ...(how ? { how } : {}) }),
+          activate: how => {
+            gestures.box(parent);
+            peer.send({ v: RPC_VERSION, t: "activate", ...(how ? { how } : {}) });
+          },
           focus: (focused, visible) => peer.send({ v: RPC_VERSION, t: "hit-focus", focused, visible }),
           onDock: () => layoutFeed().poke(),
         }
       : null;
-  const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions });
+  const served = frameMethods(api, cas, box, budgetOf(entry.id), { moduleId: entry.id, store: moduleSessions }, gesture);
   const sheet = {
-    // A runtime has no box: the view the person is in (its frame has the focus) opened it.
+    // From a view (a runtime has no gesture of its own): its box, or the focused one, gets the focus back.
     open: (id: string, from?: HTMLElement | null) => sheetOpen.open(id, from ?? focusedBox(id)),
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
+  let ownPort: MessagePort | null = null;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;
   const warned = new Set<string>();
@@ -278,6 +285,16 @@ function openFrame(
     onReady() {
       if (initialised) return;
       initialised = true;
+      if (role === "view") {
+        // Its bootstrap's own port, before the module loads: the person's real gestures in this view.
+        const own = new MessageChannel();
+        own.port1.onmessage = (e: MessageEvent<unknown>) => {
+          const kind = e.data;
+          if (kind === "pointer" || kind === "key") gestures.own(iframe, kind);
+        };
+        ownPort = own.port1;
+        peer.send({ v: RPC_VERSION, t: "own" }, [own.port2]);
+      }
       const transfer = ready(peer);
       peer.send(
         { v: RPC_VERSION, t: "init", role, moduleId: entry.id, slot: role === "view" ? slot : null, locale: locale(), capabilities: entry.capabilities, catalog: SURFACES, fit, ...(room ? { room } : {}) },
@@ -340,6 +357,7 @@ function openFrame(
         settled();
         onUnmounted = null;
         removePeer();
+        ownPort?.close();
         served.dispose();
         caps.dispose();
         disposeApi();

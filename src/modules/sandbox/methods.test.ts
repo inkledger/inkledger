@@ -30,6 +30,24 @@ function setup({ capabilities = [] as string[], conflict = false } = {}) {
 }
 
 describe("the host API a framed module reaches", () => {
+  it("opens its settings only on the person's gesture in its own view", async () => {
+    let opened = 0;
+    let gesture = false;
+    const api = { openSettings: () => void opened++ } as unknown as HostApiV1;
+    const cas = { read: () => Promise.reject(new Error()), setIf: () => Promise.reject(new Error()) };
+    const served = frameMethods(api, cas, null, undefined, null, () => gesture);
+    const sent: HostMessage[] = [];
+    const peer = createRpcPeer({ source: () => frame, post: m => sent.push(m), capabilities: [], methods: served.methods });
+    peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "openSettings", a: [] } });
+    await settle();
+    expect(opened).toBe(0);
+    expect(sent).toEqual([{ v: 1, t: "res", id: 1, ok: false, error: "needs the person's gesture" }]);
+    gesture = true;
+    peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 2, m: "openSettings", a: [] } });
+    await settle();
+    expect(opened).toBe(1);
+  });
+
   it("pushes a subscription's value at once and on every change, until unsubscribed", async () => {
     const { sent, call, timerFns } = setup();
     call(1, "sub", [100, "timer"]);

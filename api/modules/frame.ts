@@ -81,6 +81,14 @@ const waitingViews = [];
 // The host's window as it was before the module ran: module code may replace window.parent, never this.
 const up = parent;
 const send = (m, transfer) => up.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
+// The person's real gestures in this frame, told the host over a port the module's code never gets (it
+// comes before the module loads); what this uses is held here, so a prototype patched later changes nothing.
+let own = null;
+const portPost = MessagePort.prototype.postMessage;
+const apply = Reflect.apply;
+const tell = (kind) => { if (own) apply(portPost, own, [kind]); };
+addEventListener("pointerdown", (e) => { if (e.isTrusted) tell("pointer"); }, true);
+addEventListener("keydown", (e) => { if (e.isTrusted) tell("key"); }, true);
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
 const MAX_BYTES = ${PICTURE_MAX_BYTES};
 const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
@@ -455,6 +463,8 @@ addEventListener("message", (e) => {
     if (!e.ports[0]) return;
     if (onView) safe(onView, e.ports[0], d.slot);
     else waitingViews.push([e.ports[0], d.slot]);
+  } else if (d.t === "own" && !started && !own && e.ports[0]) {
+    own = e.ports[0];
   } else if (d.t === "init" && !started) {
     started = true;
     void start(d, e.ports[0]);
