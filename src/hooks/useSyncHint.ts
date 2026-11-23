@@ -3,6 +3,7 @@ import { useNow } from "@/hooks/useTimers";
 import { trpc } from "@/lib/trpc";
 import { invalidateJiraData } from "@/hooks/useSync";
 import { relativeFormat, t } from "@/i18n";
+import { syncFailureText } from "@/lib/syncFailure";
 
 /** "just now", "2 minutes ago", "1 hour ago". */
 function ago(date: Date, now: number): string {
@@ -35,7 +36,7 @@ function useSyncStatus() {
   return status.data;
 }
 
-/** Last background sync as a short hint ("Updated 2 minutes ago"), and its error. */
+/** Last background sync as a short hint ("Updated 2 minutes ago"), and its error in the user's words. */
 export function useSyncHint() {
   const status = useSyncStatus();
   const now = useNow(true, 30_000);
@@ -46,5 +47,5 @@ export function useSyncHint() {
           when: ago(status.lastSyncAt, Math.max(now, status.lastSyncAt.getTime())),
         })
       : null;
-  return { hint, error: status?.lastError ?? null };
+  return { hint, error: status?.lastError ? syncFailureText(status.lastError) : null };
 }

@@ -13,6 +13,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../../api/router";
 import { trpc } from "@/lib/trpc";
 import { copyText, relevanceText } from "@/lib/issues";
+import { syncFailureText } from "@/lib/syncFailure";
 import { emptyJiraLogin, jiraLoginPayload } from "@/lib/jiraLogin";
 import { SettingsGroup } from "@/components/settings/SettingsGroup";
 import { JiraLoginFields } from "@/components/auth/JiraLoginFields";
@@ -608,7 +609,7 @@ function ConnectionCard({ c, onReconnect }: { c: Shown; onReconnect: () => void 
               : needsReconnect(c.status)
               ? t("settings.connections.needsReconnect")
               : c.lastError
-                ? t("settings.connections.lastError", { message: c.lastError })
+                ? t("settings.connections.lastError", { message: syncFailureText(c.lastError) })
                 : c.lastSyncAt
                   ? t("settings.connections.lastSync", { when: relevanceText(new Date(c.lastSyncAt).getTime()) })
                   : null,

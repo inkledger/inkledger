@@ -19,3 +19,21 @@ export const isWorking = (s: string): boolean => s === "ok";
  * user's own Sync at once), and a pass that goes through makes it "ok".
  */
 export const SYNC_GIVE_UP_AFTER = 3;
+
+/** The kinds a failure is recorded with (the providers' error kinds). */
+export const FAILURE_KINDS = ["auth", "forbidden", "invalid", "rateLimit", "conflict", "notFound", "invalidCheckpoint", "unavailable", "readOnly", "cancelled", "timeout", "incompatible"] as const;
+export type FailureKind = (typeof FAILURE_KINDS)[number];
+
+/** How Jira's refusal of the sign-in itself (a CAPTCHA) starts: a browser sign-in clears it, not the password. */
+export const SIGN_IN_DENIED = "Jira refused the sign-in";
+
+/**
+ * A recorded failure's kind and status (last_error reads "kind (status): words"):
+ * the app says it in the user's language. null: text without them (older rows).
+ */
+export function failureOf(text: string): { kind: FailureKind; status?: number; signInDenied: boolean } | null {
+  const m = /^(\w+)(?: \((\d{3})\))?(?:: ([\s\S]*))?$/.exec(text);
+  const kind = FAILURE_KINDS.find(k => k === m?.[1]);
+  if (!m || !kind) return null;
+  return { kind, ...(m[2] ? { status: Number(m[2]) } : {}), signInDenied: kind === "auth" && (m[3] ?? "").startsWith(SIGN_IN_DENIED) };
+}

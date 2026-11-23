@@ -32,3 +32,23 @@ test("a tracker out of reach too many times: retried in the background, Retry ru
     await page.waitForTimeout(500);
     assert.equal(await bar.count(), 1);
   }));
+
+test("a failed sync is said in the user's words, not as the recorded kind and status", () =>
+  withApp({
+    seed: async db => {
+      const at = Date.now() + 60_000;
+      await db.q("UPDATE sync_state SET last_error = 'unavailable (503): Jira answered 503', last_error_at = ? WHERE user_id = 1", at);
+      await db.q(
+        "INSERT INTO connection_sync (connection_id, stream, last_error, last_error_at) SELECT id, 'issues', 'forbidden (403): Forbidden', ? FROM connections ON CONFLICT (connection_id, stream) DO UPDATE SET last_error = excluded.last_error, last_error_at = excluded.last_error_at",
+        at,
+      );
+    },
+  }, async ({ page, base }) => {
+    await page.goto(base + "/settings/connections");
+    // A refusal that isn't the credentials' leaves the status "ok": the row says the last failure.
+    await page.getByText("last sync failed: access denied").waitFor();
+    assert.equal(await page.getByText(/\(403\)|Forbidden/).count(), 0);
+    const title = await page.getByRole("button", { name: /^Sync / }).first().getAttribute("title");
+    assert.match(title ?? "", /the server answered with an error/);
+    assert.doesNotMatch(title ?? "", /unavailable|503/);
+  }));

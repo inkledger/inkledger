@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 process.env.DATABASE_URL = ":memory:";
 
@@ -145,5 +145,18 @@ describe("a connection out of reach too many times in a row", () => {
     await succeeded(connId, "issues", { full: false });
     expect(await status()).toBe("ok");
     vi.mocked(console.warn).mockRestore();
+  });
+});
+
+describe("a failure as last_error records it", () => {
+  it("the app reads its kind and status back, for every kind", async () => {
+    const { failureText } = await import("./state");
+    const { ProviderError } = await import("../providers/core/errors");
+    const { FAILURE_KINDS, failureOf } = await import("@contracts/sync");
+    expectTypeOf<(typeof FAILURE_KINDS)[number]>().toEqualTypeOf<import("../providers/core/errors").ProviderErrorKind>();
+    for (const kind of FAILURE_KINDS) {
+      expect(failureOf(failureText(new ProviderError(kind, "Said: words", { status: 503 }))), kind).toEqual({ kind, status: 503, signInDenied: false });
+      expect(failureOf(failureText(new ProviderError(kind, ""))), kind).toEqual({ kind, signInDenied: false });
+    }
   });
 });

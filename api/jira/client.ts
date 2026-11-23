@@ -3,6 +3,7 @@ import { originate, originOf } from "../providers/core/origin";
 import { discardBody, safeFetch, type Intent } from "../providers/core/http";
 import { NETWORK_CODES } from "../providers/core/errors";
 import { t } from "@contracts/i18n";
+import { SIGN_IN_DENIED } from "@contracts/sync";
 
 /**
  * Typed client for the Jira REST API.
@@ -132,7 +133,7 @@ async function jiraCall<T>(creds: JiraCredentials, path: string, init: RequestIn
     }
     // A denied sign-in is the credentials' problem (reconnect), never a permission nor an outage to retry.
     const denied = res.status === 403 ? signInDenied(res.headers) : null;
-    if (denied) throw new JiraApiError(401, `Jira refused the sign-in (${denied}): sign in to Jira in a browser, then reconnect`, denied);
+    if (denied) throw new JiraApiError(401, `${SIGN_IN_DENIED} (${denied}): sign in to Jira in a browser, then reconnect`, denied);
     // Tomcat sends no reason phrase: the status is all there is.
     throw new JiraApiError(res.status, detail || `Jira answered ${res.status}`);
   }
