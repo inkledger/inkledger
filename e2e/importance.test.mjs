@@ -71,7 +71,10 @@ test("the Board's cards: the room between a card's title and its bottom row is f
     assert.ok(c && title && bottom && bottom.y - (title.y + title.height) > 12, JSON.stringify({ c, title, bottom }));
     // The right half of the card, from below the title down to its bottom row: no ink there.
     const inside = [];
-    for (let y = title.y + title.height + 3; y < bottom.y - 3; y += 4) for (let x = c.x + c.width * 0.6; x < c.x + c.width - 40; x += 10) inside.push([x, y, board.at(x, y)]);
+    // Cell centres a whole cell inside the room, so no cell reaches the title, the bottom row or the buttons.
+    const s = board.step;
+    const centre = v => Math.floor(v / s) * s + s / 2;
+    for (let y = centre(title.y + title.height + s); y < bottom.y - s; y += s) for (let x = centre(c.x + c.width * 0.6); x < c.x + c.width - 40 - s; x += s) inside.push([x, y, board.at(x, y)]);
     assert.ok(inside.length > 0);
     assert.deepEqual(inside.filter(([, , v]) => v !== 0), [], "free inside the card");
     // Its title's glyphs stay important.
