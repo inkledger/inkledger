@@ -25,7 +25,8 @@ export function ModuleSheet() {
   const name = loaded ? loaded.entry.name[currentLocale() === "it" ? "it" : "en"] : "";
   return (
     <Sheet open={loaded !== undefined} onOpenChange={o => !o && sheetOpen.close()}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" onCloseAutoFocus={returnFocus}>
+      {/* Modal for assistive tech too: the page's live regions keep it from being hidden behind the sheet. */}
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" aria-modal="true" onCloseAutoFocus={returnFocus}>
         <SheetHeader className="border-b">
           <SheetTitle>{name}</SheetTitle>
           <SheetDescription>{t("settings.store.moduleSheet.description", { name })}</SheetDescription>
