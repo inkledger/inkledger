@@ -669,11 +669,12 @@ describe("add-on modules", () => {
     expect(await caller.modules.totals({ moduleId: "hello" })).toEqual({ lifetimeLoggedSeconds: 3600, weekLoggedSeconds: 3600, since: first.since });
   });
 
-  it("closures: each told once, oldest first, only since the module counts, ranked by the site's order now", async () => {
+  it("closures: each told once, one per claim, from when the module first asked unless released, ranked by the site's order now", async () => {
     await activate();
     const { getDb, q } = await import("../queries/connection");
     const { moduleStorage } = await import("@db/schema");
     const { forgetPriorityRanks } = await import("../jira/priorities");
+    const { releaseClosuresFrom } = await import("./closures");
     await caller.modules.totals({ moduleId: "hello" });
     const since = Date.now() - 10 * 86_400_000;
     await getDb().update(moduleStorage).set({ value: String(since) }).where(eq(moduleStorage.key, "__since"));
@@ -685,6 +686,7 @@ describe("add-on modules", () => {
       );
       await q("UPDATE issues SET category = 'done', status_changed_at = ? WHERE id = ?", at, id);
     };
+    const claim = () => caller.modules.claimClosures({ moduleId: "hello" });
     // Synced while the site's order was ranked the old way: Urgente on Normale's step.
     await close("CL-1", "Urgente", 2, since + 2000);
     await close("CL-0", "Critica", 1, since - 1000);
@@ -697,22 +699,23 @@ describe("add-on modules", () => {
         : before(input),
     );
     try {
-      expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([
-        { connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 },
-        { connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 },
-      ]);
-      expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([]);
+      // The past is never told on its own (every module, every user, at the upgrade).
+      expect(await claim()).toEqual([]);
+      await close("CL-3", "Basso", 3, Date.now() + 1000);
+      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-3", priority: "Basso", priorityRank: 3 }]);
+      expect(await claim()).toEqual([]);
+      // Released on purpose from a day: oldest first, one per claim, never before the module counts.
+      expect(await releaseClosuresFrom(userId, "hello", since - 5000)).toBe(2);
+      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 }]);
+      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 }]);
+      expect(await claim()).toEqual([]);
       // Reopened and closed again: a new closure, told again.
-      await close("CL-2", "Normale", 2, since + 5000);
-      expect((await caller.modules.claimClosures({ moduleId: "hello" })).map((c) => c.issueKey)).toEqual(["CL-2"]);
-      // Many at once: a few per claim, two tabs asking together never share one.
-      for (let i = 0; i < 14; i++) await close(`CL-B${i}`, "Basso", 3, since + 10_000 + i);
-      const [a, b] = await Promise.all([caller.modules.claimClosures({ moduleId: "hello" }), caller.modules.claimClosures({ moduleId: "hello" })]);
-      const c = await caller.modules.claimClosures({ moduleId: "hello" });
-      const keys = [...a, ...b, ...c].map((x) => x.issueKey);
-      expect(Math.max(a.length, b.length, c.length)).toBeLessThanOrEqual(10);
-      expect(new Set(keys).size).toBe(14);
-      expect(keys).toHaveLength(14);
+      await close("CL-2", "Normale", 2, Date.now() + 2000);
+      expect((await claim()).map((c) => c.issueKey)).toEqual(["CL-2"]);
+      // Two tabs asking together never share one.
+      for (let i = 0; i < 3; i++) await close(`CL-B${i}`, "Basso", 3, Date.now() + 10_000 + i);
+      const got = [...(await Promise.all([claim(), claim()])), await claim(), await claim()].flat().map((x) => x.issueKey);
+      expect(got.sort()).toEqual(["CL-B0", "CL-B1", "CL-B2"]);
     } finally {
       vi.stubGlobal("fetch", before);
       forgetPriorityRanks();
@@ -806,6 +809,15 @@ describe("add-on modules", () => {
   it("progress: export, uninstall wipes it, reinstall starts from zero, import brings it back", async () => {
     await activate();
     const { since } = await caller.modules.totals({ moduleId: "hello" });
+    // A closure told before the export: counted in the progress it carries.
+    const { q } = await import("../queries/connection");
+    await caller.modules.claimClosures({ moduleId: "hello" });
+    const [{ id: item }] = await q<{ id: number }>(
+      "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, project_key, project_name, url, synced_at) SELECT ?, id, 'PG-1', 'PG-1', 's', 'x', 'doing', 'PG', 'PG', 'u', 1 FROM connections WHERE user_id = ? LIMIT 1 RETURNING id",
+      userId, userId,
+    );
+    await q("UPDATE issues SET category = 'done', status_changed_at = ? WHERE id = ?", Date.now() + 1000, item);
+    expect((await caller.modules.claimClosures({ moduleId: "hello" })).map((c) => c.issueKey)).toEqual(["PG-1"]);
     await caller.modules.storageSet({ moduleId: "hello", key: "state", value: { stage: "adult" } });
     const file = await caller.modules.exportProgress({ id: "hello" });
     expect(file).toMatchObject({ format: "inkledger-progress-v1", module: "hello", since, data: { state: { stage: "adult" } } });
@@ -820,5 +832,9 @@ describe("add-on modules", () => {
     await caller.modules.importProgress({ text: JSON.stringify(file) });
     expect(await caller.modules.storageGet({ moduleId: "hello", key: "state" })).toMatchObject({ value: { stage: "adult" } });
     expect((await caller.modules.totals({ moduleId: "hello" })).since).toBe(since);
+    // What it was told before the uninstall stays told, even released again: the imported progress has counted it.
+    const { releaseClosuresFrom } = await import("./closures");
+    await releaseClosuresFrom(userId, "hello", since);
+    expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([]);
   });
 });

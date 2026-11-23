@@ -44,6 +44,8 @@ const guard = (moduleId: string, fn: () => unknown) => {
 
 /** Closures told one at a time: a catch-up after days away never lands at once. */
 const CLOSED_PACE_MS = 1500;
+/** A module that never reads its storage still hears closures, after this long. */
+const CLOSED_READY_MS = 10_000;
 
 /** storage.update: tries before giving up on a key that keeps changing elsewhere. */
 const UPDATE_TRIES = 8;
@@ -293,6 +295,15 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
       let claiming = false;
       let askAgain = false;
       let pace: ReturnType<typeof setTimeout> | undefined;
+      // Nothing claimed before the module read its saved state (or a while passed): a closure told earlier would be dropped.
+      let closedReady = false;
+      let readyWait: ReturnType<typeof setTimeout> | undefined;
+      const stateRead = () => {
+        if (closedReady) return;
+        closedReady = true;
+        clearTimeout(readyWait);
+        if (closedFns.size > 0) askClosed();
+      };
       const tellClosed = () => {
         pace = undefined;
         const next = closedQueue.shift();
@@ -305,7 +316,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         pace = setTimeout(tellClosed, CLOSED_PACE_MS);
       };
       const claimClosed = async () => {
-        if (disposed || closedFns.size === 0) return;
+        if (disposed || closedFns.size === 0 || !closedReady) return;
         if (claiming || pace !== undefined) {
           askAgain = true;
           return;
@@ -382,7 +393,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
             closedFns.add(wrapped);
             if (closedFns.size === 1) {
               closureAsks.add(askClosed);
-              queueMicrotask(askClosed);
+              if (closedReady) queueMicrotask(askClosed);
+              else readyWait ??= setTimeout(stateRead, CLOSED_READY_MS);
             }
             return own(() => {
               closedFns.delete(wrapped);
@@ -390,6 +402,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
               closureAsks.delete(askClosed);
               clearTimeout(pace);
               pace = undefined;
+              clearTimeout(readyWait);
+              readyWait = undefined;
             });
           }
           const set = listeners.get(event) ?? new Set();
@@ -421,7 +435,11 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         },
         storage: {
           get: async <T,>(key: string) =>
-            quiet(async () => (await utils.client.modules.storageGet.query({ moduleId, key })).value as T | null, null),
+            quiet(async () => {
+              const r = await utils.client.modules.storageGet.query({ moduleId, key });
+              queueMicrotask(stateRead);
+              return r.value as T | null;
+            }, null),
           set: async (key, value) => {
             await quiet(() => utils.client.modules.storageSet.mutate({ moduleId, key, value }), undefined);
           },
@@ -431,6 +449,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           update: async <T,>(key: string, change: (current: T | null) => T): Promise<T> => {
             if (disposed) return never<T>();
             let read = await utils.client.modules.storageGet.query({ moduleId, key });
+            queueMicrotask(stateRead);
             // Another tab or device wrote between the read and the write: change again on theirs.
             // An update already started finishes even if the module stops meanwhile (its final flush): later writes in its chain wait on it.
             for (let tries = 0; tries < UPDATE_TRIES; tries++) {
@@ -447,7 +466,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         api,
         /** storage.update in two halves, for a framed module (its `change` runs in its frame). */
         cas: {
-          read: (key: string) => read(() => utils.client.modules.storageGet.query({ moduleId, key })),
+          read: (key: string) =>
+            read(async () => {
+              const r = await utils.client.modules.storageGet.query({ moduleId, key });
+              queueMicrotask(stateRead);
+              return r;
+            }),
           setIf: (key: string, value: unknown, ifRevision: number) =>
             read(() => utils.client.modules.storageSetIf.mutate({ moduleId, key, value, ifRevision })),
         },

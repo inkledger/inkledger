@@ -253,7 +253,12 @@ describe("host hub: issue-closed", () => {
       const utils = {
         ...fakeUtils(() => []),
         issues: { all: { getData: () => issues, prefetch: async () => {}, invalidate: async () => {} } },
-        client: { modules: { claimClosures: { mutate: async ({ moduleId }: { moduleId: string }) => (asked.push(moduleId), batches[moduleId]?.shift() ?? []) } } },
+        client: {
+          modules: {
+            claimClosures: { mutate: async ({ moduleId }: { moduleId: string }) => (asked.push(moduleId), batches[moduleId]?.shift() ?? []) },
+            storageGet: { query: async () => ({ value: null, revision: 0 }) },
+          },
+        },
       };
       const hub = createHub(qc, utils as never);
       const a = hub.apiFor("kanbunny", "dashboard-widget");
@@ -262,7 +267,12 @@ describe("host hub: issue-closed", () => {
       const heardB: unknown[] = [];
       a.api.on("issue-closed", d => heardA.push(d));
       b.api.on("issue-closed", d => heardB.push(d));
+      // Not before the module read its saved state: what it hears earlier it would drop.
+      await vi.advanceTimersByTimeAsync(100);
+      expect(asked).toEqual([]);
+      await a.api.storage.get("state");
       await vi.advanceTimersByTimeAsync(0);
+      expect(asked).toEqual(["kanbunny"]);
       expect(heardA).toEqual([{ issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } }]);
       await vi.advanceTimersByTimeAsync(5_000);
       // No rank from the server: by its name, as before.
@@ -270,6 +280,10 @@ describe("host hub: issue-closed", () => {
         { issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } },
         { issueKey: "DEMO-2", priorityRank: 0, ref: { connectionId: 2, key: "DEMO-2" } },
       ]);
+      expect(heardB).toEqual([]);
+      // One that never reads its storage asks after a while.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(asked).toContain("other");
       expect(heardB).toEqual([]);
       // A move into done in the cache: the server is asked, nothing told twice.
       const before = asked.filter(m => m === "kanbunny").length;

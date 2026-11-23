@@ -7,7 +7,7 @@ import { createRouter, permProcedure, protectedProcedure } from "../middleware";
 import { can, mayRunModule } from "../queries/accounts";
 import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { moduleClosureClaims, moduleStorage, worklogs } from "@db/schema";
+import { moduleStorage, worklogs } from "@db/schema";
 import { FILE_MAX_BYTES, FILE_TYPES, PROGRESS_FILE_FORMAT, STORAGE_MAX_BYTES, STORAGE_MAX_KEYS } from "@contracts/modules";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { deleteModuleFile, getModuleFile, putModuleFile, removeModuleFiles } from "../modules/files";
@@ -59,8 +59,8 @@ const SINCE = "__since";
 const OFF = "__off";
 const moduleKeys = like(moduleStorage.key, "\\_\\_%");
 const storageRef = z.object({ moduleId: moduleIdSchema, key: storageKey });
-// Closures per claim: a long catch-up comes in small steps (the host paces them).
-const CLAIM_BATCH = 10;
+// One closure per claim: the page never holds a claimed one it could lose (a reload, a stop).
+const CLAIM_BATCH = 1;
 const fileRef = z.object({ moduleId: moduleIdSchema, key: z.string().regex(/^[\w.|,:-]{1,120}$/) });
 // Base64 of FILE_MAX_BYTES, rounded up.
 const FILE_MAX_B64 = Math.ceil(FILE_MAX_BYTES / 3) * 4;
@@ -271,9 +271,7 @@ export const modulesRouter = createRouter({
       const removed = uninstall(input.id);
       // Reinstalling starts from zero: its saved progress goes too (exportProgress keeps a copy).
       if (removed) {
-        await getDb().delete(moduleStorage).where(eq(moduleStorage.moduleId, input.id));
-        await getDb().delete(moduleClosureClaims).where(eq(moduleClosureClaims.moduleId, input.id));
-        await removeModuleFiles(input.id);
+        await getDb().delete(moduleStorage).where(eq(moduleStorage.moduleId, input.id));        await removeModuleFiles(input.id);
       }
       return { removed };
     }),
@@ -454,8 +452,9 @@ export const modulesRouter = createRouter({
   }),
 
   /**
-   * For the host API: issues closed since the module started counting (see sinceOf) that it was
-   * not told yet, a few at a time; each is told once, so the host may ask whenever it likes.
+   * For the host API: issues closed since the module started counting (see sinceOf) and first asked
+   * (releaseClosuresFrom: earlier) that it was not told yet, one at a time; each is told once, so the
+   * host may ask whenever it likes. Claims outlive an uninstall: an imported progress never hears one twice.
    */
   claimClosures: use.input(z.object({ moduleId: moduleIdSchema })).mutation(async ({ ctx, input }) => {
     await requireActive(ctx.user, input.moduleId);

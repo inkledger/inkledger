@@ -1,10 +1,58 @@
 // Closures (issue_closures) told to a module once each: claimed per user and
 // module, so live and catch-up, two tabs or two devices never tell one twice.
-import { and, asc, eq, gte, inArray, notExists } from "drizzle-orm";
-import { connections, issueClosures, issues, moduleClosureClaims, type User } from "@db/schema";
+import { and, asc, count, eq, gte, inArray, notExists } from "drizzle-orm";
+import { connections, issueClosures, issues, moduleClosureClaims, moduleStorage, type User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { contextFor } from "../providers/connections";
 import { knownRanks, priorityRanks } from "../jira/priorities";
+
+// A host key (modules can't write "__" keys): from when this module hears closures.
+const FROM = "__closures";
+
+/**
+ * From when (epoch ms) the module hears closures: when it first asked, so the closures from before
+ * (the catalogue's past) are never told on their own; releaseClosuresFrom tells them on purpose.
+ */
+async function closuresFrom(userId: number, moduleId: string): Promise<number> {
+  const db = getDb();
+  const at = Date.now();
+  await db.insert(moduleStorage).values({ userId, moduleId, key: FROM, value: String(at), updatedAt: new Date(at) }).onConflictDoNothing();
+  const [row] = await db
+    .select({ value: moduleStorage.value })
+    .from(moduleStorage)
+    .where(and(eq(moduleStorage.userId, userId), eq(moduleStorage.moduleId, moduleId), eq(moduleStorage.key, FROM)))
+    .limit(1);
+  return Number(row?.value ?? at) || at;
+}
+
+/** Not told yet to the module: its claims don't hold this closure. */
+const untold = (userId: number, moduleId: string) =>
+  notExists(
+    getDb()
+      .select({ one: moduleClosureClaims.closureId })
+      .from(moduleClosureClaims)
+      .where(and(eq(moduleClosureClaims.userId, userId), eq(moduleClosureClaims.moduleId, moduleId), eq(moduleClosureClaims.closureId, issueClosures.id))),
+  );
+
+/** The module hears the closures from `from` on (never before it started counting); how many wait now. */
+export async function releaseClosuresFrom(userId: number, moduleId: string, from: number): Promise<number> {
+  const db = getDb();
+  await db
+    .insert(moduleStorage)
+    .values({ userId, moduleId, key: FROM, value: String(from), updatedAt: new Date() })
+    .onConflictDoUpdate({ target: [moduleStorage.userId, moduleStorage.moduleId, moduleStorage.key], set: { value: String(from), updatedAt: new Date() } });
+  // Never before it started counting (claimClosures holds to it too).
+  const [since] = await db
+    .select({ value: moduleStorage.value })
+    .from(moduleStorage)
+    .where(and(eq(moduleStorage.userId, userId), eq(moduleStorage.moduleId, moduleId), eq(moduleStorage.key, "__since")))
+    .limit(1);
+  const [{ n } = { n: 0 }] = await db
+    .select({ n: count() })
+    .from(issueClosures)
+    .where(and(eq(issueClosures.userId, userId), gte(issueClosures.closedAt, Math.max(from, Number(since?.value ?? 0) || 0)), untold(userId, moduleId)));
+  return n;
+}
 
 export type ClaimedClosure = { connectionId: number; issueKey: string; priority: string; priorityRank: number | null };
 
@@ -19,17 +67,14 @@ async function jiraRanks(user: User, conn: typeof connections.$inferSelect) {
   }
 }
 
-/** The next closures since `since` (epoch ms) this module was not told yet, oldest first, now claimed. */
+/** The next closures since `since` (epoch ms, and since closuresFrom) this module was not told yet, oldest first, now claimed. */
 export async function claimClosures(user: User, moduleId: string, since: number, limit: number): Promise<ClaimedClosure[]> {
   const db = getDb();
-  const told = db
-    .select({ one: moduleClosureClaims.closureId })
-    .from(moduleClosureClaims)
-    .where(and(eq(moduleClosureClaims.userId, user.id), eq(moduleClosureClaims.moduleId, moduleId), eq(moduleClosureClaims.closureId, issueClosures.id)));
+  const from = Math.max(since, await closuresFrom(user.id, moduleId));
   const picked = await db
     .select({ id: issueClosures.id })
     .from(issueClosures)
-    .where(and(eq(issueClosures.userId, user.id), gte(issueClosures.closedAt, since), notExists(told)))
+    .where(and(eq(issueClosures.userId, user.id), gte(issueClosures.closedAt, from), untold(user.id, moduleId)))
     .orderBy(asc(issueClosures.closedAt), asc(issueClosures.id))
     .limit(limit);
   if (picked.length === 0) return [];
