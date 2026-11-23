@@ -17,7 +17,7 @@ const ID = "ink";
 
 function install(modulesDir) {
   const code = readFileSync(new URL(`./fixtures/modules/${ID}/index.js`, import.meta.url));
-  const manifest = { id: ID, product: `inkledger.${ID}`, entry: "index.js", name: { en: "Ink", it: "Ink" }, files: { "index.js": sha256hex(code) }, version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame", capabilities: ["page.overlay", "page.importance"], slots: ["page-overlay"] };
+  const manifest = { id: ID, product: `inkledger.${ID}`, entry: "index.js", name: { en: "Ink", it: "Ink" }, files: { "index.js": sha256hex(code) }, version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame", capabilities: ["page.overlay", "page.importance"], slots: ["dashboard-overlay"] };
   mkdirSync(join(modulesDir, ID), { recursive: true });
   writeFileSync(join(modulesDir, ID, "index.js"), code);
   writeFileSync(join(modulesDir, ID, "manifest.json"), JSON.stringify(manifest));
@@ -30,9 +30,10 @@ const license = signEnvelope(Buffer.from(JSON.stringify({ id: "L-ink", email_has
 async function freshMap(page) {
   const map = page.frameLocator("[data-page-overlay] iframe[data-module-frame=view]").getByTestId("ink-map");
   const read = async () => {
-    const t = await map.textContent({ timeout: 20_000 }).catch(() => "");
+    const t = await map.textContent({ timeout: 2_000 }).catch(() => "");
     return t ? JSON.parse(t) : { round: 0 };
   };
+  await map.waitFor({ state: "attached", timeout: 20_000 });
   const from = (await read()).round;
   for (let i = 0; i < 120; i++) {
     const m = await read();
