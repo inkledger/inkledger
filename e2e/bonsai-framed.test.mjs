@@ -143,17 +143,49 @@ async function shot(page, selector, name) {
 
 const measured = {};
 
+/** A person at work while the tree traces (it starts a few seconds after the page): scrolling and keys for about 25 s. */
+async function workWhileTracing(page) {
+  await page.waitForTimeout(4000);
+  for (let i = 0; i < 50; i++) {
+    await page.mouse.wheel(0, i % 2 ? -240 : 240);
+    if (i % 5 === 0) await page.keyboard.press(i % 10 ? "ArrowUp" : "ArrowDown");
+    await page.waitForTimeout(500);
+  }
+}
+
+/** The Store's settings for Bonsai, place chosen: in the page (v1) or in its frame (v2). */
+async function choosePlace(page, base, place, framed) {
+  await page.goto(base + "/settings/store");
+  await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  const scope = framed ? (await page.locator(`${SETTINGS_FRAME}[data-state="live"]`).waitFor(), await (await page.locator(SETTINGS_FRAME).elementHandle()).contentFrame()) : page.mainFrame();
+  const radio = scope.locator(`input[type=radio][value="${place}"]:not([disabled])`);
+  await radio.first().waitFor();
+  await page.waitForTimeout(500);
+  await radio.first().click();
+  await scope.waitForFunction(p => document.querySelector(`input[type=radio][value="${p}"]`)?.checked === true, place);
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("Escape");
+}
+
+/** The card on the Desk, scrolled into view (offscreen frames are paused), drawn and settled; its screenshot. */
+async function cardShot(page, base, framed, name, quietMs = 8000) {
+  await page.goto(base + "/");
+  const box = page.locator(`${WIDGET} [data-module="bonsai"]`);
+  await box.waitFor();
+  await box.scrollIntoViewIfNeeded();
+  const frame = framed ? (await page.locator(`${WIDGET_FRAME}[data-state="live"]`).waitFor(), await (await page.locator(WIDGET_FRAME).elementHandle()).contentFrame()) : page.mainFrame();
+  await drawnAndSettled(frame, framed ? "#ikl-box" : `${WIDGET} [data-module="bonsai"]`, quietMs);
+  await shot(page, `${WIDGET} [data-module="bonsai"]`, name);
+}
+
 test("in-page Bonsai (v1): the tree on the timeline, the frame gaps to compare with", { skip: skipV1 || skipV2, timeout: 400_000 }, () =>
   withBonsai(V1, async ({ page, base }) => {
     const from = await now(page);
     await page.goto(base + "/");
     await page.locator(PERCH).first().waitFor();
     const traceFrom = await now(page);
-    // Scrolled a little while it traces, as a person would.
-    for (let i = 0; i < 6; i++) {
-      await page.mouse.wheel(0, i % 2 ? -200 : 200);
-      await page.waitForTimeout(400);
-    }
+    await workWhileTracing(page);
     await drawnAndSettled(page.mainFrame(), PERCH);
     measured.v1 = { load: await perfSince(page, from), trace: await perfSince(page, traceFrom) };
     const idleFrom = await now(page);
@@ -161,6 +193,9 @@ test("in-page Bonsai (v1): the tree on the timeline, the frame gaps to compare w
     measured.v1.idle = await perfSince(page, idleFrom);
     await shot(page, PERCH_BOX, "v1-perch.png");
     for (const [k, p] of Object.entries(measured.v1)) console.info(`[bonsai] ${show("v1 " + k, p)}`);
+    // The card, to set beside the framed one.
+    await choosePlace(page, base, "card", false);
+    await cardShot(page, base, false, "v1-card.png");
   }));
 
 test("framed Bonsai (v2): the tree draws on the timeline, the card stays off the Desk, a click opens its settings, the card follows a choice, the film plays in the sheet", { skip: skipV2, timeout: 600_000 }, () =>
@@ -169,10 +204,7 @@ test("framed Bonsai (v2): the tree draws on the timeline, the card stays off the
     await page.goto(base + "/");
     await page.locator(`${PERCH_FRAME}[data-state="live"]`).waitFor({ timeout: 60_000 });
     const traceFrom = await now(page);
-    for (let i = 0; i < 6; i++) {
-      await page.mouse.wheel(0, i % 2 ? -200 : 200);
-      await page.waitForTimeout(400);
-    }
+    await workWhileTracing(page);
     const perch = await (await page.locator(PERCH_FRAME).elementHandle()).contentFrame();
     await drawnAndSettled(perch, "#ikl-box");
     measured.v2 = { load: await perfSince(page, from), trace: await perfSince(page, traceFrom) };
@@ -233,18 +265,12 @@ test("framed Bonsai (v2): the tree draws on the timeline, the card stays off the
     await page.locator(SHEET_FRAME).waitFor({ state: "detached", timeout: 10_000 });
     await page.keyboard.press("Escape");
 
-    await page.goto(base + "/");
-    // Offscreen frames are paused (hidden) by the host: the Desk scrolled into view.
-    await page.locator(`${WIDGET} [data-module="bonsai"]`).scrollIntoViewIfNeeded();
-    await page.locator(`${WIDGET_FRAME}[data-state="live"]`).waitFor({ timeout: 30_000 });
-    const cardFrame = await (await page.locator(WIDGET_FRAME).elementHandle()).contentFrame();
-    await drawnAndSettled(cardFrame, "#ikl-box", 5000);
-    await shot(page, `${WIDGET} [data-module="bonsai"]`, "v2-card.png");
+    await cardShot(page, base, true, "v2-card.png");
     assert.deepEqual(consoleErrors, [], "no console errors");
     if (measured.v1) console.info(`[bonsai] gap p95 v1 → v2: trace ${measured.v1.trace.p95.toFixed(1)} → ${measured.v2.trace.p95.toFixed(1)} ms, idle ${measured.v1.idle.p95.toFixed(1)} → ${measured.v2.idle.p95.toFixed(1)} ms`);
   }));
 
-test("framed Bonsai without a graphics card: no tree on the timeline, the card a still picture", { skip: skipV2, timeout: 300_000 }, () =>
+test("framed Bonsai without a graphics card: no tree on the timeline, the card a still picture", { skip: skipV2, timeout: 400_000 }, () =>
   withBonsai(
     V2,
     async ({ page, base }) => {
@@ -255,6 +281,9 @@ test("framed Bonsai without a graphics card: no tree on the timeline, the card a
       const canvases = await perch.evaluate(() => document.querySelectorAll("canvas[aria-hidden=true]").length);
       assert.equal(canvases, 0, "no tree traced on the timeline");
       await shot(page, PERCH_BOX, "v2-software-perch.png");
+      // On the card: drawn on the CPU, in the worker of its frame.
+      await choosePlace(page, base, "card", true);
+      await cardShot(page, base, true, "v2-software-card.png");
     },
     { software: true },
   ));
