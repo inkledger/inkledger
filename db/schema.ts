@@ -1475,6 +1475,8 @@ export const issueClosures = pgTable(
       .references(() => issues.id, { onDelete: "cascade" }),
     /** When it was closed (epoch ms): its tracker's time when it moved, else when it was seen */
     closedAt: epochMs("closed_at").notNull(),
+    /** 1 = assigned to the user (their account on the connection) when it closed: only those count for modules */
+    assigned: integer("assigned").notNull().default(0),
   },
   (t) => [uniqueIndex("uq_issue_closures_item_at").on(t.itemId, t.closedAt), index("idx_issue_closures_user_at").on(t.userId, t.closedAt)],
 );

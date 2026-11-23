@@ -344,6 +344,13 @@
       "when": 1795462025110,
       "tag": "0048_issue_closures",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795463238072,
+      "tag": "0049_closure_assigned",
+      "breakpoints": true
     }
   ]
 }

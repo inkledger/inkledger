@@ -66,6 +66,16 @@ describe("issue closures", () => {
     expect(await closures(cancelled)).toEqual([]);
   });
 
+  it("whether it was assigned to the user when it closed (their account on the connection)", async () => {
+    const mine = await issue("P-6", "doing", 1000);
+    const theirs = await issue("P-7", "doing", 1000);
+    await q("UPDATE issues SET assignee_id = 'acc-1' WHERE id = ?", mine);
+    await q("UPDATE issues SET assignee_id = 'someone-else' WHERE id = ?", theirs);
+    await q("UPDATE issues SET category = 'done', status_changed_at = 3000 WHERE id IN (?, ?)", mine, theirs);
+    const flag = async (id: number) => (await q<{ assigned: number }>("SELECT assigned FROM issue_closures WHERE item_id = ?", id))[0]?.assigned;
+    expect([await flag(mine), await flag(theirs)]).toEqual([1, 0]);
+  });
+
   it("an upsert that moves it (the sync's insert … on conflict) records it too", async () => {
     const id = await issue("P-5", "doing", 1000);
     await q(
