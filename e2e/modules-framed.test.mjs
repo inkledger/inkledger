@@ -22,11 +22,17 @@ const MANIFESTS = {
   hello: { version: "1.0.0", hostApi: { min: 1, max: 1 }, slots: ["sidebar-footer"] },
 };
 
+// A file of the framed module's own that, loaded in a frame it nests, says whether that frame has peer connections.
+const EXTRA = { framed: { "probe.js": 'parent.postMessage({ probe: typeof RTCPeerConnection }, "*");\n' } };
+
 function install(modulesDir, id) {
   const code = fixture(id);
-  const manifest = { id, product: `inkledger.${id}`, entry: "index.js", name: { en: id, it: id }, files: { "index.js": sha256hex(code) }, ...MANIFESTS[id] };
+  const extra = EXTRA[id] ?? {};
+  const files = { "index.js": sha256hex(code), ...Object.fromEntries(Object.entries(extra).map(([f, text]) => [f, sha256hex(Buffer.from(text))])) };
+  const manifest = { id, product: `inkledger.${id}`, entry: "index.js", name: { en: id, it: id }, files, ...MANIFESTS[id] };
   mkdirSync(join(modulesDir, id), { recursive: true });
   writeFileSync(join(modulesDir, id, "index.js"), code);
+  for (const [f, text] of Object.entries(extra)) writeFileSync(join(modulesDir, id, f), text);
   writeFileSync(join(modulesDir, id, "manifest.json"), JSON.stringify(manifest));
   writeFileSync(join(modulesDir, id, "manifest.sig"), signManifest(manifest, "inkledger-package-v1\n", KEY.privateKey));
 }
@@ -140,7 +146,7 @@ test("a framed module draws in its card, talks to the host and its runtime, and 
     const docHeaders = await doc.allHeaders();
     console.info(`[framed] code: corp=${codeHeaders["cross-origin-resource-policy"]} acao=${codeHeaders["access-control-allow-origin"]}; document: xfo=${docHeaders["x-frame-options"]}`);
     assert.equal(codeHeaders["access-control-allow-origin"], "*");
-    assert.match(docHeaders["content-security-policy"], new RegExp(`script-src 'nonce-[^']+' ${base.replace(/[.]/g, "[.]")}/modules/run/;`));
+    assert.match(docHeaders["content-security-policy"], new RegExp(`script-src 'sha256-[^']+' 'sha256-[^']+' ${base.replace(/[.]/g, "[.]")}/modules/run/;`));
     assert.match(new URL(code.url()).pathname, /^\/modules\/run\/[^/]+\/framed\/[0-9a-f]{32}\/index[.]js$/);
 
     // Inside the frame: no app, no cookie, no network, no shell.
@@ -178,6 +184,54 @@ test("a framed module draws in its card, talks to the host and its runtime, and 
     await page.locator("iframe[data-module-frame]").first().waitFor({ state: "detached" });
     await page.waitForTimeout(500);
     assert.equal(await page.locator("iframe[data-module-frame]").count(), 0);
+  }));
+
+test("a frame the module nests runs nothing with a peer connection, and its code loads from nowhere else", () =>
+  withFramed(async ({ page, base, context }) => {
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
+    const leaks = [];
+    context.on("request", r => r.url().includes("ikl-leak") && leaks.push(r.url()));
+    const frame = await viewFrame(page);
+    const got = await frame.evaluate(async other => {
+      const entry = Object.keys(JSON.parse(document.querySelector('script[type="importmap"]').textContent).integrity)[0];
+      // What the frame's own script elements give away (a nonce's IDL value is readable by the page).
+      const nonce = [...document.scripts].map(s => s.nonce).find(Boolean) ?? "";
+      const nested = html =>
+        new Promise(resolve => {
+          const f = document.createElement("iframe");
+          const heard = e => {
+            if (e.source !== f.contentWindow) return;
+            removeEventListener("message", heard);
+            resolve(e.data.probe);
+          };
+          addEventListener("message", heard);
+          setTimeout(() => resolve("did not run"), 3000);
+          f.srcdoc = html;
+          document.body.append(f);
+        });
+      const end = "</" + "script>";
+      return {
+        inline: await nested(`<script nonce="${nonce}">parent.postMessage({ probe: typeof RTCPeerConnection }, "*")${end}`),
+        byPath: await nested(`<script type="module" src="${new URL(entry.replace(/index[.]js$/, "probe.js"), location.href).href}">${end}`),
+        // A nonce'd script (the module's own imports carry the bootstrap's nonce) loads from any address.
+        imported: await new Promise(resolve => {
+          const heard = e => {
+            if (e.source !== window || !e.data?.imported) return;
+            removeEventListener("message", heard);
+            resolve(e.data.imported);
+          };
+          addEventListener("message", heard);
+          setTimeout(() => resolve("did not run"), 3000);
+          const s = document.createElement("script");
+          s.type = "module";
+          s.nonce = nonce;
+          s.textContent = `import(${JSON.stringify(other + "/ikl-leak.js")}).then(() => "loaded", () => "refused").then(imported => postMessage({ imported }, "*"));`;
+          document.head.append(s);
+        }),
+      };
+    }, base.replace("127.0.0.1", "localhost"));
+    assert.deepEqual(got, { inline: "did not run", byPath: "undefined", imported: "did not run" });
+    assert.deepEqual(leaks, [], "no request elsewhere");
   }));
 
 test("the focus in a module's frame shows the host's badge with its name, outside its box", () =>

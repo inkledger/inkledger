@@ -1,15 +1,18 @@
+import { createHash } from "node:crypto";
 import { MODULES_RUN_PATH, PICTURE_MAX_BYTES } from "@contracts/modules";
 
 /**
  * A framed module's document: sandboxed (opaque origin: no cookie, storage or
- * DOM of the app), scripts only by nonce or from the module code route, no
+ * DOM of the app), scripts only by hash or from the module code route, no
  * network at all. Served, not srcdoc: srcdoc would inherit the app's policy.
+ * No nonce: the page can read it, a frame it nests inherits this policy, and
+ * imports carry it to any address.
  */
-export const frameCsp = (origin: string, nonce: string) =>
+export const frameCsp = (origin: string, scriptHashes: readonly string[]) =>
   [
     "sandbox allow-scripts",
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' ${origin}${MODULES_RUN_PATH}/`,
+    `script-src ${scriptHashes.join(" ")} ${origin}${MODULES_RUN_PATH}/`,
     "worker-src blob:",
     "img-src blob: data:",
     "media-src blob:",
@@ -20,6 +23,18 @@ export const frameCsp = (origin: string, nonce: string) =>
     "base-uri 'none'",
     "frame-ancestors 'self'",
   ].join("; ");
+
+/**
+ * Before every file of a framed module's code, on its first line (the module's
+ * lines keep their numbers): a frame the module nests runs its code without
+ * the bootstrap, so the code itself takes the peer connections away (the
+ * policy governs none of their traffic).
+ */
+export const CODE_PRELUDE =
+  'for(const k of["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCSessionDescription","RTCIceCandidate"])try{Object.defineProperty(globalThis,k,{value:undefined,writable:false,configurable:false})}catch{};';
+
+/** A framed module's file as served (and pinned by its hash). */
+export const framedCode = (body: Buffer) => Buffer.concat([Buffer.from(CODE_PRELUDE), body]);
 
 // "<" escaped: nothing in the JSON can close its script element.
 const LT = "\\" + "u003c";
@@ -503,13 +518,23 @@ addEventListener("pagehide", (e) => {
 send({ t: "ready" });
 `;
 
-/** The bootstrap: the import map pins the entry to its hash (SRI) before anything imports it. */
-export const frameDocument = (entryUrl: string, integrity: string, nonce: string) => `<!doctype html>
+const scriptHash = (text: string) => `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
+
+/**
+ * The bootstrap: the import map pins the entry to its hash (SRI) before anything imports it.
+ * `scriptHashes`: its two inline scripts, for the policy.
+ */
+export function frameDocument(entryUrl: string, integrity: string): { html: string; scriptHashes: string[] } {
+  const map = inlineJson({ imports: {}, integrity: { [entryUrl]: integrity } });
+  const boot = `const ENTRY = ${inlineJson(entryUrl)};
+const load = () => import(ENTRY);
+${BOOTSTRAP}`;
+  const html = `<!doctype html>
 <html><head><meta charset="utf-8">
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#ikl-box{position:absolute;inset:0}</style>
-<script type="importmap" nonce="${nonce}">${inlineJson({ imports: {}, integrity: { [entryUrl]: integrity } })}</script>
-<script type="module" nonce="${nonce}">const ENTRY = ${inlineJson(entryUrl)};
-const load = () => import(ENTRY);
-${BOOTSTRAP}</script>
+<script type="importmap">${map}</script>
+<script type="module">${boot}</script>
 </head><body></body></html>
 `;
+  return { html, scriptHashes: [scriptHash(map), scriptHash(boot)] };
+}

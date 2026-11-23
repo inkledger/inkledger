@@ -26,6 +26,7 @@ import { env } from "../lib/env";
 import { getServerSetting, setServerSetting, updateServerSetting } from "../lib/serverSettings";
 import { asPem, extraKey, LICENSE_ISSUERS, licenseKeys, packageKeyTiers, type LicenseIssuer, type PackageTier } from "./keys";
 import { activationStates } from "./activation";
+import { framedCode } from "./frame";
 
 /**
  * Installed modules: one signed folder each under env.modulesDir. Everything is
@@ -272,13 +273,13 @@ export async function moduleFile(id: string, hash: string, file: string, runtime
   return checked.files.get(file) ?? null;
 }
 
-/** A framed module's entry and its SRI at this package hash, while active. */
+/** A framed module's entry and its SRI (over the bytes served, prelude and all) at this package hash, while active. */
 export async function frameEntry(id: string, hash: string): Promise<{ entry: string; integrity: string } | null> {
   if (!moduleIdSchema.safeParse(id).success) return null;
   const checked = readInstalled(id);
   if (!checked.ok || checked.packageHash !== hash || checked.manifest.runtime !== "frame") return null;
   if (statusOf(checked, await licensedProducts()).state !== "active") return null;
-  return { entry: checked.manifest.entry, integrity: integrityOf(checked.files.get(checked.manifest.entry) ?? Buffer.alloc(0)) };
+  return { entry: checked.manifest.entry, integrity: integrityOf(framedCode(checked.files.get(checked.manifest.entry) ?? Buffer.alloc(0))) };
 }
 
 // ---- Install / uninstall ----

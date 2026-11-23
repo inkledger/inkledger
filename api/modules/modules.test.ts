@@ -370,7 +370,10 @@ describe("add-on modules", () => {
       expect(token).toMatch(/^\d+\.\d+\.[\w-]{43}$/);
       const res = await app.request(url("index.js"), { headers: { origin: "null", "sec-fetch-site": "cross-site" } });
       expect(res.status).toBe(200);
-      expect(await res.text()).toBe(ENTRY);
+      // Every file starts by taking the peer connections from whatever realm runs it.
+      const { CODE_PRELUDE } = await import("./frame");
+      expect(CODE_PRELUDE).not.toContain("\n");
+      expect(await res.text()).toBe(CODE_PRELUDE + ENTRY);
       expect(res.headers.get("access-control-allow-origin")).toBe("*");
       expect(res.headers.get("access-control-allow-credentials")).toBeNull();
       expect(res.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
@@ -439,13 +442,18 @@ describe("add-on modules", () => {
       expect(doc.headers.get("cache-control")).toBe("no-store");
       expect(doc.headers.get("x-content-type-options")).toBe("nosniff");
       const csp = doc.headers.get("content-security-policy") ?? "";
-      const nonce = /'nonce-([^']+)'/.exec(csp)?.[1] ?? "";
-      expect(nonce.length).toBeGreaterThan(16);
+      const html = await doc.text();
+      const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
+      expect(scripts.length).toBe(2);
+      // Each inline script by its hash: no nonce a nested frame could reuse, nor one the module's imports carry to any URL.
+      const hashes = scripts.map(([, , text]) => `'sha256-${createHash("sha256").update(text).digest("base64")}'`).join(" ");
+      expect(csp).not.toContain("nonce");
+      for (const [, attrs] of scripts) expect(attrs).not.toContain("nonce");
       expect(csp).toBe(
         [
           "sandbox allow-scripts",
           "default-src 'none'",
-          `script-src 'nonce-${nonce}' http://localhost/modules/run/`,
+          `script-src ${hashes} http://localhost/modules/run/`,
           "worker-src blob:",
           "img-src blob: data:",
           "media-src blob:",
@@ -457,23 +465,17 @@ describe("add-on modules", () => {
           "frame-ancestors 'self'",
         ].join("; "),
       );
-      const html = await doc.text();
-      const scripts = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)];
-      expect(scripts.length).toBe(2);
-      for (const [, attrs] of scripts) expect(attrs).toContain(`nonce="${nonce}"`);
       const map = JSON.parse(scripts[0][2]) as { integrity: Record<string, string> };
       expect(scripts[0][1]).toContain('type="importmap"');
       const [[entryUrl, integrity]] = Object.entries(map.integrity);
       expect(entryUrl).toMatch(new RegExp(`^/modules/run/[^/]+/hello/${hash}/index[.]js$`));
-      expect(integrity).toBe(`sha256-${createHash("sha256").update(ENTRY).digest("base64")}`);
+      const { CODE_PRELUDE } = await import("./frame");
+      expect(integrity).toBe(`sha256-${createHash("sha256").update(CODE_PRELUDE + ENTRY).digest("base64")}`);
       expect(scripts[1][2]).toContain('send({ t: "ready" })');
       // Nothing but the bootstrap's own text: the entry goes in as JSON.
       expect(scripts[1][2]).toContain(`const ENTRY = ${JSON.stringify(entryUrl)};`);
       // The pinned URL is served, cookie-less, with those bytes.
-      expect(await (await app.request(entryUrl)).text()).toBe(ENTRY);
-      // A fresh nonce each time.
-      const again = await app.request(`/modules/frame/hello/${hash}`, { headers: { cookie } });
-      expect(again.headers.get("content-security-policy")).not.toContain(nonce);
+      expect(await (await app.request(entryUrl)).text()).toBe(CODE_PRELUDE + ENTRY);
     });
 
     it("the frame document: signed-in, granted, active framed package at its hash only", async () => {

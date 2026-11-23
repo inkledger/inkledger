@@ -1,11 +1,10 @@
-import { randomBytes } from "node:crypto";
 import type { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { MODULES_FRAME_PATH, MODULES_PATH, MODULES_RUN_PATH } from "@contracts/modules";
 import { restUser } from "../context";
 import { can, mayRunModule, userById } from "../queries/accounts";
 import { extraKey } from "./keys";
-import { frameCsp, frameDocument } from "./frame";
+import { frameCsp, frameDocument, framedCode } from "./frame";
 import { frameEntry, installBundle, moduleFile } from "./registry";
 import { runToken, runTokenUser } from "./runToken";
 
@@ -55,7 +54,7 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     }
     const body = await moduleFile(id, hash, file, "frame");
     if (!body) return notFound();
-    return c.body(new Uint8Array(body), 200, {
+    return c.body(new Uint8Array(framedCode(body)), 200, {
       "Content-Type": "text/javascript; charset=utf-8",
       // Read by an opaque origin, never with credentials.
       "Access-Control-Allow-Origin": "*",
@@ -72,11 +71,11 @@ export function registerModuleRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     if (!mayRunModule(who.user, id)) return c.text("Not allowed", 403);
     const entry = await frameEntry(id, hash);
     if (!entry) return c.text("Not Found", 404);
-    const nonce = randomBytes(16).toString("base64");
     const entryUrl = `${MODULES_RUN_PATH}/${runToken(who.user.id, id, hash)}/${id}/${hash}/${entry.entry}`;
-    return c.html(frameDocument(entryUrl, entry.integrity, nonce), 200, {
-      "Content-Security-Policy": frameCsp(new URL(c.req.url).origin, nonce),
-      // It holds a token and a nonce: never kept.
+    const doc = frameDocument(entryUrl, entry.integrity);
+    return c.html(doc.html, 200, {
+      "Content-Security-Policy": frameCsp(new URL(c.req.url).origin, doc.scriptHashes),
+      // It holds a token: never kept.
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     });
