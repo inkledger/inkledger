@@ -49,7 +49,7 @@ The pane also says where the mail is pinned already, with a check on those issue
 
 **Pin the pane** with the pin at its top. Unpinned, Outlook closes it when you select another mail. Pinned, it stays open and follows the mail you select; until it has done so once, the pane shows a reminder.
 
-Outlook loads add-ins only over HTTPS with a trusted certificate. The Docker stack provides that on `:3443`, so the tailnet is not needed (managing the certificate: [README](../README.md#https-and-the-certificate)):
+Outlook loads add-ins only over HTTPS with a trusted certificate. The Docker stack provides that on `:3443`, so the tailnet is not needed (managing the certificate: [self-hosting guide](self-hosting.md#https-and-the-certificate)):
 
 ```sh
 pnpm https cert            # once: a local CA and a certificate (data/https)
