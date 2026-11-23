@@ -5,6 +5,7 @@ import { surface } from "@/components/app/surface";
 import { trpc } from "@/lib/trpc";
 import { clientId } from "@/lib/device";
 import { LogTimeDialog } from "@/components/LogTimeDialog";
+import { timerStartOf } from "@/lib/timerLog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
@@ -33,6 +34,9 @@ export function DecisionHost() {
   const [ended, setEnded] = useState<View | null>(null);
   // Asked while the user types elsewhere on this page: a banner first, the dialog once they leave the field.
   const [waiting, setWaiting] = useState<string | null>(null);
+  // Another interval of the issue, by hand, in place of the question: out of its life, so a question
+  // ended elsewhere meanwhile never takes the typing with it. Closed, the question is back if still open.
+  const [another, setAnother] = useState<Another | null>(null);
   // What this page showed ended elsewhere: said once, then gone.
   const openId = open?.id ?? null;
   if (openId !== shownId) {
@@ -52,13 +56,27 @@ export function DecisionHost() {
   return (
     <>
       {open && waiting === open.id && <Waiting issueKey={str(open.payload.issueKey)} onOpen={() => setWaiting(null)} />}
-      {open && waiting !== open.id && <TimerLogDecision key={open.id} d={open} onAnswered={() => setAnsweredHere(s => new Set([...s, open.id]))} />}
-      {ended && <EndedElsewhere d={ended} onClose={() => setEnded(null)} />}
+      {open && waiting !== open.id && !another && <TimerLogDecision key={open.id} d={open} onAnswered={() => setAnsweredHere(s => new Set([...s, open.id]))} onAnother={setAnother} />}
+      {another && (
+        <LogTimeDialog
+          issueKey={another.issueKey}
+          connectionId={another.connectionId}
+          endAt={another.endAt}
+          open
+          onOpenChange={o => {
+            if (!o) setAnother(null);
+          }}
+        />
+      )}
+      {ended && !another && <EndedElsewhere d={ended} onClose={() => setEnded(null)} />}
     </>
   );
 }
 
-function TimerLogDecision({ d, onAnswered }: { d: View; onAnswered: () => void }) {
+/** Another interval of a timer's issue: it ends before the timer's time at the latest. */
+type Another = { issueKey: string; connectionId?: number; endAt?: Date };
+
+function TimerLogDecision({ d, onAnswered, onAnother }: { d: View; onAnswered: () => void; onAnother: (a: Another) => void }) {
   const utils = trpc.useUtils();
   const patch = trpc.decisions.patchDraft.useMutation();
   const dismiss = trpc.decisions.dismiss.useMutation({ onSettled: () => void utils.decisions.list.invalidate() });
@@ -95,17 +113,23 @@ function TimerLogDecision({ d, onAnswered }: { d: View; onAnswered: () => void }
   };
   const issueKey = str(d.payload.issueKey);
   const end = str(d.payload.end);
+  const seconds = num(d.payload.seconds);
   return (
     <LogTimeDialog
       issueKey={issueKey}
       connectionId={num(d.payload.connectionId)}
-      prefillSeconds={num(d.payload.seconds)}
+      prefillSeconds={seconds}
       prefillComment={str(d.payload.note)}
       endAt={end ? new Date(end) : undefined}
       fromTimer
       title={t("ui.timerLog.title", { key: issueKey })}
       cancelLabel={t("ui.timerLog.later")}
       shared={{ decision: { id: d.id, revision: d.revision }, openedAt: new Date(d.createdAt), comment, onComment }}
+      onAnother={() => {
+        // What is typed stays the question's draft, for when it is back.
+        void flush();
+        onAnother({ issueKey, connectionId: num(d.payload.connectionId), endAt: end && seconds !== undefined ? timerStartOf({ end: new Date(end), seconds }) : undefined });
+      }}
       onDone={() => {
         answered.current = true;
         onAnswered();

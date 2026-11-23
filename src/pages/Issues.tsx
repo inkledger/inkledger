@@ -8,6 +8,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { useStartTimer } from "@/hooks/useStartTimer";
+import { useLogTime } from "@/hooks/useLogTime";
 import { useListKeyboard } from "@/hooks/useListKeyboard";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { BrushCleaning, ChevronLeft, ChevronRight, Globe, Plus } from "lucide-react";
@@ -261,7 +262,13 @@ export default function Issues() {
     };
   }, [all.data, today]);
 
-  const openLog = useCallback((key: string, connectionId?: number) => setLogging({ key, connectionId }), [setLogging]);
+  const logTime = useLogTime();
+  const openLog = useCallback(
+    (key: string, connectionId?: number) => {
+      if (!logTime({ key, connectionId })) setLogging({ key, connectionId });
+    },
+    [logTime, setLogging]
+  );
   const unreadCount = useUnreadCount();
   const issues = useMemo(() => data?.issues ?? [], [data]);
 

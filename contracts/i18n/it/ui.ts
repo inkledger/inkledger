@@ -191,6 +191,8 @@ export const ui: Shape<typeof en> = {
     pickStart: "{reason}: scegli l'inizio a mano.",
     computing: "Calcolo l'orario in base alle registrazioni del giorno…",
     endsAtStop: "Finisce quando hai fermato il timer.",
+    endsBeforeTimer: "Finisce prima del tempo del timer, senza coprire registrazioni già fatte.",
+    another: "Registra un altro intervallo",
     endsNow: "Finisce adesso, senza coprire registrazioni già fatte.",
     splitAroundBreak: "Diviso attorno alla pausa: {parts}.",
     overBreak: "Non c'è spazio attorno alla pausa: la copre.",

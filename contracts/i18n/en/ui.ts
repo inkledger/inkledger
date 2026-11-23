@@ -189,6 +189,8 @@ export const ui = {
     pickStart: "{reason}: pick the start by hand.",
     computing: "Working out the time from the day's entries…",
     endsAtStop: "Ends when you stopped the timer.",
+    endsBeforeTimer: "Ends before the timer's time, without covering entries already logged.",
+    another: "Log another interval",
     endsNow: "Ends now, without covering entries already logged.",
     splitAroundBreak: "Split around your break: {parts}.",
     overBreak: "No room around your break: it covers it.",

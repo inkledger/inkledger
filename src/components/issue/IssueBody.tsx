@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { surface } from "@/components/app/surface";
 import { TimerControls } from "@/components/TimerControls";
 import { useStartTimer } from "@/hooks/useStartTimer";
+import { useLogTime } from "@/hooks/useLogTime";
 import { useRef, useState, type ReactNode } from "react";
 import type { DeskPane } from "@contracts/desk";
 import { Link } from "react-router";
@@ -264,6 +265,10 @@ function useBody({
   const act = useIssueActions();
   const i = data.issue.data;
   const startTimer = useStartTimer({ announce: true });
+  const logTime = useLogTime();
+  const openLog = () => {
+    if (!logTime({ key, connectionId: i?.connectionId ?? connectionId })) setLogOpen(true);
+  };
   useIssueHotkeys({
     enabled: hotkeys,
     issueKey: key,
@@ -271,7 +276,7 @@ function useBody({
     flags: i && !i.remote ? { favorite: i.favorite === 1, hidden: i.hidden === 1, summary: i.summary } : null,
     named: i ? { key, summary: i.summary, issueType: i.issueType } : null,
     act,
-    onLogTime: () => setLogOpen(true),
+    onLogTime: openLog,
     onStartTimer: i ? () => startTimer.mutate({ issueKey: key, connectionId: i.connectionId ?? undefined }) : undefined,
   });
   const logDialog = (
@@ -282,7 +287,7 @@ function useBody({
       onOpenChange={setLogOpen}
     />
   );
-  return { issueKey: key, connectionId, variant, data, act, openLog: () => setLogOpen(true), logDialog };
+  return { issueKey: key, connectionId, variant, data, act, openLog, logDialog };
 }
 
 /** Not found (or not readable): what to do next, or Retry. */

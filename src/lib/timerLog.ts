@@ -62,6 +62,19 @@ export const timerLog = {
   },
 };
 
+/** The issue's own timer, whatever its state: its key, on its connection when known (a key may live on two). */
+export function timerOf<T extends { issueKey: string; connectionId: number }>(
+  timers: readonly T[],
+  issue: { key: string; connectionId?: number | null }
+): T | undefined {
+  return timers.find(t => t.issueKey === issue.key && (issue.connectionId == null || t.connectionId === issue.connectionId));
+}
+
+/** Where a stopped timer's block begins (its stop less its time): another interval ends there at the latest. */
+export function timerStartOf(asked: { end: Date; seconds: number }): Date {
+  return new Date(asked.end.getTime() - asked.seconds * 1000);
+}
+
 /** Timers a start switched off are announced; the server asks each to be logged, on every page (DecisionHost). */
 export function announceSwitched(stopped: { issueKey: string }[]) {
   if (stopped.length === 1) toast.info(t("ui.startTimer.switched", { key: stopped[0].issueKey }));

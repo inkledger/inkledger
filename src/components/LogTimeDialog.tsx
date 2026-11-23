@@ -86,6 +86,8 @@ type Props = {
   title?: string;
   /** Label of the dismiss button (default: "Cancel") */
   cancelLabel?: string;
+  /** A timer's question: another interval of the issue, typed by hand, instead (the question stays). */
+  onAnother?: () => void;
   /**
    * The question this dialog answers, shown on every page of the user
    * (contracts/decisions): its draft is theirs, the first answer wins.
@@ -142,6 +144,7 @@ function LogTimeForm({
   title,
   cancelLabel,
   shared,
+  onAnother,
 }: Omit<Props, "trigger" | "open" | "onOpenChange"> & { onClose: () => void }) {
   const id = useId();
   const invalidate = useInvalidateWorklogs();
@@ -597,7 +600,9 @@ function LogTimeForm({
                     ? t("ui.logTime.overBreak")
                     : !startedTouched && startedShown
                       ? endAt
-                        ? t("ui.logTime.endsAtStop")
+                        ? fromTimer
+                          ? t("ui.logTime.endsAtStop")
+                          : t("ui.logTime.endsBeforeTimer")
                         : t("ui.logTime.endsNow")
                       : "\u00a0")}
           </p>
@@ -632,6 +637,11 @@ function LogTimeForm({
             onClick={() => setConfirmingDiscard(true)}
           >
             {t("ui.logTime.discardTimer")}
+          </Button>
+        )}
+        {onAnother && (
+          <Button type="button" variant="ghost" disabled={pending} onClick={onAnother}>
+            {t("ui.logTime.another")}
           </Button>
         )}
         <Button type="button" variant="outline" onClick={onClose}>
