@@ -249,7 +249,7 @@ function openFrame(
   const { api, cas, dispose: disposeApi } = hub.apiFor(entry.id, slot === "sheet" ? (entry.slots[0] ?? "settings") : slot);
   const gestures = pageGestures();
   // The person's gesture, as this frame's own: in its view (its frame, its host box); a runtime has none.
-  const gesture = role === "view" ? () => gestures.has(iframe, parent, document.activeElement === iframe) : () => false;
+  const gesture = role === "view" ? (ms?: number) => gestures.has(iframe, parent, document.activeElement === iframe, ms) : () => false;
   const box: ViewBox | null =
     role === "view"
       ? {
@@ -305,7 +305,10 @@ function openFrame(
       mounted = true;
       iframe.dataset.state = "live";
       // The sheet's frame comes after the dialog took the focus: it takes it (Esc then reaches the frame).
-      if (slot === "sheet" && role === "view" && !stopped && sheetOpen.get() === entry.id) iframe.focus({ preventScroll: true });
+      if (slot === "sheet" && role === "view" && !stopped && sheetOpen.get() === entry.id) {
+        iframe.focus({ preventScroll: true });
+        gestures.hostFocus(iframe);
+      }
     },
     onUnmounted: () => onUnmounted?.(),
     onSize: resize,

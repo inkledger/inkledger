@@ -6,6 +6,8 @@
  * HTML or SVG passed off as a picture must never be opened from it.
  */
 
+import { PICTURE_GESTURE_MS } from "./gesture";
+
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/avif"] as const;
 export type ImageType = (typeof IMAGE_TYPES)[number];
 const EXTENSION: Record<ImageType, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/avif": "avif" };
@@ -40,8 +42,8 @@ export function safeName(name: string, type: ImageType): string {
 }
 
 export type BrokerEnv = {
-  /** Whether the person's gesture is still fresh (navigator.userActivation), and for a frame its own (gesture.ts). */
-  active(): boolean;
+  /** Whether the person's gesture is still fresh (navigator.userActivation), and for a frame its own, within `ms` (gesture.ts). */
+  active(ms?: number): boolean;
   share(file: File): Promise<boolean>;
   download(file: Blob, name: string): void;
   open(file: Blob): void;
@@ -52,7 +54,8 @@ const NO_GESTURE = "needs the person's gesture";
 
 export function createBroker(env: BrokerEnv) {
   const picture = async (file: Blob) => {
-    if (!env.active()) throw new Error(NO_GESTURE);
+    // The module draws the picture first: a longer moment than a dialog's.
+    if (!env.active(PICTURE_GESTURE_MS)) throw new Error(NO_GESTURE);
     const proven = await asImage(file);
     if (!proven) throw new Error("not a png, jpeg, webp or avif picture");
     return proven;

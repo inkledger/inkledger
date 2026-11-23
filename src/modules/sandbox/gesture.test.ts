@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGestures, GESTURE_MS } from "./gesture";
+import { createGestures, GESTURE_MS, PICTURE_GESTURE_MS } from "./gesture";
 
 function setup() {
   let t = 10_000;
@@ -68,6 +68,40 @@ describe("whose gesture it was", () => {
     g.own(frame, "key");
     expect(g.has(frame, box, true)).toBe(true);
     expect(g.has(frame, box, false)).toBe(false);
+  });
+
+  it("keys in a frame the person clicked into: type in a field, then Enter", () => {
+    const { g, frame, box, tick } = setup();
+    g.app();
+    tick(10);
+    g.own(frame, "pointer");
+    g.focusIn(frame);
+    tick(3000);
+    g.own(frame, "key");
+    expect(g.has(frame, box, true)).toBe(true);
+  });
+
+  it("keys in a frame the host focused (a sheet opening from the keyboard)", () => {
+    const { g, frame, box, tick } = setup();
+    g.box(box);
+    tick(10);
+    g.focusIn(frame);
+    g.hostFocus(frame);
+    tick(2000);
+    g.own(frame, "key");
+    expect(g.has(frame, box, true)).toBe(true);
+  });
+
+  it("a moment for what follows at once, longer for a picture the module draws first", () => {
+    const { g, frame, box, tick } = setup();
+    g.own(frame, "pointer");
+    tick(GESTURE_MS - 1);
+    expect(g.has(frame, box, false)).toBe(true);
+    tick(2);
+    expect(g.has(frame, box, false)).toBe(false);
+    expect(g.has(frame, box, false, PICTURE_GESTURE_MS)).toBe(true);
+    tick(PICTURE_GESTURE_MS);
+    expect(g.has(frame, box, false, PICTURE_GESTURE_MS)).toBe(false);
   });
 
   it("only while the browser still counts the person's activation", () => {

@@ -4,13 +4,17 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { ModulesContext } from "../context";
 import { FramedBox } from "./FrameHost";
 import { sheetOpen } from "./sheet";
+import { pageGestures } from "./gesture";
 
 /** Closed: the focus back on the opener's box (a host button, else the frame inside it). */
 const returnFocus = (e: Event) => {
   const box = sheetOpen.takeOpener();
   if (!box) return;
   e.preventDefault();
-  (box.hasAttribute("tabindex") && box.tabIndex >= 0 ? box : (box.querySelector("iframe") ?? box)).focus({ preventScroll: true });
+  const to = box.hasAttribute("tabindex") && box.tabIndex >= 0 ? box : (box.querySelector("iframe") ?? box);
+  to.focus({ preventScroll: true });
+  // The host handed the focus back: keys in that frame are the person's.
+  if (to instanceof HTMLIFrameElement) pageGestures().hostFocus(to);
 };
 
 /** A framed module's sheet (host.sheet.open): the host's dialog, the module's view frame inside. */
