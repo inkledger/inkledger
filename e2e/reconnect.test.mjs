@@ -17,10 +17,10 @@ test("refused credentials: still signed in, a bar leads to reconnecting the trac
     await page.waitForURL(u => !u.searchParams.has("reconnect"));
   }));
 
-test("a tracker out of reach too many times: background sync paused, Retry runs the user's own sync", () =>
+test("a tracker out of reach too many times: retried in the background, Retry runs the user's own sync", () =>
   withApp({ seed: db => db.q("UPDATE connections SET status = 'unreachable'") }, async ({ page, base }) => {
     await page.goto(base + "/");
-    const bar = page.getByRole("status").filter({ hasText: "background sync is paused" });
+    const bar = page.getByRole("status").filter({ hasText: "retrying in the background" });
     await bar.waitFor();
     assert.match(await bar.innerText(), /Jira \(jira\.example\.it\) hasn't answered for 3 attempts/);
     assert.equal(await bar.getByRole("link", { name: "Reconnect" }).count(), 0);

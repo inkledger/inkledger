@@ -7,7 +7,7 @@ import { syncConnectionEntries, syncConnectionIssues, syncInbox, withStream } fr
 import { replayContract } from "./timeWrites";
 import { t } from "@contracts/i18n";
 import { providerName } from "@contracts/providerNames";
-import { isWorking } from "@contracts/sync";
+import { needsReconnect } from "@contracts/sync";
 import { ProviderError } from "../providers/core/errors";
 import { providerTrpcError } from "../providers/trpc";
 import { isShuttingDown } from "../lib/shutdown";
@@ -62,8 +62,8 @@ async function syncConnections(user: User, full: boolean, background: boolean): 
   const failed: SyncResult["failed"] = [];
   let tried = 0;
   const one = async (conn: Connection) => {
-    // Waiting to be reconnected: only the user's own sync tries it again.
-    if (background && !isWorking(conn.status)) return;
+    // Waiting to be reconnected: only the user's own sync tries it again (one out of reach goes, within its backoff).
+    if (background && needsReconnect(conn.status)) return;
     tried++;
     if (conn.type === "jira") {
       const run = await withStream(conn, "issues", { full, background }, (cp) => runSync(user, conn, full, cp));

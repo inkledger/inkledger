@@ -1,5 +1,5 @@
 import { pushSinks } from "./sync/extraSinks";
-import { and, eq, gt, isNull, max } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, max } from "drizzle-orm";
 import { getDb } from "./queries/connection";
 import { connectionSync, connections, sessions, syncState, users, type User } from "@db/schema";
 import { markConnection, markJiraConnection } from "./providers/connections";
@@ -10,6 +10,10 @@ import { UnreadableCredentialsError } from "./middleware";
 import { isShuttingDown } from "./lib/shutdown";
 import { inMaintenance } from "./lib/maintenance";
 import { readDueHistories } from "./estimates/history";
+import { SYNC_STATES, needsReconnect } from "@contracts/sync";
+
+/** States the background still syncs: working, or out of reach (retried within its backoff). */
+const RETRIED = SYNC_STATES.filter((s) => !needsReconnect(s));
 
 /**
  * Jira refused the stored credentials (revoked token) or they can't be decrypted: retrying
@@ -25,16 +29,17 @@ function credentialsRejected(e: unknown): boolean {
 }
 
 /**
- * Users with at least one live session and a working tracker connection: a
- * logout stops their background sync, an account with nothing connected has
- * nothing to sync, and a connection waiting to be reconnected is left alone.
+ * Users with at least one live session and a tracker connection working or
+ * out of reach: a logout stops their background sync, an account with nothing
+ * connected has nothing to sync, and a connection waiting to be reconnected is
+ * left alone.
  */
 export async function activeUsers(now: Date = new Date()): Promise<User[]> {
   const rows = await getDb()
     .selectDistinct({ user: users })
     .from(users)
     .innerJoin(sessions, and(eq(sessions.userId, users.id), gt(sessions.expiresAt, now)))
-    .innerJoin(connections, and(eq(connections.userId, users.id), isNull(connections.archivedAt), eq(connections.status, "ok")));
+    .innerJoin(connections, and(eq(connections.userId, users.id), isNull(connections.archivedAt), inArray(connections.status, RETRIED)));
   return rows.map((r) => r.user);
 }
 
@@ -48,7 +53,7 @@ const FULL_SYNC_EVERY_MS = 60 * 60_000;
  */
 export async function needsFullSync(userId: number, now: number = Date.now()): Promise<boolean> {
   const db = getDb();
-  const working = and(eq(connections.userId, userId), isNull(connections.archivedAt), eq(connections.status, "ok"));
+  const working = and(eq(connections.userId, userId), isNull(connections.archivedAt), inArray(connections.status, RETRIED));
   const [jira] = await db
     .select({ id: connections.id })
     .from(connections)

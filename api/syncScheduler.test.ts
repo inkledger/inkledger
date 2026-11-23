@@ -228,6 +228,35 @@ describe("background Jira sync", () => {
     }
   });
 
+  it("a Jira out of reach goes on being retried in the background, within its backoff, and is ok again once it answers", async () => {
+    const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
+    await q("UPDATE connections SET status = 'ok'");
+    await q("DELETE FROM connection_sync");
+    const status = async () => (await q<{ status: string }>("SELECT status FROM connections WHERE type = 'jira' AND legacy = 1"))[0].status;
+    jiraDown = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (let i = 0; i < SYNC_GIVE_UP_AFTER; i++) {
+        await q("UPDATE connection_sync SET retry_after = NULL");
+        await mod.syncActiveUsers();
+      }
+      expect(await status()).toBe("unreachable");
+      // Still the background's: never left waiting for its user.
+      expect(await mod.activeUsers()).toHaveLength(1);
+      const before = searches;
+      await mod.syncActiveUsers();
+      expect(searches).toBe(before); // in its backoff
+      await q("UPDATE connection_sync SET retry_after = ?", Date.now() - 1);
+      jiraDown = false;
+      expect(await mod.syncActiveUsers()).toEqual({ ok: 1, failed: 0 });
+      expect(searches).toBeGreaterThan(before);
+      expect(await status()).toBe("ok");
+    } finally {
+      jiraDown = false;
+      warn.mockRestore();
+    }
+  });
+
   it("skips users who logged out", async () => {
     await caller.auth.logout();
     expect(await mod.activeUsers()).toHaveLength(0);

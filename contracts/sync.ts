@@ -8,14 +8,14 @@ export type SyncState = (typeof SYNC_STATES)[number];
 
 /** Credentials refused or no longer readable: the user has to reconnect. */
 export const needsReconnect = (s: string): boolean => s !== "ok" && s !== "unreachable";
-/** Out of reach SYNC_GIVE_UP_AFTER times in a row: background sync paused until the user's own Sync. */
+/** Out of reach SYNC_GIVE_UP_AFTER times in a row: said to the user; the background keeps retrying within its backoff. */
 export const isPaused = (s: string): boolean => s === "unreachable";
 /** Syncing normally. */
 export const isWorking = (s: string): boolean => s === "ok";
 
 /**
- * Failures in a row of a service out of reach after which the background
- * sync stops trying a connection ("unreachable"): it waits for the user's
- * own Sync, which tries it anyway and on success makes it "ok" again.
+ * Failures in a row of a service out of reach after which a connection is
+ * "unreachable": the background tries it again within its backoff (the
+ * user's own Sync at once), and a pass that goes through makes it "ok".
  */
 export const SYNC_GIVE_UP_AFTER = 3;

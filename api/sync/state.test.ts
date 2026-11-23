@@ -79,7 +79,7 @@ describe("a connection out of reach too many times in a row", () => {
   };
   const status = async () => (await q<{ status: string }>("SELECT status FROM connections WHERE id = ?", connId))[0].status;
 
-  it("keeps trying (with its backoff) until SYNC_GIVE_UP_AFTER, then waits for the user", async () => {
+  it("unreachable after SYNC_GIVE_UP_AFTER, still retried with a backoff of at most 6 hours", async () => {
     const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
@@ -90,6 +90,12 @@ describe("a connection out of reach too many times in a row", () => {
       // Said once, on the way in: a later failure (the user's own Sync) adds no line.
       await fail(1);
       expect(warn.mock.calls.filter(([m]) => String(m).includes("unreachable after")).length).toBe(1);
+      // Then longer and longer, at most 6 hours.
+      const waitMin = async () => Math.round((Number((await q<{ r: number }>("SELECT retry_after r FROM connection_sync WHERE connection_id = ?", connId))[0].r) - Date.now()) / 60_000);
+      await fail(10 - SYNC_GIVE_UP_AFTER - 1);
+      expect(await waitMin()).toBe(256);
+      await fail(2);
+      expect(await waitMin()).toBe(360);
     } finally {
       warn.mockRestore();
     }

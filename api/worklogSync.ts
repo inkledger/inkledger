@@ -21,7 +21,7 @@ import { streamState } from "./sync/state";
 import { buriedBy, creationInFlight, tombsEnded } from "./sync/timeWrites";
 import { trackerOfSink } from "./sync/extraSinks";
 import { instant } from "@contracts/values";
-import { isWorking } from "@contracts/sync";
+import { needsReconnect } from "@contracts/sync";
 
 /** How far back the first import reaches. */
 const WORKLOG_HISTORY_DAYS = 365;
@@ -40,8 +40,8 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
   // One connection failing doesn't stop the others; the first failure is still the caller's.
   let failed: unknown = null;
   for (const conn of await jiraConnections(user.id)) {
-    // In the background, a connection out of reach waits like its issues: paused for the user, or in its backoff.
-    if (opts.background && (!isWorking(conn.status) || (await waiting(conn.id)))) continue;
+    // In the background, a connection waits like its issues: for the user to reconnect it, or for its backoff.
+    if (opts.background && (needsReconnect(conn.status) || (await waiting(conn.id)))) continue;
     try {
       const r = await syncConnectionWorklogs(user, conn, opts);
       total.imported += r.imported;

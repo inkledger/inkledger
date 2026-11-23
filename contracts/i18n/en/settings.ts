@@ -670,7 +670,7 @@ export const settings = {
     archived: "{name} archived",
     none: "No tracker connected yet.",
     needsReconnect: "needs reconnecting",
-    syncPaused: "not answering: sync paused until you retry",
+    syncPaused: "not answering: retrying in the background",
     lastError: "last sync failed: {message}",
     lastSync: "synced {when}",
     actions: "Actions for {name}",

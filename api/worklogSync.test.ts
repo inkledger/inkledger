@@ -439,16 +439,22 @@ describe("worklogs from Jira", () => {
     await q("DELETE FROM connections WHERE id IN (?, ?)", tempo.id, harvest.id);
   });
 
-  it("in the background, a Jira out of reach waits: paused for the user, or in its backoff; the user's own sync reads it", async () => {
+  it("in the background, a Jira out of reach waits for its backoff, one refusing the credentials for the user; the user's own sync reads it", async () => {
     const { syncWorklogs } = await import("./worklogSync");
     const fetched = vi.mocked(fetch);
     const [jc] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? AND type = 'jira'", user.id);
     try {
-      await q("UPDATE connections SET status = 'unreachable' WHERE id = ?", jc.id);
+      await q("UPDATE connections SET status = 'auth_failed' WHERE id = ?", jc.id);
       fetched.mockClear();
       expect(await syncWorklogs(user, { background: true })).toEqual({ imported: 0, deleted: 0, initial: false });
       expect(fetched).not.toHaveBeenCalled();
       await syncWorklogs(user);
+      expect(fetched).toHaveBeenCalled();
+
+      // Out of reach, its wait over: tried again.
+      await q("UPDATE connections SET status = 'unreachable' WHERE id = ?", jc.id);
+      fetched.mockClear();
+      await syncWorklogs(user, { background: true });
       expect(fetched).toHaveBeenCalled();
 
       await q("UPDATE connections SET status = 'ok' WHERE id = ?", jc.id);

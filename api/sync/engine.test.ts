@@ -168,7 +168,7 @@ describe("sync engine, through the provider contract", () => {
       await run({ full: true });
       const { failed, backoffMs, PROCESS_ID } = await import("./state");
       const { ProviderError } = await import("../providers/core/errors");
-      expect([1, 2, 3, 4].map(backoffMs)).toEqual([0, 60_000, 120_000, 240_000]);
+      expect([1, 2, 3, 4].map((n) => backoffMs(n))).toEqual([0, 60_000, 120_000, 240_000]);
       const hold = () => q("UPDATE connection_sync SET lease_owner = ? WHERE connection_id = ?", PROCESS_ID, connId);
       await hold();
       await failed(connId, "issues", new ProviderError("auth", "token revoked"));

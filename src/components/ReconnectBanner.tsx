@@ -10,7 +10,7 @@ import { t } from "@/i18n";
  * Slim bar under the header when a connection can't be used as saved (its
  * credentials refused, or no longer readable): the account stays signed in,
  * and one click leads to reconnecting it. A connection out of reach too many
- * times in a row has its background sync paused: one click tries it again.
+ * times in a row is retried in the background: one click tries it now.
  */
 export function ReconnectBanner() {
   const broken = (useConnections().data ?? []).filter(c => !isWorking(c.status));

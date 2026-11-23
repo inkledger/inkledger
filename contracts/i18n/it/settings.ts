@@ -671,7 +671,7 @@ export const settings: Shape<typeof en> = {
     archived: "{name} archiviato",
     none: "Nessun tracker collegato.",
     needsReconnect: "da ricollegare",
-    syncPaused: "non risponde: sync in pausa finché non riprovi",
+    syncPaused: "non risponde: riprovo in background",
     lastError: "ultimo sync fallito: {message}",
     lastSync: "sincronizzato {when}",
     actions: "Azioni per {name}",

@@ -38,9 +38,12 @@ export async function renew(connectionId: number, stream: Stream, now = Date.now
 
 /**
  * After failures in a row: the first is retried at the next pass (one
- * failure is often a blip), then 1, 2, 4… minutes, at most an hour.
+ * failure is often a blip), then 1, 2, 4… minutes, at most `capMs`.
  */
-export const backoffMs = (failures: number) => (failures <= 1 ? 0 : Math.min(60 * 60_000, 60_000 * 2 ** (failures - 2)));
+export const backoffMs = (failures: number, capMs = 60 * 60_000) => (failures <= 1 ? 0 : Math.min(capMs, 60_000 * 2 ** (failures - 2)));
+
+/** A stream's longest wait: a service out of reach is tried until it answers, never given up on. */
+export const STREAM_BACKOFF_CAP_MS = 6 * 3600_000;
 
 export type StreamState = typeof connectionSync.$inferSelect;
 
@@ -129,7 +132,7 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
   const err = normalizeError(error);
   const kind = err.kind;
   // A refusal other than the credentials' backs off too: it would come back every pass.
-  const wait = kind === "rateLimit" ? Math.max(err.rateLimit?.retryAfterMs ?? 0, 60_000) : kind === "auth" || kind === "invalidCheckpoint" ? 0 : backoffMs(failures);
+  const wait = kind === "rateLimit" ? Math.max(err.rateLimit?.retryAfterMs ?? 0, 60_000) : kind === "auth" || kind === "invalidCheckpoint" ? 0 : backoffMs(failures, STREAM_BACKOFF_CAP_MS);
   await getDb()
     .update(connectionSync)
     .set({
@@ -150,6 +153,6 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
       .set({ status: "unreachable" })
       .where(and(eq(connections.id, connectionId), eq(connections.status, "ok")))
       .returning({ id: connections.id });
-    if (paused.length > 0) console.warn(`[sync] connection ${connectionId}: unreachable after ${failures} attempts, waiting for the user`);
+    if (paused.length > 0) console.warn(`[sync] connection ${connectionId}: unreachable after ${failures} attempts, retried within its backoff`);
   }
 }
