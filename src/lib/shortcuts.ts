@@ -1,12 +1,16 @@
 import { useSyncExternalStore } from "react";
-import { MOD_KEY, PALETTE_SHORTCUT } from "@/lib/dom";
+import { APPLE, MOD_KEY, PALETTE_SHORTCUT } from "@/lib/dom";
+import { chordLabel } from "@contracts/moduleCommands";
 import { t } from "@/i18n";
 
 /** Alt+Shift as the platform writes it. */
 const ALT_SHIFT = MOD_KEY === "⌘" ? ["⌥", "⇧"] : ["Alt", "Shift"];
 
-/** Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere, "d" the TODO list. */
-export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolean; todos?: boolean } = {}): {
+/**
+ * Every keyboard shortcut of the app (source for the "?" help dialog); "p" while the pinboard lives somewhere, "d" the TODO list,
+ * and the running modules' commands (`modules`, labelled already) under each module's name.
+ */
+export function shortcuts({ pinboard = true, todos = true, modules = [] }: { pinboard?: boolean; todos?: boolean; modules?: readonly { keys: string; label: string; module: string }[] } = {}): {
   group: string;
   items: { keys: string[]; label: string }[];
 }[] {
@@ -89,6 +93,9 @@ export function shortcuts({ pinboard = true, todos = true }: { pinboard?: boolea
         { keys: ["a"], label: t("ui.shortcuts.askAi") },
       ],
     },
+    ...(modules.length
+      ? [{ group: t("ui.shortcuts.modules"), items: modules.map(m => ({ keys: chordLabel(m.keys, APPLE), label: `${m.module}: ${m.label}` })) }]
+      : []),
   ];
 }
 

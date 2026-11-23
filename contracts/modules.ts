@@ -63,7 +63,8 @@ export const MANIFEST_FILE = "manifest.json";
 export const SIGNATURE_FILE = "manifest.sig";
 export const BUNDLE_MAX_BYTES = 2 * 1024 * 1024;
 
-export type { LicensePayload, ModuleManifest } from "./modulesSchema";
+export type { LicensePayload, ModuleCommand, ModuleManifest } from "./modulesSchema";
+import type { ModuleCommand } from "./modulesSchema";
 
 /** Whether a host API range meets the versions this inkledger runs. */
 export const hostApiFits = (r: { min: number; max: number }): boolean => r.min <= HOST_API.max && HOST_API.min <= r.max;
@@ -96,6 +97,8 @@ export type ModuleListEntry = {
   build: string | null;
   runtime: ModuleRuntime;
   capabilities: ModuleCapability[];
+  /** Its keyboard commands (a framed module's, told to its views as page event "command"). */
+  commands: ModuleCommand[];
   /** A framed module's document (session cookie), only when active; entryUrl stays null for it. */
   frameUrl: string | null;
   /** A framed module's code token (MODULES_RUN_PATH, no cookie), when active and granted to this account. */

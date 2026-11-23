@@ -29,7 +29,7 @@ export function inFloat(target: EventTarget | null): boolean {
 export const prefersReducedMotion = (): boolean =>
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const APPLE = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+export const APPLE = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** The platform's command key, as shortcuts are written: ⌘ on Apple devices, Ctrl elsewhere. */
 export const MOD_KEY = APPLE ? "⌘" : "Ctrl";

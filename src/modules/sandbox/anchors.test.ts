@@ -123,6 +123,20 @@ describe("page.events", () => {
     expect(got.at(-1)).toEqual({ kind: "enabled", from: { x: 200, y: 150, w: 200, h: 200 } });
   });
 
+  it("a keyboard command: its id, never held back by the cap", () => {
+    expect(eventOf({ kind: "command", id: "kanbunny.showWays" }, signalPage(), box)).toEqual({ kind: "command", id: "kanbunny.showWays" });
+    const frames: (() => void)[] = [];
+    let fire: ((s: PageSignal) => void) | null = null;
+    const feed = createPageEvents({ requestAnimationFrame: fn => frames.push(fn), now: () => 0 }, [fn => ((fire = fn), () => {})]);
+    const got: PageEvent[] = [];
+    feed.watch(() => box, () => signalPage(), e => got.push(e));
+    for (let i = 0; i < 12; i++) fire!({ kind: "goal-reached" });
+    fire!({ kind: "command", id: "kanbunny.showWays" });
+    frames.splice(0).forEach(f => f());
+    frames.splice(0).forEach(f => f());
+    expect(got.at(-1)).toEqual({ kind: "command", id: "kanbunny.showWays" });
+  });
+
   it("a search field that takes the focus is where the search is; the palette points at the app's search", () => {
     const field = el({}, { left: 300, top: 60, right: 500, bottom: 90 });
     expect(eventOf({ kind: "search", focused: true, field }, signalPage(), box)).toEqual({ kind: "search", focused: true, at: { x: 200, y: 10, w: 200, h: 30 } });

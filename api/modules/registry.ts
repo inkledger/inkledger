@@ -247,6 +247,7 @@ export async function listModules(tokenFor?: (id: string, hash: string) => strin
       build: checked.ok ? checked.build : null,
       runtime,
       capabilities: m?.capabilities ?? [],
+      commands: m?.commands ?? [],
       frameUrl: framed ? `${MODULES_FRAME_PATH}/${id}/${checked.packageHash}` : null,
       token: framed ? (tokenFor?.(id, checked.packageHash) ?? null) : null,
     };

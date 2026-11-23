@@ -14,6 +14,7 @@ import { browserLedges } from "./ledges";
 import { browserAnchors, browserSignalPage, createPageEvents, watchTransitions, type AnchorEl, type PageSignal } from "./anchors";
 import { cardId, pageSignals } from "../pageSignals";
 import { enabledSignals } from "../enabledSignals";
+import { commandSignals } from "../commands";
 import { commandPalette } from "@/lib/commandPalette";
 import type { HostApiV1 } from "../types";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -155,13 +156,14 @@ const PALETTE_GROW_MS = 220;
 /**
  * What the person does, as the host sees it ("page.events"): the hub's events, the page's own
  * (Board moves, notifications), the search palette and any search field taking the focus, and
- * this module switched on from its Store card.
+ * this module switched on from its Store card, and its keyboard commands.
  */
 function signalSources(api: Pick<HostApiV1, "on">, moduleId: string): ((fn: (s: PageSignal) => void) => () => void)[] {
   const isSearch = (t: EventTarget | null): t is HTMLInputElement => t instanceof HTMLInputElement && t.type === "search";
   return [
     fn => pageSignals.subscribe(fn),
     fn => enabledSignals.subscribe(moduleId, from => fn({ kind: "enabled", from })),
+    fn => commandSignals.subscribe(moduleId, id => fn({ kind: "command", id })),
     fn => {
       const offs = [
         api.on("timer-started", () => fn({ kind: "timer-started" })),

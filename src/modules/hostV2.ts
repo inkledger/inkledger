@@ -103,7 +103,12 @@ export type PageEvent =
    * (null when out of sight). Told once, to this module only; frames that switch made hear it
    * once they listen (within seconds).
    */
-  | { kind: "enabled"; from: BoxRect | null };
+  | { kind: "enabled"; from: BoxRect | null }
+  /**
+   * The person pressed one of this module's keyboard commands (its manifest's "commands", needs
+   * "page.events"), or chose it in the command palette: `id` is the command's. Told to its views only.
+   */
+  | { kind: "command"; id: string };
 
 /** The basics every framed module gets (no capability needed). */
 type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient" | "hitArea" | "storage"> & {

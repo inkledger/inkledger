@@ -15,6 +15,8 @@ import { createHub, type Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
 import { FramedBox } from "./sandbox/FrameHost";
 import { keepRuntimes } from "./sandbox/frames";
+import { commandSignals, runningCommands, watchCommands } from "./commands";
+import { APPLE } from "@/lib/dom";
 import type { SlotId } from "./types";
 import { ModulesContext } from "./context";
 import type { BackdropVisibility } from "@contracts/modules";
@@ -80,6 +82,18 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
     if (hub) keepRuntimes(running.filter(m => "framed" in m.module).map(m => m.entry.id));
   }, [hub, running]);
   useEffect(() => () => keepRuntimes(), [hub]);
+
+  // Running framed modules' keyboard commands: matched on the window, told to their views.
+  const commands = useMemo(() => running.flatMap(m => ("framed" in m.module ? m.entry.commands.map(c => ({ ...c, moduleId: m.entry.id, moduleName: m.entry.name })) : [])), [running]);
+  useEffect(() => {
+    if (!hub) return;
+    runningCommands.set(commands);
+    const off = watchCommands(window, commands, APPLE, c => commandSignals.tell(c.moduleId, c.id));
+    return () => {
+      off();
+      runningCommands.set([]);
+    };
+  }, [hub, commands]);
 
   return (
     <ModulesContext.Provider value={hub ? { hub, modules: running } : null}>

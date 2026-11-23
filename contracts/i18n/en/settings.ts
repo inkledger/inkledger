@@ -1255,6 +1255,7 @@ export const settings = {
       requires: "Requires",
       requiresWebgl2: "WebGL2 (a graphics card the browser can draw with). Only installable where it is available.",
       capabilities: "What it may use",
+      commands: "Keyboard commands",
       capability: {
         runtime: "Keeps a background part running while it is on",
         surfacesLight: "Casts light and shadows on the app's surfaces",

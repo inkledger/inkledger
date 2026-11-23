@@ -62,7 +62,9 @@ export type PageSignal =
   | { kind: "goal-reached" }
   | { kind: "transition"; phase: "pending" | "ready" }
   /** This module switched on or installed from its Store card (`from`: the card). */
-  | { kind: "enabled"; from: AnchorEl | null };
+  | { kind: "enabled"; from: AnchorEl | null }
+  /** One of this module's keyboard commands, pressed or chosen in the palette. */
+  | { kind: "command"; id: string };
 
 export type SignalPage = {
   /** An element by its host id, when in sight. */
@@ -98,6 +100,8 @@ export function eventOf(s: PageSignal, page: SignalPage, box: Box): PageEvent {
       return { kind: "transition", phase: s.phase };
     case "enabled":
       return { kind: "enabled", from: rect(s.from) };
+    case "command":
+      return { kind: "command", id: s.id };
   }
 }
 
@@ -141,8 +145,8 @@ export function createPageEvents(win: EventsWin, sources: readonly ((fn: (s: Pag
         const now = win.now();
         for (const w of watchers) {
           w.sent = w.sent.filter(t => now - t < 1000);
-          // A transition's two words always get through (a creature left hanging would never land), and a switch's once.
-          if (s.kind !== "transition" && s.kind !== "enabled") {
+          // A transition's two words always get through (a creature left hanging would never land), a switch's and a command (the person asked).
+          if (s.kind !== "transition" && s.kind !== "enabled" && s.kind !== "command") {
             if (w.sent.length >= EVENTS_PER_SECOND) continue;
             w.sent.push(now);
           }

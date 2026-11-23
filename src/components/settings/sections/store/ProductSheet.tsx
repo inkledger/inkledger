@@ -32,6 +32,9 @@ import { useModuleOffers } from "@/modules/context";
 import { loc, nameOf, type Locale } from "./format";
 import { PriceTag } from "./PriceTag";
 import { surface } from "@/components/app/surface";
+import { Kbd } from "@/components/app/Kbd";
+import { APPLE } from "@/lib/dom";
+import { chordLabel } from "@contracts/moduleCommands";
 
 const ICONS: Record<StoreIcon, LucideIcon> = {
   carrot: Carrot,
@@ -169,6 +172,7 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
               </>
             )}
             <ModuleCapabilities id={e.id} />
+            <ModuleCommands id={e.id} locale={locale} />
             <dt className="text-muted-foreground">{t("settings.store.info.price")}</dt>
             <dd className="tabular">
               <PriceTag entry={e} locale={locale} />
@@ -247,6 +251,31 @@ function ModuleCapabilities({ id }: { id: string }) {
           {caps.map(c => (
             <li key={c} className="[overflow-wrap:anywhere]">
               {t(`settings.store.info.capability.${CAPABILITY_KEY[c]}`)}
+            </li>
+          ))}
+        </ul>
+      </dd>
+    </>
+  );
+}
+
+/** An installed framed module's keyboard commands (its signed manifest's). */
+function ModuleCommands({ id, locale }: { id: string; locale: Locale }) {
+  const commands = trpc.modules.list.useQuery().data?.modules.find(m => m.id === id)?.commands ?? [];
+  if (commands.length === 0) return null;
+  return (
+    <>
+      <dt className="text-muted-foreground">{t("settings.store.info.commands")}</dt>
+      <dd>
+        <ul className="grid gap-1">
+          {commands.map(c => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 [overflow-wrap:anywhere]">
+              <span className="flex shrink-0 gap-1">
+                {chordLabel(c.keys, APPLE).map(k => (
+                  <Kbd key={k}>{k}</Kbd>
+                ))}
+              </span>
+              {loc(c.label, locale)}
             </li>
           ))}
         </ul>

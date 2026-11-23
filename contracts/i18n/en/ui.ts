@@ -447,6 +447,7 @@ export const ui = {
     pickRow: "Pick the selected row for the desk",
     openBeside: "Open an issue link beside: on the desk, or beside the issue shown",
     askAi: "Ask AI about the issues on the desk",
+    modules: "Modules",
     sendToDesk: "Open the issue on the desk, in that half",
     logTime: "Log time (issue detail)",
     toggleFav: "Add to or remove from favorites (detail)",

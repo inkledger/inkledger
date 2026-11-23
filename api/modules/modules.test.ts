@@ -346,6 +346,20 @@ describe("add-on modules", () => {
     expect(await (await upload(bundle({ "index.js": ENTRY }, { runtime: "inpage-ish" }))).json()).toMatchObject({ ok: false, reason: "manifest-invalid" });
   });
 
+  it("keyboard commands: a framed module hearing page events, chords the browser and the app keep refused", async () => {
+    const cmd = (keys: string) => ({ id: "kanbunny.showWays", keys, label: { en: "Show where it can go", it: "Mostra dove può andare" } });
+    const framed = { hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["page.events"] };
+    for (const bad of [
+      { ...framed, commands: [cmd("Mod+Shift+W+E")] },
+      { ...framed, commands: [cmd("Mod+K+B")] },
+      { ...framed, capabilities: [], commands: [cmd("Mod+Shift+K+B")] },
+      { runtime: "inpage", commands: [cmd("Mod+Shift+K+B")] },
+    ]) expect(await (await upload(bundle({ "index.js": ENTRY }, bad))).json()).toMatchObject({ ok: false, reason: "manifest-invalid" });
+    expect(await (await upload(bundle({ "index.js": ENTRY }, { ...framed, commands: [cmd("Mod+Shift+K+B")] }))).json()).toMatchObject({ ok: true });
+    await (await import("./registry")).addLicense(license("inkledger.hello"));
+    expect((await caller.modules.list()).modules[0]?.commands).toEqual([cmd("Mod+Shift+K+B")]);
+  });
+
   it("a framed module never reaches the page's loader: no entry URL, and the cookie route refuses its code", async () => {
     expect(await (await upload(bundle({ "index.js": ENTRY }, { hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["share"] }))).json()).toMatchObject({ ok: true });
     await (await import("./registry")).addLicense(license("inkledger.hello"));

@@ -42,6 +42,9 @@ import { VirtualCommand } from "@/components/app/VirtualCommand";
 import type { CommandOption, CommandSection } from "@/lib/commandRows";
 import { commandPalette } from "@/lib/commandPalette";
 import { shortcutsHelp } from "@/lib/shortcuts";
+import { commandSignals, useRunningCommands } from "@/modules/commands";
+import { chordLabel } from "@contracts/moduleCommands";
+import { APPLE } from "@/lib/dom";
 import { quickStart } from "@/lib/quickStart";
 import { useTimers } from "@/hooks/useTimers";
 import { useTimerActions } from "@/hooks/useTimerActions";
@@ -170,6 +173,10 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
       run();
     }, kbd ? { keywords: [kbd] } : {});
   const deskEntry = useAddToDeskEntry(pathname, close);
+  // Running modules' keyboard commands: chosen here, the module hears the same as from its keys.
+  const moduleCommands = useRunningCommands().map(c =>
+    action(`mod:${c.moduleId}:${c.id}`, <Keyboard className="mr-2 h-4 w-4" />, `${c.moduleName[lang]}: ${c.label[lang]}`, () => commandSignals.tell(c.moduleId, c.id), chordLabel(c.keys, APPLE).join(APPLE ? "" : "+"))
+  );
   const timerEntries = useTimerEntries(close);
   const issueView = (i: { key: string; summary: string; favorite?: number }) => (
     <>
@@ -315,6 +322,7 @@ function PaletteBody({ open, typed, setTyped, query, onSelected }: {
         action("act:startTimer", <Play className="mr-2 h-4 w-4" />, t("ui.palette.startTimer"), () => quickStart.set(true), "T"),
         action("act:sync", <RefreshCw className="mr-2 h-4 w-4" />, t("ui.palette.syncJira", { provider }), () => sync.mutate()),
         action("act:shortcuts", <Keyboard className="mr-2 h-4 w-4" />, t("ui.palette.shortcuts"), () => shortcutsHelp.set(true)),
+        ...moduleCommands,
         entry(
           "act:theme",
           t("ui.palette.toggleTheme"),

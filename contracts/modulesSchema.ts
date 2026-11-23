@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { MODULE_CAPABILITIES, MODULE_RUNTIMES, SLOT_IDS } from "./modules";
+import { chordProblem, COMMAND_ID, COMMANDS_MAX } from "./moduleCommands";
 
 export const moduleIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,31}$/);
+
+/** A keyboard command (framed modules with "page.events"): told to its views as page event "command". */
+export const moduleCommandSchema = z.strictObject({
+  id: z.string().regex(COMMAND_ID),
+  keys: z.string().refine((k) => chordProblem(k) === null),
+  label: z.strictObject({ en: z.string().min(1).max(60), it: z.string().min(1).max(60) }),
+});
+export type ModuleCommand = z.infer<typeof moduleCommandSchema>;
 
 /** The signed manifest: closed, every field checked before anything loads. */
 export const moduleManifestSchema = z.strictObject({
@@ -21,7 +30,13 @@ export const moduleManifestSchema = z.strictObject({
     .array(z.enum(MODULE_CAPABILITIES))
     .refine((c) => new Set(c).size === c.length)
     .default([]),
-});
+  commands: z
+    .array(moduleCommandSchema)
+    .max(COMMANDS_MAX)
+    .refine((c) => new Set(c.map((x) => x.id)).size === c.length && new Set(c.map((x) => x.keys)).size === c.length)
+    .default([]),
+  // Heard only through page events, so only a framed module that listens to them.
+}).refine((m) => m.commands.length === 0 || (m.runtime === "frame" && m.capabilities.includes("page.events")));
 export type ModuleManifest = z.infer<typeof moduleManifestSchema>;
 
 /** A licence payload (inside the signed envelope). Extra fields are ignored. */

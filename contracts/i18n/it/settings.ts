@@ -1256,6 +1256,7 @@ export const settings: Shape<typeof en> = {
       requires: "Requisiti",
       requiresWebgl2: "WebGL2 (una scheda grafica con cui il browser può disegnare). Installabile solo dove è disponibile.",
       capabilities: "Cosa può usare",
+      commands: "Comandi da tastiera",
       capability: {
         runtime: "Tiene attiva una parte in background mentre è acceso",
         surfacesLight: "Proietta luce e ombre sulle superfici dell'app",

@@ -449,6 +449,7 @@ export const ui: Shape<typeof en> = {
     pickRow: "Scegli la riga selezionata per la scrivania",
     openBeside: "Apri accanto il link di una issue: sulla scrivania, o accanto alla issue aperta",
     askAi: "Chiedi all'AI sulle issue della scrivania",
+    modules: "Moduli",
     sendToDesk: "Apri la issue sulla scrivania, in quella metà",
     logTime: "Registra tempo (dettaglio issue)",
     toggleFav: "Aggiungi o togli dalle preferite (dettaglio)",

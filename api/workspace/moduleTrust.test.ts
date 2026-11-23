@@ -14,6 +14,7 @@ const active: ModuleListEntry = {
   build: "a".repeat(32),
   runtime: "inpage",
   capabilities: [],
+  commands: [],
   frameUrl: null,
   token: null,
 };
