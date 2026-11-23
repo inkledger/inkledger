@@ -191,8 +191,8 @@ function LogTimeForm({
   // The time as a typed duration, or as an end time after the start: one or the other, never kept in sync.
   const [mode, setMode] = useState<"duration" | "end">("duration");
   const [endTyped, setEndTyped] = useState("");
-  // End time asked for while the start was still being placed: pinned once it is shown.
-  const [endPending, setEndPending] = useState(false);
+  // End time asked for while the start was still being placed: pinned once it is shown, with the duration it had.
+  const [endPending, setEndPending] = useState<number | null>(null);
   // A stopped timer logged shorter: its rest is dropped unless kept to log later.
   const [keepRest, setKeepRest] = useState(false);
   const placementDay =
@@ -269,7 +269,7 @@ function LogTimeForm({
     setDurationEdited(true);
     setTimeSpent(value);
   };
-  const seconds = parsed && parsed > 0 ? parsed : (prefillSeconds ?? 3600);
+  const seconds = parsed && parsed > 0 ? parsed : (endPending ?? prefillSeconds ?? 3600);
   // Shared out as it ran: placed where its part of the time together sits, tiled with the others' parts.
   const pieces = sharing?.pieces && !durationEdited ? sharing.pieces.map(p => ({ start: new Date(p.start), seconds: p.seconds })) : null;
   const auto: Placement | null = startedTouched
@@ -286,11 +286,11 @@ function LogTimeForm({
       : "";
   // Placed around the day's break: one worklog per piece. A start chosen by hand is one piece.
   const parts = !startedTouched && auto?.ok ? auto.parts : undefined;
-  const pinEnd = (start: string) => {
-    setEndPending(false);
+  const pinEnd = (start: string, length: number) => {
+    setEndPending(null);
     setStarted(start);
     setStartedTouched(true);
-    setEndTyped(toLocalInputValue(new Date(new Date(start).getTime() + seconds * 1000)));
+    setEndTyped(toLocalInputValue(new Date(new Date(start).getTime() + length * 1000)));
   };
   /**
    * To an end time: the block as it stands keeps its start, its end is typed
@@ -300,10 +300,10 @@ function LogTimeForm({
     if (next === mode) return;
     if (next === "end") {
       // An empty start pinned here would never be placed again: the end would stay blank.
-      if (startedShown && !waiting) pinEnd(startedShown);
-      else setEndPending(true);
+      if (startedShown && !waiting) pinEnd(startedShown, seconds);
+      else setEndPending(seconds);
     } else {
-      setEndPending(false);
+      setEndPending(null);
       if (parsed && parsed > 0) {
         setTimeSpent(durationInput(parsed));
         setDurationEdited(true);
@@ -345,7 +345,7 @@ function LogTimeForm({
   const overlapWarning =
     overlap && !conflict ? t("ui.logTime.overlapWarning", { message: overlap }) : null;
   const waiting = !worklog && (!placement.ready || (fromTimer && splitRead.isPending));
-  if (endPending && byEnd && !waiting && startedShown) pinEnd(startedShown);
+  if (endPending !== null && byEnd && !waiting && startedShown) pinEnd(startedShown, endPending);
 
   const onSuccess = () => {
     toast.success(

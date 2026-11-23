@@ -39,23 +39,23 @@ const seedWith = ({ timer }) => async db => {
     );
 };
 
-/** The issue's page, loaded; then the day's entries held until `release`. */
+/** The issue's page, loaded; then the day's entries (a list by day, not the issue's own) held until `release`. */
 async function issuePageHeld(page, base) {
   await page.goto(`${base}/issues/${encodeURIComponent(KEY)}`);
   await page.getByRole("heading", { name: "Task 1" }).first().waitFor();
-  return holdRoute(page, url => /\/api\/trpc\//.test(url.href) && trpcProcs(url).includes("worklogs.list"));
+  return holdRoute(
+    page,
+    url => /\/api\/trpc\//.test(url.href) && trpcProcs(url).includes("worklogs.list") && (url.searchParams.get("input") ?? "").includes('"from"'),
+  );
 }
 
 /** End time chosen before the start is placed: once placed, the start is there and the end after it. */
-async function endTimeWhilePlacing(dialog, release) {
+async function endTimeWhilePlacing(page, dialog, release) {
   await dialog.getByRole("radiogroup", { name: "Time as" }).getByRole("radio", { name: "End time" }).click();
   release();
   const startField = dialog.getByLabel("Start", { exact: true });
   const endField = dialog.getByLabel("End", { exact: true });
-  await startField.evaluate(el => new Promise(r => {
-    const tick = () => (el.value ? r() : setTimeout(tick, 50));
-    tick();
-  }));
+  await page.waitForFunction(el => el.value !== "", await startField.elementHandle(), { timeout: 15_000 });
   const start = new Date(await startField.inputValue()).getTime();
   assert.ok(Number.isFinite(start), "the start is placed after all");
   assert.notEqual(await endField.inputValue(), "", "the end follows the placed block");
@@ -69,7 +69,7 @@ test("issue page, Stop+log by end time: the end can be chosen, no overlap with t
     await page.getByRole("button", { name: `Stop and log time on ${KEY}` }).first().click();
     const dialog = page.getByRole("dialog", { name: `Log time on ${KEY}` });
     await dialog.waitFor();
-    const { start, endField } = await endTimeWhilePlacing(dialog, release);
+    const { start, endField } = await endTimeWhilePlacing(page, dialog, release);
     await endField.fill(localInput(start + 30 * MINUTE));
     await dialog.getByText("= 30m").waitFor();
     await dialog.getByRole("button", { name: "Log", exact: true }).click();
@@ -90,13 +90,16 @@ test("issue page, Log time by end time: the end can be chosen", { timeout: 600_0
     await page.getByRole("button", { name: "Log time", exact: true }).first().click();
     const dialog = page.getByRole("dialog", { name: `Log time · ${KEY}` });
     await dialog.waitFor();
-    const { start, endField } = await endTimeWhilePlacing(dialog, release);
-    await endField.fill(localInput(start + 20 * MINUTE));
-    await dialog.getByText("= 20m").waitFor();
+    // Short: room before now even early in the working hours, which a typed block never starts before.
+    await dialog.getByLabel("Time spent", { exact: true }).fill("5m");
+    const { start, endField } = await endTimeWhilePlacing(page, dialog, release);
+    assert.equal(new Date(await endField.inputValue()).getTime(), start + 5 * MINUTE, "the end keeps the duration typed before");
+    await endField.fill(localInput(start + 4 * MINUTE));
+    await dialog.getByText("= 4m").waitFor();
     await dialog.getByRole("button", { name: "Log", exact: true }).click();
     await dialog.waitFor({ state: "detached" });
     const [row] = await db.q("SELECT started, time_spent_seconds FROM worklogs WHERE issue_key = ? AND jira_worklog_id <> 'earlier'", KEY);
     assert.equal(Number(row.started), start);
-    assert.equal(row.time_spent_seconds, 20 * 60);
+    assert.equal(row.time_spent_seconds, 4 * 60);
   });
 });
