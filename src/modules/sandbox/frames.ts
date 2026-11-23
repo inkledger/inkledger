@@ -11,7 +11,7 @@ import { browserBroker, createBroker } from "./broker";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
-import { createModuleCache, indexedDbCache } from "./cache";
+import { pageCache } from "./cache";
 import { fontLoader, themeSheet } from "./themeSheet";
 import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?url";
@@ -68,7 +68,6 @@ const locale = (): "en" | "it" => (currentLocale() === "it" ? "it" : "en");
 
 let broker: ReturnType<typeof createBroker> | null = null;
 let pointer: ReturnType<typeof createPointerFeed> | null = null;
-let cache: ReturnType<typeof createModuleCache> | null = null;
 const fonts = fontLoader(
   [
     { family: "Inter Variable", url: interUrl },
@@ -258,7 +257,7 @@ function openFrame(
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: (cache ??= createModuleCache(indexedDbCache())), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: (broker ??= createBroker(browserBroker())), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;

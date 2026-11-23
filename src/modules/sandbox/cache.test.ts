@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CACHE_MAX_BYTES, CACHE_MAX_ENTRIES, createModuleCache, type CacheBackend } from "./cache";
+import { forgetSessionState } from "@/lib/accountData";
+import { CACHE_MAX_BYTES, CACHE_MAX_ENTRIES, createModuleCache, pageCache, type CacheBackend } from "./cache";
 
 function memory() {
   const rows = new Map<string, { moduleId: string; key: string; value: Blob; at: number }>();
@@ -9,6 +10,7 @@ function memory() {
     put: async (m, k, value, at) => void rows.set(id(m, k), { moduleId: m, key: k, value, at }),
     delete: async (m, k) => void rows.delete(id(m, k)),
     entries: async m => [...rows.values()].filter(r => r.moduleId === m).map(r => ({ key: r.key, size: r.value.size, at: r.at })),
+    clear: async () => void rows.clear(),
   };
   return { b, rows };
 }
@@ -50,5 +52,15 @@ describe("a framed module's cache", () => {
     expect(await b.entries("a")).toHaveLength(CACHE_MAX_ENTRIES);
     expect(await cache.get("a", "k0")).toBeNull();
     expect(await cache.get("a", `k${CACHE_MAX_ENTRIES + 9}`)).not.toBeNull();
+  });
+
+  it("is the account's: its session ending (a sign-out, another account in) empties it", async () => {
+    const { b, rows } = memory();
+    const cache = pageCache(() => b);
+    await cache.put("stitch", "render", new Blob(["the last account's picture"]));
+    forgetSessionState();
+    await new Promise(r => setTimeout(r, 0));
+    expect(await cache.get("stitch", "render")).toBeNull();
+    expect(rows.size).toBe(0);
   });
 });

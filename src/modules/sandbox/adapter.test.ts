@@ -40,6 +40,7 @@ function memoryCache(): CacheBackend {
     put: async (m, k, value, at) => void rows.set(m + "/" + k, { value, at }),
     delete: async (m, k) => void rows.delete(m + "/" + k),
     entries: async () => [],
+    clear: async () => void rows.clear(),
   };
 }
 

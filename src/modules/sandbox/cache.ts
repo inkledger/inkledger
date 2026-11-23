@@ -1,7 +1,10 @@
+import { onSessionEnd } from "@/lib/accountData";
+
 /**
  * A framed module's local cache ("cache"): the frame's own IndexedDB throws
  * (opaque origin), so the host keeps one per module, on this device only, at
  * most 32 MB and 256 entries each; what was written longest ago goes first.
+ * It is the account's: emptied whenever a session ends on the page.
  */
 
 export const CACHE_MAX_BYTES = 32 * 1024 * 1024;
@@ -14,6 +17,7 @@ export type CacheBackend = {
   put(moduleId: string, key: string, value: Blob, at: number): Promise<void>;
   delete(moduleId: string, key: string): Promise<void>;
   entries(moduleId: string): Promise<CacheEntry[]>;
+  clear(): Promise<void>;
 };
 
 export function createModuleCache(backend: CacheBackend, now: () => number = Date.now) {
@@ -41,6 +45,8 @@ export function createModuleCache(backend: CacheBackend, now: () => number = Dat
         await backend.put(moduleId, key, value, now());
       }),
     delete: (moduleId: string, key: string) => serial(moduleId, () => backend.delete(moduleId, key)),
+    /** Every module's entries, once the writes under way have landed. */
+    clear: () => Promise.all(queues.values()).then(() => backend.clear()),
   };
 }
 
@@ -85,5 +91,21 @@ export function indexedDbCache(): CacheBackend {
       const rows = (await run("readonly", s => s.index("moduleId").getAll(moduleId))) as Row[];
       return rows.map(r => ({ key: r.key, size: r.size, at: r.at }));
     },
+    async clear() {
+      await run("readwrite", s => s.clear());
+    },
   };
 }
+
+let page: ReturnType<typeof createModuleCache> | null = null;
+
+/** The page's cache (the browser's IndexedDB). */
+export const pageCache = (backend: () => CacheBackend = indexedDbCache) => (page ??= createModuleCache(backend()));
+
+// Signing in or out: the next account on this device never reads what the last one's modules kept.
+onSessionEnd(() => {
+  if (!page && typeof indexedDB === "undefined") return;
+  void pageCache()
+    .clear()
+    .catch(() => undefined);
+});
