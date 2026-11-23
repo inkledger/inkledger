@@ -16,7 +16,7 @@ import {
 import { MODULE_TERMS_URL, type StoreEntry, type StoreIcon } from "@contracts/store";
 import type { ModuleCapability } from "@contracts/modules";
 import { trpc } from "@/lib/trpc";
-import { t, type MessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import { LicenceProof } from "@/components/settings/sections/store/LicenceProof";
 import { Chip } from "@/components/app/Chip";
 import { SectionLabel } from "@/components/app/PageHeader";
@@ -44,25 +44,6 @@ const ICONS: Record<StoreIcon, LucideIcon> = {
   heart: Heart,
   moon: Moon,
   calendar: Calendar,
-};
-
-/** What a framed module may ask the host for, in words. */
-const CAPABILITY: Record<ModuleCapability, MessageKey> = {
-  runtime: "settings.store.info.capability.runtime",
-  "surfaces.light": "settings.store.info.capability.surfacesLight",
-  "page.importance": "settings.store.info.capability.pageImportance",
-  "page.ledges": "settings.store.info.capability.pageLedges",
-  pointer: "settings.store.info.capability.pointer",
-  sheet: "settings.store.info.capability.sheet",
-  share: "settings.store.info.capability.share",
-  download: "settings.store.info.capability.download",
-  "download.large": "settings.store.info.capability.downloadLarge",
-  "open-image": "settings.store.info.capability.openImage",
-  geo: "settings.store.info.capability.geo",
-  cache: "settings.store.info.capability.cache",
-  dock: "settings.store.info.capability.dock",
-  "backdrop.preblurred": "settings.store.info.capability.backdropPreblurred",
-  layout: "settings.store.info.capability.layout",
 };
 
 /** The product sheet: details, then the request or payment step in place. */
@@ -121,8 +102,6 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
     ...(e.gallery ?? []).map(g => ({ src: g.src, caption: loc(g.caption, locale) })),
   ];
   const paragraphs = e.description ? loc(e.description, locale) : [];
-  // The installed build's own (signed): a framed module gets nothing else from the host.
-  const asks = trpc.modules.list.useQuery().data?.modules.find(m => m.id === e.id && m.runtime === "frame")?.capabilities ?? [];
 
   return (
     <>
@@ -194,12 +173,6 @@ function Details({ entry: e, locale, onView }: { entry: StoreEntry; locale: Loca
             <dd className="tabular">
               <PriceTag entry={e} locale={locale} />
             </dd>
-            {asks.length > 0 && (
-              <>
-                <dt className="text-muted-foreground">{t("settings.store.info.asks")}</dt>
-                <dd data-store-asks>{asks.map(c => t(CAPABILITY[c])).join(", ")}</dd>
-              </>
-            )}
             <dt className="text-muted-foreground">{t("settings.store.info.privacy")}</dt>
             <dd>{t("settings.store.info.privacyBody")}</dd>
             <dt className="text-muted-foreground">{t("settings.store.info.licence")}</dt>
