@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEDGES_MAX, ledgesOf } from "./ledges";
+import { LEDGES_CAP, LEDGES_MAX, ledgeCap, ledgesOf } from "./ledges";
 import type { Surface } from "./info";
 
 const top = (x: number, y: number, w: number, s = 0): Surface => ({ x, y, w, kind: "top", s });
@@ -25,10 +25,24 @@ describe("page.ledges", () => {
     ]);
   });
 
-  it("capped, the widest kept, however busy the page", () => {
-    const many = Array.from({ length: 150 }, (_, i) => top(200 + (i % 10) * 100, 60 + Math.floor(i / 10) * 50, 60 + (i % 3)));
-    const got = ledgesOf(page(many), box);
-    expect(got.length).toBe(LEDGES_MAX);
-    expect(got.every(l => l.w >= 61)).toBe(true);
+  it("the cap grows with the box: 64 per 1280 × 800, 256 at most", () => {
+    expect(ledgeCap({ width: 800, height: 600 })).toBe(LEDGES_MAX);
+    expect(ledgeCap({ width: 2560, height: 1600 })).toBe(4 * LEDGES_MAX);
+    expect(ledgeCap({ width: 5120, height: 3200 })).toBe(LEDGES_CAP);
+  });
+
+  it("past the cap, narrow trim goes before any card top, then what lies farthest from the middle band", () => {
+    const view = { left: 0, top: 0, width: 1280, height: 800 };
+    const wide = { surfaces: [] as Surface[], viewport: { w: 1280, h: 800 } };
+    // 60 card tops (wide), 30 narrow trims in the middle band, 20 more cards near the bottom.
+    for (let i = 0; i < 60; i++) wide.surfaces.push(top((i % 4) * 300, 200 + Math.floor(i / 4) * 26, 280));
+    for (let i = 0; i < 30; i++) wide.surfaces.push(top(1240, 250 + i * 10, 50));
+    for (let i = 0; i < 20; i++) wide.surfaces.push(top((i % 4) * 300, 700 + Math.floor(i / 4) * 20, 280));
+    const got = ledgesOf(wide, view);
+    expect(got.length).toBe(64);
+    expect(got.filter(l => l.w === 50)).toEqual([]);
+    // The cards kept: the middle band's 60, then the 4 nearest it.
+    expect(got.filter(l => l.y >= 700).length).toBe(4);
+    expect(Math.max(...got.map(l => l.y))).toBe(700);
   });
 });

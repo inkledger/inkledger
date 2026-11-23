@@ -179,7 +179,8 @@ type Capabilities = {
   /**
    * "page.ledges" (a view's): the visible horizontal faces in sight inside the box (box tops,
    * borders, dividers; page.info's "top" surfaces), one per height where they touch, top to
-   * bottom, where something drawn may stand; 64 at most (the widest), four calls a second. What
+   * bottom, where something drawn may stand; 64 per 1280 × 800 of box, 256 at most (past that, the
+   * narrow trim goes first, then what lies farthest from the box's middle band), four calls a second. What
    * stands above an edge is page.importance's (or page.info's) to judge.
    */
   ledges?(): Promise<Ledge[]>;

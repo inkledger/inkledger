@@ -7,8 +7,14 @@
 import type { InfoSnapshot } from "./info";
 
 export type Ledge = { x: number; y: number; w: number };
-/** At most this many edges an answer (the widest kept). */
+/** At most this many edges an answer per 1280 × 800 of box, and in all. */
 export const LEDGES_MAX = 64;
+export const LEDGES_CAP = 256;
+/** Narrower than this a ledge is trim, dropped before any card top. */
+const CARD_W = 96;
+
+/** How many ledges a box this size gets. */
+export const ledgeCap = (box: { width: number; height: number }) => Math.min(LEDGES_CAP, Math.max(LEDGES_MAX, Math.round((LEDGES_MAX * box.width * box.height) / (1280 * 800))));
 /** Narrower than this, nothing stands on it. */
 const MIN_W = 48;
 
@@ -32,6 +38,9 @@ export function ledgesOf(snap: Pick<InfoSnapshot, "surfaces" | "viewport">, box:
     else merged.push({ ...s });
   }
   const wide = merged.filter(s => s.w >= MIN_W).map(s => ({ x: Math.round(s.x), y: s.y, w: Math.round(s.w) }));
-  const kept = wide.length > LEDGES_MAX ? [...wide].sort((a, b) => b.w - a.w).slice(0, LEDGES_MAX) : wide;
+  const cap = ledgeCap(box);
+  // Past the cap, the trim goes first, then what lies farthest from the box's middle band.
+  const band = (y: number) => Math.max(0, box.height / 4 - y, y - (box.height * 3) / 4);
+  const kept = wide.length > cap ? [...wide].sort((a, b) => Number(a.w < CARD_W) - Number(b.w < CARD_W) || band(a.y) - band(b.y) || b.w - a.w).slice(0, cap) : wide;
   return kept.sort((a, b) => a.y - b.y || a.x - b.x);
 }
