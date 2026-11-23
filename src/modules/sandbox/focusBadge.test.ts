@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFocusBadge } from "./focusBadge";
 
 const body = {};
@@ -11,7 +11,25 @@ const setup = () => {
   return { b, focus: (el: unknown) => ((active = el), b.check()), told: () => told };
 };
 
+afterEach(() => vi.useRealTimers());
+
 describe("the focus badge", () => {
+  it("goes when the focus left without any event to say so", () => {
+    vi.useFakeTimers();
+    let active: unknown = null;
+    const b = createFocusBadge<{ name: string }>(() => active);
+    const a = {};
+    b.add(a, { name: "Stitch" });
+    active = a;
+    b.check();
+    expect(b.get()?.name).toBe("Stitch");
+    active = body;
+    vi.advanceTimersByTime(300);
+    expect(b.get()).toBeNull();
+    // Nothing left to poll once it is gone.
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("names the view the focus went into, once per entry, and goes as the focus leaves", () => {
     const { b, focus, told } = setup();
     const a = {};
