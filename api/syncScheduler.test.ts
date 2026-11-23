@@ -219,7 +219,7 @@ describe("background Jira sync", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
       expect(await mod.syncActiveUsers()).toEqual({ ok: 0, failed: 1 });
-      expect(await q("SELECT status FROM connections WHERE type = 'jira' AND legacy = 1")).toEqual([{ status: "auth_failed" }]);
+      expect(await q("SELECT status FROM connections WHERE type = 'jira' ORDER BY id LIMIT 1")).toEqual([{ status: "auth_failed" }]);
       const [s] = await q<{ e: string }>("SELECT last_error e FROM connection_sync WHERE stream = 'issues'");
       expect(s.e).toMatch(/^auth \(401\): .*CAPTCHA_CHALLENGE/);
       const before = searches;
@@ -236,7 +236,7 @@ describe("background Jira sync", () => {
     const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
     await q("UPDATE connections SET status = 'ok'");
     await q("DELETE FROM connection_sync");
-    const status = async () => (await q<{ status: string }>("SELECT status FROM connections WHERE type = 'jira' AND legacy = 1"))[0].status;
+    const status = async () => (await q<{ status: string }>("SELECT status FROM connections WHERE type = 'jira' ORDER BY id LIMIT 1"))[0].status;
     jiraDown = true;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
