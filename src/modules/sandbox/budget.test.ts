@@ -24,4 +24,32 @@ describe("the frame budget", () => {
     b.give("view", "greedy");
     expect(b.take("view", "greedy")).toBe(true);
   });
+
+  it("a parked frame (its cleanup still running) never lets live frames pass the cap: the oldest goes first, the module's own", () => {
+    const b = createFrameBudget({ view: 3, runtime: 1 });
+    const ended: string[] = [];
+    for (const m of ["a", "a", "b"]) expect(b.take("view", m)).toBe(true);
+    b.park("view", "a", () => ended.push("a1"));
+    b.park("view", "b", () => ended.push("b1"));
+    b.park("view", "a", () => ended.push("a2"));
+    // A remount still gets its frame: a parked one goes now instead.
+    expect(b.take("view", "b")).toBe(true);
+    expect(ended).toEqual(["b1"]);
+    expect(b.take("view", "c")).toBe(true);
+    expect(ended).toEqual(["b1", "a1"]);
+    // One that ended by itself is no longer counted.
+    const release = b.park("runtime", "a", () => ended.push("r"));
+    release();
+    expect(b.take("runtime", "b")).toBe(true);
+    expect(ended).toEqual(["b1", "a1"]);
+  });
+
+  it("a module's parked views count in its own share", () => {
+    const b = createFrameBudget();
+    const ended: number[] = [];
+    for (let i = 0; i < MODULE_VIEWS; i++) expect(b.take("view", "m")).toBe(true);
+    for (let i = 0; i < MODULE_VIEWS; i++) b.park("view", "m", () => ended.push(i));
+    expect(b.take("view", "m")).toBe(true);
+    expect(ended).toEqual([0]);
+  });
 });

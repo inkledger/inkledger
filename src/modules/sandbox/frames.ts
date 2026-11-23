@@ -340,8 +340,6 @@ function openFrame(
     stop() {
       if (stopped) return;
       stopped = true;
-      // Counted off now: a box remounted while this one is parked gets its frame.
-      budget.give(role, entry.id);
       watch?.dispose();
       watch = null;
       cancelAnimationFrame(sizeFrame);
@@ -349,9 +347,11 @@ function openFrame(
       let ended = false;
       let deadline: ReturnType<typeof setTimeout> | undefined = undefined;
       let settled = () => {};
+      let unpark: (() => void) | null = null;
       const end = () => {
         if (ended) return;
         ended = true;
+        unpark?.();
         clearTimeout(deadline);
         settled();
         onUnmounted = null;
@@ -364,7 +364,12 @@ function openFrame(
       };
       // A live view or runtime runs its cleanup first (it may still save), served until it's done. A view
       // is parked off screen where moveBefore keeps its document, else (WebKit) left where it is, unseen.
-      if (!mounted || killed.has(entry.id) || !iframe.isConnected) return end();
+      if (!mounted || killed.has(entry.id) || !iframe.isConnected) {
+        budget.give(role, entry.id);
+        return end();
+      }
+      // Counted off as live now (a box remounted while this one is parked gets its frame), counted as parked until it ends.
+      unpark = budget.park(role, entry.id, end);
       if (role === "view" && !park(iframe)) Object.assign(iframe.style, { visibility: "hidden", position: "absolute" });
       settle(entry.id, new Promise<void>(resolve => (settled = resolve)));
       onUnmounted = end;
