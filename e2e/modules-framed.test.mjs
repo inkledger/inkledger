@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { engineNoise, start } from "./harness.mjs";
@@ -20,7 +20,10 @@ const CODE = fixture("framed");
 const MANIFESTS = {
   framed: { version: "2.0.0", hostApi: { min: 1, max: 2 }, runtime: "frame", capabilities: ["runtime"], slots: ["dashboard-widget", "dashboard-overlay"] },
   hello: { version: "1.0.0", hostApi: { min: 1, max: 1 }, slots: ["sidebar-footer"] },
+  // Installed only by the test that asks for it.
+  film: { version: "2.0.0", hostApi: { min: 2, max: 2 }, runtime: "frame", capabilities: ["download.large"], slots: ["dashboard-widget"] },
 };
+const DEFAULT_IDS = ["framed", "hello"];
 
 // A file of the framed module's own that, loaded in a frame it nests, says whether that frame has peer connections.
 const EXTRA = { framed: { "probe.js": 'parent.postMessage({ probe: typeof RTCPeerConnection }, "*");\n' } };
@@ -67,9 +70,9 @@ const watch = () => {
   requestAnimationFrame(tick);
 };
 
-async function withFramed(body, { before } = {}) {
+async function withFramed(body, { before, ids = DEFAULT_IDS } = {}) {
   const modulesDir = join(mkdtempSync(join(tmpdir(), "ikl-e2e-framed-")), "modules");
-  for (const id of Object.keys(MANIFESTS)) install(modulesDir, id);
+  for (const id of ids) install(modulesDir, id);
   const app = await start({ seed, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   const consoleErrors = [];
   app.page.on("console", m => m.type() === "error" && !engineNoise(m.text()) && consoleErrors.push(m.text()));
@@ -80,7 +83,7 @@ async function withFramed(body, { before } = {}) {
     await before?.(app);
     await app.page.goto(app.base + "/");
     // On screen: a framed card off screen is paused (hidden) until it's back.
-    await app.page.locator('[data-module-slot="dashboard-widget"] [data-module="framed"]').scrollIntoViewIfNeeded();
+    await app.page.locator(`[data-module-slot="dashboard-widget"] [data-module="${ids[0]}"]`).scrollIntoViewIfNeeded();
     await body({ ...app, consoleErrors, responses });
     assert.deepEqual(app.errors, [], "no page errors");
   } finally {
@@ -366,3 +369,19 @@ test("a page module beside a framed one keeps its mount across a route change", 
     await page.waitForTimeout(300);
     assert.equal(await page.getByTestId("module-hello").evaluate(el => el.__kept === true), true, "the same mount, not a new one");
   }));
+
+test("a film past the picture cap is saved whole through the host, on the person's click in its view", () =>
+  withFramed(
+    async ({ page }) => {
+      const save = page.frameLocator('[data-module-slot="dashboard-widget"] [data-module="film"] iframe[data-module-frame="view"]').locator("button[data-ready]");
+      await save.waitFor({ timeout: 30_000 });
+      const type = await save.getAttribute("data-ready");
+      await page.waitForTimeout(500);
+      const [download] = await Promise.all([page.waitForEvent("download"), save.click()]);
+      // Named by the type its bytes prove (MediaRecorder's own: WebM in Chromium, MP4 in WebKit).
+      assert.equal(download.suggestedFilename(), `film.${type.includes("mp4") ? "mp4" : "webm"}`);
+      const size = statSync(await download.path()).size;
+      assert.ok(size > 5 * 1024 * 1024, `the whole film came down (${size} bytes)`);
+    },
+    { ids: ["film"] },
+  ));
