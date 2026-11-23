@@ -47,7 +47,7 @@ Where a tracker keeps time, as Jira does, inkledger writes real worklogs, once, 
 
 ## Screenshots
 
-Placeholders: the files are listed in [docs/media/SHOTLIST.md](docs/media/SHOTLIST.md). All data shown is fictional.
+All data shown is fictional. The captures are listed in [docs/media/SHOTLIST.md](docs/media/SHOTLIST.md).
 
 | | |
 | --- | --- |
@@ -55,12 +55,12 @@ Placeholders: the files are listed in [docs/media/SHOTLIST.md](docs/media/SHOTLI
 | **Day timeline** with a running timer | **Fill the gap**: cut a hole, assign the pieces |
 | ![Timesheet](docs/media/timesheet-week.webp) | ![Board](docs/media/board.webp) |
 | **Timesheet**: the week at a glance | **Board** with the pinboard |
-| ![Notes](docs/media/notes.webp) | ![Store](docs/media/store.webp) |
-| **Private notes** on an issue | **Store**: add-on modules |
+| ![Issue details and worklogs](docs/media/issue.webp) | ![Reports](docs/media/reports.webp) |
+| **Issue details** with worklogs and time totals | **Reports** by day, issue, project or client |
 
 <p align="center">
   <!-- docs/media/clip-fill-the-gap.mp4: see docs/media/SHOTLIST.md -->
-  <a href="docs/media/clip-fill-the-gap.mp4">Clip: filling a gap in the day (30 s)</a>
+  <a href="docs/media/clip-fill-the-gap.mp4">Clip: filling a gap in the day (19 s)</a>
 </p>
 
 ## Quick start (Docker)
@@ -98,7 +98,7 @@ Mods are small, signed packages that add something on top of the app (a desk bun
 
 **Sandbox.** Framed modules run in a sandboxed iframe with an opaque origin: no access to the app's cookies, storage or DOM, no network (`connect-src 'none'`), and only the capabilities their signed manifest declares, through a message broker with a watchdog. Modules built for the older in-page API still run in the page.
 
-**Store and licences.** Modules come from the in-app Store (Settings → Store) at [{STORE_URL}]({STORE_URL}), under the [module terms](docs/modules-terms.md). The Store is the only outbound call besides your trackers and optional weather; `STORE_URL=off` turns it off.
+**Store and licences.** Optional modules are available through the in-app Store (Settings → Store), under the [module terms](docs/modules-terms.md). Kanbunny is a test mod for exploring the page in a different way and sharing feedback. The Store is the only outbound call besides your trackers and optional weather; `STORE_URL=off` turns it off.
 
 ## Security and privacy
 
