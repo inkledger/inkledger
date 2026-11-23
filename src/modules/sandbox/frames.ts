@@ -8,7 +8,7 @@ import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
-import { ownReports, pageGestures } from "./gesture";
+import { frameTookFocus, ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -288,7 +288,14 @@ function openFrame(
       initialised = true;
       if (role === "view") {
         // Its bootstrap's own port, before the module loads: the person's real gestures in this view.
-        own = ownReports(kind => gestures.own(iframe, kind), () => pageFocusBadge().check());
+        // Its window took the focus: given back unless the person (or the host) put it there, then the badge.
+        own = ownReports(
+          kind => gestures.own(iframe, kind),
+          () => {
+            frameTookFocus(iframe);
+            pageFocusBadge().check();
+          },
+        );
         peer.send({ v: RPC_VERSION, t: "own" }, [own.port]);
       }
       const transfer = ready(peer);

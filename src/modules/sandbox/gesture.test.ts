@@ -49,6 +49,34 @@ describe("whose gesture it was", () => {
     expect(g.has(frame, box, false)).toBe(false);
   });
 
+  it("a frame's window taking the focus: kept on Tab, a pointer there or the host's own focus; else not the person's", () => {
+    const { g, frame, other, tick } = setup();
+    g.app();
+    tick(10);
+    // By itself: the host gives the focus back.
+    expect(g.tookFocus(frame)).toBe(false);
+    g.tab();
+    expect(g.tookFocus(frame)).toBe(true);
+    tick(2000);
+    expect(g.tookFocus(frame)).toBe(false);
+    g.own(frame, "pointer");
+    expect(g.tookFocus(frame)).toBe(true);
+    // Another frame's pointer is no reason for this one.
+    tick(2000);
+    g.own(other, "pointer");
+    expect(g.tookFocus(frame)).toBe(false);
+    g.hostFocus(frame);
+    expect(g.tookFocus(frame)).toBe(true);
+    // A key in another frame (Tab out of it) moves the focus on.
+    tick(2000);
+    g.own(other, "key");
+    expect(g.tookFocus(frame)).toBe(true);
+    // Refused: its keys are not the person's either.
+    tick(2000);
+    g.app();
+    expect(g.tookFocus(frame)).toBe(false);
+  });
+
   it("a frame that takes the focus by itself gets nothing from the keys typed into it", () => {
     const { g, frame, box, tick } = setup();
     g.app();

@@ -6,6 +6,8 @@
  * only say when to read it again, and none of them can make it up.
  */
 
+import { pageGestures } from "./gesture";
+
 export type FocusedView = { moduleId: string; name: { en: string; it: string }; box: HTMLElement };
 
 export function createFocusBadge<V>(active: () => unknown) {
@@ -44,10 +46,14 @@ export type FocusBadge = ReturnType<typeof createFocusBadge<FocusedView>>;
 
 let page: FocusBadge | null = null;
 
-/** The page's: read again as the page's window loses the focus to a frame or gets it back. */
+/** The page's: read again as the page's window loses the focus to a frame or gets it back; a frame that took it by itself is named by none. */
 export function pageFocusBadge(): FocusBadge {
   if (page) return page;
-  const b = createFocusBadge<FocusedView>(() => document.activeElement);
+  const gestures = pageGestures();
+  const b = createFocusBadge<FocusedView>(() => {
+    const at = document.activeElement;
+    return at instanceof HTMLIFrameElement && !gestures.placedIn(at) ? null : at;
+  });
   window.addEventListener("blur", b.check);
   window.addEventListener("focus", b.check);
   page = b;

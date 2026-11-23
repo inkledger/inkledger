@@ -234,6 +234,37 @@ test("a frame the module nests runs nothing with a peer connection, and its code
     assert.deepEqual(leaks, [], "no request elsewhere");
   }));
 
+test("a frame that takes the focus by itself gives it straight back: the keys stay the app's, no badge shows", () =>
+  withFramed(async ({ page }) => {
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
+    // A field of the page's, where the person is typing.
+    await page.evaluate(() => {
+      const field = Object.assign(document.createElement("input"), { id: "typing-here" });
+      Object.assign(field.style, { position: "fixed", top: "8px", left: "8px", zIndex: "9999" });
+      document.body.append(field);
+    });
+    const input = page.locator("#typing-here");
+    await input.click();
+    await page.evaluate(() => {
+      window.__badges = 0;
+      new MutationObserver(() => {
+        if (document.querySelector("[data-module-focus-badge]")) window.__badges++;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    // No gesture of the person's: the module's script reaches for the keyboard.
+    await (await viewFrame(page)).evaluate(() => {
+      const b = document.createElement("button");
+      b.textContent = "grab";
+      document.body.append(b);
+      b.focus();
+    });
+    await page.waitForTimeout(500);
+    assert.equal(await input.evaluate(el => document.hasFocus() && el === document.activeElement), true, "the app's input keeps the focus");
+    await page.keyboard.type("abc");
+    assert.equal(await input.inputValue(), "abc");
+    assert.equal(await page.evaluate(() => window.__badges), 0, "no badge, not even for a moment");
+  }));
+
 test("the focus in a module's frame shows the host's badge with its name, outside its box", () =>
   withFramed(async ({ page }) => {
     await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
