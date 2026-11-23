@@ -55,7 +55,7 @@ export function ModuleFocusBadge() {
       </p>
       {view &&
         createPortal(
-          <div ref={ref} aria-hidden data-module-focus-badge={view.moduleId} className="pointer-events-none fixed left-0 top-0 z-[60]">
+          <div ref={ref} aria-hidden data-module-focus-badge={view.moduleId} className="pointer-events-none fixed left-0 top-0 z-[60] flex h-5">
             <Chip className="max-w-full shadow-xs">
               <Puzzle className="h-3.5 w-3.5 shrink-0" aria-hidden />
               <span className="min-w-0 truncate">{label}</span>
