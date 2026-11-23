@@ -8,6 +8,7 @@ import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceInSlices, type ImportancePage } from "./importance";
 import { ledgesAround, type LedgePage } from "./ledges";
+import type { createInfoSource } from "./info";
 import { anchorsAround, type AnchorPage, type createPageEvents, type SignalPage } from "./anchors";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
 import type { createModuleCache } from "./cache";
@@ -28,6 +29,8 @@ export type CapabilityDeps = {
   page: () => ImportancePage;
   /** Where the page's cards and section headers are (read per call). */
   ledges?: () => LedgePage;
+  /** What the page shows (page.info), shared by the page's modules; given only to a module that has the capability. */
+  info?: ReturnType<typeof createInfoSource>;
   /** The app's landmarks (read per call). */
   anchors?: () => AnchorPage;
   /** What the person does on the page, measured per watcher. */
@@ -187,6 +190,21 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
           return ledgesAround(ledges(), { left: r.left, top: r.top, width: r.width, height: r.height });
         },
       });
+    const info = d.info;
+    if (info) {
+      // Watched while this frame lives, read only once the page changed.
+      let held: (() => void) | null = null;
+      methods["page.info"] = method({
+        args: z.tuple([]),
+        cap: "page.info",
+        rate: [4, 4],
+        shared: true,
+        run(_args, ctx) {
+          held ??= ctx.own(info.hold());
+          return info.get();
+        },
+      });
+    }
     const anchors = d.anchors;
     if (anchors)
       methods["page.anchors"] = method({
@@ -197,7 +215,19 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         run: () => anchorsAround(anchors(), view.el.getBoundingClientRect()),
       });
     const events = d.pageEvents;
-    if (events) methods["page.events"] = method({ ...watch(push => events.feed.watch(() => view.el.getBoundingClientRect(), events.page, push)), cap: "page.events" });
+    if (events)
+      methods["page.events"] = method({
+        ...watch(push => {
+          const off = events.feed.watch(() => view.el.getBoundingClientRect(), events.page, push);
+          // With page.info, its scrollers' moves too (once a frame).
+          const offScroll = info?.onScroll(push);
+          return () => {
+            off();
+            offScroll?.();
+          };
+        }),
+        cap: "page.events",
+      });
     methods.pointer = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push)), cap: "pointer" });
     // The whole window's pointer (a creature over the page follows it anywhere), the same one listener and frame.
     methods["pointer.page"] = method({ ...watch(push => d.pointer.watch(() => view.el.getBoundingClientRect(), push, Infinity)), cap: "pointer.page" });

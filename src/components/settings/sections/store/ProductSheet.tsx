@@ -221,6 +221,7 @@ const CAPABILITY_KEY = {
   "surfaces.light": "surfacesLight",
   "page.importance": "pageImportance",
   "page.ledges": "pageLedges",
+  "page.info": "pageInfo",
   pointer: "pointer",
   "pointer.page": "pointerPage",
   "page.overlay": "pageOverlay",

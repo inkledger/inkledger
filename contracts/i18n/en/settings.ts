@@ -1261,6 +1261,7 @@ export const settings = {
         surfacesLight: "Casts light and shadows on the app's surfaces",
         pageImportance: "Sees where the page has text or controls, never what they say",
         pageLedges: "Sees where the cards' top edges are",
+        pageInfo: "Sees where the page has text, controls, pictures and edges, never what they say",
         pointer: "Sees the pointer near its own area",
         pointerPage: "Sees the pointer anywhere in the window",
         pageOverlay: "Draws over the whole window, never taking a click meant for the app",

@@ -63,6 +63,20 @@ export type LayoutState = {
 /** The top edge of a card or section header in sight, in CSS px from the box's top left (y: the edge). */
 export type Ledge = { x: number; y: number; w: number };
 
+/**
+ * "page.info": what the page shows, geometry only, in CSS px of the window's viewport (the
+ * page-overlay frame's own), rounded to 0.5 px. `s` is the scroller an item moves with: 0 the
+ * window, -1 nothing (fixed). Read past the visible part by 200 px; at most 4000 rects and 1500
+ * surfaces (the nearest to the viewport kept).
+ */
+export type InfoSnapshot = { v: number; viewport: { w: number; h: number }; rects: InfoRect[]; surfaces: Surface[]; scrollers: Scroller[] };
+/** Information to keep off: text one rect per line box, controls, pictures and icons, data marks (bars, chips, dots). Never fills, stripes or shadows. */
+export type InfoRect = { x: number; y: number; w: number; h: number; kind: "text" | "control" | "media" | "mark"; interactive: boolean; s: number };
+/** A visible horizontal face (box tops, borders, dividers; "bottom": a box's underside). */
+export type Surface = { x: number; y: number; w: number; kind: "top" | "bottom"; s: number };
+/** A scrolling box's visible (padding) box; id 0 is the window. */
+export type Scroller = { id: number; x: number; y: number; w: number; h: number };
+
 /** The pointer relative to the slot box, coalesced per frame; null while away. */
 export type PointerState = { x: number; y: number } | null;
 
@@ -108,7 +122,13 @@ export type PageEvent =
    * The person pressed one of this module's keyboard commands (its manifest's "commands", needs
    * "page.events"), or chose it in the command palette: `id` is the command's. Told to its views only.
    */
-  | { kind: "command"; id: string };
+  | { kind: "command"; id: string }
+  /**
+   * A scroller moved ("page.info" and "page.events"), once a frame: what scrolls with `s` moved by
+   * (dx, dy) on screen (scrolling down, dy < 0). Shift the snapshot's items of `s` (and of the
+   * scrollers inside it) instead of asking again.
+   */
+  | { kind: "scroll"; s: number; dx: number; dy: number };
 
 /** The basics every framed module gets (no capability needed). */
 type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient" | "hitArea" | "storage"> & {
@@ -162,6 +182,12 @@ type Capabilities = {
    * only, a few dozen at most, four calls a second.
    */
   ledges?(): Promise<Ledge[]>;
+  /**
+   * "page.info" (a view's): the page's information rects and surfaces (InfoSnapshot), four calls a
+   * second; answered from what was read while the page has not changed (a new `v` once it has:
+   * ask again on layoutChanged), read in slices of a few milliseconds otherwise.
+   */
+  info?(): Promise<InfoSnapshot>;
   /** "pointer" (a view's): null while the pointer is more than 160 px from the box. */
   pointer?: Sub<PointerState>;
   /** "pointer.page" (a view's): the pointer anywhere in the window, in the box's px; null while it is out of the window, the page hidden or the box out of sight. */
@@ -271,6 +297,7 @@ export const CAPABILITY_OF = {
   "surfaces.light": "surfaces.light",
   page: "page.importance",
   ledges: "page.ledges",
+  info: "page.info",
   pointer: "pointer",
   pagePointer: "pointer.page",
   anchors: "page.anchors",

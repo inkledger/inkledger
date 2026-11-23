@@ -333,6 +333,7 @@ async function start(init, port) {
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("page.ledges") && init.role === "view") host.ledges = () => call("page.ledges", []);
+  if (has("page.info") && init.role === "view") host.info = () => call("page.info", []);
   if (has("cache")) host.cache = { get: (k) => call("cache.get", [k]), put: (k, b) => call("cache.put", [k, b]).then(quiet), delete: (k) => call("cache.delete", [k]).then(quiet) };
   if (has("sheet")) {
     // The control that opened the sheet: the host hands the focus back to this frame, the frame to it (once).

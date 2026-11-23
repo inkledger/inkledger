@@ -37,6 +37,7 @@ export const MODULE_CAPABILITIES = [
   "surfaces.light",
   "page.importance",
   "page.ledges",
+  "page.info",
   "pointer",
   "pointer.page",
   "page.overlay",

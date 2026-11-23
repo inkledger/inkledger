@@ -286,6 +286,29 @@ describe("the frame's host API (bootstrap)", () => {
     expect(await run([])).toBe("none");
   });
 
+  it("page.info: the page's snapshot in the viewport's px, only with its capability, the page watched while the frame lives", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
+    let watching = 0;
+    const info = {
+      hold: () => (watching++, () => void watching--),
+      get: async () => ({ v: 3, viewport: { w: 1200, h: 800 }, rects: [{ x: 10, y: 20, w: 30, h: 16, kind: "text" as const, interactive: false, s: 0 }], surfaces: [], scrollers: [{ id: 0, x: 0, y: 0, w: 1200, h: 800 }] }),
+      onScroll: () => () => {},
+      version: () => 3,
+    };
+    const run = async (capabilities: ModuleCapability[]) => {
+      let out: unknown = "none";
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "page-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, info, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
+      const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (void host.info?.().then(r => (out = r)), () => {}) } };
+      const f = bootFrame({ capabilities, mod, methods: caps.methods });
+      await settle();
+      return { out, f };
+    };
+    const yes = await run(["page.info"]);
+    expect(yes.out).toMatchObject({ v: 3, rects: [{ x: 10, y: 20, w: 30, h: 16, kind: "text" }] });
+    expect(watching).toBe(1);
+    expect((await run([])).out).toBe("none");
+  });
+
   it("page.anchors, page.events and pointer.page reach a view only with their capabilities", async () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
     const bell = { getBoundingClientRect: () => ({ left: 10, top: 20, right: 40, bottom: 50 }), getAttribute: (k: string) => (k === "data-anchor" ? "notifications" : null) };
