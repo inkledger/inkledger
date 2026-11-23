@@ -259,7 +259,8 @@ export const authRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       throttle(ctx, `change|${ctx.user.id}`);
       if (!ctx.user.passwordHash || !(await verifyPassword(input.current, ctx.user.passwordHash))) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.wrongPassword") });
+        // Not UNAUTHORIZED: that is the session's own answer, and the app would sign out instead of saying it.
+        throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.wrongPassword") });
       }
       assertNewPassword(input.next);
       if (input.next === input.current || input.next === (env.adminPassword ?? "admin")) {

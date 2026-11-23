@@ -220,6 +220,8 @@ describe("auth: sessions, cookies, login hardening", () => {
       expect(await appRouter.createCaller(s).auth.me()).toMatchObject({ username: "admin", role: "admin", mustChangePassword: true });
       await expect(appRouter.createCaller(s).issues.list()).rejects.toMatchObject({ code: "FORBIDDEN", message: "PASSWORD_CHANGE_REQUIRED" });
       await expect(appRouter.createCaller(s).auth.changePassword({ current: "admin", next: "short" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      // A wrong current password is said in the form: never UNAUTHORIZED, which signs the app out.
+      await expect(appRouter.createCaller(s).auth.changePassword({ current: "not the password", next: "the admin's own password" })).rejects.toMatchObject({ code: "FORBIDDEN", message: "Wrong username or password." });
       await expect(appRouter.createCaller(s).auth.changePassword({ current: "admin", next: "admin" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
       const changed = await appRouter.createCaller(s).auth.changePassword({ current: "admin", next: "the admin's own password" });
       expect(changed.mustChangePassword).toBe(false);
