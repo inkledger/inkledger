@@ -3,7 +3,7 @@ import type { HttpBindings } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "fs";
 import path from "path";
-import { renderSSR } from "../ssr";
+import { renderSSR, warmSSR } from "../ssr";
 import { contentSecurityPolicy } from "./csp";
 
 type App = Hono<{ Bindings: HttpBindings }>;
@@ -12,6 +12,7 @@ export function serveStaticFiles(app: App) {
   const distPath = path.resolve(process.cwd(), "dist/public");
   const indexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
   const csp = contentSecurityPolicy(indexHtml);
+  warmSSR();
   app.use("*", async (c, next) => {
     await next();
     // Attachments set their own, stricter (sandbox) policy.

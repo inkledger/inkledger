@@ -34,9 +34,28 @@ export function jsonForHtml(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
 
-async function render(url: string, context: SSRTRPCContext, locale: Locale, now: number): Promise<string> {
+type Entry = { renderApp: typeof render; preloadPages: () => Promise<unknown> };
+let entryModule: Promise<Entry> | undefined;
+
+/** The server bundle (~3 MB), loaded once; a failed load is tried again on the next page. */
+function loadEntry(): Promise<Entry> {
   const entry = path.resolve(process.cwd(), "dist/ssr/entry-server.js");
-  const { renderApp } = await import(pathToFileURL(entry).href) as { renderApp: typeof render };
+  entryModule ??= (import(pathToFileURL(entry).href) as Promise<Entry>).catch((e: unknown) => {
+    entryModule = undefined;
+    throw e;
+  });
+  return entryModule;
+}
+
+/** Loads the server bundle and its pages at start: the first visitor would otherwise wait for them. */
+export function warmSSR(): void {
+  void loadEntry()
+    .then(m => m.preloadPages())
+    .catch((e: unknown) => console.warn(`[ssr] ${String(e)}`));
+}
+
+async function render(url: string, context: SSRTRPCContext, locale: Locale, now: number): Promise<string> {
+  const { renderApp } = await loadEntry();
   return renderApp(url, context, locale, now);
 }
 

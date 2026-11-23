@@ -12,6 +12,11 @@ import App from "./App";
 const requestLocale = new AsyncLocalStorage<Locale>();
 setLocaleSource(() => requestLocale.getStore());
 
+/** The server-rendered pages' code, loaded ahead of their first request (the same chunks App's routes load). */
+export function preloadPages(): Promise<unknown> {
+  return Promise.all([import("@/pages/Dashboard"), import("@/pages/Login")]);
+}
+
 export function renderApp(url: string, context: SSRTRPCContext, locale: Locale, now: number): Promise<string> {
   return requestLocale.run(locale, () =>
     renderAllReady(

@@ -7,7 +7,8 @@ vi.mock("fs", async (importOriginal) => {
     String(file).endsWith("index.html") ? "<!doctype html><html><head></head><body></body></html>" : (real.readFileSync as (...a: unknown[]) => unknown)(file, ...rest)) as typeof real.readFileSync;
   return { ...real, default: { ...real, readFileSync }, readFileSync };
 });
-vi.mock("../ssr", () => ({ renderSSR: async () => null }));
+const warmSSR = vi.hoisted(() => vi.fn());
+vi.mock("../ssr", () => ({ renderSSR: async () => null, warmSSR }));
 
 describe("the built app's files", () => {
   it("a missing hashed asset is a 404, never the app shell cached for a year", async () => {
@@ -21,5 +22,12 @@ describe("the built app's files", () => {
     const page = await app.request("/settings/users", { headers: { accept: "text/html" } });
     expect(page.status).toBe(200);
     expect(page.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  it("loads the server renderer at start, not on the first visitor's request", async () => {
+    const { serveStaticFiles } = await import("./vite");
+    warmSSR.mockClear();
+    serveStaticFiles(new Hono() as never);
+    expect(warmSSR).toHaveBeenCalledTimes(1);
   });
 });
