@@ -132,6 +132,36 @@ describe("page.info", () => {
     expect(got.surfaces.every(f => f.y >= 700 && f.s === FIXED)).toBe(true);
   });
 
+  it("what a sticky header, a dialog or a menu covers is not reported; what shows of it is", async () => {
+    const OPAQUE = { backgroundColor: "rgb(255, 255, 255)" };
+    // A sticky header over the top of a card scrolled under it, half over a line of text.
+    const sticky = await scan([
+      { r: [0, 0, 1280, 60], st: { position: "sticky", ...OPAQUE } },
+      { r: [100, 40, 400, 200], st: CARD, text: [[110, 50, 200, 18]] },
+    ]);
+    expect(sticky.surfaces.filter(f => f.y === 40)).toEqual([]);
+    expect(sticky.rects).toEqual([{ x: 110, y: 60, w: 200, h: 8, kind: "text", interactive: false, s: 0 }]);
+    // A dialog over a dimmed page: nothing of the page stands out; the dialog's own edges do.
+    const dialog = await scan([
+      { r: [100, 300, 400, 200], st: CARD, text: [[110, 310, 200, 18]] },
+      { r: [0, 0, 1280, 800], st: { position: "fixed", backgroundColor: "rgba(0, 0, 0, 0.5)" } },
+      { role: "dialog", r: [400, 200, 480, 300], st: { position: "fixed", ...CARD }, text: [[420, 220, 200, 18]] },
+    ]);
+    // (The backdrop's own edges are the window's.)
+    expect(dialog.surfaces.filter(f => f.y > 0 && f.y < 800).every(f => f.x >= 400 && f.x + f.w <= 880)).toBe(true);
+    expect(dialog.surfaces).toContainEqual({ x: 400, y: 200, w: 480, kind: "top", s: FIXED });
+    expect(dialog.rects).toEqual([{ x: 420, y: 220, w: 200, h: 18, kind: "text", interactive: false, s: FIXED }]);
+    // A menu over the middle of a long edge: its two ends stay; a see-through fixed wrapper hides nothing.
+    const menu = await scan([
+      { r: [100, 300, 800, 100], st: CARD },
+      { r: [0, 0, 1280, 800], st: { position: "fixed" }, kids: [{ role: "menu", r: [400, 280, 200, 160], st: OPAQUE }] },
+    ]);
+    expect(menu.surfaces.filter(f => f.y === 300)).toEqual([
+      { x: 100, y: 300, w: 300, kind: "top", s: 0 },
+      { x: 600, y: 300, w: 300, kind: "top", s: 0 },
+    ]);
+  });
+
   it("faces at one height are merged where they touch, never across a gap", () => {
     expect(
       mergeSurfaces([

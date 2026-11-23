@@ -86,10 +86,13 @@ const clipTo = (r: Rect, c: Rect): Rect | null => {
 const grow = (r: Rect, m: number): Rect => ({ left: r.left - m, top: r.top - m, right: r.right + m, bottom: r.bottom + m });
 const half = (v: number) => Math.round(v * 2) / 2;
 
-type Ctx = { clip: Rect; s: number; bg: string; interactive: boolean; pointer: boolean };
+type Ctx = { clip: Rect; s: number; bg: string; interactive: boolean; pointer: boolean; layer: number; covered: boolean };
 /** A scroller as read: whose it is, inside which, and where its content stood. */
 export type ScrollerRead = Scroller & { parent: number; scrollX: number; scrollY: number; key: object };
-type Found = { rects: InfoRect[]; surfaces: Surface[]; scrollers: ScrollerRead[] };
+/** What lies over the page's flow (a sticky header, a dialog, a menu): `l` is its layer, in paint order (later over earlier). */
+type Cover = Rect & { l: number };
+type Found = { rects: (InfoRect & { l: number })[]; surfaces: (Surface & { l: number })[]; scrollers: ScrollerRead[]; covers: Cover[]; layers: number };
+const LAYER_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
 
 /** Scroller ids that last as long as their element. */
 export type ScrollerIds = { of(key: object): number };
@@ -120,6 +123,9 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
   // Wholly past what is read, and nothing of it can spill out of an ordinary box: skipped with what it holds.
   if (st.position !== "absolute" && !fixed && st.display !== "contents" && !clipTo(grow(r, 1), clip)) return;
   const shown = st.visibility !== "hidden" && st.visibility !== "collapse" && st.display !== "contents";
+  // A layer over the flow: what its opaque parts cover elsewhere is hidden.
+  const layer = fixed || st.position === "sticky" || el.tag === "dialog" || (el.role !== null && LAYER_ROLES.has(el.role)) ? out.layers++ : ctx.layer;
+  let covered = layer !== ctx.layer ? false : ctx.covered;
   const typing = TYPING_TAGS.has(el.tag) || el.role === "textbox" || el.editable;
   const control = typing || CONTROL_TAGS.has(el.tag) || (el.role !== null && CONTROL_ROLES.has(el.role));
   // The cursor is inherited: only where it starts is a clickable thing.
@@ -127,15 +133,20 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
   const interactive = ctx.interactive || control || pointer;
   const rect = (b: Rect, kind: InfoKind) => {
     const c = clipTo(b, clip);
-    if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind, interactive, s });
+    if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind, interactive, s, l: layer });
   };
   const face = (y: number, kind: Surface["kind"]) => {
     if (y < clip.top || y > clip.bottom) return;
     const l = Math.max(r.left, clip.left);
     const rt = Math.min(r.right, clip.right);
-    if (rt - l >= MIN_SURFACE_W) out.surfaces.push({ x: l, y, w: rt - l, kind, s });
+    if (rt - l >= MIN_SURFACE_W) out.surfaces.push({ x: l, y, w: rt - l, kind, s, l: layer });
   };
   const bgA = alpha(st.backgroundColor);
+  if (shown && layer >= 0 && !covered && bgA >= 0.3) {
+    const c = clipTo(r, clip);
+    if (c) out.covers.push({ ...c, l: layer });
+    covered = true;
+  }
   const filled = bgA >= 0.1 && st.backgroundColor !== ctx.bg;
   if (shown && st.display !== "inline" && w >= MIN_SURFACE_W) {
     const shadow = !!st.boxShadow && st.boxShadow !== "none";
@@ -172,10 +183,53 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
   if (shown && alpha(st.color) > 0)
     for (const t of el.textRects()) {
       const c = clipTo(t, clip);
-      if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind: "text", interactive, s });
+      if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind: "text", interactive, s, l: layer });
     }
-  const next: Ctx = { clip, s, bg: bgA >= 0.5 ? st.backgroundColor : ctx.bg, interactive, pointer: st.cursor === "pointer" };
+  const next: Ctx = { clip, s, bg: bgA >= 0.5 ? st.backgroundColor : ctx.bg, interactive, pointer: st.cursor === "pointer", layer, covered };
   for (const ch of el.children()) yield* walk(ch, next, view, ids, out);
+}
+
+/**
+ * What shows of the items once the layers over them are drawn: a face under a later layer's
+ * opaque part keeps only its uncovered pieces; a rect hidden whole goes, one cut along a side
+ * keeps the rest, any other overlap keeps it whole (a no-go area errs on the side of keeping).
+ */
+export function uncovered(found: Pick<Found, "rects" | "surfaces" | "covers">): { rects: InfoRect[]; surfaces: Surface[] } {
+  const over = (l: number) => found.covers.filter(c => c.l > l);
+  const rects: InfoRect[] = [];
+  for (const { l, ...r } of found.rects) {
+    let cur: InfoRect | null = r;
+    for (const c of over(l)) {
+      if (!cur) break;
+      const x2: number = cur.x + cur.w;
+      const y2: number = cur.y + cur.h;
+      if (c.left >= x2 || c.right <= cur.x || c.top >= y2 || c.bottom <= cur.y) continue;
+      const fullW = c.left <= cur.x && c.right >= x2;
+      const fullH = c.top <= cur.y && c.bottom >= y2;
+      if (fullW && fullH) cur = null;
+      else if (fullW && c.top <= cur.y) cur = { ...cur, y: c.bottom, h: y2 - c.bottom };
+      else if (fullW && c.bottom >= y2) cur = { ...cur, h: c.top - cur.y };
+      else if (fullH && c.left <= cur.x) cur = { ...cur, x: c.right, w: x2 - c.right };
+      else if (fullH && c.right >= x2) cur = { ...cur, w: c.left - cur.x };
+    }
+    if (cur) rects.push(cur);
+  }
+  const surfaces: Surface[] = [];
+  for (const { l, ...f } of found.surfaces) {
+    let pieces: Surface[] = [f];
+    for (const c of over(l)) {
+      if (f.y < c.top || f.y >= c.bottom) continue;
+      pieces = pieces.flatMap(p => {
+        if (c.left >= p.x + p.w || c.right <= p.x) return [p];
+        const out: Surface[] = [];
+        if (c.left - p.x >= 1) out.push({ ...p, w: c.left - p.x });
+        if (p.x + p.w - c.right >= 1) out.push({ ...p, x: c.right, w: p.x + p.w - c.right });
+        return out;
+      });
+    }
+    surfaces.push(...pieces.filter(p => p.w >= MIN_SURFACE_W));
+  }
+  return { rects, surfaces };
 }
 
 /** Text fragments on one line, close side by side, as one rect (a line box, not its words). */
@@ -224,8 +278,8 @@ export type ScanResult = Omit<InfoSnapshot, "v" | "scrollers"> & { scrollers: Sc
 /** Reads the page, a slice at a time; `yieldNow` lets the page breathe between slices. */
 export async function scanInfo(page: InfoPage, ids: ScrollerIds, clock: { now(): number; yield(): Promise<void> }, sliceMs = INFO_SLICE_MS): Promise<ScanResult> {
   const view = { left: 0, top: 0, right: page.width, bottom: page.height };
-  const found: Found = { rects: [], surfaces: [], scrollers: [] };
-  const steps = walk(page.root, { clip: grow(view, INFO_MARGIN), s: 0, bg: "", interactive: false, pointer: false }, view, ids, found);
+  const found: Found = { rects: [], surfaces: [], scrollers: [], covers: [], layers: 0 };
+  const steps = walk(page.root, { clip: grow(view, INFO_MARGIN), s: 0, bg: "", interactive: false, pointer: false, layer: -1, covered: false }, view, ids, found);
   for (;;) {
     const from = clock.now();
     let done = false;
@@ -233,8 +287,9 @@ export async function scanInfo(page: InfoPage, ids: ScrollerIds, clock: { now():
     if (done) break;
     await clock.yield();
   }
-  const rects = nearest(mergeLines(found.rects), INFO_MAX_RECTS, view, r => [r.w, r.h]).map(r => ({ ...r, x: half(r.x), y: half(r.y), w: half(r.w), h: half(r.h) }));
-  const surfaces = nearest(mergeSurfaces(found.surfaces), INFO_MAX_SURFACES, view, f => [f.w, 0]).map(f => ({ ...f, x: half(f.x), w: half(f.w) }));
+  const seen = uncovered(found);
+  const rects = nearest(mergeLines(seen.rects), INFO_MAX_RECTS, view, r => [r.w, r.h]).map(r => ({ ...r, x: half(r.x), y: half(r.y), w: half(r.w), h: half(r.h) }));
+  const surfaces = nearest(mergeSurfaces(seen.surfaces), INFO_MAX_SURFACES, view, f => [f.w, 0]).map(f => ({ ...f, x: half(f.x), w: half(f.w) }));
   const scrollers = [{ id: 0, x: 0, y: 0, w: page.width, h: page.height, parent: FIXED, scrollX: page.scrollX, scrollY: page.scrollY, key: page.root.key }, ...found.scrollers];
   return { viewport: { w: page.width, h: page.height }, rects, surfaces, scrollers };
 }
