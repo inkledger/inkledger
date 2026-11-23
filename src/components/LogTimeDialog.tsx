@@ -602,7 +602,7 @@ function LogTimeForm({
           />
         </div>
       </div>
-      <DialogFooter>
+      <DialogFooter className="sm:flex-wrap">
         {/* A timer started by mistake: gone from here, without logging its time. */}
         {fromTimer && (
           <Button
