@@ -2,7 +2,7 @@
 
 HTTPS with a local certificate authority, so the tailnet is not needed. The Outlook add-in needs it ([outlook.md](outlook.md)), and so does any page opened from another device on the network over `https://`.
 
-**The Docker stack serves HTTPS itself**, on `:3443`, with no other process. Managing its certificate (creating it, trusting it, renewing it, adding a name) is in the [README](../README.md#https-and-the-certificate).
+**The Docker stack serves HTTPS itself**, on `:3443`, with no other process. Managing its certificate (creating it, trusting it, renewing it, adding a name) is in the [self-hosting guide](self-hosting.md#https-and-the-certificate).
 
 `scripts/https.mjs` (`pnpm https <command>`) makes the certificate:
 
