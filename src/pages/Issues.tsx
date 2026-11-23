@@ -265,7 +265,7 @@ export default function Issues() {
   const logTime = useLogTime();
   const openLog = useCallback(
     (key: string, connectionId?: number) => {
-      if (!logTime({ key, connectionId })) setLogging({ key, connectionId });
+      logTime({ key, connectionId }, () => setLogging({ key, connectionId }));
     },
     [logTime, setLogging]
   );

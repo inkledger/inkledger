@@ -267,7 +267,7 @@ function useBody({
   const startTimer = useStartTimer({ announce: true });
   const logTime = useLogTime();
   const openLog = () => {
-    if (!logTime({ key, connectionId: i?.connectionId ?? connectionId })) setLogOpen(true);
+    logTime({ key, connectionId: i?.connectionId ?? connectionId }, () => setLogOpen(true));
   };
   useIssueHotkeys({
     enabled: hotkeys,
