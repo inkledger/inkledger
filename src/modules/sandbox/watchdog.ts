@@ -31,6 +31,12 @@ const LONG_TASK_MS = 50;
 const RECOVER_TICKS = 10;
 /** Host lag past which a window says nothing about whose beat was late. */
 const HOST_LAG_MS = 250;
+/** Where frames share the page's thread: lagging ticks in a row after which the page's lag is held against its modules. */
+const LAG_TICKS = 3;
+/** A gap this long is a sleep (a laptop lid), not a module. */
+const SLEEP_MS = 10_000;
+/** The page's own time on a module's messages in one second, past which it is the module's fault (the plan: 3 ms a frame). */
+const HOST_WORK_MS = 180;
 /** A module seen busy this recently is the one stalling the frames it shares a process with. */
 const BLAME_MS = 3000;
 /** Seconds of flooding the page with messages, within FLOOD_WINDOW_MS, that stop a module (the first holds it to "reduce"). */
@@ -39,7 +45,7 @@ const FLOOD_WINDOW_MS = 10_000;
 
 export const budgetOfStep = (step: Step): BudgetLevel => (step === "reduce" ? "reduce" : STEPS.indexOf(step) >= STEPS.indexOf("still") ? "still" : "normal");
 
-type FrameState = { moduleId: string; runtime: boolean; started: number; judgeFrom: number; lastBeat: number; busy: number; suspended: boolean; flooded: boolean };
+type FrameState = { moduleId: string; runtime: boolean; started: number; judgeFrom: number; lastBeat: number; busy: number; hostMs: number; suspended: boolean; flooded: boolean };
 type ModuleState = { step: number; clean: number; blamedAt: number; floods: number[] };
 
 export type LadderFrame = {
@@ -49,14 +55,23 @@ export type LadderFrame = {
   longTask(ms: number): void;
   /** It sent more messages than the page may read: dropped, and counted against it. */
   flood(): void;
+  /** Time the page itself spent on its messages. */
+  hostWork(ms: number): void;
   /** Off screen or the page hidden: its beats slow down, lateness is not judged. */
   suspend(on: boolean): void;
   dispose(): void;
 };
 
-/** The ladder alone, on a given clock: `tick` once per TICK_MS with how late the host itself ran. */
-export function createLadder(o: { now: () => number; onStep: (moduleId: string, step: Step) => void }) {
+/**
+ * The ladder alone, on a given clock: `tick` once per TICK_MS with how late the host itself ran.
+ * What can't be pinned on a module (late beats, and with `judgeLag` the page lagging, where frames
+ * share its thread and long tasks are not reported) asks it to reduce, never more: only its own
+ * long tasks, the page's work on its messages or a flood of them step it further, so one module
+ * never gets the others stopped.
+ */
+export function createLadder(o: { now: () => number; onStep: (moduleId: string, step: Step) => void; judgeLag?: boolean }) {
   const frames = new Set<FrameState>();
+  let lagTicks = 0;
   const modules = new Map<string, ModuleState>();
   const mod = (id: string) => {
     const m = modules.get(id) ?? { step: 0, clean: 0, blamedAt: -Infinity, floods: [] };
@@ -72,7 +87,7 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
   return {
     frame(moduleId: string, role: "view" | "runtime"): LadderFrame {
       const t = o.now();
-      const f: FrameState = { moduleId, runtime: role === "runtime", started: t, judgeFrom: t + GRACE_MS, lastBeat: t, busy: 0, suspended: false, flooded: false };
+      const f: FrameState = { moduleId, runtime: role === "runtime", started: t, judgeFrom: t + GRACE_MS, lastBeat: t, busy: 0, hostMs: 0, suspended: false, flooded: false };
       frames.add(f);
       mod(moduleId);
       return {
@@ -85,6 +100,9 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         },
         flood() {
           f.flooded = true;
+        },
+        hostWork(ms) {
+          f.hostMs += Math.max(0, ms);
         },
         suspend(on) {
           if (f.suspended === on) return;
@@ -103,12 +121,16 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
       const struck = new Set<string>();
       const late = new Set<string>();
       const flooded = new Set<string>();
+      const hostMs = new Map<string, number>();
+      const lagged = new Set<string>();
       for (const f of frames) {
         const m = mod(f.moduleId);
         if (m.step === STEPS.indexOf("killed")) continue;
         // Flooding costs the page whatever else happened, startup included.
         if (f.flooded) flooded.add(f.moduleId);
         f.flooded = false;
+        hostMs.set(f.moduleId, (hostMs.get(f.moduleId) ?? 0) + f.hostMs);
+        f.hostMs = 0;
         // Its own long tasks are its own, whatever else happened.
         if (f.busy >= LONG_TASK_MS && t > f.started + GRACE_MS) {
           struck.add(f.moduleId);
@@ -119,13 +141,27 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         // The host itself ran late (its own jank, a sleep): every beat looks late, none is judged.
         if (lagging) {
           f.lastBeat = t;
+          lagged.add(f.moduleId);
           continue;
         }
         if (t - f.lastBeat > (f.runtime ? LATE_RUNTIME_MS : LATE_MS)) late.add(f.moduleId);
       }
-      // Late while another module was busy: stalled by it, not guilty. Late with nobody to blame: all of them.
+      // The page's work on a module's messages is its own, the page lagging or not.
+      for (const [id, ms] of hostMs)
+        if (ms >= HOST_WORK_MS) {
+          struck.add(id);
+          mod(id).blamedAt = t;
+        }
+      lagTicks = lagging && hostLagMs < SLEEP_MS ? lagTicks + 1 : 0;
+      // Late while another module was busy: stalled by it, not guilty. Late, or the page lagging on
+      // and on where frames share its thread, with nobody to blame: each is asked to reduce.
       const someoneBusy = [...modules.values()].some(m => t - m.blamedAt <= BLAME_MS);
-      for (const id of late) if (!someoneBusy || t - mod(id).blamedAt <= BLAME_MS) struck.add(id);
+      const unexplained = new Set<string>();
+      for (const id of late) if (t - mod(id).blamedAt <= BLAME_MS) struck.add(id);
+      if (!someoneBusy) {
+        late.forEach(id => unexplained.add(id));
+        if (o.judgeLag && lagTicks >= LAG_TICKS) lagged.forEach(id => unexplained.add(id));
+      }
       const watched = new Set([...frames].map(f => f.moduleId));
       for (const [id, m] of modules) {
         if (m.step === STEPS.indexOf("killed") || !watched.has(id)) continue;
@@ -137,6 +173,9 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         } else if (struck.has(id)) {
           m.clean = 0;
           set(id, m, m.step + 1);
+        } else if (unexplained.has(id)) {
+          m.clean = 0;
+          if (m.step < STEPS.indexOf("reduce")) set(id, m, m.step + 1);
         } else if (m.step > 0 && ++m.clean >= RECOVER_TICKS) {
           m.clean = 0;
           set(id, m, m.step - 1);
@@ -179,8 +218,10 @@ const watched = new Set<Watched>();
 const budgets = new Map<string, Set<(b: BudgetLevel) => void>>();
 const killers = new Map<string, (why: string) => void>();
 let ladder: ReturnType<typeof createLadder> | null = null;
+/** Whether the engine reports long tasks: where it doesn't (WebKit), frames may share the page's thread and its lag is theirs. */
+const longTasks = () => typeof PerformanceObserver === "function" && PerformanceObserver.supportedEntryTypes?.includes("longtask") === true;
 // One ladder for the session: a module keeps its step across remounts.
-const theLadder = () => (ladder ??= createLadder({ now: () => performance.now(), onStep }));
+const theLadder = () => (ladder ??= createLadder({ now: () => performance.now(), onStep, judgeLag: !longTasks() }));
 let timer: ReturnType<typeof setInterval> | null = null;
 let raf = 0;
 let lastRaf = 0;
@@ -254,7 +295,7 @@ function start() {
     );
   }
   // Long tasks the page can pin on a frame (where frames share the page's thread).
-  if (typeof PerformanceObserver === "function" && PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
+  if (longTasks()) {
     tasks = new PerformanceObserver(list => {
       for (const e of list.getEntries()) {
         const src = (e as PerformanceEntry & { attribution?: { containerSrc?: string }[] }).attribution?.[0]?.containerSrc;
@@ -302,6 +343,7 @@ export function watchFrame(moduleId: string, iframe: HTMLIFrameElement, role: "v
   return {
     beat: (busyMs: number) => w.frame.beat(busyMs),
     flood: () => w.frame.flood(),
+    hostWork: (ms: number) => w.frame.hostWork(ms),
     dispose() {
       if (!watched.delete(w)) return;
       seen?.unobserve(iframe);

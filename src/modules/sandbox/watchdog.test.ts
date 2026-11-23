@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { budgetOfStep, createLadder, TICK_MS, type Step } from "./watchdog";
+import { budgetOfStep, createLadder, STEPS, TICK_MS, type Step } from "./watchdog";
 
-function setup() {
+function setup(o: { judgeLag?: boolean } = {}) {
   let t = 0;
   const steps: [string, Step][] = [];
-  const ladder = createLadder({ now: () => t, onStep: (id, s) => steps.push([id, s]) });
+  const ladder = createLadder({ now: () => t, onStep: (id, s) => steps.push([id, s]), ...o });
   // One second: beats from the frames that beat, then the tick.
   const second = (beats: { frame: ReturnType<typeof ladder.frame>; busy?: number }[] = [], lag = 0) => {
     for (const half of [TICK_MS / 2, TICK_MS / 2]) {
@@ -52,11 +52,62 @@ describe("the watchdog's ladder", () => {
     expect((["normal", "warn", "reduce", "still", "paused", "killed"] as const).map(budgetOfStep)).toEqual(["normal", "normal", "reduce", "still", "still", "still"]);
   });
 
-  it("a frame whose beats stop is late, and steps down without reporting anything", () => {
+  it("a frame whose beats stop is late: asked to reduce, never stopped on lateness alone (nothing says it's the one)", () => {
     const { ladder, steps, second } = setup();
     ladder.frame("stuck", "view");
-    for (let i = 0; i < 8; i++) second();
-    expect(steps.map(([, s]) => s)).toEqual(["warn", "reduce", "still", "paused", "killed"]);
+    for (let i = 0; i < 20; i++) second();
+    expect(steps.map(([, s]) => s)).toEqual(["warn", "reduce"]);
+  });
+
+  it("one module stalling the frames' shared process never gets the others stopped", () => {
+    const { ladder, second } = setup();
+    const hog = ladder.frame("hog", "view");
+    const victim = ladder.frame("victim", "view");
+    // Both beat once in five seconds, neither says it was busy.
+    for (let i = 0; i < 30; i++) second(i % 5 === 4 ? [{ frame: hog }, { frame: victim }] : []);
+    expect(STEPS.indexOf(ladder.step("victim"))).toBeLessThanOrEqual(STEPS.indexOf("reduce"));
+    expect(ladder.step("hog")).not.toBe("killed");
+  });
+
+  it("the page's own work on a module's calls is the module's: judged even while the page lags", () => {
+    const { ladder, steps, second } = setup({ judgeLag: true });
+    const hog = ladder.frame("hog", "view");
+    const victim = ladder.frame("victim", "view");
+    second([{ frame: hog }, { frame: victim }]);
+    second([{ frame: hog }, { frame: victim }]);
+    for (let i = 0; i < 6; i++) {
+      hog.hostWork(400);
+      second([{ frame: hog }, { frame: victim }], 900);
+    }
+    expect(ladder.step("hog")).toBe("killed");
+    expect(steps.filter(([id]) => id === "victim")).toEqual([]);
+  });
+
+  it("a module at its full legal rate of host work is never struck", () => {
+    const { ladder, steps, second } = setup({ judgeLag: true });
+    const f = ladder.frame("kanbunny", "view");
+    for (let i = 0; i < 30; i++) {
+      f.hostWork(120);
+      second([{ frame: f }]);
+    }
+    expect(steps).toEqual([]);
+  });
+
+  it("where frames share the page's thread (no long-task data), a page that keeps lagging asks its modules to reduce", () => {
+    const { ladder, second } = setup({ judgeLag: true });
+    const hog = ladder.frame("hog", "view");
+    const victim = ladder.frame("victim", "view");
+    for (let i = 0; i < 30; i++) second([{ frame: hog }, { frame: victim }], 900);
+    expect(ladder.step("hog")).toBe("reduce");
+    expect(ladder.step("victim")).toBe("reduce");
+    // A sleep (one long gap) says nothing.
+    const s = setup({ judgeLag: true });
+    const m = s.ladder.frame("m", "view");
+    s.second([{ frame: m }]);
+    s.second([{ frame: m }]);
+    s.second([{ frame: m }], 60_000);
+    s.second([{ frame: m }]);
+    expect(s.steps).toEqual([]);
   });
 
   it("spares a module stalled by another one's long tasks (they share a process)", () => {

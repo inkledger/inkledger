@@ -164,8 +164,7 @@ function measure(value: unknown, max: number): { total: number; copied: number }
           const px = (x as ImageBitmap).width * (x as ImageBitmap).height * 4;
           total += px;
           handles += px;
-        }
-        else if (isA(x, "MessagePort")) total += 8;
+        } else if (isA(x, "MessagePort")) total += 8;
         else if (Array.isArray(x)) {
           if (x.length > MAX_NODES) return null;
           stack.push(...(x as unknown[]));
@@ -212,6 +211,8 @@ export type RpcPeerOptions = {
   onFailed?(reason: string): void;
   /** A message dropped: the frame sends more than the page may read (it is told once a message). */
   onFlood?(): void;
+  /** The page's own time spent on one of the frame's messages (checks, parsing, its handler's work before any wait). */
+  onCost?(ms: number): void;
   /** A message refused (not counted: other windows' messages, which are none of this peer's business). */
   onRefused?(why: Refusal, method?: string): void;
 };
@@ -274,49 +275,58 @@ export function createRpcPeer(o: RpcPeerOptions) {
     return { ok: false, why };
   };
 
+  const handle = (e: { origin: string; data: unknown }): ReceiveResult => {
+    if (e.origin !== "null") return refuse("origin");
+    const size = measure(e.data, RPC_MAX_BYTES);
+    // An oversized one cost the page its copy all the same: counted at the cap.
+    if (!afford(size ? size.copied : RPC_MAX_BYTES)) {
+      o.onFlood?.();
+      return refuse("flood");
+    }
+    if (size === null) return refuse("size");
+    const parsed = frameMessageSchema.safeParse(e.data);
+    if (!parsed.success) return refuse("schema");
+    const msg = parsed.data;
+    if (msg.t === "ready") o.onReady?.();
+    else if (msg.t === "mounted") o.onMounted?.();
+    else if (msg.t === "unmounted") o.onUnmounted?.();
+    else if (msg.t === "size") o.onSize?.(msg.h);
+    else if (msg.t === "beat") o.onBeat?.(msg.busy);
+    else if (msg.t === "failed") o.onFailed?.(msg.reason);
+    else {
+      const def = Object.hasOwn(o.methods, msg.m) ? o.methods[msg.m] : undefined;
+      if (!def) return refuse("unknown-method", msg.m, msg.id);
+      if (def.cap && !o.capabilities.includes(def.cap)) return refuse("capability", msg.m, msg.id);
+      if (!take(msg.m, def)) return refuse("rate-limited", msg.m, msg.id);
+      if (inFlight >= MAX_IN_FLIGHT) return refuse("busy", msg.m, msg.id);
+      inFlight++;
+      const id = msg.id;
+      void (async () => {
+        try {
+          const value: unknown = await def.invoke(msg.a, ctx);
+          post({ v: RPC_VERSION, t: "res", id, ok: true, value: value ?? null });
+        } catch (err) {
+          const error = err instanceof Error ? err.message.slice(0, 200) : "failed";
+          post({ v: RPC_VERSION, t: "res", id, ok: false, error });
+        } finally {
+          inFlight--;
+        }
+      })();
+    }
+    return { ok: true };
+  };
+
   return {
     receive(e: { source: unknown; origin: string; data: unknown }): ReceiveResult {
       const mine = o.source();
       if (mine === null || mine === undefined || e.source !== mine) return { ok: false, why: "source" };
       if (disposed) return { ok: false, why: "disposed" };
-      if (e.origin !== "null") return refuse("origin");
-      const size = measure(e.data, RPC_MAX_BYTES);
-      // An oversized one cost the page its copy all the same: counted at the cap.
-      if (!afford(size ? size.copied : RPC_MAX_BYTES)) {
-        o.onFlood?.();
-        return refuse("flood");
+      const t0 = now();
+      try {
+        return handle(e);
+      } finally {
+        o.onCost?.(now() - t0);
       }
-      if (size === null) return refuse("size");
-      const parsed = frameMessageSchema.safeParse(e.data);
-      if (!parsed.success) return refuse("schema");
-      const msg = parsed.data;
-      if (msg.t === "ready") o.onReady?.();
-      else if (msg.t === "mounted") o.onMounted?.();
-      else if (msg.t === "unmounted") o.onUnmounted?.();
-      else if (msg.t === "size") o.onSize?.(msg.h);
-      else if (msg.t === "beat") o.onBeat?.(msg.busy);
-      else if (msg.t === "failed") o.onFailed?.(msg.reason);
-      else {
-        const def = Object.hasOwn(o.methods, msg.m) ? o.methods[msg.m] : undefined;
-        if (!def) return refuse("unknown-method", msg.m, msg.id);
-        if (def.cap && !o.capabilities.includes(def.cap)) return refuse("capability", msg.m, msg.id);
-        if (!take(msg.m, def)) return refuse("rate-limited", msg.m, msg.id);
-        if (inFlight >= MAX_IN_FLIGHT) return refuse("busy", msg.m, msg.id);
-        inFlight++;
-        const id = msg.id;
-        void (async () => {
-          try {
-            const value: unknown = await def.invoke(msg.a, ctx);
-            post({ v: RPC_VERSION, t: "res", id, ok: true, value: value ?? null });
-          } catch (err) {
-            const error = err instanceof Error ? err.message.slice(0, 200) : "failed";
-            post({ v: RPC_VERSION, t: "res", id, ok: false, error });
-          } finally {
-            inFlight--;
-          }
-        })();
-      }
-      return { ok: true };
     },
     /** A message to the frame (init, activate, unmount, a port). */
     send: post,

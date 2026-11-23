@@ -294,6 +294,7 @@ function openFrame(
     onSize: resize,
     onBeat: busy => watch?.beat(busy),
     onFlood: () => watch?.flood(),
+    onCost: ms => watch?.hostWork(ms),
     onFailed(reason) {
       iframe.dataset.state = "failed";
       console.error(`[module ${entry.id}] ${reason}`);

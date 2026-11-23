@@ -159,6 +159,22 @@ describe("framed module messages", () => {
     expect(floods).toBe(0);
   });
 
+  it("tells the host's time spent on each of its frame's messages, the handler's own included", () => {
+    let t = 0;
+    const costs: number[] = [];
+    const p = createRpcPeer({
+      source: () => frame,
+      post: () => {},
+      capabilities: [],
+      now: () => t,
+      onCost: ms => costs.push(ms),
+      methods: { heavy: method({ args: z.tuple([]), rate: [10, 10], run: () => void (t += 40) }) },
+    });
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "heavy", a: [] } });
+    p.receive({ source: other, origin: "null", data: { v: 1, t: "call", id: 2, m: "heavy", a: [] } });
+    expect(costs).toEqual([40]);
+  });
+
   it("refuses arguments outside the method's schema", async () => {
     const { call, sent } = peer();
     call("echo", ["far too long a string"], 9);
