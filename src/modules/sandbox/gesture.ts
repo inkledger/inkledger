@@ -79,12 +79,14 @@ export type Gestures = ReturnType<typeof createGestures>;
  * them: a call made at once after a gesture is held (at most `GESTURE_MS`)
  * until the reports it follows have arrived.
  */
-export function ownReports(onReport: (kind: OwnGesture) => void) {
+export function ownReports(onReport: (kind: OwnGesture) => void, onFocus?: () => void) {
   const ch = new MessageChannel();
   let seen = 0;
   const waiting = new Set<{ g: number; done: () => void }>();
   ch.port1.onmessage = (e: MessageEvent<unknown>) => {
     const kind = e.data;
+    // Its window took the focus: no gesture (not counted), only when to read where the focus is.
+    if (kind === "focus") return onFocus?.();
     if (kind !== "pointer" && kind !== "key") return;
     seen++;
     onReport(kind);

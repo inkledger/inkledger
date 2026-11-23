@@ -180,6 +180,27 @@ test("a framed module draws in its card, talks to the host and its runtime, and 
     assert.equal(await page.locator("iframe[data-module-frame]").count(), 0);
   }));
 
+test("the focus in a module's frame shows the host's badge with its name, outside its box", () =>
+  withFramed(async ({ page }) => {
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
+    const badge = page.locator('[data-module-focus-badge="framed"]');
+    assert.equal(await badge.count(), 0);
+    await page.frameLocator(WIDGET).getByTestId("framed-hello").click();
+    await badge.waitFor();
+    assert.equal((await badge.textContent()).trim(), "framed — module");
+    assert.equal(await badge.evaluate(el => getComputedStyle(el).pointerEvents), "none");
+    await page.getByRole("status").filter({ hasText: "framed — module" }).waitFor({ state: "attached" });
+    // Drawn by the host outside the frame's box, where the module can't paint.
+    const b = await badge.boundingBox();
+    const f = await page.locator(WIDGET).boundingBox();
+    const overlaps = b.x < f.x + f.width && b.x + b.width > f.x && b.y < f.y + f.height && b.y + b.height > f.y;
+    assert.equal(overlaps, false, `badge ${JSON.stringify(b)} outside frame ${JSON.stringify(f)}`);
+    // Back on the app: gone, and the announcement with it.
+    await page.getByRole("heading").first().click();
+    await badge.waitFor({ state: "detached" });
+    assert.equal(await page.getByRole("status").filter({ hasText: "framed — module" }).count(), 0);
+  }));
+
 test("other bytes at the code URL never run: the import map pins the entry to its hash", () =>
   withFramed(
     async ({ page, consoleErrors }) => {

@@ -852,4 +852,7 @@ export const ui = {
     waiting: "{count} waiting for their history",
     useLikely: "Set the likely estimate, {duration}",
   },
+  moduleFocus: {
+    badge: "{name} — module",
+  },
 } satisfies Tree;

@@ -61,6 +61,7 @@ import { FlowControlHost, flowControlProps } from "@/lib/workspace/instrumentati
 import { routeControlId } from "@/lib/workspace/searchEvents";
 import { ModuleSettingsSheet } from "@/modules/ModuleSettingsSheet";
 import { ModuleSheet } from "@/modules/sandbox/ModuleSheet";
+import { ModuleFocusBadge } from "@/modules/sandbox/ModuleFocusBadge";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { PALETTE_SHORTCUT } from "@/lib/dom";
 import { cn } from "@/lib/utils";
@@ -864,6 +865,7 @@ export function AppLayout() {
         <IssueHistoryDialog />
         <ModuleSettingsSheet />
         <ModuleSheet />
+        <ModuleFocusBadge />
       </div>
       </ModulesProvider>
       </WorkspaceScopeProvider>

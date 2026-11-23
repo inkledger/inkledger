@@ -86,6 +86,25 @@ describe("the frame's host API (bootstrap)", () => {
     expect(told).toEqual(["pointer", "key"]);
   });
 
+  it("tells the host its window took the focus (the page sees no move between frames), never as a gesture", async () => {
+    const kinds: string[] = [];
+    let focuses = 0;
+    const own = ownReports(k => kinds.push(k), () => focuses++);
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => {} } };
+    const f = bootFrame({ capabilities: [], mod, methods: {}, own: own.port });
+    await settle();
+    f.focus({ isTrusted: true });
+    // A script's own focus event says nothing.
+    f.focus({ isTrusted: false });
+    await new Promise(r => setTimeout(r, 50));
+    expect(focuses).toBe(1);
+    expect(kinds).toEqual([]);
+    // Not counted: a call after it waits for no report.
+    expect(own.settle(0)).toBeNull();
+    expect(own.settle(1)).not.toBeNull();
+    own.close();
+  });
+
   it("a click right after a pointer down reaches the host after its gesture (the port is slower than the window here)", async () => {
     let pointers = 0;
     const own = ownReports(kind => kind === "pointer" && pointers++);

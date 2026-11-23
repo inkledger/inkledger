@@ -854,4 +854,7 @@ export const ui: Shape<typeof en> = {
     waiting: "{count} in attesa del loro storico",
     useLikely: "Imposta la stima probabile, {duration}",
   },
+  moduleFocus: {
+    badge: "{name} — modulo",
+  },
 };

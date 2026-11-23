@@ -91,6 +91,8 @@ let told = 0;
 const tell = (kind) => { if (own) { told++; apply(portPost, own, [kind]); } };
 addEventListener("pointerdown", (e) => { if (e.isTrusted) tell("pointer"); }, true);
 addEventListener("keydown", (e) => { if (e.isTrusted) tell("key"); }, true);
+// Its window took the focus (from another frame too, which the page sees nothing of): not a gesture, never counted.
+addEventListener("focus", (e) => { if (e.isTrusted && own) apply(portPost, own, ["focus"]); });
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
 const MAX_BYTES = ${PICTURE_MAX_BYTES};
 const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));

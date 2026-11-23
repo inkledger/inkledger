@@ -21,6 +21,7 @@ import { createRateBuckets, createRpcPeer, RPC_VERSION, type HostMessage, type R
 import { budgetOf, markStopped, watchFrame } from "./watchdog";
 import { createFrameBudget } from "./budget";
 import { moduleSessions } from "./session";
+import { pageFocusBadge } from "./focusBadge";
 
 /**
  * Framed modules on the page: one sandboxed view frame per slot mount, and
@@ -287,7 +288,7 @@ function openFrame(
       initialised = true;
       if (role === "view") {
         // Its bootstrap's own port, before the module loads: the person's real gestures in this view.
-        own = ownReports(kind => gestures.own(iframe, kind));
+        own = ownReports(kind => gestures.own(iframe, kind), () => pageFocusBadge().check());
         peer.send({ v: RPC_VERSION, t: "own" }, [own.port]);
       }
       const transfer = ready(peer);
@@ -323,6 +324,8 @@ function openFrame(
     },
   });
   const removePeer = addPeer(peer);
+  // Named by the host while the focus is in it (a sheet's own header names it already).
+  const leaveBadge = role === "view" && slot !== "sheet" ? pageFocusBadge().add(iframe, { moduleId: entry.id, name: entry.name, box: parent }) : null;
   let loads = 0;
   // The first load is the document; any later one is the frame navigating (blocked or not).
   iframe.addEventListener("load", () => {
@@ -340,6 +343,7 @@ function openFrame(
     stop() {
       if (stopped) return;
       stopped = true;
+      leaveBadge?.();
       watch?.dispose();
       watch = null;
       cancelAnimationFrame(sizeFrame);

@@ -31,7 +31,7 @@ export function bootFrame(o: {
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
-  const focuses: (() => void)[] = [];
+  const focuses: ((e: unknown) => void)[] = [];
   const inputs = new Map<string, ((e: unknown) => void)[]>();
   const parentWin = {
     postMessage(m: unknown, _origin: string, transfer: Transferable[] = []) {
@@ -59,7 +59,7 @@ export function bootFrame(o: {
     document: doc,
     location: { href: "http://app.test/modules/frame/x/0" },
     addEventListener: (t: string, fn: (e: unknown) => void) =>
-      t === "message" ? frameListeners.push(fn) : t === "pagehide" ? pagehides.push(() => fn({})) : t === "focus" ? focuses.push(() => fn({})) : inputs.set(t, [...(inputs.get(t) ?? []), fn]),
+      t === "message" ? frameListeners.push(fn) : t === "pagehide" ? pagehides.push(() => fn({})) : t === "focus" ? focuses.push(fn) : inputs.set(t, [...(inputs.get(t) ?? []), fn]),
     MessagePort,
     Reflect,
     load: async () => ({ default: o.mod }),
@@ -107,8 +107,8 @@ export function bootFrame(o: {
     body: doc.body,
     /** The frame's focused element (the fake document's). */
     setActive: (el: unknown) => void (doc.activeElement = el),
-    /** The frame's window takes the focus (the host focused its iframe). */
-    focus: () => focuses.forEach(fn => fn()),
+    /** The frame's window takes the focus (the host focused its iframe; `isTrusted`: the browser's). */
+    focus: (e: { isTrusted?: boolean } = {}) => focuses.forEach(fn => fn(e)),
     /** An input event on the frame's window (`isTrusted`: the browser's, not a script's). */
     input: (type: string, e: { isTrusted: boolean }) => inputs.get(type)?.forEach(fn => fn(e)),
   };
