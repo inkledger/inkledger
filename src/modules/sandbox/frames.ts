@@ -180,8 +180,9 @@ function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => voi
     fn => {
       let open = commandPalette.get();
       let wait = 0;
-      // The palette's own field, once it is drawn and done growing in (its body may load first): else the app's search.
-      const field = (): AnchorEl | undefined => document.querySelector<HTMLElement>('[data-slot="dialog-content"] [data-slot="command-input-wrapper"]') ?? undefined;
+      // The palette itself (its field is its top row; its edge is where to stand), once drawn and done growing in
+      // (its body may load first): else the app's search.
+      const field = (): AnchorEl | undefined => document.querySelector<HTMLElement>('[data-slot="command-input-wrapper"]')?.closest<HTMLElement>('[data-slot="dialog-content"]') ?? undefined;
       const tellOpen = (tries: number) => {
         const f = field();
         if (!f && tries > 0) return void (wait = window.setTimeout(() => tellOpen(tries - 1), 50));
