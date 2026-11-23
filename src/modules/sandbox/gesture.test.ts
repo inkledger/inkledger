@@ -92,15 +92,15 @@ describe("whose gesture it was", () => {
     expect(g.has(frame, box, true)).toBe(true);
   });
 
-  it("a moment for what follows at once, longer for a picture the module draws first", () => {
+  it("as long as the browser's own activation, a picture the module draws first at least as long", () => {
     const { g, frame, box, tick } = setup();
+    expect(PICTURE_GESTURE_MS).toBeGreaterThanOrEqual(GESTURE_MS);
     g.own(frame, "pointer");
     tick(GESTURE_MS - 1);
     expect(g.has(frame, box, false)).toBe(true);
-    tick(2);
-    expect(g.has(frame, box, false)).toBe(false);
     expect(g.has(frame, box, false, PICTURE_GESTURE_MS)).toBe(true);
-    tick(PICTURE_GESTURE_MS);
+    tick(Math.max(GESTURE_MS, PICTURE_GESTURE_MS) + 1);
+    expect(g.has(frame, box, false)).toBe(false);
     expect(g.has(frame, box, false, PICTURE_GESTURE_MS)).toBe(false);
   });
 

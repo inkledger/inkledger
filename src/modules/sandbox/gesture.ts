@@ -12,8 +12,12 @@
  * app. A runtime frame, which the person can't touch, gets none.
  */
 
-/** How long a gesture still counts for what follows it at once (a sheet, the settings, the position). */
-export const GESTURE_MS = 1000;
+/**
+ * How long a gesture still counts for what follows it (a sheet, the settings, the position): the
+ * browser's own transient activation. Only ever this module's own gesture, so a wider window gives
+ * nothing to another module; a busy page delays a call past one second.
+ */
+export const GESTURE_MS = 5000;
 /** For a picture to share, save or open: the module draws it first (the browser's own window for its activation). */
 export const PICTURE_GESTURE_MS = 5000;
 
