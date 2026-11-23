@@ -46,6 +46,9 @@ export function createHitAreas(win: Window = window) {
       // Something opened over the page here (a dialog, a menu): the point is its.
       const top = doc.elementFromPoint(x, y);
       if (top?.closest(OVERLAYS) && !a.el.closest(OVERLAYS)) continue;
+      // A box drawn in the page's main region: the app's chrome outside it (the phone's header, the tab bar) keeps its points.
+      const region = a.el.closest("main");
+      if (region && top && !region.contains(top)) continue;
       // A control of the page is here, over the shape: it gets the gesture (the module's own buttons stay its).
       if (top && !a.el.contains(top) && top.closest(ABOVE_MODULES)) continue;
       if (a.test(x - r.left, y - r.top, r.width, r.height)) return a;

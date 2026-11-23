@@ -11,6 +11,6 @@ describe("PageHeader", () => {
     const html = renderToStaticMarkup(createElement(PageHeader, { title: "Dashboard", sticky: true }));
     expect(html).toContain("data-above-modules");
     const classes = /class="([^"]*)"/.exec(html)?.[1]?.split(" ") ?? [];
-    expect(classes).toEqual(expect.arrayContaining(["relative", "z-20"]));
+    expect(classes).toEqual(expect.arrayContaining(["relative", "z-20", "bg-card"]));
   });
 });

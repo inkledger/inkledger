@@ -170,6 +170,18 @@ describe("module hit areas", () => {
     expect(opened).toEqual(["older", "older", "newer"]);
   });
 
+  it("a box in the page's main region never takes a point where the app's chrome outside it lies (the phone's header, the tab bar)", () => {
+    const { win, reached, fire, pageListens } = page();
+    const el = Object.assign(box(), { closest: (s: string) => (s === "main" ? { contains: () => false } : null) });
+    let opened = 0;
+    createHitAreas(win).add(el, leftHalf, () => opened++);
+    pageListens();
+    fire("pointerdown", 20, 20);
+    fire("click", 20, 20);
+    expect(opened).toBe(0);
+    expect(reached).toEqual(["pointerdown", "click"]);
+  });
+
   it("forwards its box taking and losing the focus, until undone", () => {
     const { win } = page();
     const heard: [boolean, boolean][] = [];

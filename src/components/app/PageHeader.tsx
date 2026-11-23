@@ -80,7 +80,7 @@ export function PageHeader({
       className={cn(
         // A region: its toolbar folds by the header's own width (Toolbar), not the window's.
         "region flex flex-col gap-3 border-b px-5 py-4 md:px-6 xl:min-h-[4.5rem] xl:flex-row xl:items-center xl:justify-between xl:gap-6",
-        sticky && "relative z-20 lg:sticky lg:top-0 lg:bg-card",
+        sticky && "relative z-20 bg-card lg:sticky lg:top-0",
         // Over the Dashboard's backdrop scene: nearly opaque, no backdrop blur (it would be redone on every frame of the scene).
         sticky &&
           "group-has-[[data-module-slot=dashboard-backdrop]]/panel:bg-card/[0.97]",
