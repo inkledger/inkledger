@@ -167,23 +167,30 @@ test("Bonsai's film is a modal dialog: Tab stays inside, the slider says where i
     await page.goto(base + "/settings/store");
     await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
     await page.getByRole("menuitem", { name: "Settings" }).click();
-    const watch = page.getByRole("button", { name: "Watch it grow" });
+    // The button is the module's, in its settings' view frame; the film opens in the host's sheet over it.
+    const settingsFrame = page.locator('[data-module-slot="settings"] iframe[data-module-frame="view"]');
+    const watch = page.frameLocator('[data-module-slot="settings"] iframe[data-module-frame="view"]').getByRole("button", { name: "Watch it grow" });
     await watch.waitFor({ timeout: 30_000 });
-    await watch.focus();
-    await page.keyboard.press("Enter");
-    const film = page.getByRole("dialog", { name: "Your bonsai over time" });
-    await film.waitFor({ timeout: 30_000 });
+    await settled(page);
+    await watch.click();
+    const film = moduleSheet(page, "Bonsai").and(page.locator(':not(:has([data-module-slot="settings"]))'));
+    const filmFrame = film.locator('iframe[data-module-frame="view"]');
+    await film.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor({ timeout: 30_000 });
     assert.equal(await film.getAttribute("aria-modal"), "true");
+    const inside = await frameOf(filmFrame);
+    const slider = inside.getByRole("slider", { name: "Position in the film" });
+    await slider.waitFor({ timeout: 30_000 });
     for (let i = 0; i < 8; i++) {
       await page.keyboard.press(TAB);
       assert.equal(await film.evaluate(el => el.contains(document.activeElement)), true, `Tab ${i + 1} stays inside`);
     }
-    const slider = film.getByRole("slider", { name: "Position in the film" });
-    await page.waitForFunction(() => document.querySelector('input[type="range"][aria-valuetext]'));
+    await inside.waitForFunction(() => document.querySelector('input[type="range"][aria-valuetext]'));
     assert.match((await slider.getAttribute("aria-valuetext")) ?? "", /moment 1 of \d+/);
     await page.keyboard.press("Escape");
-    await film.waitFor({ state: "detached" });
-    assert.equal(await watch.evaluate(el => el === document.activeElement), true, "focus back on the button");
+    await film.waitFor({ state: "hidden" });
+    // Back on the button: the host's focus on its frame, the frame's on the button.
+    await focusOn(page, settingsFrame);
+    await (await frameOf(settingsFrame)).waitForFunction(() => document.activeElement?.textContent === "Watch it grow");
   }));
 
 test("a module's sheet closes on a click on its backdrop, a click in its frame keeps it, the sheet under it stays", { skip: skip || ((!IDS.includes("citywindow") || !IDS.includes("bonsai")) && "no citywindow or bonsai"), timeout: 600_000 }, () =>
