@@ -709,11 +709,13 @@ describe("add-on modules", () => {
       // Released on purpose from a day: oldest first, one per claim, never before the module counts.
       const { users } = await import("@db/schema");
       const [me] = await getDb().select().from(users).where(eq(users.id, userId));
-      expect(await releaseClosuresFrom(me, "hello", since - 5000)).toEqual({ total: 2, high: 1 });
-      expect(await claim()).toEqual([
-        { connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 },
-        { connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 },
-      ]);
+      // One counted live before (never a golden one): the most recent plain closure is skipped, the totals stay exact.
+      const skipped = [{ connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 }];
+      expect(await releaseClosuresFrom(me, "hello", since - 5000, { already: 1 })).toEqual({ deliver: 1, golden: 1, skipped, applied: false });
+      // A dry run writes nothing.
+      expect(await claim()).toEqual([]);
+      expect(await releaseClosuresFrom(me, "hello", since - 5000, { already: 1, apply: true })).toEqual({ deliver: 1, golden: 1, skipped, applied: true });
+      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 }]);
       expect(await claim()).toEqual([]);
       // Reopened and closed again: a new closure, told again.
       await close("CL-2", "Normale", 2, Date.now() + 2000);
@@ -842,7 +844,7 @@ describe("add-on modules", () => {
     const { releaseClosuresFrom } = await import("./closures");
     const { users } = await import("@db/schema");
     const [me] = await (await import("../queries/connection")).getDb().select().from(users).where(eq(users.id, userId));
-    expect(await releaseClosuresFrom(me, "hello", since)).toEqual({ total: 0, high: 0 });
+    expect(await releaseClosuresFrom(me, "hello", since, { apply: true })).toMatchObject({ deliver: 0, golden: 0 });
     expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([]);
   });
 });

@@ -34,15 +34,20 @@ const untold = (userId: number, moduleId: string) =>
       .where(and(eq(moduleClosureClaims.userId, userId), eq(moduleClosureClaims.moduleId, moduleId), eq(moduleClosureClaims.closureId, issueClosures.id))),
   );
 
-/** The module hears the closures from `from` on (never before it started counting); how many wait now, how many high priority (rank 0–1). */
-export async function releaseClosuresFrom(user: User, moduleId: string, from: number): Promise<{ total: number; high: number }> {
+export type Release = { deliver: number; golden: number; skipped: ClaimedClosure[]; applied: boolean };
+
+const isHigh = (c: ClaimedClosure) => c.priorityRank !== null && c.priorityRank <= 1;
+
+/**
+ * The module hears the closures assigned to the user from `from` on (never before it started
+ * counting) it was not told yet: what it would hear, how many golden (rank 0–1). `already`: that
+ * many it counted live before closures came from the server, skipped as the most recent plain
+ * ones (the live count never gave a golden one), so its totals end up exact. Written only with
+ * `apply`: the skipped ones claimed first, then the window opened.
+ */
+export async function releaseClosuresFrom(user: User, moduleId: string, from: number, opts: { already?: number; apply?: boolean } = {}): Promise<Release> {
   const db = getDb();
   const userId = user.id;
-  await db
-    .insert(moduleStorage)
-    .values({ userId, moduleId, key: FROM, value: String(from), updatedAt: new Date() })
-    .onConflictDoUpdate({ target: [moduleStorage.userId, moduleStorage.moduleId, moduleStorage.key], set: { value: String(from), updatedAt: new Date() } });
-  // Never before it started counting (claimClosures holds to it too).
   const [since] = await db
     .select({ value: moduleStorage.value })
     .from(moduleStorage)
@@ -52,8 +57,20 @@ export async function releaseClosuresFrom(user: User, moduleId: string, from: nu
     user,
     and(eq(issueClosures.userId, userId), eq(issueClosures.assigned, 1), gte(issueClosures.closedAt, Math.max(from, Number(since?.value ?? 0) || 0)), untold(userId, moduleId)),
   );
-  return { total: waiting.length, high: waiting.filter((c) => c.priorityRank !== null && c.priorityRank <= 1).length };
+  const already = Math.max(0, Math.floor(opts.already ?? 0));
+  const skip = new Set(already > 0 ? waiting.filter((c) => !isHigh(c)).slice(-already).map((c) => c.id) : []);
+  const deliver = waiting.filter((c) => !skip.has(c.id));
+  if (opts.apply) {
+    if (skip.size > 0) await db.insert(moduleClosureClaims).values([...skip].map((closureId) => ({ userId, moduleId, closureId }))).onConflictDoNothing();
+    await db
+      .insert(moduleStorage)
+      .values({ userId, moduleId, key: FROM, value: String(from), updatedAt: new Date() })
+      .onConflictDoUpdate({ target: [moduleStorage.userId, moduleStorage.moduleId, moduleStorage.key], set: { value: String(from), updatedAt: new Date() } });
+  }
+  return { deliver: deliver.length, golden: deliver.filter(isHigh).length, skipped: waiting.filter((c) => skip.has(c.id)).map(told), applied: opts.apply === true };
 }
+
+const told = (c: ClaimedClosure): ClaimedClosure => ({ connectionId: c.connectionId, issueKey: c.issueKey, priority: c.priority, priorityRank: c.priorityRank });
 
 export type ClaimedClosure = { connectionId: number; issueKey: string; priority: string; priorityRank: number | null };
 
@@ -69,20 +86,20 @@ async function jiraRanks(user: User, conn: typeof connections.$inferSelect) {
 }
 
 /** Closures as told, oldest first: the issue's key now, its rank by its site's order now. */
-async function ranked(user: User, where: SQL | undefined): Promise<ClaimedClosure[]> {
+async function ranked(user: User, where: SQL | undefined): Promise<(ClaimedClosure & { id: number })[]> {
   const rows = await getDb()
-    .select({ connectionId: issues.connectionId, issueKey: issues.key, priority: issues.priority, priorityRank: issues.priorityRank, conn: connections })
+    .select({ id: issueClosures.id, connectionId: issues.connectionId, issueKey: issues.key, priority: issues.priority, priorityRank: issues.priorityRank, conn: connections })
     .from(issueClosures)
     .innerJoin(issues, eq(issues.id, issueClosures.itemId))
     .innerJoin(connections, eq(connections.id, issues.connectionId))
     .where(where)
     .orderBy(asc(issueClosures.closedAt), asc(issueClosures.id));
   const ranks = new Map<number, Map<string, number | null> | null>();
-  const out: ClaimedClosure[] = [];
+  const out: (ClaimedClosure & { id: number })[] = [];
   for (const r of rows) {
     if (r.conn.type === "jira" && !ranks.has(r.conn.id)) ranks.set(r.conn.id, await jiraRanks(user, r.conn));
     const now = r.priority ? ranks.get(r.conn.id)?.get(r.priority) : undefined;
-    out.push({ connectionId: r.connectionId, issueKey: r.issueKey, priority: r.priority, priorityRank: now ?? r.priorityRank });
+    out.push({ id: r.id, connectionId: r.connectionId, issueKey: r.issueKey, priority: r.priority, priorityRank: now ?? r.priorityRank });
   }
   return out;
 }
@@ -106,5 +123,5 @@ export async function claimClosures(user: User, moduleId: string, since: number,
     .onConflictDoNothing()
     .returning({ id: moduleClosureClaims.closureId });
   if (claimed.length === 0) return [];
-  return ranked(user, inArray(issueClosures.id, claimed.map((c) => c.id)));
+  return (await ranked(user, inArray(issueClosures.id, claimed.map((c) => c.id)))).map(told);
 }
