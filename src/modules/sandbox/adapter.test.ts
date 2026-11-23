@@ -182,8 +182,8 @@ describe("the frame's host API (bootstrap)", () => {
     expect([cleaned, unmounted]).toEqual([1, 1]);
   });
 
-  it("page.importance: the box's points, off the page counting as important", async () => {
-    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 0, height: 0 }) } as unknown as HTMLElement;
+  it("page.importance: the box's points, off the box counting as important", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 90, top: 0, width: 20, height: 20 }) } as unknown as HTMLElement;
     let out: unknown = null;
     withModule(["page.importance"], (_el, host) => void host.page?.importance([[5, 5], [20, 5]]).then(r => (out = r)), quietEnv, { el, slot: "panel-edge", activate() {} });
     await settle();

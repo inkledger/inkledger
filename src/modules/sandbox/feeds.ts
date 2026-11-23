@@ -11,10 +11,13 @@ export type PointerWin = Pick<Window, "addEventListener" | "removeEventListener"
 };
 type Rect = { left: number; top: number; right: number; bottom: number };
 
+/** How far past its box the pointer is still the module's (CSS px): a creature looks at a pointer coming near, not across the page. */
+export const POINTER_RANGE_PX = 160;
+
 /**
  * One passive listener and at most one animation frame for every watcher:
  * a move is read once per frame, and nothing is sent while the page is
- * hidden, the box is off screen or the pointer is away (then null, once).
+ * hidden, the box is off screen or the pointer is away from the box (then null, once).
  */
 export function createPointerFeed(win: PointerWin) {
   type Watcher = { rect: () => Rect; push: (v: PointerState) => void; last: string };
@@ -25,7 +28,8 @@ export function createPointerFeed(win: PointerWin) {
     let v: PointerState = null;
     if (at && !win.document.hidden) {
       const r = w.rect();
-      if (r.right >= 0 && r.bottom >= 0 && r.left <= win.innerWidth && r.top <= win.innerHeight) v = { x: Math.round(at.x - r.left), y: Math.round(at.y - r.top) };
+      const near = at.x >= r.left - POINTER_RANGE_PX && at.x <= r.right + POINTER_RANGE_PX && at.y >= r.top - POINTER_RANGE_PX && at.y <= r.bottom + POINTER_RANGE_PX;
+      if (near && r.right >= 0 && r.bottom >= 0 && r.left <= win.innerWidth && r.top <= win.innerHeight) v = { x: Math.round(at.x - r.left), y: Math.round(at.y - r.top) };
     }
     const key = v ? `${v.x},${v.y}` : "";
     if (key === w.last) return;

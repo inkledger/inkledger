@@ -59,10 +59,14 @@ export function importanceOf(page: ImportancePage) {
   };
 }
 
-/** Points relative to a box at (left, top) on the page. */
-export function importanceAround(page: ImportancePage, left: number, top: number, points: readonly (readonly [number, number])[]): Importance[] {
+/** Points relative to the module's box on the page; one past the box is important, never looked at (it maps the box, not the page). */
+export function importanceAround(
+  page: ImportancePage,
+  box: { left: number; top: number; width: number; height: number },
+  points: readonly (readonly [number, number])[],
+): Importance[] {
   const at = importanceOf(page);
-  return points.slice(0, IMPORTANCE_MAX_POINTS).map(([x, y]) => at(left + x, top + y));
+  return points.slice(0, IMPORTANCE_MAX_POINTS).map(([x, y]) => (x >= 0 && y >= 0 && x < box.width && y < box.height ? at(box.left + x, box.top + y) : 1));
 }
 
 export const browserPage = (): ImportancePage => ({

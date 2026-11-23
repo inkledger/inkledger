@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LayoutState, PointerState } from "../hostV2";
-import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent, type LayoutChangedWin, type PointerWin } from "./feeds";
+import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, POINTER_RANGE_PX, createScrollingFlag, watchBlur, watchContent, type LayoutChangedWin, type PointerWin } from "./feeds";
 
 function fakeWin() {
   const on = new Map<string, Set<(e: unknown) => void>>();
@@ -62,6 +62,22 @@ describe("the pointer feed", () => {
     w.fire("pointerout", { relatedTarget: null });
     w.frame();
     expect(got).toEqual([null, { x: 5, y: 5 }, null, { x: 6, y: 6 }, null, { x: 7, y: 7 }, null]);
+  });
+
+  it("only in range of the box: a move across the rest of the window is not the module's", () => {
+    const w = fakeWin();
+    const feed = createPointerFeed(w.win);
+    const got: PointerState[] = [];
+    feed.watch(() => ({ left: 0, top: 0, right: 40, bottom: 40 }), v => got.push(v));
+    w.fire("pointermove", { clientX: 30, clientY: 30 });
+    w.frame();
+    w.fire("pointermove", { clientX: 40 + POINTER_RANGE_PX, clientY: 30 });
+    w.frame();
+    w.fire("pointermove", { clientX: 700, clientY: 500 });
+    w.frame();
+    w.fire("pointermove", { clientX: 30, clientY: 40 + POINTER_RANGE_PX + 1 });
+    w.frame();
+    expect(got).toEqual([null, { x: 30, y: 30 }, { x: 40 + POINTER_RANGE_PX, y: 30 }, null]);
   });
 });
 

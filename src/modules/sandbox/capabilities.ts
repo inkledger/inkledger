@@ -148,8 +148,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       cap: "page.importance",
       rate: [4, 4],
       run([points]) {
-        const r = view.el.getBoundingClientRect();
-        return importanceAround(d.page(), r.left, r.top, points);
+        return importanceAround(d.page(), view.el.getBoundingClientRect(), points);
       },
     });
     const ledges = d.ledges;
