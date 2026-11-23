@@ -1268,6 +1268,7 @@ export const settings = {
         sheet: "Opens its own panel when you click it",
         share: "Shares a picture when you ask",
         download: "Saves a picture when you ask",
+        downloadLarge: "Saves a film or a large file (up to 64 MB) when you ask",
         openImage: "Opens a picture when you ask",
         geo: "Reads your location when you ask",
         cache: "Keeps a cache on this device",

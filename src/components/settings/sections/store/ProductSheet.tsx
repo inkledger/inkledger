@@ -225,6 +225,7 @@ const CAPABILITY_KEY = {
   sheet: "sheet",
   share: "share",
   download: "download",
+  "download.large": "downloadLarge",
   "open-image": "openImage",
   geo: "geo",
   cache: "cache",

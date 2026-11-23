@@ -1269,6 +1269,7 @@ export const settings: Shape<typeof en> = {
         sheet: "Apre il proprio pannello quando lo clicchi",
         share: "Condivide un'immagine quando lo chiedi",
         download: "Salva un'immagine quando lo chiedi",
+        downloadLarge: "Salva un filmato o un file grande (fino a 64 MB) quando lo chiedi",
         openImage: "Apre un'immagine quando lo chiedi",
         geo: "Legge la tua posizione quando lo chiedi",
         cache: "Tiene una cache su questo dispositivo",
