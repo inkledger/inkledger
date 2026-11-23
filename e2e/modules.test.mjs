@@ -122,7 +122,7 @@ test("a module hears an issue closed while the app was closed, once", () =>
         await licensed("hello")(db);
         await db.q(
           `INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, status_category, category, project_key, project_name, issue_type, priority, priority_rank, labels, assignee_id, url, synced_at)
-           VALUES (1, 1, 'closed-1', 'DEMO-901', 'Closed elsewhere', 'In corso', 'In Progress', 'doing', 'DEMO', 'Demo', 'Task', 'Urgente', 1, '[]', '', 'https://example.test/DEMO-901', ?)`,
+           VALUES (1, 1, 'closed-1', 'DEMO-901', 'Closed elsewhere', 'In corso', 'In Progress', 'doing', 'DEMO', 'Demo', 'Task', 'Urgente', 1, '[]', 'mrossi', 'https://example.test/DEMO-901', ?)`,
           Date.now(),
         );
       },
