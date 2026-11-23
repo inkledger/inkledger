@@ -169,6 +169,10 @@ describe("page.importance: the ink, not the boxes", () => {
     const btn: Node2 = { tag: "button", box: { left: 100, top: 700, right: 140, bottom: 730 }, focus: true };
     const { p } = laidOut([btn], btn);
     expect(importanceAround(p, whole, [[98, 715], [150, 715]])).toEqual([1, 0]);
+    // A focused card: its edge, not its inside.
+    const big: Node2 = { tag: "div", box: { left: 300, top: 300, right: 600, bottom: 420 }, focus: true };
+    const { p: q } = laidOut([big], big);
+    expect(importanceAround(q, whole, [[298, 360], [450, 360], [450, 421]])).toEqual([1, 0, 1]);
   });
 
   it("a long call yields between slices of a few milliseconds, with the same answers", async () => {

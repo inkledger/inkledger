@@ -77,10 +77,13 @@ export function importanceOf(page: ImportancePage) {
   };
   const inked = (k: { text: Rect[] }, x: number, y: number) => k.text.some(b => within(b, x, y, 2));
   const active = page.activeElement;
-  const ring = active && active !== page.body && active.matches(":focus-visible") ? own(active) : [];
+  // The ring only, a band round the box (a module's own frame has none worth keeping off).
+  const ring = active && active !== page.body && active.tagName !== "IFRAME" && active.matches(":focus-visible") ? own(active) : [];
+  const onRing = (x: number, y: number) =>
+    ring.some(b => within(b, x, y, RING) && !(x > b.left + RING && x < b.right - RING && y > b.top + RING && y < b.bottom - RING));
   return (x: number, y: number): Importance => {
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= page.width || y >= page.height) return 1;
-    if (ring.some(b => within(b, x, y, RING))) return 1;
+    if (onRing(x, y)) return 1;
     let e = page.elementFromPoint(x, y);
     if (!e || e === page.documentElement || e === page.body) return 0;
     // Hit past its own boxes: a pseudo-element stretched over others, or text spilling out.
