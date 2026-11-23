@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createRpcPeer, messageBytes, method, RPC_MAX_BYTES, type HostMessage } from "./rpc";
+import { createRateBuckets, createRpcPeer, messageBytes, method, RPC_MAX_BYTES, type HostMessage } from "./rpc";
 
 const frame = { name: "frame" };
 const other = { name: "another frame" };
@@ -112,6 +112,21 @@ describe("framed module messages", () => {
     tick(500);
     expect(call("echo", ["a"], 5).ok).toBe(true);
     expect(call("echo", ["a"], 6).ok).toBe(false);
+  });
+
+  it("a costly method's rate is the module's: its frames share it", () => {
+    const shared = createRateBuckets();
+    const methods = {
+      geocode: method({ args: z.tuple([]), rate: [1, 2], shared: true, run: () => null }),
+      local: method({ args: z.tuple([]), rate: [1, 2], run: () => null }),
+    };
+    const views = [{ name: "view a" }, { name: "view b" }].map(source => ({
+      source,
+      p: createRpcPeer({ source: () => source, post: () => {}, capabilities: [], methods, now: () => 0, buckets: shared }),
+    }));
+    const call = (i: number, m: string) => views[i]?.p.receive({ source: views[i]?.source, origin: "null", data: { v: 1, t: "call", id: 1, m, a: [] } }).ok;
+    expect([call(0, "geocode"), call(0, "geocode"), call(1, "geocode")]).toEqual([true, true, false]);
+    expect([call(0, "local"), call(0, "local"), call(1, "local")]).toEqual([true, true, true]);
   });
 
   it("refuses arguments outside the method's schema", async () => {

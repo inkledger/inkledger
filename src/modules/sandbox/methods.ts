@@ -122,20 +122,22 @@ export function frameMethods(
         subs.delete(id);
       },
     }),
-    totals: method({ args: z.tuple([]), rate: [2, 5], run: () => api.totals() }),
+    totals: method({ args: z.tuple([]), rate: [2, 5], shared: true, run: () => api.totals() }),
     "history.daily": method({
       args: z.union([z.tuple([]), z.tuple([num])]),
       rate: [1, 3],
+      shared: true,
       run: a => api.history?.daily(a[0]) ?? [],
     }),
     weather: method({
       args: z.tuple([z.object({ lat: num.min(-90).max(90), lon: num.min(-180).max(180) }).strict()]),
       rate: [1, 3],
+      shared: true,
       run: ([at]) => api.weather(at),
     }),
-    geocode: method({ args: z.tuple([z.string().max(100)]), rate: [2, 4], run: ([q]) => api.geocode(q) }),
+    geocode: method({ args: z.tuple([z.string().max(100)]), rate: [2, 4], shared: true, run: ([q]) => api.geocode(q) }),
     openSettings: method({ args: z.tuple([]), rate: [1, 2], run: () => api.openSettings?.() }),
-    "files.get": method({ args: z.tuple([key]), rate: [4, 16], run: ([k]) => api.files?.get(k) ?? null }),
+    "files.get": method({ args: z.tuple([key]), rate: [4, 16], shared: true, run: ([k]) => api.files?.get(k) ?? null }),
     "files.put": method({
       args: z.tuple([key, z.instanceof(Blob).refine(b => b.size <= FILE_MAX_BYTES)]),
       rate: [1, 4],

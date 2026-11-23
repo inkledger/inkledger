@@ -146,7 +146,9 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     methods["page.importance"] = method({
       args: z.tuple([z.array(z.tuple([z.number().finite(), z.number().finite()])).max(IMPORTANCE_MAX_POINTS)]),
       cap: "page.importance",
+      // The module's 4 a second, whatever its views: each call reads the page on its thread.
       rate: [4, 4],
+      shared: true,
       run([points]) {
         return importanceAround(d.page(), view.el.getBoundingClientRect(), points);
       },
@@ -157,6 +159,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         args: z.tuple([]),
         cap: "page.ledges",
         rate: [4, 4],
+        shared: true,
         run() {
           const r = view.el.getBoundingClientRect();
           return ledgesAround(ledges(), { left: r.left, top: r.top, width: r.width, height: r.height });

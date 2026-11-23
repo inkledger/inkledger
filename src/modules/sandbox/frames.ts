@@ -16,7 +16,7 @@ import { fontLoader, themeSheet } from "./themeSheet";
 import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?url";
 import { sidebar } from "@/hooks/useSidebar";
-import { createRpcPeer, RPC_VERSION, type HostMessage, type RpcPeer } from "./rpc";
+import { createRateBuckets, createRpcPeer, RPC_VERSION, type HostMessage, type RateBuckets, type RpcPeer } from "./rpc";
 import { budgetOf, markStopped, watchFrame } from "./watchdog";
 import { createFrameBudget } from "./budget";
 import { moduleSessions } from "./session";
@@ -42,6 +42,13 @@ const ROOM: Partial<Record<ViewSlot, { top: number; right: number; bottom: numbe
 const budget = createFrameBudget();
 const peers = new Set<RpcPeer>();
 const killed = new Set<string>();
+/** Each module's rates for its costly methods, shared by its frames (a module with more frames gets no more). */
+const rates = new Map<string, RateBuckets>();
+const ratesOf = (id: string) => {
+  let r = rates.get(id);
+  if (!r) rates.set(id, (r = createRateBuckets()));
+  return r;
+};
 const onKill = new Map<string, Set<() => void>>();
 
 const onMessage = (e: MessageEvent) => peers.forEach(p => p.receive(e));
@@ -267,6 +274,7 @@ function openFrame(
     post: (m: HostMessage, transfer) => iframe.contentWindow?.postMessage(m, "*", transfer),
     capabilities: entry.capabilities,
     methods: { ...served.methods, ...caps.methods },
+    buckets: ratesOf(entry.id),
     onReady() {
       if (initialised) return;
       initialised = true;

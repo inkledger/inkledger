@@ -80,6 +80,8 @@ export type Method = {
   cap?: ModuleCapability;
   /** Calls per second, and the burst allowed. */
   rate: readonly [perSecond: number, burst: number];
+  /** Its rate is the module's, shared by all its frames (it costs the server or the page's thread). */
+  shared?: boolean;
   invoke(args: unknown, ctx: MethodContext): unknown;
 };
 
@@ -90,11 +92,13 @@ export function method<S extends z.ZodType<readonly unknown[]>>(def: {
   args: S;
   cap?: ModuleCapability;
   rate: readonly [number, number];
+  shared?: boolean;
   run(args: z.infer<S>, ctx: MethodContext): unknown;
 }): Method {
   return {
     cap: def.cap,
     rate: def.rate,
+    shared: def.shared,
     invoke(raw, ctx) {
       const parsed = def.args.safeParse(raw);
       if (!parsed.success) throw new RpcRefusal("bad-arguments");
@@ -166,6 +170,10 @@ export function messageBytes(value: unknown, max = RPC_MAX_BYTES): number | null
   return total;
 }
 
+/** Token buckets by method: a peer's own, or one module's for its shared methods. */
+export const createRateBuckets = () => new Map<string, { tokens: number; at: number }>();
+export type RateBuckets = ReturnType<typeof createRateBuckets>;
+
 export type Refusal = "source" | "origin" | "size" | "schema" | "unknown-method" | "capability" | "rate-limited" | "busy" | "disposed";
 
 export type RpcPeerOptions = {
@@ -174,6 +182,8 @@ export type RpcPeerOptions = {
   post: (message: HostMessage, transfer: Transferable[]) => void;
   capabilities: readonly ModuleCapability[];
   methods: Readonly<Record<string, Method>>;
+  /** The module's buckets, for its shared methods (without them each peer counts its own). */
+  buckets?: RateBuckets;
   now?: () => number;
   onReady?(): void;
   onMounted?(): void;
@@ -190,7 +200,7 @@ export type ReceiveResult = { ok: true } | { ok: false; why: Refusal };
 /** One frame's peer: `receive` every window message; it reads only its frame's. */
 export function createRpcPeer(o: RpcPeerOptions) {
   const now = o.now ?? (() => performance.now());
-  const buckets = new Map<string, { tokens: number; at: number }>();
+  const buckets = createRateBuckets();
   const owned = new Set<() => void>();
   let inFlight = 0;
   let disposed = false;
@@ -212,12 +222,13 @@ export function createRpcPeer(o: RpcPeerOptions) {
     },
   };
 
-  const take = (name: string, [perSecond, burst]: readonly [number, number]) => {
+  const take = (name: string, { rate: [perSecond, burst], shared }: Method) => {
     const t = now();
-    const b = buckets.get(name) ?? { tokens: burst, at: t };
+    const from = shared && o.buckets ? o.buckets : buckets;
+    const b = from.get(name) ?? { tokens: burst, at: t };
     b.tokens = Math.min(burst, b.tokens + ((t - b.at) / 1000) * perSecond);
     b.at = t;
-    buckets.set(name, b);
+    from.set(name, b);
     if (b.tokens < 1) return false;
     b.tokens -= 1;
     return true;
@@ -249,7 +260,7 @@ export function createRpcPeer(o: RpcPeerOptions) {
         const def = Object.hasOwn(o.methods, msg.m) ? o.methods[msg.m] : undefined;
         if (!def) return refuse("unknown-method", msg.m, msg.id);
         if (def.cap && !o.capabilities.includes(def.cap)) return refuse("capability", msg.m, msg.id);
-        if (!take(msg.m, def.rate)) return refuse("rate-limited", msg.m, msg.id);
+        if (!take(msg.m, def)) return refuse("rate-limited", msg.m, msg.id);
         if (inFlight >= MAX_IN_FLIGHT) return refuse("busy", msg.m, msg.id);
         inFlight++;
         const id = msg.id;
