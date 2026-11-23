@@ -11,6 +11,8 @@
  * card (a whole-card link) do not.
  */
 
+import { yieldToPage } from "./info";
+
 export type Importance = 0 | 0.8 | 1;
 export const IMPORTANCE_MAX_POINTS = 600;
 /** The page's thread a call may take before it yields (a quarter of a frame). */
@@ -116,7 +118,7 @@ export async function importanceInSlices(
   page: () => ImportancePage,
   box: () => { left: number; top: number; width: number; height: number },
   points: readonly (readonly [number, number])[],
-  clock: { now(): number; yield(): Promise<void> } = { now: () => performance.now(), yield: () => new Promise(r => setTimeout(r, 0)) },
+  clock: { now(): number; yield(): Promise<void> } = { now: () => performance.now(), yield: yieldToPage },
 ): Promise<Importance[]> {
   const todo = points.slice(0, IMPORTANCE_MAX_POINTS);
   const out: Importance[] = [];

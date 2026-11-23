@@ -50,6 +50,8 @@ export type InfoEl = {
   key: object;
   tag: string;
   role: string | null;
+  /** Where the person types rich text (the editable root only): one control, never looked into. */
+  editable: boolean;
   style(): InfoStyle;
   rect(): Rect;
   /** Its padding box on the page, and how far its content scrolls. */
@@ -84,7 +86,7 @@ const clipTo = (r: Rect, c: Rect): Rect | null => {
 const grow = (r: Rect, m: number): Rect => ({ left: r.left - m, top: r.top - m, right: r.right + m, bottom: r.bottom + m });
 const half = (v: number) => Math.round(v * 2) / 2;
 
-type Ctx = { clip: Rect; s: number; bg: string; interactive: boolean };
+type Ctx = { clip: Rect; s: number; bg: string; interactive: boolean; pointer: boolean };
 /** A scroller as read: whose it is, inside which, and where its content stood. */
 export type ScrollerRead = Scroller & { parent: number; scrollX: number; scrollY: number; key: object };
 type Found = { rects: InfoRect[]; surfaces: Surface[]; scrollers: ScrollerRead[] };
@@ -118,9 +120,11 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
   // Wholly past what is read, and nothing of it can spill out of an ordinary box: skipped with what it holds.
   if (st.position !== "absolute" && !fixed && st.display !== "contents" && !clipTo(grow(r, 1), clip)) return;
   const shown = st.visibility !== "hidden" && st.visibility !== "collapse" && st.display !== "contents";
-  const typing = TYPING_TAGS.has(el.tag) || el.role === "textbox";
+  const typing = TYPING_TAGS.has(el.tag) || el.role === "textbox" || el.editable;
   const control = typing || CONTROL_TAGS.has(el.tag) || (el.role !== null && CONTROL_ROLES.has(el.role));
-  const interactive = ctx.interactive || control || st.cursor === "pointer";
+  // The cursor is inherited: only where it starts is a clickable thing.
+  const pointer = st.cursor === "pointer" && !ctx.pointer;
+  const interactive = ctx.interactive || control || pointer;
   const rect = (b: Rect, kind: InfoKind) => {
     const c = clipTo(b, clip);
     if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind, interactive, s });
@@ -143,7 +147,7 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
     if (bottom || filled || shadow) face(r.bottom, "bottom");
   }
   const small = h <= CONTROL_H && w <= CONTROL_W;
-  if (shown && (typing || ((control || st.cursor === "pointer") && small))) {
+  if (shown && (typing || ((control || pointer) && small))) {
     rect(r, "control");
     return;
   }
@@ -170,7 +174,7 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
       const c = clipTo(t, clip);
       if (c) out.rects.push({ x: c.left, y: c.top, w: c.right - c.left, h: c.bottom - c.top, kind: "text", interactive, s });
     }
-  const next: Ctx = { clip, s, bg: bgA >= 0.5 ? st.backgroundColor : ctx.bg, interactive };
+  const next: Ctx = { clip, s, bg: bgA >= 0.5 ? st.backgroundColor : ctx.bg, interactive, pointer: st.cursor === "pointer" };
   for (const ch of el.children()) yield* walk(ch, next, view, ids, out);
 }
 
@@ -221,7 +225,7 @@ export type ScanResult = Omit<InfoSnapshot, "v" | "scrollers"> & { scrollers: Sc
 export async function scanInfo(page: InfoPage, ids: ScrollerIds, clock: { now(): number; yield(): Promise<void> }, sliceMs = INFO_SLICE_MS): Promise<ScanResult> {
   const view = { left: 0, top: 0, right: page.width, bottom: page.height };
   const found: Found = { rects: [], surfaces: [], scrollers: [] };
-  const steps = walk(page.root, { clip: grow(view, INFO_MARGIN), s: 0, bg: "", interactive: false }, view, ids, found);
+  const steps = walk(page.root, { clip: grow(view, INFO_MARGIN), s: 0, bg: "", interactive: false, pointer: false }, view, ids, found);
   for (;;) {
     const from = clock.now();
     let done = false;
@@ -367,6 +371,7 @@ export function browserInfoPage(): InfoPage {
     key: e,
     tag: e.localName,
     role: e.getAttribute("role"),
+    editable: e instanceof HTMLElement && e.isContentEditable && !e.parentElement?.isContentEditable,
     style: () => getComputedStyle(e),
     rect: () => e.getBoundingClientRect(),
     client() {

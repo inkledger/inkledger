@@ -343,6 +343,30 @@ describe("the frame's host API (bootstrap)", () => {
     expect(await run([])).toEqual({});
   });
 
+  it("page.events carries the scrollers' moves only to a module with page.info", async () => {
+    const el = { dataset: {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) } as unknown as HTMLElement;
+    const pageEvents = {
+      feed: { watch: () => () => {} },
+      page: () => ({ card: () => null, column: () => null, anchor: () => null, width: 1200, height: 800 }),
+    } as unknown as CapabilityDeps["pageEvents"];
+    const info = {
+      hold: () => () => {},
+      get: async () => ({ v: 1, viewport: { w: 1200, h: 800 }, rects: [], surfaces: [], scrollers: [] }),
+      onScroll: (fn: (e: { kind: "scroll"; s: number; dx: number; dy: number }) => void) => (fn({ kind: "scroll", s: 2, dx: 0, dy: -30 }), () => {}),
+      version: () => 1,
+    };
+    const run = async (capabilities: ModuleCapability[], infoScrolls: boolean) => {
+      const heard: unknown[] = [];
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "page-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, info, infoScrolls, pageEvents, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
+      const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (host.pageEvents?.(e => heard.push(e)), () => {}) } };
+      bootFrame({ capabilities, mod, methods: caps.methods });
+      await settle();
+      return heard;
+    };
+    expect(await run(["page.events", "page.info"], true)).toEqual([{ kind: "scroll", s: 2, dx: 0, dy: -30 }]);
+    expect(await run(["page.events", "page.ledges"], false)).toEqual([]);
+  });
+
   it("share hands the host a picture; one over the message cap is refused in the frame, never left hanging", async () => {
     const shared: File[] = [];
     const png = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]);

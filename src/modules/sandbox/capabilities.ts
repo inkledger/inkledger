@@ -29,6 +29,8 @@ export type CapabilityDeps = {
   page: () => ImportancePage;
   /** What the page shows (page.info, page.ledges), shared by the page's modules; given only to a module that has one of them. */
   info?: ReturnType<typeof createInfoSource>;
+  /** The module has "page.info" itself: its page.events carry the scrollers' moves. */
+  infoScrolls?: boolean;
   /** The app's landmarks (read per call). */
   anchors?: () => AnchorPage;
   /** What the person does on the page, measured per watcher. */
@@ -212,7 +214,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         ...watch(push => {
           const off = events.feed.watch(() => view.el.getBoundingClientRect(), events.page, push);
           // With page.info, its scrollers' moves too (once a frame).
-          const offScroll = info?.onScroll(push);
+          const offScroll = d.infoScrolls ? info?.onScroll(push) : undefined;
           return () => {
             off();
             offScroll?.();

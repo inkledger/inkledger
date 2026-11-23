@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FIXED, INFO_MARGIN, createInfoSource, mergeSurfaces, scanInfo, scrollerIds, type InfoEl, type InfoEnv, type InfoPage, type InfoStyle, type ScrollEvent } from "./info";
 
 type Box = [left: number, top: number, w: number, h: number];
-type F = { tag?: string; role?: string; r: Box; st?: Partial<InfoStyle>; text?: Box[]; kids?: F[]; scroll?: { w: number; h: number; x?: number; y?: number } };
+type F = { tag?: string; role?: string; editable?: boolean; r: Box; st?: Partial<InfoStyle>; text?: Box[]; kids?: F[]; scroll?: { w: number; h: number; x?: number; y?: number } };
 const STYLE: InfoStyle = {
   display: "block",
   visibility: "visible",
@@ -29,6 +29,7 @@ function el(f: F): InfoEl {
     key: f,
     tag: f.tag ?? "div",
     role: f.role ?? null,
+    editable: f.editable ?? false,
     style: () => ({ ...STYLE, ...f.st }),
     rect: () => rectOf(f.r),
     client: () => ({ ...rectOf(f.r), scrollW: f.scroll?.w ?? f.r[2], scrollH: f.scroll?.h ?? f.r[3], clientW: f.r[2], clientH: f.r[3], scrollX: f.scroll?.x ?? 0, scrollY: f.scroll?.y ?? 0 }),
@@ -78,6 +79,16 @@ describe("page.info", () => {
     ]);
     // The button's own top is a surface (it stands out from the page).
     expect(got.surfaces).toContainEqual({ x: 900, y: 20, w: 120, kind: "top", s: 0 });
+  });
+
+  it("a wide clickable row is read by its ink: what inherits its pointer cursor is no control of its own", async () => {
+    const got = await scan([{ r: [100, 100, 900, 40], st: { cursor: "pointer" }, kids: [{ r: [110, 110, 30, 20], st: { cursor: "pointer" } }, { r: [200, 110, 100, 20], st: { cursor: "pointer" }, text: [[200, 111, 80, 18]] }] }]);
+    expect(got.rects).toEqual([{ x: 200, y: 111, w: 80, h: 18, kind: "text", interactive: true, s: 0 }]);
+  });
+
+  it("a rich-text editor is one control, never looked into", async () => {
+    const got = await scan([{ r: [100, 100, 400, 40], editable: true, kids: [{ tag: "p", r: [100, 100, 400, 20], text: [[100, 101, 300, 18]] }] }]);
+    expect(got.rects).toEqual([{ x: 100, y: 100, w: 400, h: 40, kind: "control", interactive: true, s: 0 }]);
   });
 
   it("pictures and icons are media; small coloured shapes are data marks; a 1 px divider is a surface only", async () => {
@@ -217,8 +228,7 @@ describe("page.info source", () => {
     off();
   });
 
-  it("watches with observers and listeners only: no timers in it", () => {
-    const code = readFileSync(new URL("./info.ts", import.meta.url), "utf8");
-    expect(code).not.toMatch(/setInterval|setTimeout/);
+  it("watches with observers and listeners only, and yields without timers", () => {
+    for (const f of ["./info.ts", "./ledges.ts", "./importance.ts"]) expect(readFileSync(new URL(f, import.meta.url), "utf8")).not.toMatch(/setInterval|setTimeout/);
   });
 });
