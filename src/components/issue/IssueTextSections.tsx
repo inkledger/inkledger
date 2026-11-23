@@ -16,7 +16,7 @@ import type { Issue, IssueData } from "@/components/issue/useIssueData";
 import { t } from "@/i18n";
 
 /**
- * The issue's text: description, TODOs, private and linked notes, mails and comments.
+ * The issue's text: description, comments, then TODOs, private and linked notes and mails.
  * `lazy` (a pane) mounts the mails and comments once they near the screen; `idScope`
  * keeps the composers' ids unique where the same key could be shown twice.
  */
@@ -42,9 +42,9 @@ export function IssueTextSections({
             connectionId={i.connectionId}
           />
         </PanelSection>
-        <YourWork issue={i} idScope={idScope} />
+        {/* The conversation first, then the user's own parts. */}
         <LazySection lazy={lazy}>
-          <PanelSection title={t("pages.issueDetail.comments")}>
+          <PanelSection title={t("pages.issueDetail.comments")} className="border-b">
             <CommentsSection
               issueKey={i.key}
               connectionId={i.connectionId}
@@ -52,6 +52,7 @@ export function IssueTextSections({
             />
           </PanelSection>
         </LazySection>
+        <YourWork issue={i} idScope={idScope} />
     </div>
   );
 }
