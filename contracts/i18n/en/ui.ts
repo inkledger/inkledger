@@ -349,7 +349,7 @@ export const ui = {
   },
   syncFailure: {
     auth: "the saved credentials were refused",
-    signInDenied: "Jira is asking for a CAPTCHA: sign in to Jira in a browser, then reconnect",
+    signInDenied: "Jira is asking for a CAPTCHA: sign out of Jira in a browser, sign in again solving it, then reconnect once",
     forbidden: "access denied",
     invalid: "the request was refused",
     rateLimit: "too many requests, trying again later",

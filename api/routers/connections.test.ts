@@ -80,6 +80,29 @@ describe("Settings → Connections", () => {
     await expect(caller.connections.reconnectJira({ id: c.id, ...login, siteUrl: "https://three.atlassian.net" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("a refused reconnect keeps the session and says why; after a CAPTCHA, that it may still be the CAPTCHA", async () => {
+    const [c] = await caller.connections.list();
+    const { t } = await import("@contracts/i18n");
+    vi.stubGlobal("fetch", async () => new Response("<html></html>", { status: 401, headers: { "Content-Type": "text/html" } }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      // UNAUTHORIZED is the session's own answer: the app would sign out and the form start over.
+      await expect(caller.connections.reconnectJira({ id: c.id, ...login })).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: t("server.auth.invalidCredentialsCloud") });
+      await expect(caller.connections.addJira({ ...login, label: "" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      await q(
+        "INSERT INTO connection_sync (connection_id, stream, last_error, last_error_at) VALUES (?, 'issues', ?, ?) ON CONFLICT (connection_id, stream) DO UPDATE SET last_error = excluded.last_error",
+        c.id,
+        "auth (401): Jira refused the sign-in (CAPTCHA_CHALLENGE): sign in to Jira in a browser, then reconnect",
+        Date.now(),
+      );
+      await expect(caller.connections.reconnectJira({ id: c.id, ...login })).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: t("server.auth.captchaMaybe") });
+    } finally {
+      warn.mockRestore();
+      await q("DELETE FROM connection_sync WHERE connection_id = ?", c.id);
+      vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => sim.fetch(input, init));
+    }
+  });
+
   it("archived: its issues leave the lists, its time stays", async () => {
     const [c] = await caller.connections.list();
     await caller.issues.sync();

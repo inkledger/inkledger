@@ -36,6 +36,7 @@ import {
 } from "../providers/registry";
 import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
+import { failureOf } from "@contracts/sync";
 import { createRouter, protectedProcedure } from "../middleware";
 import { pauseTimersOf } from "./timers";
 import { getDb, uniqueViolation } from "../queries/connection";
@@ -249,7 +250,7 @@ export const connectionsRouter = createRouter({
     .input(jiraLoginInput.extend({ label }))
     .mutation(async ({ input, ctx }) => {
       if (!isJiraCloud(input.siteUrl)) assertMayAddSelfHosted(ctx.user);
-      const identity = await confirmJiraLogin(input);
+      const identity = await confirmJiraLogin(input, { refusedCode: "PRECONDITION_FAILED" });
       const db = getDb();
       const [taken] = await db
         .select({ id: connections.id })
@@ -318,7 +319,11 @@ export const connectionsRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       if (!isJiraCloud(input.siteUrl)) assertMayAddSelfHosted(ctx.user);
       const conn = await ownConnection(ctx.user.id, input.id);
-      const identity = await confirmJiraLogin(input);
+      const failures = await getDb().select({ lastError: connectionSync.lastError }).from(connectionSync).where(eq(connectionSync.connectionId, conn.id));
+      const identity = await confirmJiraLogin(input, {
+        refusedCode: "PRECONDITION_FAILED",
+        captchaBefore: failures.some(f => failureOf(f.lastError ?? "")?.signInDenied === true),
+      });
       if (
         identity.siteUrl !== conn.baseUrl ||
         identity.accountId !== conn.remoteAccountId

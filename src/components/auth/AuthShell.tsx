@@ -49,7 +49,7 @@ export function AuthShell({ heading, intro, children, footer }: { heading: strin
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-lg bg-danger-soft p-3 text-body-sm text-danger">
+    <p role="alert" className="whitespace-pre-line rounded-lg bg-danger-soft p-3 text-body-sm text-danger">
       {message}
     </p>
   );

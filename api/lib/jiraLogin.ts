@@ -1,6 +1,6 @@
 // Checking a Jira login live (activating an account, connecting Jira): the
-// URL is vetted, Jira confirms who the credentials belong to, and every
-// failure gets one answer, so the form can't be used to probe hosts.
+// URL is vetted (only then is Jira asked), Jira confirms who the credentials
+// belong to, and a refusal says why: what Jira gave as its reason, out of reach, or else one answer.
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { t } from "@contracts/i18n";
@@ -32,7 +32,28 @@ export type JiraIdentity = {
   secret: string;
 };
 
-export async function confirmJiraLogin(input: JiraLoginInput): Promise<JiraIdentity> {
+/** Why Jira refused a login, as the log and the user are told it (never the secret). */
+type Refusal = "captcha" | "noAccess" | "ssoPage" | "credentials" | "unreachable" | "failed";
+
+function refusalOf(err: unknown): Refusal {
+  if (isNetworkError(err)) return "unreachable";
+  if (!(err instanceof JiraApiError)) return "failed";
+  if (err.signInDenied) return "captcha";
+  if (err.signInPage) return "ssoPage";
+  // Seraph knew the password but the account may not use Jira (deactivated, no application access).
+  if (/AUTHORISATION_FAILED/.test(err.loginReason ?? "")) return "noAccess";
+  if (err.status === 401 || err.status === 403) return "credentials";
+  return err.status >= 500 ? "unreachable" : "failed";
+}
+
+export type ConfirmOptions = {
+  /** The tRPC code of a refused login: UNAUTHORIZED signs a signed-in app out, so a connection's form gets another. */
+  refusedCode?: "UNAUTHORIZED" | "PRECONDITION_FAILED";
+  /** Jira asked this connection for a CAPTCHA before: a bare refusal may still be that, not the password. */
+  captchaBefore?: boolean;
+};
+
+export async function confirmJiraLogin(input: JiraLoginInput, opts: ConfirmOptions = {}): Promise<JiraIdentity> {
   try {
     // Jira Cloud is a service on the internet: the self-hosted allowlist doesn't limit it.
     const cloud = /\.atlassian\.net$/i.test(new URL(input.siteUrl).hostname);
@@ -45,10 +66,11 @@ export async function confirmJiraLogin(input: JiraLoginInput): Promise<JiraIdent
   try {
     myself = await getMyself({ siteUrl: input.siteUrl, deployment: input.deployment, authType: input.authType, username: input.username, secret: input.secret });
   } catch (err) {
+    const refusal = refusalOf(err);
     console.warn(
-      `[auth] Jira login to ${input.siteUrl} failed: ${
+      `[auth] Jira login to ${input.siteUrl} failed (${refusal}): ${
         err instanceof JiraApiError
-          ? `HTTP ${err.status} ${err.message}`
+          ? `HTTP ${err.status} ${err.message}${err.loginReason ? ` [X-Seraph-LoginReason: ${err.loginReason}]` : ""}`
           : isNetworkError(err)
             ? `network ${err instanceof Error ? err.message : String(err)}`
             : err instanceof Error
@@ -56,15 +78,28 @@ export async function confirmJiraLogin(input: JiraLoginInput): Promise<JiraIdent
               : String(err)
       }`,
     );
-    // Another try with the same password would be one more failed login: a browser sign-in clears it.
-    if (err instanceof JiraApiError && err.signInDenied) throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInDenied") });
-    if (err instanceof JiraApiError && (err.status === 401 || err.status === 403)) {
-      throw new TRPCError({
-        code: "UNAUTHORIZED",
-        message: input.deployment === "server" ? t("server.auth.invalidCredentialsServer") : t("server.auth.invalidCredentialsCloud"),
-      });
+    const refused = (message: string) => new TRPCError({ code: opts.refusedCode ?? "UNAUTHORIZED", message });
+    switch (refusal) {
+      // Another try with the same password would be one more failed login: a browser sign-in clears it.
+      case "captcha":
+        throw refused(t("server.auth.signInDenied"));
+      case "noAccess":
+        throw refused(t("server.auth.jiraNoAccess"));
+      case "ssoPage":
+        throw refused(t("server.auth.jiraSsoPage"));
+      case "credentials":
+        throw refused(
+          opts.captchaBefore
+            ? t("server.auth.captchaMaybe")
+            : input.deployment === "server"
+              ? t("server.auth.invalidCredentialsServer")
+              : t("server.auth.invalidCredentialsCloud"),
+        );
+      case "unreachable":
+        throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.jiraUnreachable") });
+      default:
+        throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.loginFailed") });
     }
-    throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.loginFailed") });
   }
   return {
     siteUrl: input.siteUrl,

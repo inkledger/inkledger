@@ -152,7 +152,8 @@ describe("auth: sessions, cookies, login hardening", () => {
     await account("target");
     const from = (address: string) => ({ ...anon("http://localhost/api/trpc", { "x-forwarded-for": "203.0.113.9" }), remoteAddress: address });
     for (let i = 0; i < 10; i++) await expect(login(from(`198.51.100.${i}`), { username: "target", password: "wrong password!" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    await expect(login(from("198.51.100.99"), { username: "target" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    // The form says how long to wait.
+    await expect(login(from("198.51.100.99"), { username: "target" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS", message: expect.stringMatching(/^Too many sign-in attempts\. Try again in \d+ seconds?\.$/) });
     // The socket address counts; a spoofed X-Forwarded-For does not.
     for (let i = 0; i < 30; i++) await login(from("198.51.100.200"), { username: "nobody" }).catch(() => null);
     await expect(login(from("198.51.100.200"))).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
@@ -521,7 +522,8 @@ describe("auth: sessions, cookies, login hardening", () => {
       await expect(activate()).rejects.toMatchObject({ code: "NOT_FOUND" });
       for (const mode of ["down", "500"] as const) {
         jira = mode;
-        await expect(activate()).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Can't sign in: check the address and credentials" });
+        // Only sites an account is connected to are asked: saying Jira is out of reach probes nothing.
+        await expect(activate()).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Jira can't be reached right now: try again later. This doesn't count as a failed sign-in." });
       }
       jira = "401";
       await expect(activate({ deployment: "server" })).rejects.toMatchObject({ code: "UNAUTHORIZED", message: expect.stringMatching(/username and password/) });

@@ -351,7 +351,7 @@ export const ui: Shape<typeof en> = {
   },
   syncFailure: {
     auth: "le credenziali salvate sono state rifiutate",
-    signInDenied: "Jira chiede un CAPTCHA: accedi a Jira dal browser, poi ricollega",
+    signInDenied: "Jira chiede un CAPTCHA: esci da Jira nel browser, accedi di nuovo risolvendolo, poi ricollega una volta",
     forbidden: "accesso negato",
     invalid: "la richiesta è stata rifiutata",
     rateLimit: "troppe richieste, nuovo tentativo più tardi",
