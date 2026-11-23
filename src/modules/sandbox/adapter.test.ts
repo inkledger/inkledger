@@ -52,7 +52,9 @@ const emptyPage: ImportancePage = {
   height: 100,
   documentElement: {} as HTMLElement,
   body: {} as HTMLElement,
+  activeElement: null,
   elementFromPoint: () => null,
+  elementsFromPoint: () => [],
   createRange: () => ({}) as Range,
   style: () => ({ cursor: "auto", backgroundColor: "" }),
 };

@@ -6,7 +6,7 @@ export { PICTURE_MAX_BYTES };
 import type { ViewBox } from "./methods";
 import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
-import { IMPORTANCE_MAX_POINTS, importanceAround, type ImportancePage } from "./importance";
+import { IMPORTANCE_MAX_POINTS, importanceInSlices, type ImportancePage } from "./importance";
 import { ledgesAround, type LedgePage } from "./ledges";
 import { anchorsAround, type AnchorPage, type createPageEvents, type SignalPage } from "./anchors";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
@@ -172,7 +172,7 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
       rate: [4, 4],
       shared: true,
       run([points]) {
-        return importanceAround(d.page(), view.el.getBoundingClientRect(), points);
+        return importanceInSlices(d.page, () => view.el.getBoundingClientRect(), points);
       },
     });
     const ledges = d.ledges;

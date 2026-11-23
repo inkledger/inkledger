@@ -148,7 +148,13 @@ type Capabilities = {
    * page, the latest winning; it rejects when the host refused it (a value, a kind).
    */
   surfaces?: HostApiV1["surfaces"] & { light?(vars: Readonly<Record<string, string>> | null, off?: readonly string[]): Promise<void> };
-  /** "page.importance" (a view's): how much each point of the box matters (password fields always 1, a point past the box 1); four calls a second for the whole module. */
+  /**
+   * "page.importance" (a view's): how much each point of the box matters (password fields always 1,
+   * a point past the box 1); four calls a second for the whole module. By the page's ink: text where
+   * its glyphs are, pictures, control-sized buttons and links, the focus ring; a card's padding, the
+   * room between lines and a big clickable row's empty columns are 0. Answered in slices of the
+   * page's thread, so a full call may take a few frames.
+   */
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /**
    * "page.ledges" (a view's): the top edges of the cards and section headers in sight inside
