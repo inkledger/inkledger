@@ -121,6 +121,13 @@ describe("a connection out of reach too many times in a row", () => {
     expect(await status()).toBe("auth_failed");
   });
 
+  it("a rate limit with no Retry-After backs off like any failure", async () => {
+    const { JiraApiError } = await import("../jira/client");
+    await fail(5, new JiraApiError(429, "Too many requests"));
+    const [s] = await q<{ r: number }>("SELECT retry_after r FROM connection_sync WHERE connection_id = ?", connId);
+    expect(Math.round((Number(s.r) - Date.now()) / 60_000)).toBe(8);
+  });
+
   it("never covers refused credentials", async () => {
     const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
     await q("UPDATE connections SET status = 'auth_failed' WHERE id = ?", connId);

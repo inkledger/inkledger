@@ -132,6 +132,10 @@ describe("background Jira sync", () => {
     expect(await mod.needsFullSync(u.id)).toBe(false);
     await q("UPDATE connection_sync SET last_full_at = ? WHERE connection_id = ?", Date.now() - 61 * 60_000, gl.id);
     expect(await mod.needsFullSync(u.id)).toBe(true);
+    // Its Jira out of reach (retried, its record not moving): still by its trackers' own passes.
+    await q("UPDATE connections SET status = 'unreachable' WHERE user_id = ? AND type = 'jira'", u.id);
+    await q("UPDATE connection_sync SET last_full_at = ? WHERE connection_id = ?", Date.now() - 10 * 60_000, gl.id);
+    expect(await mod.needsFullSync(u.id)).toBe(false);
   });
 
   it("records failures without throwing", async () => {

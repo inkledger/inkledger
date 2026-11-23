@@ -53,7 +53,8 @@ const FULL_SYNC_EVERY_MS = 60 * 60_000;
  */
 export async function needsFullSync(userId: number, now: number = Date.now()): Promise<boolean> {
   const db = getDb();
-  const working = and(eq(connections.userId, userId), isNull(connections.archivedAt), inArray(connections.status, RETRIED));
+  // Working only: an unreachable Jira's record never moves, its full passes would come every pass.
+  const working = and(eq(connections.userId, userId), isNull(connections.archivedAt), eq(connections.status, "ok"));
   const [jira] = await db
     .select({ id: connections.id })
     .from(connections)

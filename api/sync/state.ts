@@ -132,7 +132,8 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
   const err = normalizeError(error);
   const kind = err.kind;
   // A refusal other than the credentials' backs off too: it would come back every pass.
-  const wait = kind === "rateLimit" ? Math.max(err.rateLimit?.retryAfterMs ?? 0, 60_000) : kind === "auth" || kind === "invalidCheckpoint" ? 0 : backoffMs(failures, STREAM_BACKOFF_CAP_MS);
+  // A rate limit that says no wait (Jira's) backs off like any failure.
+  const wait = kind === "rateLimit" ? Math.max(err.rateLimit?.retryAfterMs ?? backoffMs(failures, STREAM_BACKOFF_CAP_MS), 60_000) : kind === "auth" || kind === "invalidCheckpoint" ? 0 : backoffMs(failures, STREAM_BACKOFF_CAP_MS);
   await getDb()
     .update(connectionSync)
     .set({
