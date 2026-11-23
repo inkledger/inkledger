@@ -390,6 +390,19 @@ describe("add-on modules", () => {
       expect(runTokenUser(fresh, "hello", hash, RUN_TOKEN_MS + 1000)).toBeNull();
     });
 
+    it("a token stays the same for a while: frames opened meanwhile share the cached code", async () => {
+      const { hash } = await framed();
+      const { runToken, runTokenUser } = await import("./runToken");
+      const { RUN_TOKEN_MS } = await import("@contracts/modules");
+      const RUN_TOKEN_SLOT_MS = 15 * 60_000;
+      const slot = Math.floor(Date.now() / RUN_TOKEN_SLOT_MS) * RUN_TOKEN_SLOT_MS;
+      const first = runToken(userId, "hello", hash, slot + 1000);
+      expect(runToken(userId, "hello", hash, slot + RUN_TOKEN_SLOT_MS - 1000)).toBe(first);
+      // Still most of the hour, and never past it.
+      expect(runTokenUser(first, "hello", hash, slot + RUN_TOKEN_MS - RUN_TOKEN_SLOT_MS)).toBe(userId);
+      expect(runTokenUser(first, "hello", hash, slot + 1000 + RUN_TOKEN_MS)).toBeNull();
+    });
+
     it("a token is bound to its module, package and signature", async () => {
       const { token, hash, url } = await framed();
       const [u, exp, sig] = token.split(".");

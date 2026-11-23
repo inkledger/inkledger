@@ -12,8 +12,12 @@ const key = () => createHmac("sha256", env.sessionSecret).update("inkledger-modu
 const mac = (userId: number, id: string, hash: string, exp: number) =>
   createHmac("sha256", key()).update(`${userId}\n${id}\n${hash}\n${exp}`).digest("base64url");
 
+/** Tokens change once a slot: frames opened within one share the code's URLs, so the browser's copy serves them. */
+const SLOT_MS = 15 * 60_000;
+
 export function runToken(userId: number, id: string, hash: string, now = Date.now()): string {
-  const exp = Math.ceil((now + RUN_TOKEN_MS) / 1000);
+  // Ends on a slot's edge: it holds between RUN_TOKEN_MS - SLOT_MS and RUN_TOKEN_MS.
+  const exp = (Math.floor((now + RUN_TOKEN_MS) / SLOT_MS) * SLOT_MS) / 1000;
   return `${userId}.${exp}.${mac(userId, id, hash, exp)}`;
 }
 
