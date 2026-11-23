@@ -59,7 +59,8 @@ export type PageSignal =
   | { kind: "timer-started" | "timer-stopped" | "notification" }
   /** `field`: the search field that took the focus (else the app's search, the palette's opener). */
   | { kind: "search"; focused: boolean; field?: AnchorEl }
-  | { kind: "goal-reached" };
+  | { kind: "goal-reached" }
+  | { kind: "transition"; phase: "pending" | "ready" };
 
 export type SignalPage = {
   /** An element by its host id, when in sight. */
@@ -91,10 +92,34 @@ export function eventOf(s: PageSignal, page: SignalPage, box: Box): PageEvent {
       return { kind: "search", focused: s.focused, at: rect(s.field ?? page.anchor("search")) };
     case "goal-reached":
       return { kind: "goal-reached" };
+    case "transition":
+      return { kind: "transition", phase: s.phase };
   }
 }
 
 export type EventsWin = { requestAnimationFrame(fn: () => void): number; now(): number };
+
+/**
+ * The page changing under the overlay: "pending" at the first sign (a route, a fold, a resize),
+ * "ready" once things settle (`settled`: the host's layout-changed feed, told after a quiet
+ * moment). `starts`: the sources of a change. Returns the undo.
+ */
+export function watchTransitions(fn: (s: PageSignal) => void, starts: readonly ((poke: () => void) => () => void)[], settled: (fn: () => void) => () => void, poke: () => void): () => void {
+  let pending = false;
+  const begin = () => {
+    // Settles only after the last change: the feed is poked so a quiet route still ends.
+    poke();
+    if (pending) return;
+    pending = true;
+    fn({ kind: "transition", phase: "pending" });
+  };
+  const offs = [...starts.map(s => s(begin)), settled(() => {
+    if (!pending) return;
+    pending = false;
+    fn({ kind: "transition", phase: "ready" });
+  })];
+  return () => offs.forEach(off => off());
+}
 
 /**
  * Signals to the frames that watch: each measured in two animation frames
@@ -112,8 +137,11 @@ export function createPageEvents(win: EventsWin, sources: readonly ((fn: (s: Pag
         const now = win.now();
         for (const w of watchers) {
           w.sent = w.sent.filter(t => now - t < 1000);
-          if (w.sent.length >= EVENTS_PER_SECOND) continue;
-          w.sent.push(now);
+          // A transition's two words always get through (a creature left hanging would never land).
+          if (s.kind !== "transition") {
+            if (w.sent.length >= EVENTS_PER_SECOND) continue;
+            w.sent.push(now);
+          }
           w.push(eventOf(s, w.page(), w.box()));
         }
       }),

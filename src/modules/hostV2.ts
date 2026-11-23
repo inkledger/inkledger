@@ -81,7 +81,13 @@ export type PageEvent =
   | { kind: "timer-started" | "timer-stopped"; at: BoxRect | null }
   | { kind: "notification"; at: BoxRect | null }
   | { kind: "search"; focused: boolean; at: BoxRect | null }
-  | { kind: "goal-reached" };
+  | { kind: "goal-reached" }
+  /**
+   * The page is changing under the overlay (another route, the sidebar folding, the window
+   * resizing): "pending" as it starts, "ready" once the new page has settled (ask ledges and
+   * anchors again then). The overlay itself stays: it is never remounted by a navigation.
+   */
+  | { kind: "transition"; phase: "pending" | "ready" };
 
 /** The basics every framed module gets (no capability needed). */
 type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient" | "hitArea" | "storage"> & {

@@ -11,7 +11,7 @@ import { browserBroker, createBroker } from "./broker";
 import { focusBack, frameTookFocus, ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
-import { browserAnchors, browserSignalPage, createPageEvents, type PageSignal } from "./anchors";
+import { browserAnchors, browserSignalPage, createPageEvents, watchTransitions, type PageSignal } from "./anchors";
 import { cardId, pageSignals } from "../pageSignals";
 import { commandPalette } from "@/lib/commandPalette";
 import type { HostApiV1 } from "../types";
@@ -164,6 +164,15 @@ function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => voi
         api.on("goal-reached", () => fn({ kind: "goal-reached" })),
       ];
       return () => offs.forEach(off => off());
+    },
+    // The page changing under the overlay (which stays): a route, a fold, a resize; ready once it settles.
+    fn => {
+      const feed = layoutChangedFeed();
+      const onResize = (poke: () => void) => {
+        window.addEventListener("resize", poke, { passive: true });
+        return () => window.removeEventListener("resize", poke);
+      };
+      return watchTransitions(fn, [poke => api.on("route", poke), poke => sidebar.subscribe(poke), onResize], done => feed.watch(done), feed.poke);
     },
     fn => {
       let open = commandPalette.get();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ANCHORS_MAX, EVENTS_PER_SECOND, anchorsAround, createPageEvents, eventOf, type AnchorEl, type PageSignal, type SignalPage } from "./anchors";
+import { ANCHORS_MAX, EVENTS_PER_SECOND, anchorsAround, createPageEvents, eventOf, watchTransitions, type AnchorEl, type PageSignal, type SignalPage } from "./anchors";
 import type { PageEvent } from "../hostV2";
 
 const el = (attrs: Record<string, string>, r: { left: number; top: number; right: number; bottom: number }): AnchorEl => ({
@@ -57,6 +57,40 @@ const signalPage = (over: Partial<SignalPage> = {}): SignalPage => ({
   width: 1200,
   height: 800,
   ...over,
+});
+
+describe("transitions", () => {
+  it("pending at the first sign of a change, ready once it settles; one pair per change", () => {
+    const got: PageSignal[] = [];
+    let start: (() => void) | null = null;
+    let settle: (() => void) | null = null;
+    let pokes = 0;
+    const off = watchTransitions(s => got.push(s), [p => ((start = p), () => (start = null))], f => ((settle = f), () => (settle = null)), () => pokes++);
+    settle!();
+    expect(got).toEqual([]);
+    start!();
+    start!();
+    settle!();
+    settle!();
+    expect(got).toEqual([{ kind: "transition", phase: "pending" }, { kind: "transition", phase: "ready" }]);
+    expect(pokes).toBe(2);
+    off();
+    expect(start).toBeNull();
+    expect(settle).toBeNull();
+  });
+
+  it("a transition's words are never dropped by the events' cap", () => {
+    const frames: (() => void)[] = [];
+    let fire: ((s: PageSignal) => void) | null = null;
+    const feed = createPageEvents({ requestAnimationFrame: fn => frames.push(fn), now: () => 0 }, [fn => ((fire = fn), () => {})]);
+    const got: PageEvent[] = [];
+    feed.watch(() => box, () => signalPage(), e => got.push(e));
+    for (let i = 0; i < 12; i++) fire!({ kind: "goal-reached" });
+    fire!({ kind: "transition", phase: "pending" });
+    frames.splice(0).forEach(f => f());
+    frames.splice(0).forEach(f => f());
+    expect(got.at(-1)).toEqual({ kind: "transition", phase: "pending" });
+  });
 });
 
 describe("page.events", () => {
