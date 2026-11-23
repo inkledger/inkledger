@@ -170,7 +170,7 @@ describe("the host API a framed module reaches", () => {
       },
     };
     const el = { dataset: {} } as unknown as HTMLElement;
-    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "dashboard-overlay", activate() {}, hits });
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "panel-edge", activate() {}, hits });
     const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
     const rect = (x: number) => [{ kind: "rect", x, y: 0, w: 10, h: 10 }];
     let id = 0;
@@ -187,6 +187,33 @@ describe("the host API a framed module reaches", () => {
     set([[], {}]);
     await settle();
     expect(undone).toBe(2);
+  });
+
+  it("hit.set over the whole page or Desk: the shape takes clicks, the box never becomes a Tab stop", async () => {
+    for (const slot of ["page-overlay", "dashboard-overlay"]) {
+      const added: { focusable: boolean; label?: string }[] = [];
+      const hits = { add: (_el: HTMLElement, _t: unknown, _a: unknown, a11y: { focusable: boolean; label?: string }) => (added.push(a11y), () => {}) };
+      const el = { dataset: {} } as unknown as HTMLElement;
+      const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot, activate() {}, hits });
+      const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+      p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 0, y: 0, w: 10, h: 10 }], { focusable: true, label: "Bunny" }] } });
+      await settle();
+      expect(added.map(a => a.focusable), slot).toEqual([false]);
+      expect(added[0]?.label, slot).toBeUndefined();
+    }
+  });
+
+  it("hit.set: a shape of no size keeps the box's button (a creature away: no click there, the keyboard's way in stays)", async () => {
+    const added: { focusable: boolean }[] = [];
+    let test: (x: number, y: number, w: number, h: number) => boolean = () => true;
+    const hits = { add: (_el: HTMLElement, t: typeof test, _a: unknown, a11y: { focusable: boolean }) => ((test = t), added.push(a11y), () => {}) };
+    const el = { dataset: {} } as unknown as HTMLElement;
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "panel-edge", activate() {}, hits });
+    const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+    p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 40, y: 60, w: 0, h: 0 }], { focusable: true, label: "Bunny" }] } });
+    await settle();
+    expect(added.map(a => a.focusable)).toEqual([true]);
+    expect([test(40, 60, 400, 84), test(41, 61, 400, 84)]).toEqual([false, false]);
   });
 
   it("hit.set: carried only when it asks and its view may (\"drag\" declared)", async () => {

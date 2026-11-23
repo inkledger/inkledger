@@ -253,7 +253,8 @@ export type HostApiV2 = Basics &
      * a quarter (or 256 × 256 px in a small one) is ignored: no catch-all over the page.
      * `opts.focusable`: the host's box takes Tab and Enter/Space as a button named
      * `opts.label`; without it the host adds no Tab stop (the frame's own control
-     * takes the keyboard). `activate` hears how: a click (where, in the box) or the keyboard.
+     * takes the keyboard). Never in "page-overlay" or "dashboard-overlay" (a box over the
+     * whole page or Desk is no button): there a shape takes the pointer only. `activate` hears how: a click (where, in the box) or the keyboard.
      */
     hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: (how?: HitActivation) => void, opts?: HitOptions): void };
     /** In "mobile-more" only: closes the phone's More sheet (e.g. as the module's own sheet opens). */

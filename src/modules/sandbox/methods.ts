@@ -28,6 +28,11 @@ void allEvents;
  * The dock too, once it sets a shape (its box marked data-hit): taps around the pill reach the page.
  */
 const OVERLAYS: readonly string[] = ["dashboard-overlay", "dashboard-perch", "panel-edge", "mobile-dock", "page-overlay"];
+/**
+ * Boxes over the whole page or the whole Desk: never a button of the host's, whatever the module asks
+ * (a Tab stop the size of the window, every small control beside it crowded: WCAG 2.5.8).
+ */
+const NO_TAB_STOP: readonly string[] = ["dashboard-overlay", "page-overlay"];
 
 const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);
@@ -224,7 +229,7 @@ export function frameMethods(
           }
           if (!test) return dispose();
           // No Tab stop of the host's own unless asked: the frame's control takes the keyboard.
-          const a11y = { focusable: opts?.focusable === true, label: opts?.label };
+          const a11y = NO_TAB_STOP.includes(view.slot) ? { focusable: false, label: undefined } : { focusable: opts?.focusable === true, label: opts?.label };
           // Carried only when it asks and declared "drag".
           const drag = opts?.drag === true ? view.drag : undefined;
           const key = JSON.stringify({ ...a11y, drag: !!drag });
