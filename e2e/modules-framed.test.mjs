@@ -7,7 +7,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start } from "./harness.mjs";
+import { engineNoise, start } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -66,7 +66,7 @@ async function withFramed(body, { before } = {}) {
   for (const id of Object.keys(MANIFESTS)) install(modulesDir, id);
   const app = await start({ seed, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   const consoleErrors = [];
-  app.page.on("console", m => m.type() === "error" && consoleErrors.push(m.text()));
+  app.page.on("console", m => m.type() === "error" && !engineNoise(m.text()) && consoleErrors.push(m.text()));
   const responses = [];
   app.context.on("response", r => /\/modules\/(run|frame)\//.test(r.url()) && responses.push(r));
   try {

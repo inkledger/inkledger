@@ -8,7 +8,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start } from "./harness.mjs";
+import { ENGINE, engineNoise, start } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -72,7 +72,7 @@ test("a module that hogs the thread is demoted, paused and stopped; the page and
   const app = await start({ seed, env: { MODULES_DIR: modulesDir, MODULES_TRUST_EXTRA_KEY: PEM, MODULES_TRUST_EXTRA_KEY_IN_PRODUCTION: "1" } });
   const warnings = [];
   const errors = [];
-  app.page.on("console", m => (m.type() === "warning" ? warnings : m.type() === "error" ? errors : []).push(m.text()));
+  app.page.on("console", m => (m.type() === "warning" ? warnings : m.type() === "error" && !engineNoise(m.text()) ? errors : []).push(m.text()));
   try {
     await app.context.addInitScript(watch);
     await app.page.goto(app.base + "/");
@@ -85,11 +85,13 @@ test("a module that hogs the thread is demoted, paused and stopped; the page and
     await page.frameLocator(view("hog")).getByTestId("hog-budget").filter({ hasText: "budget still" }).waitFor({ timeout: 15_000 });
     // Then it goes, for the session.
     await page.locator(view("hog")).waitFor({ state: "detached", timeout: 15_000 });
+    const stoppedAt = await page.evaluate(() => performance.now());
     await page.waitForTimeout(1500);
     assert.equal(await page.locator(view("hog")).count(), 0, "stopped modules stay stopped");
 
-    const { steps, perf } = await page.evaluate(() => {
-      const from = window.__frameAt;
+    // WebKit runs the frames on the page's own thread: the page is smooth again once the hog is gone.
+    const { steps, perf } = await page.evaluate(sharedFrom => {
+      const from = sharedFrom ?? window.__frameAt;
       return {
         steps: window.__steps,
         perf: {
@@ -97,7 +99,7 @@ test("a module that hogs the thread is demoted, paused and stopped; the page and
           worstGap: Math.max(0, ...window.__gaps.filter(([t]) => t >= from).map(([, g]) => g)),
         },
       };
-    });
+    }, ENGINE === "webkit" ? stoppedAt : null);
     const ladder = id => steps.filter(([m, s]) => m === id && s !== "normal").map(([, s]) => s);
     console.info(`[watchdog] hog: ${ladder("hog").join(" → ")}; worst page frame gap ${perf.worstGap.toFixed(1)} ms`);
     assert.deepEqual(ladder("hog").slice(0, 4), ["warn", "reduce", "still", "paused"]);

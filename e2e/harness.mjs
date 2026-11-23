@@ -9,11 +9,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import pg from "pg";
-import { chromium } from "playwright-core";
+import { chromium, webkit } from "playwright-core";
 import { chromiumPath } from "../scripts/chromium.mjs";
 import { freePort } from "../scripts/freePort.mjs";
 
 export const APP = new URL("..", import.meta.url).pathname;
+
+/** The engine the pages run on: E2E_BROWSER=webkit is Playwright's WebKit (the macOS app's family), else Chromium. */
+export const ENGINE = process.env.E2E_BROWSER === "webkit" ? "webkit" : "chromium";
+/** A console error the engine logs about the page's markup, not the app's (WebKit doesn't know interactive-widget). */
+export const engineNoise = text => ENGINE === "webkit" && text === 'Viewport argument key "interactive-widget" not recognized and ignored.';
 
 // The tests' own clock reads days as the server and the browser do (both Europe/Rome):
 // "today", "yesterday" and midnight are the same day everywhere.
@@ -214,7 +219,7 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     await seed?.(db);
     await syncSequences(client);
 
-    browser = await chromium.launch({ executablePath: chromiumPath() });
+    browser = ENGINE === "webkit" ? await webkit.launch() : await chromium.launch({ executablePath: chromiumPath() });
     const context = await browser.newContext({
       viewport: viewport ?? { width: 1400, height: 900 },
       timezoneId: "Europe/Rome",
