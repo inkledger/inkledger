@@ -58,8 +58,9 @@ test("stop, Later, Play again: the block keeps its start", { timeout: 300_000 },
     await dialog.getByRole("button", { name: "Later" }).click();
     await dialog.waitFor({ state: "detached" });
     await pause();
-    await page.goto(`${base}/issues`);
-    await startTimer(page, KEY);
+    // Stopped and kept (Later): its own control resumes it.
+    await page.getByRole("button", { name: `Resume timer ${KEY}` }).first().click();
+    await page.getByRole("button", { name: `Pause timer ${KEY}` }).first().waitFor();
     const [t] = await db.q("SELECT state, started_at, accumulated_seconds FROM timers WHERE issue_key = ?", KEY);
     assert.equal(t.state, "running");
     // Its count is whole seconds: where it begins is within one of the seeded start.
