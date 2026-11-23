@@ -108,6 +108,9 @@ test("Two quick ticks in Customize both stick, the first never undone by the sec
     // Both gone at once, before the server answered.
     await page.getByRole("heading", { name: "Recent activity" }).waitFor({ state: "detached" });
     await waitUntil(async () => (await db.q("SELECT count(*)::int AS n FROM workspace_revisions"))[0].n === 4, "both ticks on both Dashboards");
+    // Saved is not done: each tick still activates and closes its draft. A reload cutting that off is this test's, not the user's.
+    const openDrafts = async () => (await db.q("SELECT count(*)::int AS n FROM workspace_drafts WHERE status NOT IN ('applied', 'discarded', 'aborted')"))[0].n;
+    await waitUntil(async () => (await openDrafts()) === 0, "both ticks to close their drafts");
     assert.equal(await page.getByText(/Preference not saved/).count(), 0, "neither tick refused");
     for (const viewport of [{ width: 1400, height: 900 }, { width: 390, height: 800 }]) {
       await page.setViewportSize(viewport);
@@ -117,7 +120,7 @@ test("Two quick ticks in Customize both stick, the first never undone by the sec
       assert.equal(await page.locator('[data-workspace-anchor="dashboard.activity"]').count(), 0, `activity hidden at ${viewport.width}px`);
       assert.equal(await page.locator('[data-workspace-anchor="dashboard.timeline"]').count(), 0, `timeline hidden at ${viewport.width}px`);
     }
-    assert.equal((await db.q("SELECT count(*)::int AS n FROM workspace_drafts WHERE status NOT IN ('applied', 'discarded', 'aborted')"))[0].n, 0, "no draft left behind to block the next tick");
+    assert.equal(await openDrafts(), 0, "no draft left behind to block the next tick");
   }));
 
 test("A section the Studio moved above the timeline is drawn there", () =>
