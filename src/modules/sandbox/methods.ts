@@ -57,6 +57,23 @@ export const onMask = (m: { w: number; h: number; alpha: Uint8Array }, x: number
   return mx >= 0 && my >= 0 && (m.alpha[my * m.w + mx] ?? 0) >= MASK_SOLID;
 };
 
+/**
+ * The most of its box a shape may take (CSS px², or a share of a large box): a creature or a pill,
+ * never a catch-all over the page that would swallow every click there.
+ */
+const HIT_MAX_PX2 = 256 * 256;
+const HIT_MAX_SHARE = 0.25;
+
+/** The area (CSS px²) regions cover in a box of w × h, overlaps counted twice. */
+const regionsArea = (regions: readonly HitRegion[], w: number, h: number) =>
+  regions.reduce((sum, r) => {
+    const [x0, y0, x1, y1] = r.kind === "rect" ? [r.x, r.y, r.x + r.w, r.y + r.h] : [r.x - r.r, r.y - r.r, r.x + r.r, r.y + r.r];
+    const clipped = Math.max(0, Math.min(w, x1) - Math.max(0, x0)) * Math.max(0, Math.min(h, y1) - Math.max(0, y0));
+    return sum + (r.kind === "rect" ? clipped : Math.min(clipped, Math.PI * r.r ** 2));
+  }, 0);
+
+const tooLarge = (area: number, w: number, h: number) => area > Math.max(HIT_MAX_PX2, HIT_MAX_SHARE * w * h);
+
 const inRegion = (r: HitRegion, x: number, y: number) =>
   r.kind === "rect" ? x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h : (x - r.x) ** 2 + (y - r.y) ** 2 <= r.r ** 2;
 
@@ -192,11 +209,16 @@ export function frameMethods(
         rate: [10, 10],
         run([shape, opts]) {
           if (!OVERLAYS.includes(view.slot)) return dispose();
+          // Judged against the box as it is at each test (it may grow after the shape is set).
           let test: HitTest | null = null;
-          if (!Array.isArray(shape)) test = (x, y, w, h) => onMask(shape, x, y, w, h);
-          else if (shape.length > 0) {
+          if (!Array.isArray(shape)) {
+            let solid = 0;
+            for (const a of shape.alpha) if (a >= MASK_SOLID) solid++;
+            const share = solid / shape.alpha.length;
+            test = (x, y, w, h) => !tooLarge(share * w * h, w, h) && onMask(shape, x, y, w, h);
+          } else if (shape.length > 0) {
             const regions: readonly HitRegion[] = shape;
-            test = (x, y) => regions.some(r => inRegion(r, x, y));
+            test = (x, y, w, h) => !tooLarge(regionsArea(regions, w, h), w, h) && regions.some(r => inRegion(r, x, y));
           }
           if (!test) return dispose();
           // No Tab stop of the host's own unless asked: the frame's control takes the keyboard.

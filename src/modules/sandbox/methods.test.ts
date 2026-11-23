@@ -169,6 +169,33 @@ describe("the host API a framed module reaches", () => {
     expect(undone).toBe(2);
   });
 
+  it("hit.set: no catch-all over a large box: a shape over too much of it is ignored, the page keeps its clicks", async () => {
+    let test: (x: number, y: number, w: number, h: number) => boolean = () => false;
+    const hits = { add: (_el: HTMLElement, t: typeof test) => ((test = t), () => {}) };
+    const el = { dataset: {} } as unknown as HTMLElement;
+    const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "dashboard-overlay", activate() {}, hits });
+    const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+    let id = 0;
+    const set = async (shape: unknown) => {
+      p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: ++id, m: "hit.set", a: [shape, {}] } });
+      await settle();
+    };
+    await set([{ kind: "rect", x: 0, y: 0, w: 1e9, h: 1e9 }]);
+    expect(test(500, 400, 1000, 800)).toBe(false);
+    await set(Array.from({ length: 32 }, (_, i) => ({ kind: "rect", x: (i % 8) * 125, y: Math.floor(i / 8) * 200, w: 125, h: 200 })));
+    expect(test(500, 300, 1000, 800)).toBe(false);
+    await set([{ kind: "circle", x: 500, y: 400, r: 2000 }]);
+    expect(test(500, 400, 1000, 800)).toBe(false);
+    // A creature's own shape: its clicks.
+    await set([{ kind: "rect", x: 100, y: 100, w: 120, h: 120 }]);
+    expect(test(150, 150, 1000, 800)).toBe(true);
+    const solid = { kind: "mask", w: 64, h: 64, alpha: new Uint8Array(64 * 64).fill(255) };
+    await set(solid);
+    expect(test(500, 400, 1000, 800)).toBe(false);
+    // The same mask filling a small box (the dock's pill) is its shape.
+    expect(test(10, 10, 120, 48)).toBe(true);
+  });
+
   it("hit.set: the panel's edge strip is drawn over the page too (only its shape is clickable)", async () => {
     let added = 0;
     const hits = { add: () => (added++, () => {}) };
