@@ -16,9 +16,10 @@ const KEY = generateKeyPairSync("ed25519");
 const PEM = KEY.publicKey.export({ type: "spki", format: "pem" }).toString();
 const TEMPLATE = readFileSync(new URL("./fixtures/modules/life/index.js", import.meta.url), "utf8");
 const PHONE = { viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" };
-// Playwright's Chromium (143) loses a tap's click on a sandboxed frame it runs in a process of its own
-// (newer Chrome and WebKit, the phones' engine, do not): touches reach the button, its click never
-// comes. The frame in the page's process: the tap still goes through the host to the module's button.
+// An engine workaround: on Playwright's Chromium 143 (headless shell and full), a synthetic tap on a
+// sandboxed frame in a process of its own brings no click (macOS: its touches reach the button; Linux:
+// the frame's page takes them); with the frame in the page's process it does, as the same test does on
+// Chrome 157. The tap still has to land on the module's button through the host's dock.
 const TAP_INTO_FRAMES = ENGINE === "chromium" ? ["--disable-features=IsolateSandboxedIframes"] : [];
 
 function install(modulesDir, id, slots, capabilities) {
