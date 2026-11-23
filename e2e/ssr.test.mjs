@@ -117,12 +117,16 @@ test("SSR state escapes markup and never includes another user's issues", async 
         VALUES (?, ?, ?, ?, 'To Do', 'To Do', 'X', 'Project', 'Task', 'Medium', '[]', 'mrossi', ?, ?, 0)`;
       await db.q(issue, 1, "XSS-1", "XSS-1", payload, "https://jira.example.it/browse/XSS-1", now);
       await db.q(issue, 2, "OTHER-1", "OTHER-1", "Another user's private summary", "https://jira.example.it/browse/OTHER-1", now);
+      // Time on it today: the Dashboard shows it, so its summary is in the state sent.
+      const today = new Date(now).setHours(1, 0, 0, 0);
+      await db.q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, started, time_spent_seconds, comment, synced_at) VALUES (1, 1, 'XSS-1', 'xss-w', ?, 1800, '', 1)", today);
     },
   });
   try {
     const response = await app.page.goto(`${app.base}/`);
     const html = await response.text();
     assert.doesNotMatch(html, /<\/script><script>alert\(1\)<\/script>/);
+    assert.ok(html.includes(String.raw`\u003c/script\u003e\u003cscript\u003ealert(1)\u003c/script\u003e`), "the hostile summary is in the state, escaped");
     assert.doesNotMatch(html, /Another user's private summary/);
     assert.deepEqual(app.errors, []);
   } finally {

@@ -13,7 +13,7 @@ import { isLocale, type Locale } from "@contracts/i18n";
 import { dayKey } from "@contracts/time";
 import { withLocale } from "./lib/i18n";
 import { sessionCookie } from "./lib/session";
-import { prefetchSSR, supportsSSR } from "./ssrQueries";
+import { keepIssuesOnScreen, prefetchSSR, supportsSSR, timerIssuesOf } from "./ssrQueries";
 
 function localeOf(req: Request): Locale {
   const cookie = parseCookies(req.headers.get("cookie"))["ikl-locale"];
@@ -96,7 +96,10 @@ export async function renderSSR(c: SSRContext, indexHtml: string, contentSecurit
         })],
       }),
     };
+    const timerIssues = url.pathname === "/" && ctx.user ? timerIssuesOf(ctx.user.id) : Promise.resolve([]);
     const app = await render(`${url.pathname}${url.search}`, context, locale, now);
+    // After the render, which drew from the whole list: only the state sent shrinks.
+    await keepIssuesOnScreen(helpers.queryClient, await timerIssues);
     if (sessionId && cookie) {
       const current = await userFromRequest(c.req.raw);
       if (!current.user || current.sessionId !== sessionId) return c.redirect("/login");
