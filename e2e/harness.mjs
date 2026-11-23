@@ -101,8 +101,9 @@ export async function startTimer(page, key, { mode = "switch" } = {}) {
  * serves the production bundle through tsx; `viteDev` starts the real Vite dev
  * server. Each run has its own Postgres database, dropped at stop(). `serviceWorkers`: "allow" or
  * "block"; WebKit blocks them by default, as its page.route misses what passes through one.
+ * `browserArgs`: Chromium switches for this test's browser only.
  */
-export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false, serviceWorkers = ENGINE === "webkit" ? "block" : "allow" } = {}) {
+export async function start({ seed, viewport, env: extraEnv, userAgent, bare = false, devBuild = false, viteDev = false, serviceWorkers = ENGINE === "webkit" ? "block" : "allow", browserArgs = [] } = {}) {
   // A port nothing listens on, out of the outgoing-connection range (see freePort.mjs): a
   // random one could be another app's (the Docker stacks'), whose health check would
   // answer for a server still starting.
@@ -223,7 +224,7 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     await seed?.(db);
     await syncSequences(client);
 
-    browser = ENGINE === "webkit" ? await webkit.launch() : await chromium.launch({ executablePath: chromiumPath() });
+    browser = ENGINE === "webkit" ? await webkit.launch() : await chromium.launch({ executablePath: chromiumPath(), args: browserArgs });
     const context = await browser.newContext({
       viewport: viewport ?? { width: 1400, height: 900 },
       timezoneId: "Europe/Rome",
