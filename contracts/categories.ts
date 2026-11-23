@@ -19,12 +19,15 @@ export const categoryRank = (c: string) => {
 
 /**
  * A priority's rank, 0 (highest) … 4 (lowest): its native position scaled
- * onto five steps, on purpose coarse and the same for every tracker (six
- * priorities share some steps). One priority: the middle; none: null.
+ * onto five steps, on purpose coarse and the same for every tracker. Six or
+ * more share steps in even buckets from the top, so a list like Bloccante,
+ * Critica, Alta, Media… keeps Alta high and Media in the middle. One
+ * priority: the middle; none: null.
  */
 export function priorityRankOf(index: number, count: number): number | null {
   if (count <= 0 || index < 0 || index >= count) return null;
   if (count === 1) return 2;
+  if (count > 5) return Math.floor((index * 5) / count);
   return Math.round((index * 4) / (count - 1));
 }
 

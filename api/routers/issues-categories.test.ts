@@ -34,7 +34,12 @@ vi.stubGlobal(
 
 describe("canonical categories and priority ranks", () => {
   it("rank a tracker's own order onto 0–4 (coarse on purpose), and group by category", () => {
-    expect([0, 1, 2, 3, 4, 5].map((i) => priorityRankOf(i, 6))).toEqual([0, 1, 2, 2, 3, 4]);
+    // Six or more: the top ones share a step, never the third with the middle (Alta above Media).
+    expect([0, 1, 2, 3, 4, 5].map((i) => priorityRankOf(i, 6))).toEqual([0, 0, 1, 2, 3, 4]);
+    expect([0, 1, 2, 3, 4, 5, 6].map((i) => priorityRankOf(i, 7))).toEqual([0, 0, 1, 2, 2, 3, 4]);
+    // Five or fewer as before.
+    expect([0, 1, 2, 3, 4].map((i) => priorityRankOf(i, 5))).toEqual([0, 1, 2, 3, 4]);
+    expect([0, 1, 2, 3].map((i) => priorityRankOf(i, 4))).toEqual([0, 1, 3, 4]);
     expect(priorityRankOf(0, 1)).toBe(2);
     expect(priorityRankOf(0, 0)).toBeNull();
     expect(["To Do", "In Progress", "Done", "Custom"].map(categoryOfGroup)).toEqual(["todo", "doing", "done", "todo"]);
