@@ -1,6 +1,6 @@
 // Closures (issue_closures) told to a module once each: claimed per user and
 // module, so live and catch-up, two tabs or two devices never tell one twice.
-import { and, asc, count, eq, gte, inArray, notExists } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, notExists, type SQL } from "drizzle-orm";
 import { connections, issueClosures, issues, moduleClosureClaims, moduleStorage, type User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { contextFor } from "../providers/connections";
@@ -34,9 +34,10 @@ const untold = (userId: number, moduleId: string) =>
       .where(and(eq(moduleClosureClaims.userId, userId), eq(moduleClosureClaims.moduleId, moduleId), eq(moduleClosureClaims.closureId, issueClosures.id))),
   );
 
-/** The module hears the closures from `from` on (never before it started counting); how many wait now. */
-export async function releaseClosuresFrom(userId: number, moduleId: string, from: number): Promise<number> {
+/** The module hears the closures from `from` on (never before it started counting); how many wait now, how many high priority (rank 0–1). */
+export async function releaseClosuresFrom(user: User, moduleId: string, from: number): Promise<{ total: number; high: number }> {
   const db = getDb();
+  const userId = user.id;
   await db
     .insert(moduleStorage)
     .values({ userId, moduleId, key: FROM, value: String(from), updatedAt: new Date() })
@@ -47,11 +48,11 @@ export async function releaseClosuresFrom(userId: number, moduleId: string, from
     .from(moduleStorage)
     .where(and(eq(moduleStorage.userId, userId), eq(moduleStorage.moduleId, moduleId), eq(moduleStorage.key, "__since")))
     .limit(1);
-  const [{ n } = { n: 0 }] = await db
-    .select({ n: count() })
-    .from(issueClosures)
-    .where(and(eq(issueClosures.userId, userId), gte(issueClosures.closedAt, Math.max(from, Number(since?.value ?? 0) || 0)), untold(userId, moduleId)));
-  return n;
+  const waiting = await ranked(
+    user,
+    and(eq(issueClosures.userId, userId), eq(issueClosures.assigned, 1), gte(issueClosures.closedAt, Math.max(from, Number(since?.value ?? 0) || 0)), untold(userId, moduleId)),
+  );
+  return { total: waiting.length, high: waiting.filter((c) => c.priorityRank !== null && c.priorityRank <= 1).length };
 }
 
 export type ClaimedClosure = { connectionId: number; issueKey: string; priority: string; priorityRank: number | null };
@@ -67,6 +68,25 @@ async function jiraRanks(user: User, conn: typeof connections.$inferSelect) {
   }
 }
 
+/** Closures as told, oldest first: the issue's key now, its rank by its site's order now. */
+async function ranked(user: User, where: SQL | undefined): Promise<ClaimedClosure[]> {
+  const rows = await getDb()
+    .select({ connectionId: issues.connectionId, issueKey: issues.key, priority: issues.priority, priorityRank: issues.priorityRank, conn: connections })
+    .from(issueClosures)
+    .innerJoin(issues, eq(issues.id, issueClosures.itemId))
+    .innerJoin(connections, eq(connections.id, issues.connectionId))
+    .where(where)
+    .orderBy(asc(issueClosures.closedAt), asc(issueClosures.id));
+  const ranks = new Map<number, Map<string, number | null> | null>();
+  const out: ClaimedClosure[] = [];
+  for (const r of rows) {
+    if (r.conn.type === "jira" && !ranks.has(r.conn.id)) ranks.set(r.conn.id, await jiraRanks(user, r.conn));
+    const now = r.priority ? ranks.get(r.conn.id)?.get(r.priority) : undefined;
+    out.push({ connectionId: r.connectionId, issueKey: r.issueKey, priority: r.priority, priorityRank: now ?? r.priorityRank });
+  }
+  return out;
+}
+
 /** The next closures since `since` (epoch ms, and since closuresFrom) this module was not told yet, oldest first, now claimed. */
 export async function claimClosures(user: User, moduleId: string, since: number, limit: number): Promise<ClaimedClosure[]> {
   const db = getDb();
@@ -74,7 +94,8 @@ export async function claimClosures(user: User, moduleId: string, since: number,
   const picked = await db
     .select({ id: issueClosures.id })
     .from(issueClosures)
-    .where(and(eq(issueClosures.userId, user.id), gte(issueClosures.closedAt, from), untold(user.id, moduleId)))
+    // Only the user's own (assigned to them when it closed): a teammate's closure is no carrot.
+    .where(and(eq(issueClosures.userId, user.id), eq(issueClosures.assigned, 1), gte(issueClosures.closedAt, from), untold(user.id, moduleId)))
     .orderBy(asc(issueClosures.closedAt), asc(issueClosures.id))
     .limit(limit);
   if (picked.length === 0) return [];
@@ -85,19 +106,5 @@ export async function claimClosures(user: User, moduleId: string, since: number,
     .onConflictDoNothing()
     .returning({ id: moduleClosureClaims.closureId });
   if (claimed.length === 0) return [];
-  const rows = await db
-    .select({ connectionId: issues.connectionId, issueKey: issues.key, priority: issues.priority, priorityRank: issues.priorityRank, conn: connections })
-    .from(issueClosures)
-    .innerJoin(issues, eq(issues.id, issueClosures.itemId))
-    .innerJoin(connections, eq(connections.id, issues.connectionId))
-    .where(inArray(issueClosures.id, claimed.map((c) => c.id)))
-    .orderBy(asc(issueClosures.closedAt), asc(issueClosures.id));
-  const ranks = new Map<number, Map<string, number | null> | null>();
-  const out: ClaimedClosure[] = [];
-  for (const r of rows) {
-    if (r.conn.type === "jira" && !ranks.has(r.conn.id)) ranks.set(r.conn.id, await jiraRanks(user, r.conn));
-    const now = r.priority ? ranks.get(r.conn.id)?.get(r.priority) : undefined;
-    out.push({ connectionId: r.connectionId, issueKey: r.issueKey, priority: r.priority, priorityRank: now ?? r.priorityRank });
-  }
-  return out;
+  return ranked(user, inArray(issueClosures.id, claimed.map((c) => c.id)));
 }

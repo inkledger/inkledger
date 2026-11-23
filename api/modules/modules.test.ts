@@ -669,7 +669,7 @@ describe("add-on modules", () => {
     expect(await caller.modules.totals({ moduleId: "hello" })).toEqual({ lifetimeLoggedSeconds: 3600, weekLoggedSeconds: 3600, since: first.since });
   });
 
-  it("closures: each told once, one per claim, from when the module first asked unless released, ranked by the site's order now", async () => {
+  it("closures: each told once, only the user's own, from when the module first asked unless released, ranked by the site's order now", async () => {
     await activate();
     const { getDb, q } = await import("../queries/connection");
     const { moduleStorage } = await import("@db/schema");
@@ -679,10 +679,10 @@ describe("add-on modules", () => {
     const since = Date.now() - 10 * 86_400_000;
     await getDb().update(moduleStorage).set({ value: String(since) }).where(eq(moduleStorage.key, "__since"));
     const [{ id: connectionId }] = await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ? LIMIT 1", userId);
-    const close = async (key: string, priority: string, rank: number, at: number) => {
+    const close = async (key: string, priority: string, rank: number, at: number, assignee = "acc-1") => {
       const [{ id }] = await q<{ id: number }>(
-        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, priority, priority_rank, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 's', 'In corso', 'doing', ?, ?, 'CL', 'CL', 'u', 1) ON CONFLICT (user_id, connection_id, jira_id) DO UPDATE SET category = 'doing' RETURNING id",
-        userId, connectionId, key, key, priority, rank,
+        "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, priority, priority_rank, assignee_id, project_key, project_name, url, synced_at) VALUES (?, ?, ?, ?, 's', 'In corso', 'doing', ?, ?, ?, 'CL', 'CL', 'u', 1) ON CONFLICT (user_id, connection_id, jira_id) DO UPDATE SET category = 'doing' RETURNING id",
+        userId, connectionId, key, key, priority, rank, assignee,
       );
       await q("UPDATE issues SET category = 'done', status_changed_at = ? WHERE id = ?", at, id);
     };
@@ -702,19 +702,25 @@ describe("add-on modules", () => {
       // The past is never told on its own (every module, every user, at the upgrade).
       expect(await claim()).toEqual([]);
       await close("CL-3", "Basso", 3, Date.now() + 1000);
+      // A teammate's ticket closed in the list: no carrot.
+      await close("CL-T", "Critica", 1, Date.now() + 1500, "teammate");
       expect(await claim()).toEqual([{ connectionId, issueKey: "CL-3", priority: "Basso", priorityRank: 3 }]);
       expect(await claim()).toEqual([]);
       // Released on purpose from a day: oldest first, one per claim, never before the module counts.
-      expect(await releaseClosuresFrom(userId, "hello", since - 5000)).toBe(2);
-      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 }]);
-      expect(await claim()).toEqual([{ connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 }]);
+      const { users } = await import("@db/schema");
+      const [me] = await getDb().select().from(users).where(eq(users.id, userId));
+      expect(await releaseClosuresFrom(me, "hello", since - 5000)).toEqual({ total: 2, high: 1 });
+      expect(await claim()).toEqual([
+        { connectionId, issueKey: "CL-2", priority: "Normale", priorityRank: 2 },
+        { connectionId, issueKey: "CL-1", priority: "Urgente", priorityRank: 1 },
+      ]);
       expect(await claim()).toEqual([]);
       // Reopened and closed again: a new closure, told again.
       await close("CL-2", "Normale", 2, Date.now() + 2000);
       expect((await claim()).map((c) => c.issueKey)).toEqual(["CL-2"]);
       // Two tabs asking together never share one.
       for (let i = 0; i < 3; i++) await close(`CL-B${i}`, "Basso", 3, Date.now() + 10_000 + i);
-      const got = [...(await Promise.all([claim(), claim()])), await claim(), await claim()].flat().map((x) => x.issueKey);
+      const got = [...(await Promise.all([claim(), claim()])), await claim()].flat().map((x) => x.issueKey);
       expect(got.sort()).toEqual(["CL-B0", "CL-B1", "CL-B2"]);
     } finally {
       vi.stubGlobal("fetch", before);
@@ -813,7 +819,7 @@ describe("add-on modules", () => {
     const { q } = await import("../queries/connection");
     await caller.modules.claimClosures({ moduleId: "hello" });
     const [{ id: item }] = await q<{ id: number }>(
-      "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, project_key, project_name, url, synced_at) SELECT ?, id, 'PG-1', 'PG-1', 's', 'x', 'doing', 'PG', 'PG', 'u', 1 FROM connections WHERE user_id = ? LIMIT 1 RETURNING id",
+      "INSERT INTO issues (user_id, connection_id, jira_id, key, summary, status, category, assignee_id, project_key, project_name, url, synced_at) SELECT ?, id, 'PG-1', 'PG-1', 's', 'x', 'doing', remote_account_id, 'PG', 'PG', 'u', 1 FROM connections WHERE user_id = ? LIMIT 1 RETURNING id",
       userId, userId,
     );
     await q("UPDATE issues SET category = 'done', status_changed_at = ? WHERE id = ?", Date.now() + 1000, item);
@@ -834,7 +840,9 @@ describe("add-on modules", () => {
     expect((await caller.modules.totals({ moduleId: "hello" })).since).toBe(since);
     // What it was told before the uninstall stays told, even released again: the imported progress has counted it.
     const { releaseClosuresFrom } = await import("./closures");
-    await releaseClosuresFrom(userId, "hello", since);
+    const { users } = await import("@db/schema");
+    const [me] = await (await import("../queries/connection")).getDb().select().from(users).where(eq(users.id, userId));
+    expect(await releaseClosuresFrom(me, "hello", since)).toEqual({ total: 0, high: 0 });
     expect(await caller.modules.claimClosures({ moduleId: "hello" })).toEqual([]);
   });
 });

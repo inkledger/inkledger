@@ -234,7 +234,7 @@ describe("host hub: cache notifications", () => {
 
 describe("host hub: issue-closed", () => {
   // Closures only seen in the open app's cache missed those made in the tracker, while it was closed, or leaving the list.
-  it("comes from the server's closures, told to the module that claimed them, one at a time, never from the cache", async () => {
+  it("comes from the server's closures, told to the module that claimed them, as one batch, never from the cache", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     try {
       const { createHub } = await import("./host");
@@ -272,9 +272,8 @@ describe("host hub: issue-closed", () => {
       expect(asked).toEqual([]);
       await a.api.storage.get("state");
       await vi.advanceTimersByTimeAsync(0);
-      expect(asked).toEqual(["kanbunny"]);
-      expect(heardA).toEqual([{ issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } }]);
-      await vi.advanceTimersByTimeAsync(5_000);
+      // The batch at once (no timer pacing it), then asked again in case more wait.
+      expect(asked).toEqual(["kanbunny", "kanbunny"]);
       // No rank from the server: by its name, as before.
       expect(heardA).toEqual([
         { issueKey: "DEMO-1", priorityRank: 1, ref: { connectionId: 1, key: "DEMO-1" } },
@@ -297,6 +296,43 @@ describe("host hub: issue-closed", () => {
       hub.dispose();
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("host hub: a closure heard live, then caught up", () => {
+  // The module counts an event once by its id (shared/saved.ts eventId: "closed:<connection>:<key>").
+  const eventId = (d: { issueKey: string; ref?: { connectionId: number; key: string } }) => `closed:${d.ref ? `${d.ref.connectionId}:${d.ref.key}` : d.issueKey}`;
+  it("carries the same id the live event did, and two tabs never both tell it", async () => {
+    const { createHub } = await import("./host");
+    const pending = [{ connectionId: 3, issueKey: "OPS-7", priority: "Critica", priorityRank: 1 }];
+    // The server's claim: whoever asks first gets it.
+    const claimClosures = { mutate: async () => pending.splice(0) };
+    const counted = new Set<string>();
+    let carrots = 0;
+    const tab = () => {
+      const qc = new QueryClient();
+      const hub = createHub(qc, { ...fakeUtils(() => []), client: { modules: { claimClosures, storageGet: { query: async () => ({ value: null, revision: 0 }) } } } } as never);
+      const m = hub.apiFor("kanbunny", "dashboard-widget");
+      m.api.on("issue-closed", d => {
+        if (counted.has(eventId(d))) return;
+        counted.add(eventId(d));
+        carrots++;
+      });
+      return { hub, m };
+    };
+    // Heard live before (the old path's payload): counted.
+    counted.add(eventId({ issueKey: "OPS-7", ref: { connectionId: 3, key: "OPS-7" } }));
+    carrots = 1;
+    const one = tab();
+    const two = tab();
+    await Promise.all([one.m.api.storage.get("state"), two.m.api.storage.get("state")]);
+    await new Promise(r => setTimeout(r, 10));
+    expect(carrots).toBe(1);
+    expect([...counted]).toEqual(["closed:3:OPS-7"]);
+    for (const t of [one, two]) {
+      t.m.dispose();
+      t.hub.dispose();
     }
   });
 });

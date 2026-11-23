@@ -42,8 +42,6 @@ const guard = (moduleId: string, fn: () => unknown) => {
   }
 };
 
-/** Closures told one at a time: a catch-up after days away never lands at once. */
-const CLOSED_PACE_MS = 1500;
 /** A module that never reads its storage still hears closures, after this long. */
 const CLOSED_READY_MS = 10_000;
 
@@ -289,12 +287,10 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
           owned.delete(off);
         };
       };
-      // issue-closed: this module's closures, claimed on the server (each told once to it, whichever tab asks), then told one by one.
+      // issue-closed: this module's closures, claimed on the server (each told once to it, whichever tab asks), told as they come, all at once.
       const closedFns = new Set<(d: HostEvents["issue-closed"]) => void>();
-      let closedQueue: HostEvents["issue-closed"][] = [];
       let claiming = false;
       let askAgain = false;
-      let pace: ReturnType<typeof setTimeout> | undefined;
       // Nothing claimed before the module read its saved state (or a while passed): a closure told earlier would be dropped.
       let closedReady = false;
       let readyWait: ReturnType<typeof setTimeout> | undefined;
@@ -304,20 +300,9 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         clearTimeout(readyWait);
         if (closedFns.size > 0) askClosed();
       };
-      const tellClosed = () => {
-        pace = undefined;
-        const next = closedQueue.shift();
-        if (disposed) return;
-        if (!next) {
-          if (askAgain) void claimClosed();
-          return;
-        }
-        closedFns.forEach(fn => fn(next));
-        pace = setTimeout(tellClosed, CLOSED_PACE_MS);
-      };
       const claimClosed = async () => {
         if (disposed || closedFns.size === 0 || !closedReady) return;
-        if (claiming || pace !== undefined) {
+        if (claiming) {
           askAgain = true;
           return;
         }
@@ -325,11 +310,12 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         askAgain = false;
         try {
           const got = await utils.client.modules.claimClosures.mutate({ moduleId });
-          closedQueue = got.map(c => ({
-            issueKey: c.issueKey,
-            priorityRank: c.priorityRank ?? priorityRank(c.priority),
-            ref: { connectionId: c.connectionId, key: c.issueKey },
-          }));
+          // Claimed is told at once: the page never holds one it could lose.
+          for (const c of got) {
+            if (disposed) break;
+            const d = { issueKey: c.issueKey, priorityRank: c.priorityRank ?? priorityRank(c.priority), ref: { connectionId: c.connectionId, key: c.issueKey } };
+            closedFns.forEach(fn => fn(d));
+          }
           // A full step may have more behind it.
           if (got.length > 0) askAgain = true;
         } catch {
@@ -337,7 +323,7 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
         } finally {
           claiming = false;
         }
-        tellClosed();
+        if (askAgain) void claimClosed();
       };
       const askClosed = () => void claimClosed();
       // Nothing added after a stop: dispose has already let go of what it owned.
@@ -400,8 +386,6 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
               closedFns.delete(wrapped);
               if (closedFns.size > 0) return;
               closureAsks.delete(askClosed);
-              clearTimeout(pace);
-              pace = undefined;
               clearTimeout(readyWait);
               readyWait = undefined;
             });
