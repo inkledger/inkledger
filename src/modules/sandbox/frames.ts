@@ -11,7 +11,7 @@ import { browserBroker, createBroker } from "./broker";
 import { focusBack, frameTookFocus, ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
-import { browserAnchors, browserSignalPage, createPageEvents, watchTransitions, type PageSignal } from "./anchors";
+import { browserAnchors, browserSignalPage, createPageEvents, watchTransitions, type AnchorEl, type PageSignal } from "./anchors";
 import { cardId, pageSignals } from "../pageSignals";
 import { commandPalette } from "@/lib/commandPalette";
 import type { HostApiV1 } from "../types";
@@ -148,6 +148,9 @@ const light = () =>
     SURFACES,
   ));
 
+/** The palette's dialog grows in this long (dialog.tsx's zoom-in): measured after, where it stays. */
+const PALETTE_GROW_MS = 220;
+
 /**
  * What the person does, as the host sees it ("page.events"): the hub's events, the page's own
  * (Board moves, notifications), the search palette and any search field taking the focus.
@@ -176,10 +179,20 @@ function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => voi
     },
     fn => {
       let open = commandPalette.get();
+      let wait = 0;
+      // The palette's own field, once it is drawn and done growing in (its body may load first): else the app's search.
+      const field = (): AnchorEl | undefined => document.querySelector<HTMLElement>('[data-slot="dialog-content"] [data-slot="command-input-wrapper"]') ?? undefined;
+      const tellOpen = (tries: number) => {
+        const f = field();
+        if (!f && tries > 0) return void (wait = window.setTimeout(() => tellOpen(tries - 1), 50));
+        wait = window.setTimeout(() => open && fn({ kind: "search", focused: true, field: field() ?? f }), f ? PALETTE_GROW_MS : 0);
+      };
       const off = commandPalette.subscribe(() => {
         if (commandPalette.get() === open) return;
         open = commandPalette.get();
-        fn({ kind: "search", focused: open });
+        clearTimeout(wait);
+        if (open) tellOpen(20);
+        else fn({ kind: "search", focused: false });
       });
       const onIn = (e: FocusEvent) => isSearch(e.target) && fn({ kind: "search", focused: true, field: e.target });
       const onOut = (e: FocusEvent) => isSearch(e.target) && fn({ kind: "search", focused: false, field: e.target });
@@ -187,6 +200,7 @@ function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => voi
       document.addEventListener("focusout", onOut);
       return () => {
         off();
+        clearTimeout(wait);
         document.removeEventListener("focusin", onIn);
         document.removeEventListener("focusout", onOut);
       };
