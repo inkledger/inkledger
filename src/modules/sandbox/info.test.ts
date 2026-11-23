@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FIXED, INFO_MARGIN, createInfoSource, mergeSurfaces, scanInfo, scrollerIds, type InfoEl, type InfoEnv, type InfoPage, type InfoStyle, type ScrollEvent } from "./info";
 
 type Box = [left: number, top: number, w: number, h: number];
-type F = { tag?: string; role?: string; editable?: boolean; r: Box; st?: Partial<InfoStyle>; text?: Box[]; kids?: F[]; scroll?: { w: number; h: number; x?: number; y?: number } };
+type F = { tag?: string; role?: string; editable?: boolean; under?: boolean; r: Box; st?: Partial<InfoStyle>; text?: Box[]; kids?: F[]; scroll?: { w: number; h: number; x?: number; y?: number } };
 const STYLE: InfoStyle = {
   display: "block",
   visibility: "visible",
@@ -30,6 +30,7 @@ function el(f: F): InfoEl {
     tag: f.tag ?? "div",
     role: f.role ?? null,
     editable: f.editable ?? false,
+    topAt: () => !f.under,
     style: () => ({ ...STYLE, ...f.st }),
     rect: () => rectOf(f.r),
     client: () => ({ ...rectOf(f.r), scrollW: f.scroll?.w ?? f.r[2], scrollH: f.scroll?.h ?? f.r[3], clientW: f.r[2], clientH: f.r[3], scrollX: f.scroll?.x ?? 0, scrollY: f.scroll?.y ?? 0 }),
@@ -160,6 +161,15 @@ describe("page.info", () => {
       { x: 100, y: 300, w: 300, kind: "top", s: 0 },
       { x: 600, y: 300, w: 300, kind: "top", s: 0 },
     ]);
+  });
+
+  it("a fixed backdrop drawn under the page (never the top where it is) hides nothing", async () => {
+    const got = await scan([
+      { r: [0, 0, 1280, 800], st: { position: "fixed", backgroundColor: "rgb(250, 248, 245)" }, under: true },
+      { r: [100, 300, 400, 200], st: CARD, text: [[110, 310, 200, 18]] },
+    ]);
+    expect(got.surfaces).toContainEqual({ x: 100, y: 300, w: 400, kind: "top", s: 0 });
+    expect(got.rects).toEqual([{ x: 110, y: 310, w: 200, h: 18, kind: "text", interactive: false, s: 0 }]);
   });
 
   it("faces at one height are merged where they touch, never across a gap", () => {

@@ -52,6 +52,8 @@ export type InfoEl = {
   role: string | null;
   /** Where the person types rich text (the editable root only): one control, never looked into. */
   editable: boolean;
+  /** Whether the page's top element at a point (viewport px) is this one or inside it. */
+  topAt(x: number, y: number): boolean;
   style(): InfoStyle;
   rect(): Rect;
   /** Its padding box on the page, and how far its content scrolls. */
@@ -90,7 +92,7 @@ type Ctx = { clip: Rect; s: number; bg: string; interactive: boolean; pointer: b
 /** A scroller as read: whose it is, inside which, and where its content stood. */
 export type ScrollerRead = Scroller & { parent: number; scrollX: number; scrollY: number; key: object };
 /** What lies over the page's flow (a sticky header, a dialog, a menu): `l` is its layer, in paint order (later over earlier). */
-type Cover = Rect & { l: number };
+type Cover = Rect & { l: number; el: InfoEl };
 type Found = { rects: (InfoRect & { l: number })[]; surfaces: (Surface & { l: number })[]; scrollers: ScrollerRead[]; covers: Cover[]; layers: number };
 const LAYER_ROLES = new Set(["dialog", "alertdialog", "menu", "listbox", "tooltip"]);
 
@@ -144,7 +146,7 @@ function* walk(el: InfoEl, ctx: Ctx, view: Rect, ids: ScrollerIds, out: Found): 
   const bgA = alpha(st.backgroundColor);
   if (shown && layer >= 0 && !covered && bgA >= 0.3) {
     const c = clipTo(r, clip);
-    if (c) out.covers.push({ ...c, l: layer });
+    if (c) out.covers.push({ ...c, l: layer, el });
     covered = true;
   }
   const filled = bgA >= 0.1 && st.backgroundColor !== ctx.bg;
@@ -232,6 +234,14 @@ export function uncovered(found: Pick<Found, "rects" | "surfaces" | "covers">): 
   return { rects, surfaces };
 }
 
+/** Hit tests at a few points of the cover's part in the window: is it, or something of its own, the top there? */
+function onTop(c: Cover, view: Rect): boolean {
+  const v = clipTo(c, view);
+  if (!v) return false;
+  const at = (kx: number, ky: number) => c.el.topAt(v.left + (v.right - v.left) * kx, v.top + (v.bottom - v.top) * ky);
+  return at(0.5, 0.5) || at(0.25, 0.25) || at(0.75, 0.75);
+}
+
 /** Text fragments on one line, close side by side, as one rect (a line box, not its words). */
 export function mergeLines(rects: readonly InfoRect[]): InfoRect[] {
   const text = rects.filter(r => r.kind === "text").sort((a, b) => a.s - b.s || a.y - b.y || a.x - b.x);
@@ -287,7 +297,8 @@ export async function scanInfo(page: InfoPage, ids: ScrollerIds, clock: { now():
     if (done) break;
     await clock.yield();
   }
-  const seen = uncovered(found);
+  // A layer is over what it overlaps only where it is the page's top (a backdrop drawn under the page is not).
+  const seen = uncovered({ ...found, covers: found.covers.filter(c => onTop(c, view)) });
   const rects = nearest(mergeLines(seen.rects), INFO_MAX_RECTS, view, r => [r.w, r.h]).map(r => ({ ...r, x: half(r.x), y: half(r.y), w: half(r.w), h: half(r.h) }));
   const surfaces = nearest(mergeSurfaces(seen.surfaces), INFO_MAX_SURFACES, view, f => [f.w, 0]).map(f => ({ ...f, x: half(f.x), w: half(f.w) }));
   const scrollers = [{ id: 0, x: 0, y: 0, w: page.width, h: page.height, parent: FIXED, scrollX: page.scrollX, scrollY: page.scrollY, key: page.root.key }, ...found.scrollers];
@@ -427,6 +438,10 @@ export function browserInfoPage(): InfoPage {
     tag: e.localName,
     role: e.getAttribute("role"),
     editable: e instanceof HTMLElement && e.isContentEditable && !e.parentElement?.isContentEditable,
+    topAt: (x, y) => {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit && e.contains(hit);
+    },
     style: () => getComputedStyle(e),
     rect: () => e.getBoundingClientRect(),
     client() {
