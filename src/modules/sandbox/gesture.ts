@@ -22,6 +22,8 @@ export const GESTURE_MS = 5000;
 export const PICTURE_GESTURE_MS = 5000;
 
 export type OwnGesture = "pointer" | "key";
+/** What a frame's bootstrap tells: a gesture, or Tab (a key that also moves the focus on). */
+export type OwnReport = OwnGesture | "tab";
 
 export function createGestures(env: { now(): number; active(): boolean }) {
   let appAt = -Infinity;
@@ -32,8 +34,9 @@ export function createGestures(env: { now(): number; active(): boolean }) {
   /** Frames whose focus the person (or the host) put there. */
   const placed = new WeakSet<object>();
   const hostAt = new WeakMap<object, number>();
-  /** A real key in any frame (Tab out of one moves the focus to the next). */
+  /** Tab in a frame the person put the focus in (the focus moves on to the next), and which. */
   let anyKeyAt = -Infinity;
+  let keyFrame: object | null = null;
   return {
     /** A pointer down or a key on the app's own page. */
     app() {
@@ -64,7 +67,7 @@ export function createGestures(env: { now(): number; active(): boolean }) {
     tookFocus(frame: object): boolean {
       const t = env.now();
       const p = pointerAt.get(frame) ?? -Infinity;
-      const ok = t - tabAt <= 1000 || t - anyKeyAt <= 1000 || t - (hostAt.get(frame) ?? -Infinity) <= 1000 || (p >= appAt && t - p <= 1000);
+      const ok = t - tabAt <= 1000 || (t - anyKeyAt <= 1000 && keyFrame !== frame) || t - (hostAt.get(frame) ?? -Infinity) <= 1000 || (p >= appAt && t - p <= 1000);
       if (ok) placed.add(frame);
       else placed.delete(frame);
       return ok;
@@ -72,10 +75,13 @@ export function createGestures(env: { now(): number; active(): boolean }) {
     /** Whether the focus in this frame is the person's (or the host's) doing, as last judged. */
     placedIn: (frame: object) => placed.has(frame),
     /** A real gesture inside a frame, as its bootstrap saw it. */
-    own(frame: object, kind: OwnGesture) {
+    own(frame: object, kind: OwnReport) {
       (kind === "pointer" ? pointerAt : keyAt).set(frame, env.now());
       if (kind === "pointer") placed.add(frame);
-      else anyKeyAt = env.now();
+      else if (kind === "tab" && placed.has(frame)) {
+        anyKeyAt = env.now();
+        keyFrame = frame;
+      }
     },
     /** Whether the person's latest gesture, within `ms`, was in this view: its host box, or its frame (`focused`: it has the focus now). */
     has(frame: object, box: object, focused: boolean, ms = GESTURE_MS): boolean {
@@ -95,7 +101,7 @@ export type Gestures = ReturnType<typeof createGestures>;
  * them: a call made at once after a gesture is held (at most `GESTURE_MS`)
  * until the reports it follows have arrived.
  */
-export function ownReports(onReport: (kind: OwnGesture) => void, onFocus?: () => void) {
+export function ownReports(onReport: (kind: OwnReport) => void, onFocus?: () => void) {
   const ch = new MessageChannel();
   let seen = 0;
   const waiting = new Set<{ g: number; done: () => void }>();
@@ -103,7 +109,7 @@ export function ownReports(onReport: (kind: OwnGesture) => void, onFocus?: () =>
     const kind = e.data;
     // Its window took the focus: no gesture (not counted), only when to read where the focus is.
     if (kind === "focus") return onFocus?.();
-    if (kind !== "pointer" && kind !== "key") return;
+    if (kind !== "pointer" && kind !== "key" && kind !== "tab") return;
     seen++;
     onReport(kind);
     for (const w of waiting) if (seen >= w.g) w.done();
@@ -137,11 +143,7 @@ export function ownReports(onReport: (kind: OwnGesture) => void, onFocus?: () =>
 let page: Gestures | null = null;
 /** The page's element, or the frame the person put it in, that had the focus last. */
 let holder: HTMLElement | null = null;
-/** A frame refused before the page saw the focus leave for it (Chrome may tell in that order), and until when. */
-let refused: { frame: HTMLIFrameElement; until: number } | null = null;
-
 const giveBack = (g: Gestures, frame: HTMLIFrameElement) => {
-  refused = null;
   const back = holder;
   if (back && back !== frame && back.isConnected) {
     if (back instanceof HTMLIFrameElement) g.hostFocus(back);
@@ -161,7 +163,15 @@ export function pageGestures(): Gestures {
     },
     opts,
   );
-  document.addEventListener("pointerdown", () => g.app(), opts);
+  document.addEventListener(
+    "pointerdown",
+    e => {
+      g.app();
+      // On the frame element itself (Chrome routes a tap there while a woken frame isn't hit-testable yet): the person's, in that frame.
+      if (e.target instanceof HTMLIFrameElement && e.target.dataset.moduleFrame === "view") g.own(e.target, "pointer");
+    },
+    opts,
+  );
   document.addEventListener(
     "keydown",
     e => {
@@ -173,12 +183,7 @@ export function pageGestures(): Gestures {
   // The page's window loses the focus to one of its frames (no event reaches the iframe element itself).
   window.addEventListener("blur", () => {
     const at = document.activeElement;
-    if (!(at instanceof HTMLIFrameElement && at.dataset.moduleFrame === "view")) return;
-    g.focusIn(at);
-    if (refused?.frame === at && performance.now() <= refused.until) {
-      refused = null;
-      later(g, at);
-    }
+    if (at instanceof HTMLIFrameElement && at.dataset.moduleFrame === "view") g.focusIn(at);
   });
   page = g;
   return g;
@@ -188,19 +193,24 @@ export function pageGestures(): Gestures {
  * A view frame's window took the focus (its bootstrap told, after any pointer down there: one port,
  * in order). Not by the person or the host: the focus goes straight back where it was.
  */
-export function frameTookFocus(frame: HTMLIFrameElement) {
+export function frameTookFocus(frame: HTMLIFrameElement): "kept" | "refused" {
   const g = pageGestures();
   if (g.tookFocus(frame)) {
     holder = frame;
-    refused = null;
-    return;
+    return "kept";
   }
-  if (document.activeElement === frame) later(g, frame);
-  else refused = { frame, until: performance.now() + 300 };
+  later(g, frame);
+  return "refused";
 }
 
-// After the browser has moved its own focus into the frame (Chrome does that apart from the page):
-// given back sooner, the page believes it has the keys while the browser still sends them to the frame.
+/** The focus back where it was, the frame that reached for it gone (its module stopped). */
+export function focusBack() {
+  if (holder?.isConnected && document.activeElement !== holder) holder.focus({ preventScroll: true });
+}
+
+// After the browser has moved its own focus into the frame (Chrome does that apart from the page, and
+// may tell the page later): given back sooner, the page believes it has the keys while the browser
+// still sends them to the frame.
 const later = (g: Gestures, frame: HTMLIFrameElement) =>
   requestAnimationFrame(() =>
     setTimeout(() => {

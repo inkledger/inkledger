@@ -1177,6 +1177,7 @@ export const settings: Shape<typeof en> = {
       invalid: "Rifiutato: {reason}",
       stoppedSlow: "Fermato: troppo lento",
       stoppedNavigated: "Fermato: è uscito dal riquadro",
+      stoppedFocus: "Fermato: continuava a prendersi la tastiera",
     },
     extraKey: "È attiva una chiave di sviluppo (MODULES_TRUST_EXTRA_KEY): i moduli firmati con quella si caricano qui. Toglila fuori dallo sviluppo.",
     offTitle: "Store disattivato",

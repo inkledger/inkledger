@@ -67,10 +67,24 @@ describe("whose gesture it was", () => {
     expect(g.tookFocus(frame)).toBe(false);
     g.hostFocus(frame);
     expect(g.tookFocus(frame)).toBe(true);
-    // A key in another frame (Tab out of it) moves the focus on.
+    // A key in another frame the person is in (Tab out of it) moves the focus on.
     tick(2000);
-    g.own(other, "key");
+    const third = { name: "a third frame" };
+    g.own(third, "tab");
+    expect(g.tookFocus(frame)).toBe(false);
+    g.own(third, "pointer");
+    tick(2000);
+    // Typing there is not leaving it.
+    g.own(third, "key");
+    expect(g.tookFocus(frame)).toBe(false);
+    g.own(third, "tab");
     expect(g.tookFocus(frame)).toBe(true);
+    // Keys typed into a frame that grabbed the focus are no reason for it to keep it.
+    tick(2000);
+    g.app();
+    expect(g.tookFocus(frame)).toBe(false);
+    g.own(frame, "tab");
+    expect(g.tookFocus(frame)).toBe(false);
     // Refused: its keys are not the person's either.
     tick(2000);
     g.app();

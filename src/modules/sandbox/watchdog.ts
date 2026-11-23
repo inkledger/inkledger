@@ -201,8 +201,8 @@ const stopped = new Map<string, string>();
 const stoppedListeners = new Set<() => void>();
 let stoppedSnapshot: ReadonlyMap<string, string> = new Map();
 
-/** A module stopped until the page reloads, and why ("slow", "navigated"). */
-export function markStopped(moduleId: string, why: "slow" | "navigated") {
+/** A module stopped until the page reloads, and why ("slow", "navigated", "focus": it kept taking the keyboard). */
+export function markStopped(moduleId: string, why: "slow" | "navigated" | "focus") {
   if (stopped.has(moduleId)) return;
   stopped.set(moduleId, why);
   stoppedSnapshot = new Map(stopped);

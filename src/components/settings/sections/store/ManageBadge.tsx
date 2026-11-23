@@ -44,7 +44,7 @@ function badgeOf(installed: ModuleStatus | null, licensed: boolean, off: boolean
     case "active":
       if (off) return { label: t("settings.store.switch.badge"), tone: "muted" };
       // Stopped on this page until it reloads (a framed module that slowed the page or navigated).
-      if (stopped) return { label: t(stopped === "slow" ? "settings.store.status.stoppedSlow" : "settings.store.status.stoppedNavigated"), tone: "warning" };
+      if (stopped) return { label: t(stopped === "slow" ? "settings.store.status.stoppedSlow" : stopped === "focus" ? "settings.store.status.stoppedFocus" : "settings.store.status.stoppedNavigated"), tone: "warning" };
       return { label: t("settings.store.active"), tone: "success" };
     case "needs-license":
       return { label: t("settings.store.status.needsLicense"), tone: "warning" };

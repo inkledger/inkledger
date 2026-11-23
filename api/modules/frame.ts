@@ -105,7 +105,8 @@ const apply = Reflect.apply;
 let told = 0;
 const tell = (kind) => { if (own) { told++; apply(portPost, own, [kind]); } };
 addEventListener("pointerdown", (e) => { if (e.isTrusted) tell("pointer"); }, true);
-addEventListener("keydown", (e) => { if (e.isTrusted) tell("key"); }, true);
+// Tab said apart: the focus leaving for the next frame is the keyboard's.
+addEventListener("keydown", (e) => { if (e.isTrusted) tell(e.key === "Tab" ? "tab" : "key"); }, true);
 // Its window took the focus (from another frame too, which the page sees nothing of): not a gesture, never counted.
 addEventListener("focus", (e) => { if (e.isTrusted && own) apply(portPost, own, ["focus"]); });
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.

@@ -265,6 +265,50 @@ test("a frame that takes the focus by itself gives it straight back: the keys st
     assert.equal(await page.evaluate(() => window.__badges), 0, "no badge, not even for a moment");
   }));
 
+test("a frame grabbing the focus from another frame, or again and again, never keeps the keys", () =>
+  withFramed(async ({ page }) => {
+    await page.locator(`${WIDGET}[data-state="live"]`).waitFor();
+    await page.locator(`${OVERLAY}[data-state="live"]`).waitFor();
+    // The person types in the card's own field (a click there puts the focus in that frame).
+    const card = await viewFrame(page);
+    await card.evaluate(() => {
+      const field = Object.assign(document.createElement("input"), { id: "card-field" });
+      Object.assign(field.style, { position: "absolute", top: "0", left: "0" });
+      document.body.append(field);
+    });
+    await page.frameLocator(WIDGET).locator("#card-field").click();
+    // The overlay's frame reaches for the focus from it, by itself.
+    const overlay = await viewFrame(page, OVERLAY);
+    await overlay.evaluate(() => {
+      window.__keys = 0;
+      addEventListener("keydown", () => window.__keys++, true);
+      const b = document.createElement("button");
+      document.body.append(b);
+      b.focus();
+    });
+    await page.waitForTimeout(500);
+    // Away from the grabbing frame (back to the card's where the browser lets the host, else the page).
+    assert.equal(await page.evaluate(sel => document.activeElement === document.querySelector(sel), OVERLAY), false, "not in the overlay's frame");
+    await page.keyboard.type("abc");
+    assert.equal(await overlay.evaluate(() => window.__keys), 0, "no key reached the overlay");
+    // Again and again, while the person types in the app.
+    await page.evaluate(() => {
+      const field = Object.assign(document.createElement("input"), { id: "typing-here" });
+      Object.assign(field.style, { position: "fixed", top: "8px", left: "8px", zIndex: "9999" });
+      document.body.append(field);
+    });
+    await page.locator("#typing-here").click();
+    await overlay.evaluate(() => {
+      const b = document.body.querySelector("button");
+      setInterval(() => b.focus(), 20);
+    });
+    await page.keyboard.type("twenty characters ok", { delay: 30 });
+    // Each grab given back (WebKit), or the module stopped on the second (Chrome would keep sending the keys to its frame): the rest lands in the app.
+    await page.waitForTimeout(300);
+    assert.match(await page.locator("#typing-here").inputValue(), /ok$/);
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "typing-here");
+  }));
+
 test("the focus in a module's frame shows the host's badge with its name, outside its box", () =>
   withFramed(async ({ page }) => {
     await page.locator(`${WIDGET}[data-state="live"]`).waitFor();

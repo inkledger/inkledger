@@ -8,7 +8,7 @@ import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
-import { frameTookFocus, ownReports, pageGestures } from "./gesture";
+import { focusBack, frameTookFocus, ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -145,7 +145,7 @@ const light = () =>
   ));
 
 /** A module that navigated or slowed the page: all its frames go, and it stays off until the page reloads. */
-function kill(id: string, why: string, reason: "slow" | "navigated") {
+function kill(id: string, why: string, reason: "slow" | "navigated" | "focus") {
   if (killed.has(id)) return;
   killed.add(id);
   markStopped(id, reason);
@@ -273,6 +273,8 @@ function openFrame(
   };
   const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
+  // When this view's frame reached for the focus by itself.
+  const grabbedAt: number[] = [];
   let own: ReturnType<typeof ownReports> | null = null;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;
@@ -292,7 +294,11 @@ function openFrame(
         own = ownReports(
           kind => gestures.own(iframe, kind),
           () => {
-            frameTookFocus(iframe);
+            // Again within seconds: Chrome then keeps sending the keys to the frame, whatever the page does.
+            if (frameTookFocus(iframe) === "refused" && grabbedAt.push(performance.now()) > 1 && grabbedAt[grabbedAt.length - 1] - grabbedAt[grabbedAt.length - 2] <= 5000) {
+              kill(entry.id, "it kept taking the focus", "focus");
+              focusBack();
+            }
             pageFocusBadge().check();
           },
         );

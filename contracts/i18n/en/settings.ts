@@ -1176,6 +1176,7 @@ export const settings = {
       invalid: "Refused: {reason}",
       stoppedSlow: "Stopped: too slow",
       stoppedNavigated: "Stopped: left its frame",
+      stoppedFocus: "Stopped: kept taking the keyboard",
     },
     extraKey: "A development key is trusted (MODULES_TRUST_EXTRA_KEY): modules signed with it load here. Remove it outside development.",
     offTitle: "Store turned off",
