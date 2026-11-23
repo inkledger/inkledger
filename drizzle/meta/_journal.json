@@ -337,6 +337,13 @@
       "when": 1795424534806,
       "tag": "0047_legacy_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795462025110,
+      "tag": "0048_issue_closures",
+      "breakpoints": true
     }
   ]
 }

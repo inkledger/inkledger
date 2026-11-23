@@ -1459,6 +1459,42 @@ export const moduleFiles = pgTable(
 );
 
 /**
+ * Each time an issue of the user moved into done, once (a database trigger on
+ * issues, whatever wrote it: sync, webhook, own transition): modules hear
+ * closures that happened while the app was closed.
+ */
+export const issueClosures = pgTable(
+  "issue_closures",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    /** When it was closed (epoch ms): its tracker's time when it moved, else when it was seen */
+    closedAt: epochMs("closed_at").notNull(),
+  },
+  (t) => [uniqueIndex("uq_issue_closures_item_at").on(t.itemId, t.closedAt), index("idx_issue_closures_user_at").on(t.userId, t.closedAt)],
+);
+
+/** The closures a module was already told, per user: each one told once. */
+export const moduleClosureClaims = pgTable(
+  "module_closure_claims",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    moduleId: text("module_id").notNull(),
+    closureId: integer("closure_id")
+      .notNull()
+      .references(() => issueClosures.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.moduleId, t.closureId] })],
+);
+
+/**
  * Keys an issue had before it moved (APP-1 → NEW-1): old links, bookmarks
  * and notifications still find it.
  */
