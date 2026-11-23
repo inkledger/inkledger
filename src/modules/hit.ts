@@ -15,7 +15,7 @@ export type HitTest = (x: number, y: number, width: number, height: number) => b
 type Area = { el: HTMLElement; test: HitTest; activate: (how: HitActivation) => void };
 
 /** Layers over the page: a point under one of these belongs to it, not to a module below. */
-const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
+const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-slot="dialog-overlay"]';
 
 /**
  * Page controls drawn over modules on purpose (the running timer's Pause and Stop, Play on the open hole: over

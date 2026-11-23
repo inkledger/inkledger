@@ -101,6 +101,18 @@ describe("module hit areas", () => {
     expect(reached).toEqual(["pointerdown", "pointerup", "click"]);
   });
 
+  // The bunny drawn over a dialog's backdrop took the click meant to close the search (23 Nov).
+  it("a page overlay never takes a point on a dialog's backdrop", () => {
+    const { win, fire } = page();
+    (win.document as unknown as { elementFromPoint: () => unknown }).elementFromPoint = () => ({ closest: (s: string) => (s.includes("dialog-overlay") ? {} : null) });
+    let opened = 0;
+    const b = Object.assign(box(), { closest: (s: string) => (s === "[data-page-overlay]" ? {} : null) });
+    createHitAreas(win).add(b, leftHalf, () => opened++);
+    fire("pointerdown", 20, 20);
+    fire("click", 20, 20);
+    expect(opened).toBe(0);
+  });
+
   it("never takes a point under a dialog or a menu opened over the page", () => {
     const { win, reached, fire, pageListens } = page(true);
     let opened = 0;
