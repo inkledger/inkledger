@@ -45,6 +45,7 @@ export const MODULE_CAPABILITIES = [
   "sheet",
   "share",
   "download",
+  "download.large",
   "open-image",
   "geo",
   "cache",
@@ -119,6 +120,8 @@ export const FILES_MAX_IDLE_MS = 30 * 86_400_000;
 export const FILE_TYPES = ["image/webp", "image/png", "image/avif"] as const;
 /** A picture a framed module hands the host (share, download, open, cache): crosses as a Blob, never base64. */
 export const PICTURE_MAX_BYTES = 4 * 1024 * 1024;
+/** A large file a framed module hands the host to save ("download.large", e.g. a film): a Blob handle, never copied. */
+export const DOWNLOAD_LARGE_MAX_BYTES = 64 * 1024 * 1024;
 
 /** How much of a dashboard backdrop shows through (veil and blur, set by the host). */
 export const BACKDROP_VISIBILITY = ["subtle", "normal", "scenic"] as const;

@@ -152,6 +152,13 @@ type Capabilities = {
   /** "share", "download", "open-image": brokered, need the person's gesture in this view (a click, or a key once they put the focus there) in the last five seconds. */
   share?(file: Blob, name: string): Promise<boolean>;
   download?(file: Blob, name: string): Promise<void>;
+  /**
+   * "download.large": saves a film (WebM or MP4, as MediaRecorder makes it) or a picture of up to
+   * 64 MB, sent as a Blob (never copied), two in a row then one every ten seconds. The same gesture
+   * rule as "download": call it from the person's click that saves it, with the file already made
+   * (a recording finished first, then a "Save" button), not at the end of a long recording.
+   */
+  downloadLarge?(file: Blob, name: string): Promise<void>;
   openImage?(file: Blob): Promise<void>;
   /** "geo": where the person is, right after their gesture in this view; null when refused. */
   geo?: { here(): Promise<{ lat: number; lon: number } | null> };
@@ -244,6 +251,7 @@ export const CAPABILITY_OF = {
   sheet: "sheet",
   share: "share",
   download: "download",
+  downloadLarge: "download.large",
   openImage: "open-image",
   geo: "geo",
   cache: "cache",

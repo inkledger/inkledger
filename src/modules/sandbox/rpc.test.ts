@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { DOWNLOAD_LARGE_MAX_BYTES } from "@contracts/modules";
 import { createRateBuckets, createRpcPeer, messageBytes, method, RPC_MAX_BYTES, type HostMessage } from "./rpc";
 
 const frame = { name: "frame" };
@@ -62,8 +63,34 @@ describe("framed module messages", () => {
     const { call, sent } = peer();
     expect(call("echo", ["x".repeat(RPC_MAX_BYTES)])).toEqual({ ok: false, why: "size" });
     expect(call("echo", [new Array(5000).fill(1)])).toEqual({ ok: false, why: "size" });
-    expect(call("echo", [new Blob([new Uint8Array(RPC_MAX_BYTES + 1)])])).toEqual({ ok: false, why: "size" });
     expect(sent).toEqual([]);
+    // A Blob past it is a handle (nothing copied): read far enough to answer that call.
+    expect(call("echo", [new Blob([new Uint8Array(RPC_MAX_BYTES + 1)])], 2)).toEqual({ ok: false, why: "size" });
+    expect(sent).toEqual([{ v: 1, t: "res", id: 2, ok: false, error: "size" }]);
+  });
+
+  it("a Blob past the message cap only for a method that takes a large one, up to its own cap", async () => {
+    const sent: HostMessage[] = [];
+    const p = createRpcPeer({
+      source: () => frame,
+      post: m => sent.push(m),
+      capabilities: [],
+      methods: {
+        echo: method({ args: z.tuple([z.unknown()]), rate: [10, 10], run: () => "echo" }),
+        save: method({ args: z.tuple([z.instanceof(Blob)]), large: true, rate: [10, 10], run: ([b]) => b.size }),
+      },
+    });
+    const call = (id: number, m: string, a: unknown[]) => p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id, m, a } });
+    const film = new Blob([new Uint8Array(RPC_MAX_BYTES + 1)]);
+    expect(call(1, "echo", [film])).toEqual({ ok: false, why: "size" });
+    // Under the cap apart, over it together: the old limit for a method that takes no large one.
+    expect(call(5, "echo", [[new Blob([new Uint8Array(RPC_MAX_BYTES / 2)]), "x".repeat(RPC_MAX_BYTES / 2)]])).toEqual({ ok: false, why: "size" });
+    expect(call(2, "save", [film])).toEqual({ ok: true });
+    expect(call(3, "save", [new Blob([new Uint8Array(DOWNLOAD_LARGE_MAX_BYTES + 1)])])).toEqual({ ok: false, why: "size" });
+    // The rest of the message keeps the usual cap.
+    expect(call(4, "save", [film, "x".repeat(RPC_MAX_BYTES)])).toEqual({ ok: false, why: "size" });
+    await settle();
+    expect(sent.filter(m => m.t === "res" && m.ok)).toEqual([{ v: 1, t: "res", id: 2, ok: true, value: RPC_MAX_BYTES + 1 }]);
   });
 
   it("refuses what may not cross: an OffscreenCanvas, class instances, functions", () => {

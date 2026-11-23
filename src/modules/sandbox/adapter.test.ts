@@ -355,6 +355,27 @@ describe("the frame's host API (bootstrap)", () => {
     ]);
   });
 
+  it("a film past the picture cap is saved whole with \"download.large\", never with \"download\"", async () => {
+    const saved: [number, string, string][] = [];
+    const webmOf = (n: number) => {
+      const b = new Uint8Array(n);
+      b.set([0x1a, 0x45, 0xdf, 0xa3]);
+      return new Blob([b]);
+    };
+    const results: unknown[] = [];
+    withModule(
+      ["download", "download.large"],
+      (_el, host) => {
+        void host.downloadLarge?.(webmOf(PICTURE_MAX_BYTES + 1), "Bonsai").then(() => results.push("saved"), (e: Error) => results.push(e.message));
+        void host.download?.(webmOf(PICTURE_MAX_BYTES + 1), "Bonsai").catch((e: Error) => results.push(e.message));
+      },
+      { ...quietEnv, download: (f, name) => void saved.push([f.size, f.type, name]) },
+    );
+    await settle(16);
+    expect(results.sort()).toEqual(["download: too big to send", "saved"]);
+    expect(saved).toEqual([[PICTURE_MAX_BYTES + 1, "video/webm", "Bonsai.webm"]]);
+  });
+
   it("hit.set with a picture sends its alpha, scaled to 512 px a side at most", async () => {
     const got: unknown[] = [];
     const methods = { "hit.set": method({ args: z.tuple([z.unknown(), z.unknown()]), rate: [10, 10], run: ([m]) => void got.push(m) }) };

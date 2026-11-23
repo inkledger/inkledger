@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createBroker, safeName, sniffImage, type BrokerEnv } from "./broker";
+import { createBroker, safeName, sniffImage, sniffVideo, type BrokerEnv } from "./broker";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const HTML = new TextEncoder().encode("<script>alert(1)</script>");
@@ -46,6 +46,27 @@ describe("brokered pictures and place", () => {
     expect(await b.share(new Blob([PNG]), "Stitch 1")).toBe(true);
     expect(got.shared[0]).toMatchObject({ name: "Stitch 1.png", type: "image/png" });
     expect(safeName("", "image/webp")).toBe("image.webp");
+  });
+
+  it("a large file is saved only as a film or a picture its bytes prove, under its own extension", async () => {
+    const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01, 0, 0, 0]);
+    const mp4 = new TextEncoder().encode("\0\0\0\x18ftypisom\0\0\0\0");
+    expect(sniffVideo(webm)).toBe("video/webm");
+    expect(sniffVideo(mp4)).toBe("video/mp4");
+    expect(sniffVideo(new TextEncoder().encode("0000ftypavif"))).toBeNull();
+    expect(sniffVideo(HTML)).toBeNull();
+    const { e, got } = env();
+    const b = createBroker(e);
+    await b.downloadLarge(new Blob([webm], { type: "text/html" }), "Bonsai film.html");
+    await b.downloadLarge(new Blob([mp4]), "bonsai");
+    await b.downloadLarge(new Blob([PNG]), "still");
+    expect(got.saved.map(([f, n]) => [f.type, n])).toEqual([
+      ["video/webm", "Bonsai film.webm"],
+      ["video/mp4", "bonsai.mp4"],
+      ["image/png", "still.png"],
+    ]);
+    await expect(b.downloadLarge(new Blob([HTML], { type: "video/webm" }), "x.webm")).rejects.toThrow(/not a/);
+    await expect(createBroker(env(false).e).downloadLarge(new Blob([webm]), "x")).rejects.toThrow(/gesture/);
   });
 
   it("nothing without the person's gesture; the place is rounded", async () => {

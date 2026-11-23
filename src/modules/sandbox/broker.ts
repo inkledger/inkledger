@@ -10,7 +10,9 @@ import { PICTURE_GESTURE_MS } from "./gesture";
 
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/avif"] as const;
 export type ImageType = (typeof IMAGE_TYPES)[number];
-const EXTENSION: Record<ImageType, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/avif": "avif" };
+/** What MediaRecorder makes: a film saved with "download.large". */
+export type VideoType = "video/webm" | "video/mp4";
+const EXTENSION: Record<ImageType | VideoType, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/avif": "avif", "video/webm": "webm", "video/mp4": "mp4" };
 
 /** The picture type its first bytes prove, or null. */
 export function sniffImage(b: Uint8Array): ImageType | null {
@@ -23,6 +25,14 @@ export function sniffImage(b: Uint8Array): ImageType | null {
   return null;
 }
 
+/** The film type its first bytes prove (WebM's EBML header, an MP4 `ftyp` box that is no picture), or null. */
+export function sniffVideo(b: Uint8Array): VideoType | null {
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video/webm";
+  const brand = String.fromCharCode(...b.slice(8, 12));
+  if (String.fromCharCode(...b.slice(4, 8)) === "ftyp" && /^(iso[2-9m]|mp4[12]|avc1|M4V |dash)$/.test(brand)) return "video/mp4";
+  return null;
+}
+
 /** A picture under its proven type, or null when its bytes are not one. */
 export async function asImage(file: Blob): Promise<{ image: Blob; type: ImageType } | null> {
   // Its head proves the type; the rest is wrapped as it is (a 4 MB picture never copied here).
@@ -31,7 +41,7 @@ export async function asImage(file: Blob): Promise<{ image: Blob; type: ImageTyp
 }
 
 /** A file name a download can carry: plain characters, the picture's own extension. */
-export function safeName(name: string, type: ImageType): string {
+export function safeName(name: string, type: ImageType | VideoType): string {
   const stem =
     name
       .replace(/\.[^.]*$/, "")
@@ -69,6 +79,14 @@ export function createBroker(env: BrokerEnv) {
     async download(file: Blob, name: string): Promise<void> {
       const { image, type } = await picture(file);
       env.download(image, safeName(name, type));
+    },
+    /** A film (or a picture) past the picture cap, the same gesture rule: made before the person's click that saves it. */
+    async downloadLarge(file: Blob, name: string): Promise<void> {
+      if (!env.active(PICTURE_GESTURE_MS)) throw new Error(NO_GESTURE);
+      const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+      const type = sniffImage(head) ?? sniffVideo(head);
+      if (!type) throw new Error("not a webm or mp4 film, nor a picture");
+      env.download(new Blob([file], { type }), safeName(name, type));
     },
     async openImage(file: Blob): Promise<void> {
       env.open((await picture(file)).image);

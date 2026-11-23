@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
+import { DOWNLOAD_LARGE_MAX_BYTES, PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
 import type { HitActivation } from "../hostV2";
 
 /**
@@ -93,6 +93,8 @@ export type Method = {
   rate: readonly [perSecond: number, burst: number];
   /** Its rate is the module's, shared by all its frames (it costs the server or the page's thread). */
   shared?: boolean;
+  /** Its Blobs may pass the message cap, up to DOWNLOAD_LARGE_MAX_BYTES (a handle: the page copies none of it). */
+  large?: boolean;
   invoke(args: unknown, ctx: MethodContext): unknown;
 };
 
@@ -104,12 +106,14 @@ export function method<S extends z.ZodType<readonly unknown[]>>(def: {
   cap?: ModuleCapability;
   rate: readonly [number, number];
   shared?: boolean;
+  large?: boolean;
   run(args: z.infer<S>, ctx: MethodContext): unknown;
 }): Method {
   return {
     cap: def.cap,
     rate: def.rate,
     shared: def.shared,
+    large: def.large,
     invoke(raw, ctx) {
       const parsed = def.args.safeParse(raw);
       if (!parsed.success) throw new RpcRefusal("bad-arguments");
@@ -129,13 +133,15 @@ const isA = (x: object, name: string) => {
  * the app and a module frame breaks the frame; class instances, functions).
  */
 export function messageBytes(value: unknown, max = RPC_MAX_BYTES): number | null {
-  return measure(value, max)?.total ?? null;
+  const m = measure(value, max);
+  return m && m.total <= max ? m.total : null;
 }
 
-/** A message's estimated size, and how much of it the page copies (strings, arrays, binary). */
-function measure(value: unknown, max: number): { total: number; copied: number } | null {
+/** A message's estimated size, how much of it the page copies (strings, arrays, binary), and its Blobs' (up to `blobMax` when more than `max`). */
+function measure(value: unknown, max: number, blobMax = max): { total: number; copied: number; blobs: number } | null {
   let total = 0;
   let handles = 0;
+  let blobs = 0;
   let nodes = 0;
   const stack: unknown[] = [value];
   const seen = new Set<object>();
@@ -162,6 +168,7 @@ function measure(value: unknown, max: number): { total: number; copied: number }
         if (x instanceof Blob) {
           total += x.size;
           handles += x.size;
+          blobs += x.size;
         } else if (x instanceof ArrayBuffer) total += x.byteLength;
         else if (ArrayBuffer.isView(x)) total += x.byteLength;
         else if (isA(x, "ImageBitmap")) {
@@ -187,9 +194,9 @@ function measure(value: unknown, max: number): { total: number; copied: number }
       default:
         return null;
     }
-    if (total > max) return null;
+    if (total - blobs > max || blobs > Math.max(max, blobMax)) return null;
   }
-  return { total, copied: total - handles };
+  return { total, copied: total - handles, blobs };
 }
 
 /** Token buckets by method: a peer's own, or one module's for its shared methods. */
@@ -283,7 +290,7 @@ export function createRpcPeer(o: RpcPeerOptions) {
 
   const handle = (e: { origin: string; data: unknown }): ReceiveResult => {
     if (e.origin !== "null") return refuse("origin");
-    const size = measure(e.data, RPC_MAX_BYTES);
+    const size = measure(e.data, RPC_MAX_BYTES, DOWNLOAD_LARGE_MAX_BYTES);
     // An oversized one cost the page its copy all the same: counted at the cap.
     if (!afford(size ? size.copied : RPC_MAX_BYTES)) {
       o.onFlood?.();
@@ -303,6 +310,7 @@ export function createRpcPeer(o: RpcPeerOptions) {
       const def = Object.hasOwn(o.methods, msg.m) ? o.methods[msg.m] : undefined;
       if (!def) return refuse("unknown-method", msg.m, msg.id);
       if (def.cap && !o.capabilities.includes(def.cap)) return refuse("capability", msg.m, msg.id);
+      if (size.total > RPC_MAX_BYTES && !def.large) return refuse("size", msg.m, msg.id);
       if (!take(msg.m, def)) return refuse("rate-limited", msg.m, msg.id);
       if (inFlight >= MAX_IN_FLIGHT) return refuse("busy", msg.m, msg.id);
       inFlight++;

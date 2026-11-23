@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PICTURE_MAX_BYTES } from "@contracts/modules";
+import { DOWNLOAD_LARGE_MAX_BYTES, PICTURE_MAX_BYTES } from "@contracts/modules";
 import { method, type Method, type MethodContext } from "./rpc";
 
 export { PICTURE_MAX_BYTES };
@@ -139,6 +139,15 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
     }),
     share: method({ args: z.tuple([picture, fileName]), cap: "share", rate: [1, 2], run: ([f, name]) => d.broker.share(f, name) }),
     download: method({ args: z.tuple([picture, fileName]), cap: "download", rate: [1, 3], run: ([f, name]) => d.broker.download(f, name) }),
+    // A film: up to 64 MB as a handle, two in a row, then one every ten seconds for the module.
+    "download.large": method({
+      args: z.tuple([z.instanceof(Blob).refine(b => b.size > 0 && b.size <= DOWNLOAD_LARGE_MAX_BYTES), fileName]),
+      cap: "download.large",
+      large: true,
+      shared: true,
+      rate: [0.1, 2],
+      run: ([f, name]) => d.broker.downloadLarge(f, name),
+    }),
     openImage: method({ args: z.tuple([picture]), cap: "open-image", rate: [1, 2], run: ([f]) => d.broker.openImage(f) }),
     "sheet.open": method({
       args: z.tuple([]),

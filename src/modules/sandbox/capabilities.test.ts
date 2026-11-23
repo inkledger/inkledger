@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SURFACES } from "@/components/app/surface";
-import { capabilityMethods, type CapabilityDeps } from "./capabilities";
+import { capabilityMethods, PICTURE_MAX_BYTES, type CapabilityDeps } from "./capabilities";
 import { createPageLight } from "./light";
 import { createRpcPeer } from "./rpc";
 
@@ -61,6 +61,21 @@ describe("capabilities, held by the host", () => {
     await call(4, "cache.get", ["render"]);
     expect(res[1]).toBeInstanceOf(Blob);
     expect(res.slice(2)).toEqual([null, "cache: signed out"]);
+  });
+
+  it("a large file to save goes past the picture cap, only with its own capability", async () => {
+    const saved: [number, string][] = [];
+    const { methods } = capabilityMethods({ ...deps, broker: { ...deps.broker, downloadLarge: async (f: Blob, name: string) => void saved.push([f.size, name]) } });
+    const frame = {};
+    const res: unknown[] = [];
+    const peer = (caps: string[]) => createRpcPeer({ source: () => frame, post: m => m.t === "res" && res.push(m.ok ? "ok" : m.error), capabilities: caps as never, methods });
+    const film = new Blob([new Uint8Array(PICTURE_MAX_BYTES + 1)]);
+    peer(["download"]).receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "download.large", a: [film, "film"] } });
+    peer(["download", "download.large"]).receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 2, m: "download", a: [film, "film"] } });
+    peer(["download.large"]).receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 3, m: "download.large", a: [film, "film"] } });
+    await new Promise(r => setTimeout(r, 0));
+    expect(res).toEqual(["capability", "bad-arguments", "ok"]);
+    expect(saved).toEqual([[PICTURE_MAX_BYTES + 1, "film"]]);
   });
 
   it("the look is sent again only when it changed", async () => {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { MODULES_RUN_PATH, PICTURE_MAX_BYTES } from "@contracts/modules";
+import { DOWNLOAD_LARGE_MAX_BYTES, MODULES_RUN_PATH, PICTURE_MAX_BYTES } from "@contracts/modules";
 
 /**
  * A framed module's document: sandboxed (opaque origin: no cookie, storage or
@@ -111,9 +111,12 @@ addEventListener("keydown", (e) => { if (e.isTrusted) tell(e.key === "Tab" ? "ta
 addEventListener("focus", (e) => { if (e.isTrusted && own) apply(portPost, own, ["focus"]); });
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
 const MAX_BYTES = ${PICTURE_MAX_BYTES};
-const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
+// A film to save crosses as a Blob handle, up to its own cap.
+const LARGE_MAX_BYTES = ${DOWNLOAD_LARGE_MAX_BYTES};
+const big = (x, blobMax) => x != null && ((x instanceof Blob && x.size > blobMax) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
 const call = (m, a, transfer) => new Promise((resolve, reject) => {
-  if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));
+  const blobMax = m === "download.large" ? LARGE_MAX_BYTES : MAX_BYTES;
+  if ((a || []).some((x) => big(x, blobMax))) return reject(new Error(m + ": too big to send"));
   const id = ++seq;
   pending.set(id, { resolve, reject });
   send({ t: "call", id, m, a: a || [], g: told }, transfer);
@@ -325,6 +328,7 @@ async function start(init, port) {
   }
   if (has("share")) host.share = (file, name) => call("share", [file, String(name)]);
   if (has("download")) host.download = (file, name) => call("download", [file, String(name)]).then(quiet);
+  if (has("download.large")) host.downloadLarge = (file, name) => call("download.large", [file, String(name)]).then(quiet);
   if (has("open-image")) host.openImage = (file) => call("openImage", [file]).then(quiet);
   if (has("page.importance") && init.role === "view") host.page = { importance: (points) => call("page.importance", [Array.from(points, (p) => [Number(p[0]), Number(p[1])])]) };
   if (has("page.ledges") && init.role === "view") host.ledges = () => call("page.ledges", []);
