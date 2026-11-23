@@ -173,7 +173,11 @@ describe("legacy Jira connections (0047)", () => {
     await query("insert into sync_state (user_id, last_sync_at, last_full_sync_at, last_worklog_sync_at) values ($1, 300, 200, 100), ($2, 300, 200, 100)", [ann, bob]);
     // Bob's worklog stream already stands later, and his issue stream has its own record.
     await query("insert into connection_sync (connection_id, stream, checkpoint, last_ok_at, last_full_at) values ($1, 'worklogs', '150', 150, null), ($1, 'issues', null, 400, null)", [bobJira]);
-    await query("delete from drizzle.__drizzle_migrations where created_at = $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
+    // 0047 again, and what came after it (the migrator runs only what is later than the last applied).
+    await query('DROP TABLE "module_closure_claims"');
+    await query('DROP TABLE "issue_closures"');
+    await query('DROP FUNCTION "inkledger_issue_closed" CASCADE');
+    await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
     await up();
     const streams = await query("select connection_id, stream, checkpoint, last_ok_at, last_full_at from connection_sync order by connection_id, stream");
     expect(streams.rows).toEqual([
@@ -215,6 +219,9 @@ describe("migrations over a draft of 0010", () => {
     await query('DROP TABLE "idea_files"');
     await query('DROP TABLE "ideas"');
     await query('DROP TABLE "decisions"');
+    await query('DROP TABLE "module_closure_claims"');
+    await query('DROP TABLE "issue_closures"');
+    await query('DROP FUNCTION "inkledger_issue_closed" CASCADE');
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
     await query('DROP TABLE "egress_hosts"');
