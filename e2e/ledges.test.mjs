@@ -106,7 +106,7 @@ test("page.info and page.ledges on the real pages, a dense Board included", { ti
     await watchThread(page);
     const dash = await fresh(page);
     const logTime = page.getByRole("button", { name: "Log time" }).first();
-    log.dashboard = { ledges: dash.ledges.length, rects: dash.info.rects.length, surfaces: dash.info.surfaces.length, scanMs: Math.round(dash.ms), logTimeOff: await offBy(page, dash.info, logTime, "control"), h1Off: await offBy(page, dash.info, page.locator("main h1").first(), "text") };
+    log.dashboard = { ledges: dash.ledges.length, rects: dash.info.rects.length, surfaces: dash.info.surfaces.length, hist: dash.hist.slice(-6), logTimeOff: await offBy(page, dash.info, logTime, "control"), h1Off: await offBy(page, dash.info, page.locator("main h1").first(), "text") };
     log.dashboard.thread = await thread(page);
     assert.ok(log.dashboard.logTimeOff <= 1, `Log time rect off by ${log.dashboard.logTimeOff}`);
     assert.ok(log.dashboard.h1Off <= 1, `title rect off by ${log.dashboard.h1Off}`);
@@ -118,16 +118,24 @@ test("page.info and page.ledges on the real pages, a dense Board included", { ti
     await page.waitForTimeout(800);
     await watchThread(page);
     const board = await fresh(page);
-    // A change: read again, timed.
+    // Idle: the version holds (answered from what was read)?
+    const idleVs = board.hist.slice(-3).map(([v]) => v);
+    // A change: the first round with a new version is a real read, timed.
+    const before = board.hist[board.hist.length - 1][0];
     await page.evaluate(() => document.querySelector("main")?.setAttribute("data-e2e-poke", "1"));
     const again = await fresh(page);
+    const scanned = again.hist.find(([v]) => v > before);
     const inSight = await cards.evaluateAll(els => els.filter(e => {
       const r = e.getBoundingClientRect();
       return r.width > 0 && r.top >= 0 && r.top < innerHeight - 8;
     }).length);
     const titleOff = await offBy(page, again.info, cards.first().locator("p").first(), "text");
-    log.board = { cards: await cards.count(), inSight, ledges: board.ledges.length, rects: board.info.rects.length, surfaces: board.info.surfaces.length, scanMs: Math.round(again.ms), titleOff, thread: await thread(page) };
+    // A ledge at each card's top in sight.
+    const tops = await cards.evaluateAll(els => els.map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.top >= 0 && r.top < innerHeight - 8).map(r => ({ x: r.left, y: r.top, w: r.width })));
+    const missed = tops.filter(c => !again.ledges.some(l => Math.abs(l.y - c.y) <= 1 && l.x < c.x + c.w && c.x < l.x + l.w));
+    log.board = { cards: await cards.count(), inSight, ledges: board.ledges.length, rects: board.info.rects.length, surfaces: board.info.surfaces.length, idleVs, rescanMs: scanned?.[1] ?? null, titleOff, missed: missed.length, thread: await thread(page) };
     assert.ok(board.ledges.length >= inSight, `board ledges ${board.ledges.length} < cards ${inSight}`);
+    assert.deepEqual(missed, [], "a ledge on every card in sight");
     assert.ok(titleOff <= 1, `card title rect off by ${titleOff}`);
     assert.deepEqual(log.board.thread.long, [], "no long tasks");
 
