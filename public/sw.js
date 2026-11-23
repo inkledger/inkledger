@@ -49,6 +49,15 @@ async function storeShell(res) {
   const old = await cache.match(SHELL);
   const oldHtml = old ? await old.text() : null;
   await cache.put(SHELL, res);
+  // The shell's own scripts and styles, now: the first visit loaded them before
+  // this worker ran, so offline right after it the shell would come up blank.
+  await Promise.all(
+    [...refsIn(html)].map(async (path) => {
+      if (await cache.match(path)) return;
+      const asset = await fetch(path).catch(() => null);
+      if (asset && asset.ok) await cache.put(path, asset);
+    }),
+  );
   if (html !== oldHtml) await prune(html);
 }
 

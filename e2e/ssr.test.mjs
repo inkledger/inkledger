@@ -147,6 +147,20 @@ test("service worker caches only the anonymous shell, never private SSR HTML", a
     assert.ok(cached.includes("/offline.html"));
     assert.ok(!cached.includes("/"));
     assert.ok(!cached.includes("/login"));
+    // Offline right after the first visit: everything the offline page loads is there already
+    // (that visit's own scripts came before the worker, and WebKit's worker reads no HTTP cache).
+    const shell = await (await fetch(`${app.base}/offline.html`)).text();
+    const needed = [...shell.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(([, p]) => p);
+    assert.ok(needed.length > 0);
+    await app.page.waitForFunction(async paths => {
+      const cache = await caches.open("inkledger-shell-v2");
+      return (await Promise.all(paths.map(p => cache.match(p)))).every(Boolean);
+    }, needed, { timeout: 10_000 }).catch(() => {});
+    const missing = await app.page.evaluate(async paths => {
+      const cache = await caches.open("inkledger-shell-v2");
+      return (await Promise.all(paths.map(async p => ((await cache.match(p)) ? null : p)))).filter(Boolean);
+    }, needed);
+    assert.deepEqual(missing, [], "the offline page's own assets are cached");
     // Playwright's WebKit fails every navigation offline, the service worker's too: not measurable there.
     if (ENGINE === "webkit") return;
     await app.context.setOffline(true);
