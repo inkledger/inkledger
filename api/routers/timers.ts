@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import superjson from "superjson";
 import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { issueAt } from "../queries/issueAt";
-import { connections, issues, timerOps, timers, todos, type Timer } from "@db/schema";
+import { connections, issues, timerOps, timers, todos, worklogs, type Timer } from "@db/schema";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import { publish } from "../lib/userEvents";
@@ -15,7 +15,7 @@ import type { Decision } from "@db/schema";
 import { TimerConflictError } from "../lib/timerConflict";
 import { TIMER_LEASE_MS } from "@contracts/timerLock";
 import { deviceLabel } from "@contracts/device";
-import { dayKey, minuteSpan, roundToMinute, stopSpan } from "@contracts/time";
+import { dayKey, minuteSpan, onMinute, roundToMinute, startOfDay, stopSpan } from "@contracts/time";
 import { assertNoOverlap } from "../queries/overlap";
 import { withWriteLease } from "../queries/writeLease";
 import { endLinkedSessionOf, endSession, openSession, trimSession } from "../queries/todoSessions";
@@ -398,6 +398,34 @@ export async function switchAway(tx: Tx, o: Timer, now: Date, w: Who, decided: D
   return { switched, gone: 0 };
 }
 
+/** A hole shorter than this before a Play is never asked about (openGap): no hole, the time joins on. */
+const JOIN_MS = 60_000;
+
+/**
+ * Where a Play with nothing running begins: right where the time before it
+ * ended (a stop, or the worklog it was logged as) when that was under a
+ * minute ago, so stop then Play leaves no gap nor slides a resumed block;
+ * otherwise now. The hole is measured from where the page draws it (a stop's
+ * minute when rounded up), the start is the moment itself.
+ */
+async function joinedStart(tx: Tx, userId: number, now: Date): Promise<Date> {
+  const day = startOfDay(now);
+  const paused = await tx
+    .select({ pausedAt: timers.pausedAt, updatedAt: timers.updatedAt })
+    .from(timers)
+    .where(and(eq(timers.userId, userId), eq(timers.state, "paused")));
+  const logs = await tx
+    .select({ started: worklogs.started, seconds: worklogs.timeSpentSeconds })
+    .from(worklogs)
+    .where(and(eq(worklogs.userId, userId), gte(worklogs.started, day), lt(worklogs.started, now)));
+  const stops = paused.map((p) => (p.pausedAt ?? p.updatedAt).getTime()).filter((ms) => ms >= day.getTime());
+  const ends = [...stops, ...logs.map((w) => w.started.getTime() + w.seconds * 1000)];
+  if (ends.length === 0) return now;
+  const end = Math.max(...ends);
+  const hole = Math.max(end, ...stops.map(onMinute));
+  return end < now.getTime() && now.getTime() - hole < JOIN_MS ? new Date(end) : now;
+}
+
 export async function startTimerIn(
   tx: Tx,
   w: Who,
@@ -433,7 +461,7 @@ export async function startTimerIn(
       throw new TRPCError({ code: "CONFLICT", message: tr("server.timers.fromBeforePause") });
     }
   }
-  const startedAt = from ?? now;
+  const startedAt = from ?? (running.length === 0 ? await joinedStart(tx, userId, now) : now);
   // An issue timer takes the focus: a TODO worked on without one stops where this starts.
   await endSession(tx, userId, startedAt, false);
   // A switch pauses every other running timer; alongside they run on.
