@@ -1,7 +1,25 @@
 // A tracker that refuses the saved credentials: the user stays in, a bar asks to reconnect.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { networkInterfaces } from "node:os";
 import { start, trpcProcs, withApp } from "./harness.mjs";
+
+/** A Jira Server asking for a CAPTCHA after failed logins: every API call is a 401 saying so (on a private address: never loopback). */
+async function captchaJira() {
+  const host = Object.values(networkInterfaces())
+    .flat()
+    .find(a => a && a.family === "IPv4" && !a.internal && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address))?.address;
+  assert.ok(host, "a private IPv4 address on this machine");
+  let calls = 0;
+  const server = createServer((req, res) => {
+    calls++;
+    res.writeHead(401, { "Content-Type": "text/html", "X-Seraph-LoginReason": "AUTHENTICATION_DENIED", "X-Authentication-Denied-Reason": "CAPTCHA_CHALLENGE; login-url=/login.jsp" });
+    res.end("<html></html>");
+  });
+  await new Promise(resolve => server.listen(0, host, resolve));
+  return { host, url: `http://${host}:${server.address().port}`, calls: () => calls, close: () => new Promise(resolve => server.close(resolve)) };
+}
 
 test("refused credentials: still signed in, a bar leads to reconnecting the tracker", () =>
   withApp({ seed: db => db.q("UPDATE connections SET status = 'auth_failed'") }, async ({ page, base }) => {
@@ -52,3 +70,29 @@ test("a failed sync is said in the user's words, not as the recorded kind and st
     assert.match(title ?? "", /the server answered with an error/);
     assert.doesNotMatch(title ?? "", /unavailable|503/);
   }));
+
+test("Jira asking for a CAPTCHA: the reconnect form says why, with the steps, and the user stays signed in", async () => {
+  const jira = await captchaJira();
+  try {
+    await withApp({ env: { REMOTE_ALLOWED_HOSTS: jira.host }, seed: db => db.q("UPDATE connections SET status = 'auth_failed', base_url = ?", jira.url) }, async ({ page, base }) => {
+      await page.goto(base + "/settings/connections?reconnect=1");
+      const dialog = page.getByRole("dialog");
+      await dialog.locator("#reconnect-jira-site").fill(jira.url);
+      await dialog.locator("#reconnect-jira-username").fill("mrossi");
+      await dialog.locator("#reconnect-jira-secret").fill("the password");
+      await dialog.getByRole("button", { name: "Reconnect" }).click();
+      // Said in the form, not a sign-out that starts the form over.
+      const alert = dialog.getByRole("alert");
+      await alert.waitFor();
+      const said = await alert.innerText();
+      assert.match(said, /asking for a CAPTCHA/);
+      assert.match(said, /1\. Sign out of Jira in your browser\.\n2\. Sign in to Jira again, solving the CAPTCHA\.\n3\. Then try here once\./);
+      assert.equal(new URL(page.url()).pathname, "/settings/connections");
+      assert.equal(await dialog.locator("#reconnect-jira-secret").inputValue(), "the password");
+      // One sign-in per click: nothing retried behind the user's back.
+      assert.equal(jira.calls(), 1);
+    });
+  } finally {
+    await jira.close();
+  }
+});
