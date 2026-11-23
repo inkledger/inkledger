@@ -129,6 +129,11 @@ test("a module hears an issue closed while the app was closed, once", () =>
     },
     async ({ page, db }) => {
       await page.getByTestId("module-hello").waitFor();
+      // The module counts closures from its first claim on: closed before that, it is the past it never hears.
+      // A slow machine may claim only after the close below (then after the reload), so it waits for that start.
+      const counting = () => db.q("SELECT 1 FROM module_storage WHERE module_id = 'hello' AND key = '__closures'");
+      for (let i = 0; i < 150 && (await counting()).length === 0; i++) await new Promise(r => setTimeout(r, 100));
+      assert.equal((await counting()).length, 1, "the module started counting closures");
       // Closed in the tracker meanwhile (the sync writes it): no tab saw it move.
       await db.q("UPDATE issues SET category = 'done', status = 'Chiuso', status_changed_at = ? WHERE jira_id = 'closed-1'", Date.now() + 1000);
       await page.reload();
