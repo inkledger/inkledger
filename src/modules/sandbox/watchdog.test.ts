@@ -29,6 +29,19 @@ describe("the watchdog's ladder", () => {
     expect(steps).toHaveLength(5);
   });
 
+  it("counts a flood in ticks: they run late under it, three in a row stop it however long the page took", () => {
+    let t = 0;
+    const l = createLadder({ now: () => t, onStep: () => {} });
+    const f = l.frame("flood", "view");
+    for (let i = 0; i < 3; i++) {
+      t += 5000;
+      f.beat(0);
+      f.flood();
+      l.tick(0);
+    }
+    expect(l.step("flood")).toBe("killed");
+  });
+
   it("holds a frame flooding the page to reduce at once, and stops it if it keeps on", () => {
     const { ladder, steps, second } = setup();
     const f = ladder.frame("flood", "view");
@@ -81,6 +94,20 @@ describe("the watchdog's ladder", () => {
     }
     expect(ladder.step("hog")).toBe("killed");
     expect(steps.filter(([id]) => id === "victim")).toEqual([]);
+
+    expect(ladder.step("hog")).toBe("killed");
+    expect(steps.filter(([id]) => id === "victim")).toEqual([]);
+  });
+
+  it("one heavy second of host work (a module starting) is no habit", () => {
+    const { ladder, steps, second } = setup();
+    const f = ladder.frame("m", "view");
+    second([{ frame: f }]);
+    second([{ frame: f }]);
+    f.hostWork(400);
+    second([{ frame: f }]);
+    for (let i = 0; i < 5; i++) second([{ frame: f }]);
+    expect(steps).toEqual([]);
   });
 
   it("a module at its full legal rate of host work is never struck", () => {

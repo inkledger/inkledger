@@ -35,18 +35,20 @@ const HOST_LAG_MS = 250;
 const LAG_TICKS = 3;
 /** A gap this long is a sleep (a laptop lid), not a module. */
 const SLEEP_MS = 10_000;
-/** The page's own time on a module's messages in one second, past which it is the module's fault (the plan: 3 ms a frame). */
+/** The page's own time on a module's messages in one second, past which it is the module's fault (the plan: 3 ms a frame)... */
 const HOST_WORK_MS = 180;
+/** ...seconds in a row (startup's first calls are not a habit). */
+const HOST_WORK_TICKS = 2;
 /** A module seen busy this recently is the one stalling the frames it shares a process with. */
 const BLAME_MS = 3000;
-/** Seconds of flooding the page with messages, within FLOOD_WINDOW_MS, that stop a module (the first holds it to "reduce"). */
+/** Ticks of flooding the page with messages, within the last FLOOD_WINDOW ticks, that stop a module (the first holds it to "reduce"). */
 const FLOOD_STOP = 3;
-const FLOOD_WINDOW_MS = 10_000;
+const FLOOD_WINDOW = 10;
 
 export const budgetOfStep = (step: Step): BudgetLevel => (step === "reduce" ? "reduce" : STEPS.indexOf(step) >= STEPS.indexOf("still") ? "still" : "normal");
 
 type FrameState = { moduleId: string; runtime: boolean; started: number; judgeFrom: number; lastBeat: number; busy: number; hostMs: number; suspended: boolean; flooded: boolean };
-type ModuleState = { step: number; clean: number; blamedAt: number; floods: number[] };
+type ModuleState = { step: number; clean: number; blamedAt: number; floods: number[]; heavy: number };
 
 export type LadderFrame = {
   /** A beat, with the frame's own long-task time since the last one. */
@@ -72,9 +74,10 @@ export type LadderFrame = {
 export function createLadder(o: { now: () => number; onStep: (moduleId: string, step: Step) => void; judgeLag?: boolean }) {
   const frames = new Set<FrameState>();
   let lagTicks = 0;
+  let ticks = 0;
   const modules = new Map<string, ModuleState>();
   const mod = (id: string) => {
-    const m = modules.get(id) ?? { step: 0, clean: 0, blamedAt: -Infinity, floods: [] };
+    const m = modules.get(id) ?? { step: 0, clean: 0, blamedAt: -Infinity, floods: [], heavy: 0 };
     modules.set(id, m);
     return m;
   };
@@ -117,6 +120,7 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
     },
     tick(hostLagMs: number) {
       const t = o.now();
+      ticks++;
       const lagging = hostLagMs > HOST_LAG_MS;
       const struck = new Set<string>();
       const late = new Set<string>();
@@ -147,11 +151,14 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         if (t - f.lastBeat > (f.runtime ? LATE_RUNTIME_MS : LATE_MS)) late.add(f.moduleId);
       }
       // The page's work on a module's messages is its own, the page lagging or not.
-      for (const [id, ms] of hostMs)
-        if (ms >= HOST_WORK_MS) {
+      for (const [id, ms] of hostMs) {
+        const m = mod(id);
+        m.heavy = ms >= HOST_WORK_MS ? m.heavy + 1 : 0;
+        if (m.heavy >= HOST_WORK_TICKS) {
           struck.add(id);
-          mod(id).blamedAt = t;
+          m.blamedAt = t;
         }
+      }
       lagTicks = lagging && hostLagMs < SLEEP_MS ? lagTicks + 1 : 0;
       // Late while another module was busy: stalled by it, not guilty. Late, or the page lagging on
       // and on where frames share its thread, with nobody to blame: each is asked to reduce.
@@ -167,7 +174,7 @@ export function createLadder(o: { now: () => number; onStep: (moduleId: string, 
         if (m.step === STEPS.indexOf("killed") || !watched.has(id)) continue;
         if (flooded.has(id)) {
           // Paused or not, a frame still posts: reduce at once, then stopped if it keeps on.
-          m.floods = [...m.floods.filter(at => t - at < FLOOD_WINDOW_MS), t];
+          m.floods = [...m.floods.filter(at => ticks - at < FLOOD_WINDOW), ticks];
           m.clean = 0;
           set(id, m, m.floods.length >= FLOOD_STOP ? STEPS.indexOf("killed") : Math.max(m.step, STEPS.indexOf("reduce")));
         } else if (struck.has(id)) {
