@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createGestures, GESTURE_MS, PICTURE_GESTURE_MS } from "./gesture";
+import { describe, expect, it, vi } from "vitest";
+import { createGestures, GESTURE_MS, ownReports, PICTURE_GESTURE_MS } from "./gesture";
 
 function setup() {
   let t = 10_000;
@@ -110,5 +110,31 @@ describe("whose gesture it was", () => {
     g.own(frame, "pointer");
     setActive(false);
     expect(g.has(frame, box, true)).toBe(false);
+  });
+});
+
+describe("a view's own reports", () => {
+  it("a call is held until the reports it follows are in, and a made-up count only for a moment", async () => {
+    const kinds: string[] = [];
+    const own = ownReports(k => kinds.push(k));
+    expect(own.settle(0)).toBeNull();
+    const held = own.settle(1);
+    expect(held).not.toBeNull();
+    own.port.postMessage("pointer");
+    await held;
+    expect(kinds).toEqual(["pointer"]);
+    expect(own.settle(1)).toBeNull();
+    vi.useFakeTimers();
+    try {
+      let done = false;
+      void own.settle(99)?.then(() => (done = true));
+      await vi.advanceTimersByTimeAsync(GESTURE_MS - 1);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(done).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      own.close();
+    }
   });
 });

@@ -8,7 +8,7 @@ import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
 import { createPageLight } from "./light";
 import { browserBroker, createBroker } from "./broker";
-import { pageGestures } from "./gesture";
+import { ownReports, pageGestures } from "./gesture";
 import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -272,7 +272,7 @@ function openFrame(
   };
   const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
-  let ownPort: MessagePort | null = null;
+  let own: ReturnType<typeof ownReports> | null = null;
   let mounted = false;
   let onUnmounted: (() => void) | null = null;
   const warned = new Set<string>();
@@ -287,13 +287,8 @@ function openFrame(
       initialised = true;
       if (role === "view") {
         // Its bootstrap's own port, before the module loads: the person's real gestures in this view.
-        const own = new MessageChannel();
-        own.port1.onmessage = (e: MessageEvent<unknown>) => {
-          const kind = e.data;
-          if (kind === "pointer" || kind === "key") gestures.own(iframe, kind);
-        };
-        ownPort = own.port1;
-        peer.send({ v: RPC_VERSION, t: "own" }, [own.port2]);
+        own = ownReports(kind => gestures.own(iframe, kind));
+        peer.send({ v: RPC_VERSION, t: "own" }, [own.port]);
       }
       const transfer = ready(peer);
       peer.send(
@@ -312,6 +307,7 @@ function openFrame(
     },
     onUnmounted: () => onUnmounted?.(),
     onSize: resize,
+    settle: g => own?.settle(g) ?? null,
     onBeat: busy => watch?.beat(busy),
     onFlood: () => watch?.flood(),
     onCost: ms => watch?.hostWork(ms),
@@ -360,7 +356,7 @@ function openFrame(
         settled();
         onUnmounted = null;
         removePeer();
-        ownPort?.close();
+        own?.close();
         served.dispose();
         caps.dispose();
         disposeApi();

@@ -45,6 +45,8 @@ export const frameMessageSchema = z.discriminatedUnion("t", [
       id: z.number().int().min(1).max(2 ** 31),
       m: z.string().min(1).max(48),
       a: z.array(z.unknown()).max(8),
+      // The gestures its bootstrap had told the host over its own port when it called.
+      g: z.number().int().min(0).max(2 ** 31).optional(),
     })
     .strict(),
 ]);
@@ -217,6 +219,8 @@ export type RpcPeerOptions = {
   onCost?(ms: number): void;
   /** A message refused (not counted: other windows' messages, which are none of this peer's business). */
   onRefused?(why: Refusal, method?: string): void;
+  /** A view's call waits for its own reports up to `g` (null: they are in). */
+  settle?(g: number): Promise<void> | null;
 };
 
 export type ReceiveResult = { ok: true } | { ok: false; why: Refusal };
@@ -303,8 +307,10 @@ export function createRpcPeer(o: RpcPeerOptions) {
       if (inFlight >= MAX_IN_FLIGHT) return refuse("busy", msg.m, msg.id);
       inFlight++;
       const id = msg.id;
+      const held = msg.g ? (o.settle?.(msg.g) ?? null) : null;
       void (async () => {
         try {
+          if (held) await held;
           const value: unknown = await def.invoke(msg.a, ctx);
           post({ v: RPC_VERSION, t: "res", id, ok: true, value: value ?? null });
         } catch (err) {

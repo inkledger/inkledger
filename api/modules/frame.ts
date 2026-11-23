@@ -86,7 +86,9 @@ const send = (m, transfer) => up.postMessage(Object.assign({ v: V }, m), "*", tr
 let own = null;
 const portPost = MessagePort.prototype.postMessage;
 const apply = Reflect.apply;
-const tell = (kind) => { if (own) apply(portPost, own, [kind]); };
+// How many it told: each call says, and the host holds it until those reports are in (no order between port and window).
+let told = 0;
+const tell = (kind) => { if (own) { told++; apply(portPost, own, [kind]); } };
 addEventListener("pointerdown", (e) => { if (e.isTrusted) tell("pointer"); }, true);
 addEventListener("keydown", (e) => { if (e.isTrusted) tell("key"); }, true);
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
@@ -96,7 +98,7 @@ const call = (m, a, transfer) => new Promise((resolve, reject) => {
   if ((a || []).some(big)) return reject(new Error(m + ": too big to send"));
   const id = ++seq;
   pending.set(id, { resolve, reject });
-  send({ t: "call", id, m, a: a || [] }, transfer);
+  send({ t: "call", id, m, a: a || [], g: told }, transfer);
 });
 const fire = (m, a, transfer) => void call(m, a, transfer).catch(report);
 // A picture's alpha, scaled to at most 512 px a side: the overlay's shape for the host's hit test.

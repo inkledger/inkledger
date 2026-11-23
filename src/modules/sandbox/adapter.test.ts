@@ -7,6 +7,7 @@ import { createPageLight } from "./light";
 import { createBroker, type BrokerEnv } from "./broker";
 import { createModuleCache, type CacheBackend } from "./cache";
 import { sheetOpen } from "./sheet";
+import { ownReports } from "./gesture";
 import type { ImportancePage } from "./importance";
 import { frameMethods, type Cas, type ViewBox } from "./methods";
 import type { HostApiV1 } from "../types";
@@ -83,6 +84,32 @@ describe("the frame's host API (bootstrap)", () => {
     await new Promise(r => setTimeout(r, 50));
     ch.port1.close();
     expect(told).toEqual(["pointer", "key"]);
+  });
+
+  it("a click right after a pointer down reaches the host after its gesture (the port is slower than the window here)", async () => {
+    let pointers = 0;
+    const own = ownReports(kind => kind === "pointer" && pointers++);
+    let host: HostApiV2 | null = null;
+    const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, h: HostApiV2) => ((host = h), () => {}) } };
+    const opened: number[] = [];
+    const methods = {
+      openSettings: method({
+        args: z.tuple([]),
+        rate: [1, 2],
+        run() {
+          if (pointers === 0) throw new Error("needs the person's gesture");
+          opened.push(pointers);
+        },
+      }),
+    };
+    const f = bootFrame({ capabilities: [], mod, methods, own: own.port, settle: g => own.settle(g) });
+    await settle();
+    expect(host).not.toBeNull();
+    f.input("pointerdown", { isTrusted: true });
+    (host as HostApiV2 | null)?.openSettings?.();
+    await new Promise(r => setTimeout(r, 50));
+    own.close();
+    expect(opened).toEqual([1]);
   });
 
   it("surfaces.light reaches the page's light, only with its capability", async () => {

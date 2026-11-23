@@ -26,6 +26,8 @@ export function bootFrame(o: {
   room?: { top: number; right: number; bottom: number; left: number };
   /** The bootstrap's own port for the person's gestures, handed before init. */
   own?: MessagePort;
+  /** Holds a call until the own reports it follows have arrived. */
+  settle?(g: number): Promise<void> | null;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
@@ -86,6 +88,7 @@ export function bootFrame(o: {
     methods: o.methods,
     onUnmounted: () => o.onUnmounted?.(),
     onSize: h => o.onSize?.(h),
+    settle: g => o.settle?.(g) ?? null,
     onReady() {
       if (o.own) peer.send({ v: RPC_VERSION, t: "own" }, [o.own]);
       peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false, ...(o.room ? { room: o.room } : {}) }, o.port ? [o.port] : []);

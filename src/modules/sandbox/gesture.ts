@@ -69,6 +69,49 @@ export function createGestures(env: { now(): number; active(): boolean }) {
 
 export type Gestures = ReturnType<typeof createGestures>;
 
+/**
+ * A view's own port, host end: its bootstrap's reports, counted. The frame's
+ * calls ride the window and the reports this port, which keep no order between
+ * them: a call made at once after a gesture is held (at most `GESTURE_MS`)
+ * until the reports it follows have arrived.
+ */
+export function ownReports(onReport: (kind: OwnGesture) => void) {
+  const ch = new MessageChannel();
+  let seen = 0;
+  const waiting = new Set<{ g: number; done: () => void }>();
+  ch.port1.onmessage = (e: MessageEvent<unknown>) => {
+    const kind = e.data;
+    if (kind !== "pointer" && kind !== "key") return;
+    seen++;
+    onReport(kind);
+    for (const w of waiting) if (seen >= w.g) w.done();
+  };
+  return {
+    /** Handed to the bootstrap, before init. */
+    port: ch.port2,
+    /** Null once the `g`-th report is in; else a wait for it (a frame's made-up count only holds its own call). */
+    settle(g: number): Promise<void> | null {
+      if (seen >= g) return null;
+      return new Promise<void>(resolve => {
+        const w = {
+          g,
+          done: () => {
+            clearTimeout(timer);
+            waiting.delete(w);
+            resolve();
+          },
+        };
+        const timer = setTimeout(w.done, GESTURE_MS);
+        waiting.add(w);
+      });
+    },
+    close() {
+      ch.port1.close();
+      for (const w of waiting) w.done();
+    },
+  };
+}
+
 let page: Gestures | null = null;
 
 /** The page's: listens once, in the capture phase, passive. */
