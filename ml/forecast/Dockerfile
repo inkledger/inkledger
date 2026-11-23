@@ -1,6 +1,6 @@
 # The forecast sidecar (docs/work/ideas/estimates.md R-3.21). The weights are never in
 # the image: downloaded on first start into /models (the ml-models volume), pinned and checked.
-FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159 AS build
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 COPY --from=ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a /uv /bin/uv
 # git: the inference code is pinned to a commit of its repository (needed to install it, not to run).
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
@@ -17,7 +17,7 @@ COPY src ./src
 COPY tests ./tests
 RUN uv run --no-sync pytest -q
 
-FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY models.lock.json ./
