@@ -766,6 +766,7 @@ const PERMISSION_OF: Record<string, Permission> = {
   "store.catalog": "manageStore",
   "store.requestLicense": "manageStore",
   "store.checkout": "manageStore",
+  "store.claimPaid": "manageStore",
   "store.pending": "manageStore",
   "store.install": "manageStore",
   "store.restoreLicense": "manageStore",
