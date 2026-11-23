@@ -1261,7 +1261,7 @@ export const settings: Shape<typeof en> = {
         runtime: "Tiene attiva una parte in background mentre è acceso",
         surfacesLight: "Proietta luce e ombre sulle superfici dell'app",
         pageImportance: "Vede dove la pagina ha testo o controlli, mai cosa dicono",
-        pageLedges: "Vede dove sono i bordi superiori delle card",
+        pageLedges: "Vede dove sono i bordi orizzontali della pagina",
         pageInfo: "Vede dove la pagina ha testo, controlli, immagini e bordi, mai cosa dicono",
         pointer: "Vede il puntatore vicino alla propria area",
         pointerPage: "Vede il puntatore in tutta la finestra",

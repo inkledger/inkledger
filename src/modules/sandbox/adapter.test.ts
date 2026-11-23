@@ -271,12 +271,15 @@ describe("the frame's host API (bootstrap)", () => {
 
   it("page.ledges: the cards' top edges in the box's px, only with its capability", async () => {
     const el = { dataset: {}, getBoundingClientRect: () => ({ left: 100, top: 40, width: 800, height: 600 }) } as unknown as HTMLElement;
-    const card = { getBoundingClientRect: () => ({ left: 150, top: 200, right: 550, bottom: 400 }), contains: (n: Node | null) => n === hitNode };
-    const hitNode = {} as Node;
-    const ledges = () => ({ candidates: () => [card], elementFromPoint: () => hitNode, clear: () => true, width: 1200, height: 800 });
+    const info = {
+      hold: () => () => {},
+      get: async () => ({ v: 1, viewport: { w: 1200, h: 800 }, rects: [], surfaces: [{ x: 150, y: 200, w: 400, kind: "top" as const, s: 0 }], scrollers: [] }),
+      onScroll: () => () => {},
+      version: () => 1,
+    };
     const run = async (capabilities: ModuleCapability[]) => {
       let out: unknown = "none";
-      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ledges, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, info, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
       const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (void host.ledges?.().then(r => (out = r)), () => {}) } };
       bootFrame({ capabilities, mod, methods: caps.methods });
       await settle();

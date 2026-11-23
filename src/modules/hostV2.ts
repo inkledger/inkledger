@@ -60,7 +60,7 @@ export type LayoutState = {
   scrolling?: boolean;
 };
 
-/** The top edge of a card or section header in sight, in CSS px from the box's top left (y: the edge). */
+/** A visible horizontal face in sight, in CSS px from the box's top left (y: the edge). */
 export type Ledge = { x: number; y: number; w: number };
 
 /**
@@ -177,9 +177,10 @@ type Capabilities = {
    */
   page?: { importance(points: readonly (readonly [number, number])[]): Promise<(0 | 0.8 | 1)[]> };
   /**
-   * "page.ledges" (a view's): the top edges of the cards and section headers in sight inside
-   * the box with clear room above them, top to bottom, where something drawn may stand; rects
-   * only, a few dozen at most, four calls a second.
+   * "page.ledges" (a view's): the visible horizontal faces in sight inside the box (box tops,
+   * borders, dividers; page.info's "top" surfaces), one per height where they touch, top to
+   * bottom, where something drawn may stand; 64 at most (the widest), four calls a second. What
+   * stands above an edge is page.importance's (or page.info's) to judge.
    */
   ledges?(): Promise<Ledge[]>;
   /**

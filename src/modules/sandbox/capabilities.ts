@@ -7,7 +7,7 @@ import type { ViewBox } from "./methods";
 import { LIGHT_OFF_MAX, parseLight, type createPageLight } from "./light";
 import type { createBroker } from "./broker";
 import { IMPORTANCE_MAX_POINTS, importanceInSlices, type ImportancePage } from "./importance";
-import { ledgesAround, type LedgePage } from "./ledges";
+import { ledgesOf } from "./ledges";
 import type { createInfoSource } from "./info";
 import { anchorsAround, type AnchorPage, type createPageEvents, type SignalPage } from "./anchors";
 import type { createLayoutChangedFeed, createLayoutFeed, createPointerFeed } from "./feeds";
@@ -27,9 +27,7 @@ export type CapabilityDeps = {
   broker: ReturnType<typeof createBroker>;
   /** The page as it is now (read per call: its size changes). */
   page: () => ImportancePage;
-  /** Where the page's cards and section headers are (read per call). */
-  ledges?: () => LedgePage;
-  /** What the page shows (page.info), shared by the page's modules; given only to a module that has the capability. */
+  /** What the page shows (page.info, page.ledges), shared by the page's modules; given only to a module that has one of them. */
   info?: ReturnType<typeof createInfoSource>;
   /** The app's landmarks (read per call). */
   anchors?: () => AnchorPage;
@@ -178,30 +176,24 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         return importanceInSlices(d.page, () => view.el.getBoundingClientRect(), points);
       },
     });
-    const ledges = d.ledges;
-    if (ledges)
+    const info = d.info;
+    if (info) {
+      // Watched while this frame lives, read only once the page changed.
+      let held: (() => void) | null = null;
+      const read = (ctx: MethodContext) => {
+        held ??= ctx.own(info.hold());
+        return info.get();
+      };
+      methods["page.info"] = method({ args: z.tuple([]), cap: "page.info", rate: [4, 4], shared: true, run: (_args, ctx) => read(ctx) });
       methods["page.ledges"] = method({
         args: z.tuple([]),
         cap: "page.ledges",
         rate: [4, 4],
         shared: true,
-        run() {
+        async run(_args, ctx) {
+          const snap = await read(ctx);
           const r = view.el.getBoundingClientRect();
-          return ledgesAround(ledges(), { left: r.left, top: r.top, width: r.width, height: r.height });
-        },
-      });
-    const info = d.info;
-    if (info) {
-      // Watched while this frame lives, read only once the page changed.
-      let held: (() => void) | null = null;
-      methods["page.info"] = method({
-        args: z.tuple([]),
-        cap: "page.info",
-        rate: [4, 4],
-        shared: true,
-        run(_args, ctx) {
-          held ??= ctx.own(info.hold());
-          return info.get();
+          return ledgesOf(snap, { left: r.left, top: r.top, width: r.width, height: r.height });
         },
       });
     }
