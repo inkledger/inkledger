@@ -38,6 +38,25 @@ const moduleSheet = (page, name) =>
   page.getByRole("dialog", { name }).and(page.locator(':has(iframe[data-module-frame="view"])'));
 /** A frame's own document (its focus, its waits), from the host's iframe element. */
 const frameOf = async locator => (await locator.elementHandle()).contentFrame();
+/**
+ * A view the host had paused off screen (visibility: hidden) takes the pointer again: Chrome routes
+ * input to the page, not into a just-woken frame, for a few frames. Ready once the frame itself
+ * sees the mouse over `target` (one of its elements).
+ */
+const awake = async (locator, target) => {
+  const page = locator.page();
+  await page.waitForFunction(el => el.style.visibility !== "hidden", await locator.elementHandle());
+  const inside = await frameOf(locator);
+  await inside.evaluate(() => {
+    window.__seen = false;
+    addEventListener("pointermove", () => (window.__seen = true), { capture: true });
+  });
+  const box = await target.boundingBox();
+  for (let i = 0; i < 50 && !(await inside.evaluate(() => window.__seen)); i++) {
+    await page.mouse.move(box.x + box.width / 2 + (i % 2), box.y + box.height / 2);
+    await page.waitForTimeout(50);
+  }
+};
 /** Outside the dialog the page takes no pointer (the host's modal layer). */
 const pagePointerShut = page => page.evaluate(() => getComputedStyle(document.body).pointerEvents === "none");
 /** Resolves once `locator`'s element has the page's focus (a closing sheet hands it back after its exit). */
@@ -75,6 +94,8 @@ test("Stitch's sheet on a phone is modal: Tab stays inside, a redraw keeps the f
     const cardFrame = box.locator('iframe[data-module-frame="view"]');
     const card = page.frameLocator('[data-module-slot="dashboard-widget"] [data-module="stitch"] iframe[data-module-frame="view"]').locator("[data-stitch-card]").first();
     await card.waitFor({ timeout: 30_000 });
+    // Scrolled in at once: the host wakes the frame it had paused only as it comes into view.
+    await awake(cardFrame, card);
     // A tap on the card: a script's focus inside a frame is no person's, so Enter there would open nothing.
     await card.click();
     // The host's sheet, modal on a phone: the page behind is out of reach, the panel in its frame.
