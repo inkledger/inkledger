@@ -261,7 +261,8 @@ test("a frame that takes the focus by itself gives it straight back: the keys st
       document.body.append(b);
       b.focus();
     });
-    await page.waitForTimeout(500);
+    // Given back after a frame and a tick (late on a loaded machine): waited for, not slept.
+    await page.waitForFunction(() => document.hasFocus() && document.activeElement?.id === "typing-here", null, { timeout: 15_000 });
     assert.equal(await input.evaluate(el => document.hasFocus() && el === document.activeElement), true, "the app's input keeps the focus");
     await page.keyboard.type("abc");
     assert.equal(await input.inputValue(), "abc");
@@ -289,6 +290,7 @@ test("a frame grabbing the focus from another frame, or again and again, never k
       document.body.append(b);
       b.focus();
     });
+    await page.waitForFunction(sel => document.activeElement !== document.querySelector(sel), OVERLAY, { timeout: 15_000 });
     await page.waitForTimeout(500);
     // Away from the grabbing frame (back to the card's where the browser lets the host, else the page).
     assert.equal(await page.evaluate(sel => document.activeElement === document.querySelector(sel), OVERLAY), false, "not in the overlay's frame");

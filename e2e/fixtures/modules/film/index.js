@@ -27,7 +27,10 @@ export default {
         button.dataset.ready = type;
       };
       rec.start(100);
-      const stop = setTimeout(() => rec.stop(), 600);
+      // Stopped once the recorder has given its first bytes (a loaded machine may give none by 600 ms, and a film without its header isn't one).
+      let stop = 0;
+      const finish = () => (chunks.length ? rec.stop() : (stop = setTimeout(finish, 100)));
+      stop = setTimeout(finish, 600);
       button.onclick = () => void host.downloadLarge(film, "film").then(() => (button.dataset.saved = ""), e => (button.dataset.error = e.message));
       el.append(canvas, button);
       return () => {
