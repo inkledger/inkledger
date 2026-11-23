@@ -78,7 +78,9 @@ const runtimeIsGone = () => {
 const pending = new Map();
 const pushes = new Map();
 const waitingViews = [];
-const send = (m, transfer) => parent.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
+// The host's window as it was before the module ran: module code may replace window.parent, never this.
+const up = parent;
+const send = (m, transfer) => up.postMessage(Object.assign({ v: V }, m), "*", transfer || []);
 // Over the host's picture cap (its message cap leaves room for the rest): refused here, never unanswered.
 const MAX_BYTES = ${PICTURE_MAX_BYTES};
 const big = (x) => x != null && ((x instanceof Blob && x.size > MAX_BYTES) || ((x instanceof ArrayBuffer || ArrayBuffer.isView(x)) && x.byteLength > MAX_BYTES));
@@ -423,7 +425,7 @@ try {
 setInterval(() => { send({ t: "beat", busy: Math.min(60000, Math.round(busy)) }); busy = 0; }, 500);
 
 addEventListener("message", (e) => {
-  if (e.source !== parent) return;
+  if (e.source !== up) return;
   const d = e.data;
   if (!d || d.v !== V) return;
   if (d.t === "res") {
