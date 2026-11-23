@@ -34,6 +34,8 @@ export type CapabilityDeps = {
   /** Watches the blur wanted over a backdrop box. */
   blur(box: Element, push: (px: number) => void): () => void;
   cache: ReturnType<typeof createModuleCache>;
+  /** The signed-in account (its id), whose the cache's entries are; null when signed out. */
+  account: () => number | null;
   /** The app's look (tokens stylesheet) on every theme change, and its fonts once loaded. */
   look: { watch(push: (css: string) => void): () => void; fonts(): Promise<string | null> };
   /** `from`: the opener's box (a view's), where the focus returns as the sheet closes. */
@@ -52,6 +54,12 @@ const cacheKey = z.string().min(1).max(128);
 const lightVars = z.union([z.null(), z.record(z.string().max(32), z.unknown()).refine(v => Object.keys(v).length <= 8)]);
 
 export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, Method>; dispose(): void } {
+  // The cache's entries are the account's and the module's: another account on this device never reads them.
+  const cacheOwner = () => {
+    const account = d.account();
+    if (account === null) throw new Error("cache: signed out");
+    return `${account}/${d.moduleId}`;
+  };
   // This frame, as owner of what it set (the light).
   const token = {};
   const watches = new Map<number, () => void>();
@@ -107,9 +115,9 @@ export function capabilityMethods(d: CapabilityDeps): { methods: Record<string, 
         };
       }),
     ),
-    "cache.get": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [10, 30], run: ([k]) => d.cache.get(d.moduleId, k) }),
-    "cache.put": method({ args: z.tuple([cacheKey, z.instanceof(Blob).refine(b => b.size <= PICTURE_MAX_BYTES)]), cap: "cache", rate: [4, 16], run: ([k, b]) => d.cache.put(d.moduleId, k, b) }),
-    "cache.delete": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [4, 16], run: ([k]) => d.cache.delete(d.moduleId, k) }),
+    "cache.get": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [10, 30], run: ([k]) => d.cache.get(cacheOwner(), k) }),
+    "cache.put": method({ args: z.tuple([cacheKey, z.instanceof(Blob).refine(b => b.size <= PICTURE_MAX_BYTES)]), cap: "cache", rate: [4, 16], run: ([k, b]) => d.cache.put(cacheOwner(), k, b) }),
+    "cache.delete": method({ args: z.tuple([cacheKey]), cap: "cache", rate: [4, 16], run: ([k]) => d.cache.delete(cacheOwner(), k) }),
     // Up to a frame's worth (the frame paces its own casts, the latest winning); written once a frame.
     "surfaces.light": method({
       args: z.union([z.tuple([lightVars]), z.tuple([lightVars, z.array(z.string().max(32)).max(LIGHT_OFF_MAX)])]),

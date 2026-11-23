@@ -63,7 +63,7 @@ function withModule(
   view: ViewBox | null = null,
 ) {
   const { doc, props } = lightDoc();
-  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+  const caps = capabilityMethods({ moduleId: "m", view, light: createPageLight(doc, SURFACES), broker: createBroker(env), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
   const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (el: unknown, host: HostApiV2) => (mount(el, host), () => {}) } };
   return { ...bootFrame({ capabilities, mod, methods: caps.methods }), props, caps };
 }
@@ -132,7 +132,7 @@ describe("the frame's host API (bootstrap)", () => {
       feed: { poke: () => poke(), watch: (fn: () => void) => ((poke = fn), watching++, () => void watching--) },
       route: () => () => {},
     } as unknown as NonNullable<CapabilityDeps["layoutChanged"]>;
-    const caps = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen, layoutChanged: lc });
+    const caps = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen, layoutChanged: lc });
     let heard = 0;
     let off = () => {};
     const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => ((off = host.layoutChanged?.(() => heard++) ?? off), () => {}) } };
@@ -152,7 +152,7 @@ describe("the frame's host API (bootstrap)", () => {
     let watching = 0;
     const layout = { poke() {}, watch: (p: typeof push) => ((push = p), watching++, () => void watching--) } as unknown as CapabilityDeps["layout"];
     const el = { dataset: {} as Record<string, string>, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
-    const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "sidebar-footer", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, layout, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+    const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "sidebar-footer", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, layout, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
     let fade: ((on: boolean) => void) | undefined;
     const mod = { id: "m", hostApi: 2, mount: { "sidebar-footer": (_el: unknown, host: HostApiV2) => ((fade = host.layout?.navFade), () => {}) } };
     bootFrame({ capabilities: ["layout"], mod, methods: caps.methods, slot: "sidebar-footer" });
@@ -167,7 +167,7 @@ describe("the frame's host API (bootstrap)", () => {
     fade?.(false);
     await settle();
     expect(["navFade" in el.dataset, watching]).toEqual([false, 0]);
-    const other = capabilityMethods({ moduleId: "m", view: { el, slot: "mobile-more", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+    const other = capabilityMethods({ moduleId: "m", view: { el, slot: "mobile-more", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
     expect("layout.navFade" in other.methods).toBe(false);
   });
 
@@ -176,7 +176,7 @@ describe("the frame's host API (bootstrap)", () => {
     const offered: boolean[] = [];
     for (const slot of ["mobile-more", "sidebar-footer"]) {
       const el = { dataset: {}, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) } as unknown as HTMLElement;
-      const caps = capabilityMethods({ moduleId: "m", view: { el, slot, activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen, more: { close: () => void closed++ } });
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot, activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen, more: { close: () => void closed++ } });
       const mod = { id: "m", hostApi: 2, mount: { [slot]: (_el: unknown, host: HostApiV2) => (offered.push(host.more !== undefined), host.more?.close(), () => {}) } };
       bootFrame({ capabilities: [], mod, methods: caps.methods, slot });
       await settle();
@@ -213,7 +213,7 @@ describe("the frame's host API (bootstrap)", () => {
     const ledges = () => ({ candidates: () => [card], elementFromPoint: () => hitNode, clear: () => true, width: 1200, height: 800 });
     const run = async (capabilities: ModuleCapability[]) => {
       let out: unknown = "none";
-      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ledges, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen });
+      const caps = capabilityMethods({ moduleId: "m", view: { el, slot: "dashboard-overlay", activate() {} }, light: createPageLight(lightDoc().doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ledges, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen });
       const mod = { id: "m", hostApi: 2, mount: { "dashboard-widget": (_el: unknown, host: HostApiV2) => (void host.ledges?.().then(r => (out = r)), () => {}) } };
       bootFrame({ capabilities, mod, methods: caps.methods });
       await settle();
@@ -343,7 +343,7 @@ describe("the frame's host API (bootstrap)", () => {
     sheetOpen.open("m");
     const caps = ["sheet"] as ModuleCapability[];
     const { doc } = lightDoc();
-    const methods = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), look, sheet: sheetOpen }).methods;
+    const methods = capabilityMethods({ moduleId: "m", view: null, light: createPageLight(doc, SURFACES), broker: createBroker(quietEnv), page: () => emptyPage, ...feeds, cache: createModuleCache(memoryCache()), account: () => 1, look, sheet: sheetOpen }).methods;
     const mod = { id: "m", hostApi: 2, mount: { sheet: () => () => {} } };
     const frame = bootFrame({ capabilities: caps, mod, methods, slot: "sheet" });
     await settle();

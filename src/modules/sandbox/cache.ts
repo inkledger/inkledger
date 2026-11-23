@@ -4,7 +4,8 @@ import { onSessionEnd } from "@/lib/accountData";
  * A framed module's local cache ("cache"): the frame's own IndexedDB throws
  * (opaque origin), so the host keeps one per module, on this device only, at
  * most 32 MB and 256 entries each; what was written longest ago goes first.
- * It is the account's: emptied whenever a session ends on the page.
+ * Entries are kept under the account and the module (capabilities.ts), and
+ * all of them go whenever a session ends on the page.
  */
 
 export const CACHE_MAX_BYTES = 32 * 1024 * 1024;
@@ -23,13 +24,15 @@ export type CacheBackend = {
 export function createModuleCache(backend: CacheBackend, now: () => number = Date.now) {
   // One write at a time per module: the room counted is the room there is.
   const queues = new Map<string, Promise<unknown>>();
+  // A clear under way: nothing is read or written until it is done.
+  let clearing: Promise<void> = Promise.resolve();
   const serial = <T>(moduleId: string, fn: () => Promise<T>): Promise<T> => {
-    const run = (queues.get(moduleId) ?? Promise.resolve()).then(fn, fn);
+    const run = Promise.all([queues.get(moduleId), clearing]).then(fn, fn);
     queues.set(moduleId, run.catch(() => undefined));
     return run;
   };
   return {
-    get: (moduleId: string, key: string) => backend.get(moduleId, key),
+    get: (moduleId: string, key: string) => clearing.then(() => backend.get(moduleId, key)),
     put: (moduleId: string, key: string, value: Blob) =>
       serial(moduleId, async () => {
         if (value.size > CACHE_MAX_BYTES) throw new Error("cache: too big");
@@ -46,7 +49,11 @@ export function createModuleCache(backend: CacheBackend, now: () => number = Dat
       }),
     delete: (moduleId: string, key: string) => serial(moduleId, () => backend.delete(moduleId, key)),
     /** Every module's entries, once the writes under way have landed. */
-    clear: () => Promise.all(queues.values()).then(() => backend.clear()),
+    clear() {
+      const done = Promise.all(queues.values()).then(() => backend.clear());
+      clearing = done.catch(() => undefined);
+      return done;
+    },
   };
 }
 

@@ -245,6 +245,8 @@ export function createHub(queryClient: QueryClient, utils: Utils) {
     /** Which module's settings sheet is open; close with null. */
     settingsOpen: (fn: (moduleId: string | null) => void) => settingsOf.subscribe(fn),
     closeSettings: () => settingsOf.set(null),
+    /** The signed-in account's id (a framed module's cache is kept under it); null when signed out. */
+    account: (): number | null => utils.auth.me.getData()?.id ?? null,
 
     /** The API one module gets in one slot. */
     apiFor(moduleId: string, slot: SlotId) {

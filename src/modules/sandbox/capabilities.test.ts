@@ -37,6 +37,32 @@ describe("capabilities, held by the host", () => {
     expect(refused.sort()).toEqual(Object.keys(methods).filter(n => n !== "unwatch" && n !== "look" && n !== "layoutChanged").sort());
   });
 
+  it("the cache is the account's as well as the module's: the next account on the device never reads the last one's", async () => {
+    const rows = new Map<string, Blob>();
+    const cache = {
+      get: async (m: string, k: string) => rows.get(`${m}|${k}`) ?? null,
+      put: async (m: string, k: string, b: Blob) => void rows.set(`${m}|${k}`, b),
+      delete: async () => {},
+    };
+    let account: number | null = 1;
+    const { methods } = capabilityMethods({ ...deps, cache: cache as unknown as CapabilityDeps["cache"], account: () => account });
+    const frame = {};
+    const res: unknown[] = [];
+    const peer = createRpcPeer({ source: () => frame, post: m => m.t === "res" && res.push(m.ok ? m.value : m.error), capabilities: ["cache"], methods });
+    const call = async (id: number, m: string, a: unknown[]) => {
+      peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id, m, a } });
+      await new Promise(r => setTimeout(r, 0));
+    };
+    await call(1, "cache.put", ["render", new Blob(["the first account's picture"])]);
+    await call(2, "cache.get", ["render"]);
+    account = 2;
+    await call(3, "cache.get", ["render"]);
+    account = null;
+    await call(4, "cache.get", ["render"]);
+    expect(res[1]).toBeInstanceOf(Blob);
+    expect(res.slice(2)).toEqual([null, "cache: signed out"]);
+  });
+
   it("the look is sent again only when it changed", async () => {
     let tell: (css: string) => void = () => {};
     const { methods } = capabilityMethods({ ...deps, look: { watch: push => ((tell = push), () => {}), fonts: async () => null } });

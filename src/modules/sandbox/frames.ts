@@ -270,7 +270,7 @@ function openFrame(
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   let ownPort: MessagePort | null = null;
   let mounted = false;

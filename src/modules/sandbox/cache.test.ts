@@ -63,4 +63,18 @@ describe("a framed module's cache", () => {
     expect(await cache.get("stitch", "render")).toBeNull();
     expect(rows.size).toBe(0);
   });
+
+  it("reads and writes wait for a clear under way", async () => {
+    const { b } = memory();
+    let release = () => {};
+    const slow: CacheBackend = { ...b, clear: () => new Promise<void>(r => (release = () => void b.clear().then(r))) };
+    const cache = createModuleCache(slow);
+    await cache.put("m", "k", new Blob(["old"]));
+    const cleared = cache.clear();
+    const got = cache.get("m", "k");
+    await new Promise(r => setTimeout(r, 0));
+    release();
+    await cleared;
+    expect(await got).toBeNull();
+  });
 });
