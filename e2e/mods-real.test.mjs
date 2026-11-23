@@ -186,6 +186,42 @@ test("Bonsai's film is a modal dialog: Tab stays inside, the slider says where i
     assert.equal(await watch.evaluate(el => el === document.activeElement), true, "focus back on the button");
   }));
 
+test("a module's sheet closes on a click on its backdrop, a click in its frame keeps it, the sheet under it stays", { skip: skip || ((!IDS.includes("citywindow") || !IDS.includes("bonsai")) && "no citywindow or bonsai"), timeout: 600_000 }, () =>
+  withAll({}, async ({ page, base }) => {
+    await page.goto(base + "/");
+    const actionFrame = page.locator('[data-module-slot="dashboard-action"] [data-module="citywindow"] iframe[data-module-frame="view"]');
+    const look = page.frameLocator('[data-module-slot="dashboard-action"] [data-module="citywindow"] iframe[data-module-frame="view"]').getByRole("button", { name: "Look outside" });
+    await look.waitFor({ timeout: 30_000 });
+    await look.click();
+    const sheet = moduleSheet(page, "City Window");
+    const sheetFrame = sheet.locator('iframe[data-module-frame="view"]');
+    await sheet.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor({ timeout: 30_000 });
+    // A click in its frame (its panel's padding) is the module's: the sheet stays. Read once it has slid in.
+    await settled(page);
+    const box = await sheetFrame.boundingBox();
+    await page.mouse.click(box.x + 6, box.y + 6);
+    await page.waitForTimeout(500);
+    assert.equal(await sheet.isVisible(), true, "a click in the frame keeps the sheet");
+    // Outside the panel, on the backdrop (over the dashboard's own frames): closed, the focus back on the opener's frame.
+    await page.mouse.click(600, 450);
+    await sheet.waitFor({ state: "hidden" });
+    await focusOn(page, actionFrame);
+    // Bonsai's film over its settings' sheet: the backdrop closes the film only.
+    await page.goto(base + "/settings/store");
+    await page.locator('[data-store-item="bonsai"]').getByRole("button", { name: /^Manage Bonsai/ }).click();
+    await page.getByRole("menuitem", { name: "Settings" }).click();
+    const watch = page.frameLocator('[data-module-slot="settings"] iframe[data-module-frame="view"]').getByRole("button", { name: "Watch it grow" });
+    await watch.waitFor({ timeout: 30_000 });
+    await settled(page);
+    await watch.click();
+    const film = moduleSheet(page, "Bonsai").and(page.locator(':not(:has([data-module-slot="settings"]))'));
+    await film.locator('iframe[data-module-frame="view"][data-state="live"]').waitFor({ timeout: 30_000 });
+    await page.mouse.click(40, 450);
+    await film.waitFor({ state: "hidden" });
+    await page.locator('[role="dialog"]:has([data-module-slot="settings"])').waitFor({ timeout: 2000 });
+    assert.equal(await page.locator('[role="dialog"][data-state="open"]').count(), 1, "the settings' sheet stays");
+  }));
+
 test("Shadow asks no weather until the person turns it on", { skip: skip || (!IDS.includes("shadow") && "no shadow"), timeout: 600_000 }, () =>
   withAll({}, async ({ page, base }) => {
     // The frame reaches nothing itself (connect-src 'none'): it asks the host, whose page fetches.
