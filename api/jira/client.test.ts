@@ -260,6 +260,17 @@ describe("Jira Server's refusals", () => {
     await expect(getMyself(serverCreds)).rejects.toMatchObject({ status: 403, message: "No permission" });
   });
 
+  it("a CAPTCHA on a 401 is a denied sign-in too; a 401 for a wrong password stays refused credentials", async () => {
+    mock().mockResolvedValueOnce(html(401, { "X-Seraph-LoginReason": "AUTHENTICATION_DENIED", "X-Authentication-Denied-Reason": "CAPTCHA_CHALLENGE; login-url=https://jira.example.it/login.jsp" }));
+    const e = await getMyself(serverCreds).catch((x: unknown) => x);
+    expect(e).toMatchObject({ name: "JiraApiError", status: 401, signInDenied: "CAPTCHA_CHALLENGE", loginReason: "AUTHENTICATION_DENIED" });
+    expect((e as Error).message).toContain("CAPTCHA_CHALLENGE");
+    mock().mockResolvedValueOnce(html(401, { "X-Seraph-LoginReason": "AUTHENTICATED_FAILED" }));
+    const wrong = await getMyself(serverCreds).catch((x: unknown) => x);
+    expect(wrong).toMatchObject({ name: "JiraApiError", status: 401, loginReason: "AUTHENTICATED_FAILED" });
+    expect((wrong as { signInDenied?: string }).signInDenied).toBeUndefined();
+  });
+
   it("sent to the sign-in page instead of the API: refused credentials", async () => {
     mock().mockResolvedValueOnce(new Response(null, { status: 302, headers: { Location: "/login.jsp?os_destination=%2Frest%2Fapi%2F2%2Fmyself" } }));
     const page = html(200);

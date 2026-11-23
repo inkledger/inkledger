@@ -15,12 +15,18 @@ export class JiraApiError extends Error {
   status: number;
   /** Jira Server refused the sign-in itself (CAPTCHA_CHALLENGE…): the reason it gave. */
   readonly signInDenied?: string;
+  /** Jira Server's X-Seraph-LoginReason on a refusal (AUTHENTICATED_FAILED, AUTHORISATION_FAILED…), for the log and the user's reason. */
+  readonly loginReason?: string;
+  /** Sent to the site's sign-in page (an SSO) instead of an answer. */
+  readonly signInPage?: boolean;
 
-  constructor(status: number, message: string, signInDenied?: string) {
+  constructor(status: number, message: string, signInDenied?: string, more: { loginReason?: string; signInPage?: boolean } = {}) {
     super(message);
     this.name = "JiraApiError";
     this.status = status;
     this.signInDenied = signInDenied;
+    this.loginReason = more.loginReason;
+    this.signInPage = more.signInPage;
   }
 }
 
@@ -28,11 +34,13 @@ export class JiraApiError extends Error {
  * Jira Server's own word that it refused the sign-in (too many failed logins:
  * a CAPTCHA until a browser sign-in), whatever the status says; null otherwise.
  */
-function signInDenied(headers: Headers): string | null {
+function signInDenied(status: number, headers: Headers): string | null {
+  if (status !== 401 && status !== 403) return null;
   const reason = headers.get("x-authentication-denied-reason");
   if (reason) return reason.split(";")[0].trim() || "AUTHENTICATION_DENIED";
   const login = headers.get("x-seraph-loginreason") ?? "";
-  return /AUTHENTICATION_DENIED|AUTHENTICATED_FAILED/.test(login) ? login.split(",")[0].trim() : null;
+  // On a 401, AUTHENTICATED_FAILED is a plain wrong password.
+  return (status === 403 ? /AUTHENTICATION_DENIED|AUTHENTICATED_FAILED/ : /AUTHENTICATION_DENIED/).test(login) ? login.split(",")[0].trim() : null;
 }
 
 /** Upper bound for a single Jira HTTP call. */
@@ -132,16 +140,17 @@ async function jiraCall<T>(creds: JiraCredentials, path: string, init: RequestIn
       /* keep statusText */
     }
     // A denied sign-in is the credentials' problem (reconnect), never a permission nor an outage to retry.
-    const denied = res.status === 403 ? signInDenied(res.headers) : null;
-    if (denied) throw new JiraApiError(401, `${SIGN_IN_DENIED} (${denied}): sign in to Jira in a browser, then reconnect`, denied);
+    const denied = signInDenied(res.status, res.headers);
+    const loginReason = res.headers.get("x-seraph-loginreason") ?? undefined;
+    if (denied) throw new JiraApiError(401, `${SIGN_IN_DENIED} (${denied}): sign in to Jira in a browser, then reconnect`, denied, { loginReason });
     // Tomcat sends no reason phrase: the status is all there is.
-    throw new JiraApiError(res.status, detail || `Jira answered ${res.status}`);
+    throw new JiraApiError(res.status, detail || `Jira answered ${res.status}`, undefined, { loginReason });
   }
   if (res.status === 204) return undefined as T;
   // Sent elsewhere on the site (an SSO's sign-in page) instead of the API: the credentials no longer open it.
   if (res.url && new URL(res.url).pathname !== new URL(url).pathname && !(res.headers.get("content-type") ?? "").includes("json")) {
     await discardBody(res);
-    throw new JiraApiError(401, "Jira sent its sign-in page instead of an answer: reconnect");
+    throw new JiraApiError(401, "Jira sent its sign-in page instead of an answer: reconnect", undefined, { signInPage: true });
   }
   return (await res.json()) as T;
 }
