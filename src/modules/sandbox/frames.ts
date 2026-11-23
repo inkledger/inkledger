@@ -199,7 +199,7 @@ function openFrame(
   ready: (peer: RpcPeer) => Transferable[],
   failed?: () => void,
 ): Frame | null {
-  if (!entry.frameUrl || killed.has(entry.id) || !budget.take(role)) return null;
+  if (!entry.frameUrl || killed.has(entry.id) || !budget.take(role, entry.id)) return null;
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", "allow-scripts");
   iframe.setAttribute("referrerpolicy", "no-referrer");
@@ -315,7 +315,7 @@ function openFrame(
       if (stopped) return;
       stopped = true;
       // Counted off now: a box remounted while this one is parked gets its frame.
-      budget.give(role);
+      budget.give(role, entry.id);
       watch?.dispose();
       watch = null;
       cancelAnimationFrame(sizeFrame);
