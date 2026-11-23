@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DOWNLOAD_LARGE_MAX_BYTES, PICTURE_MAX_BYTES, type ModuleCapability } from "@contracts/modules";
-import type { HitActivation } from "../hostV2";
+import type { HitActivation, HitDrag } from "../hostV2";
 
 /**
  * The host's end of a framed module's messages. A sandboxed frame has an
@@ -74,6 +74,8 @@ export type HostMessage =
   | { v: typeof RPC_VERSION; t: "activate"; how?: HitActivation }
   // The view's host box (its hit area's button) took or lost the focus.
   | { v: typeof RPC_VERSION; t: "hit-focus"; focused: boolean; visible: boolean }
+  // Its shape being carried ("drag").
+  | { v: typeof RPC_VERSION; t: "drag"; d: HitDrag }
   // Before init: the port its bootstrap tells the person's gestures on (the module's code never has it).
   | { v: typeof RPC_VERSION; t: "own" }
   | { v: typeof RPC_VERSION; t: "unmount" }

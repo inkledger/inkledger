@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FILE_MAX_BYTES } from "@contracts/modules";
 import { hitAreas, type HitTest } from "../hit";
-import type { BudgetLevel, HitActivation, HitRegion } from "../hostV2";
+import type { BudgetLevel, HitActivation, HitDrag, HitRegion } from "../hostV2";
 import type { HostApiV1, HostEventName } from "../types";
 import { method, type Method, type MethodContext } from "./rpc";
 import { SESSION_KEY_MAX, SESSION_VALUE_MAX, type SessionStore } from "./session";
@@ -33,7 +33,7 @@ const subId = z.number().int().min(1).max(2 ** 31);
 const key = z.string().min(1).max(128);
 const sessionKey = z.string().min(1).max(SESSION_KEY_MAX);
 const num = z.number().finite();
-const hitOptions = z.object({ label: z.string().max(120).optional(), focusable: z.boolean().optional() }).strict();
+const hitOptions = z.object({ label: z.string().max(120).optional(), focusable: z.boolean().optional(), drag: z.boolean().optional() }).strict();
 const region = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rect"), x: num, y: num, w: num.min(0), h: num.min(0) }).strict(),
   z.object({ kind: z.literal("circle"), x: num, y: num, r: num.min(0) }).strict(),
@@ -91,6 +91,8 @@ export type ViewBox = {
   focus?: (focused: boolean, visible: boolean) => void;
   onDock?: () => void;
   hits?: Pick<ReturnType<typeof hitAreas>, "add">;
+  /** "drag" declared: its shape carried, told to the frame. */
+  drag?: (d: HitDrag) => void;
 };
 
 /**
@@ -223,13 +225,15 @@ export function frameMethods(
           if (!test) return dispose();
           // No Tab stop of the host's own unless asked: the frame's control takes the keyboard.
           const a11y = { focusable: opts?.focusable === true, label: opts?.label };
-          const key = JSON.stringify(a11y);
+          // Carried only when it asks and declared "drag".
+          const drag = opts?.drag === true ? view.drag : undefined;
+          const key = JSON.stringify({ ...a11y, drag: !!drag });
           shapeTest = test;
           box.dataset.hit = "";
           if (unhit && key === hitA11y) return;
           unhit?.();
           hitA11y = key;
-          unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, { ...a11y, onFocus: view.focus });
+          unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, { ...a11y, onFocus: view.focus }, drag);
         },
       }),
       // A card with nothing to show leaves the Desk, as an in-page module's hidden box does.

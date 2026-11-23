@@ -2,7 +2,7 @@ import type { ModuleListEntry } from "@contracts/modules";
 import { currentLocale } from "@/i18n";
 import { SURFACES } from "@/components/app/surface";
 import type { Hub } from "../host";
-import type { ViewSlot } from "../hostV2";
+import type { HitDrag, ViewSlot } from "../hostV2";
 import { mobileMore, sheetOpen } from "./sheet";
 import { frameMethods, type ViewBox } from "./methods";
 import { capabilityMethods } from "./capabilities";
@@ -329,6 +329,7 @@ function openFrame(
             peer.send({ v: RPC_VERSION, t: "activate", ...(how ? { how } : {}) });
           },
           focus: (focused, visible) => peer.send({ v: RPC_VERSION, t: "hit-focus", focused, visible }),
+          ...(entry.capabilities.includes("drag") ? { drag: (d: HitDrag) => peer.send({ v: RPC_VERSION, t: "drag", d }) } : {}),
           onDock: () => layoutFeed().poke(),
         }
       : null;

@@ -1275,6 +1275,7 @@ export const settings = {
         dock: "Shows a control on the phone's tab bar",
         backdropPreblurred: "Blurs its own Dashboard backdrop",
         layout: "Sees whether the sidebar is folded and the window's size",
+        drag: "Can be picked up and carried around the page",
       },
       privacy: "Privacy",
       privacyBody: "Runs inside your inkledger: no account, no tracking, your data stays on your server.",

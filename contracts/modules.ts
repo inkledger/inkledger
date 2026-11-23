@@ -52,6 +52,7 @@ export const MODULE_CAPABILITIES = [
   "dock",
   "backdrop.preblurred",
   "layout",
+  "drag",
 ] as const;
 export type ModuleCapability = (typeof MODULE_CAPABILITIES)[number];
 

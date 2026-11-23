@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createHitAreas } from "./hit";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DRAG_HOLD_MS, TOUCH_HOLD_MS, createHitAreas } from "./hit";
+import type { HitDrag } from "./hostV2";
 
 /** Just enough of a window: events on an EventTarget, an element under the point, the root's classes. */
 function page(overlay = false, control = false) {
@@ -223,5 +224,111 @@ describe("module hit areas", () => {
       [true, true],
       [false, false],
     ]);
+  });
+});
+
+describe("carrying a module's shape (drag)", () => {
+  afterEach(() => vi.useRealTimers());
+  const setup = () => {
+    const p = page();
+    const got: HitDrag[] = [];
+    let opened = 0;
+    let layers = 0;
+    let released = 0;
+    const hits = createHitAreas(p.win, { layer: () => (layers++, () => released++), frame: fn => fn() });
+    hits.add(box(), leftHalf, () => opened++, { focusable: false }, d => got.push(d));
+    p.pageListens();
+    const key = (k: string) => p.win.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: k }));
+    return { ...p, got, key, opened: () => opened, layers: () => layers, released: () => released };
+  };
+
+  it("a plain click still activates; nothing is carried", () => {
+    vi.useFakeTimers();
+    const s = setup();
+    s.fire("pointerdown", 20, 20);
+    s.fire("pointerup", 22, 21);
+    s.fire("click", 22, 21);
+    vi.advanceTimersByTime(1000);
+    expect(s.opened()).toBe(1);
+    expect(s.got).toEqual([]);
+    expect(s.layers()).toBe(0);
+  });
+
+  it("a press that moves past a few px picks it up: it follows the pointer anywhere, the page hears nothing, its click is no click", () => {
+    vi.useFakeTimers();
+    const s = setup();
+    s.fire("pointerdown", 20, 20);
+    s.fire("pointermove", 24, 20);
+    expect(s.got).toEqual([]);
+    s.fire("pointermove", 30, 20);
+    expect(s.got).toEqual([{ phase: "start", x: 20, y: 20 }]);
+    expect(s.layers()).toBe(1);
+    // Far past its box: still its.
+    s.fire("pointermove", 400, 300);
+    s.fire("pointerup", 400, 300);
+    s.fire("click", 400, 300);
+    expect(s.got.map(d => d.phase)).toEqual(["start", "move", "end"]);
+    expect(s.got[1]).toEqual({ phase: "move", x: 400, y: 300 });
+    expect(s.got[2]).toMatchObject({ phase: "end", x: 400, y: 300 });
+    expect(s.opened()).toBe(0);
+    expect(s.reached).toEqual([]);
+    expect(s.released()).toBe(1);
+  });
+
+  it("held still a moment it is picked up (a mouse); a finger needs longer, and a swipe before that scrolls the page", () => {
+    vi.useFakeTimers();
+    const s = setup();
+    s.fire("pointerdown", 20, 20);
+    vi.advanceTimersByTime(DRAG_HOLD_MS);
+    expect(s.got).toEqual([{ phase: "start", x: 20, y: 20 }]);
+    s.fire("pointerup", 20, 20);
+    const t = setup();
+    t.fire("pointerdown", 20, 20, "touch");
+    vi.advanceTimersByTime(DRAG_HOLD_MS);
+    expect(t.got).toEqual([]);
+    vi.advanceTimersByTime(TOUCH_HOLD_MS - DRAG_HOLD_MS);
+    expect(t.got).toEqual([{ phase: "start", x: 20, y: 20 }]);
+    const u = setup();
+    u.fire("pointerdown", 20, 20, "touch");
+    u.fire("pointermove", 20, 60, "touch");
+    vi.advanceTimersByTime(TOUCH_HOLD_MS * 2);
+    expect(u.got).toEqual([]);
+    u.fire("pointercancel", 20, 60, "touch");
+    expect(u.layers()).toBe(0);
+  });
+
+  it("Esc lets it go where it is, with no speed", () => {
+    vi.useFakeTimers();
+    const s = setup();
+    s.fire("pointerdown", 20, 20);
+    s.fire("pointermove", 80, 20);
+    s.fire("pointermove", 200, 20);
+    s.key("Escape");
+    expect(s.got.at(-1)).toEqual({ phase: "end", x: 200, y: 20, vx: 0, vy: 0 });
+    expect(s.released()).toBe(1);
+  });
+
+  it("let go with the pointer's speed over its last moves", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const s = setup();
+    s.fire("pointerdown", 20, 20);
+    s.fire("pointermove", 30, 20);
+    vi.advanceTimersByTime(50);
+    s.fire("pointermove", 130, 70);
+    s.fire("pointerup", 130, 70);
+    expect(s.got.at(-1)).toEqual({ phase: "end", x: 130, y: 70, vx: 2200, vy: 1000 });
+  });
+
+  it("a shape that never asked to be carried: a press that moves is still a click", () => {
+    vi.useFakeTimers();
+    const p = page();
+    let opened = 0;
+    createHitAreas(p.win, { layer: () => () => {}, frame: fn => fn() }).add(box(), leftHalf, () => opened++, { focusable: false });
+    p.fire("pointerdown", 20, 20);
+    p.fire("pointermove", 40, 20);
+    vi.advanceTimersByTime(1000);
+    p.fire("pointerup", 40, 20);
+    p.fire("click", 40, 20);
+    expect(opened).toBe(1);
   });
 });

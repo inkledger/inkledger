@@ -1276,6 +1276,7 @@ export const settings: Shape<typeof en> = {
         dock: "Mostra un controllo nella barra in basso del telefono",
         backdropPreblurred: "Sfoca da sé lo sfondo della Dashboard",
         layout: "Vede se la barra laterale è chiusa e le dimensioni della finestra",
+        drag: "Si può prendere e portare in giro per la pagina",
       },
       privacy: "Privacy",
       privacyBody: "Gira dentro il tuo inkledger: niente account, nessun tracciamento, i dati restano sul tuo server.",

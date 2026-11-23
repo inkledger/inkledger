@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HitActivation } from "../hostV2";
+import type { HitActivation, HitDrag } from "../hostV2";
 import type { HostApiV1, TimerState } from "../types";
 import { frameMethods, onMask, type Cas } from "./methods";
 import { createRpcPeer, type HostMessage } from "./rpc";
@@ -187,6 +187,23 @@ describe("the host API a framed module reaches", () => {
     set([[], {}]);
     await settle();
     expect(undone).toBe(2);
+  });
+
+  it("hit.set: carried only when it asks and its view may (\"drag\" declared)", async () => {
+    const drags: unknown[] = [];
+    const run = async (drag: ((d: HitDrag) => void) | undefined, opts: object) => {
+      const hits = { add: (...a: unknown[]) => (drags.push(a[4]), () => {}) };
+      const el = { dataset: {} } as unknown as HTMLElement;
+      const served = frameMethods({} as HostApiV1, {} as Cas, { el, slot: "page-overlay", activate() {}, hits, ...(drag ? { drag } : {}) });
+      const p = createRpcPeer({ source: () => frame, post() {}, capabilities: [], methods: served.methods });
+      p.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id: 1, m: "hit.set", a: [[{ kind: "rect", x: 0, y: 0, w: 10, h: 10 }], opts] } });
+      await settle();
+    };
+    const told = (d: HitDrag) => void d;
+    await run(told, { drag: true });
+    await run(undefined, { drag: true });
+    await run(told, {});
+    expect(drags).toEqual([told, undefined, undefined]);
   });
 
   it("hit.set: no catch-all over a large box: a shape over too much of it is ignored, the page keeps its clicks", async () => {

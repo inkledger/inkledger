@@ -232,6 +232,7 @@ const CAPABILITY_KEY = {
   dock: "dock",
   "backdrop.preblurred": "backdropPreblurred",
   layout: "layout",
+  drag: "drag",
 } as const satisfies Record<ModuleCapability, string>;
 
 /** What an installed framed module declared it may use beyond its own box (its signed manifest's capabilities). */

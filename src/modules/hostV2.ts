@@ -23,10 +23,20 @@ export type HitRegion =
   | { kind: "circle"; x: number; y: number; r: number };
 
 /**
+ * The shape picked up and carried ("drag"), in CSS px from the box's top left (past the box too): "start" where
+ * it was picked up, "move" once a frame at most, "end" where it was let go with the pointer's speed (px/s; 0 when
+ * the person called it off with Esc or left the window).
+ */
+export type HitDrag = { phase: "start" | "move"; x: number; y: number } | { phase: "end"; x: number; y: number; vx: number; vy: number };
+
+/**
  * A hit area's keyboard side: a focusable button of the host's, and its accessible name.
  * `onFocus`: that button took or lost the focus (`visible`: the keyboard's, as :focus-visible).
+ * `onDrag` ("drag"): the shape can be picked up: a press that moves a few px or is held a moment (a touch:
+ * held still, so a swipe still scrolls) carries it, the host taking the pointer over the whole window until
+ * it is let go; a plain click still activates.
  */
-export type HitOptions = { label?: string; focusable?: boolean; onFocus?(focused: boolean, visible: boolean): void };
+export type HitOptions = { label?: string; focusable?: boolean; onFocus?(focused: boolean, visible: boolean): void; onDrag?(d: HitDrag): void };
 
 /** How much a module may spend: "reduce" draws less often, "still" keeps a still picture. */
 export type BudgetLevel = "normal" | "reduce" | "still";

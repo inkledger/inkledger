@@ -77,6 +77,7 @@ let seq = 0;
 let started = false;
 let activate = null;
 let hitFocus = null;
+let hitDrag = null;
 let onView = null;
 let unmount = null;
 // The module's runtime frame gone (or never made): told once, to every listener, late ones too.
@@ -413,7 +414,9 @@ async function start(init, port) {
         set: (shape, fn, opts) => {
           activate = typeof fn === "function" ? fn : null;
           hitFocus = opts && typeof opts.onFocus === "function" ? opts.onFocus : null;
+          hitDrag = has("drag") && opts && typeof opts.onDrag === "function" ? opts.onDrag : null;
           hitOpts = {};
+          if (hitDrag) hitOpts.drag = true;
           if (opts && typeof opts.label === "string") hitOpts.label = opts.label.slice(0, 120);
           if (opts && opts.focusable === true) hitOpts.focusable = true;
           hitNext = shape;
@@ -499,6 +502,11 @@ addEventListener("message", (e) => {
     if (activate) safe(activate, d.how && typeof d.how === "object" ? d.how : undefined);
   } else if (d.t === "hit-focus") {
     if (hitFocus) safe(hitFocus, d.focused === true, d.visible === true);
+  } else if (d.t === "drag") {
+    const g = d.d;
+    const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+    if (hitDrag && g && (g.phase === "start" || g.phase === "move" || g.phase === "end"))
+      safe(hitDrag, g.phase === "end" ? { phase: "end", x: n(g.x), y: n(g.y), vx: n(g.vx), vy: n(g.vy) } : { phase: g.phase, x: n(g.x), y: n(g.y) });
   } else if (d.t === "runtime-gone") {
     runtimeIsGone();
   } else if (d.t === "unmount") {
