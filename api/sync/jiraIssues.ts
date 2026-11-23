@@ -4,7 +4,8 @@ import { issueAt } from "../queries/issueAt";
 import type { ReplayResult } from "./outboxLocks";
 import { issues, type Connection, syncState, type User } from "@db/schema";
 import { replayContract } from "./timeWrites";
-import { streamState } from "./state";
+import { failureText, streamState } from "./state";
+import { normalizeError } from "../providers/core/errors";
 import { decodeCheckpoint, encodeCheckpoint } from "../providers/core/checkpoint";
 import type { Checkpoint } from "../providers/types";
 import { knownRanks, priorityRanks } from "../jira/priorities";
@@ -542,7 +543,7 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     await recordSync(user.id, { ok: true, full });
     return { result: { synced: remote.length, at: new Date(), full, outbox }, full, checkpoint: fetchedCheckpoint(conn, fetchedAt) };
   } catch (e) {
-    await recordSync(account.id, { error: e instanceof Error ? e.message : String(e) }).catch(() => undefined);
+    await recordSync(account.id, { error: failureText(normalizeError(e)) }).catch(() => undefined);
     throw e;
   }
 }

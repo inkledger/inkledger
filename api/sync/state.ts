@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { connections, connectionSync } from "@db/schema";
 import type { Stream } from "../providers/types";
-import { ProviderError } from "../providers/core/errors";
+import { normalizeError, type ProviderError } from "../providers/core/errors";
 import { SYNC_GIVE_UP_AFTER } from "@contracts/sync";
 import { getDb } from "../queries/connection";
 
@@ -109,6 +109,12 @@ export async function succeeded(connectionId: number, stream: Stream, outcome: {
     .where(and(eq(connections.id, connectionId), inArray(connections.status, ["auth_failed", "unreachable"])));
 }
 
+/** A failure as last_error shows it: its kind, the status when the service answered, its words (never empty). */
+export function failureText(e: ProviderError): string {
+  const said = e.message.trim();
+  return `${e.kind}${e.status !== undefined ? ` (${e.status})` : ""}${said ? `: ${said}` : ""}`.slice(0, 500);
+}
+
 /**
  * A pass failed: the lease goes, and the stream waits: the service's
  * Retry-After for a rate limit, a growing backoff for what may pass by
@@ -119,13 +125,11 @@ export async function succeeded(connectionId: number, stream: Stream, outcome: {
 export async function failed(connectionId: number, stream: Stream, error: unknown, now = Date.now()) {
   const state = await streamState(connectionId, stream);
   const failures = (state?.failures ?? 0) + 1;
-  const kind = error instanceof ProviderError ? error.kind : "unavailable";
-  const wait =
-    kind === "rateLimit"
-      ? Math.max(error instanceof ProviderError ? (error.rateLimit?.retryAfterMs ?? 0) : 0, 60_000)
-      : kind === "unavailable" || kind === "timeout" || kind === "incompatible"
-        ? backoffMs(failures)
-        : 0;
+  // By what the service answered (a JiraApiError carries its status): a refusal is never "out of reach".
+  const err = normalizeError(error);
+  const kind = err.kind;
+  // A refusal other than the credentials' backs off too: it would come back every pass.
+  const wait = kind === "rateLimit" ? Math.max(err.rateLimit?.retryAfterMs ?? 0, 60_000) : kind === "auth" || kind === "invalidCheckpoint" ? 0 : backoffMs(failures);
   await getDb()
     .update(connectionSync)
     .set({
@@ -133,7 +137,7 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
       leaseUntil: null,
       failures,
       retryAfter: wait > 0 ? new Date(now + wait) : null,
-      lastError: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+      lastError: failureText(err),
       lastErrorAt: new Date(now),
       ...(kind === "invalidCheckpoint" ? { checkpoint: null } : {}),
     })

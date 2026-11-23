@@ -95,6 +95,26 @@ describe("a connection out of reach too many times in a row", () => {
     }
   });
 
+  it("records why it failed, never empty: kind, the status Jira answered, its words", async () => {
+    const { JiraApiError } = await import("../jira/client");
+    const lastError = async () => (await q<{ e: string }>("SELECT last_error e FROM connection_sync WHERE connection_id = ?", connId))[0].e;
+    await fail(1, new JiraApiError(503, ""));
+    expect(await lastError()).toBe("unavailable (503)");
+    await fail(1, new TypeError("fetch failed"));
+    expect(await lastError()).toBe("unavailable: fetch failed");
+  });
+
+  it("a refusal Jira answered is no outage: 401 waits to be reconnected, another refusal backs off but stays working", async () => {
+    const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
+    const { JiraApiError } = await import("../jira/client");
+    await fail(SYNC_GIVE_UP_AFTER, new JiraApiError(403, "Forbidden"));
+    expect(await status()).toBe("ok");
+    const [s] = await q<{ r: number | null }>("SELECT retry_after r FROM connection_sync WHERE connection_id = ?", connId);
+    expect(Number(s.r)).toBeGreaterThan(Date.now());
+    await fail(1, new JiraApiError(401, "Unauthorized"));
+    expect(await status()).toBe("auth_failed");
+  });
+
   it("never covers refused credentials", async () => {
     const { SYNC_GIVE_UP_AFTER } = await import("@contracts/sync");
     await q("UPDATE connections SET status = 'auth_failed' WHERE id = ?", connId);
