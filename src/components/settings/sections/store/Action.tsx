@@ -1,5 +1,5 @@
 import { toastError } from "@/lib/errorText";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Download, Info, KeyRound, RefreshCw, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import type { StoreEntry } from "@contracts/store";
@@ -14,6 +14,7 @@ import { formatPrice, nameOf, type Locale } from "./format";
 import { ManageBadge } from "./ManageBadge";
 import { ModuleSwitch } from "./ModuleSwitch";
 import { useModuleOffers } from "@/modules/context";
+import { tellEnabled } from "@/modules/enabledSignals";
 
 export type StoreView = "details" | "request" | "paid" | "settings";
 
@@ -40,8 +41,11 @@ export function Action({
     void utils.store.catalog.invalidate();
     void utils.modules.list.invalidate();
   };
+  /** The install button pressed (its card is where a fresh module may come out of). */
+  const pressed = useRef<HTMLElement | null>(null);
   const install = trpc.store.install.useMutation({
     onSuccess: r => {
+      if (!e.installedVersion) tellEnabled(e.id, pressed.current);
       toast.success(
         e.installedVersion
           ? t("settings.store.updated", { name: nameOf(e, locale), version: r.version })
@@ -115,7 +119,10 @@ export function Action({
   if (e.licensed && (e.outdated || e.installed === null)) {
     const update = e.outdated;
     return both(
-      <Button size={size} disabled={install.isPending} onClick={() => install.mutate({ product: e.product })}>
+      <Button size={size} disabled={install.isPending} onClick={ev => {
+          pressed.current = ev.currentTarget;
+          install.mutate({ product: e.product });
+        }}>
         {install.isPending ? <Spinner /> : update ? <RefreshCw /> : <Download />}
         {update ? t("settings.store.update", { version: e.version }) : t("settings.store.install")}
       </Button>

@@ -87,7 +87,13 @@ export type PageEvent =
    * resizing): "pending" as it starts, "ready" once the new page has settled (ask ledges and
    * anchors again then). The overlay itself stays: it is never remounted by a navigation.
    */
-  | { kind: "transition"; phase: "pending" | "ready" };
+  | { kind: "transition"; phase: "pending" | "ready" }
+  /**
+   * This module was just switched on (or installed) from its Store card: `from` is the card
+   * (null when out of sight). Told once, to this module only; frames that switch made hear it
+   * once they listen (within seconds).
+   */
+  | { kind: "enabled"; from: BoxRect | null };
 
 /** The basics every framed module gets (no capability needed). */
 type Basics = Omit<HostApiV1, "version" | "slot" | "theme" | "stage" | "ambient" | "hitArea" | "storage"> & {

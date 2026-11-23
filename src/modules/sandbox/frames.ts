@@ -13,6 +13,7 @@ import { browserPage } from "./importance";
 import { browserLedges } from "./ledges";
 import { browserAnchors, browserSignalPage, createPageEvents, watchTransitions, type AnchorEl, type PageSignal } from "./anchors";
 import { cardId, pageSignals } from "../pageSignals";
+import { enabledSignals } from "../enabledSignals";
 import { commandPalette } from "@/lib/commandPalette";
 import type { HostApiV1 } from "../types";
 import { createLayoutChangedFeed, createLayoutFeed, createPointerFeed, createScrollingFlag, watchBlur, watchContent } from "./feeds";
@@ -153,12 +154,14 @@ const PALETTE_GROW_MS = 220;
 
 /**
  * What the person does, as the host sees it ("page.events"): the hub's events, the page's own
- * (Board moves, notifications), the search palette and any search field taking the focus.
+ * (Board moves, notifications), the search palette and any search field taking the focus, and
+ * this module switched on from its Store card.
  */
-function signalSources(api: Pick<HostApiV1, "on">): ((fn: (s: PageSignal) => void) => () => void)[] {
+function signalSources(api: Pick<HostApiV1, "on">, moduleId: string): ((fn: (s: PageSignal) => void) => () => void)[] {
   const isSearch = (t: EventTarget | null): t is HTMLInputElement => t instanceof HTMLInputElement && t.type === "search";
   return [
     fn => pageSignals.subscribe(fn),
+    fn => enabledSignals.subscribe(moduleId, from => fn({ kind: "enabled", from })),
     fn => {
       const offs = [
         api.on("timer-started", () => fn({ kind: "timer-started" })),
@@ -336,7 +339,7 @@ function openFrame(
     // A sheet view going (its cleanup may still run) never closes the sheet opened again meanwhile.
     close: (id: string) => void (slot === "sheet" && role === "view" && stopped ? null : sheetOpen.close(id)),
   };
-  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, anchors: browserAnchors, pageEvents: { feed: createPageEvents({ requestAnimationFrame: fn => requestAnimationFrame(fn), now: () => performance.now() }, signalSources(api)), page: browserSignalPage }, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
+  const caps = capabilityMethods({ moduleId: entry.id, view: box, light: light(), broker: createBroker({ ...browserBroker(), active: gesture }), page: browserPage, ledges: browserLedges, anchors: browserAnchors, pageEvents: { feed: createPageEvents({ requestAnimationFrame: fn => requestAnimationFrame(fn), now: () => performance.now() }, signalSources(api, entry.id)), page: browserSignalPage }, pointer: (pointer ??= createPointerFeed(window)), layout: layoutFeed(), blur, cache: pageCache(), account: hub.account, sheet, more: mobileMore, look: { watch: push => api.theme(t => push(readLook(t))), fonts }, layoutChanged: { feed: layoutChangedFeed(), route: fn => api.on("route", fn) } });
   let initialised = false;
   // When this view's frame reached for the focus by itself.
   const grabbedAt: number[] = [];

@@ -60,7 +60,9 @@ export type PageSignal =
   /** `field`: the search field that took the focus (else the app's search, the palette's opener). */
   | { kind: "search"; focused: boolean; field?: AnchorEl }
   | { kind: "goal-reached" }
-  | { kind: "transition"; phase: "pending" | "ready" };
+  | { kind: "transition"; phase: "pending" | "ready" }
+  /** This module switched on or installed from its Store card (`from`: the card). */
+  | { kind: "enabled"; from: AnchorEl | null };
 
 export type SignalPage = {
   /** An element by its host id, when in sight. */
@@ -94,6 +96,8 @@ export function eventOf(s: PageSignal, page: SignalPage, box: Box): PageEvent {
       return { kind: "goal-reached" };
     case "transition":
       return { kind: "transition", phase: s.phase };
+    case "enabled":
+      return { kind: "enabled", from: rect(s.from) };
   }
 }
 
@@ -137,8 +141,8 @@ export function createPageEvents(win: EventsWin, sources: readonly ((fn: (s: Pag
         const now = win.now();
         for (const w of watchers) {
           w.sent = w.sent.filter(t => now - t < 1000);
-          // A transition's two words always get through (a creature left hanging would never land).
-          if (s.kind !== "transition") {
+          // A transition's two words always get through (a creature left hanging would never land), and a switch's once.
+          if (s.kind !== "transition" && s.kind !== "enabled") {
             if (w.sent.length >= EVENTS_PER_SECOND) continue;
             w.sent.push(now);
           }
