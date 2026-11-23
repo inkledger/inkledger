@@ -12,8 +12,9 @@ export function useNow(active: boolean, periodMs = 1000): number {
     (listener: () => void) => (active ? subscribeClock(periodMs, listener) : () => {}),
     [active, periodMs]
   );
-  const now = () => initial ?? clockNow(periodMs);
-  return useSyncExternalStore(subscribe, now, now);
+  const now = () => clockNow(periodMs);
+  // Hydration reads the server's time (as in its HTML); each reader then moves to the live clock on its own.
+  return useSyncExternalStore(subscribe, now, () => initial ?? now());
 }
 
 /**

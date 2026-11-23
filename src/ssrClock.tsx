@@ -1,15 +1,10 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 const SSRClock = createContext<number | null>(null);
 
+// Never changes: a new value would reach the boundaries still waiting to hydrate and hydrate them all at once.
 export function SSRClockProvider({ now, children }: { now: number | null; children: ReactNode }) {
-  const [initial, setInitial] = useState(now);
-  useEffect(() => {
-    if (initial === null) return;
-    const timer = setTimeout(() => setInitial(null), 0);
-    return () => clearTimeout(timer);
-  }, [initial]);
-  return <SSRClock.Provider value={initial}>{children}</SSRClock.Provider>;
+  return <SSRClock.Provider value={now}>{children}</SSRClock.Provider>;
 }
 
 // The provider and its reader form the shared SSR clock boundary.
