@@ -34,7 +34,7 @@ async function seedTeam(db) {
     }
   }
   await db.q("INSERT INTO planned_entries (user_id, kind, starts_at, ends_at, created_at, updated_at) VALUES (3, 'vacation', ?, ?, 1, 1)", at(7, 0), at(8, 0));
-  await db.q("INSERT INTO sync_state (user_id, last_worklog_sync_at) VALUES (1, ?) ON CONFLICT (user_id) DO UPDATE SET last_worklog_sync_at = ?", now, now);
+  await db.q("INSERT INTO connection_sync (connection_id, stream, last_ok_at) VALUES (1, 'worklogs', ?) ON CONFLICT (connection_id, stream) DO UPDATE SET last_ok_at = excluded.last_ok_at", now);
 }
 
 const rowNames = page => page.getByRole("table").locator("tbody th").allInnerTexts();

@@ -49,12 +49,11 @@ export function useTrackerOffers(connectionId?: number | null) {
   };
 }
 
-/** The trackers' sites, as their pages open in a browser: the one made first (legacy) first. */
+/** The trackers' sites, as their pages open in a browser. */
 export function useTrackerSites(): { host: string; name: string }[] {
   const list = (useConnections().data ?? []).filter(c => c.role === "tracker");
-  const sorted = [...list].sort((a, b) => Number(b.legacy) - Number(a.legacy));
   const seen = new Set<string>();
-  return sorted.flatMap(c =>
+  return list.flatMap(c =>
     seen.has(c.webHost)
       ? []
       : (seen.add(c.webHost), [{ host: c.webHost, name: c.name }])

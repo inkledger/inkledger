@@ -376,6 +376,7 @@ describe("issues: focused views, hidden, favorite order, activity", () => {
   const freshStart = async () => {
     (await q("DELETE FROM issues"));
     (await q("DELETE FROM sync_state"));
+    (await q("DELETE FROM connection_sync WHERE stream = 'issues'"));
   };
 
   it("tracks unread activity: first sync is read, others' activity is not, opening reads it", async () => {

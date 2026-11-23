@@ -200,13 +200,14 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     );
     // His Jira (connection 1): what his issues below live on.
     await db.q(
-      "INSERT INTO connections (id, user_id, type, base_url, remote_account_id, display_name, options, encrypted_secret, legacy, created_at) VALUES (1, 1, 'jira', ?, 'mrossi', 'Mario Rossi', ?, ?, 1, ?)",
+      "INSERT INTO connections (id, user_id, type, base_url, remote_account_id, display_name, options, encrypted_secret, created_at) VALUES (1, 1, 'jira', ?, 'mrossi', 'Mario Rossi', ?, ?, ?)",
       "https://jira.example.it", JSON.stringify({ deployment: "server", authType: "basic", username: "mrossi" }), encrypt("x"), now,
     );
     await db.q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?,?,?,?)",
       createHash("sha256").update(cookie).digest("hex"), 1, now + 86400000, now);
     // Jira must look synced, or the app runs a first sync on open.
     await db.q("INSERT INTO sync_state (user_id, last_sync_at, last_full_sync_at) VALUES (1, ?, ?)", now, now);
+    await db.q("INSERT INTO connection_sync (connection_id, stream, last_ok_at, last_full_at) VALUES (1, 'issues', ?, ?)", now, now);
     const addIssue = (key, summary, favorite = 0) =>
       db.q(
         `INSERT INTO issues (user_id, jira_id, key, summary, status, status_category, project_key, project_name, issue_type, priority, labels, assignee_id, url, synced_at, favorite)

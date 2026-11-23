@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
+import { connections, connectionSync, issues, outbox, worklogs, worklogSinks, type Connection, type Worklog } from "@db/schema";
 import { PENDING_PREFIX } from "@contracts/types";
 import { TIME_SINK_TYPES } from "@contracts/providers";
 import { COMPANION_TYPES } from "./companions";
@@ -392,11 +392,6 @@ export async function unbury(tomb: typeof outbox.$inferSelect, db: Db | Tx = get
   const at = tomb.landedAfter.getTime() - CLOCK_SKEW_MS;
   if (conn.type !== "jira") {
     await db.update(connectionSync).set({ checkpoint: null }).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "entries")));
-    return;
-  }
-  if (conn.legacy) {
-    const [s] = await db.select({ at: syncState.lastWorklogSyncAt }).from(syncState).where(eq(syncState.userId, conn.userId));
-    if (s?.at && s.at.getTime() > at) await db.update(syncState).set({ lastWorklogSyncAt: new Date(at) }).where(eq(syncState.userId, conn.userId));
     return;
   }
   const [s] = await db.select({ cp: connectionSync.checkpoint }).from(connectionSync).where(and(eq(connectionSync.connectionId, conn.id), eq(connectionSync.stream, "worklogs")));

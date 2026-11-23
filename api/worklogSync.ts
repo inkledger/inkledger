@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNotNull, like, lt, not } from "drizzle-orm";
-import { connections, connectionSync, issues, outbox, syncState, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
+import { connections, connectionSync, issues, outbox, worklogs, worklogTrash, type Connection, type User } from "@db/schema";
 import { getDb } from "./queries/connection";
 import { issueAt } from "./queries/issueAt";
 import {
@@ -88,19 +88,11 @@ async function waiting(connectionId: number, now = Date.now()): Promise<boolean>
   return !!at && at.getTime() > now;
 }
 
-/**
- * One Jira connection's worklogs. Where it stands is its own (connection_sync,
- * "worklogs"); the connection from before connections were separate goes on
- * from the user's state.
- */
+/** One Jira connection's worklogs. Where it stands is its own (connection_sync, "worklogs"). */
 async function syncConnectionWorklogs(account: User, conn: Connection, opts: { reimport?: boolean }): Promise<WorklogSyncResult> {
   const db = getDb();
-  const streamCheckpoint = conn.legacy ? null : Number((await streamState(conn.id, "worklogs"))?.checkpoint);
-  const saved = conn.legacy
-    ? ((await db.select({ at: syncState.lastWorklogSyncAt }).from(syncState).where(eq(syncState.userId, account.id)).limit(1))[0]?.at ?? null)
-    : streamCheckpoint && Number.isFinite(streamCheckpoint)
-      ? new Date(streamCheckpoint)
-      : null;
+  const streamCheckpoint = Number((await streamState(conn.id, "worklogs"))?.checkpoint);
+  const saved = streamCheckpoint && Number.isFinite(streamCheckpoint) ? new Date(streamCheckpoint) : null;
   const since = opts.reimport ? null : saved;
   const [queuedOps, trashed] = await Promise.all([
     db
@@ -122,16 +114,10 @@ async function syncConnectionWorklogs(account: User, conn: Connection, opts: { r
   const until = new Date(result.until ?? startedAt);
   // A delete that kept an entry out ended meanwhile: where its rewind (or the old place) left the feed stands.
   if (await tombsEnded(buried.ids)) return { imported: result.imported, deleted: result.deleted, initial: !since };
-  if (conn.legacy) {
-    await db.insert(syncState)
-      .values({ userId: account.id, lastWorklogSyncAt: until })
-      .onConflictDoUpdate({ target: syncState.userId, set: { lastWorklogSyncAt: until } });
-  } else {
-    await db
-      .insert(connectionSync)
-      .values({ connectionId: conn.id, stream: "worklogs", checkpoint: String(until.getTime()), lastOkAt: new Date() })
-      .onConflictDoUpdate({ target: [connectionSync.connectionId, connectionSync.stream], set: { checkpoint: String(until.getTime()), lastOkAt: new Date() } });
-  }
+  await db
+    .insert(connectionSync)
+    .values({ connectionId: conn.id, stream: "worklogs", checkpoint: String(until.getTime()), lastOkAt: new Date() })
+    .onConflictDoUpdate({ target: [connectionSync.connectionId, connectionSync.stream], set: { checkpoint: String(until.getTime()), lastOkAt: new Date() } });
   return { imported: result.imported, deleted: result.deleted, initial: !since };
 }
 

@@ -138,6 +138,7 @@ describe("notifications, incremental sync, watchers", () => {
     await raw("DELETE FROM issues");
     await raw("DELETE FROM notifications");
     await raw("DELETE FROM sync_state");
+    await raw("DELETE FROM connection_sync WHERE stream = 'issues'");
     assigned = opts.mine ?? [jiraIssue("AB-1"), jiraIssue("AB-2")];
     watched = opts.watch ?? [];
     recent = [];
@@ -276,6 +277,7 @@ describe("notifications, incremental sync, watchers", () => {
   it("first full sync after an upgrade sets watching flags without notifications", async () => {
     await freshStart();
     await raw("UPDATE sync_state SET last_full_sync_at = NULL");
+    await raw("UPDATE connection_sync SET last_full_at = NULL WHERE stream = 'issues'");
     watched = [jiraIssue("AB-1")];
     await caller.issues.sync();
     expect(await kinds()).toEqual([]);
@@ -324,6 +326,7 @@ describe("notifications, incremental sync, watchers", () => {
     await raw("DELETE FROM issues");
     await raw("DELETE FROM notifications");
     await raw("DELETE FROM sync_state");
+    await raw("DELETE FROM connection_sync WHERE stream = 'issues'");
     assigned = [jiraIssue("AB-1")];
     const r = await syncUser((await user()), { full: false });
     expect(r.full).toBe(true);
@@ -480,6 +483,7 @@ describe("notifications, incremental sync, watchers", () => {
       await raw("DELETE FROM issues");
       await raw("DELETE FROM notifications");
       await raw("DELETE FROM sync_state");
+      await raw("DELETE FROM connection_sync WHERE stream = 'issues'");
       assigned = [jiraIssue("AB-1")];
       watched = [];
       activity = [{ key: "AB-1", comments: [comment("50", someone)], histories: [status("51", "Risolto", "In lavorazione", someone)] }];
@@ -497,31 +501,20 @@ describe("notifications, incremental sync, watchers", () => {
       expect(await kinds()).toEqual(["commented:WW-1", "status:WW-1:Risolto → Riaperto"]);
     });
   });
-/** The connection as a new one (its own stream state), then back to the one from before connections (legacy) for the rest. */
-  const asNewConnection = async (run: () => Promise<void>) => {
-    await raw("UPDATE connections SET legacy = 0 WHERE user_id = ?", userId);
-    try {
-      await run();
-    } finally {
-      await raw("UPDATE connections SET legacy = 1 WHERE user_id = ?", userId);
-    }
-  };
   const issuesStream = async () =>
     (await raw<{ last_full_at: unknown; last_ok_at: unknown }>("SELECT last_full_at, last_ok_at FROM connection_sync WHERE stream = 'issues' AND connection_id IN (SELECT id FROM connections WHERE user_id = ?)", userId))[0];
 
   it("a new connection's first sync, widened to full, is recorded as full on its stream", async () => {
-    await asNewConnection(async () => {
-      await raw("DELETE FROM issues");
-      await raw("DELETE FROM notifications");
-      await raw("DELETE FROM connection_sync");
-      assigned = [jiraIssue("AB-1")];
-      recent = [];
-      watched = [];
-      activity = [];
-      const r = await syncUser(await user(), { full: false });
-      expect(r.full).toBe(true);
-      expect((await issuesStream()).last_full_at).not.toBeNull();
-    });
+    await raw("DELETE FROM issues");
+    await raw("DELETE FROM notifications");
+    await raw("DELETE FROM connection_sync");
+    assigned = [jiraIssue("AB-1")];
+    recent = [];
+    watched = [];
+    activity = [];
+    const r = await syncUser(await user(), { full: false });
+    expect(r.full).toBe(true);
+    expect((await issuesStream()).last_full_at).not.toBeNull();
   });
 it("the next incremental window starts where the last pass fetched, not where it ended", async () => {
     const MIN = 60_000;

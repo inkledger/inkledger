@@ -1,7 +1,6 @@
 // The trackers a user connects: as many as they like, of any built type,
 // each tested live, renamed, reconnected or archived (archived: its issues
-// leave the lists, its time stays). The connection made with a Jira login
-// before connections existed (legacy) is still mirrored from the user row.
+// leave the lists, its time stays).
 import { env } from "../lib/env";
 import { howOf, TOKEN_FORMS, webHostOf } from "../providers/forms";
 import { assertSafeUrl } from "../lib/security";
@@ -165,7 +164,8 @@ async function shown(c: Connection, syncs?: Awaited<ReturnType<typeof issueSyncs
     remoteAccountId: c.remoteAccountId,
     // Plain text on the wire (the tRPC contract), whatever the column is typed as.
     status: c.status as string,
-    legacy: c.legacy === 1,
+    // Kept on the wire for older clients: every connection is a normal one now.
+    legacy: false,
     lastSyncAt: sync?.lastOkAt ?? null,
     lastError: freshError(sync?.lastError, sync?.lastErrorAt ?? null, sync?.lastOkAt ?? null),
     probedAt: c.probedAt,

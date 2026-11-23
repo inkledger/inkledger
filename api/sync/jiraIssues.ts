@@ -454,16 +454,9 @@ export async function runSync(account: User, conn: Connection, wantFull: boolean
     const { user, creds } = contextFor(account, conn);
     // Ranks for this site's priorities (once a day): toRow reads them.
     await priorityRanks(creds);
-    // This connection's own past: a second one has its own first sync; the
-    // connection from before connections were separate goes on with the
-    // user's state (no "first sync" again after the upgrade).
-    const stream = conn.legacy ? undefined : await streamState(conn.id, "issues");
-    const state = conn.legacy
-      ? (await getDb()
-          .select({ lastSyncAt: syncState.lastSyncAt, lastFullSyncAt: syncState.lastFullSyncAt })
-          .from(syncState)
-          .where(eq(syncState.userId, user.id)).limit(1))[0]
-      : { lastSyncAt: stream?.lastOkAt ?? null, lastFullSyncAt: stream?.lastFullAt ?? null };
+    // This connection's own past: a second one has its own first sync.
+    const stream = await streamState(conn.id, "issues");
+    const state = { lastSyncAt: stream?.lastOkAt ?? null, lastFullSyncAt: stream?.lastFullAt ?? null };
     // The very first successful sync fills the catalog as "already read",
     // and is always full; it raises no notifications.
     const lastSyncAt = state?.lastSyncAt ?? null;

@@ -2,7 +2,7 @@
 // come), and the credentials each one opens. Everything that talks to a
 // tracker gets its credentials here, never from the user row.
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { connections, issues, type Connection, type User } from "@db/schema";
 import type { JiraCredentials } from "@contracts/types";
 import type { TrackerType } from "@contracts/providers";
@@ -31,8 +31,7 @@ export class NoConnectionError extends Error {
 }
 
 /**
- * The user's Jira connection while there is one per user: the one made from
- * their login first (legacy), then the oldest.
+ * The user's Jira connection while there is one per user: the oldest.
  */
 async function jiraConnection(
   userId: number
@@ -47,7 +46,7 @@ async function jiraConnection(
         isNull(connections.archivedAt)
       )
     )
-    .orderBy(desc(connections.legacy), asc(connections.id))
+    .orderBy(asc(connections.id))
     .limit(1);
   return row ?? null;
 }
@@ -409,7 +408,7 @@ export async function jiraConnections(userId: number): Promise<Connection[]> {
         isNull(connections.archivedAt)
       )
     )
-    .orderBy(desc(connections.legacy), asc(connections.id));
+    .orderBy(asc(connections.id));
 }
 
 /** The user's own ids on their trackers (who "me" is in an issue's assignee). */

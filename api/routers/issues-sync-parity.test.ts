@@ -121,6 +121,7 @@ describe("a Jira sync's issues", () => {
     await raw("DELETE FROM issues");
     await raw("DELETE FROM notifications");
     await raw("DELETE FROM sync_state");
+    await raw("DELETE FROM connection_sync WHERE stream = 'issues'");
     byKey.clear();
   };
 

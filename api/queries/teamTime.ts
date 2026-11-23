@@ -2,7 +2,7 @@
 // fresh its time is (the trackers it imports time from) and its work
 // schedules (the target its hours are judged against). Read only.
 import { and, inArray, isNull } from "drizzle-orm";
-import { connections, connectionSync, syncState, workDayOverrides, workSchedules, type Connection } from "@db/schema";
+import { connections, connectionSync, workDayOverrides, workSchedules, type Connection } from "@db/schema";
 import { needsReconnect } from "@contracts/sync";
 import { EPOCH_DAY, type DayOverrides, type ScheduleVersion } from "@contracts/workSchedule";
 import { normalizeWorkSchedule, type WorkDay } from "@contracts/workScheduleSchema";
@@ -50,15 +50,9 @@ export async function timeFreshness(userIds: number[], now: number = Date.now())
     .select({ connectionId: connectionSync.connectionId, stream: connectionSync.stream, lastOkAt: connectionSync.lastOkAt })
     .from(connectionSync)
     .where(and(inArray(connectionSync.connectionId, conns.map((c) => c.id)), inArray(connectionSync.stream, ["worklogs", "entries"])));
-  const legacy = await db
-    .select({ userId: syncState.userId, at: syncState.lastWorklogSyncAt })
-    .from(syncState)
-    .where(inArray(syncState.userId, [...new Set(conns.filter((c) => c.legacy === 1).map((c) => c.userId))]));
-  // Jira's worklogs are read on their own stream; the connection from before connections were separate keeps the account's.
+  // Jira's worklogs are read on their own stream.
   const readAt = (c: Connection): number | null => {
-    const at = c.legacy === 1
-      ? legacy.find((l) => l.userId === c.userId)?.at
-      : streams.find((s) => s.connectionId === c.id && s.stream === (c.type === "jira" ? "worklogs" : "entries"))?.lastOkAt;
+    const at = streams.find((s) => s.connectionId === c.id && s.stream === (c.type === "jira" ? "worklogs" : "entries"))?.lastOkAt;
     return at ? at.getTime() : null;
   };
   for (const id of userIds) {

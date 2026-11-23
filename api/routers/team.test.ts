@@ -12,6 +12,7 @@ describe("team report", () => {
   const q: typeof import("../queries/connection").q = async (text, ...params) => (await import("../queries/connection")).q(text, ...params);
   let ann: Caller;
   let bob: Caller;
+  let bobJira: number;
   let admin: Caller;
   const id: Record<string, number> = {};
   const HOUR = 3600;
@@ -39,16 +40,15 @@ describe("team report", () => {
     id[name] = u.id;
     return u.id;
   };
-  const connection = async (userId: number, type: string, opts: { status?: string; legacy?: boolean } = {}) => {
+  const connection = async (userId: number, type: string, opts: { status?: string } = {}) => {
     const [c] = await q<{ id: number }>(
-      "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, status, legacy, created_at) VALUES (?, ?, ?, ?, ?, 'x', ?, ?, 1) RETURNING id",
+      "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, status, created_at) VALUES (?, ?, ?, ?, ?, 'x', ?, 1) RETURNING id",
       userId,
       type,
       type === "jira" ? "https://x.atlassian.net" : "https://github.com",
       `r${userId}`,
       type === "jira" ? JSON.stringify({ deployment: "cloud", authType: "basic", username: "x@x.it" }) : "{}",
       opts.status ?? "ok",
-      opts.legacy ? 1 : 0,
     );
     return c.id;
   };
@@ -81,8 +81,8 @@ describe("team report", () => {
     // Dee: GitHub only (time kept here); a Jira that refuses its credentials makes it "reconnect" below.
     const deeGithub = await connection(id.dee, "github");
     await worklog(id.dee, deeGithub, at(9, 10), 3 * HOUR);
-    // Bob: a legacy Jira connection never read.
-    await connection(id.bob, "jira", { legacy: true });
+    // Bob: a Jira connection never read.
+    bobJira = await connection(id.bob, "jira");
     // Eve is off: her time is not on the report.
     const eveJira = await connection(id.eve, "jira");
     await worklog(id.eve, eveJira, at(5, 9), 8 * HOUR);
@@ -131,9 +131,9 @@ describe("team report", () => {
     await connection(id.dee, "jira", { status: "auth_failed" });
     const after = await ann.team.overview(week);
     expect(after.people.find((p) => p.displayName === "Dee")?.freshness.state).toBe("reconnect");
-    await q("INSERT INTO sync_state (user_id, last_worklog_sync_at) VALUES (?, ?)", id.bob, Date.now());
-    const legacy = await ann.team.overview(week);
-    expect(legacy.people.find((p) => p.displayName === "Bob")?.freshness.state).toBe("ok");
+    await q("INSERT INTO connection_sync (connection_id, stream, last_ok_at) VALUES (?, 'worklogs', ?)", bobJira, Date.now());
+    const read = await ann.team.overview(week);
+    expect(read.people.find((p) => p.displayName === "Bob")?.freshness.state).toBe("ok");
   });
 
   it("refuses a range longer than a report's", async () => {

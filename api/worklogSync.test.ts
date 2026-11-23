@@ -165,11 +165,10 @@ describe("worklogs from Jira", () => {
     expect((await mine()).map(w => w.id)).toEqual(["100"]);
   });
 
-  /** Where the worklog pass stands (the connection's stream, or the user's for one from before). */
+  /** Where the worklog pass stands (the connection's stream). */
   const checkpoint = async () => {
     const [s] = await q<{ checkpoint: string }>("SELECT checkpoint FROM connection_sync WHERE stream = 'worklogs'");
-    if (s) return Number(s.checkpoint);
-    return Number((await q<{ at: number }>("SELECT last_worklog_sync_at AS at FROM sync_state"))[0].at);
+    return Number(s.checkpoint);
   };
 
   it("a feed stopped at its page cap holds the checkpoint back: the other feed's later time never skips its rest", async () => {
@@ -207,7 +206,6 @@ describe("worklogs from Jira", () => {
   it("both feeds read to the end: the checkpoint is the earlier clock (the later would skip what changed between the reads)", async () => {
     const { syncWorklogs } = await import("./worklogSync");
     await q("UPDATE connection_sync SET checkpoint = ? WHERE stream = 'worklogs'", String(now - 1000));
-    await q("UPDATE sync_state SET last_worklog_sync_at = ?", now - 1000);
     jira.deletedUntil = now + 5_000_000;
     try {
       await syncWorklogs(user);
@@ -390,7 +388,6 @@ describe("worklogs from Jira", () => {
     jira.updatedAt = Date.now() - 300_000;
     // Read from before it landed: this pass sees it, and leaves it out.
     await q("UPDATE connection_sync SET checkpoint = ? WHERE connection_id = ? AND stream = 'worklogs'", String(Date.now() - 900_000), conn.id);
-    await q("UPDATE sync_state SET last_worklog_sync_at = ? WHERE user_id = ?", Date.now() - 900_000, user.id);
     jira.duringList = async () => void (await me.outbox.discard({ id: tomb.id }));
     try {
       await syncWorklogs(user);

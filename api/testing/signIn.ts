@@ -45,7 +45,6 @@ export async function jiraSignIn(ctx: { req: Request; resHeaders: Headers }, inp
           avatarUrl: identity.avatarUrl,
           options: JSON.stringify({ deployment: identity.deployment, authType: identity.authType, username: identity.email }),
           encryptedSecret: "",
-          legacy: 1,
         })
         .returning({ id: connections.id })
     )[0].id;
