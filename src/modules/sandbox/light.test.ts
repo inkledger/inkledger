@@ -35,6 +35,13 @@ const BAD: [string, string][] = [
   ["--sh-1", "0 0 1px hsl(0 0% 0% / 0.1)," + " ".repeat(600)],
   ["--sh-drop-1", "drop-shadow(0 0 4px hsl(var(--shadow-color) / 0.2)) blur(4px)"],
   ["--sh-drop-1", "0 0 4px hsl(var(--shadow-color) / 0.2)"],
+  // A literal colour only for the edge's inset line: never an opaque block around the surfaces.
+  ["--sh-1", "0 0 0 200px hsl(0 0% 100% / 1)"],
+  ["--sh-2", "0 0 4px hsl(0 0% 0% / 0.2)"],
+  ["--sh-1", "0 0 0 9px hsl(var(--shadow-color) / 0.2)"],
+  ["--sh-drop-1", "drop-shadow(0 0 200px hsl(0 0% 100% / 1))"],
+  ["--sh-edge", "inset 0 0 0 200px hsl(0 100% 50% / 1)"],
+  ["--sh-edge", "0 1px 0 hsl(0 0% 100% / 0.85)"],
   ["--sky-dim", "1.5"],
   ["--sky-dim", "calc(1)"],
   ["--sky-dim", ""],

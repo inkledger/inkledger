@@ -15,6 +15,10 @@ const MAX_VALUE = 512;
 /** Shadows in one list (a contact and a cast, an edge on top). */
 const MAX_SHADOWS = 4;
 const MAX_PX = 200;
+/** A shadow grows past its surface by at most this (a larger spread paints a block over its neighbours). */
+const MAX_SPREAD = 8;
+/** The edge is a thin line of light inside the surface's top. */
+const EDGE_PX = 2;
 
 type Tok = { k: "num"; n: number; unit: "" | "px" | "%" } | { k: "word"; w: string };
 const TOKEN = /\s*(?:(-?(?:\d{1,4}(?:\.\d{1,4})?|\.\d{1,4}))(px|%)?|(#0000|--shadow-color|--night-shadow|drop-shadow|inset|none|hsl|var|[(),/]))/y;
@@ -32,8 +36,12 @@ function tokens(s: string): Tok[] | null {
   return out;
 }
 
-/** A recursive-descent reader over the tokens; each rule returns canonical text or null. */
-function reader(ts: Tok[]) {
+/**
+ * A recursive-descent reader over the tokens; each rule returns canonical text or null.
+ * Only the theme's shadow colours, except the edge: an inset line, which may take a literal colour.
+ */
+function reader(ts: Tok[], edge = false) {
+  const maxPx = edge ? EDGE_PX : MAX_PX;
   let i = 0;
   const word = (w: string) => {
     const t = ts[i];
@@ -50,9 +58,9 @@ function reader(ts: Tok[]) {
     return t.n;
   };
   /** A length: px, or a bare 0. */
-  const len = (min = -MAX_PX) => {
+  const len = (min = -maxPx, max = maxPx) => {
     const t = ts[i];
-    if (t?.k !== "num" || t.n < min || t.n > MAX_PX || (t.unit !== "px" && !(t.unit === "" && t.n === 0))) return null;
+    if (t?.k !== "num" || t.n < min || t.n > max || (t.unit !== "px" && !(t.unit === "" && t.n === 0))) return null;
     i++;
     return `${t.n}px`;
   };
@@ -65,6 +73,7 @@ function reader(ts: Tok[]) {
       if (!v || !word(")")) return null;
       base = `var(${v})`;
     } else {
+      if (!edge) return null;
       const h = num("", 0, 360);
       const s = num("%", 0, 100);
       const l = num("%", 0, 100);
@@ -78,9 +87,10 @@ function reader(ts: Tok[]) {
   };
   const shadow = () => {
     const inset = word("inset");
+    if (edge && !inset) return null;
     const parts: string[] = [];
     for (let n = 0; n < 4; n++) {
-      const l = len(n === 2 ? 0 : -MAX_PX);
+      const l = n === 2 ? len(0) : n === 3 ? len(-maxPx, Math.min(maxPx, MAX_SPREAD)) : len();
       if (l === null) break;
       parts.push(l);
     }
@@ -128,7 +138,7 @@ export function lightValue(name: LightName, value: string): string | null {
   if (value.length > MAX_VALUE) return null;
   const ts = tokens(value);
   if (!ts) return null;
-  const r = reader(ts);
+  const r = reader(ts, name === "--sh-edge");
   const out = name === "--sky-dim" ? r.fraction() : name.startsWith("--sh-drop-") ? r.drop() : r.shadows();
   return out !== null && r.end() ? out : null;
 }
