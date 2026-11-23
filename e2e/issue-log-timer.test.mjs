@@ -47,6 +47,8 @@ test("issue page, Log time with the issue's timer running: the timer's question,
     const [timer] = await db.q("SELECT paused_at, accumulated_seconds FROM timers");
     const timerStart = Math.round((Number(timer.paused_at) - timer.accumulated_seconds * 1000) / MINUTE) * MINUTE;
 
+    // Typed in the question before stepping aside: still there when it is back.
+    await asked.getByLabel("Comment", { exact: true }).fill("Bug analysis");
     await asked.getByRole("button", { name: "Log another interval" }).click();
     const other = page.getByRole("dialog", { name: `Log time · ${KEY}` });
     await other.waitFor();
@@ -60,13 +62,16 @@ test("issue page, Log time with the issue's timer running: the timer's question,
     assert.ok(Number(manual.started) + 10 * MINUTE <= timerStart, "ends before the timer's time, not over it");
     assert.deepEqual(await db.q("SELECT state FROM timers"), [{ state: "paused" }], "the timer still waits");
 
-    // The question is back: the timer's own time, logged once.
+    // The question is back, with its comment: the timer's own time, logged once.
     await asked.waitFor();
+    assert.equal(await asked.getByLabel("Comment", { exact: true }).inputValue(), "Bug analysis");
     await asked.getByRole("button", { name: "Log", exact: true }).click();
     await asked.waitFor({ state: "detached" });
-    const rows = await db.q("SELECT started, time_spent_seconds FROM worklogs ORDER BY started");
+    const rows = await db.q("SELECT started, time_spent_seconds, comment FROM worklogs ORDER BY started");
     assert.equal(rows.length, 2);
     assert.equal(Number(rows[1].started), timerStart, "the timer's block where it ran");
+    assert.equal(rows[1].comment, "Bug analysis");
+    assert.equal(rows[0].comment, "");
     assert.deepEqual(await db.q("SELECT issue_key FROM timers"), [], "the timer is logged");
   });
 });
