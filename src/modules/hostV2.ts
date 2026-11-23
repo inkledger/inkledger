@@ -153,6 +153,8 @@ export type HostApiV2 = Basics &
     hit: { set(shape: readonly HitRegion[] | ImageBitmap, activate: (how?: HitActivation) => void, opts?: HitOptions): void };
     /** In "mobile-more" only: closes the phone's More sheet (e.g. as the module's own sheet opens). */
     more?: { close(): void };
+    /** In "dashboard-widget" only: true takes the card off the page (the Desk shows no empty card); the frame runs on. */
+    hidden?(on: boolean): void;
     /** "runtime": a port to this module's runtime (one per view); absent when the host made none. */
     runtime?: MessagePort;
     /**

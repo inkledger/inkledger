@@ -232,6 +232,14 @@ export function frameMethods(
           unhit = (view.hits ?? hitAreas()).add(box, (x, y, w, h) => shapeTest?.(x, y, w, h) ?? false, view.activate, { ...a11y, onFocus: view.focus });
         },
       }),
+      // A card with nothing to show leaves the Desk, as an in-page module's hidden box does.
+      "box.hidden": method({
+        args: z.tuple([z.boolean()]),
+        rate: [4, 8],
+        run([on]) {
+          if (view.slot === "dashboard-widget") box.hidden = on;
+        },
+      }),
       "dock.set": method({
         args: z.tuple([z.boolean()]),
         cap: "dock",

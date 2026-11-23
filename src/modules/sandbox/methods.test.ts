@@ -106,6 +106,26 @@ describe("the host API a framed module reaches", () => {
     expect(lost.sent).toEqual([{ v: 1, t: "res", id: 1, ok: true, value: { ok: false, value: 5, revision: 4 } }]);
   });
 
+  it("box.hidden takes a card off the page, in the dashboard's card slot only", async () => {
+    const box = (slot: string) => {
+      const el = { dataset: {}, hidden: false } as unknown as HTMLElement;
+      const served = frameMethods({} as HostApiV1, { read: () => Promise.reject(new Error()), setIf: () => Promise.reject(new Error()) }, { el, slot, activate: () => {} });
+      const peer = createRpcPeer({ source: () => frame, post: () => {}, capabilities: [], methods: served.methods });
+      return { el, call: (id: number, on: unknown) => peer.receive({ source: frame, origin: "null", data: { v: 1, t: "call", id, m: "box.hidden", a: [on] } }) };
+    };
+    const card = box("dashboard-widget");
+    card.call(1, true);
+    await settle();
+    expect(card.el.hidden).toBe(true);
+    card.call(2, false);
+    await settle();
+    expect(card.el.hidden).toBe(false);
+    const perch = box("dashboard-perch");
+    perch.call(1, true);
+    await settle();
+    expect(perch.el.hidden).toBe(false);
+  });
+
   it("dock.set only with its capability", async () => {
     const without = setup();
     without.call(1, "dock.set", [true]);

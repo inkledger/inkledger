@@ -232,6 +232,21 @@ describe("the frame's host API (bootstrap)", () => {
     expect(closed).toBe(1);
   });
 
+  it("hidden: only the dashboard's card may take itself off the page", async () => {
+    const offered: boolean[] = [];
+    const boxes: HTMLElement[] = [];
+    for (const slot of ["dashboard-widget", "settings"]) {
+      const el = { dataset: {}, hidden: false } as unknown as HTMLElement;
+      boxes.push(el);
+      const served = frameMethods({} as HostApiV1, { read: () => Promise.reject(new Error()), setIf: () => Promise.reject(new Error()) }, { el, slot, activate() {} });
+      const mod = { id: "m", hostApi: 2, mount: { [slot]: (_el: unknown, host: HostApiV2) => (offered.push(host.hidden !== undefined), host.hidden?.(true), () => {}) } };
+      bootFrame({ capabilities: [], mod, methods: served.methods, slot });
+      await settle();
+    }
+    expect(offered).toEqual([true, false]);
+    expect(boxes.map(b => b.hidden)).toEqual([true, false]);
+  });
+
   it("the document going (its box removed with it) still runs the view's cleanup, once, and says so", async () => {
     let cleaned = 0;
     let unmounted = 0;
