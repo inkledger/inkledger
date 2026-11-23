@@ -28,6 +28,8 @@ export function bootFrame(o: {
   own?: MessagePort;
   /** Holds a call until the own reports it follows have arrived. */
   settle?(g: number): Promise<void> | null;
+  /** The frame's beats to the watchdog, with its busy time. */
+  onBeat?(busyMs: number): void;
 }) {
   const frameListeners: ((e: unknown) => void)[] = [];
   const pagehides: (() => void)[] = [];
@@ -71,6 +73,7 @@ export function bootFrame(o: {
     clearInterval: () => undefined,
     queueMicrotask,
     structuredClone,
+    performance,
     console: { error: (...a: unknown[]) => errors.push(a), warn() {}, log() {} },
     ...o.globals,
   });
@@ -89,6 +92,7 @@ export function bootFrame(o: {
     onUnmounted: () => o.onUnmounted?.(),
     onSize: h => o.onSize?.(h),
     settle: g => o.settle?.(g) ?? null,
+    onBeat: b => o.onBeat?.(b),
     onReady() {
       if (o.own) peer.send({ v: RPC_VERSION, t: "own" }, [o.own]);
       peer.send({ v: RPC_VERSION, t: "init", role: o.role ?? "view", moduleId: "m", slot: o.slot ?? "dashboard-widget", locale: "en", capabilities: o.capabilities, catalog: {}, fit: o.fit ?? false, ...(o.room ? { room: o.room } : {}) }, o.port ? [o.port] : []);
@@ -96,6 +100,8 @@ export function bootFrame(o: {
   });
   vm.runInContext(BOOTSTRAP, context);
   return {
+    /** The frame's global, as the module's own code sees it. */
+    win: context as { setTimeout(fn: () => void, ms?: number): unknown },
     peer,
     sent,
     box,

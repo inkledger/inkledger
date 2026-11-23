@@ -429,12 +429,27 @@ const cleanup = (off) => {
 // own long tasks since the last beat: frames share a process, so a late beat
 // alone can't say whose loop stalled it.
 let busy = 0;
+let observed = false;
 try {
   if (PerformanceObserver.supportedEntryTypes.includes("longtask")) {
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === "self") busy += e.duration; }).observe({ type: "longtask" });
+    observed = true;
   }
-} catch { /* not measured here: beats alone */ }
-setInterval(() => { send({ t: "beat", busy: Math.min(60000, Math.round(busy)) }); busy = 0; }, 500);
+} catch { /* not reported here */ }
+const beatEvery = setInterval;
+// No long tasks reported (WebKit, where frames run on the page's thread and all stall together):
+// the frame times its own timer and frame callbacks, so the module that loops is the one blamed.
+if (!observed) {
+  const timed = (fn) => typeof fn !== "function" ? fn : function (...a) {
+    const t0 = performance.now();
+    try { return fn.apply(this, a); } finally { const ms = performance.now() - t0; if (ms >= 50) busy += ms; }
+  };
+  for (const k of ["setTimeout", "setInterval", "requestAnimationFrame"]) {
+    const native = globalThis[k];
+    if (typeof native === "function") globalThis[k] = (fn, ...a) => native.call(globalThis, timed(fn), ...a);
+  }
+}
+beatEvery(() => { send({ t: "beat", busy: Math.min(60000, Math.round(busy)) }); busy = 0; }, 500);
 
 addEventListener("message", (e) => {
   if (e.source !== up) return;

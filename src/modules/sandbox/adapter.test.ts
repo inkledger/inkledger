@@ -683,3 +683,42 @@ describe("cleanups that save", () => {
     expect(ran).toBe(1);
   });
 });
+
+describe("the frame's beat", () => {
+  const hogged = async (globals: Record<string, unknown>) => {
+    let clock = 0;
+    let beat = () => {};
+    const busy: number[] = [];
+    const f = bootFrame({
+      capabilities: [],
+      mod: { id: "m", hostApi: 2, mount: { "dashboard-widget": () => () => {} } },
+      methods: {},
+      onBeat: b => busy.push(b),
+      globals: {
+        performance: { now: () => clock },
+        setInterval: (fn: () => void, ms: number) => ((ms === 500 ? (beat = fn) : null), 0),
+        ...globals,
+      },
+    });
+    await settle();
+    // The module's own timers: one 300 ms loop, one quick callback.
+    f.win.setTimeout(() => void (clock += 300));
+    f.win.setTimeout(() => void (clock += 10));
+    await settle();
+    beat();
+    await settle();
+    return busy;
+  };
+
+  it("without long-task data (WebKit, frames on the page's thread) a frame counts its own long callbacks", async () => {
+    expect(await hogged({})).toEqual([300]);
+  });
+
+  it("where long tasks are reported (Chrome) they alone count: the timers are left as they are", async () => {
+    class PerformanceObserver {
+      static supportedEntryTypes = ["longtask"];
+      observe() {}
+    }
+    expect(await hogged({ PerformanceObserver })).toEqual([0]);
+  });
+});

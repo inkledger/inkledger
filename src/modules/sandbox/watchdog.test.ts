@@ -137,6 +137,15 @@ describe("the watchdog's ladder", () => {
     expect(s.steps).toEqual([]);
   });
 
+  it("frames on the page's thread: the one that says it was busy is stopped, its neighbour never demoted", () => {
+    const { ladder, steps, second } = setup({ judgeLag: true });
+    const hog = ladder.frame("hog", "view");
+    const victim = ladder.frame("victim", "view");
+    for (let i = 0; i < 9; i++) second([{ frame: hog, busy: 600 }, { frame: victim }], 300);
+    expect(ladder.step("hog")).toBe("killed");
+    expect(steps.filter(([id]) => id === "victim")).toEqual([]);
+  });
+
   it("spares a module stalled by another one's long tasks (they share a process)", () => {
     const { ladder, steps, second } = setup();
     const hog = ladder.frame("hog", "view");
