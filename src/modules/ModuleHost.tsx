@@ -177,6 +177,8 @@ export function DashboardBackdrop() {
  * doesn't have (the frame draws only inside itself).
  */
 const FRAMED_BOX: Partial<Record<SlotId, string>> = {
+  // The size of the outline icon button beside it (the calendar): a frame has no width of its own.
+  "dashboard-action": "flex size-8 items-center",
   // A strip along the panel's bottom edge, its width, 84 px tall and 10 px
   // below the edge; it takes no pointer events (the host tests its shape).
   "panel-edge": "pointer-events-none absolute inset-x-0 -bottom-[10px] h-[84px] [&_*]:!pointer-events-none",
