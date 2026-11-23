@@ -11,10 +11,10 @@ import { useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { createHub, type Hub } from "./host";
+import type { Hub } from "./host";
 import { loadModules, modulesDisabled, type LoadedModule } from "./loader";
 import { FramedBox } from "./sandbox/FrameHost";
-import { keepRuntimes } from "./sandbox/frames";
+import { withLoadedFrames } from "./sandbox/loadFrames";
 import { commandSignals, runningCommands, watchCommands } from "./commands";
 import { APPLE } from "@/lib/dom";
 import type { SlotId } from "./types";
@@ -62,13 +62,19 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
   // Made in an effect, not while rendering: StrictMode's discarded renders leak none.
   const active = running.length > 0;
   const [hub, setHub] = useState<Hub | null>(null);
+  // Its code loads with the first module, not with every page.
   useEffect(() => {
     if (!active) return;
-    const made = createHub(queryClient, utils);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the hub is an external resource: made after commit, handed to the tree once.
-    setHub(made);
+    let live = true;
+    let made: Hub | null = null;
+    void import("./host").then(({ createHub }) => {
+      if (!live) return;
+      made = createHub(queryClient, utils);
+      setHub(made);
+    });
     return () => {
-      made.dispose();
+      live = false;
+      made?.dispose();
       setHub(null);
     };
   }, [active, queryClient, utils]);
@@ -79,9 +85,11 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
 
   // Framed modules' runtimes live as long as their module runs, with this hub.
   useEffect(() => {
-    if (hub) keepRuntimes(running.filter(m => "framed" in m.module).map(m => m.entry.id));
+    if (!hub) return;
+    const ids = running.filter(m => "framed" in m.module).map(m => m.entry.id);
+    withLoadedFrames(f => f.keepRuntimes(ids));
   }, [hub, running]);
-  useEffect(() => () => keepRuntimes(), [hub]);
+  useEffect(() => () => withLoadedFrames(f => f.keepRuntimes()), [hub]);
 
   // Running framed modules' keyboard commands: matched on the window, told to their views.
   const commands = useMemo(() => running.flatMap(m => ("framed" in m.module ? m.entry.commands.map(c => ({ ...c, moduleId: m.entry.id, moduleName: m.entry.name })) : [])), [running]);

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import type { ModuleListEntry } from "@contracts/modules";
 import type { ViewSlot } from "../hostV2";
 import type { Hub } from "../host";
-import { mountView } from "./frames";
+import { loadFrames } from "./loadFrames";
 
 /** A framed module's box in a slot: its view frame fills it. */
 export function FramedBox({ hub, entry, slot, className }: { hub: Hub; entry: ModuleListEntry; slot: ViewSlot; className?: string }) {
@@ -18,7 +18,15 @@ export function FramedBox({ hub, entry, slot, className }: { hub: Hub; entry: Mo
   useLayoutEffect(() => {
     const box = ref.current;
     if (!box || !frameUrl) return;
-    return mountView(hub, latest.current, slot, box);
+    let live = true;
+    let unmount: (() => void) | null = null;
+    void loadFrames().then(f => {
+      if (live) unmount = f.mountView(hub, latest.current, slot, box);
+    });
+    return () => {
+      live = false;
+      unmount?.();
+    };
   }, [hub, id, frameUrl, slot]);
   return <div ref={ref} data-module={id} className={className} />;
 }
