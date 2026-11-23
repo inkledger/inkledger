@@ -7,7 +7,6 @@ import {
   formatSeconds,
   MAX_WORKLOG_SECONDS,
   parseDurationToSeconds,
-  roundToMinute,
   toLocalInputValue,
 } from "@contracts/time";
 import { DURATION_PRESETS } from "@/lib/jira";
@@ -38,6 +37,8 @@ import { useTimerActions } from "@/hooks/useTimerActions";
 import { DiscardTimerDialog } from "@/components/TimerControls";
 import { occupiedId, partsInput, partsLabel, type Placement } from "@contracts/placement";
 import { FULL_BP, splitOf, stretchesOf } from "@contracts/timerSplit";
+import { durationInput, secondsToEnd, type TimeAs } from "@/lib/timeAs";
+import { useTimeAs } from "@/hooks/useTimeAs";
 
 export type EditableWorklog = {
   /** inkledger's id: edits go by it when known */
@@ -49,14 +50,6 @@ export type EditableWorklog = {
   /** Its connection, when known */
   connectionId?: number | null;
 };
-
-/**
- * Seconds as a typed duration, never below one minute (Jira's granularity):
- * hours and minutes only, so a day in the work schedule never changes it.
- */
-function durationInput(seconds: number): string {
-  return formatSeconds(roundToMinute(seconds), { days: false });
-}
 
 type Props = {
   issueKey: string;
@@ -191,11 +184,6 @@ function LogTimeForm({
   const sharing = split && split.groups.length > 0 ? split : null;
   // The duration follows "To log" until typed by hand.
   const [durationEdited, setDurationEdited] = useState(false);
-  // The time as a typed duration, or as an end time after the start: one or the other, never kept in sync.
-  const [mode, setMode] = useState<"duration" | "end">("duration");
-  const [endTyped, setEndTyped] = useState("");
-  // End time asked for while the start was still being placed: pinned once it is shown, with the duration it had.
-  const [endPending, setEndPending] = useState<number | null>(null);
   // A stopped timer logged shorter: its rest is dropped unless kept to log later.
   const [keepRest, setKeepRest] = useState(false);
   const placementDay =
@@ -209,6 +197,18 @@ function LogTimeForm({
   const [startedTouched, setStartedTouched] = useState(
     !!worklog || !!prefillStart
   );
+  // The time as a typed duration, or as an end time after the start (src/lib/timeAs.ts).
+  const timeAs = useTimeAs({
+    pinStart: start => {
+      setStarted(start);
+      setStartedTouched(true);
+    },
+    toDuration: s => {
+      setTimeSpent(durationInput(s));
+      setDurationEdited(true);
+    },
+  });
+  const { mode, end: endTyped, setEnd: setEndTyped, pending: endPending } = timeAs;
   const [ownComment, setOwnComment] = useState(
     worklog?.comment ?? prefillComment ?? ""
   );
@@ -252,10 +252,10 @@ function LogTimeForm({
   // Shared out by percentages, the time is theirs: no end to type.
   const byEnd = mode === "end" && !sharing;
   // By end, the start is the one in its field (fixed when the end was chosen).
-  const endSeconds = byEnd && started && endTyped ? (new Date(endTyped).getTime() - new Date(started).getTime()) / 1000 : null;
+  const endSeconds = byEnd ? secondsToEnd(started, endTyped) : null;
   const endBeforeStart = endSeconds !== null && endSeconds <= 0;
   const parsed = byEnd
-    ? endSeconds !== null && Number.isFinite(endSeconds) && endSeconds > 0
+    ? endSeconds !== null && endSeconds > 0
       ? endSeconds
       : null
     : worklog && timeShown === durationInput(worklog.timeSpentSeconds)
@@ -289,31 +289,7 @@ function LogTimeForm({
       : "";
   // Placed around the day's break: one worklog per piece. A start chosen by hand is one piece.
   const parts = !startedTouched && auto?.ok ? auto.parts : undefined;
-  const pinEnd = (start: string, length: number) => {
-    setEndPending(null);
-    setStarted(start);
-    setStartedTouched(true);
-    setEndTyped(toLocalInputValue(new Date(new Date(start).getTime() + length * 1000)));
-  };
-  /**
-   * To an end time: the block as it stands keeps its start, its end is typed
-   * from there. Back to a duration: what the end made of it, typed from there.
-   */
-  const switchMode = (next: "duration" | "end") => {
-    if (next === mode) return;
-    if (next === "end") {
-      // An empty start pinned here would never be placed again: the end would stay blank.
-      if (startedShown && !waiting) pinEnd(startedShown, seconds);
-      else setEndPending(seconds);
-    } else {
-      setEndPending(null);
-      if (parsed && parsed > 0) {
-        setTimeSpent(durationInput(parsed));
-        setDurationEdited(true);
-      }
-    }
-    setMode(next);
-  };
+  const switchMode = (next: TimeAs) => timeAs.switchTo(next, { start: startedShown, placed: !waiting, seconds }, parsed);
   // What a stopped timer logged shorter leaves (whole minutes): dropped, or kept to log later.
   const restSeconds =
     fromTimer && !worklog && !sharing && prefillSeconds && parsed && parsed > 0
@@ -348,7 +324,7 @@ function LogTimeForm({
   const overlapWarning =
     overlap && !conflict ? t("ui.logTime.overlapWarning", { message: overlap }) : null;
   const waiting = !worklog && (!placement.ready || (fromTimer && splitRead.isPending));
-  if (endPending !== null && byEnd && !waiting && startedShown) pinEnd(startedShown, endPending);
+  timeAs.settle(byEnd, { start: startedShown, placed: !waiting, seconds });
 
   const onSuccess = () => {
     toast.success(
