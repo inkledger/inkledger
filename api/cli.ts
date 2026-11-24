@@ -8,6 +8,13 @@
 // that it was not told yet (a catch-up through its own rules), never before
 // it started counting. --already: closures it counted live before, skipped
 // (the most recent plain ones). A dry run unless --apply.
+//   node dist/cli.js keys-status
+// Per sealed column, how many values open with CREDENTIALS_KEY, CREDENTIALS_KEY_OLD,
+// the key derived from SESSION_SECRET, or none; warns before a key may change.
+//   node dist/cli.js reseal [--apply]
+// Seals every value that opens again with the current key and lists the rows
+// none opens (table, column, row id). A dry run unless --apply.
+// Neither seals anything at start (the server does that for connections at boot).
 import "./lib/tz";
 import { eq } from "drizzle-orm";
 import { users } from "@db/schema";
@@ -16,6 +23,7 @@ import { signOutEverywhere, userByUsername } from "./queries/accounts";
 import { releaseClosuresFrom } from "./modules/closures";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { hashPassword, temporaryPassword } from "./lib/password";
+import { keysStatus, resealAll } from "./queries/sealedValues";
 
 async function resetPassword(username: string | undefined) {
   if (!username) throw new Error("usage: reset-password <username>");
@@ -50,12 +58,41 @@ async function closuresFrom(rest: string[]) {
   console.log(r.applied ? "Applied: the module hears them the next time it runs." : "Dry run: nothing written (add --apply).");
 }
 
+async function printKeysStatus() {
+  const s = await keysStatus(getDb());
+  console.log(`New values are sealed with: ${s.sealingKey}`);
+  for (const c of s.columns) {
+    console.log(`${c.column}: ${c.total} value(s); CREDENTIALS_KEY ${c.CREDENTIALS_KEY}, CREDENTIALS_KEY_OLD ${c.CREDENTIALS_KEY_OLD}, SESSION_SECRET ${c.SESSION_SECRET}, unreadable ${c.unreadable}`);
+  }
+  for (const w of s.warnings) console.log(`Warning: ${w}`);
+  if (s.warnings.length === 0) console.log("Nothing depends on SESSION_SECRET or CREDENTIALS_KEY_OLD.");
+}
+
+async function reseal(rest: string[]) {
+  const apply = rest.includes("--apply");
+  const r = await resealAll(getDb(), { apply });
+  console.log(`Current key: ${r.sealingKey}`);
+  for (const c of r.columns) {
+    const verb = r.applied ? "sealed again" : "to seal again";
+    console.log(`${c.column}: ${c.current} already current, ${c.resealed} ${verb}${c.changed ? `, ${c.changed} changed meanwhile (run again)` : ""}, ${c.unreadable.length} unreadable`);
+    if (c.unreadable.length) console.log(`  unreadable row ids: ${c.unreadable.join(", ")}`);
+  }
+  console.log(r.applied ? "Applied." : "Dry run: nothing written (add --apply).");
+  if (r.columns.some((c) => c.unreadable.length > 0)) process.exitCode = 2;
+}
+
+const COMMANDS =
+  "commands: reset-password <username> | closures-from <username|user id> <module> <YYYY-MM-DD> [--already <n>] [--apply] | keys-status | reseal [--apply]";
+
 const [command, ...args] = process.argv.slice(2);
 try {
-  await initDb();
+  // Looking at the keys must not change what it looks at: no seal at start for these.
+  await initDb({ reseal: command !== "keys-status" && command !== "reseal" });
   if (command === "reset-password") await resetPassword(args[0]);
   else if (command === "closures-from") await closuresFrom(args);
-  else throw new Error("commands: reset-password <username> | closures-from <username|user id> <module> <YYYY-MM-DD> [--already <n>] [--apply]");
+  else if (command === "keys-status") await printKeysStatus();
+  else if (command === "reseal") await reseal(args);
+  else throw new Error(COMMANDS);
 } catch (e) {
   console.error(e instanceof Error ? e.message : String(e));
   process.exitCode = 1;
