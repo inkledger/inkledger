@@ -31,6 +31,8 @@ process.env.BACKUP_DIR = DIR;
 process.env.PG_DUMP_BIN = path.join(BIN, "pg_dump");
 process.env.PG_RESTORE_BIN = path.join(BIN, "pg_restore");
 process.env.PSQL_BIN = path.join(BIN, "psql");
+const AUDIT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "ikl-audit-"));
+process.env.AUDIT_DIR = AUDIT_DIR;
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi);
 
@@ -110,6 +112,37 @@ describe("backups on disk", () => {
       await b.setBackupSettings({ keep: 2 });
     }
   });
+
+  it("a restore leaves its records in the audit file, and its event names the log before it", async () => {
+    const { appRouter } = await import("./router");
+    const { getDb } = await import("./queries/connection");
+    const { users } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { recordSystem, flushAudit } = await import("./lib/audit");
+    const { q } = await import("./queries/connection");
+    const [{ id }] = await q<{ id: number }>("INSERT INTO users (username, display_name, role, created_at) VALUES ('auditor-restore', 'A', 'admin', 1) RETURNING id");
+    const [admin] = await getDb().select().from(users).where(eq(users.id, id));
+    const last = await recordSystem({ kind: "system", label: "test" }, "backup.run", { after: { name: "before-restore" } });
+    await flushAudit();
+    await new Promise((r) => setTimeout(r, 1100)); // a new second → a new safety file name
+    const caller = appRouter.createCaller({ req: new Request("http://localhost/"), resHeaders: new Headers(), user: admin, sessionId: null, deviceId: "dev-restore" });
+    await caller.backup.restore({ name: "inkledger-20200102-000000.dump" });
+    // The file, whatever the database says now: before and after, with the log's last hash before it.
+    const lines = fs
+      .readdirSync(AUDIT_DIR)
+      .flatMap((f) => fs.readFileSync(path.join(AUDIT_DIR, f), "utf8").trim().split("\n"))
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .filter((l) => l.action === "backup.restore");
+    expect(lines.map((l) => [l.phase, l.outcome, l.actorUserId, l.name])).toEqual([
+      ["before", "ok", id, "inkledger-20200102-000000.dump"],
+      ["after", "ok", id, "inkledger-20200102-000000.dump"],
+    ]);
+    expect(lines[0].lastHash).toBe(last!.hash);
+    // In the database: one restore.completed event, pointing at the log as it was.
+    const [done] = await q<{ action: string; after: string }>("SELECT action, after FROM audit_events WHERE action LIKE '%restore%' ORDER BY id DESC LIMIT 1");
+    expect(done.action).toBe("restore.completed");
+    expect(JSON.parse(done.after)).toMatchObject({ name: "inkledger-20200102-000000.dump", preRestoreLastHash: last!.hash });
+  }, 60_000);
 
   it("restoring makes a safety backup first, and refuses unknown files", async () => {
     const b = await import("./backup");

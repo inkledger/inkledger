@@ -13,6 +13,8 @@ import { StaleDraftError } from "./workspace/staleDraft";
 import { t as tr } from "@contracts/i18n";
 import type { Permission } from "@contracts/accounts";
 import { can } from "./queries/accounts";
+import { recordProcedure, UNAUDITED_PROCEDURES, type AuditDetails } from "./lib/audit";
+import type { AuditAction } from "@contracts/audit";
 import { markConnection, markJiraConnection } from "./providers/connections";
 import { originOf } from "./providers/core/origin";
 import { PROVIDER_NAMES } from "@contracts/providerNames";
@@ -107,11 +109,41 @@ export const protectedProcedure = signedInProcedure.use(async ({ ctx, next }) =>
   return result;
 });
 
-/** For what a permission covers (contracts/accounts.ts): an admin has them all. */
+/**
+ * What a handler behind a permission tells its one audit event: the target, before and
+ * after, another action name (a restore's is restore.completed). The middleware writes it.
+ */
+export type AuditScope = { set(details: AuditDetails & { action?: AuditAction }): void };
+
+/** The fields of a call's raw input: what an event keeps when its handler said nothing (redacted per action). */
+function inputFields(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+}
+
+/**
+ * For what a permission covers (contracts/accounts.ts): an admin has them all. Every
+ * mutation behind one writes exactly one audit event: done, failed or refused (input the
+ * parser refused is no action). A handler adds its details through ctx.audit.
+ */
 export const permProcedure = (permission: Permission) =>
-  protectedProcedure.use(({ ctx, next }) => {
+  protectedProcedure.use(async ({ ctx, next, type, path, getRawInput }) => {
+    const audited = type === "mutation" && !(path in UNAUDITED_PROCEDURES);
     if (!can(ctx.user, permission)) {
+      if (audited) await recordProcedure(ctx, path, { outcome: "denied" });
       throw new TRPCError({ code: "FORBIDDEN", message: tr("server.auth.notAllowed") });
     }
-    return next();
+    let told: AuditDetails & { action?: AuditAction } = {};
+    const audit: AuditScope = { set: (details) => (told = { ...told, ...details }) };
+    const result = await next({ ctx: { audit } });
+    if (!audited || (!result.ok && result.error.cause instanceof ZodError)) return result;
+    const input = told.after === undefined ? inputFields(await getRawInput().catch(() => null)) : undefined;
+    const id = input?.id;
+    const target = told.target ?? (typeof id === "number" || typeof id === "string" ? { type: path.split(".")[0], id } : undefined);
+    await recordProcedure(ctx, told.action ?? path, {
+      ...told,
+      target,
+      after: told.after === undefined ? input : told.after,
+      outcome: result.ok ? (told.outcome ?? "ok") : "failed",
+    });
+    return result;
   });

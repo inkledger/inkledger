@@ -72,6 +72,8 @@ const NOT_OWNED: Record<string, string> = {
   "questions[].id": "an item inside the caller's own row",
   "dashboardLayout[].id": "a dashboard widget's name",
   "people[].remoteId": "the tracker's people, on an issue checked first",
+  actorUserId: "a filter on the audit log, which is server-wide (viewAudit), not anyone's own",
+  targetId: "a filter on the audit log, which is server-wide (viewAudit), not anyone's own",
   "target.remoteId": "the sink's target, on a sink checked first",
   "target.path[].remoteId": "the sink's target, on a sink checked first",
 };
@@ -606,6 +608,7 @@ async function snapshot(): Promise<Map<string, string[]>> {
 /** Tables a refused or empty answer may still write, with why. */
 const MAY_CHANGE: Record<string, string> = {
   egress_hosts: "the outbound call log, not anyone's data",
+  audit_events: "the audit log records every attempt, refused ones included (api/audit-coverage.test.ts)",
 };
 
 let bobConnections: number[] = [];
@@ -805,6 +808,10 @@ const PERMISSION_OF: Record<string, Permission> = {
   "team.overview": "viewTeamTime",
   "team.person": "viewTeamTime",
   "team.day": "viewTeamTime",
+  "audit.list": "viewAudit",
+  "audit.verify": "viewAudit",
+  "audit.settings": "viewAudit",
+  "audit.setRetention": "manageServer",
 };
 /** Open to anyone (signing in, the session itself). */
 const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout"];

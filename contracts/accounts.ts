@@ -5,9 +5,10 @@
 /**
  * Server-wide powers an admin can grant. useModules runs add-on modules: the ones
  * granted to the account one by one (some are heavy on PCs without a usable GPU).
- * viewTeamTime reads, never changes, every active account's logged time.
+ * viewTeamTime reads, never changes, every active account's logged time. viewAudit reads
+ * the audit log (who did what, from where); exportAudit downloads it as CSV or JSON.
  */
-export const PERMISSIONS = ["manageUsers", "manageStore", "manageBackups", "manageServer", "viewTeamTime", "useModules"] as const;
+export const PERMISSIONS = ["manageUsers", "manageStore", "manageBackups", "manageServer", "viewTeamTime", "useModules", "viewAudit", "exportAudit"] as const;
 
 /** What a new account may do unless the admin says otherwise: nothing beyond its own work, no modules. */
 export const DEFAULT_PERMISSIONS: readonly (typeof PERMISSIONS)[number][] = [];

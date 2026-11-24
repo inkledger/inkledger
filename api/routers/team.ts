@@ -11,6 +11,7 @@ import { effectiveTargetSeconds, expectedSeconds, scheduleFor } from "@contracts
 import type { PlannedInterval } from "@contracts/planned";
 import { t } from "@contracts/i18n";
 import { createRouter, permProcedure } from "../middleware";
+import { recordRead } from "../lib/audit";
 import { getDb } from "../queries/connection";
 import { issueOfWorklog } from "../queries/worklogScope";
 import { dayOverridesOf, scheduleVersionsOf, timeFreshness } from "../queries/teamTime";
@@ -111,8 +112,9 @@ export const teamRouter = createRouter({
    */
   overview: view
     .input(z.object({ from: z.string().min(1), to: z.string().min(1), compare: z.boolean().default(false) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { from, to } = rangeOf(input);
+      await recordRead(ctx, "team.overview", { target: { type: "team" }, after: { from: input.from, to: input.to } });
       const now = new Date();
       const people = await getDb()
         .select({ id: users.id, displayName: users.displayName, username: users.username, avatarUrl: users.avatarUrl })
@@ -156,9 +158,10 @@ export const teamRouter = createRouter({
    */
   person: view
     .input(z.object({ userId: z.number().int().positive(), from: z.string().min(1), to: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { from, to } = rangeOf(input);
       const person = await activePerson(input.userId);
+      await recordRead(ctx, "team.person", { target: { type: "user", id: person.id, ownerUserId: person.id }, after: { userId: person.id, from: input.from, to: input.to } });
       const db = getDb();
       const where = and(eq(worklogs.userId, person.id), gte(worklogs.started, from), lt(worklogs.started, to));
       const [projects, topIssues] = await Promise.all([
@@ -198,11 +201,12 @@ export const teamRouter = createRouter({
    */
   day: view
     .input(z.object({ userId: z.number().int().positive(), day: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const day = parseDayKey(input.day);
       if (!day) throw new TRPCError({ code: "BAD_REQUEST", message: t("server.reports.invalidRange") });
       const next = addDays(day, 1);
       const person = await activePerson(input.userId);
+      await recordRead(ctx, "team.day", { target: { type: "user", id: person.id, ownerUserId: person.id }, after: { userId: person.id, date: input.day } });
       const entries = await getDb()
         .select({
           id: worklogs.id,

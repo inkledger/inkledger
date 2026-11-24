@@ -60,13 +60,18 @@ export const backupRouter = createRouter({
     };
   }),
 
-  update: backups
-    .input(backupSettingsSchema.partial())
-    .mutation(({ input }) => setBackupSettings(input)),
+  update: backups.input(backupSettingsSchema.partial()).mutation(async ({ input, ctx }) => {
+    const before = await getBackupSettings();
+    const after = await setBackupSettings(input);
+    ctx.audit.set({ target: { type: "server", id: "backup" }, before, after });
+    return after;
+  }),
 
-  run: backups.mutation(async () => {
+  run: backups.mutation(async ({ ctx }) => {
     try {
-      return { name: await runBackup() };
+      const name = await runBackup();
+      ctx.audit.set({ target: { type: "backup", id: name }, after: { name } });
+      return { name };
     } catch (e) {
       throw fail(e);
     }
@@ -78,8 +83,13 @@ export const backupRouter = createRouter({
    */
   restore: backups.input(z.object({ name: z.string().max(100) })).mutation(async ({ input, ctx }) => {
     if (roleOf(ctx.user) !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
+    ctx.audit.set({ target: { type: "backup", id: input.name }, after: { name: input.name } });
     try {
-      return await restoreBackup(input.name, ctx.sessionId && ctx.user.username ? { keepSession: { id: ctx.sessionId, userId: ctx.user.id, username: ctx.user.username, deviceId: rememberedDeviceId(ctx.req) } } : {});
+      const keep = ctx.sessionId && ctx.user.username ? { id: ctx.sessionId, userId: ctx.user.id, username: ctx.user.username, deviceId: rememberedDeviceId(ctx.req) } : undefined;
+      const done = await restoreBackup(input.name, { keepSession: keep, by: { userId: ctx.user.id, label: ctx.user.username ?? ctx.user.displayName } });
+      // The log is the backup's now: its first event after the restore says what came before.
+      ctx.audit.set({ action: "restore.completed", after: { name: input.name, safety: done.safety, preRestoreLastHash: done.preRestoreLastHash } });
+      return { safety: done.safety };
     } catch (e) {
       throw fail(e);
     }

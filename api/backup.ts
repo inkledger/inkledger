@@ -9,6 +9,7 @@ import { decisions, rememberedDevices, sessions, settings, users } from "@db/sch
 import { resetServerHostsCache } from "./lib/serverHosts";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { enterMaintenance, leaveMaintenance } from "./lib/maintenance";
+import { lastAuditHash, recordRestoreFile, recordSystem } from "./lib/audit";
 import { t } from "@contracts/i18n";
 
 /**
@@ -259,8 +260,8 @@ export async function restoreBackup(
    * Whoever restores stays signed in, and their device remembered (when their account,
    * same id and name, is in the backup and on).
    */
-  opts: { keepSession?: Keep } = {},
-): Promise<{ safety: string }> {
+  opts: { keepSession?: Keep; by?: { userId: number; label: string } } = {},
+): Promise<{ safety: string; preRestoreLastHash: string }> {
   if (!BACKUP_FILE.test(name)) throw new BackupError("invalid", t("server.backup.invalid"));
   const file = path.join(backupDir(), name);
   if (!fs.existsSync(file)) throw new BackupError("notFound", t("server.backup.notFound"));
@@ -290,6 +291,10 @@ export async function restoreBackup(
       const { settleInFlightSyncs } = await import("./sync/orchestrator");
       await settleInFlightSyncs(30_000);
       const safety = await runBackup();
+      // The log as it stood: the file keeps it, whatever the backup's log says after.
+      const preRestoreLastHash = await lastAuditHash();
+      const said = { name, actorUserId: opts.by?.userId ?? null, actorLabel: opts.by?.label ?? "", lastHash: preRestoreLastHash, safety };
+      recordRestoreFile("before", said);
       // The newest share-link generation now: a link revoked since the backup stays revoked.
       const [{ shares }] = await getDb().select({ shares: sql<number>`coalesce(max(${settings.shareLinkGeneration}), 0)`.mapWith(Number) }).from(settings);
       let replaced = false;
@@ -302,6 +307,7 @@ export async function restoreBackup(
         await signOutAfterRestore(opts.keepSession, device, shares);
       } catch (e) {
         const cause = e instanceof Error ? e.message : String(e);
+        recordRestoreFile("after", { ...said, outcome: "failed", error: cause.slice(0, 500), lastHash: await lastAuditHash().catch(() => "") });
         // Not replaced (the transaction never committed): the data is as it was.
         if (!replaced) throw new Error(`${cause} (${safety})`, { cause: e });
         // Replaced, then it failed: the safety copy taken first goes back in.
@@ -318,7 +324,8 @@ export async function restoreBackup(
         // What was read of the replaced data (allowed hosts, access) is read again.
         if (replaced) resetServerHostsCache();
       }
-      return { safety };
+      recordRestoreFile("after", { ...said, lastHash: await lastAuditHash() });
+      return { safety, preRestoreLastHash };
     } finally {
       if (!closed) leaveMaintenance();
     }
@@ -379,6 +386,7 @@ export function reschedule() {
       // setTimeout caps at ~24.8 days; weekly fits.
       arm(at.getTime() - Date.now(), () => {
         void runBackup()
+          .then((name) => recordSystem({ kind: "system", label: "schedule" }, "backup.run", { target: { type: "backup", id: name }, after: { name, scheduled: true } }))
           .catch((e: unknown) => console.warn(`[backup] ${String(e)}`))
           .finally(reschedule);
       });

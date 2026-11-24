@@ -10,6 +10,10 @@ type Out = inferRouterOutputs<AppRouter>;
 type Fits<A extends B, B> = [A, B];
 
 export type InputsStillAccepted = [
+  Fits<FrozenIn["audit.list"], In["audit"]["list"]>,
+  Fits<FrozenIn["audit.setRetention"], In["audit"]["setRetention"]>,
+  Fits<FrozenIn["audit.settings"], In["audit"]["settings"]>,
+  Fits<FrozenIn["audit.verify"], In["audit"]["verify"]>,
   Fits<FrozenIn["auth.acceptInvite"], In["auth"]["acceptInvite"]>,
   Fits<FrozenIn["auth.activate"], In["auth"]["activate"]>,
   Fits<FrozenIn["auth.changePassword"], In["auth"]["changePassword"]>,
@@ -366,6 +370,10 @@ export type InputsStillAccepted = [
 ];
 
 export type OutputsStillRead = [
+  Fits<Out["audit"]["list"], FrozenOut["audit.list"]>,
+  Fits<Out["audit"]["setRetention"], FrozenOut["audit.setRetention"]>,
+  Fits<Out["audit"]["settings"], FrozenOut["audit.settings"]>,
+  Fits<Out["audit"]["verify"], FrozenOut["audit.verify"]>,
   Fits<Out["auth"]["acceptInvite"], FrozenOut["auth.acceptInvite"]>,
   Fits<Out["auth"]["activate"], FrozenOut["auth.activate"]>,
   Fits<Out["auth"]["changePassword"], FrozenOut["auth.changePassword"]>,

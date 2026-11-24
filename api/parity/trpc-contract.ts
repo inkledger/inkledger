@@ -5,6 +5,10 @@ type Rec1 = ({ alt?: string | undefined; name?: string | undefined; t: "image"; 
 type Rec2 = ({ c: Rec2; t: "em" } | { c: Rec2; t: "link"; url: string } | { c: Rec2; t: "strike" } | { c: Rec2; t: "strong" } | { id?: string | undefined; name: string; t: "mention" } | { name: string; t: "attachment" } | { t: "br" } | { t: "code"; v: string } | { t: "emoji"; v: string } | { t: "text"; v: string })[];
 
 export interface FrozenIn {
+  "audit.list": { action?: string | undefined; actorUserId?: number | undefined; cursor?: number | undefined; from?: number | undefined; limit?: number | undefined; outcome?: "denied" | "failed" | "ok" | undefined; targetId?: string | undefined; targetType?: string | undefined; to?: number | undefined };
+  "audit.setRetention": { days: number };
+  "audit.settings": void;
+  "audit.verify": void;
   "auth.acceptInvite": { password: string; token: string };
   "auth.activate": { authType?: "basic" | "bearer" | undefined; deployment?: "cloud" | "server" | undefined; newPassword: string; newUsername: string; secret: string; siteUrl: string; username: string };
   "auth.changePassword": { current: string; next: string };
@@ -316,12 +320,12 @@ export interface FrozenIn {
   "todos.suggestions": { today: string };
   "todos.update": { connectionId?: number | undefined; done?: false | true | undefined; dueOn?: null | string | undefined; estimateSeconds?: null | number | undefined; id: number; issueKey?: null | string | undefined; mailId?: null | number | undefined; priority?: 0 | 1 | undefined; repeat?: "daily" | "weekdays" | "weekly" | null | undefined; steps?: undefined | { done: boolean; id: string; text: string }[]; text?: string | undefined; today?: string | undefined };
   "todos.working": void;
-  "users.invite": { displayName: string; modules?: string[] | undefined; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: string };
+  "users.invite": { displayName: string; modules?: string[] | undefined; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: string };
   "users.list": void;
   "users.reinvite": { id: number };
   "users.rename": { displayName: string; id: number; username: string };
   "users.resetPassword": { id: number };
-  "users.setAccess": { id: number; modules?: string[] | undefined; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member" };
+  "users.setAccess": { id: number; modules?: string[] | undefined; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member" };
   "users.setDisabled": { disabled: boolean; id: number };
   "weeks.close": { note?: string | undefined; week: string };
   "weeks.list": void;
@@ -361,17 +365,21 @@ export interface FrozenIn {
 }
 
 export interface FrozenOut {
-  "auth.acceptInvite": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
-  "auth.activate": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
-  "auth.changePassword": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "audit.list": { items: { action: string; actorKind: "cli" | "scim" | "sync" | "system" | "user"; actorLabel: string; actorUserId: null | number; after: null | { [key: string]: unknown }; at: number; before: null | { [key: string]: unknown }; id: number; ip: null | string; outcome: "denied" | "failed" | "ok"; targetId: null | string; targetOwnerUserId: null | number; targetType: null | string }[]; nextCursor: null | number };
+  "audit.setRetention": { retentionDays: number };
+  "audit.settings": { defaultDays: number; fileMirror: boolean; maxDays: number; minDays: number; retentionDays: number; stored: null | number };
+  "audit.verify": { anchored: boolean; checked: number; ok: true } | { badId: number; checked: number; ok: false; reason: "hash" | "link" };
+  "auth.acceptInvite": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.activate": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.changePassword": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.forget": { ok: boolean };
   "auth.invite": { displayName: string; username: null | string };
-  "auth.login": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.login": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.logout": { ok: boolean };
-  "auth.me": null | { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.me": null | { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.remembered": null | { displayName: string; email: string; username: null | string };
-  "auth.rename": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
-  "auth.resume": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.rename": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "auth.resume": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "backup.get": { dir: string; files: { at: number; name: string; size: number }[]; next: null | number; scheduled: boolean; settings: { keep: number; schedule: "daily" | "hourly" | "off" | "weekly"; time: string; weekday: number }; state: { lastError: null | string; lastErrorAt: null | number; lastOkAt: null | number }; writable: boolean };
   "backup.restore": { safety: string };
   "backup.run": { name: string };
@@ -672,13 +680,13 @@ export interface FrozenOut {
   "todos.suggestions": { at: Date; connectionId: number; issueKey: string; kind: "assigned" | "comment" | "doing" | "mention" | "news" | "review" | "status" | "watched"; source: string; status: string; summary: string }[];
   "todos.update": { commentExcerpt: null | string; commentId: null | string; connectionId: null | number; createdAt: Date; doneAt: Date | null; dueOn: null | string; estimateSeconds: null | number; id: number; issueKey: null | string; issueNoteId: null | number; itemId: null | number; mailId: null | number; position: number; priority: number; reminderSeenOn: null | string; repeat: null | string; repeatOf: null | number; source: null | string; steps: string; text: string; updatedAt: Date; userId: number };
   "todos.working": null | { connectionId: null | number; issueKey: null | string; linked: boolean; serverNow: Date; startedAt: Date; text: string; todoId: null | number };
-  "users.invite": { expiresAt: Date; link: string; user: { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string } };
-  "users.list": { connections: number; createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string }[];
+  "users.invite": { expiresAt: Date; link: string; user: { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string } };
+  "users.list": { connections: number; createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string }[];
   "users.reinvite": { expiresAt: Date; link: string };
-  "users.rename": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "users.rename": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "users.resetPassword": { password: string };
-  "users.setAccess": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
-  "users.setDisabled": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "users.setAccess": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
+  "users.setDisabled": { createdAt: Date; disabled: boolean; displayName: string; id: number; modules: string[]; mustChangePassword: boolean; pending: boolean; permissions: ("exportAudit" | "manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewAudit" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "weeks.close": { closedAt: Date; id: number; note: string; userId: number; weekStart: string };
   "weeks.list": { closedAt: Date; id: number; note: string; userId: number; weekStart: string }[];
   "weeks.reopen": { ok: boolean };
