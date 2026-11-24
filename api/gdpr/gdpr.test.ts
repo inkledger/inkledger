@@ -349,6 +349,19 @@ describe("erasing a person's data", () => {
     expect(await q("SELECT id FROM users WHERE id = ?", annId)).toHaveLength(1);
   });
 
+  it("is refused for the last active owner", async () => {
+    // An owner by role alone (users.role member): the only owner the lock counts is the target.
+    const byRole = await account("byrole", "Owner By Role", "member", [], "owner");
+    const others = await q<{ id: number }>("SELECT id FROM users WHERE role = 'admin' AND id <> ? AND disabled_at IS NULL", rootId);
+    await q("UPDATE users SET disabled_at = 1 WHERE id = ANY(?)", others.map((o) => o.id));
+    try {
+      await expect((await callerOf(byRole)).users.erase({ id: rootId, confirmUsername: "root" })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/owner/i) });
+      expect(await q("SELECT id FROM users WHERE id = ?", rootId)).toHaveLength(1);
+    } finally {
+      await q("UPDATE users SET disabled_at = NULL WHERE id = ANY(?)", others.map((o) => o.id));
+    }
+  });
+
   it("leaves no row pointing at the account or its connections, and Bob's rows as they were", async () => {
     const { USER_DATA, TABLES } = await import("./policy");
     const annConnections = (await q<{ id: number }>("SELECT id FROM connections WHERE user_id = ?", annId)).map((r) => r.id);
