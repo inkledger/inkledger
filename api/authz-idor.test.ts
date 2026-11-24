@@ -93,6 +93,13 @@ const SKIPS: Record<string, string> = {
   "users.rename": "accounts, manageUsers (the permission tests below)",
   "users.resetPassword": "accounts, manageUsers (the permission tests below)",
   "users.setDisabled": "accounts, manageUsers (the permission tests below)",
+  "users.setBreakGlass": "accounts, manageAuth (the permission tests below)",
+  "sso.createProvider": "identity providers are the server's; the roles in its maps stay within the caller's (api/sso/enforcement.test.ts)",
+  "sso.updateProvider": "identity providers are the server's, manageAuth (the permission tests below)",
+  "sso.removeProvider": "identity providers are the server's, manageAuth (the permission tests below)",
+  "sso.setEnforced": "identity providers are the server's, manageAuth (the permission tests below)",
+  "sso.createScimToken": "identity providers are the server's, manageAuth (the permission tests below)",
+  "sso.revokeScimToken": "SCIM tokens are the server's, manageAuth (the permission tests below)",
   "users.invite roleId": "a role is the server's, not a user's (manageUsers, the escalation tests below)",
   "users.invite teams[].teamId": "a team is the server's, not a user's (manageUsers, the escalation tests below)",
   "roles.create key": "the new role's own name, not a row of anyone's",
@@ -825,6 +832,15 @@ const PERMISSION_OF: Record<string, Permission> = {
   "users.rename": "manageUsers",
   "users.resetPassword": "manageUsers",
   "users.setDisabled": "manageUsers",
+  "users.setBreakGlass": "manageAuth",
+  "sso.list": "manageAuth",
+  "sso.testResult": "manageAuth",
+  "sso.createProvider": "manageAuth",
+  "sso.updateProvider": "manageAuth",
+  "sso.removeProvider": "manageAuth",
+  "sso.setEnforced": "manageAuth",
+  "sso.createScimToken": "manageAuth",
+  "sso.revokeScimToken": "manageAuth",
   "team.overview": "viewTeamTime",
   "team.person": "viewTeamTime",
   "team.day": "viewTeamTime",
@@ -844,7 +860,7 @@ const PERMISSION_OF: Record<string, Permission> = {
   "teams.removeMember": "manageTeams",
 };
 /** Open to anyone (signing in, the session itself). */
-const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout"];
+const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout", "sso.loginOptions"];
 /** Signed in, even before the password the account must change is changed. */
 const SIGNED_IN = ["auth.changePassword"];
 

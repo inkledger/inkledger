@@ -68,6 +68,15 @@ export const server: Shape<typeof en> = {
     notYourself: "Non puoi farlo sul tuo stesso account.",
     jiraAccountInUse: "Questo account Jira è già collegato a un altro account inkledger.",
   },
+  sso: {
+    useProvider: "Questo account accede con il single sign-on: usa il pulsante del provider nella pagina di accesso.",
+    lastBreakGlass: "Il single sign-on è obbligatorio: almeno un proprietario deve mantenere l'accesso con password (break-glass).",
+    passwordRefused: "Questo account accede tramite il suo provider di identità: qui non riceve una password.",
+    noBreakGlass: "Prima di rendere obbligatorio il single sign-on, segna come break-glass almeno un proprietario con password.",
+    providerNotFound: "Quel provider di identità non esiste più.",
+    tokenNotFound: "Quel token SCIM non esiste più.",
+    inviteEnforced: "Il single sign-on è obbligatorio: le nuove persone accedono dal provider di identità invece che con un invito.",
+  },
   url: {
     invalid: "URL non valido",
     httpOnly: "Sono ammessi solo URL http(s)",

@@ -298,6 +298,64 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "scim.createGroup": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "scim.createUser": {
+    "kept": [
+      "active",
+      "userName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "scim.deactivateUser": {
+    "kept": [
+      "active",
+      "userName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "scim.deleteGroup": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "scim.patchUser": {
+    "kept": [
+      "active",
+      "userName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "scim.reactivateUser": {
+    "kept": [
+      "active",
+      "userName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "scim.replaceUser": {
+    "kept": [
+      "active",
+      "userName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "scim.updateGroup": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
   "settings.revokeShareLinks": {
     "kept": [],
     "redacted": 17,
@@ -324,6 +382,77 @@ exports[`redaction > every action, fed its own fields and every secret: only its
       "todosInMenu",
       "todosWidget",
       "weeklyTargetSeconds",
+    ],
+    "redacted": 17,
+  },
+  "sso.accessSynced": {
+    "kept": [
+      "permissions",
+      "provider",
+      "role",
+      "teams",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "sso.accountCreated": {
+    "kept": [
+      "permissions",
+      "provider",
+      "role",
+      "teams",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "sso.createProvider": {
+    "kept": [
+      "disabled",
+      "enforced",
+      "issuer",
+      "jitEnabled",
+      "kind",
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "sso.createScimToken": {
+    "kept": [
+      "label",
+      "provider",
+    ],
+    "redacted": 17,
+  },
+  "sso.removeProvider": {
+    "kept": [
+      "kind",
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "sso.revokeScimToken": {
+    "kept": [
+      "label",
+      "provider",
+    ],
+    "redacted": 17,
+  },
+  "sso.setEnforced": {
+    "kept": [
+      "enforced",
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "sso.updateProvider": {
+    "kept": [
+      "clientChanged",
+      "disabled",
+      "enforced",
+      "issuer",
+      "jitEnabled",
+      "kind",
+      "name",
     ],
     "redacted": 17,
   },
@@ -453,6 +582,13 @@ exports[`redaction > every action, fed its own fields and every secret: only its
       "permissions",
       "role",
       "teams",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "users.setBreakGlass": {
+    "kept": [
+      "breakGlass",
       "username",
     ],
     "redacted": 17,

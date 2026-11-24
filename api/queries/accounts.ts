@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { sha256Hex } from "../lib/hash";
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { invites, rememberedDevices, roleAssignments, roles, sessions, teamMembers, teams, users, type RoleRow, type User } from "@db/schema";
 import { DEFAULT_ADMIN, INVITE_DAYS, OWNER_ONLY_PERMISSIONS, PERMISSIONS, type Permission, type Role, type RoleScope, type TeamRole } from "@contracts/accounts";
 import { moduleIdSchema } from "@contracts/modulesSchema";
@@ -272,6 +272,62 @@ export async function defaultAdminPending(): Promise<boolean> {
     .where(and(sql`lower(${users.username}) = ${DEFAULT_ADMIN}`, eq(users.mustChangePassword, 1), isNull(users.disabledAt)))
     .limit(1);
   return Boolean(row);
+}
+
+/** A transaction under way (what a locked write runs in). */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** Why a write was refused to keep the server reachable: no owner left, or (single sign-on enforced) no break-glass owner. */
+export class OwnerLockError extends Error {
+  readonly kind: "lastOwner" | "lastBreakGlass";
+  constructor(kind: "lastOwner" | "lastBreakGlass") {
+    super(kind);
+    this.kind = kind;
+    this.name = "OwnerLockError";
+  }
+}
+
+/**
+ * The active owners, locked in one order (FOR UPDATE): a write that may take one out of
+ * them takes this first, and asks assertOwnerStays after. Two such writes at once queue here.
+ */
+export async function lockOwners(tx: Tx): Promise<{ id: number }[]> {
+  return tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "admin"), isNull(users.disabledAt)))
+    .orderBy(asc(users.id))
+    .for("update");
+}
+
+/**
+ * Account `targetId`, read now, may leave the owners (`takesAway`) only while another one
+ * stays; and, while single sign-on is enforced, a break-glass owner with a password only
+ * while another one stays (else nobody could sign in when the provider fails).
+ */
+export async function assertOwnerStays(tx: Tx, owners: { id: number }[], targetId: number, takesAway: boolean, enforced: boolean): Promise<void> {
+  if (!takesAway) return;
+  const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt, breakGlass: users.breakGlass, passwordHash: users.passwordHash }).from(users).where(eq(users.id, targetId));
+  if (now?.role !== "admin" || now.disabledAt) return;
+  const others = owners.filter((o) => o.id !== targetId);
+  if (others.length === 0) throw new OwnerLockError("lastOwner");
+  if (enforced && now.breakGlass === 1 && now.passwordHash) {
+    const [spare] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(and(inArray(users.id, others.map((o) => o.id)), eq(users.breakGlass, 1), isNotNull(users.passwordHash), eq(users.authSource, "local")))
+      .limit(1);
+    if (!spare) throw new OwnerLockError("lastBreakGlass");
+  }
+}
+
+/** Owners who keep password sign-in while single sign-on is enforced (on, local, a password set, break-glass). */
+export async function breakGlassOwners(db: Pick<Db, "select"> = getDb()): Promise<number[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.role, "admin"), isNull(users.disabledAt), eq(users.breakGlass, 1), isNotNull(users.passwordHash), eq(users.authSource, "local")));
+  return rows.map((r) => r.id);
 }
 
 /** Every session and remembered device of a user ends (password changed, reset, disabled). */

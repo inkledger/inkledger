@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { Settings2 } from "lucide-react";
 import { PASSWORD_MIN_LENGTH } from "@contracts/accounts";
+import { SSO_FAILURE_PARAM, SSO_FAILURES, type SsoFailure } from "@contracts/sso";
 import { trpc } from "@/lib/trpc";
 import { manageProfiles, openProfile } from "@/lib/native";
 import { currentProfileUrl, useNativeProfiles } from "@/hooks/useNativeProfiles";
@@ -31,7 +32,15 @@ export default function Login() {
   const [jira, setJira] = useState(emptyJiraLogin);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // A single sign-on that came back without signing in says why (?sso=<failure>).
+  const ssoFailure = new URLSearchParams(location.search).get(SSO_FAILURE_PARAM);
+  const [error, setError] = useState<string | null>(() => (SSO_FAILURES.includes(ssoFailure as SsoFailure) ? t(`pages.login.ssoFailed.${ssoFailure as SsoFailure}`) : null));
+  // The providers to sign in through; enforced: the password form only for break-glass accounts.
+  const sso = trpc.sso.loginOptions.useQuery(undefined, { retry: false, staleTime: 60_000 });
+  const providers = sso.data?.providers ?? [];
+  const enforced = sso.data?.enforced === true;
+  const [breakGlass, setBreakGlass] = useState(false);
+  const back = encodeURIComponent(state?.from ?? "/");
 
   const login = trpc.auth.login.useMutation({ onSuccess: signedIn, onError: e => setError(failureText(e)) });
   const activate = trpc.auth.activate.useMutation({ onSuccess: signedIn, onError: e => setError(failureText(e)) });
@@ -162,34 +171,57 @@ export default function Login() {
           </Button>
         </div>
       ) : (
-        <form
-          className="grid gap-4"
-          onSubmit={e => {
-            e.preventDefault();
-            setError(null);
-            login.mutate({ username, password });
-          }}
-        >
-          <div className="grid gap-2">
-            <Label htmlFor="username">{t("pages.login.accountUsername")}</Label>
-            <Input id="username" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" required />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">{t("pages.login.accountPassword")}</Label>
-            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
-          </div>
-          <FormError message={error} />
-          <Button type="submit" disabled={login.isPending} className="w-full">
-            {login.isPending ? t("pages.login.signingIn") : t("pages.login.signInSubmit")}
-          </Button>
-          <button
-            type="button"
-            onClick={() => switchMode("activate")}
-            className="text-center text-caption font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            {t("pages.login.activateLink")}
-          </button>
-        </form>
+        <div className="grid gap-4">
+          {providers.length > 0 && (
+            <div className="grid gap-2">
+              {enforced && <p className="text-body-sm text-muted-foreground">{t("pages.login.ssoEnforced")}</p>}
+              {providers.map(p => (
+                <Button key={p.id} asChild variant={enforced ? "default" : "outline"} className="w-full">
+                  <a href={`/api/sso/${p.id}/start?return=${back}`}>{t("pages.login.ssoWith", { name: p.name })}</a>
+                </Button>
+              ))}
+            </div>
+          )}
+          {enforced && !breakGlass ? (
+            <>
+              <FormError message={error} />
+              <Button type="button" variant="ghost" onClick={() => setBreakGlass(true)} className="w-full">
+                {t("pages.login.breakGlass")}
+              </Button>
+            </>
+          ) : (
+            <form
+              className={providers.length > 0 ? "grid gap-4 border-t pt-4" : "grid gap-4"}
+              onSubmit={e => {
+                e.preventDefault();
+                setError(null);
+                login.mutate({ username, password });
+              }}
+            >
+              <div className="grid gap-2">
+                <Label htmlFor="username">{t("pages.login.accountUsername")}</Label>
+                <Input id="username" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">{t("pages.login.accountPassword")}</Label>
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required />
+              </div>
+              <FormError message={error} />
+              <Button type="submit" disabled={login.isPending} className="w-full">
+                {login.isPending ? t("pages.login.signingIn") : t("pages.login.signInSubmit")}
+              </Button>
+              {!enforced && (
+                <button
+                  type="button"
+                  onClick={() => switchMode("activate")}
+                  className="text-center text-caption font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  {t("pages.login.activateLink")}
+                </button>
+              )}
+            </form>
+          )}
+        </div>
       )}
     </AuthShell>
   );

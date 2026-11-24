@@ -68,6 +68,15 @@ export const server = {
     notYourself: "You can't do this to your own account.",
     jiraAccountInUse: "This Jira account is already connected to another inkledger account.",
   },
+  sso: {
+    useProvider: "This account signs in through single sign-on: use the provider's button on the sign-in page.",
+    lastBreakGlass: "Single sign-on is enforced: at least one owner must keep password sign-in (break-glass).",
+    passwordRefused: "This account signs in through its identity provider: it gets no password here.",
+    noBreakGlass: "Before enforcing single sign-on, mark at least one owner with a password as break-glass.",
+    providerNotFound: "That identity provider is gone.",
+    tokenNotFound: "That SCIM token is gone.",
+    inviteEnforced: "Single sign-on is enforced: new people sign in through the identity provider instead of an invite.",
+  },
   url: {
     invalid: "Invalid URL",
     httpOnly: "Only http(s) URLs are allowed",

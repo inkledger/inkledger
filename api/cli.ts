@@ -37,18 +37,23 @@ async function decryptBackup([from, to]: string[]) {
   await decryptToFile(fs.createReadStream(from), to);
   console.log(`Decrypted into ${to}`);
 }
+import { ssoEnforced } from "./sso/store";
 
 async function resetPassword(username: string | undefined) {
   if (!username) throw new Error("usage: reset-password <username>");
   const user = await userByUsername(username);
   if (!user) throw new Error(`no account "${username}"`);
   const password = temporaryPassword();
+  // The last resort when the identity provider fails: the account keeps password sign-in
+  // whatever single sign-on says (local and break-glass); an admin can undo it in Settings.
+  const sso = user.authSource !== "local" || (await ssoEnforced());
   await getDb()
     .update(users)
-    .set({ passwordHash: await hashPassword(password), mustChangePassword: 1, disabledAt: null })
+    .set({ passwordHash: await hashPassword(password), mustChangePassword: 1, disabledAt: null, ...(sso ? { authSource: "local", breakGlass: 1 } : {}) })
     .where(eq(users.id, user.id));
   await signOutEverywhere(user.id);
   console.log(`Temporary password for "${user.username}": ${password}\nIt must be changed at the next sign-in.`);
+  if (sso) console.log("Single sign-on: the account now keeps password sign-in as break-glass (Settings › Users to change it).");
   if (user.disabledAt) console.log("The account was turned off: it is on again (turn it off in Settings › Users if that is not what you meant).");
 }
 

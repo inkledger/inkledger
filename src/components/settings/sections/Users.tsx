@@ -234,6 +234,7 @@ export function UsersSection() {
   const roles = trpc.roles.list.useQuery().data ?? [];
   // Teams to pick from only for whoever may manage them; the others see an account's teams as they are.
   const canTeams = (me?.permissions ?? []).includes("manageTeams");
+  const canAuth = (me?.permissions ?? []).includes("manageAuth");
   const teams = trpc.teams.list.useQuery(undefined, { enabled: canTeams }).data?.teams ?? null;
   const refresh = () => void utils.users.list.invalidate();
   const [inviting, setInviting] = useState(false);
@@ -273,6 +274,7 @@ export function UsersSection() {
     onError: e => toastError(e),
   });
   const setDisabled = trpc.users.setDisabled.useMutation({ onSuccess: refresh, onError: e => toastError(e) });
+  const setBreakGlass = trpc.users.setBreakGlass.useMutation({ onSuccess: refresh, onError: e => toastError(e) });
   const rename = trpc.users.rename.useMutation({
     onSuccess: () => {
       refresh();
@@ -314,6 +316,9 @@ export function UsersSection() {
                   u.username,
                   accessLine(u, roles),
                   u.pending && t("settings.users.pending"),
+                  u.authSource === "sso" && t("settings.users.viaSso"),
+                  u.authSource === "scim" && t("settings.users.viaScim"),
+                  u.breakGlass && t("settings.users.breakGlass"),
                   t("settings.users.trackers", { count: u.connections }),
                   u.disabled && t("settings.users.disabled"),
                 ]
@@ -356,10 +361,17 @@ export function UsersSection() {
                   >
                     {t("settings.users.permissions")}…
                   </DropdownMenuItem>
-                  {u.pending ? (
-                    <DropdownMenuItem onSelect={() => reinvite.mutate({ id: u.id })}>{t("settings.users.newLink")}</DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onSelect={() => reset.mutate({ id: u.id })}>{t("settings.users.resetPassword")}</DropdownMenuItem>
+                  {/* An account of the identity provider gets no password here. */}
+                  {u.authSource === "local" &&
+                    (u.pending ? (
+                      <DropdownMenuItem onSelect={() => reinvite.mutate({ id: u.id })}>{t("settings.users.newLink")}</DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => reset.mutate({ id: u.id })}>{t("settings.users.resetPassword")}</DropdownMenuItem>
+                    ))}
+                  {canAuth && u.authSource === "local" && (
+                    <DropdownMenuItem onSelect={() => setBreakGlass.mutate({ id: u.id, breakGlass: !u.breakGlass })}>
+                      {u.breakGlass ? t("settings.users.breakGlassOff") : t("settings.users.breakGlassOn")}
+                    </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => setDisabled.mutate({ id: u.id, disabled: !u.disabled })}>

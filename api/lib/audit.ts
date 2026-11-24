@@ -199,6 +199,11 @@ export function recordSystem(actor: AuditActor, action: AuditAction, details: Au
   return write(actor, action, details);
 }
 
+/** An event by an actor that is no signed-in user (SCIM provisioning), with the request it came in. */
+export function recordAs(actor: AuditActor, who: AuditRequest, action: AuditAction, details: AuditDetails = {}): Promise<AuditEvent | null> {
+  return write(actor, action, details, fromRequest(who));
+}
+
 /** The generic middleware's write: the procedure's path is its action (checked by the meta-test). */
 export function recordProcedure(who: AuditRequest, action: string, details: AuditDetails): Promise<AuditEvent | null> {
   const actor: AuditActor = who.user ? { kind: "user", userId: who.user.id, label: userLabel(who.user) } : { kind: "user" };
