@@ -3,12 +3,15 @@
 // page opened later finds it, and the first answer closes it everywhere.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withApp } from "./harness.mjs";
+import { allDaySchedule, withApp } from "./harness.mjs";
 
 let github = 0;
 const KEY = "acme/web#1";
+// A day worked around the clock: the hour logged ends now, in one piece at any hour (with the
+// default 9:00–18:00 it was split around lunch from 14:00 to 15:00: two worklogs).
 const seed = async db => {
   const now = Date.now();
+  await allDaySchedule(db);
   [{ id: github }] = await db.q(
     "INSERT INTO connections (user_id, type, label, base_url, remote_account_id, display_name, options, encrypted_secret, created_at) VALUES (1, 'github', 'Side projects', 'https://api.github.com', '4242', 'Mario Rossi', '{}', 'x', ?) RETURNING id",
     now,
