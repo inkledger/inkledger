@@ -152,6 +152,8 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
       TZ: "Europe/Rome",
       DOWNLOADS_DIR: join(dir, "downloads"),
       MODULES_DIR: join(dir, "modules"),
+      // The audit log's file copy: this run's own folder, never data/audit.
+      AUDIT_DIR: join(dir, "audit"),
       // Never the real store Worker; store tests pass their own stub.
       STORE_URL: "off",
       WEATHER: "off",
