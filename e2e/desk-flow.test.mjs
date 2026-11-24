@@ -56,7 +56,8 @@ async function openIssue(page, base, key, title) {
 
 /**
  * An issue dragged in from outside (a list, the board: what their rows and cards carry) over a point
- * of `selector` (a share of its box); `window.__drop()` then drops it there.
+ * of `selector` (a share of its box); `window.__drop()` then drops it there, on what is under that
+ * point by then, as a browser does (a pane's skeleton may have given way to its issue meanwhile).
  */
 const dragIn = (page, selector, key, at = { x: 0.5, y: 0.5 }) =>
   page.evaluate(
@@ -67,7 +68,8 @@ const dragIn = (page, selector, key, at = { x: 0.5, y: 0.5 }) =>
       const dt = new DataTransfer();
       dt.setData("application/x-inkledger-issue", JSON.stringify({ connectionId: 1, key, remoteId: key }));
       target.dispatchEvent(new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true, ...point }));
-      window.__drop = () => target.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true, ...point }));
+      window.__drop = () =>
+        document.elementFromPoint(point.clientX, point.clientY).dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true, ...point }));
     },
     { selector, key, at },
   );
