@@ -54,6 +54,9 @@ import { t } from "@contracts/i18n";
 import { DEFAULT_ADMIN } from "@contracts/accounts";
 import { defaultAdminPending, ensureAdmin, purgeExpiredAccess } from "./queries/accounts";
 import { registerOpsRoutes } from "./ops/routes";
+import { registerSsoRoutes } from "./sso/routes";
+import { registerScimRoutes } from "./scim/routes";
+import { purgeSsoStates } from "./sso/store";
 
 // Connect and migrate before answering anything (Postgres; PGlite in tests).
 await initDb();
@@ -146,6 +149,9 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
+/** The one path a cross-site POST may reach: a SAML identity provider's answer (ACS). */
+const SAML_ACS = /^\/api\/sso\/\d+\/acs$/;
+
 // CSRF defence in depth (cookies are SameSite=Lax): state-changing requests
 // must come from our own origin when the browser sends one.
 app.use("/api/*", async (c, next) => {
@@ -155,6 +161,9 @@ app.use("/api/*", async (c, next) => {
   const site = c.req.header("sec-fetch-site");
   const fromElsewhere = site === "cross-site" || site === "same-site";
   const keyed = c.req.path.startsWith("/api/hooks/") || /^Bearer\s/i.test(c.req.header("authorization") ?? "");
+  // A SAML identity provider posts its answer from its own site (no cookie is trusted there:
+  // the answer must match a request this server keeps, api/sso/saml.ts). This path only.
+  if (c.req.method === "POST" && SAML_ACS.test(c.req.path)) return next();
   if (fromElsewhere && !keyed && (c.req.method !== "GET" && c.req.method !== "HEAD" ? true : c.req.path.startsWith("/api/trpc/"))) {
     return c.json({ error: "Forbidden origin" }, 403);
   }
@@ -198,6 +207,9 @@ registerEventRoutes(app);
 registerDeskChatRoutes(app);
 registerAuditRoutes(app);
 registerBackupRoutes(app);
+registerSsoRoutes(app);
+// SCIM sits outside /api (its clients expect /scim/v2): its own 404s, maintenance and token check.
+registerScimRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   if (procedurePath(c.req.path) === null) return c.json({ error: "Bad Request" }, 400);
   return fetchRequestHandler({
@@ -236,7 +248,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit(), purgeSsoStates()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;

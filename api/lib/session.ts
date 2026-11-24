@@ -72,6 +72,17 @@ export function rememberCookie(req: Request, token: string, maxAgeSeconds: numbe
   return cookie(req, rememberCookieName(req), token, maxAgeSeconds);
 }
 
+/** The cookie binding an OIDC sign-in under way to this browser (its state; minutes). */
+const SSO_COOKIE = "ikl_sso";
+
+export function ssoCookie(req: Request, state: string, maxAgeSeconds: number): string {
+  return cookie(req, portScoped(req, SSO_COOKIE), state, maxAgeSeconds);
+}
+
+export function readSsoCookie(req: Request, cookies: Record<string, string>): string | undefined {
+  return cookies[portScoped(req, SSO_COOKIE)];
+}
+
 export function readRememberCookie(req: Request, cookies: Record<string, string>): string | undefined {
   return cookies[rememberCookieName(req)];
 }

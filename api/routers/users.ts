@@ -17,6 +17,10 @@ import {
   grantedOf,
   grantsOf,
   holdsOwnerOnly,
+  lockOwners,
+  assertOwnerStays,
+  OwnerLockError,
+  type Tx,
   parsePermissions,
   permissionsOf,
   roleById,
@@ -36,6 +40,7 @@ import {
 } from "../queries/accounts";
 import { hashPassword, temporaryPassword } from "../lib/password";
 import { assertFreeUsername, renameInput, renameValues, renameWrite } from "./auth";
+import { ssoEnforced } from "../sso/store";
 
 const manage = permProcedure("manageUsers");
 
@@ -71,8 +76,14 @@ const row = (u: Account, places: Place[] = []) => ({
   scopedPermissions: scopedPermissionsOf(u),
   teams: places,
   modules: grantsOf(u),
-  /** Hasn't set a password yet (invite pending, or an account from before local accounts) */
-  pending: !u.passwordHash,
+  /** Hasn't set a password yet (invite pending, or an account from before local accounts); never one that signs in through single sign-on */
+  pending: !u.passwordHash && u.authSource === "local",
+  /** How it came: its own password ("local"), its first single sign-on, or SCIM */
+  authSource: u.authSource,
+  /** Keeps password sign-in while single sign-on is enforced */
+  breakGlass: u.breakGlass === 1,
+  /** Turned on and off by the identity provider (SCIM) */
+  scimManaged: u.scimManaged === 1,
   mustChangePassword: Boolean(u.mustChangePassword),
   disabled: Boolean(u.disabledAt),
   createdAt: u.createdAt,
@@ -185,7 +196,6 @@ function asChecked(user: User, me: Account) {
   );
 }
 
-type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 /**
  * A write to account `id`, which would take it out of the admins if it is one
@@ -207,26 +217,36 @@ async function actingNow(me: User): Promise<Account> {
 }
 
 async function writeAccount<T>(me: User, target: Account, takesAway: boolean, write: (db: Tx, me: Account) => Promise<T>): Promise<T> {
-  return getDb().transaction(async (tx) => {
-    const admins = await tx
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.role, "admin"), isNull(users.disabledAt)))
-      .orderBy(asc(users.id))
-      .for("update");
-    // Whoever acts, as now, not as signed in: still on, still managing accounts, still
-    // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
-    const [found] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
-    const actor = found ? await withAccess(found, tx) : undefined;
-    assertActing(actor);
-    assertAbove(actor, target);
-    const [now] = await tx.select({ role: users.role, disabledAt: users.disabledAt }).from(users).where(eq(users.id, target.id));
-    const admin = now?.role === "admin" && !now.disabledAt;
-    if (admin && takesAway && !admins.some((a) => a.id !== target.id)) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: t("server.auth.lastAdmin") });
-    }
-    return write(tx, actor);
-  });
+  const enforced = await ssoEnforced();
+  try {
+    return await getDb().transaction(async (tx) => {
+      const owners = await lockOwners(tx);
+      // Whoever acts, as now, not as signed in: still on, still managing accounts, still
+      // above the account as it was checked (turned off or demoted meanwhile, it writes nothing).
+      const [found] = await tx.select().from(users).where(eq(users.id, me.id)).for("share");
+      const actor = found ? await withAccess(found, tx) : undefined;
+      assertActing(actor);
+      assertAbove(actor, target);
+      await assertOwnerStays(tx, owners, target.id, takesAway, enforced);
+      return write(tx, actor);
+    });
+  } catch (e) {
+    if (e instanceof OwnerLockError) throw ownerLockRefusal(e);
+    throw e;
+  }
+}
+
+/** The refusal an OwnerLockError is said with. */
+export const ownerLockRefusal = (e: OwnerLockError) =>
+  new TRPCError({ code: "BAD_REQUEST", message: t(e.kind === "lastOwner" ? "server.auth.lastAdmin" : "server.sso.lastBreakGlass") });
+
+/**
+ * No password for an account of the identity provider: it signs in there (a password would
+ * bypass the provider, and enforcement with it). Stricter than "while enforced": a password
+ * it was given could never be used, since password sign-in refuses those accounts anyway.
+ */
+function assertPasswordAllowed(user: User) {
+  if (user.authSource !== "local") throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.passwordRefused") });
 }
 
 const inviteLink = (token: string) => `/invite/${token}`;
@@ -281,6 +301,8 @@ export const usersRouter = createRouter({
     const user = await target(input.id, me);
     // A link sets the password: for an account that has one, it would be a takeover.
     if (user.passwordHash) throw notAllowed();
+    // One that signs in through single sign-on gets no password while that is enforced.
+    assertPasswordAllowed(user);
     const { token, expiresAt } = await createInvite(user.id, me.id);
     ctx.audit.set({ target: userTarget(user), after: { username: user.username } });
     return { link: inviteLink(token), expiresAt };
@@ -324,6 +346,7 @@ export const usersRouter = createRouter({
   /** A temporary password, shown once; the account must change it at its next sign-in, and is signed out everywhere. */
   resetPassword: manage.input(z.object({ id: z.number().int() })).mutation(async ({ input, ctx }) => {
     const user = await target(input.id, ctx.user);
+    assertPasswordAllowed(user);
     const password = temporaryPassword();
     const passwordHash = await hashPassword(password);
     const done = await writeAccount(ctx.user, user, false, (db, me) =>

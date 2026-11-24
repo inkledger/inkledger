@@ -17,6 +17,7 @@ import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, r
 import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
 import { record, recordSignIn } from "../lib/audit";
+import { ssoEnforced } from "../sso/store";
 
 export { normalizeSiteUrl };
 
@@ -95,7 +96,7 @@ export async function renameWrite<T>(write: () => Promise<T>): Promise<T> {
 
 type Writer = Pick<ReturnType<typeof getDb>, "insert" | "delete">;
 
-async function startSession(ctx: Ctx, userId: number, db: Writer = getDb()) {
+export async function startSession(ctx: Ctx, userId: number, db: Writer = getDb()) {
   const sessionId = newSessionId();
   const maxAge = env.sessionDays * 24 * 3600;
   await db.insert(sessions).values({
@@ -107,7 +108,7 @@ async function startSession(ctx: Ctx, userId: number, db: Writer = getDb()) {
 }
 
 /** A fresh remember token for this device (the old one, if any, is dropped). */
-async function rememberDevice(ctx: Ctx, userId: number, previous?: string, db: Writer = getDb()) {
+export async function rememberDevice(ctx: Ctx, userId: number, previous?: string, db: Writer = getDb()) {
   if (previous) await db.delete(rememberedDevices).where(eq(rememberedDevices.id, previous));
   const token = newSessionId();
   const maxAge = REMEMBER_DAYS * 24 * 3600;
@@ -137,8 +138,14 @@ async function rememberedUser(req: Request): Promise<{ id: string; user: User } 
   return row ? { id, user: row.user } : null;
 }
 
-/** Signed in on this device: a session, and the device remembered for next time (and the sign-in recorded). */
-async function signIn(ctx: Ctx, user: User, method: "password" | "invite" | "activation") {
+/**
+ * Whether the account may come back without its identity provider (a remembered device):
+ * always, unless single sign-on is enforced; then only a break-glass account.
+ */
+const mayResume = (user: User, enforced: boolean) => !enforced || (user.authSource === "local" && user.breakGlass === 1);
+
+/** Signed in on this device: a session, and the device remembered for next time (and the sign-in recorded). Single sign-on comes here too. */
+export async function signIn(ctx: Ctx, user: User, method: "password" | "invite" | "activation" | "sso") {
   await startSession(ctx, user.id);
   const previous = await rememberedUser(ctx.req);
   await rememberDevice(ctx, user.id, previous?.id);
@@ -165,6 +172,12 @@ export const authRouter = createRouter({
         await recordSignIn(ctx, { ok: false, method: "password", username: key, reason: "disabled", userId: user.id });
         throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.disabled") });
       }
+      // An account of the identity provider signs in there; while single sign-on is enforced,
+      // everyone does but the break-glass accounts.
+      if (user.authSource !== "local" || (user.breakGlass !== 1 && (await ssoEnforced()))) {
+        await recordSignIn(ctx, { ok: false, method: "password", username: key, reason: user.authSource !== "local" ? "ssoAccount" : "ssoEnforced", userId: user.id });
+        throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.useProvider") });
+      }
       loginLimiter.reset(key);
       return signIn(ctx, user, "password");
     }),
@@ -179,6 +192,8 @@ export const authRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       throttle(ctx, `${input.siteUrl}|${input.username.toLowerCase()}`);
       assertNewPassword(input.newPassword);
+      // Activation gives a password: none while single sign-on is enforced.
+      if (await ssoEnforced()) throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.useProvider") });
       // Only a site an account here is connected to is ever asked: the public form must not
       // make this server call any address it is given.
       const [onSite] = await getDb()
@@ -200,6 +215,7 @@ export const authRouter = createRouter({
       const user = found?.user;
       if (!found || !user || user.disabledAt) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.noAccountToActivate") });
       if (user.passwordHash) throw new TRPCError({ code: "CONFLICT", message: t("server.auth.alreadyActivated") });
+      if (user.authSource !== "local") throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.useProvider") });
       const username = input.newUsername.trim().toLowerCase();
       await assertFreeUsername(username);
       const passwordHash = await hashPassword(input.newPassword);
@@ -209,7 +225,7 @@ export const authRouter = createRouter({
           .update(users)
           .set({ displayName: identity.displayName, email: identity.email, avatarUrl: identity.avatarUrl, username, passwordHash, mustChangePassword: 0 })
           // Activated meanwhile (the same account twice at once): the first one's choice stays.
-          .where(and(eq(users.id, user.id), isNull(users.passwordHash)))
+          .where(and(eq(users.id, user.id), isNull(users.passwordHash), eq(users.authSource, "local")))
           .returning(),
       );
       if (!activated) throw new TRPCError({ code: "CONFLICT", message: t("server.auth.alreadyActivated") });
@@ -250,6 +266,7 @@ export const authRouter = createRouter({
           and(
             eq(users.id, found.user.id),
             isNull(users.passwordHash),
+            eq(users.authSource, "local"),
             eq(users.role, found.user.role),
             eq(users.permissions, found.user.permissions),
           ),
@@ -293,7 +310,8 @@ export const authRouter = createRouter({
   /** Who this device can sign in as without the password (the login page offers it). */
   remembered: publicQuery.query(async ({ ctx }) => {
     const found = await rememberedUser(ctx.req);
-    if (!found) return null;
+    // Not offered when it would be refused (single sign-on enforced): the page goes to the provider instead.
+    if (!found || !mayResume(found.user, await ssoEnforced())) return null;
     const u = found.user;
     return { displayName: u.displayName, username: u.username, email: u.email };
   }),
@@ -309,6 +327,10 @@ export const authRouter = createRouter({
     if (!found) {
       // A device that had a remember cookie the server no longer knows (or an account turned off).
       if (readRememberCookie(ctx.req, parseCookies(ctx.req.headers.get("cookie")))) await recordSignIn(ctx, { ok: false, method: "remembered", username: "", reason: "unknownDevice" });
+      throw refused();
+    }
+    if (!mayResume(found.user, await ssoEnforced())) {
+      await recordSignIn(ctx, { ok: false, method: "remembered", username: found.user.username ?? "", reason: "ssoEnforced", userId: found.user.id });
       throw refused();
     }
     // The token is taken in one step (two requests with it: one resumes), under the account's

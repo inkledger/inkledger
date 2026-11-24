@@ -120,6 +120,8 @@ export const env = {
   serveBuild,
   /** The canonical external URL (PUBLIC_URL), for links and sign-in redirects; null when unset */
   publicUrl: publicUrl(process.env.PUBLIC_URL),
+  /** An identity provider on this machine over plain http (SSO_ALLOW_LOCAL_IDP=1: tests' simulated one only) */
+  ssoAllowLocalIdp: (process.env.SSO_ALLOW_LOCAL_IDP ?? "").trim() === "1",
   /** HTTP port for the production server */
   port: Number(process.env.PORT || 3000),
   /** Folder with server.crt and server.key: set, the server also answers over HTTPS */
