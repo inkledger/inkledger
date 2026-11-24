@@ -38,6 +38,9 @@ export const AUDIT_ACTIONS = {
   "users.rename": ["username", "displayName"],
   "users.resetPassword": ["username"],
   "users.setDisabled": ["username", "disabled"],
+  // A person's data on request (api/gdpr): never their name, only their id as the target
+  "users.exportData": ["self"],
+  "users.erase": ["erased", "rows", "connections", "auditPseudonymised"],
   // Roles and teams (Settings › Users, Settings › Teams)
   "roles.create": ROLE,
   "roles.update": ROLE,

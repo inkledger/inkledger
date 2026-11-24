@@ -31,6 +31,7 @@ import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
 import { registerAuditRoutes } from "./auditExport";
 import { registerBackupRoutes } from "./backupDownload";
+import { registerUserDataRoutes } from "./gdpr/routes";
 import { flushAudit, purgeAudit } from "./lib/audit";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
@@ -199,6 +200,7 @@ registerEventRoutes(app);
 registerDeskChatRoutes(app);
 registerAuditRoutes(app);
 registerBackupRoutes(app);
+registerUserDataRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   if (procedurePath(c.req.path) === null) return c.json({ error: "Bad Request" }, 400);
   return fetchRequestHandler({

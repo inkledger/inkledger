@@ -68,6 +68,10 @@ export const server: Shape<typeof en> = {
     notYourself: "Non puoi farlo sul tuo stesso account.",
     jiraAccountInUse: "Questo account Jira è già collegato a un altro account inkledger.",
   },
+  users: {
+    eraseConfirm: "Scrivi il nome utente dell'account per confermare.",
+    eraseOwnerOnly: "Solo un proprietario può cancellare un account.",
+  },
   url: {
     invalid: "URL non valido",
     httpOnly: "Sono ammessi solo URL http(s)",

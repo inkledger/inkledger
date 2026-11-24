@@ -1,0 +1,318 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`exporting a person's data > is a ZIP of every table of theirs, their rows only, without secrets 1`] = `
+{
+  "files": [
+    {
+      "name": "account.json",
+      "rows": 1,
+    },
+    {
+      "name": "connections.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/bucket_columns.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/bucket_sources.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/buckets.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/client_containers.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/clients.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/container_paths.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/containers.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/decisions.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/desks.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/device_prefs.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/estimate_revisions.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/idea_files.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/ideas.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/issue_closures.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/issue_history_reads.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/issue_notes.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/issues.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/mail_accounts.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/mail_copies.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/mail_copy_reads.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/mail_links.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/mails.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/markdown_note_versions.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/markdown_notes.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/module_closure_claims.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/module_files.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/module_storage.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/notifications.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/outbox.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/pinboard_notes.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/pinboards.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/planned_entries.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/planned_entries.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/recent_queries.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/role_assignments.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/saved_queries.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/settings.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/sink_mappings.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/sync_state.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/team_members.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/timer_runs.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/timer_runs.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/timer_shares.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/timers.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/timers.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/todo_sessions.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/todos.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/todos.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/week_locks.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/work_day_overrides.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/work_schedules.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/work_statuses.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/worklog_sinks.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/worklog_trash.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/worklog_trash.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/worklogs.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/worklogs.csv",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_descriptors.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_discovery.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_drafts.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_flow_aggregates.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_flow_events.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_flow_feedback.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_flow_imports.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_flow_settings.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_imports.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_operations.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_planner_feedback.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_prepared.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_presentations.json",
+      "rows": 1,
+    },
+    {
+      "name": "data/workspace_revisions.json",
+      "rows": 1,
+    },
+    {
+      "name": "audit_events.json",
+      "rows": 3,
+    },
+  ],
+  "notExported": [
+    "activity",
+    "connection_sync",
+    "invites",
+    "issue_status_changes",
+    "item_aliases",
+    "mail_addin_keys",
+    "remembered_devices",
+    "sessions",
+    "status_snapshots",
+    "timer_ops",
+    "webhook_deliveries",
+    "write_leases",
+  ],
+}
+`;

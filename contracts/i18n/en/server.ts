@@ -68,6 +68,10 @@ export const server = {
     notYourself: "You can't do this to your own account.",
     jiraAccountInUse: "This Jira account is already connected to another inkledger account.",
   },
+  users: {
+    eraseConfirm: "Type the account's username to confirm.",
+    eraseOwnerOnly: "Only an owner can erase an account.",
+  },
   url: {
     invalid: "Invalid URL",
     httpOnly: "Only http(s) URLs are allowed",

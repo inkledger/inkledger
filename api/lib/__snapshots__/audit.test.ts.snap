@@ -419,6 +419,21 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "users.erase": {
+    "kept": [
+      "auditPseudonymised",
+      "connections",
+      "erased",
+      "rows",
+    ],
+    "redacted": 17,
+  },
+  "users.exportData": {
+    "kept": [
+      "self",
+    ],
+    "redacted": 17,
+  },
   "users.invite": {
     "kept": [
       "displayName",
