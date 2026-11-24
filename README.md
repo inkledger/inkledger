@@ -100,6 +100,10 @@ Mods are small, signed packages that add something on top of the app (a desk bun
 
 **Store and licences.** Optional modules are available through the in-app Store (Settings → Store), under the [module terms](docs/modules-terms.md). Kanbunny is a test mod for exploring the page in a different way and sharing feedback. The Store is the only outbound call besides your trackers and optional weather; `STORE_URL=off` turns it off.
 
+## Engineering
+
+- [A timeout is not a cancel: replaying worklogs without duplicating them](docs/offline-worklog-replay.md)
+
 ## Security and privacy
 
 - Self-hosted, no telemetry.
