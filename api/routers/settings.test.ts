@@ -58,6 +58,11 @@ describe("settings: allowed link domains", () => {
   it("an update without the field keeps them", async () => {
     const s = await me.settings.update({ idleMinutes: 15 });
     expect(s.allowedLinkDomains).toContain("google.com");
+    // The change is in the audit log: the field, before and after; nothing else.
+    const { q } = await import("../queries/connection");
+    const [e] = await q<{ action: string; before: string; after: string }>("SELECT action, before, after FROM audit_events WHERE action = 'settings.update' ORDER BY id DESC LIMIT 1");
+    expect([e.action, JSON.parse(e.after)]).toEqual(["settings.update", { idleMinutes: 15 }]);
+    expect(Object.keys(JSON.parse(e.before) as object)).toEqual(["idleMinutes"]);
   });
 
   it("the pinboard lives in all three places until one is switched off, alone", async () => {

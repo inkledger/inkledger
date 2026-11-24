@@ -22,6 +22,7 @@ import { buriedBy, creationInFlight, tombsEnded } from "./sync/timeWrites";
 import { trackerOfSink } from "./sync/extraSinks";
 import { instant } from "@contracts/values";
 import { needsReconnect } from "@contracts/sync";
+import { recordSystem } from "./lib/audit";
 
 /** How far back the first import reaches. */
 const WORKLOG_HISTORY_DAYS = 365;
@@ -44,6 +45,10 @@ export async function syncWorklogs(user: User, opts: { reimport?: boolean; backg
     if (opts.background && (needsReconnect(conn.status) || (await waiting(conn.id)))) continue;
     try {
       const r = await syncConnectionWorklogs(user, conn, opts);
+      // One event a pass that changed something (never one per worklog, nor per quiet pass).
+      if (r.imported + r.deleted > 0) {
+        await recordSystem({ kind: "sync", userId: user.id, label: "jira" }, "worklog.sync", { target: { type: "connection", id: conn.id, ownerUserId: user.id }, after: { connectionId: conn.id, imported: r.imported, deleted: r.deleted, initial: r.initial } });
+      }
       total.imported += r.imported;
       total.deleted += r.deleted;
       total.initial ||= r.initial;

@@ -142,6 +142,8 @@ From now on the Docker database is the only live copy. Development uses its own 
 | `RATE_LIMIT_WINDOW_SEC` | `60` | The window of the global limits |
 | `RATE_LIMIT_SSO` / `RATE_LIMIT_SCIM` / `RATE_LIMIT_EXPORT` | `30` / `600` / `10` | Single sign-on starts and callbacks per address, SCIM calls per token, exports per account, per window |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/HTTP collector for request traces (e.g. `http://otel-collector:4318`); also `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME` |
+| `AUDIT_DIR` | `data/audit` (Docker: `/app/data/audit`) | The audit log's daily JSONL copy ([docs/it/audit.md](it/audit.md)) |
+| `AUDIT_FILE_MIRROR` | on in production | Every audit event also written to that file (`0` turns it off; restores always write theirs) |
 | `TZ` | system | Time zone for days and weeks (Docker inherits the host's) |
 
 ### Connecting GitHub

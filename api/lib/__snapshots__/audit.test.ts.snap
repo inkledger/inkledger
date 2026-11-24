@@ -1,0 +1,408 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`redaction > every action, fed its own fields and every secret: only its own come through (snapshot) 1`] = `
+{
+  "account.rename": {
+    "kept": [
+      "displayName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "alerts.setWebhook": {
+    "kept": [
+      "format",
+      "host",
+      "removed",
+    ],
+    "redacted": 17,
+  },
+  "alerts.test": {
+    "kept": [
+      "host",
+    ],
+    "redacted": 17,
+  },
+  "audit.export": {
+    "kept": [
+      "filters",
+      "format",
+      "rows",
+    ],
+    "redacted": 17,
+  },
+  "audit.purge": {
+    "kept": [
+      "before",
+      "deleted",
+      "lastPurgedHash",
+      "retentionDays",
+    ],
+    "redacted": 17,
+  },
+  "audit.setRetention": {
+    "kept": [
+      "days",
+    ],
+    "redacted": 17,
+  },
+  "auth.passwordChanged": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "auth.signIn": {
+    "kept": [
+      "method",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "auth.signInFailed": {
+    "kept": [
+      "method",
+      "reason",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "auth.signOut": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "backup.restore": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "backup.run": {
+    "kept": [
+      "name",
+      "scheduled",
+    ],
+    "redacted": 17,
+  },
+  "backup.update": {
+    "kept": [
+      "keep",
+      "schedule",
+      "time",
+      "weekday",
+    ],
+    "redacted": 17,
+  },
+  "connections.add": {
+    "kept": [
+      "baseUrl",
+      "label",
+      "selfHosted",
+      "type",
+    ],
+    "redacted": 17,
+  },
+  "connections.allowWrites": {
+    "kept": [
+      "allowed",
+    ],
+    "redacted": 17,
+  },
+  "connections.archive": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "connections.reconnect": {
+    "kept": [
+      "baseUrl",
+      "type",
+    ],
+    "redacted": 17,
+  },
+  "connections.rename": {
+    "kept": [
+      "label",
+    ],
+    "redacted": 17,
+  },
+  "connections.setExcluded": {
+    "kept": [
+      "count",
+    ],
+    "redacted": 17,
+  },
+  "connections.setOption": {
+    "kept": [
+      "key",
+      "value",
+    ],
+    "redacted": 17,
+  },
+  "connections.setWebhook": {
+    "kept": [
+      "on",
+    ],
+    "redacted": 17,
+  },
+  "connections.standIn": {
+    "kept": [
+      "trackerId",
+    ],
+    "redacted": 17,
+  },
+  "info.addHosts": {
+    "kept": [
+      "hosts",
+    ],
+    "redacted": 17,
+  },
+  "info.setAccess": {
+    "kept": [
+      "customHosts",
+      "tailscaleHost",
+      "tailscalePort",
+    ],
+    "redacted": 17,
+  },
+  "modules.acceptToken": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "modules.activate": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "modules.deactivate": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "modules.importProgress": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "modules.removeLicense": {
+    "kept": [
+      "id",
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "modules.setEnabled": {
+    "kept": [
+      "enabled",
+      "id",
+    ],
+    "redacted": 17,
+  },
+  "modules.uninstall": {
+    "kept": [
+      "id",
+    ],
+    "redacted": 17,
+  },
+  "restore.completed": {
+    "kept": [
+      "name",
+      "preRestoreLastHash",
+      "safety",
+    ],
+    "redacted": 17,
+  },
+  "settings.revokeShareLinks": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "settings.update": {
+    "kept": [
+      "agentCommand",
+      "allowedLinkDomains",
+      "backdropVisibility",
+      "dailyTargetSeconds",
+      "dashboardNight",
+      "idleMinutes",
+      "mailCopies",
+      "mailCopiesConsent",
+      "notifyEnabled",
+      "overlapPolicy",
+      "pinboardInMenu",
+      "pinboardOnBoard",
+      "pinboardWidget",
+      "shareLinkMinutes",
+      "themeColor",
+      "timerAlertMinutes",
+      "todosHotCorner",
+      "todosInMenu",
+      "todosWidget",
+      "weeklyTargetSeconds",
+    ],
+    "redacted": 17,
+  },
+  "store.checkout": {
+    "kept": [
+      "method",
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "store.claimPaid": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "store.dismiss": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "store.install": {
+    "kept": [
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "store.requestLicense": {
+    "kept": [
+      "locale",
+      "product",
+    ],
+    "redacted": 17,
+  },
+  "store.restoreLicense": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "team.day": {
+    "kept": [
+      "date",
+      "userId",
+    ],
+    "redacted": 17,
+  },
+  "team.overview": {
+    "kept": [
+      "from",
+      "to",
+    ],
+    "redacted": 17,
+  },
+  "team.person": {
+    "kept": [
+      "from",
+      "to",
+      "userId",
+    ],
+    "redacted": 17,
+  },
+  "users.invite": {
+    "kept": [
+      "displayName",
+      "modules",
+      "permissions",
+      "role",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "users.reinvite": {
+    "kept": [],
+    "redacted": 17,
+  },
+  "users.rename": {
+    "kept": [
+      "displayName",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "users.resetPassword": {
+    "kept": [
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "users.setAccess": {
+    "kept": [
+      "modules",
+      "permissions",
+      "role",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "users.setDisabled": {
+    "kept": [
+      "disabled",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "worklog.create": {
+    "kept": [
+      "connectionId",
+      "issueKey",
+      "seconds",
+      "started",
+    ],
+    "redacted": 17,
+  },
+  "worklog.delete": {
+    "kept": [
+      "connectionId",
+      "issueKey",
+      "seconds",
+    ],
+    "redacted": 17,
+  },
+  "worklog.replay": {
+    "kept": [
+      "connectionId",
+      "failed",
+      "remaining",
+      "synced",
+    ],
+    "redacted": 17,
+  },
+  "worklog.resolveConflict": {
+    "kept": [
+      "issueKey",
+      "keep",
+    ],
+    "redacted": 17,
+  },
+  "worklog.restore": {
+    "kept": [
+      "connectionId",
+      "issueKey",
+      "seconds",
+      "started",
+    ],
+    "redacted": 17,
+  },
+  "worklog.sync": {
+    "kept": [
+      "connectionId",
+      "deleted",
+      "imported",
+      "initial",
+      "removed",
+      "upserted",
+    ],
+    "redacted": 17,
+  },
+  "worklog.update": {
+    "kept": [
+      "connectionId",
+      "issueKey",
+      "seconds",
+      "started",
+    ],
+    "redacted": 17,
+  },
+}
+`;

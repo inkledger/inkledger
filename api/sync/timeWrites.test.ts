@@ -262,7 +262,12 @@ describe("time on a tracker that keeps entries, through the contract (write-thro
     expect(await countsAt(at)).toEqual({ here: 1, there: 1 });
     const [row] = await q<{ id: number; remote_id: string }>("SELECT id, jira_worklog_id AS remote_id FROM worklogs WHERE started = ?", Date.parse(at));
     expect(row.remote_id).not.toMatch(/^(new|pending)-/);
+    // The replay is one event by sync, for the pass; the delete one by the user.
+    const replayed = (await q<{ action: string; actor_kind: string; after: string | null; before: string | null }>("SELECT action, actor_kind, after, before FROM audit_events ORDER BY id")).filter((e) => e.action === "worklog.replay").at(-1);
+    expect(replayed?.actor_kind).toBe("sync");
+    expect(JSON.parse(replayed?.after ?? "{}")).toMatchObject({ synced: 1, failed: 0 });
     await caller.worklogs.delete({ id: row.id });
+    expect((await q<{ action: string; actor_kind: string; after: string | null; before: string | null }>("SELECT action, actor_kind, after, before FROM audit_events ORDER BY id")).at(-1)).toMatchObject({ action: "worklog.delete", actor_kind: "user" });
   });
 
   it("a create recorded here whose issue total fails to move keeps the tracker's id: nothing queued, nothing to adopt", async () => {

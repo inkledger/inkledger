@@ -38,6 +38,8 @@ import { boundSink, COMPANIONS, trackerOfSink } from "../sync/extraSinks";
 import { t } from "@contracts/i18n";
 import { failureOf } from "@contracts/sync";
 import { createRouter, protectedProcedure } from "../middleware";
+import { record, type AuditRequest } from "../lib/audit";
+import type { AuditAction } from "@contracts/audit";
 import { pauseTimersOf } from "./timers";
 import { getDb, uniqueViolation } from "../queries/connection";
 import { callMeta } from "../lib/callMeta";
@@ -222,6 +224,11 @@ function assertMayAddSelfHosted(user: Pick<User, "role">) {
   }
 }
 
+/** A connection's change in the audit log (its secrets never: only the fields contracts/audit.ts keeps). */
+function auditConnection(ctx: AuditRequest, action: AuditAction, conn: Pick<Connection, "id" | "userId">, after: Record<string, unknown>, before?: Record<string, unknown>) {
+  return record(ctx, action, { target: { type: "connection", id: conn.id, ownerUserId: conn.userId }, before: before ?? null, after });
+}
+
 export const connectionsRouter = createRouter({
   /** The user's connections, with their service's name and what it can do: the app decides by capability, never by type. */
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -310,6 +317,7 @@ export const connectionsRouter = createRouter({
             .returning();
       await storeSecret(saved.id, identity.secret);
       await forgetProbes(saved.id);
+      await auditConnection(ctx, "connections.add", saved, { type: "jira", label: saved.label, baseUrl: saved.baseUrl, selfHosted: !isJiraCloud(saved.baseUrl) });
       return shown(saved);
     }),
 
@@ -344,6 +352,7 @@ export const connectionsRouter = createRouter({
         .returning();
       await storeSecret(saved.id, identity.secret);
       await forgetProbes(saved.id);
+      await auditConnection(ctx, "connections.reconnect", saved, { type: saved.type, baseUrl: saved.baseUrl });
       return shown(saved);
     }),
 
@@ -508,6 +517,7 @@ export const connectionsRouter = createRouter({
               .select()
               .from(connections)
               .where(eq(connections.id, same.id));
+            await auditConnection(ctx, "connections.add", row, { type: row.type, label: row.label, baseUrl: row.baseUrl, selfHosted: form.selfHosted });
             return shown(row);
           }
           const [row] = await db
@@ -521,6 +531,7 @@ export const connectionsRouter = createRouter({
             })
             .where(eq(connections.id, made.id))
             .returning();
+          await auditConnection(ctx, "connections.add", row, { type: row.type, label: row.label, baseUrl: row.baseUrl, selfHosted: form.selfHosted });
           return shown(row);
         };
         // Two connects of the same account at once: the one that lands second joins the first.
@@ -572,6 +583,7 @@ export const connectionsRouter = createRouter({
         .set({ status: "ok" })
         .where(eq(connections.id, conn.id));
       await forgetProbes(conn.id);
+      await auditConnection(ctx, "connections.reconnect", conn, { type: conn.type, baseUrl: conn.baseUrl });
       return { ok: true };
     }),
 
@@ -587,6 +599,7 @@ export const connectionsRouter = createRouter({
         .update(connections)
         .set({ writesAllowed: input.on ? 1 : 0 })
         .where(eq(connections.id, conn.id));
+      await auditConnection(ctx, "connections.allowWrites", conn, { allowed: input.on }, { allowed: conn.writesAllowed === 1 });
       return { ok: true };
     }),
 
@@ -666,6 +679,7 @@ export const connectionsRouter = createRouter({
         .set({ options: JSON.stringify(next) })
         .where(eq(connections.id, conn.id));
       await forgetProbes(conn.id);
+      await auditConnection(ctx, "connections.standIn", conn, { trackerId: input.trackerId }, { trackerId: current });
       return { ok: true };
     }),
 
@@ -732,6 +746,7 @@ export const connectionsRouter = createRouter({
             .returning();
       await storeGitHubTokenSet(saved.id, r.tokens);
       await forgetProbes(saved.id);
+      await auditConnection(ctx, mine ? "connections.reconnect" : "connections.add", saved, { type: "github", label: saved.label, baseUrl: apiBase });
       return { state: "done" as const, connection: await shown(saved) };
     }),
 
@@ -814,6 +829,7 @@ export const connectionsRouter = createRouter({
           )
         );
       await forgetProbes(conn.id);
+      await auditConnection(ctx, "connections.setExcluded", conn, { count: input.keys.length });
       return { excluded: input.keys.length };
     }),
 
@@ -855,6 +871,7 @@ export const connectionsRouter = createRouter({
             : null,
         })
         .where(eq(connections.id, conn.id));
+      await auditConnection(ctx, "connections.setWebhook", conn, { on: input.on }, { on: conn.webhookSecret !== null });
       return { ok: true };
     }),
 
@@ -893,6 +910,7 @@ export const connectionsRouter = createRouter({
             eq(connectionSync.stream, "issues")
           )
         );
+      await auditConnection(ctx, "connections.setOption", saved, { key: input.key, value: input.value }, { key: input.key, value: connectionOptions(conn)[input.key] ?? null });
       return shown(saved);
     }),
 
@@ -905,6 +923,7 @@ export const connectionsRouter = createRouter({
         .set({ label: input.label })
         .where(eq(connections.id, conn.id))
         .returning();
+      await auditConnection(ctx, "connections.rename", saved, { label: saved.label }, { label: conn.label });
       return shown(saved);
     }),
 
@@ -919,6 +938,7 @@ export const connectionsRouter = createRouter({
         .where(eq(connections.id, conn.id));
       // Nothing can run on there any more: its timers stop counting.
       await pauseTimersOf(ctx.user.id, conn.id);
+      await auditConnection(ctx, "connections.archive", conn, {});
       return { ok: true };
     }),
 });

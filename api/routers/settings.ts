@@ -13,6 +13,7 @@ import {
   type DashboardLayoutItem,
 } from "@contracts/dashboard";
 import { t } from "@contracts/i18n";
+import { record } from "../lib/audit";
 import { isAgentCommand } from "@contracts/analyze";
 import { customizedScopes } from "../workspace/store";
 import { getFlowSettings } from "../workspace/flowStore";
@@ -68,6 +69,9 @@ async function settingsView(userId: number) {
   // Who never customized a layout nor turned FlowMap on runs none of the workspace runtime.
   return { ...withDashboard(row), workspace: { scopes, flowMap: flow.enabled } };
 }
+
+/** Settings that change as the pages are arranged: never an audit event. */
+const QUIET_SETTINGS = new Set(["dashboardLayout", "collapsedColumns"]);
 
 export const settingsRouter = createRouter({
   get: protectedProcedure.query(({ ctx }) => settingsView(ctx.user.id)),
@@ -142,7 +146,19 @@ export const settingsRouter = createRouter({
             : {}),
         })
         .where(eq(settings.userId, ctx.user.id));
-      return settingsView(ctx.user.id);
+      const view = await settingsView(ctx.user.id);
+      // What changed, in the fields asked about; a board's layout and folded columns are no event.
+      const was: Record<string, unknown> = withDashboard(current);
+      const now: Record<string, unknown> = view;
+      const changed = Object.keys(input).filter((k) => !QUIET_SETTINGS.has(k) && JSON.stringify(was[k]) !== JSON.stringify(now[k]));
+      if (changed.length > 0) {
+        await record(ctx, "settings.update", {
+          target: { type: "settings", id: ctx.user.id, ownerUserId: ctx.user.id },
+          before: Object.fromEntries(changed.map((k) => [k, was[k]])),
+          after: Object.fromEntries(changed.map((k) => [k, now[k]])),
+        });
+      }
+      return view;
     }),
 
   /** Every attachment link copied for an agent so far stops working (docs/work/ideas/issue-copy.md R-6.5). */
@@ -152,6 +168,7 @@ export const settingsRouter = createRouter({
       .update(settings)
       .set({ shareLinkGeneration: sql`${settings.shareLinkGeneration} + 1` })
       .where(eq(settings.userId, ctx.user.id));
+    await record(ctx, "settings.revokeShareLinks", { target: { type: "settings", id: ctx.user.id, ownerUserId: ctx.user.id } });
     return { ok: true as const };
   }),
 });

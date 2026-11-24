@@ -38,6 +38,10 @@ const row = (u: User) => ({
   createdAt: u.createdAt,
 });
 
+/** An account as the audit log names it, and its access as it records it. */
+const userTarget = (u: User) => ({ type: "user", id: u.id, ownerUserId: u.id });
+const accessOf = (u: User) => ({ username: u.username, displayName: u.displayName, role: roleOf(u), permissions: permissionsOf(u), modules: grantsOf(u) });
+
 const notAllowed = () => new TRPCError({ code: "FORBIDDEN", message: t("server.auth.notAllowed") });
 
 /**
@@ -152,6 +156,7 @@ export const usersRouter = createRouter({
           .returning(),
       );
       const { token, expiresAt } = await createInvite(user.id, me.id);
+      ctx.audit.set({ target: userTarget(user), after: accessOf(user) });
       return { user: row(user), link: inviteLink(token), expiresAt };
     }),
 
@@ -162,6 +167,7 @@ export const usersRouter = createRouter({
     // A link sets the password: for an account that has one, it would be a takeover.
     if (user.passwordHash) throw notAllowed();
     const { token, expiresAt } = await createInvite(user.id, me.id);
+    ctx.audit.set({ target: userTarget(user), after: { username: user.username } });
     return { link: inviteLink(token), expiresAt };
   }),
 
@@ -177,6 +183,7 @@ export const usersRouter = createRouter({
         .returning();
     });
     if (!updated) throw notAllowed();
+    ctx.audit.set({ target: userTarget(updated), before: accessOf(user), after: accessOf(updated) });
     return row(updated);
   }),
 
@@ -188,6 +195,7 @@ export const usersRouter = createRouter({
       writeAccount(ctx.user, user, false, (db, me) => db.update(users).set(values).where(asChecked(user, me)).returning()),
     );
     if (!updated) throw notAllowed();
+    ctx.audit.set({ target: userTarget(updated), before: { username: user.username, displayName: user.displayName }, after: { username: updated.username, displayName: updated.displayName } });
     return row(updated);
   }),
 
@@ -203,6 +211,7 @@ export const usersRouter = createRouter({
     await signOutEverywhere(user.id);
     // Links shared by whoever held the account stop too.
     await getDb().update(settings).set({ shareLinkGeneration: sql`${settings.shareLinkGeneration} + 1` }).where(eq(settings.userId, user.id));
+    ctx.audit.set({ target: userTarget(user), after: { username: user.username } });
     return { password };
   }),
 
@@ -218,6 +227,7 @@ export const usersRouter = createRouter({
     );
     if (!updated) throw notAllowed();
     if (input.disabled) await signOutEverywhere(user.id);
+    ctx.audit.set({ target: userTarget(updated), before: { username: user.username, disabled: Boolean(user.disabledAt) }, after: { username: updated.username, disabled: Boolean(updated.disabledAt) } });
     return row(updated);
   }),
 });

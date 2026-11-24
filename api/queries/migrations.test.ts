@@ -177,6 +177,8 @@ describe("legacy Jira connections (0047)", () => {
     await query('DROP TABLE "module_closure_claims"');
     await query('DROP TABLE "issue_closures"');
     await query('DROP FUNCTION "inkledger_issue_closed" CASCADE');
+    await query('DROP TABLE "audit_events"');
+    await query('DROP FUNCTION "inkledger_audit_append_only" CASCADE');
     await query("delete from drizzle.__drizzle_migrations where created_at >= $1", [journal.find(e => e.tag === "0047_legacy_connections")!.when]);
     await up();
     const streams = await query("select connection_id, stream, checkpoint, last_ok_at, last_full_at from connection_sync order by connection_id, stream");
@@ -222,6 +224,8 @@ describe("migrations over a draft of 0010", () => {
     await query('DROP TABLE "module_closure_claims"');
     await query('DROP TABLE "issue_closures"');
     await query('DROP FUNCTION "inkledger_issue_closed" CASCADE');
+    await query('DROP TABLE "audit_events"');
+    await query('DROP FUNCTION "inkledger_audit_append_only" CASCADE');
     await query('DROP TABLE "write_leases"');
     await query('ALTER TABLE "module_storage" DROP COLUMN "revision"');
     await query('DROP TABLE "egress_hosts"');

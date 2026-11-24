@@ -16,6 +16,22 @@
     "type": "query"
   },
   {
+    "path": "audit.list",
+    "type": "query"
+  },
+  {
+    "path": "audit.setRetention",
+    "type": "mutation"
+  },
+  {
+    "path": "audit.settings",
+    "type": "query"
+  },
+  {
+    "path": "audit.verify",
+    "type": "query"
+  },
+  {
     "path": "auth.acceptInvite",
     "type": "mutation"
   },

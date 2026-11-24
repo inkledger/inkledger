@@ -21,6 +21,7 @@ import { noteSyncFailure, noteSyncPass } from "../ops/metrics";
 import { observePass } from "./observe";
 import { insertNotifications } from "../routers/notifications";
 import { callMeta } from "../lib/callMeta";
+import { recordSystem } from "../lib/audit";
 
 export type StreamRun<R> =
   | { ran: true; result: R }
@@ -173,6 +174,10 @@ export async function syncConnectionEntries(
       const meta = { signal, correlationId: `entries-${conn.id}-${Date.now()}` };
       const tombs = await liveTombs(conn.userId, conn.id);
       const r = await syncEntries(b, conn, { since, meta, budget, zone: connOf(conn).timeZone });
+      // One event a pass that changed something (never one per entry, nor per quiet pass).
+      if (r.upserted + r.removed > 0) {
+        await recordSystem({ kind: "sync", userId: conn.userId, label: conn.type }, "worklog.sync", { target: { type: "connection", id: conn.id, ownerUserId: conn.userId }, after: { connectionId: conn.id, upserted: r.upserted, removed: r.removed } });
+      }
       // A delete that kept an entry out ended meanwhile: its rewind stands, not this pass's place.
       return { result: { upserted: r.upserted, removed: r.removed }, checkpoint: (await tombsEnded(tombs)) ? undefined : r.checkpoint };
     } finally {

@@ -160,6 +160,13 @@ export const env = {
   downloadsDir: process.env.DOWNLOADS_DIR || path.resolve("data/downloads"),
   /** Installed add-on modules (signed folders); /app/data/modules in Docker */
   modulesDir: process.env.MODULES_DIR || path.resolve("data/modules"),
+  /** The audit log's file copy (JSONL, a file a day; restores always write theirs here); /app/data/audit in Docker */
+  auditDir: process.env.AUDIT_DIR || path.resolve("data/audit"),
+  /**
+   * Every audit event also appended to that file (AUDIT_FILE_MIRROR=1/0): on by default in
+   * production, where a restore rewinds the database and the file keeps what came before.
+   */
+  auditFileMirror: ["1", "true", "yes"].includes((process.env.AUDIT_FILE_MIRROR ?? (isProduction ? "1" : "0")).trim().toLowerCase()),
   /** This server's own Ed25519 key (WP-19: licences are activated per instance); made once, never in the database. */
   instanceKeyPath: process.env.INSTANCE_KEY_PATH || path.resolve("data/instance.key"),
   /**

@@ -103,6 +103,12 @@
       "permission": "manageBackups"
     },
     {
+      "id": "audit",
+      "nativeOnly": false,
+      "desktopOnly": false,
+      "permission": "viewAudit"
+    },
+    {
       "id": "servers",
       "nativeOnly": true,
       "desktopOnly": false,

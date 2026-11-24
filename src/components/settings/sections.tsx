@@ -23,6 +23,7 @@ import {
   FolderGit2,
   Hourglass,
   PanelsTopLeft,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -57,6 +58,7 @@ import { LinksSection } from "@/components/settings/sections/Links";
 import { OutlookSection } from "@/components/settings/sections/Outlook";
 import { NetworkSection } from "@/components/settings/sections/Network";
 import { BackupSection } from "@/components/settings/sections/Backup";
+import { AuditSection } from "@/components/settings/sections/Audit";
 import { scheduleLabel } from "@/lib/backupLabels";
 import { trpc } from "@/lib/trpc";
 import { useProviderName } from "@/hooks/useConnections";
@@ -312,6 +314,20 @@ export const CATEGORIES: SettingsCategory[] = [
     Summary: function BackupSummary() {
       const s = trpc.backup.get.useQuery(undefined, { staleTime: 60_000 }).data?.settings;
       return s ? scheduleLabel(s) : null;
+    },
+  },
+  {
+    id: "audit",
+    get label() { return t("settings.categories.audit.label"); },
+    get description() { return t("settings.categories.audit.description"); },
+    icon: ScrollText,
+    permission: "viewAudit",
+    get keywords() { return t("settings.categories.audit.keywords"); },
+    Content: AuditSection,
+    Summary: function AuditSummary() {
+      // How long events stay (cheap); the chain is checked in the section itself.
+      const days = trpc.audit.settings.useQuery(undefined, { staleTime: 60_000 }).data?.retentionDays;
+      return days === undefined ? null : t("settings.audit.retentionDays", { count: days });
     },
   },
   {

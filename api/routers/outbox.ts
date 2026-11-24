@@ -16,6 +16,7 @@ import { CLAIM_TTL_MS, replayContract, unbury } from "../sync/timeWrites";
 import { dropHeldSinkDeletes, heldSinkDelete, holdSinkDeletes, pushSinks } from "../sync/extraSinks";
 import { withOutboxLock, type ReplayResult } from "../sync/outboxLocks";
 import { singleFlight } from "../lib/locks";
+import { record } from "../lib/audit";
 
 export { pendingReplays, withOutboxLock } from "../sync/outboxLocks";
 
@@ -95,9 +96,10 @@ export const outboxRouter = createRouter({
         // A create's worklog already filed on the sinks beside its tracker: those entries go with it (held until it is gone).
         const filed = await createdWorklog(ctx.user.id, input.id);
         if (filed) await holdSinkDeletes(filed);
+        const discarded: { worklog: { issueKey: string; connectionId: number; seconds: number } | null } = { worklog: null };
         // Only while no replay (another process on this database included) is sending it.
         try {
-          return await getDb().transaction(async (db) => {
+          const done = await getDb().transaction(async (db) => {
           const [entry] = await db
             .delete(outbox)
             .where(and(eq(outbox.id, input.id), eq(outbox.userId, ctx.user.id), or(isNull(outbox.claimedAt), lt(outbox.claimedAt, Date.now() - CLAIM_TTL_MS))))
@@ -110,6 +112,8 @@ export const outboxRouter = createRouter({
           // A lost create's delete given up: its entry, should it be there, is read back.
           await unbury(entry, db);
           if (entry.kind === "create") {
+            // The queued create given up: its worklog goes, and the log says so (written after the commit, below).
+            discarded.worklog = { issueKey: entry.issueKey, connectionId: entry.connectionId, seconds: entry.timeSpentSeconds };
             await db
               .delete(worklogs)
               .where(
@@ -122,6 +126,8 @@ export const outboxRouter = createRouter({
           }
           return { ok: true };
           });
+          if (discarded.worklog) await record(ctx, "worklog.delete", { target: { type: "worklog", id: filed?.id ?? null, ownerUserId: ctx.user.id }, before: discarded.worklog });
+          return done;
         } finally {
           // Kept (being sent, or no longer queued): its held deletes go; gone, they are due.
           if (filed) await dropHeldSinkDeletes(filed.id);

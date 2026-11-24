@@ -16,6 +16,7 @@ import { confirmJiraLogin, jiraLoginInput } from "../lib/jiraLogin";
 import { consumeInvite, forgetInitialAdminPassword, inviteUser, permissionsOf, roleOf, signOutEverywhere, userByUsername } from "../queries/accounts";
 import { DEFAULT_ADMIN, PASSWORD_MIN_LENGTH, USERNAME_RE } from "@contracts/accounts";
 import { t } from "@contracts/i18n";
+import { record, recordSignIn } from "../lib/audit";
 
 export { normalizeSiteUrl };
 
@@ -133,11 +134,12 @@ async function rememberedUser(req: Request): Promise<{ id: string; user: User } 
   return row ? { id, user: row.user } : null;
 }
 
-/** Signed in on this device: a session, and the device remembered for next time. */
-async function signIn(ctx: Ctx, user: User) {
+/** Signed in on this device: a session, and the device remembered for next time (and the sign-in recorded). */
+async function signIn(ctx: Ctx, user: User, method: "password" | "invite" | "activation") {
   await startSession(ctx, user.id);
   const previous = await rememberedUser(ctx.req);
   await rememberDevice(ctx, user.id, previous?.id);
+  await recordSignIn(ctx, { ok: true, user, method });
   return publicUser(user);
 }
 
@@ -152,11 +154,16 @@ export const authRouter = createRouter({
       // A missing account costs the same time as a wrong password.
       const ok = await verifyPassword(input.password, user?.passwordHash ?? (await decoyHash()));
       if (!user?.passwordHash || !ok) {
+        // An unknown name is not kept: it may be a password typed in the wrong field.
+        await recordSignIn(ctx, { ok: false, method: "password", username: user ? key : "", reason: !user ? "unknownUser" : !user.passwordHash ? "noPassword" : "wrongPassword", userId: user?.id });
         throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.wrongPassword") });
       }
-      if (user.disabledAt) throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.disabled") });
+      if (user.disabledAt) {
+        await recordSignIn(ctx, { ok: false, method: "password", username: key, reason: "disabled", userId: user.id });
+        throw new TRPCError({ code: "FORBIDDEN", message: t("server.auth.disabled") });
+      }
       loginLimiter.reset(key);
-      return signIn(ctx, user);
+      return signIn(ctx, user, "password");
     }),
 
   /**
@@ -206,7 +213,7 @@ export const authRouter = createRouter({
       // The login just confirmed is the connection's credentials now.
       await storeSecret(found.connectionId, identity.secret);
       await getDb().update(connections).set({ status: "ok", archivedAt: null }).where(eq(connections.id, found.connectionId));
-      return signIn(ctx, activated);
+      return signIn(ctx, activated, "activation");
     }),
 
   /** Who an invite link is for (the page greets them and asks for a password). */
@@ -247,7 +254,7 @@ export const authRouter = createRouter({
         .returning();
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: t("server.auth.inviteInvalid") });
       await signOutEverywhere(user.id);
-      return signIn(ctx, user);
+      return signIn(ctx, user, "invite");
     }),
 
   /**
@@ -276,6 +283,7 @@ export const authRouter = createRouter({
       await startSession(ctx, user.id);
       await rememberDevice(ctx, user.id);
       if (user.username?.toLowerCase() === DEFAULT_ADMIN) forgetInitialAdminPassword();
+      await record({ ...ctx, user }, "auth.passwordChanged", { target: { type: "user", id: user.id, ownerUserId: user.id } });
       return publicUser(user);
     }),
 
@@ -295,7 +303,11 @@ export const authRouter = createRouter({
       forgetCookie(ctx);
       return new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInWithCredentials") });
     };
-    if (!found) throw refused();
+    if (!found) {
+      // A device that had a remember cookie the server no longer knows (or an account turned off).
+      if (readRememberCookie(ctx.req, parseCookies(ctx.req.headers.get("cookie")))) await recordSignIn(ctx, { ok: false, method: "remembered", username: "", reason: "unknownDevice" });
+      throw refused();
+    }
     // The token is taken in one step (two requests with it: one resumes), under the account's
     // row as signOutEverywhere locks it: a password change meanwhile ends what this starts.
     const outcome = await getDb().transaction(async (tx) => {
@@ -307,10 +319,14 @@ export const authRouter = createRouter({
       await rememberDevice(ctx, found.user.id, undefined, tx);
       return "resumed" as const;
     });
-    if (outcome === "off") throw refused();
+    if (outcome === "off") {
+      await recordSignIn(ctx, { ok: false, method: "remembered", username: found.user.username ?? "", reason: "disabled", userId: found.user.id });
+      throw refused();
+    }
     // Taken by another request of this device at the same moment (another tab): it set the new
     // token, so this answer leaves the cookie alone instead of deleting it after that one.
     if (outcome === "taken") throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.signInWithCredentials") });
+    await recordSignIn(ctx, { ok: true, user: found.user, method: "remembered" });
     return publicUser(found.user);
   }),
 
@@ -328,6 +344,7 @@ export const authRouter = createRouter({
   rename: protectedProcedure.input(renameInput).mutation(async ({ input, ctx }) => {
     const values = await renameValues(ctx.user.id, input);
     const [user] = await renameWrite(() => getDb().update(users).set(values).where(eq(users.id, ctx.user.id)).returning());
+    await record(ctx, "account.rename", { target: { type: "user", id: user.id, ownerUserId: user.id }, before: { username: ctx.user.username, displayName: ctx.user.displayName }, after: { username: user.username, displayName: user.displayName } });
     return publicUser(user);
   }),
 
@@ -338,6 +355,7 @@ export const authRouter = createRouter({
   logout: publicQuery.mutation(async ({ ctx }) => {
     if (ctx.sessionId) {
       await getDb().delete(sessions).where(eq(sessions.id, ctx.sessionId));
+      if (ctx.user) await record(ctx, "auth.signOut", { target: { type: "user", id: ctx.user.id, ownerUserId: ctx.user.id } });
     }
     for (const c of clearedSessionCookies(ctx.req)) ctx.resHeaders.append("Set-Cookie", c);
     return { ok: true };

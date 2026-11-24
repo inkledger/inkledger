@@ -29,6 +29,8 @@ import { copyUploadMaxBytes, purgeMailCopyReads, purgeOrphanMailCopies, register
 import { startGoneCheck } from "./mail/goneCheck";
 import { flushEgress, installEgressLog } from "./lib/egress";
 import { registerStoreRoutes } from "./store/routes";
+import { registerAuditRoutes } from "./auditExport";
+import { flushAudit, purgeAudit } from "./lib/audit";
 import { BUNDLE_MAX_BYTES, MODULES_PATH } from "@contracts/modules";
 import { isAllowedHost } from "./lib/security";
 import { loadTls } from "./lib/tls";
@@ -193,6 +195,7 @@ registerCopyRoutes(app);
 registerIdeaFileRoutes(app);
 registerEventRoutes(app);
 registerDeskChatRoutes(app);
+registerAuditRoutes(app);
 app.use("/api/trpc/*", async (c) => {
   if (procedurePath(c.req.path) === null) return c.json({ error: "Bad Request" }, 400);
   return fetchRequestHandler({
@@ -231,7 +234,7 @@ if (env.isProduction || env.serveBuild) {
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
   const purge = () =>
-    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace()]).catch((e: unknown) =>
+    void Promise.all([purgeExpiredSessions(), purgeExpiredAccess(), purgeDismissedNotifications(), purgeIdleModuleFiles(), purgeTrash(), purgeWebhookDeliveries(), purgeTimerOps(), purgeDecisions(), purgeIdeas(), purgeMailCopyReads(), purgeOrphanMailCopies(), purgeWorkspace(), purgeAudit()]).catch((e: unknown) =>
       console.warn(`[purge] ${String(e)}`),
     );
   const purging = env.isProduction ? setInterval(purge, 6 * 3600 * 1000) : undefined;
@@ -290,6 +293,7 @@ if (env.isProduction || env.serveBuild) {
       settleInFlightSyncs(5_000),
     ]);
     await flushEgress().catch(() => undefined);
+    await flushAudit().catch(() => undefined);
     await closeDb();
     process.exit(0);
   };
