@@ -329,10 +329,10 @@ test("the pinboard counts what it shows: the tracker chosen on the board narrows
       }, pinBoard);
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(base + "/board");
-      await page.getByRole("button", { name: "Open the pinboard (3 notes)" }).waitFor();
+      await page.getByRole("button", { name: "Open 3 Pinboard notes" }).waitFor();
       await page.getByRole("button", { name: /^Board shows/ }).click();
       await page.getByRole("menuitemradio", { name: "Side projects" }).click();
-      const rail = page.getByRole("button", { name: "Open the pinboard (2 notes)" });
+      const rail = page.getByRole("button", { name: "Open 2 Pinboard notes" });
       await rail.waitFor();
       await rail.click();
       // The free note and the GitHub issue; Jira's is off the board with its tracker.

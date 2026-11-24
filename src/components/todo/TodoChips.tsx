@@ -95,7 +95,7 @@ export function DayChip({
           aria-label={
             dueOn
               ? t("views.todos.plannedFor", { day: dayLabel(dueOn, today) })
-              : t("views.todos.plan")
+              : t("views.todos.planNoDay")
           }
           className={cn(chip, late ? "bg-danger-soft text-danger" : quiet)}
         >

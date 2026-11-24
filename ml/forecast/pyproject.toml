@@ -2,7 +2,7 @@
 name = "inkledger-forecast"
 version = "1.0.0"
 description = "Forecast sidecar for inkledger: Timestral behind a small HTTP API"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.15,<3.16"
 dependencies = [
     "fastapi",
     "numpy",
@@ -20,7 +20,7 @@ dev = [
 [tool.uv]
 package = false
 # Only releases at least two weeks old when the lock was made (supply chain).
-exclude-newer = "2026-10-16T00:00:00Z"
+exclude-newer = "2026-11-10T00:00:00Z"
 # This Mac and the image (linux, either architecture).
 environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'", "sys_platform == 'linux'"]
 
