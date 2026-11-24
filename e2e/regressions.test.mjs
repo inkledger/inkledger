@@ -346,7 +346,7 @@ test("Settings → Pinboard: each place on or off, alone", () =>
     await page.waitForTimeout(300);
     await page.goto(base + "/issues");
     await page.getByRole("heading", { name: "Issues" }).first().waitFor();
-    assert.equal(await page.getByRole("button", { name: "Open the pinboard" }).count(), 0);
+    await page.getByRole("button", { name: "Open the pinboard" }).waitFor({ state: "detached" });
     await page.keyboard.press("p");
     await page.waitForTimeout(300);
     assert.equal(await page.getByRole("region", { name: /pinboard/i }).count(), 0);
