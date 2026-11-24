@@ -273,9 +273,14 @@ export async function start({ seed, viewport, env: extraEnv, userAgent, bare = f
     });
     if (!bare) await context.addCookies([{ name: `ikl_session_${port}`, value: cookie, url: base }]);
     const page = await context.newPage();
-    // A page drawn by the server is live only once React has taken it over (its SSR state node goes then):
-    // acting before that clicks on markup with no handlers yet, which a slower machine (CI) shows at random.
-    const live = () => page.waitForFunction(() => !document.getElementById("inkledger-ssr-state"), null, { timeout: 30_000 }).catch(() => {});
+    // A page drawn by the server is live only once React has taken it over (App marks <html data-live>
+    // after its first commit; the SSR state node goes earlier, before hydration starts): acting before that
+    // clicks on markup with no handlers yet, which a slower machine (CI) shows at random. A page that is not
+    // the app (no #root) is live as it loads; one whose app never starts is the test's to find out.
+    const live = () =>
+      page
+        .waitForFunction(() => !document.getElementById("inkledger-ssr-state") && (document.documentElement.hasAttribute("data-live") || !document.getElementById("root")), null, { timeout: 15_000 })
+        .catch(() => {});
     for (const name of ["goto", "reload"]) {
       const original = page[name].bind(page);
       page[name] = async (...args) => {
