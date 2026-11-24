@@ -14,6 +14,8 @@ import {
 } from "@/components/notifications/NotificationItem";
 import { Button } from "@/components/ui/button";
 import { TodoReminders } from "@/components/todo/TodoReminders";
+import { AlertList } from "@/components/notifications/AlertList";
+import { useAlerts } from "@/components/notifications/alerts";
 import { useTodoReminders } from "@/hooks/useTodoReminders";
 import { t } from "@/i18n";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +42,7 @@ export function NotificationCenterBody({ kind, setKind }: { kind: string; setKin
   const shownKind = kind === "all" || kinds.includes(kind) ? kind : "all";
   const items = shownKind === "all" ? all : all.filter(n => n.kind === shownKind);
   const reminders = useTodoReminders().items.length;
+  const alerts = useAlerts().data?.length ?? 0;
   const close = () => notificationCenter.set(false);
 
   return (
@@ -72,7 +75,7 @@ export function NotificationCenterBody({ kind, setKind }: { kind: string; setKin
             message={errorText(query.error)}
             onRetry={() => void query.refetch()}
           />
-        ) : items.length === 0 && reminders === 0 ? (
+        ) : items.length === 0 && reminders === 0 && alerts === 0 ? (
           <EmptyState
             icon={BellOff}
             title={t("settings.notifications.emptyTitle")}
@@ -80,7 +83,8 @@ export function NotificationCenterBody({ kind, setKind }: { kind: string; setKin
           />
         ) : (
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-            {/* Today's TODOs first: what the user planned comes before what happened. */}
+            {/* What stopped working first (a connection, a backup), then today's TODOs: what the user planned comes before what happened. */}
+            <AlertList onOpen={close} />
             <TodoReminders onOpen={close} />
             {kinds.length > 1 && (
               <SegmentedControl

@@ -5,6 +5,10 @@ type Rec1 = ({ alt?: string | undefined; name?: string | undefined; t: "image"; 
 type Rec2 = ({ c: Rec2; t: "em" } | { c: Rec2; t: "link"; url: string } | { c: Rec2; t: "strike" } | { c: Rec2; t: "strong" } | { id?: string | undefined; name: string; t: "mention" } | { name: string; t: "attachment" } | { t: "br" } | { t: "code"; v: string } | { t: "emoji"; v: string } | { t: "text"; v: string })[];
 
 export interface FrozenIn {
+  "alerts.setWebhook": null | { format: "json" | "slack" | "teams"; url: string };
+  "alerts.summary": void;
+  "alerts.test": void;
+  "alerts.webhook": void;
   "auth.acceptInvite": { password: string; token: string };
   "auth.activate": { authType?: "basic" | "bearer" | undefined; deployment?: "cloud" | "server" | undefined; newPassword: string; newUsername: string; secret: string; siteUrl: string; username: string };
   "auth.changePassword": { current: string; next: string };
@@ -221,6 +225,7 @@ export interface FrozenIn {
   "notes.tree": void;
   "notes.updateContent": { body: string; expectedRevision: number; id: string; title: string };
   "notes.versions": { id: string };
+  "notifications.alerts": void;
   "notifications.count": void;
   "notifications.createTest": { issueKey?: string | undefined; kind: "assigned" | "changed" | "commented" | "due" | "mentioned" | "priority" | "review" | "status" | "unassigned" | "watch_added" | "watch_removed" };
   "notifications.dismiss": { id: number };
@@ -361,6 +366,10 @@ export interface FrozenIn {
 }
 
 export interface FrozenOut {
+  "alerts.setWebhook": { secret: null | string; webhook: null | { format: "json" | "slack" | "teams"; host: string } };
+  "alerts.summary": { alerts: { connectionId: null | number; count: null | number; key: string; kind: "auth_failed" | "backup" | "certificate" | "failures" | "licence" | "unreachable" | "unreadable"; name: string; notifiedAt: number; since: number }[]; cooldownMin: number; failuresThreshold: number };
+  "alerts.test": { ok: true };
+  "alerts.webhook": null | { format: "json" | "slack" | "teams"; host: string };
   "auth.acceptInvite": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.activate": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
   "auth.changePassword": { avatarUrl: null | string; displayName: string; email: string; id: number; mustChangePassword: boolean; permissions: ("manageBackups" | "manageServer" | "manageStore" | "manageUsers" | "useModules" | "viewTeamTime")[]; role: "admin" | "member"; username: null | string };
@@ -577,6 +586,7 @@ export interface FrozenOut {
   "notes.tree": { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }[];
   "notes.updateContent": { current: { ai: null | { body: string; createdAt: Date | null; doc: { blocks: Rec1; v: 1 }; stale: boolean }; body: string; doc: { blocks: Rec1; v: 1 } } & { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }; status: "conflict" } | { note: { ai: null | { body: string; createdAt: Date | null; doc: { blocks: Rec1; v: 1 }; stale: boolean }; body: string; doc: { blocks: Rec1; v: 1 } } & { connectionId: null | number; contentRevision: number; createdAt: Date; hasAi: boolean; hasText: boolean; id: string; issueKey: null | string; kind: "folder" | "note"; notedOn: null | string; parentId: null | string; position: number; title: string; updatedAt: Date }; status: "updated" };
   "notes.versions": { contentRevision: number; createdAt: Date; id: string; noteId: string; origin: string; preview: string; title: string }[];
+  "notifications.alerts": { alert: "auth_failed" | "backup" | "certificate" | "failures" | "licence" | "unreachable" | "unreadable"; connectionId: null | number; count: null | number; createdAt: Date; id: number; name: string }[];
   "notifications.count": { count: number; latestId: null | number };
   "notifications.createTest": { issueKey: string };
   "notifications.dismiss": { dismissed: number };

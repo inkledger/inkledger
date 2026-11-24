@@ -1,5 +1,21 @@
 [
   {
+    "path": "alerts.setWebhook",
+    "type": "mutation"
+  },
+  {
+    "path": "alerts.summary",
+    "type": "query"
+  },
+  {
+    "path": "alerts.test",
+    "type": "mutation"
+  },
+  {
+    "path": "alerts.webhook",
+    "type": "query"
+  },
+  {
     "path": "auth.acceptInvite",
     "type": "mutation"
   },
@@ -861,6 +877,10 @@
   },
   {
     "path": "notes.versions",
+    "type": "query"
+  },
+  {
+    "path": "notifications.alerts",
     "type": "query"
   },
   {
