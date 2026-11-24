@@ -21,6 +21,8 @@ const server = spawn(process.execPath, ["dist/boot.js"], {
     NODE_ENV: "production",
     PORT: String(port),
     DATABASE_URL: `pglite:${join(dir, "pg")}`,
+    // The audit log's file copy (on in production): this run's own folder.
+    AUDIT_DIR: join(dir, "audit"),
     SESSION_SECRET: randomBytes(32).toString("hex"),
     // Never write to a real tracker, and no background sync during the check.
     PROVIDERS_READ_ONLY: "1",
