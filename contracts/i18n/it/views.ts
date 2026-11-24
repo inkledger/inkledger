@@ -1,7 +1,7 @@
 import type { Shape } from "../core";
-import type { views as en } from "../en/views";
+import type { en } from "../en";
 
-export const views: Shape<typeof en> = {
+export const views: Shape<(typeof en)["views"]> = {
   dashboard: {
     bars: {
       tableCaption: "Ore per giorno",

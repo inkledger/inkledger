@@ -2,6 +2,7 @@ import { ObservedPage } from "@/lib/workspace/ObservedPage";
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { t, useLocale } from "@/i18n";
+import { englishReady } from "@contracts/i18n";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { AppLayout } from "@/components/AppLayout";
@@ -12,26 +13,30 @@ import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { PageSpinner } from "@/components/app/States";
 import { firstPage } from "@/lib/firstPage";
 
+// Pages other than the first ones (login, the Dashboard day: rendered on the server too) come with the
+// rest of English, which the first load leaves out (contracts/i18n/client.ts) and fetches at start.
+const withEnglish = <T,>(page: Promise<T>): Promise<T> => Promise.all([page, englishReady()]).then(([m]) => m);
+
 const load = {
   login: () => import("@/pages/Login"),
-  issue: () => import("@/pages/IssueRoute"),
-  invite: () => import("@/pages/Invite"),
-  changePassword: () => import("@/pages/ChangePassword"),
+  issue: () => withEnglish(import("@/pages/IssueRoute")),
+  invite: () => withEnglish(import("@/pages/Invite")),
+  changePassword: () => withEnglish(import("@/pages/ChangePassword")),
   dashboard: () => import("@/pages/Dashboard"),
-  issues: () => import("@/pages/Issues"),
-  desk: () => import("@/pages/DeskPage"),
-  timesheet: () => import("@/pages/Timesheet"),
-  board: () => import("@/pages/Board"),
-  pinboard: () => import("@/pages/PinboardPage"),
-  todos: () => import("@/pages/TodosPage"),
-  ideas: () => import("@/pages/IdeasPage"),
-  notes: () => import("@/pages/NotesPage"),
-  reports: () => import("@/pages/Reports"),
-  team: () => import("@/pages/Team"),
-  settings: () => import("@/pages/Settings"),
-  notFound: () => import("@/pages/NotFound"),
-  info: () => import("@/pages/Info"),
-  install: () => import("@/pages/Install"),
+  issues: () => withEnglish(import("@/pages/Issues")),
+  desk: () => withEnglish(import("@/pages/DeskPage")),
+  timesheet: () => withEnglish(import("@/pages/Timesheet")),
+  board: () => withEnglish(import("@/pages/Board")),
+  pinboard: () => withEnglish(import("@/pages/PinboardPage")),
+  todos: () => withEnglish(import("@/pages/TodosPage")),
+  ideas: () => withEnglish(import("@/pages/IdeasPage")),
+  notes: () => withEnglish(import("@/pages/NotesPage")),
+  reports: () => withEnglish(import("@/pages/Reports")),
+  team: () => withEnglish(import("@/pages/Team")),
+  settings: () => withEnglish(import("@/pages/Settings")),
+  notFound: () => withEnglish(import("@/pages/NotFound")),
+  info: () => withEnglish(import("@/pages/Info")),
+  install: () => withEnglish(import("@/pages/Install")),
 };
 
 // The page asked for starts downloading at once, beside the session check (not after it): its

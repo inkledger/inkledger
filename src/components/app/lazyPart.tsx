@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useState, type ComponentType, type ReactNode
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { t } from "@/i18n";
+import { englishReady } from "@contracts/i18n";
 
 const partFailures = new WeakSet<object>();
 
@@ -69,8 +70,9 @@ export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>
   // Its code once here: drawn as is. React.lazy suspends on its first render however long
   // the code has been here, and then holds the content back ~300 ms after the fallback.
   let loaded: ComponentType<P> | undefined;
+  // With the rest of English (a part may say a settings' or a server's text): fetched at start already.
   const fetchOnce = () =>
-    (pending ??= load().then(
+    (pending ??= Promise.all([load(), englishReady()]).then(([c]) => c).then(
       c => ((loaded = c), { default: c }),
       (e: unknown) => {
         claimPartFailure(e);

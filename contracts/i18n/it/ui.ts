@@ -1,7 +1,7 @@
 import type { Shape } from "../core";
-import type { ui as en } from "../en/ui";
+import type { en } from "../en";
 
-export const ui: Shape<typeof en> = {
+export const ui: Shape<(typeof en)["ui"]> = {
   nav: {
     backTo: "Torna a {label} ({keys})",
     main: "Principale",

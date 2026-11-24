@@ -2,11 +2,18 @@
 // instead (vite.config.ts), which loads a language when it is chosen.
 import type { Locale } from "./core";
 import { hasDictionary, registerDictionary } from "./base";
+import { en } from "./en";
 import { it } from "./it";
 
 export * from "./base";
 
+registerDictionary("en", en);
 registerDictionary("it", it);
+
+/** Here all of English is loaded already (the page's build fetches its rest: client.ts). */
+export function englishReady(): Promise<void> {
+  return Promise.resolve();
+}
 
 /** Here every language is loaded already. */
 export async function loadLocale(locale: Locale): Promise<void> {
