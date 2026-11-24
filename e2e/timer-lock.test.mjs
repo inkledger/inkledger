@@ -77,7 +77,8 @@ test("the palette pauses, resumes and stops the running timer (keyboard only)", 
     await page.getByRole("link", { name: "Board" }).first().waitFor();
     const run = async name => {
       await page.keyboard.press("ControlOrMeta+k");
-      const box = page.getByRole("combobox");
+      // The palette's own field: the Issues page has a combobox too (its sort order).
+      const box = page.getByRole("dialog", { name: "Search" }).getByRole("combobox");
       await box.waitFor();
       await box.fill(name.split(" ")[0]);
       await page.getByRole("option", { name }).click();
