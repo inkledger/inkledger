@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Search, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -50,15 +51,25 @@ function TagChip({ field, value }: { field: Field; value: string }) {
     pinboardBoard.set(id);
     if (canShowPinboard()) showPinboard();
   };
+  // One board per tag: a second pick while the first is being made waits for it, never makes another.
+  const creating = useRef(false);
   const follow = () => {
     if (following) return open(following.id);
-    void utils.client.pinboard.createBoard.mutate({ name: value.slice(0, 60), follow: { field, value } }).then(({ id }) => {
-      pinboardBoard.set(id);
-      void utils.pinboard.invalidate();
-      toast.success(t("views.board.pinboard.created", { name: value }), {
-        action: canShowPinboard() ? { label: t("ui.pin.open"), onClick: () => open(id) } : undefined,
+    if (creating.current) return;
+    creating.current = true;
+    void utils.client.pinboard.createBoard
+      .mutate({ name: value.slice(0, 60), follow: { field, value } })
+      .then(async ({ id }) => {
+        pinboardBoard.set(id);
+        // The menu says "Open" as soon as it is told the board exists.
+        await utils.pinboard.invalidate();
+        toast.success(t("views.board.pinboard.created", { name: value }), {
+          action: canShowPinboard() ? { label: t("ui.pin.open"), onClick: () => open(id) } : undefined,
+        });
+      }, toastError)
+      .finally(() => {
+        creating.current = false;
       });
-    }, toastError);
   };
   const search = () => {
     const raw = `${field}:${JSON.stringify(value)}`;
