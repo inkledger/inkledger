@@ -1,5 +1,5 @@
 import type { Tree } from "../core";
-import { pinboard } from "./serverShell";
+import { pinboard, placement, workSchedule } from "./serverShell";
 
 export const server = {
   maintenance: "The server is restoring a backup: try again in a minute.",
@@ -181,15 +181,7 @@ export const server = {
     travelIssueRequired: "Link this travel plan to an issue before converting it.",
     noFuture: "This tracker doesn't accept worklogs starting in the future.",
   },
-  workSchedule: {
-    invalidDate: "Invalid date",
-    weekClosed: "The week of {week} is closed: pick a later date or reopen it.",
-    firstCannotDelete: "The first schedule can't be deleted",
-    invalidTime: "Invalid time (HH:MM)",
-    endAfterStart: "The end must be after the start",
-    invalidBreak: "Invalid break",
-    breaksOrder: "Breaks must fall within working hours, in order and without overlapping",
-  },
+  workSchedule,
   issueNotes: {
     notFound: "Note not found",
     empty: "Write something first.",
@@ -345,13 +337,7 @@ export const server = {
     splitNotTimer: "Shares of time together only apply to a timer's log.",
     overlapHint: "{message}: move or shorten one of the two worklogs.",
   },
-  placement: {
-    overlaps: "Overlaps {list}",
-    invalidDuration: "Invalid duration",
-    noRoomBeforeStop: "No free space of this length before the stop",
-    noRoomBeforeNow: "No free space of this length before now",
-    dayFull: "The day has no room after the last worklog",
-  },
+  placement,
   issues: {
     cannotManage: "{provider} can't do this from here yet.",
     syncBusy: "A sync of this connection is already running on another server process: try again in a minute.",

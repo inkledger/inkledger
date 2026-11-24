@@ -22,3 +22,21 @@ export const pinboard = {
   boardFull: "The board is full.",
   nameRequired: "Give the board a name",
 } satisfies Tree;
+
+export const placement = {
+  overlaps: "Overlaps {list}",
+  invalidDuration: "Invalid duration",
+  noRoomBeforeStop: "No free space of this length before the stop",
+  noRoomBeforeNow: "No free space of this length before now",
+  dayFull: "The day has no room after the last worklog",
+} satisfies Tree;
+
+export const workSchedule = {
+  invalidDate: "Invalid date",
+  weekClosed: "The week of {week} is closed: pick a later date or reopen it.",
+  firstCannotDelete: "The first schedule can't be deleted",
+  invalidTime: "Invalid time (HH:MM)",
+  endAfterStart: "The end must be after the start",
+  invalidBreak: "Invalid break",
+  breaksOrder: "Breaks must fall within working hours, in order and without overlapping",
+} satisfies Tree;
