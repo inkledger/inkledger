@@ -133,6 +133,15 @@ From now on the Docker database is the only live copy. Development uses its own 
 | `TRUST_PROXY` | off | Client IP from `X-Forwarded-For` behind a TLS proxy: `1` for one on this machine or the private network, or the proxies' addresses |
 | `COOKIE_SECURE` | auto | Force `Secure` cookies behind a proxy without `X-Forwarded-Proto` |
 | `BACKUP_DIR` | Docker: `/backups` | Where scheduled backups are written |
+| `METRICS_TOKEN` | unset | Turns on `GET /api/metrics` (Prometheus), for requests with `Authorization: Bearer <token>`; unset, the route answers 404 |
+| `READY_MIN_FREE_MB` | `1024` | Free space under `BACKUP_DIR` below which `/api/ready` fails |
+| `ALERT_FAILURES` | `5` | Failed syncs in a row of one connection that raise an alert |
+| `ALERT_COOLDOWN_MIN` | `360` | The same alert (one connection, the backup, one licence, the certificate) is not repeated within this many minutes |
+| `RATE_LIMIT` | on | `off` turns the global request limits off (sign-in and shared-link limits stay) |
+| `RATE_LIMIT_USER` / `RATE_LIMIT_IP` | `1200` / `6000` | API calls per signed-in account / per client address per window |
+| `RATE_LIMIT_WINDOW_SEC` | `60` | The window of the global limits |
+| `RATE_LIMIT_SSO` / `RATE_LIMIT_SCIM` / `RATE_LIMIT_EXPORT` | `30` / `600` / `10` | Single sign-on starts and callbacks per address, SCIM calls per token, exports per account, per window |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/HTTP collector for request traces (e.g. `http://otel-collector:4318`); also `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME` |
 | `TZ` | system | Time zone for days and weeks (Docker inherits the host's) |
 
 ### Connecting GitHub
@@ -168,6 +177,22 @@ The native app is a thin Tauri shell around your server: menu bar and tray timer
 
 From **Settings → Devices** you can add a phone or another computer. Use Tailscale (HTTPS on your tailnet, published on the same port the server uses locally) or the local Wi-Fi: the app creates a local certificate authority, and the phone installs it once from a QR code. Android downloads the APK from `/install`; on iPhone, inkledger installs as a web app. Details are in [native.md](native.md).
 
+## Monitoring and alerts
+
+- **`GET /api/health`** is liveness: the database answers. The Docker health check and `pnpm docker:update` use it.
+- **`GET /api/ready`** says whether the server can do its work: the database, migrations applied, free space under `BACKUP_DIR`, the age of the last good backup against its schedule (one missed run is tolerated), the background sync alive. JSON with one entry per check (`ok`, `failed`, or `skipped` when the feature is off); `503` when any check failed. It carries booleans and ages only.
+- **`GET /api/metrics`** (Prometheus text) is off until `METRICS_TOKEN` is set. Requests by route template and status, latency histogram, database pool, sync passes and failures by provider type, connections by status, outbox depth, last good backup, refused sign-ins, rate-limit refusals, open live-event streams, plus Node's process metrics. Labels never carry a path, a URL or a user. The scraper's `Host` must be in `ALLOWED_HOSTS` (a request addressed to another name gets 421).
+- Examples for Prometheus (scrape and alert rules) and a Grafana dashboard are in [`deploy/monitoring/`](../deploy/monitoring/).
+- **Tracing** is optional: with `OTEL_EXPORTER_OTLP_ENDPOINT`, one span per request (method, route template, status) goes to that collector over OTLP/HTTP. The address is checked like a tracker's (never this server's neighbours or metadata addresses), so a collector on `localhost` is refused: run it as its own service.
+
+**Alerts.** A connection that stops working (credentials refused or unreadable, out of reach, or `ALERT_FAILURES` failed syncs in a row), a failed backup, a licence that could not be renewed, and an HTTPS certificate within 30 days of its end raise an alert where it happens, with no polling of their own (the certificate is looked at after sync passes, at most daily). Each subject is told once per `ALERT_COOLDOWN_MIN`:
+
+1. in the app: the connection's owner, or for the server's own alerts every account with *Server settings*;
+2. in Settings → Network, the alerts firing now;
+3. optionally, a webhook set in Settings → Network (Slack or Mattermost `text`, a Microsoft Teams workflow's Adaptive Card, or plain JSON). Every post carries `X-Inkledger-Timestamp` and `X-Inkledger-Signature: sha256=<HMAC-SHA256 of "<timestamp>.<body>">` with the secret shown once when the URL is saved. The URL is checked when saved and again before each post (no loopback, link-local or metadata addresses, no redirect to another site) and stored sealed like tracker credentials. A read-only server (`PROVIDERS_READ_ONLY`) sends none.
+
+**Rate limits.** Every API call counts against generous per-account and per-address limits (`RATE_LIMIT_*`), beside the stricter sign-in and shared-link limits; a refused call gets `429` with `Retry-After` and is counted in `inkledger_rate_limited_total`. Behind a proxy, set `TRUST_PROXY`, or every client shares the proxy's address. The limits are counted in memory, per process: run **a single replica** per database.
+
 ## Security and privacy
 
 - Self-hosted, **no telemetry**. Outbound calls go to the trackers you connect, to the module
@@ -178,7 +203,7 @@ From **Settings → Devices** you can add a phone or another computer. Use Tails
 - Trackers not verified on a real account only read until you allow writes; `PROVIDERS_READ_ONLY=1` refuses every write.
 - `HttpOnly` / `SameSite=Lax` cookies (`Secure` over HTTPS), session ids stored as hashes, `Origin` check on writes, rate-limited sign-in.
 - Remembered devices hold only a rotating token. The remembered token is rotated on every use.
-- Tracker URL guard (no loopback or link-local), host allowlists, security headers, body limits.
+- Tracker URL guard (no loopback or link-local), host allowlists, security headers, body limits, global per-account and per-address rate limits.
 
 ## Architecture
 
