@@ -31,6 +31,7 @@ import { sinksRouter } from "./routers/sinks";
 import { notesRouter } from "./routers/notes";
 import { mailsRouter } from "./routers/mails";
 import { egressRouter } from "./routers/egress";
+import { alertsRouter } from "./routers/alerts";
 import { plannedRouter } from "./routers/planned";
 import { projectPathsRouter } from "./routers/projectPaths";
 import { workspaceRouter } from "./routers/workspace";
@@ -72,6 +73,7 @@ export const appRouter = createRouter({
   notes: notesRouter,
   mails: mailsRouter,
   egress: egressRouter,
+  alerts: alertsRouter,
   planned: plannedRouter,
   projectPaths: projectPathsRouter,
   workspace: workspaceRouter,

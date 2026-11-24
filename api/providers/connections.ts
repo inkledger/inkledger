@@ -2,7 +2,7 @@
 // come), and the credentials each one opens. Everything that talks to a
 // tracker gets its credentials here, never from the user row.
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { connections, issues, type Connection, type User } from "@db/schema";
 import type { JiraCredentials } from "@contracts/types";
 import type { TrackerType } from "@contracts/providers";
@@ -13,6 +13,7 @@ import { originate } from "./core/origin";
 import { getDb } from "../queries/connection";
 import { openSecret, sealSecret } from "../lib/crypto";
 import { singleFlight } from "../lib/locks";
+import { connectionAlert } from "../ops/alerts";
 import { UnreadableCredentialsError } from "../middleware";
 import { t } from "@contracts/i18n";
 import {
@@ -430,14 +431,29 @@ export async function markConnection(
   connectionId: number,
   status: SyncState
 ): Promise<string | null> {
+  const where = and(eq(connections.id, connectionId), eq(connections.userId, userId));
+  const changing = await changingTo(where, status);
   const [row] = await getDb()
     .update(connections)
     .set({ status })
-    .where(
-      and(eq(connections.id, connectionId), eq(connections.userId, userId))
-    )
+    .where(where)
     .returning({ type: connections.type });
+  await alertChanged(changing, status);
   return row?.type ?? null;
+}
+
+/** The connections `where` names that `status` would change: an alert is told on a change, never again on the same state. */
+async function changingTo(where: SQL | undefined, status: SyncState) {
+  if (status === "ok") return [];
+  return getDb()
+    .select({ id: connections.id, userId: connections.userId, type: connections.type, label: connections.label })
+    .from(connections)
+    .where(and(where, ne(connections.status, status)));
+}
+
+async function alertChanged(changed: Awaited<ReturnType<typeof changingTo>>, status: SyncState) {
+  if (status === "ok") return;
+  for (const conn of changed) await connectionAlert(conn, status);
 }
 
 /**
@@ -450,14 +466,15 @@ export async function markJiraConnection(
   userId: number,
   status: SyncState
 ) {
+  const where = and(
+    eq(connections.userId, userId),
+    eq(connections.type, "jira"),
+    isNull(connections.archivedAt)
+  );
+  const changing = await changingTo(where, status);
   await getDb()
     .update(connections)
     .set({ status })
-    .where(
-      and(
-        eq(connections.userId, userId),
-        eq(connections.type, "jira"),
-        isNull(connections.archivedAt)
-      )
-    );
+    .where(where);
+  await alertChanged(changing, status);
 }

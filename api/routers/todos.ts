@@ -520,7 +520,7 @@ export const todosRouter = createRouter({
       if (!known || known.at < s.at) out.set(issue, s);
     };
     for (const { n, summary, status, category } of notes) {
-      if (isClosed(category)) continue;
+      if (isClosed(category) || n.connectionId === null) continue;
       const kind = NOTE_SUGGESTION[n.kind] ?? "news";
       offer({ source: `n:${n.dedupe}`, kind, issueKey: n.issueKey, connectionId: n.connectionId, summary, status, at: n.createdAt });
     }

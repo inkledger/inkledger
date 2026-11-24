@@ -10,6 +10,7 @@ import { resetServerHostsCache } from "./lib/serverHosts";
 import { getDb, migrateDb, newestMigration } from "./queries/connection";
 import { enterMaintenance, leaveMaintenance } from "./lib/maintenance";
 import { t } from "@contracts/i18n";
+import { backupFailed, backupSucceeded } from "./ops/alerts";
 
 /**
  * Database backups (pg_dump, custom format) into a folder outside the
@@ -235,12 +236,14 @@ export function runBackup(): Promise<string> {
       for (const old of toPrune(fs.readdirSync(dir), keep, restoring)) fs.rmSync(path.join(dir, old), { force: true });
       const state = await getBackupState();
       await setServerSetting(STATE_KEY, { ...state, lastOkAt: Date.now() });
+      await backupSucceeded();
       return name;
     } catch (e) {
       fs.rmSync(tmp, { force: true });
       const msg = e instanceof Error ? e.message : String(e);
       const state = await getBackupState();
       await setServerSetting(STATE_KEY, { ...state, lastError: msg.slice(0, 500), lastErrorAt: Date.now() });
+      await backupFailed();
       throw e;
     }
   })().finally(() => {
@@ -388,6 +391,9 @@ export function reschedule() {
       arm(RESCHEDULE_RETRY_MS, reschedule);
     });
 }
+
+/** This process runs the backup schedule (the container), for /api/ready. */
+export const backupSchedulerOn = () => enabled;
 
 /** The container runs the schedule (the dev server shares the database: never twice). */
 export function startBackupScheduler() {

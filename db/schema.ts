@@ -1397,11 +1397,12 @@ export const notifications = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    connectionId: connectionRef(),
+    /** Null only for a server alert (kind "alert": a backup, a licence, the certificate), which is about no tracker */
+    connectionId: optionalConnectionRef(),
     itemId: itemRef(),
     kind: text("kind").notNull(),
     issueKey: text("issue_key").notNull(),
-    /** Kind-specific detail: priority name, due date "YYYY-MM-DD", or "" */
+    /** Kind-specific detail: priority name, due date "YYYY-MM-DD", an alert's JSON, or "" */
     detail: text("detail").notNull().default(""),
     dedupe: text("dedupe").notNull(),
     createdAt: ms("created_at")

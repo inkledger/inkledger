@@ -18,6 +18,18 @@ import { addDays, dayKey } from "@contracts/time";
 import { issueKeyInput } from "../lib/inputs";
 import { issueConnection } from "../providers/connections";
 import type { IssueActivity } from "../jira/client";
+import { ALERT_KINDS, type AlertKind } from "../ops/alerts";
+
+/** An alert notification's detail (JSON), or null when unreadable. */
+function alertDetail(raw: string): { alert: AlertKind; name: string; count: number | null } | null {
+  try {
+    const d = JSON.parse(raw) as { kind?: unknown; name?: unknown; count?: unknown };
+    if (typeof d.kind !== "string" || !(ALERT_KINDS as readonly string[]).includes(d.kind)) return null;
+    return { alert: d.kind as AlertKind, name: typeof d.name === "string" ? d.name : "", count: typeof d.count === "number" ? d.count : null };
+  } catch {
+    return null;
+  }
+}
 
 /** What the sync compares before / after to raise notifications. */
 export type IssueSnapshotRow = {
@@ -220,9 +232,27 @@ export const notificationsRouter = createRouter({
       .where(and(visible(ctx.user.id), await notificationsInBucket(ctx.user.id, ctx.deviceId)))
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(50);
-    return rows.flatMap(({ kind, ...r }) =>
-      isNotificationKind(kind) ? [{ ...r, kind }] : [],
+    return rows.flatMap(({ kind, connectionId, ...r }) =>
+      isNotificationKind(kind) && connectionId !== null ? [{ ...r, connectionId, kind }] : [],
     );
+  }),
+
+  /**
+   * Alerts for this account, undismissed, newest first: its connections that stopped
+   * working, and for those who run the server, a failed backup, a licence not renewed,
+   * the certificate (ops/alerts.ts). Apart from `list`, which stays about issues.
+   */
+  alerts: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await getDb()
+      .select({ id: notifications.id, connectionId: notifications.connectionId, detail: notifications.detail, createdAt: notifications.createdAt })
+      .from(notifications)
+      .where(and(undismissed(ctx.user.id), eq(notifications.kind, "alert"), notificationOnLiveConnection))
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .limit(20);
+    return rows.flatMap(({ detail, ...r }) => {
+      const parsed = alertDetail(detail);
+      return parsed ? [{ ...r, ...parsed }] : [];
+    });
   }),
 
   /** Undismissed count and newest id (the client notices new ones by id). */

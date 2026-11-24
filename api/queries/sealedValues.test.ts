@@ -38,6 +38,9 @@ async function seed() {
   await q("INSERT INTO ideas (id, user_id, title, created_at, updated_at) VALUES (20, 1, 'i', 0, 0)");
   await q("INSERT INTO idea_files (id, user_id, idea_id, name, content_type, size, data, created_at) VALUES (30, 1, 20, 'p.png', 'image/png', 3, ?, 0)",
     sealedBytes(keys.SESSION, Buffer.from("png"), "idea-file:1:30"));
+  // The alert webhook: its URL and signing secret, sealed together.
+  await q("INSERT INTO server_settings (key, value, updated_at) VALUES ('alerts.webhook', ?, 0)",
+    JSON.stringify({ url: sealedText(keys.OLD, "https://hooks.example/x", "alerts:webhook"), secret: sealedText(keys.OLD, "s1", "alerts:webhook"), format: "json" }));
 }
 
 describe("keys-status and reseal on values sealed with older keys", () => {
@@ -54,9 +57,10 @@ describe("keys-status and reseal on values sealed with older keys", () => {
       "mail_accounts.secret": { total: 2, CREDENTIALS_KEY: 1, CREDENTIALS_KEY_OLD: 0, SESSION_SECRET: 1, unreadable: 0 },
       "mail_copies.sealed": { total: 2, CREDENTIALS_KEY: 0, CREDENTIALS_KEY_OLD: 1, SESSION_SECRET: 0, unreadable: 1 },
       "idea_files.data": { total: 1, CREDENTIALS_KEY: 0, CREDENTIALS_KEY_OLD: 0, SESSION_SECRET: 1, unreadable: 0 },
+      "server_settings.alerts.webhook": { total: 1, CREDENTIALS_KEY: 0, CREDENTIALS_KEY_OLD: 1, SESSION_SECRET: 0, unreadable: 0 },
     });
     expect(s.warnings.join("\n")).toMatch(/4 value\(s\) still open only with the key derived from SESSION_SECRET/);
-    expect(s.warnings.join("\n")).toMatch(/4 value\(s\) still need CREDENTIALS_KEY_OLD/);
+    expect(s.warnings.join("\n")).toMatch(/5 value\(s\) still need CREDENTIALS_KEY_OLD/);
     expect(s.warnings.join("\n")).toMatch(/3 value\(s\) open with no configured key/);
   });
 
@@ -72,6 +76,7 @@ describe("keys-status and reseal on values sealed with older keys", () => {
       { column: "mail_accounts.secret", current: 1, resealed: 1, changed: 0, unreadable: [] },
       { column: "mail_copies.sealed", current: 0, resealed: 1, changed: 0, unreadable: [11] },
       { column: "idea_files.data", current: 0, resealed: 1, changed: 0, unreadable: [] },
+      { column: "server_settings.alerts.webhook", current: 0, resealed: 1, changed: 0, unreadable: [] },
     ]);
     expect(await q("SELECT id, encrypted_secret, webhook_secret, status FROM connections ORDER BY id")).toEqual(before);
   });
@@ -88,6 +93,7 @@ describe("keys-status and reseal on values sealed with older keys", () => {
       ["mail_accounts.secret", 1, []],
       ["mail_copies.sealed", 1, [11]],
       ["idea_files.data", 1, []],
+      ["server_settings.alerts.webhook", 1, []],
     ]);
     const conns = await q<{ id: number; encrypted_secret: string; webhook_secret: string | null; status: string }>("SELECT id, encrypted_secret, webhook_secret, status FROM connections ORDER BY id");
     for (const c of conns.filter((c) => [1, 2, 3, 4, 7].includes(c.id))) expect(openSecret(c.encrypted_secret, c.id)).toEqual({ plain: `t${c.id}`, fresh: true });
@@ -101,6 +107,9 @@ describe("keys-status and reseal on values sealed with older keys", () => {
     expect(openBytesFor(Buffer.from(copy.sealed), "mailcopy:1:10").toString()).toBe("eml");
     const [file] = await q<{ data: Buffer }>("SELECT data FROM idea_files WHERE id = 30");
     expect(openBytesFor(Buffer.from(file.data), "idea-file:1:30").toString()).toBe("png");
+    const [hook] = await q<{ value: string }>("SELECT value FROM server_settings WHERE key = 'alerts.webhook'");
+    const sealedHook = JSON.parse(hook.value) as { url: string; secret: string; format: string };
+    expect([openFor(sealedHook.url, "alerts:webhook"), openFor(sealedHook.secret, "alerts:webhook"), sealedHook.format]).toEqual(["https://hooks.example/x", "s1", "json"]);
 
     const s = await keysStatus(getDb());
     expect(s.columns.reduce((n, c) => n + c.CREDENTIALS_KEY_OLD + c.SESSION_SECRET, 0)).toBe(0);
