@@ -3,15 +3,23 @@
 // there "Log another interval" logs something else by hand, ending before the timer's time.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { awayFromMidnight, withApp } from "./harness.mjs";
+import { allDaySchedule, minutesToday, withApp } from "./harness.mjs";
 
 const MINUTE = 60_000;
+// The timer's 40 min and the hour before it, inside today: not in the first two hours of a day, nor in its last minutes.
+const outOfDay = minutesToday() < 120 || minutesToday() > 23 * 60 + 50;
 // Time kept here (a GitHub connection): logged with no tracker to write to, as a read-only test server must.
 const KEY = "acme/web#1";
 
-/** A GitHub issue and its timer, running for 40 min. */
+/**
+ * A GitHub issue and its timer, running for 40 min. The day is worked around the clock: another
+ * interval (an hour by default) ends where the timer began, so with the default 9:00–18:00 it was
+ * refused within the first hour and split over lunch (the hint is another then), by the hour
+ * the test ran at.
+ */
 const seed = async db => {
   const now = Date.now();
+  await allDaySchedule(db);
   await db.q("INSERT INTO settings (user_id, idle_minutes) VALUES (1, 0) ON CONFLICT (user_id) DO UPDATE SET idle_minutes = 0");
   const [{ id: github }] = await db.q(
     "INSERT INTO connections (user_id, type, label, base_url, remote_account_id, display_name, options, encrypted_secret, created_at) VALUES (1, 'github', 'Side projects', 'https://api.github.com', '4242', 'Mario Rossi', '{}', 'x', ?) RETURNING id",
@@ -37,8 +45,7 @@ async function question(page, db) {
   return dialog;
 }
 
-test("issue page, Log time with the issue's timer running: the timer's question, another interval before it", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 90 * MINUTE);
+test("issue page, Log time with the issue's timer running: the timer's question, another interval before it", { skip: outOfDay, timeout: 300_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     await page.goto(`${base}/issues/${encodeURIComponent(KEY)}`);
     await page.getByRole("heading", { name: "Task 1" }).first().waitFor();
@@ -76,8 +83,7 @@ test("issue page, Log time with the issue's timer running: the timer's question,
   });
 });
 
-test("issues list, Log time with the issue's timer running: the timer's question", { timeout: 600_000 }, async () => {
-  await awayFromMidnight(5 * MINUTE, 90 * MINUTE);
+test("issues list, Log time with the issue's timer running: the timer's question", { skip: minutesToday() < 45 || minutesToday() > 23 * 60 + 50, timeout: 300_000 }, async () => {
   await withApp({ seed }, async ({ page, base, db }) => {
     await page.goto(`${base}/issues`);
     await page.getByRole("button", { name: `Log time on ${KEY}`, exact: true }).first().click();

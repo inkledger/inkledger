@@ -392,6 +392,24 @@ export async function awayFromMidnight(before = 2 * 60_000, after = 3 * 60_000) 
   if (until > now) await new Promise(r => setTimeout(r, until - now));
 }
 
+/**
+ * A working day around the clock, every day, no breaks: where a test's block lands
+ * doesn't depend on the hour it runs at (the default 9:00–18:00 with lunch refuses a
+ * block reaching before 9:00 and splits one over lunch). Seed it in a test's `seed`.
+ */
+export const allDaySchedule = db =>
+  db.q(
+    "INSERT INTO work_schedules (user_id, valid_from, schedule, created_at) VALUES (1, '1970-01-01', ?, ?)",
+    JSON.stringify(Array.from({ length: 7 }, () => ({ enabled: true, start: "00:00", end: "23:59", breaks: [] }))),
+    Date.now(),
+  );
+
+/** Minutes since local midnight, now. */
+export const minutesToday = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+
 /** A day as the app keys it (YYYY-MM-DD, local time). */
 export const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
