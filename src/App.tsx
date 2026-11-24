@@ -57,6 +57,18 @@ const FIRST: [RegExp, keyof typeof load][] = [
 ];
 
 /**
+ * The app has taken the page over (<html data-live>): drawn beside the page, it commits with it
+ * (hydrated, or loaded) inside whichever Suspense holds it, never with the shell before it.
+ * What tests wait for before acting.
+ */
+function Live() {
+  useEffect(() => {
+    document.documentElement.dataset.live = "";
+  }, []);
+  return null;
+}
+
+/**
  * A page on demand. The first page's code is in before the app hydrates (main.tsx awaits
  * `firstPage`): that page draws at once, never suspended. Suspended, it kept the whole
  * server-drawn app without handlers (one Suspense holds the routes) and clicks there were
@@ -71,7 +83,12 @@ function page(loader: () => Promise<ComponentType>) {
   function Page() {
     now ??= ready !== null;
     const Ready = ready;
-    return now && Ready ? <Ready /> : <Lazy />;
+    return (
+      <>
+        {now && Ready ? <Ready /> : <Lazy />}
+        <Live />
+      </>
+    );
   }
   return Object.assign(Page, { load: loadPage });
 }
@@ -190,11 +207,6 @@ function GuestOnly() {
 
 export default function App() {
   const { pathname } = useLocation();
-  // The app has taken the page over (<html data-live>): first draw committed, the server's markup
-  // hydrated, its controls answer. What tests wait for before acting.
-  useEffect(() => {
-    document.documentElement.dataset.live = "";
-  }, []);
   // A new language redraws every text: the whole tree is keyed on it.
   const locale = useLocale();
   return (
