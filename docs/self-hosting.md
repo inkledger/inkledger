@@ -98,7 +98,7 @@ More on the certificate tooling and on HTTPS for the dev server: [https.md](http
 
 Do this once, not after every deployment. Stop `pnpm dev` first so no new work is written after the dump. Keep the Docker stack read-only towards trackers until the imported data and connections have been checked.
 
-If dev has no explicit `CREDENTIALS_KEY`, temporarily set `CREDENTIALS_KEY_OLD` in `.env.inkledger` to dev's `SESSION_SECRET`; otherwise set it to dev's old credential key. At boot the server seals the imported tracker credentials again with the Docker stack's `CREDENTIALS_KEY`.
+Dev's sealed values (tracker credentials, webhook secrets, mailbox sign-ins, mail copies, idea pictures) must open on the Docker stack. If dev has an explicit `CREDENTIALS_KEY`, temporarily set `CREDENTIALS_KEY_OLD` in `.env.inkledger` to it. If dev has none, its values are sealed with a key derived from dev's `SESSION_SECRET`, and giving that secret as `CREDENTIALS_KEY_OLD` is not a reliable substitute: a 64-hex value (as `openssl rand -hex 32` makes) is read there as a raw key, so it opens only the oldest unbound connection secrets. Give dev a `CREDENTIALS_KEY` first instead: set it in `.env`, restart dev, run `pnpm exec tsx api/cli.ts reseal --apply` and check that `pnpm exec tsx api/cli.ts keys-status` shows nothing left on `SESSION_SECRET`; then use that key as `CREDENTIALS_KEY_OLD`. At boot the Docker stack seals the imported tracker credentials again with its own `CREDENTIALS_KEY`; run `docker exec inkledger node dist/cli.js reseal --apply` for the other columns, and remove `CREDENTIALS_KEY_OLD` once `keys-status` shows nothing needs it ([key rotation](it/runbook-rotation.md)).
 
 ```bash
 pnpm docker:from-dev --dry-run
