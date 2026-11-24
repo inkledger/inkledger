@@ -50,8 +50,10 @@ export const users = pgTable("users", {
   username: text("username"),
   /** scrypt hash (api/lib/password.ts); null: signs in only through a linked connection */
   passwordHash: text("password_hash"),
-  /** "admin" | "member" */
+  /** "admin" | "member"; kept for older builds: "admin" is the owner role (roleId names it too) */
   role: text("role").notNull().default("member"),
+  /** The account's server-wide role (roles); null: a member with only its own grants */
+  roleId: integer("role_id").references(() => roles.id, { onDelete: "set null" }),
   /** JSON array of Permission (contracts/accounts.ts); an admin has them all */
   permissions: text("permissions").notNull().default("[]"),
   /** JSON array of module ids this account may run (with useModules); an admin runs them all */
@@ -66,6 +68,79 @@ export const users = pgTable("users", {
 }, (t) => [
   uniqueIndex("uq_users_username").on(sql`lower(${t.username})`),
 ]);
+
+/**
+ * Named sets of permissions (contracts/accounts.ts). The system ones (owner, it-admin,
+ * team-lead, auditor, member) are seeded by their migration and can't be edited or
+ * removed. A "team" role applies only within the teams it is assigned for.
+ */
+export const roles = pgTable(
+  "roles",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    /** JSON array of Permission; the owner role holds every one, whatever is stored */
+    permissions: text("permissions").notNull().default("[]"),
+    /** "server" | "team" */
+    scope: text("scope").notNull().default("server"),
+    /** 1 = seeded, read-only */
+    system: integer("system").notNull().default(0),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("uq_roles_key").on(t.key), check("roles_scope", sql`${t.scope} IN ('server','team')`)],
+);
+
+/** Groups of people: a team lead reads its members' time (team-scoped viewTeamTime). */
+export const teams = pgTable(
+  "teams",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** The identity provider's group id (SCIM), when the team comes from one */
+    externalId: text("external_id"),
+    createdAt: ms("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("uq_teams_name").on(sql`lower(${t.name})`), uniqueIndex("uq_teams_external").on(t.externalId)],
+);
+
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "member" | "lead" (a lead also holds the team-lead role for the team: role_assignments) */
+    role: text("role").notNull().default("member"),
+  },
+  (t) => [primaryKey({ columns: [t.teamId, t.userId] }), index("idx_team_members_user").on(t.userId), check("team_members_role", sql`${t.role} IN ('member','lead')`)],
+);
+
+/** A role held besides users.role_id: within one team, or server-wide (team null). */
+export const roleAssignments = pgTable(
+  "role_assignments",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roleId: integer("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("uq_role_assignments").on(t.userId, t.roleId, sql`coalesce(${t.teamId}, 0)`), index("idx_role_assignments_team").on(t.teamId)],
+);
+
+export type RoleRow = typeof roles.$inferSelect;
+export type Team = typeof teams.$inferSelect;
 
 /**
  * A one-time link an admin hands to a new person (no mail leaves the server):
