@@ -94,6 +94,7 @@ const SKIPS: Record<string, string> = {
   "users.setDisabled": "accounts, manageUsers (the permission tests below)",
   "users.invite roleId": "a role is the server's, not a user's (manageUsers, the escalation tests below)",
   "users.invite teams[].teamId": "a team is the server's, not a user's (manageUsers, the escalation tests below)",
+  "roles.create key": "the new role's own name, not a row of anyone's",
   "roles.update": "roles are the server's, manageUsers (the permission tests below)",
   "roles.remove": "roles are the server's, manageUsers (the permission tests below)",
   "teams.rename": "teams are the server's, manageTeams (the permission tests below)",

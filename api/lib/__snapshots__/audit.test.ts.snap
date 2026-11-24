@@ -69,6 +69,13 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     "kept": [],
     "redacted": 17,
   },
+  "backup.download": {
+    "kept": [
+      "name",
+      "size",
+    ],
+    "redacted": 17,
+  },
   "backup.restore": {
     "kept": [
       "name",
@@ -212,6 +219,33 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "roles.create": {
+    "kept": [
+      "key",
+      "name",
+      "permissions",
+      "scope",
+    ],
+    "redacted": 17,
+  },
+  "roles.remove": {
+    "kept": [
+      "key",
+      "name",
+      "permissions",
+      "scope",
+    ],
+    "redacted": 17,
+  },
+  "roles.update": {
+    "kept": [
+      "key",
+      "name",
+      "permissions",
+      "scope",
+    ],
+    "redacted": 17,
+  },
   "settings.revokeShareLinks": {
     "kept": [],
     "redacted": 17,
@@ -299,12 +333,47 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "teams.create": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "teams.remove": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "teams.removeMember": {
+    "kept": [
+      "role",
+      "team",
+      "username",
+    ],
+    "redacted": 17,
+  },
+  "teams.rename": {
+    "kept": [
+      "name",
+    ],
+    "redacted": 17,
+  },
+  "teams.setMember": {
+    "kept": [
+      "role",
+      "team",
+      "username",
+    ],
+    "redacted": 17,
+  },
   "users.invite": {
     "kept": [
       "displayName",
       "modules",
       "permissions",
       "role",
+      "teams",
       "username",
     ],
     "redacted": 17,
@@ -331,6 +400,7 @@ exports[`redaction > every action, fed its own fields and every secret: only its
       "modules",
       "permissions",
       "role",
+      "teams",
       "username",
     ],
     "redacted": 17,
