@@ -1,9 +1,8 @@
 import { dayAndTime } from "@/lib/dates";
 import { toastError, failureText, errorText } from "@/lib/errorText";
 import { useState } from "react";
-import { DatabaseBackup, FolderOpen, RotateCcw } from "lucide-react";
+import { DatabaseBackup, Download, FolderOpen, RotateCcw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/hooks/useAuth";
 import { formatBytes } from "@/lib/devices";
 import { SettingsGroup, SettingsRow } from "@/components/settings/SettingsGroup";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -60,7 +59,6 @@ export function BackupSection() {
       toast.error(t("settings.backup.failed", { message: failureText(e) }));
     },
   });
-  const admin = useAuth().user?.role === "admin";
   const restore = trpc.backup.restore.useMutation({
     onSuccess: r => {
       toast.success(t("settings.backup.restored"), { description: t("settings.backup.restoredHint", { safety: r.safety }) });
@@ -72,7 +70,7 @@ export function BackupSection() {
 
   if (info.isPending) return <Skeleton className="m-6 h-64" />;
   if (info.error) return <ErrorState message={errorText(info.error)} onRetry={() => info.refetch()} />;
-  const { settings, state, dir, writable, scheduled, next, files } = info.data;
+  const { settings, state, dir, writable, scheduled, next, files, canDownload, canRestore } = info.data;
 
   return (
     <>
@@ -184,8 +182,17 @@ export function BackupSection() {
                     {f.name} · {formatBytes(f.size)}
                   </span>
                 </span>
-                {/* Admins only: the backup's accounts come back with it. */}
-                {admin && (
+                {/* A dump holds everyone's data: only with downloadBackups. */}
+                {canDownload && (
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={`/api/backups/${encodeURIComponent(f.name)}`} download aria-label={t("settings.backup.downloadLabel", { name: f.name })}>
+                      <Download />
+                      {t("settings.backup.download")}
+                    </a>
+                  </Button>
+                )}
+                {/* Owners only: the backup's accounts come back with it. */}
+                {canRestore && (
                   <Button variant="outline" size="sm" disabled={restore.isPending} onClick={() => setRestoring(f.name)}>
                     <RotateCcw />
                     {t("settings.backup.restore")}

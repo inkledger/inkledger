@@ -19,7 +19,7 @@ import { AUDIT_OUTCOMES, auditDiff, isAuditAction, type AuditEventView, type Aud
 import { t } from "@/i18n";
 
 /** The groups the "What" filter offers: each is a prefix of the actions it holds. */
-const GROUPS = ["auth", "account", "users", "settings", "info", "connections", "store", "modules", "backup", "restore", "team", "worklog", "audit"] as const;
+const GROUPS = ["auth", "account", "users", "roles", "teams", "settings", "info", "connections", "store", "modules", "backup", "restore", "team", "worklog", "audit"] as const;
 type Group = (typeof GROUPS)[number];
 
 const TARGETS = ["user", "connection", "worklog", "backup", "server", "settings", "team", "audit"] as const;
@@ -322,7 +322,7 @@ export function AuditSection() {
         <EventsTable filters={filters} />
       </SettingsGroup>
       <SettingsGroup id="audit-retention" title={t("settings.audit.retentionTitle")} description={t("settings.audit.retentionDescription")} keywords={t("settings.audit.keywords")}>
-        <Retention canSet={permissions.includes("manageServer")} />
+        <Retention canSet={permissions.includes("manageRetention")} />
       </SettingsGroup>
     </>
   );

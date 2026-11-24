@@ -308,7 +308,7 @@ export const CATEGORIES: SettingsCategory[] = [
     get label() { return t("settings.categories.backup.label"); },
     get description() { return t("settings.categories.backup.description"); },
     icon: DatabaseBackup,
-    permission: "manageBackups",
+    permission: "runBackups",
     get keywords() { return t("settings.categories.backup.keywords"); },
     Content: BackupSection,
     Summary: function BackupSummary() {
