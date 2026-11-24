@@ -5,6 +5,7 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  workflow_dispatch:
   schedule:
     # The dependency audit, weekly: advisories land without a code change.
     - cron: "17 5 * * 1"
