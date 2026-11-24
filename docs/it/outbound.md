@@ -17,6 +17,7 @@ This list covers the server only. Browsers and the native apps load the app from
 | Licence timestamp check | The host of `OTS_EXPLORER` (default `blockstream.info`) | Only on an admin's "Verify"; point it at your own Esplora server to keep it inside |
 | Local AI (idea suggestions, Desk chat, planner) | The host of `OLLAMA_URL` | `OLLAMA_URL` unset (the default) |
 | Forecast sidecar | The host of `FORECAST_URL` | `FORECAST_URL` unset (the default) |
+| Single sign-on (OpenID Connect) | The provider's issuer, token and keys hosts (from its discovery document), https only | No OIDC provider set up; SAML providers need no outbound call ([single sign-on](sso.md)) |
 | Alert webhook | The host of the webhook set in Settings → Network | No webhook set (the default); never sent by a read-only server |
 | Request traces (OpenTelemetry) | The host of `OTEL_EXPORTER_OTLP_ENDPOINT` | `OTEL_EXPORTER_OTLP_ENDPOINT` unset (the default) |
 
