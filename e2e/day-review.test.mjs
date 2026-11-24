@@ -42,7 +42,8 @@ test("while the day is being logged, the summary shows what is being logged", { 
     await confirm.waitFor();
     const logged = (await confirm.locator("li .tabular").first().innerText()).trim();
     // The live length, not the one the sheet opened with: otherwise this proves nothing.
-    assert.equal(logged, `${first + extra} min`);
+    // A slow machine (CI) can take long enough for the timer to round up one more minute.
+    assert.ok([`${first + extra} min`, `${first + extra + 1} min`].includes(logged), `the live length, not ${first} min: ${logged}`);
     // The save held on its way to the server.
     const { release } = await holdRoute(page, u => new URL(u).pathname.startsWith("/api/trpc/") && new URL(u).pathname.includes("worklogs.create"));
     await confirm.getByRole("button", { name: "Log", exact: true }).click();

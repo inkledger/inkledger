@@ -66,7 +66,7 @@ test("a pasted link opens its issue, from Issues (Enter) and from ⌘K", () =>
     await page.waitForURL(opened);
     await page.getByRole("heading", { name: /Login fails on Safari/ }).first().waitFor();
     await page.keyboard.press("ControlOrMeta+k");
-    await page.getByRole("combobox").fill("bigco/app#1");
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("bigco/app#1");
     await page.getByRole("option", { name: "Open bigco/app#1" }).click();
     await page.waitForURL(url => url.pathname === `/issues/${github}/I_2`);
   }));

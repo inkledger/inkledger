@@ -335,7 +335,8 @@ test("Settings → Pinboard: each place on or off, alone", () =>
     assert.deepEqual(row, { pinboard_on_board: 0, pinboard_in_menu: 0, pinboard_widget: 1 });
     await page.goto(base + "/board");
     await page.getByRole("heading", { name: "Board" }).first().waitFor();
-    assert.equal(await page.getByRole("button", { name: "Pinboard", exact: true }).count(), 0);
+    // Gone once the settings are read (drawn with the defaults until then).
+    await page.getByRole("button", { name: "Pinboard", exact: true }).waitFor({ state: "detached" });
     await page.keyboard.press("p");
     await page.getByRole("region", { name: "Floating pinboard" }).waitFor();
     await page.keyboard.press("Escape");

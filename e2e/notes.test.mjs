@@ -62,7 +62,7 @@ test("Markdown notes autosave, render, search from the page and palette, recover
       .getByRole("link", { name: /Caffè release/ })
       .waitFor();
     await page.keyboard.press("ControlOrMeta+k");
-    await page.getByRole("combobox").fill("caff");
+    await page.getByRole("dialog", { name: "Search" }).getByRole("combobox").fill("caff");
     await page.getByRole("option", { name: /Caffè release/ }).click();
     await page.waitForURL(new RegExp(`/notes/${created.id}`));
     await page.getByRole("button", { name: "Edit" }).click();
