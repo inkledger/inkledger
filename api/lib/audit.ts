@@ -378,6 +378,24 @@ const scrubJson = (s: string | null, names: ReadonlySet<string>, pseudonym: stri
   }
 };
 
+/** LIKE's own characters taken literally. */
+const likeLiteral = (s: string) => s.replace(/[%_\\]/g, "\\$&");
+
+/**
+ * The rows by or about an account: it acted, it owns the target, it is the target, or one of
+ * its names is a value in before/after (a team change names its member only so).
+ */
+export function auditAbout(userId: number, names: readonly string[]): SQL {
+  const byName = names
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0)
+    .flatMap((n) => {
+      const quoted = `%${likeLiteral(JSON.stringify(n))}%`;
+      return [sql`${auditEvents.before} ILIKE ${quoted}`, sql`${auditEvents.after} ILIKE ${quoted}`];
+    });
+  return or(eq(auditEvents.actorUserId, userId), eq(auditEvents.targetOwnerUserId, userId), and(eq(auditEvents.targetType, "user"), eq(auditEvents.targetId, String(userId))), ...byName) ?? sql`false`;
+}
+
 type AuditTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 /**
@@ -392,7 +410,7 @@ export async function pseudonymiseAudit(tx: AuditTx, userId: number, names: read
   await tx.execute(sql`SELECT set_config('inkledger.audit_pseudonymise', 'on', true)`);
   const pseudonym = erasedLabel(userId);
   const known = new Set(names.map((n) => n.trim().toLowerCase()).filter((n) => n.length > 0));
-  const about = or(eq(auditEvents.actorUserId, userId), eq(auditEvents.targetOwnerUserId, userId), and(eq(auditEvents.targetType, "user"), eq(auditEvents.targetId, String(userId))));
+  const about = auditAbout(userId, names);
   let changed = 0;
   let after = 0;
   for (;;) {

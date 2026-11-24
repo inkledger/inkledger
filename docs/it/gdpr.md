@@ -35,7 +35,7 @@ Automatic purges (every 6 hours): sessions at expiry, deleted worklogs, notes an
 - **Erasure (available).** `users.erase`, from Settings → Users → "Erase account…".
   - Who: it needs `eraseUserData` and must be confirmed by an owner. The person erasing must be an owner and must type the account's username, which the server checks too. It is never one's own account, and never the last active owner.
   - How it runs, in one transaction:
-    1. The person's connections are archived, so no sync picks them up meanwhile.
+    1. The account row is locked, so writes for it wait until the erasure ends, and its connections are archived.
     2. Their rows are deleted table by table, each table before the ones it points at. `connection_id` foreign keys don't cascade, so the order matters.
     3. The connections are deleted, together with the rows that hang off them (projects, sync state, mappings).
     4. The account is deleted last.

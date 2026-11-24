@@ -198,9 +198,14 @@ beforeAll(async () => {
   const { record, recordSystem, flushAudit } = await import("../lib/audit");
   const req = new Request("http://localhost/", { headers: { "user-agent": "test", "x-forwarded-for": "203.0.113.7" } });
   await record({ req, remoteAddress: "203.0.113.7", user: { id: annId, username: "ann", displayName: "Ann Example" } }, "auth.signIn", { target: { type: "user", id: annId, ownerUserId: annId }, after: { method: "password", username: "ann" } });
-  await record({ req, user: { id: rootId, username: "root", displayName: "Root Owner" } }, "users.rename", { target: { type: "user", id: annId, ownerUserId: annId }, before: { username: "ann", displayName: "Ann Example" }, after: { username: "ann", displayName: "Ann Example" } });
+  await record({ req, remoteAddress: "198.51.100.9", user: { id: rootId, username: "root", displayName: "Root Owner" } }, "users.rename", { target: { type: "user", id: annId, ownerUserId: annId }, before: { username: "ann", displayName: "Ann Example" }, after: { username: "ann", displayName: "Ann Example" } });
   await record({ req, user: { id: bobId, username: "bob", displayName: "Bob Other" } }, "auth.signIn", { target: { type: "user", id: bobId, ownerUserId: bobId }, after: { method: "password", username: "bob" } });
   await recordSystem({ kind: "system", label: "retention" }, "audit.purge", { after: { deleted: 0 } });
+  // Through the real procedures: a failed sign-in, and a team change naming Ann only by username.
+  const { appRouter } = await import("../router");
+  const anonymous = appRouter.createCaller({ req, resHeaders: new Headers(), user: null, sessionId: null, deviceId: "dev-anon" });
+  await anonymous.auth.login({ username: "ann", password: "a wrong password, long enough" }).catch(() => undefined);
+  await (await callerOf(rootId)).teams.setMember({ teamId: Number(globals.get("teams")!.id), userId: annId, role: "lead" });
   await flushAudit();
   const { Hono } = await import("hono");
   const { registerUserDataRoutes } = await import("./routes");
@@ -280,13 +285,13 @@ describe("exporting a person's data", () => {
     expect(res.headers.get("content-type")).toBe("application/zip");
     const files = await unzip(res);
     const manifest = JSON.parse(files.get("manifest.json")!) as { files: { name: string; rows: number }[]; notExported: { table: string }[] };
-    // The snapshot names every file and how many rows it held (one each: Ann's).
+    // The snapshot names every file and how many rows it held (Ann's: one each, two role assignments as a lead too).
     expect({ files: manifest.files, notExported: manifest.notExported.map((x) => x.table) }).toMatchSnapshot();
     const { USER_DATA, isSkipped } = await import("./policy");
     for (const [n, p] of Object.entries(USER_DATA)) {
       if ((p.kind !== "user" && p.kind !== "child") || isSkipped(p.export)) continue;
       const rows = JSON.parse(files.get(`data/${n}.json`) ?? "null") as Row[] | null;
-      expect.soft(rows?.length, n).toBe(1);
+      expect.soft(rows?.length ?? 0, n).toBeGreaterThanOrEqual(1);
       if (p.kind === "user") expect.soft(rows?.[0]?.user_id, n).toBe(annId);
     }
     const all = [...files.values()].join("\n");
@@ -304,8 +309,11 @@ describe("exporting a person's data", () => {
     const conns = JSON.parse(files.get("connections.json")!) as Row[];
     expect(conns).toHaveLength(1);
     expect(conns[0]).not.toHaveProperty("encrypted_secret");
-    const events = JSON.parse(files.get("audit_events.json")!) as { action: string }[];
-    expect(events.map((e) => e.action)).toEqual(expect.arrayContaining(["auth.signIn", "users.rename"]));
+    const events = JSON.parse(files.get("audit_events.json")!) as { action: string; actorUserId: number | null; ip: string | null }[];
+    expect(events.map((e) => e.action)).toEqual(expect.arrayContaining(["auth.signIn", "auth.signInFailed", "users.rename", "teams.setMember"]));
+    // Someone else's address is the audit log's (viewAudit), not the person's.
+    expect(events.filter((e) => e.actorUserId !== annId).map((e) => e.ip)).toEqual(events.filter((e) => e.actorUserId !== annId).map(() => null));
+    expect(events.find((e) => e.action === "auth.signIn")?.ip).toBe("203.0.113.7");
     expect(files.get("data/worklogs.csv")).toMatch(/^id,uuid,user_id/);
   });
 
@@ -381,8 +389,10 @@ describe("erasing a person's data", () => {
     expect(theirs.length).toBeGreaterThan(2);
     for (const r of theirs) expect.soft(r.pseudonymised_at).not.toBeNull();
     for (const r of theirs.filter((x) => x.actor_user_id === annId)) expect.soft([r.actor_label, r.ip]).toEqual([`erased-user-${annId}`, null]);
-    const text = JSON.stringify(rows);
-    expect(text).not.toMatch(/"ann"|Ann Example|ann@example\.com/);
+    // Nowhere in the log, whichever row named her (a team change names its member by username only).
+    const text = JSON.stringify(await q("SELECT actor_label, before, after FROM audit_events"));
+    expect(text).not.toMatch(/\\"ann\\"|"ann"|Ann Example|ann@example\.com/);
+    expect(await q("SELECT 1 FROM audit_events WHERE actor_label = 'root'")).not.toHaveLength(0);
     const erase = rows.find((r) => r.action === "users.erase");
     expect(erase?.pseudonymised_at).toBeNull();
     expect(JSON.parse(erase!.after!)).toMatchObject({ erased: `erased-user-${annId}` });

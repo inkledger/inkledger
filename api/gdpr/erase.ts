@@ -1,6 +1,6 @@
 // An account and everything it owns removed (users.erase), in one transaction and a fixed
-// order: connection_id foreign keys don't cascade, so its connections are archived first
-// (no sync picks them up meanwhile), then each table's rows of the person go, children
+// order: connection_id foreign keys don't cascade. The account row is locked first (writers
+// on it wait), its connections archived, then each table's rows of the person go, children
 // before the tables they point at, then the connections (their own rows cascade), then the
 // audit rows naming the person are pseudonymised, and the account goes last.
 import { and, count, eq, getTableName, isNull } from "drizzle-orm";

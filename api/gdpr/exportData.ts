@@ -2,11 +2,11 @@
 // secrets, every table api/gdpr/policy.ts says is theirs (JSON, and CSV for time and
 // to-dos), and the audit events by or about them. Read one table at a time and handed to the
 // ZIP stream as it goes. Tracker-side data is the tracker's to export.
-import { and, asc, eq, getTableColumns, getTableName, gt, inArray, or } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, getTableName, gt, inArray } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { auditEvents, connections, users } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { viewOf } from "../lib/audit";
+import { auditAbout, viewOf } from "../lib/audit";
 import { csvField } from "../auditExport";
 import type { ZipEntry } from "../lib/zip";
 import { USER_DATA, columnOf, isSkipped, tableOf, type Exported } from "./policy";
@@ -59,18 +59,21 @@ export async function rowsOf(name: string, userId: number): Promise<Record<strin
   throw new Error(`gdpr: ${name} is not a person's table`);
 }
 
-/** Every audit event by or about the person, oldest first, a page at a time. */
-async function auditOf(userId: number): Promise<unknown[]> {
+/**
+ * Every audit event by or about the person, oldest first, a page at a time. The client
+ * address of someone else acting is left out (the person may export without viewAudit).
+ */
+async function auditOf(userId: number, names: readonly string[]): Promise<unknown[]> {
   const out: unknown[] = [];
   let after = 0;
   for (;;) {
     const rows = await getDb()
       .select()
       .from(auditEvents)
-      .where(and(gt(auditEvents.id, after), or(eq(auditEvents.actorUserId, userId), eq(auditEvents.targetOwnerUserId, userId))))
+      .where(and(gt(auditEvents.id, after), auditAbout(userId, names)))
       .orderBy(asc(auditEvents.id))
       .limit(500);
-    out.push(...rows.map(viewOf));
+    out.push(...rows.map((r) => ({ ...viewOf(r), ip: r.actorUserId === userId ? r.ip : null })));
     if (rows.length < 500) return out;
     after = rows[rows.length - 1].id;
   }
@@ -118,7 +121,7 @@ export async function* exportEntries(userId: number, now = new Date()): AsyncGen
     }
   }
 
-  const events = await auditOf(userId);
+  const events = await auditOf(userId, [user.username ?? "", user.displayName, user.email]);
   files.push({ name: "audit_events.json", rows: events.length });
   yield { name: "audit_events.json", data: json(events) };
 
