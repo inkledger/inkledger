@@ -213,3 +213,37 @@ at `http://127.0.0.1:4173`. This serves the same built assets and SSR as product
 development environment, login, APIs and database. `PORT=4173 pnpm dev:build` is the explicit
 equivalent; port 3000 belongs to Vite/HMR. The normal `pnpm lighthouse` remains the reproducible
 matrix on its seeded, temporary database.
+
+## First-load code: English on demand (2026-11-24, 3664f26)
+
+The smoke budget passed with thin margins: entry plus its modulepreload (smoke formula, gzip -9)
+was 914.2 / 290.3 KiB against 925 / 295. A source-map breakdown of the two first-load chunks
+showed English texts as the largest app-owned item: 159.5 KiB, with `settings` (56 KiB) and
+`server` (19 KiB) never drawn by the shell or the first pages. react-dom (205 KiB), react-router,
+React Query and tRPC make up most of the rest. Checked and left alone: react-router's
+`dist/production` is byte-for-byte the size of the development build it ships; zod is in neither
+first-load chunk; lucide is already one module per icon; sonner is one module imported by 97 files.
+
+- **Split:** the page's build registers `contracts/i18n/en/shell.ts` (the texts the shell, the
+  Dashboard, Login and the Outlook pane say). The rest (`settings`, `server`, and the `*Rest`
+  sub-trees of pages, views and ui that only on-demand code says) is one chunk. It is fetched when
+  the page is idle, never awaited by the first paint. Pages other than Login and the Dashboard,
+  and every `lazyPart`, await it with their code. The server and the tests still have all of
+  English at once, and the dictionary types are unchanged.
+- **Guard:** a text asked for before its dictionary logs `[i18n] …`. The e2e harness counts that
+  as a page error. It found one module-level `t()` (the notes toolbar), now said when drawn.
+- **Size:** 914.2 / 290.3 → **814.1 / 256.5 KiB**: 12% / 13% under the unchanged budget.
+
+`pnpm perf server`, the Dashboard (`/`, the first route of a run, cold). Before and after were run
+alternately in the same session, two runs each:
+
+| Build | FCP ms | LCP ms | script ms | KiB moved | requests |
+|---|---:|---:|---:|---:|---:|
+| before (13216969) | 360 / 448 | 640 / 756 | 149.2 / 143.4 | 643.6 | 148 |
+| after (3664f26) | 384 / 340 | 604 / 620 | 123.3 / 126.8 | 645.9 | 149 |
+
+Script time on the Dashboard fell by about 15%. FCP and LCP moved within the run-to-run spread:
+TTFB (the server render) alone varied 224–309 ms. KiB moved is +2.3: the idle chunk lands inside
+perf's 3 s window, so it is counted. The other routes stayed within noise. They now wait for the
+English chunk with their own code, which by then is usually already here.
+
