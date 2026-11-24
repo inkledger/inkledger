@@ -170,6 +170,13 @@ describe("worklogs and stats", () => {
     await caller.timers.stop({ issueKey: "TMR-1" });
     await caller.worklogs.create({ issueKey: "TMR-1", timeSpent: "1m", started: hoursAgo(5), fromTimer: true });
     expect(await caller.timers.list()).toEqual([]);
+    // Each worklog logged is one audit event by the user: where and how long, never its comment.
+    const logged = (await q<{ action: string; actor_kind: string; after: string | null; before: string | null }>("SELECT action, actor_kind, after, before FROM audit_events ORDER BY id")).filter((e) => e.action === "worklog.create").slice(-3);
+    expect(logged.map((e) => [e.actor_kind, (JSON.parse(e.after ?? "{}") as { issueKey?: string; seconds?: number }).seconds])).toEqual([
+      ["user", 3600],
+      ["user", 7200],
+      ["user", 60],
+    ]);
   });
 
   it("a refused log gives a running timer back what it took, not more (logging more than it had counted)", async () => {

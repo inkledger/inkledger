@@ -133,6 +133,9 @@ describe("worklogs from Jira", () => {
     const r = await syncWorklogs(user);
     expect(r).toEqual({ imported: 1, deleted: 0, initial: true });
     expect((await mine())).toEqual([{ k: "PRJ-1", id: "100", s: 3600 }]);
+    // One audit event for the pass, by sync (never one per worklog).
+    const passes = (await q<{ action: string; actor_kind: string; after: string | null; before: string | null }>("SELECT action, actor_kind, after, before FROM audit_events ORDER BY id")).filter((e) => e.action === "worklog.sync");
+    expect(passes.map((e) => [e.actor_kind, JSON.parse(e.after ?? "{}") as unknown])).toEqual([["sync", expect.objectContaining({ imported: 1, deleted: 0, initial: true })]]);
     expect((await q("SELECT key FROM issues"))).toEqual([{ key: "PRJ-1" }]);
   });
 

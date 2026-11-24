@@ -68,6 +68,8 @@ describe("Settings → Connections", () => {
     expect(tested.connection.probedAt).not.toBeNull();
     expect(tested.sources.length).toBeGreaterThan(0);
     expect((await caller.connections.rename({ id: c.id, label: "Client B (old)" })).label).toBe("Client B (old)");
+    const [e] = await q<{ action: string; target_id: string; after: string }>("SELECT action, target_id, after FROM audit_events ORDER BY id DESC LIMIT 1");
+    expect([e.action, e.target_id, JSON.parse(e.after)]).toEqual(["connections.rename", String(c.id), { label: "Client B (old)" }]);
   });
 
   it("reconnecting takes the same account's new credentials, never another account's", async () => {
@@ -113,6 +115,7 @@ describe("Settings → Connections", () => {
     const started = new Date(2026, 9, 14, 9).getTime();
     await q("INSERT INTO worklogs (user_id, connection_id, issue_key, jira_worklog_id, time_spent_seconds, started, synced_at) SELECT user_id, ?, 'TWO-1', 'w-1', 1800, ?, ? FROM connections WHERE id = ?", c.id, started, started, c.id);
     await caller.connections.archive({ id: c.id });
+    expect((await q<{ action: string }>("SELECT action FROM audit_events ORDER BY id DESC LIMIT 1"))[0].action).toBe("connections.archive");
     expect(await caller.connections.list()).toEqual([]);
     expect((await caller.issues.all()).map((i) => i.key)).not.toContain("TWO-1");
     expect((await caller.issues.list({ includeDone: true, includeUnassigned: true })).issues).toEqual([]);
