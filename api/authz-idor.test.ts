@@ -92,6 +92,14 @@ const SKIPS: Record<string, string> = {
   "users.rename": "accounts, manageUsers (the permission tests below)",
   "users.resetPassword": "accounts, manageUsers (the permission tests below)",
   "users.setDisabled": "accounts, manageUsers (the permission tests below)",
+  "users.invite roleId": "a role is the server's, not a user's (manageUsers, the escalation tests below)",
+  "users.invite teams[].teamId": "a team is the server's, not a user's (manageUsers, the escalation tests below)",
+  "roles.update": "roles are the server's, manageUsers (the permission tests below)",
+  "roles.remove": "roles are the server's, manageUsers (the permission tests below)",
+  "teams.rename": "teams are the server's, manageTeams (the permission tests below)",
+  "teams.remove": "teams are the server's, manageTeams (the permission tests below)",
+  "teams.setMember": "teams are the server's, manageTeams (the permission tests below)",
+  "teams.removeMember": "teams are the server's, manageTeams (the permission tests below)",
   "team.person": "reads another user by design, viewTeamTime (the permission tests below)",
   "team.day": "reads another user by design, viewTeamTime (the permission tests below)",
   "notifications.createTest issueKey": "a test notification for the caller, about any key typed",
@@ -654,7 +662,7 @@ const run = (p: () => Promise<unknown>): Promise<Outcome> => p().then((value) =>
 const codeOf = (e: unknown) => (e && typeof e === "object" && "code" in e ? String(e.code) : String(e));
 const isInputError = (e: unknown) => e instanceof Error && e.cause instanceof z.ZodError;
 
-type Procedure = { _def: { inputs: unknown[]; middlewares: unknown[] } };
+type Procedure = { _def: { inputs: unknown[]; middlewares: unknown[]; type?: string } };
 const isProcedure = (p: unknown): p is Procedure =>
   typeof p === "function" && "_def" in p && typeof p._def === "object" && p._def !== null && "inputs" in p._def && Array.isArray(p._def.inputs) && "middlewares" in p._def && Array.isArray(p._def.middlewares);
 
@@ -767,10 +775,10 @@ const PERMISSION_OF: Record<string, Permission> = {
   "alerts.webhook": "manageServer",
   "alerts.setWebhook": "manageServer",
   "alerts.test": "manageServer",
-  "backup.get": "manageBackups",
-  "backup.update": "manageBackups",
-  "backup.run": "manageBackups",
-  "backup.restore": "manageBackups",
+  "backup.get": "runBackups",
+  "backup.update": "runBackups",
+  "backup.run": "runBackups",
+  "backup.restore": "restoreBackups",
   "store.catalog": "manageStore",
   "store.requestLicense": "manageStore",
   "store.checkout": "manageStore",
@@ -815,7 +823,17 @@ const PERMISSION_OF: Record<string, Permission> = {
   "audit.list": "viewAudit",
   "audit.verify": "viewAudit",
   "audit.settings": "viewAudit",
-  "audit.setRetention": "manageServer",
+  "audit.setRetention": "manageRetention",
+  "roles.list": "manageUsers",
+  "roles.create": "manageUsers",
+  "roles.update": "manageUsers",
+  "roles.remove": "manageUsers",
+  "teams.list": "manageTeams",
+  "teams.create": "manageTeams",
+  "teams.rename": "manageTeams",
+  "teams.remove": "manageTeams",
+  "teams.setMember": "manageTeams",
+  "teams.removeMember": "manageTeams",
 };
 /** Open to anyone (signing in, the session itself). */
 const PUBLIC = ["ping", "auth.login", "auth.activate", "auth.invite", "auth.acceptInvite", "auth.remembered", "auth.resume", "auth.forget", "auth.me", "auth.logout"];
@@ -938,8 +956,8 @@ describe("server-wide powers need their permission", () => {
     await expect(caller.modules.storageGet({ moduleId: "m1", key: "k1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("restoring a backup takes an admin, not only manageBackups", async () => {
-    const { caller } = await account("member", ["manageBackups"]);
+  it("restoring a backup takes an owner, not only restoreBackups", async () => {
+    const { caller } = await account("member", ["restoreBackups"]);
     await expect(caller.backup.restore({ name: "backup.dump" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -952,7 +970,7 @@ describe("server-wide powers need their permission", () => {
       ["invite an admin", () => mia.caller.users.invite({ role: "admin", permissions: [], modules: [], username: "boss", displayName: "Boss" })],
       ["invite with a power it lacks", () => mia.caller.users.invite({ role: "member", permissions: ["manageServer"], modules: [], username: "ops", displayName: "Ops" })],
       ["promote a member to admin", () => mia.caller.users.setAccess({ id: tom.id, role: "admin", permissions: [], modules: [] })],
-      ["grant a power it lacks", () => mia.caller.users.setAccess({ id: tom.id, role: "member", permissions: ["manageBackups"], modules: [] })],
+      ["grant a power it lacks", () => mia.caller.users.setAccess({ id: tom.id, role: "member", permissions: ["runBackups"], modules: [] })],
       ["grant a module it doesn't run", () => mia.caller.users.setAccess({ id: tom.id, role: "member", permissions: [], modules: ["m1"] })],
       ["change an admin's access", () => mia.caller.users.setAccess({ id: root.id, role: "member", permissions: [], modules: [] })],
       ["rename an admin", () => mia.caller.users.rename({ id: root.id, displayName: "x", username: "x" })],
@@ -964,5 +982,101 @@ describe("server-wide powers need their permission", () => {
     }
     await expect(mia.caller.users.setAccess({ id: mia.id, role: "admin", permissions: [], modules: [] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(await q("SELECT id, username, role, permissions, module_grants, disabled_at, password_hash, must_change_password FROM users ORDER BY id")).toEqual(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Roles × procedures: who may call what, by system role (E3). The table is a snapshot:
+// a change of who may do what shows up in review as a change of it.
+
+describe("each system role reaches what its permissions hold", () => {
+  /** An account holding a system role: as its own role, or (team-lead) within a team it leads. */
+  async function roled(key: string): Promise<{ id: number; caller: Caller }> {
+    const [role] = await q<{ id: number; scope: string }>("SELECT id, scope FROM roles WHERE key = ?", key);
+    const row = await one<{ id: number }>(
+      "INSERT INTO users (username, display_name, role, role_id, permissions, created_at) VALUES (?, 'Someone', ?, ?, '[]', 1) RETURNING id",
+      "role" + ++users,
+      key === "owner" ? "admin" : "member",
+      role.scope === "server" ? role.id : null,
+    );
+    if (role.scope === "team") {
+      const team = await one<{ id: number }>("INSERT INTO teams (name, created_at) VALUES (?, 1) RETURNING id", "team" + users);
+      await q("INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'lead')", team.id, row.id);
+      await q("INSERT INTO role_assignments (user_id, role_id, team_id) VALUES (?, ?, ?)", row.id, role.id, team.id);
+    }
+    const { getDb } = await import("./queries/connection");
+    const { users: table } = await import("@db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await getDb().select().from(table).where(eq(table.id, row.id));
+    return { id: row.id, caller: callerOf(user) };
+  }
+
+  it("matches the checked-in allow/deny table", async () => {
+    const { SYSTEM_ROLES } = await import("@contracts/accounts");
+    const { holds, withAccess, userById } = await import("./queries/accounts");
+    const table: Record<string, Record<string, "allow" | "deny">> = {};
+    for (const key of SYSTEM_ROLES) {
+      const who = await roled(key);
+      const found = await userById(who.id);
+      if (!found) throw new Error("no account " + key);
+      const account = await withAccess(found);
+      for (const proc of Object.keys(PERMISSION_OF).sort()) {
+        const p = await procedureAt(proc);
+        let cell: "allow" | "deny";
+        if (p._def.inputs.length === 0 && p._def.type === "mutation") {
+          // Never run a mutation with no input to stop it: read off the resolver the gate uses.
+          cell = holds(account, PERMISSION_OF[proc]) ? "allow" : "deny";
+        } else {
+          const out = await run(() => callAt(who.caller, proc, p._def.inputs.length === 0 ? undefined : NOT_AN_INPUT));
+          cell = !out.ok && codeOf(out.error) === "FORBIDDEN" ? "deny" : "allow";
+        }
+        (table[proc] ??= {})[key] = cell;
+      }
+    }
+    expect(table).toMatchSnapshot();
+    // The ones the plan names, whatever the snapshot says.
+    expect(table["team.overview"]["it-admin"]).toBe("deny");
+    expect(table["backup.restore"]["it-admin"]).toBe("deny");
+    expect(table["team.overview"]["team-lead"]).toBe("allow");
+    expect(table["audit.list"].auditor).toBe("allow");
+    expect(Object.values(table).every((r) => r.member === "deny")).toBe(true);
+    expect(Object.values(table).every((r) => r.owner === "allow")).toBe(true);
+  });
+
+  it("an IT admin can't hand itself or anyone a role or power beyond its own", async () => {
+    const it_ = await roled("it-admin");
+    const tom = await account("member", []);
+    const [owner] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'owner'");
+    const [lead] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'team-lead'");
+    const team = await one<{ id: number }>("INSERT INTO teams (name, created_at) VALUES ('escalation', 1) RETURNING id");
+    const before = await q("SELECT id, role, role_id, permissions FROM users ORDER BY id");
+    for (const [what, call] of [
+      ["make someone owner", () => it_.caller.users.setAccess({ id: tom.id, roleId: owner.id, permissions: [], modules: [] })],
+      ["give team time", () => it_.caller.users.setAccess({ id: tom.id, permissions: ["viewTeamTime"], modules: [] })],
+      ["give a backup download", () => it_.caller.users.setAccess({ id: tom.id, permissions: ["downloadBackups"], modules: [] })],
+      ["make someone a team's lead", () => it_.caller.users.setAccess({ id: tom.id, permissions: [], modules: [], teams: [{ teamId: team.id, lead: true }] })],
+      ["make a lead through Teams", () => it_.caller.teams.setMember({ teamId: team.id, userId: tom.id, role: "lead" })],
+      ["give another account manager", () => it_.caller.users.setAccess({ id: tom.id, permissions: ["manageUsers"], modules: [] })],
+      ["a role with team time", () => it_.caller.roles.create({ key: "peeker", name: "Peeker", permissions: ["viewTeamTime"] })],
+      ["a role managing users", () => it_.caller.roles.create({ key: "keeper", name: "Keeper", permissions: ["manageUsers"] })],
+      ["the team-lead role as an account's own", () => it_.caller.users.setAccess({ id: tom.id, roleId: lead.id, permissions: [], modules: [] })],
+    ] as const) {
+      await expect.soft(call(), what).rejects.toMatchObject({ code: expect.stringMatching(/^(FORBIDDEN|BAD_REQUEST)$/) });
+    }
+    expect(await q("SELECT id, role, role_id, permissions FROM users ORDER BY id")).toEqual(before);
+    expect(await q("SELECT * FROM role_assignments WHERE team_id = ?", team.id)).toEqual([]);
+  });
+
+  it("only an owner edits a role holding manageUsers or manageAuth; system roles stay as seeded", async () => {
+    const root = await roled("owner");
+    const it_ = await roled("it-admin");
+    const made = await root.caller.roles.create({ key: "helpdesk", name: "Helpdesk", permissions: ["manageUsers"] });
+    await expect(it_.caller.roles.update({ id: made.id, name: "Helpdesk", permissions: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(it_.caller.roles.remove({ id: made.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const [system] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'auditor'");
+    await expect(root.caller.roles.update({ id: system.id, name: "x", permissions: [] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // Within its own powers, an IT admin makes and edits roles.
+    const ops = await it_.caller.roles.create({ key: "ops", name: "Ops", permissions: ["manageServer"] });
+    await expect(it_.caller.roles.update({ id: ops.id, name: "Ops", permissions: ["manageServer", "runBackups"] })).resolves.toMatchObject({ permissions: ["manageServer", "runBackups"] });
   });
 });

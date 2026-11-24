@@ -67,7 +67,9 @@ export function navItems() {
 export function useNavItems() {
   const { menu } = usePinboardSurfacesNow();
   const todos = useTodoSurfacesNow();
-  const held = useAuth().user?.permissions ?? [];
+  const me = useAuth().user;
+  // Held anywhere: on the whole server, or within a team (a lead's team time).
+  const held = [...(me?.permissions ?? []), ...(me?.scopedPermissions ?? [])];
   const allowed = (i: { permission?: Permission }) => !i.permission || held.includes(i.permission);
   return navItems().map(g => ({ ...g, items: g.items.filter(i => (i.to !== "/pinboard" || menu) && (i.to !== "/todos" || todos.menu) && allowed(i)) }));
 }

@@ -205,4 +205,31 @@ describe("team report", () => {
     await expect(ann.team.day({ userId: id.eve, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(ann.team.day({ userId: 99_999, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+it("a team lead sees only its teams' people, read only; an IT admin none", async () => {
+    await account("lea");
+    await account("ita");
+    const [itAdmin] = await q<{ id: number }>("SELECT id FROM roles WHERE key = 'it-admin'");
+    await q("UPDATE users SET role_id = ? WHERE id = ?", itAdmin.id, id.ita);
+    const team = await admin.teams.create({ name: "Apps" });
+    await admin.teams.setMember({ teamId: team.id, userId: id.cy, role: "member" });
+    await admin.teams.setMember({ teamId: team.id, userId: id.lea, role: "lead" });
+    const lea = await callerOf(id.lea);
+    const r = await lea.team.overview(week);
+    expect(r.people.map((p) => p.displayName).sort()).toEqual(["Cy", "Lea"]);
+    expect(r.loggedSeconds).toBe(10 * HOUR);
+    await expect(lea.team.day({ userId: id.cy, day: "2026-10-05" })).resolves.toMatchObject({ entries: [expect.objectContaining({ seconds: 10 * HOUR })] });
+    // Anyone outside its teams is as good as not there.
+    await expect(lea.team.day({ userId: id.ann, day: "2026-10-05" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(lea.team.person({ userId: id.ann, ...week })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // Nothing else opens with it: no accounts, no teams to manage.
+    await expect(lea.users.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(lea.teams.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // Its place as lead taken away, the team's time goes with it.
+    await admin.teams.setMember({ teamId: team.id, userId: id.lea, role: "member" });
+    await expect(lea.team.overview(week)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // An IT admin runs the server, never reads anyone's time.
+    const ita = await callerOf(id.ita);
+    await expect(ita.team.overview(week)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(ita.team.day({ userId: id.cy, day: "2026-10-05" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

@@ -138,7 +138,8 @@ export default function Team() {
   const todayKey = dayKey(today);
   const now = today.getTime();
   const { user } = useAuth();
-  const allowed = user?.permissions.includes("viewTeamTime") ?? false;
+  // Everyone's time, or a lead's teams' (the server narrows the list to them).
+  const allowed = (user?.permissions.includes("viewTeamTime") || user?.scopedPermissions?.includes("viewTeamTime")) ?? false;
   const utils = trpc.useUtils();
   const [readout] = useState(createReadout);
 

@@ -100,7 +100,7 @@
       "id": "backup",
       "nativeOnly": false,
       "desktopOnly": false,
-      "permission": "manageBackups"
+      "permission": "runBackups"
     },
     {
       "id": "audit",
