@@ -1,0 +1,78 @@
+# Example Prometheus alert rules for inkledger (see prometheus.yml).
+groups:
+  - name: inkledger
+    rules:
+      - alert: InkledgerDown
+        expr: up{job="inkledger"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "inkledger does not answer /api/metrics"
+
+      - alert: InkledgerNotReady
+        expr: probe_success{job="inkledger-ready"} == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "inkledger /api/ready fails (database, migrations, disk, backup age or background sync)"
+
+      - alert: InkledgerBackupStale
+        expr: time() - inkledger_backup_last_success_timestamp_seconds > 2 * 86400
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "No successful inkledger backup for more than two days"
+
+      - alert: InkledgerServerErrors
+        expr: sum(rate(inkledger_http_requests_total{status=~"5.."}[10m])) / clamp_min(sum(rate(inkledger_http_requests_total[10m])), 1) > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 5% of inkledger requests fail with 5xx"
+
+      - alert: InkledgerSlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(inkledger_http_request_duration_seconds_bucket[10m]))) > 2
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "inkledger p95 latency above 2 s"
+
+      - alert: InkledgerConnectionsBroken
+        expr: sum by (provider, status) (inkledger_connections{status!="ok"}) > 0
+        for: 1h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $value }} {{ $labels.provider }} connection(s) in state {{ $labels.status }}"
+
+      - alert: InkledgerSyncFailing
+        expr: sum by (provider) (rate(inkledger_sync_failures_total[30m])) > 0 and sum by (provider) (rate(inkledger_sync_passes_total[30m])) == 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Every {{ $labels.provider }} sync failed for 30 minutes"
+
+      - alert: InkledgerOutboxGrowing
+        expr: inkledger_outbox_depth > 50
+        for: 1h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $value }} time changes waiting for trackers out of reach"
+
+      - alert: InkledgerSignInFailures
+        expr: sum(increase(inkledger_login_failures_total[15m])) > 50
+        labels: { severity: warning }
+        annotations:
+          summary: "Many refused sign-ins in 15 minutes (guessing?)"
+
+      - alert: InkledgerRateLimited
+        expr: sum(increase(inkledger_rate_limited_total[15m])) > 100
+        labels: { severity: info }
+        annotations:
+          summary: "Many requests refused by rate limits in 15 minutes"
+
+      - alert: InkledgerDbPoolSaturated
+        expr: inkledger_db_pool_connections{state="waiting"} > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Requests wait for a database connection"

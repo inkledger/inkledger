@@ -24,6 +24,18 @@ function expiryWarning(validTo: Date, now: Date): string | null {
   return null;
 }
 
+/** When the certificate in `dir` ends, or null when there is none to read (HTTPS off). */
+export function certificateEnd(dir: string): Date | null {
+  try {
+    return new Date(new X509Certificate(readFileSync(path.join(dir, "server.crt"), "utf8")).validTo);
+  } catch {
+    return null;
+  }
+}
+
+/** Days left before a certificate ends, the warning threshold: alerts use the same one. */
+export const CERT_WARN_DAYS = WARN_DAYS;
+
 /**
  * Reads server.crt and server.key from `dir`. Never throws: HTTPS is an extra,
  * a bad certificate must not take the plain HTTP server down with it.

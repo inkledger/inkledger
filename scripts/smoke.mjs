@@ -4,7 +4,7 @@
 import { spawn } from "node:child_process";
 import { request } from "node:http";
 import { freePort } from "./freePort.mjs";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +14,8 @@ import { randomBytes } from "node:crypto";
 const port = await freePort();
 const dir = mkdtempSync(join(tmpdir(), "ikl-smoke-"));
 const base = `http://127.0.0.1:${port}`;
+const metricsToken = randomBytes(16).toString("hex");
+mkdirSync(join(dir, "backups"));
 
 const server = spawn(process.execPath, ["dist/boot.js"], {
   env: {
@@ -29,6 +31,9 @@ const server = spawn(process.execPath, ["dist/boot.js"], {
     STORE_URL: "off",
     WEATHER: "off",
     SYNC_INTERVAL_MIN: "0",
+    BACKUP_DIR: join(dir, "backups"),
+    READY_MIN_FREE_MB: "1",
+    METRICS_TOKEN: metricsToken,
   },
   stdio: ["ignore", "pipe", "inherit"],
 });
@@ -110,6 +115,16 @@ try {
 
   const moduleFile = await fetch(`${base}/api/modules/x/${"0".repeat(32)}/index.js`);
   check(moduleFile.status === 401, "module code needs a session");
+
+  // Readiness: every check of this server (the sync is off: skipped, not failed).
+  const ready = await fetch(`${base}/api/ready`);
+  const readyBody = await ready.json();
+  check(ready.status === 200 && readyBody.status === "ok" && readyBody.checks.migrations.status === "ok" && readyBody.checks.scheduler.status === "skipped", "/api/ready reports ready");
+  // Metrics only with the token, as Prometheus text labelled by route template.
+  check((await fetch(`${base}/api/metrics`)).status === 401, "/api/metrics refuses a scrape without the token");
+  const metrics = await fetch(`${base}/api/metrics`, { headers: { authorization: `Bearer ${metricsToken}` } });
+  const metricsText = await metrics.text();
+  check(metrics.ok && /^text\/plain/.test(metrics.headers.get("content-type") ?? "") && /inkledger_http_requests_total\{[^}]*route="\/api\/ready"/.test(metricsText), "/api/metrics serves Prometheus text with the token");
 
   const api404 = await fetch(`${base}/api/nope`);
   check(api404.status === 404, "unknown API route is 404 JSON");

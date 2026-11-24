@@ -8,6 +8,7 @@ import { notificationCenter } from "@/lib/flag";
 import { t } from "@/i18n";
 import { issuePath } from "@/lib/issues";
 import { pageSignals } from "@/modules/pageSignals";
+import { alertMessage, alertPath, useAlerts } from "@/components/notifications/alerts";
 
 /** One line per kind, used by toasts and the "For you" card (read when asked: it follows the language). */
 const KIND_TITLE: Record<string, string> = {
@@ -61,7 +62,8 @@ export function useNotificationCount(): number {
     refetchIntervalInBackground: true,
   });
   const reminders = useTodoReminders().items.length;
-  return (count.data?.count ?? 0) + reminders;
+  const alerts = useAlerts().data?.length ?? 0;
+  return (count.data?.count ?? 0) + reminders + alerts;
 }
 
 /**
@@ -135,4 +137,20 @@ export function useNotificationAlerts(): void {
       }
     });
   }, [latest, navigate, utils, notifyEnabled]);
+
+  // A new alert (a connection that stopped working, a failed backup): said once, with the way to fix it.
+  const alerts = useAlerts().data;
+  const newestAlert = alerts?.[0]?.id ?? null;
+  const seenAlert = useRef<number | null>(null);
+  useEffect(() => {
+    if (!alerts) return;
+    const before = seenAlert.current;
+    seenAlert.current = newestAlert ?? 0;
+    if (before === null || newestAlert === null || newestAlert <= before) return;
+    const first = alerts[0];
+    toast.warning(alertMessage(first), {
+      duration: 15_000,
+      action: { label: t("ui.notify.open"), onClick: () => void navigate(alertPath(first)) },
+    });
+  }, [alerts, newestAlert, navigate]);
 }

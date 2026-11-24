@@ -1,0 +1,39 @@
+# Example Prometheus scrape configuration for inkledger.
+#
+# Set METRICS_TOKEN on the server (a long random value, e.g. `openssl rand -hex 32`)
+# and put the same value in the file named by credentials_file below.
+#
+# The Host header Prometheus sends is the target's name: it must be in the server's
+# ALLOWED_HOSTS, or the server answers 421. Scraping 127.0.0.1 from the Docker host
+# works out of the box; for another name (e.g. "inkledger" on a shared Docker
+# network) add it to ALLOWED_HOSTS.
+global:
+  scrape_interval: 30s
+
+rule_files:
+  - inkledger-alerts.yml
+
+scrape_configs:
+  - job_name: inkledger
+    metrics_path: /api/metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/inkledger-metrics-token
+    static_configs:
+      - targets: ["127.0.0.1:47823"]
+
+  # Readiness through the blackbox exporter (optional): /api/ready answers 503
+  # when a check fails (database, migrations, disk, backup age, background sync).
+  - job_name: inkledger-ready
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["http://127.0.0.1:47823/api/ready"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115

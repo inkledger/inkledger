@@ -3,12 +3,14 @@
 // stream at once, the checkpoint, and the wait after a rate limit or a
 // failure.
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { connections, connectionSync } from "@db/schema";
 import type { Stream } from "../providers/types";
 import { normalizeError, type ProviderError } from "../providers/core/errors";
 import { SYNC_GIVE_UP_AFTER } from "@contracts/sync";
 import { getDb } from "../queries/connection";
+import { connectionAlert, connectionAlertById } from "../ops/alerts";
+import { opsConfig } from "../ops/config";
 
 /** This process, as a lease holder. */
 export const PROCESS_ID = randomUUID();
@@ -146,7 +148,15 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
       ...(kind === "invalidCheckpoint" ? { checkpoint: null } : {}),
     })
     .where(mine(connectionId, stream));
-  if (kind === "auth") await getDb().update(connections).set({ status: "auth_failed" }).where(eq(connections.id, connectionId));
+  // Told once when it changes (the second stream refused in the same pass finds it marked already).
+  if (kind === "auth") {
+    const refused = await getDb()
+      .update(connections)
+      .set({ status: "auth_failed" })
+      .where(and(eq(connections.id, connectionId), ne(connections.status, "auth_failed")))
+      .returning({ id: connections.id, userId: connections.userId, type: connections.type, label: connections.label });
+    for (const conn of refused) await connectionAlert(conn, "auth_failed");
+  }
   if ((kind === "unavailable" || kind === "timeout") && failures >= SYNC_GIVE_UP_AFTER) {
     // Only a working connection: refused or unreadable credentials say more than "out of reach".
     const paused = await getDb()
@@ -155,5 +165,8 @@ export async function failed(connectionId: number, stream: Stream, error: unknow
       .where(and(eq(connections.id, connectionId), eq(connections.status, "ok")))
       .returning({ id: connections.id });
     if (paused.length > 0) console.warn(`[sync] connection ${connectionId}: unreachable after ${failures} attempts, retried within its backoff`);
+    if (paused.length > 0) await connectionAlertById(connectionId, "unreachable");
   }
+  // Failing for a while whatever the kind: told when the count is reached, not at every failure after it.
+  if (failures === opsConfig.alertFailures && kind !== "auth") await connectionAlertById(connectionId, "failures", failures);
 }

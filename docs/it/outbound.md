@@ -17,6 +17,8 @@ This list covers the server only. Browsers and the native apps load the app from
 | Licence timestamp check | The host of `OTS_EXPLORER` (default `blockstream.info`) | Only on an admin's "Verify"; point it at your own Esplora server to keep it inside |
 | Local AI (idea suggestions, Desk chat, planner) | The host of `OLLAMA_URL` | `OLLAMA_URL` unset (the default) |
 | Forecast sidecar | The host of `FORECAST_URL` | `FORECAST_URL` unset (the default) |
+| Alert webhook | The host of the webhook set in Settings → Network | No webhook set (the default); never sent by a read-only server |
+| Request traces (OpenTelemetry) | The host of `OTEL_EXPORTER_OTLP_ENDPOINT` | `OTEL_EXPORTER_OTLP_ENDPOINT` unset (the default) |
 
 `PROVIDERS_READ_ONLY=1` does not stop calls to trackers: it refuses every call that could change something on them. `SYNC_INTERVAL_MIN=0` stops the background sync; calls made while users work still go out.
 
@@ -68,8 +70,16 @@ When an admin presses "Verify" on a licence, the server asks a Bitcoin block exp
 
 `OLLAMA_URL` and `FORECAST_URL` are meant for services on the same machine or private network. A public `OLLAMA_URL` is refused unless `OLLAMA_ALLOW_PUBLIC=1`. Both are off when unset.
 
+## Alert webhook
+
+Off by default. An admin may set a webhook URL in Settings → Network; each alert (a connection that stopped working, a failed backup, a licence not renewed, the HTTPS certificate about to end) is then posted there once per cooldown, signed with HMAC-SHA256. The post holds the alert's text and the name of the connection or licence it is about, never credentials or tracker data. The URL is checked when saved and before each post: no loopback, link-local or metadata addresses, no redirect to another site. A read-only server (`PROVIDERS_READ_ONLY=1`) never posts it.
+
+## Request traces (OpenTelemetry)
+
+Off by default. With `OTEL_EXPORTER_OTLP_ENDPOINT`, the server sends one span per HTTP request (method, route template, status, timing; never a path, query, header or body) to `<endpoint>/v1/traces` over OTLP/HTTP JSON. The endpoint is checked at start like a tracker's address.
+
 ## Inbound only (no outbound traffic)
 
 - Tracker webhooks (off by default, per connection) are received, never sent.
-- `/api/health` and the app itself are served to clients.
+- `/api/health`, `/api/ready` and the app itself are served to clients; `/api/metrics` (off unless `METRICS_TOKEN` is set) is scraped by your Prometheus, nothing is pushed.
 - Backups are written to `BACKUP_DIR` on the host; nothing is uploaded.

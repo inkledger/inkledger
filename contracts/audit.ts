@@ -65,6 +65,9 @@ export const AUDIT_ACTIONS = {
   "info.addHosts": ["hosts"],
   "info.setAccess": ["tailscaleHost", "tailscalePort", "customHosts"],
   "audit.setRetention": ["days"],
+  // Alerts (the webhook's URL is a secret: only its host is kept)
+  "alerts.setWebhook": ["host", "format", "removed"],
+  "alerts.test": ["host"],
   // Connections to trackers and time sinks
   "connections.add": ["type", "label", "baseUrl", "selfHosted"],
   "connections.reconnect": ["type", "baseUrl"],

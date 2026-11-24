@@ -18,6 +18,7 @@ import { getServerSetting, updateServerSetting } from "../lib/serverSettings";
 import { StoreError, postStore } from "../store/client";
 import { ACTIVATION_KEYS, asPem, extraKey } from "./keys";
 import { instance, proofMessage } from "./instance";
+import { licenceRenewals } from "../ops/alerts";
 
 const ACTIVATION_CONTEXT = "inkledger-activation-v1\n";
 const TOKENS_KEY = "modules.activations";
@@ -227,6 +228,8 @@ export async function renewActivations(licenses: { id: string; product: string; 
     }
     out.push({ id: l.id, result: await activate(l.text, l.id, now) });
   }
+  // A renewal refused or out of reach is told to the admins; one renewed clears it.
+  await licenceRenewals(out.map((o) => ({ id: o.id, product: licenses.find((l) => l.id === o.id)?.product, ok: o.result.ok, ...(o.result.ok ? {} : { reason: o.result.reason }) })));
   return out;
 }
 

@@ -4,7 +4,7 @@
 // only lands when the value is still the one read (the running server may
 // refresh a mailbox sign-in meanwhile).
 import { and, asc, eq, isNotNull } from "drizzle-orm";
-import { connections, ideaFiles, mailAccounts, mailCopies } from "@db/schema";
+import { connections, ideaFiles, mailAccounts, mailCopies, serverSettings } from "@db/schema";
 import {
   keyOfBytes,
   keyOfSealed,
@@ -129,6 +129,44 @@ const ideaFileData: Column<Owned> = {
   },
 };
 
+/** The alert webhook (server_settings "alerts.webhook"): its URL and signing secret, sealed for "alerts:webhook". One row, id 1. */
+type WebhookSetting = { url: string; secret: string; format: string };
+const ALERTS_WEBHOOK = "alerts.webhook";
+const ALERTS_SCOPE = "alerts:webhook";
+
+const alertsWebhook: Column<WebhookSetting> = {
+  name: "server_settings.alerts.webhook",
+  ids: async (db) => ((await db.select({ v: serverSettings.value }).from(serverSettings).where(eq(serverSettings.key, ALERTS_WEBHOOK)))[0] ? [1] : []),
+  read: async (db) => {
+    const [row] = await db.select({ v: serverSettings.value }).from(serverSettings).where(eq(serverSettings.key, ALERTS_WEBHOOK));
+    try {
+      const s = row ? (JSON.parse(row.v) as WebhookSetting | null) : null;
+      return s?.url && s.secret ? s : null;
+    } catch {
+      return null;
+    }
+  },
+  // Both are sealed together: the URL's key says for both.
+  check: (v) => {
+    const url = keyOfSealed(v.url, ALERTS_SCOPE);
+    const secret = keyOfSealed(v.secret, ALERTS_SCOPE);
+    return url && secret ? { key: url.key, fresh: url.fresh && secret.fresh } : null;
+  },
+  reseal: async (db, _id, v) => {
+    const next = JSON.stringify({ ...v, url: sealFor(openFor(v.url, ALERTS_SCOPE), ALERTS_SCOPE), secret: sealFor(openFor(v.secret, ALERTS_SCOPE), ALERTS_SCOPE) });
+    const [row] = await db.select({ v: serverSettings.value }).from(serverSettings).where(eq(serverSettings.key, ALERTS_WEBHOOK));
+    if (!row) return false;
+    const was = JSON.parse(row.v) as WebhookSetting;
+    if (was.url !== v.url || was.secret !== v.secret) return false;
+    const done = await db
+      .update(serverSettings)
+      .set({ value: next, updatedAt: new Date() })
+      .where(and(eq(serverSettings.key, ALERTS_WEBHOOK), eq(serverSettings.value, row.v)))
+      .returning({ key: serverSettings.key });
+    return done.length > 0;
+  },
+};
+
 /** A column with its payload type hidden: each value's key check, and a way to seal it again. */
 type Sealed = {
   name: string;
@@ -146,7 +184,7 @@ const erased = <P>(col: Column<P>): Sealed => ({
 });
 
 /** Every sealed column (a new one is added here, or keys-status and reseal miss it). */
-const COLUMNS: readonly Sealed[] = [erased(encryptedSecret), erased(webhookSecret), erased(mailAccountSecret), erased(mailCopySealed), erased(ideaFileData)];
+const COLUMNS: readonly Sealed[] = [erased(encryptedSecret), erased(webhookSecret), erased(mailAccountSecret), erased(mailCopySealed), erased(ideaFileData), erased(alertsWebhook)];
 
 export type ColumnKeys = { column: string; total: number; unreadable: number } & Record<KeyName, number>;
 

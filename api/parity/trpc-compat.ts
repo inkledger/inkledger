@@ -10,6 +10,10 @@ type Out = inferRouterOutputs<AppRouter>;
 type Fits<A extends B, B> = [A, B];
 
 export type InputsStillAccepted = [
+  Fits<FrozenIn["alerts.setWebhook"], In["alerts"]["setWebhook"]>,
+  Fits<FrozenIn["alerts.summary"], In["alerts"]["summary"]>,
+  Fits<FrozenIn["alerts.test"], In["alerts"]["test"]>,
+  Fits<FrozenIn["alerts.webhook"], In["alerts"]["webhook"]>,
   Fits<FrozenIn["audit.list"], In["audit"]["list"]>,
   Fits<FrozenIn["audit.setRetention"], In["audit"]["setRetention"]>,
   Fits<FrozenIn["audit.settings"], In["audit"]["settings"]>,
@@ -230,6 +234,7 @@ export type InputsStillAccepted = [
   Fits<FrozenIn["notes.tree"], In["notes"]["tree"]>,
   Fits<FrozenIn["notes.updateContent"], In["notes"]["updateContent"]>,
   Fits<FrozenIn["notes.versions"], In["notes"]["versions"]>,
+  Fits<FrozenIn["notifications.alerts"], In["notifications"]["alerts"]>,
   Fits<FrozenIn["notifications.count"], In["notifications"]["count"]>,
   Fits<FrozenIn["notifications.createTest"], In["notifications"]["createTest"]>,
   Fits<FrozenIn["notifications.dismiss"], In["notifications"]["dismiss"]>,
@@ -370,6 +375,10 @@ export type InputsStillAccepted = [
 ];
 
 export type OutputsStillRead = [
+  Fits<Out["alerts"]["setWebhook"], FrozenOut["alerts.setWebhook"]>,
+  Fits<Out["alerts"]["summary"], FrozenOut["alerts.summary"]>,
+  Fits<Out["alerts"]["test"], FrozenOut["alerts.test"]>,
+  Fits<Out["alerts"]["webhook"], FrozenOut["alerts.webhook"]>,
   Fits<Out["audit"]["list"], FrozenOut["audit.list"]>,
   Fits<Out["audit"]["setRetention"], FrozenOut["audit.setRetention"]>,
   Fits<Out["audit"]["settings"], FrozenOut["audit.settings"]>,
@@ -590,6 +599,7 @@ export type OutputsStillRead = [
   Fits<Out["notes"]["tree"], FrozenOut["notes.tree"]>,
   Fits<Out["notes"]["updateContent"], FrozenOut["notes.updateContent"]>,
   Fits<Out["notes"]["versions"], FrozenOut["notes.versions"]>,
+  Fits<Out["notifications"]["alerts"], FrozenOut["notifications.alerts"]>,
   Fits<Out["notifications"]["count"], FrozenOut["notifications.count"]>,
   Fits<Out["notifications"]["createTest"], FrozenOut["notifications.createTest"]>,
   Fits<Out["notifications"]["dismiss"], FrozenOut["notifications.dismiss"]>,

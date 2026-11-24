@@ -9,6 +9,20 @@ exports[`redaction > every action, fed its own fields and every secret: only its
     ],
     "redacted": 17,
   },
+  "alerts.setWebhook": {
+    "kept": [
+      "format",
+      "host",
+      "removed",
+    ],
+    "redacted": 17,
+  },
+  "alerts.test": {
+    "kept": [
+      "host",
+    ],
+    "redacted": 17,
+  },
   "audit.export": {
     "kept": [
       "filters",

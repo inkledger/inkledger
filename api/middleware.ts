@@ -18,6 +18,7 @@ import type { AuditAction } from "@contracts/audit";
 import { markConnection, markJiraConnection } from "./providers/connections";
 import { originOf } from "./providers/core/origin";
 import { PROVIDER_NAMES } from "@contracts/providerNames";
+import { guardCall, noteSignIn } from "./ops/rateLimits";
 import type { ProviderType } from "@contracts/providers";
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -61,7 +62,15 @@ const sameBuild = t.middleware(({ ctx, next }) => {
   return next();
 });
 
-export const publicQuery = t.procedure.use(sameBuild);
+/** The global rate limits (ops/rateLimits.ts), and sign-ins refused counted for /api/metrics. */
+const limited = t.middleware(async ({ ctx, path, next }) => {
+  guardCall(ctx);
+  const result = await next();
+  if (!result.ok) noteSignIn(path, result.error.code);
+  return result;
+});
+
+export const publicQuery = t.procedure.use(sameBuild).use(limited);
 
 /** Stored Jira secret that no longer decrypts (SESSION_SECRET changed). */
 export class UnreadableCredentialsError extends Error {

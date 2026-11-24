@@ -28,6 +28,8 @@ describe("sync engine, through the provider contract", () => {
   beforeEach(async () => {
     await q("DELETE FROM worklogs WHERE user_id = ?", userId);
     await q("DELETE FROM issues WHERE user_id = ?", userId);
+    // Alerts a failing pass raised (ops/alerts.ts) hang on the connection too.
+    await q("DELETE FROM notifications WHERE user_id = ?", userId);
     await q("DELETE FROM connections WHERE user_id = ?", userId);
     const [c] = await q<{ id: number }>(
       "INSERT INTO connections (user_id, type, base_url, remote_account_id, options, encrypted_secret, created_at) VALUES (?, 'github', 'https://fake.example', 'me', '{\"region\":\"eu\"}', 'x', ?) RETURNING id",

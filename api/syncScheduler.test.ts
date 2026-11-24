@@ -200,8 +200,11 @@ describe("background Jira sync", () => {
     tokenRevoked = true;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
+      await q("DELETE FROM notifications WHERE kind = 'alert'");
       expect(await mod.syncActiveUsers()).toEqual({ ok: 0, failed: 1 });
       expect(await mod.activeUsers()).toHaveLength(0);
+      // Told once, in this pass, to the connection's owner (ops/alerts.ts).
+      expect(await q("SELECT kind, detail FROM notifications WHERE kind = 'alert'")).toEqual([{ kind: "alert", detail: expect.stringContaining('"kind":"auth_failed"') as unknown }]);
       const before = searches;
       expect(await mod.syncActiveUsers()).toEqual({ ok: 0, failed: 0 });
       expect(searches).toBe(before);

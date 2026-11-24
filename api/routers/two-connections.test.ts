@@ -98,12 +98,13 @@ describe("two connections with the same issue key", () => {
   it("a reassignment seen on one connection notifies that connection only, and nothing fails", async () => {
     await q("UPDATE issues SET assignee_id = 'someone' WHERE key = 'APP-1' AND connection_id = ?", c2);
     await caller.issues.sync();
-    expect(await q("SELECT connection_id, kind, issue_key FROM notifications")).toEqual([{ connection_id: c2, kind: "assigned", issue_key: "APP-1" }]);
+    // The refusal before raised its alert (ops/alerts.ts): here, only what the sync saw.
+    expect(await q("SELECT connection_id, kind, issue_key FROM notifications WHERE kind <> 'alert'")).toEqual([{ connection_id: c2, kind: "assigned", issue_key: "APP-1" }]);
     const shown = await caller.notifications.list();
     expect(shown.map((n) => [n.connectionId, n.summary])).toEqual([[c2, "On site two"]]);
     // The same sync again says nothing new.
     await caller.issues.sync();
-    expect(await q("SELECT count(*)::int AS n FROM notifications")).toEqual([{ n: 1 }]);
+    expect(await q("SELECT count(*)::int AS n FROM notifications WHERE kind <> 'alert'")).toEqual([{ n: 1 }]);
   });
 
   it("a timer on APP-1 lives on the connection asked for; the key alone is ambiguous", async () => {

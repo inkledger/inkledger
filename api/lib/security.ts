@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { sha256Hex } from "./hash";
 import { t } from "@contracts/i18n";
+import { noteRateLimited } from "../ops/metrics";
 
 /** Hash stored in the DB instead of the raw session id (cookie value). */
 export function hashSessionId(sessionId: string): string {
@@ -142,8 +143,9 @@ export async function assertSafeJiraUrl(
  * Only when every entry is blocked does the oldest go anyway: memory and work
  * stay bounded however many keys come.
  */
-export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?: number } = {}) {
+export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?: number; name?: string } = {}) {
   const maxKeys = o.maxKeys ?? 10_000;
+  const name = o.name ?? "other";
   const hits = new Map<string, { count: number; resetAt: number }>();
   return {
     /** Returns seconds to wait when blocked, 0 when the hit is allowed. */
@@ -170,7 +172,10 @@ export function createRateLimiter(limit: number, windowMs: number, o: { maxKeys?
         return 0;
       }
       entry.count++;
-      return entry.count > limit ? Math.ceil((entry.resetAt - now) / 1000) : 0;
+      if (entry.count <= limit) return 0;
+      // Every refused hit is counted (/api/metrics): a client hammering on shows as such.
+      noteRateLimited(name);
+      return Math.ceil((entry.resetAt - now) / 1000);
     },
     reset(key: string) {
       hits.delete(key);
