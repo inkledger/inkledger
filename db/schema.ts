@@ -5,6 +5,7 @@ import {
   boolean,
   bigint,
   serial,
+  bigserial,
   text,
   uniqueIndex,
   index,
@@ -2130,3 +2131,45 @@ export const decisions = pgTable(
 );
 
 export type Decision = typeof decisions.$inferSelect;
+
+/**
+ * The audit log: who did what, when, from where. Append-only (a trigger refuses UPDATE,
+ * DELETE and TRUNCATE; only the retention purge deletes, under its own setting) and
+ * hash-chained: each row's hash covers the one before, so an edited or removed row shows.
+ * Tamper-evident, not tamper-proof: the app's role owns the table (docs/it/audit.md).
+ * No foreign keys: an event outlives the account and the thing it names.
+ */
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    at: epochMs("at").notNull(),
+    actorUserId: integer("actor_user_id"),
+    actorLabel: text("actor_label").notNull().default(""),
+    actorKind: text("actor_kind").notNull(),
+    /** contracts/audit.ts AUDIT_ACTIONS */
+    action: text("action").notNull(),
+    outcome: text("outcome").notNull().default("ok"),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    targetOwnerUserId: integer("target_owner_user_id"),
+    ip: text("ip"),
+    /** sha256 of the User-Agent, shortened: tells devices apart without keeping the string */
+    userAgentHash: text("user_agent_hash"),
+    requestId: text("request_id"),
+    /** JSON, redacted (contracts/audit.ts): kept as text, so the hash covers exactly what is stored */
+    before: text("before"),
+    after: text("after"),
+    prevHash: text("prev_hash").notNull(),
+    hash: text("hash").notNull(),
+  },
+  (t) => [
+    index("idx_audit_events_at").on(t.at),
+    index("idx_audit_events_actor_at").on(t.actorUserId, t.at),
+    index("idx_audit_events_target").on(t.targetType, t.targetId),
+    check("audit_events_actor_kind", sql`${t.actorKind} IN ('user','system','sync','scim','cli')`),
+    check("audit_events_outcome", sql`${t.outcome} IN ('ok','denied','failed')`),
+  ],
+);
+
+export type AuditEvent = typeof auditEvents.$inferSelect;
