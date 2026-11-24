@@ -563,9 +563,9 @@ export function Pinboard({
             <button
               type="button"
               className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 font-display text-body font-semibold outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={t("views.board.pinboard.switch", { name: board?.name ?? "…" })}
+              aria-label={t("views.board.pinboard.switch", { name: board?.name ?? t("views.board.pinboard.title"), count: notes.length })}
             >
-              <span className="truncate">{board?.name ?? t("views.board.pinboard.title")}</span>
+              <span className="truncate">{board?.name ?? t("views.board.pinboard.title")}</span>{" "}
               <span className="text-body-sm font-normal text-muted-foreground tabular">
                 {notes.length}
               </span>

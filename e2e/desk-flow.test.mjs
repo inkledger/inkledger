@@ -129,7 +129,7 @@ test("desk flow: Alt+Shift+→ on an issue page, then the Layout button's slots;
     assert.deepEqual(await storedShape(db), ["DEMO-102", "DEMO-101"]);
 
     await openIssue(page, base, "DEMO-103", "Test task number 3");
-    await page.getByRole("button", { name: "Open DEMO-103 on the desk" }).click();
+    await page.getByRole("button", { name: "Layout: open DEMO-103 on the desk" }).click();
     const slots = page.getByRole("group", { name: "Places on the desk for DEMO-103" });
     await slots.waitFor();
     for (const colorScheme of ["light", "dark"]) {
@@ -309,9 +309,9 @@ test("desk flow: an empty slot is named, stays inside its place with a long titl
     const slot = page.getByRole("region", { name: "Open an issue here" });
     await slot.waitFor();
     // Opened lately: DEMO-102 (just seen), not DEMO-101 (already on the desk).
-    await slot.getByRole("button", { name: /^Open DEMO-102 here/ }).waitFor();
-    assert.equal(await slot.getByRole("button", { name: /^Open DEMO-101 here/ }).count(), 0);
-    await slot.getByRole("button", { name: /^Open DEMO-103 here/ }).waitFor();
+    await slot.getByRole("button", { name: /^DEMO-102\s*Test task number 2$/ }).waitFor();
+    assert.equal(await slot.getByRole("button", { name: /^DEMO-101\b/ }).count(), 0);
+    await slot.getByRole("button", { name: /^DEMO-103\s*Manage the stock/ }).waitFor();
     const spill = await slot.evaluate(el => {
       const right = el.getBoundingClientRect().right;
       return { scroll: el.scrollWidth - el.clientWidth, past: [...el.querySelectorAll("*")].filter(c => c.getBoundingClientRect().right > right + 0.5).map(c => c.tagName + "." + c.className.toString().slice(0, 40)) };

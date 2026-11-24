@@ -28,11 +28,11 @@ export function ParkedTray({ parked, onUnpark, onRemove }: { parked: DeskPane[];
                 type="button"
                 onClick={() => onUnpark(id)}
                 title={summary ? `${pane.key}: ${summary}` : undefined}
-                aria-label={t("pages.desk.unpark", { key: pane.key })}
                 className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md pl-1.5 pr-2 text-body-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ProjectAvatar project={projectOf(pane.key)} connectionId={pane.connectionId} size="xs" className="size-5" />
                 {pane.key}
+                <span className="sr-only">{t("pages.desk.unparkHint")}</span>
               </button>
               {/* surface: none — the chip's other half: the chip is the surface. */}
               <button

@@ -84,7 +84,7 @@ test("desk: a seventh issue parks one; maximize keeps the others' scroll, Esc re
     await page.locator('[data-desk-pane="1:DEMO-102"]').waitFor();
     for (const key of ["DEMO-103", "DEMO-104", "DEMO-105", "DEMO-106", "DEMO-107"]) await addIssue(page, key);
     assert.equal((await boxes(page)).length, 6);
-    const tray = page.getByRole("button", { name: "Show DEMO-106 in place of the focused pane" });
+    const tray = page.getByRole("button", { name: /^DEMO-106\W+show in place of the focused pane$/ });
     await tray.waitFor();
     await page.getByText("DEMO-107 added to the desk; DEMO-106 was parked").first().waitFor();
     await page.waitForTimeout(800);
@@ -114,7 +114,7 @@ test("desk: a seventh issue parks one; maximize keeps the others' scroll, Esc re
     await tray.click();
     await page.locator('[data-desk-pane="1:DEMO-104"]').waitFor();
     await page.locator('[data-desk-pane="1:DEMO-103"]').waitFor({ state: "detached" });
-    await page.getByRole("button", { name: "Show DEMO-103 in place of the focused pane" }).waitFor();
+    await page.getByRole("button", { name: /^DEMO-103\W+show in place of the focused pane$/ }).waitFor();
   }));
 
 test("desk on a phone: tabs switch the issue shown, nothing overflows; axe clean in both themes", () =>

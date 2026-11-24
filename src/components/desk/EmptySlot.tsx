@@ -109,7 +109,7 @@ export function EmptySlot({
                     <button
                       type="button"
                       onClick={() => fill(i)}
-                      aria-label={t("pages.desk.slot.open", { key: i.key, summary: i.summary })}
+                      title={t("pages.desk.slot.open", { key: i.key, summary: i.summary })}
                       className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-body-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring coarse:min-h-touch"
                     >
                       <ProjectAvatar project={projectOf(i.key)} connectionId={i.connectionId} size="xs" />

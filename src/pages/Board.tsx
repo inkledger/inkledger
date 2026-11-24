@@ -852,7 +852,7 @@ export default function Board() {
                 className="h-4 w-4 -rotate-12 text-muted-foreground"
                 aria-hidden
               />
-              <span className="text-muted-foreground tabular">{pinned}</span>
+              <span className="text-muted-foreground tabular">{pinned}</span>{" "}
               <span className="whitespace-nowrap [writing-mode:vertical-rl]">
                 {t("pages.board.pinboard")}
               </span>
