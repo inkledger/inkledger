@@ -107,7 +107,7 @@ export const backupRouter = createRouter({
     ctx.audit.set({ target: { type: "backup", id: newest ?? "" }, after: { name: newest ?? null } });
     try {
       const state = await uploadNewest(newest);
-      if (!state) throw new OffsiteError("invalid", "No off-site copies are set up.");
+      if (!state) throw new OffsiteError("invalid", t("server.backup.offsiteOff"));
       if (state.lastName !== newest || (state.lastErrorAt ?? 0) > (state.lastOkAt ?? 0)) {
         ctx.audit.set({ after: { name: newest, lastError: state.lastError }, outcome: "failed" });
         throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: state.lastError ?? "" });

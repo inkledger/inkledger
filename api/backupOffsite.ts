@@ -15,6 +15,7 @@ import { backupDir, isRestoring, BACKUP_FILE } from "./backup";
 import { currentBackupKey, backupKeySet, decryptToFile, encryptFile, BackupKeyError } from "./backupCrypto";
 import { s3Client, type S3Client, type S3Transport } from "./backupS3";
 import { raiseAlert, resolveAlert } from "./ops/alerts";
+import { t } from "@contracts/i18n";
 
 export const OFFSITE_KINDS = ["none", "s3", "restic"] as const;
 export const LOCK_MODES = ["GOVERNANCE", "COMPLIANCE"] as const;
@@ -119,7 +120,7 @@ export async function setOffsite(patch: Partial<OffsiteSettings> & { secret?: st
   const current = await readStored();
   const next: Stored = { ...current, ...offsiteSettingsSchema.partial().parse(rest), secret: secret === undefined ? current.secret : secret ? sealFor(secret, OFFSITE_SCOPE) : "" };
   if (next.kind === "s3") {
-    if (!next.endpoint || !next.bucket || !next.accessKeyId || !next.secret) throw new OffsiteError("invalid", "An S3 copy needs the endpoint, the bucket, the access key id and its secret.");
+    if (!next.endpoint || !next.bucket || !next.accessKeyId || !next.secret) throw new OffsiteError("invalid", t("server.backup.offsiteIncomplete"));
     await assertSafeUrl(next.endpoint, { network: "private", ...(offsiteDeps.resolve ? { resolve: offsiteDeps.resolve } : {}) });
   }
   await updateServerSetting<unknown>(SETTINGS_KEY, {}, () => next);
@@ -219,14 +220,14 @@ function clientOf(s: Stored): S3Client {
   try {
     secretAccessKey = openFor(s.secret, OFFSITE_SCOPE);
   } catch {
-    throw new Error("The saved S3 secret doesn't open with the server's keys: enter it again in Settings → Backup.");
+    throw new Error(t("server.backup.offsiteSecretUnreadable"));
   }
   const cfg = { endpoint: s.endpoint, bucket: s.bucket, region: s.region || "us-east-1", accessKeyId: s.accessKeyId, secretAccessKey };
   return offsiteDeps.transport ? s3Client(cfg, offsiteDeps.transport) : s3Client(cfg);
 }
 
 async function uploadS3(s: Stored, name: string, dump: string, archive: () => Promise<string | null>): Promise<number> {
-  if (!backupKeySet()) throw new BackupKeyError("BACKUP_KEY is not set: off-site copies are encrypted with it, nothing was uploaded.");
+  if (!backupKeySet()) throw new BackupKeyError(t("server.backup.noBackupKey"));
   const key = currentBackupKey();
   const client = clientOf(s);
   const lock = s.objectLockDays > 0 ? { mode: s.objectLockMode, until: new Date(Date.now() + s.objectLockDays * 86_400_000) } : undefined;
@@ -269,7 +270,7 @@ const stageDir = () => path.join(backupDir(), ".restic-stage");
 const RESTIC_HOST = "inkledger";
 
 async function uploadRestic(s: Stored, name: string, dump: string, archive: () => Promise<string | null>): Promise<number> {
-  if (!resticConfigured()) throw new Error("restic needs RESTIC_REPOSITORY and RESTIC_PASSWORD in the server's environment.");
+  if (!resticConfigured()) throw new Error(t("server.backup.resticMissing"));
   const data = await archive();
   // One snapshot per backup, from a folder of a fixed path: retention groups them by it.
   const stage = stageDir();
@@ -347,7 +348,7 @@ export async function uploadOffsite(name: string): Promise<OffsiteState | null> 
   const dump = path.join(backupDir(), name);
   const data = path.join(backupDir(), `.${dataArchiveName(name)}.partial`);
   try {
-    if (!BACKUP_FILE.test(name) || !fs.existsSync(dump)) throw new OffsiteError("notFound", `Backup ${name} not found`);
+    if (!BACKUP_FILE.test(name) || !fs.existsSync(dump)) throw new OffsiteError("notFound", t("server.backup.notFound"));
     const archive = () => archiveData(data);
     const bytes = s.kind === "s3" ? await uploadS3(s, name, dump, archive) : await uploadRestic(s, name, dump, archive);
     const state: OffsiteState = { ...(await getOffsiteState()), lastOkAt: Date.now(), lastName: name, lastBytes: bytes };
@@ -399,7 +400,7 @@ export async function listOffsite(): Promise<OffsiteCopy[]> {
  * dump is then restored like any local one (restoreBackup: safety copy first).
  */
 export async function fetchOffsite(name: string): Promise<{ name: string; data: string | null }> {
-  if (!BACKUP_FILE.test(name)) throw new OffsiteError("invalid", "Invalid backup");
+  if (!BACKUP_FILE.test(name)) throw new OffsiteError("invalid", t("server.backup.invalid"));
   const s = await readStored();
   const dir = backupDir();
   const target = path.join(dir, name);
@@ -417,10 +418,10 @@ export async function fetchOffsite(name: string): Promise<{ name: string; data: 
     return { name, data };
   }
   if (s.kind === "restic") {
-    if (!resticConfigured()) throw new OffsiteError("invalid", "restic needs RESTIC_REPOSITORY and RESTIC_PASSWORD in the server's environment.");
+    if (!resticConfigured()) throw new OffsiteError("invalid", t("server.backup.resticMissing"));
     const snap = (await resticSnapshots()).find((x) => x.tags?.includes(stemOf(name)));
     const from = snap?.paths?.[0];
-    if (!snap || !from) throw new OffsiteError("notFound", `No off-site copy of ${name}`);
+    if (!snap || !from) throw new OffsiteError("notFound", t("server.backup.offsiteNotFound", { name }));
     const pull = async (file: string, to: string) => {
       const tmp = `${to}.partial`;
       try {
@@ -440,12 +441,12 @@ export async function fetchOffsite(name: string): Promise<{ name: string; data: 
     }
     return { name, data };
   }
-  throw new OffsiteError("invalid", "No off-site copies are set up.");
+  throw new OffsiteError("invalid", t("server.backup.offsiteOff"));
 }
 
 /** The newest local backup, copied off-site again now (Settings → Backup). */
 export async function uploadNewest(newest: string | undefined): Promise<OffsiteState | null> {
-  if (!newest) throw new OffsiteError("notFound", "There is no backup to copy yet.");
+  if (!newest) throw new OffsiteError("notFound", t("server.backup.noBackupYet"));
   return queueOffsite(newest);
 }
 

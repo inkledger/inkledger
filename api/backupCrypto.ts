@@ -11,6 +11,7 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } f
 import fs from "node:fs";
 import { Transform, type TransformCallback, type Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { t } from "@contracts/i18n";
 
 const MAGIC = Buffer.from("IKLB", "ascii");
 const VERSION = 1;
@@ -54,7 +55,7 @@ function nonce(prefix: Buffer, counter: number, last: boolean): Buffer {
 
 /** Encrypts what flows through it with BACKUP_KEY (throws BackupKeyError without one). */
 export function encryptStream(master: Buffer | undefined = currentBackupKey()): Transform {
-  if (!master) throw new BackupKeyError("BACKUP_KEY is not set");
+  if (!master) throw new BackupKeyError(t("server.backup.noBackupKey"));
   const salt = randomBytes(SALT_BYTES);
   const prefix = randomBytes(PREFIX_BYTES);
   const header = Buffer.concat([MAGIC, Buffer.from([VERSION]), keyId(master), salt, prefix]);
@@ -107,12 +108,16 @@ export function decryptStream(keys: Buffer[] = backupKeys()): Transform {
   let pending: Buffer = Buffer.alloc(0);
   const RECORD = CHUNK + TAG_BYTES;
   const open = (record: Buffer, last: boolean) => {
-    if (!key || !header) throw new Error("backup header missing");
-    if (record.length < TAG_BYTES) throw new Error("backup copy is cut short");
+    if (!key || !header || record.length < TAG_BYTES) throw new Error(t("server.backup.copyDamaged"));
     const d = createDecipheriv("aes-256-gcm", key, nonce(prefix, counter++, last), { authTagLength: TAG_BYTES });
     d.setAAD(header);
     d.setAuthTag(record.subarray(record.length - TAG_BYTES));
-    return Buffer.concat([d.update(record.subarray(0, record.length - TAG_BYTES)), d.final()]);
+    try {
+      return Buffer.concat([d.update(record.subarray(0, record.length - TAG_BYTES)), d.final()]);
+    } catch {
+      // A record that doesn't authenticate: altered, reordered, or the last one missing.
+      throw new Error(t("server.backup.copyDamaged"));
+    }
   };
   return new Transform({
     transform(chunk: Buffer, _enc, done: TransformCallback) {
@@ -122,12 +127,12 @@ export function decryptStream(keys: Buffer[] = backupKeys()): Transform {
           if (pending.length < HEADER_BYTES) return done();
           header = pending.subarray(0, HEADER_BYTES);
           pending = pending.subarray(HEADER_BYTES);
-          if (!header.subarray(0, MAGIC.length).equals(MAGIC) || header[MAGIC.length] !== VERSION) throw new Error("not an inkledger backup copy");
+          if (!header.subarray(0, MAGIC.length).equals(MAGIC) || header[MAGIC.length] !== VERSION) throw new Error(t("server.backup.copyNotOurs"));
           const id = header.subarray(MAGIC.length + 1, MAGIC.length + 1 + KEY_ID_BYTES);
           const salt = header.subarray(MAGIC.length + 1 + KEY_ID_BYTES, MAGIC.length + 1 + KEY_ID_BYTES + SALT_BYTES);
           prefix = header.subarray(HEADER_BYTES - PREFIX_BYTES);
           const master = keys.find((k) => keyId(k).equals(id));
-          if (!master) throw new BackupKeyError("this copy was encrypted with a key that is neither BACKUP_KEY nor BACKUP_KEY_OLD");
+          if (!master) throw new BackupKeyError(t("server.backup.copyWrongKey"));
           key = fileKey(master, salt);
         }
         // Strictly more than a record: the last one is opened as the last, in flush.
@@ -142,7 +147,7 @@ export function decryptStream(keys: Buffer[] = backupKeys()): Transform {
     },
     flush(done: TransformCallback) {
       try {
-        if (!header) throw new Error("backup copy is cut short");
+        if (!header) throw new Error(t("server.backup.copyDamaged"));
         this.push(open(pending, true));
         done();
       } catch (e) {

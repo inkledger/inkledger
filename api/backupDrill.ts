@@ -13,6 +13,7 @@ import { keysStatus } from "./queries/sealedValues";
 import { backupDir, isRestoring, listBackups, pgTarget, restoreInto } from "./backup";
 import { raiseAlert, resolveAlert } from "./ops/alerts";
 import path from "node:path";
+import { t } from "@contracts/i18n";
 
 /** The scratch database's name: fixed, so a drill cut short is cleaned by the next. */
 export const DRILL_DB = "inkledger_drill";
@@ -67,9 +68,9 @@ export type DrillTarget = {
 /** The scratch database's address: the live one's server and user, the drill's name. Refuses the live database. */
 export function drillUrl(liveUrl: string): string {
   const u = new URL(liveUrl);
-  if (!/^postgres(ql)?:$/.test(u.protocol)) throw new Error("The drill needs a Postgres database (DATABASE_URL).");
+  if (!/^postgres(ql)?:$/.test(u.protocol)) throw new Error(t("server.backup.drillNeedsPostgres"));
   const live = decodeURIComponent(u.pathname.replace(/^\//, ""));
-  if (!live || live === DRILL_DB) throw new Error(`The live database is named ${DRILL_DB}: the drill would replace it, so it does not run.`);
+  if (!live || live === DRILL_DB) throw new Error(t("server.backup.drillLiveName", { name: DRILL_DB }));
   u.pathname = `/${DRILL_DB}`;
   return u.toString();
 }
@@ -130,9 +131,9 @@ export function runDrill(opts: { target?: DrillTarget; scheduled?: boolean } = {
     let target: DrillTarget | null = null;
     let prepared = false;
     try {
-      if (isRestoring()) throw new Error("A restore is under way: the drill waits for the next time.");
+      if (isRestoring()) throw new Error(t("server.backup.drillBusy"));
       const newest = listBackups()[0];
-      if (!newest) throw new Error("There is no backup to restore yet.");
+      if (!newest) throw new Error(t("server.backup.noBackupYet"));
       result.dump = newest.name;
       target = opts.target ?? pgDrillTarget();
       await target.prepare();
@@ -152,9 +153,9 @@ export function runDrill(opts: { target?: DrillTarget; scheduled?: boolean } = {
         await scratch.close().catch(() => undefined);
       }
       const problems = [
-        result.users === 0 ? "the backup holds no accounts" : null,
-        result.migrationHead === null ? "the backup holds no migrations" : result.migrationHead > buildHead ? "the backup comes from a newer inkledger" : null,
-        (result.sealedUnreadable ?? 0) > 0 ? `${result.sealedUnreadable} sealed value(s) don't open with the keys configured now (CREDENTIALS_KEY / CREDENTIALS_KEY_OLD)` : null,
+        result.users === 0 ? t("server.backup.drillNoAccounts") : null,
+        result.migrationHead === null ? t("server.backup.drillNoMigrations") : result.migrationHead > buildHead ? t("server.backup.drillNewer") : null,
+        (result.sealedUnreadable ?? 0) > 0 ? t("server.backup.drillSealed", { count: result.sealedUnreadable ?? 0 }) : null,
       ].filter((p): p is string => p !== null);
       if (problems.length > 0) throw new Error(problems.join("; "));
       result.ok = true;
@@ -164,7 +165,7 @@ export function runDrill(opts: { target?: DrillTarget; scheduled?: boolean } = {
       if (prepared && target) {
         await target.drop().catch((e: unknown) => {
           result.ok = false;
-          result.error = [result.error, `the scratch database ${DRILL_DB} was not dropped: ${e instanceof Error ? e.message : String(e)}`].filter(Boolean).join("; ").slice(0, 500);
+          result.error = [result.error, t("server.backup.drillNotDropped", { name: DRILL_DB, error: e instanceof Error ? e.message : String(e) })].filter(Boolean).join("; ").slice(0, 500);
         });
       }
     }
