@@ -1,10 +1,11 @@
 // Prometheus metrics (GET /api/metrics, off unless METRICS_TOKEN is set). Pull only:
 // nothing leaves the server. Labels stay bounded: a route template, never a raw
 // path (webhook and share-link tokens live in paths); a provider type, never a URL.
-import { Counter, Gauge, Histogram, Registry as PromRegistry, collectDefaultMetrics } from "prom-client";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { Counter, Gauge, Histogram, Registry } from "./prometheus";
 
-type Registry = {
-  registry: PromRegistry;
+type Metrics = {
+  registry: Registry;
   http: Counter<"method" | "route" | "status">;
   latency: Histogram<"method" | "route">;
   syncPasses: Counter<"provider" | "stream">;
@@ -25,100 +26,84 @@ export type Gauges = {
 };
 
 // One registry per process: the dev server evaluates modules again on each change.
-const g = globalThis as { __iklMetrics?: Registry; __iklGauges?: Gauges };
+const g = globalThis as { __iklMetrics?: Metrics; __iklGauges?: Gauges };
 
-function build(): Registry {
-  const registry = new PromRegistry();
-  registry.setDefaultLabels({ app: "inkledger" });
-  collectDefaultMetrics({ register: registry, prefix: "inkledger_" });
+const LATENCY_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
+
+function build(): Metrics {
+  const registry = new Registry();
+  const r = <M extends Parameters<Registry["register"]>[0]>(metric: M) => registry.register(metric);
   return {
     registry,
-    http: new Counter({ name: "inkledger_http_requests_total", help: "HTTP requests by route template and status", labelNames: ["method", "route", "status"], registers: [registry] }),
-    latency: new Histogram({
-      name: "inkledger_http_request_duration_seconds",
-      help: "HTTP request latency by route template",
-      labelNames: ["method", "route"],
-      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-      registers: [registry],
-    }),
-    syncPasses: new Counter({ name: "inkledger_sync_passes_total", help: "Sync passes that went through, by provider type and stream", labelNames: ["provider", "stream"], registers: [registry] }),
-    syncFailures: new Counter({ name: "inkledger_sync_failures_total", help: "Sync passes that failed, by provider type, stream and kind", labelNames: ["provider", "stream", "kind"], registers: [registry] }),
-    loginFailures: new Counter({ name: "inkledger_login_failures_total", help: "Refused sign-ins (wrong password, too many attempts)", labelNames: ["reason"], registers: [registry] }),
-    rateLimited: new Counter({ name: "inkledger_rate_limited_total", help: "Requests refused by a rate limit (429), by limiter", labelNames: ["limiter"], registers: [registry] }),
-    alerts: new Counter({ name: "inkledger_alerts_total", help: "Alerts raised (after deduplication), by kind", labelNames: ["kind"], registers: [registry] }),
-    webhookFailures: new Counter({ name: "inkledger_alert_webhook_failures_total", help: "Alert webhook deliveries that failed", registers: [registry] }),
+    http: r(new Counter("inkledger_http_requests_total", "HTTP requests by route template and status", ["method", "route", "status"])),
+    latency: r(new Histogram("inkledger_http_request_duration_seconds", "HTTP request latency by route template", ["method", "route"], LATENCY_BUCKETS)),
+    syncPasses: r(new Counter("inkledger_sync_passes_total", "Sync passes that went through, by provider type and stream", ["provider", "stream"])),
+    syncFailures: r(new Counter("inkledger_sync_failures_total", "Sync passes that failed, by provider type, stream and kind", ["provider", "stream", "kind"])),
+    loginFailures: r(new Counter("inkledger_login_failures_total", "Refused sign-ins (wrong password, too many attempts)", ["reason"])),
+    rateLimited: r(new Counter("inkledger_rate_limited_total", "Requests refused by a rate limit (429), by limiter", ["limiter"])),
+    alerts: r(new Counter("inkledger_alerts_total", "Alerts raised (after deduplication), by kind", ["kind"])),
+    webhookFailures: r(new Counter("inkledger_alert_webhook_failures_total", "Alert webhook deliveries that failed")),
   };
 }
 
-export const metrics = (): Registry => (g.__iklMetrics ??= withGauges(build()));
+export const metrics = (): Metrics => (g.__iklMetrics ??= withGauges(build()));
 
 /** The scrape-time readers; set once by the server (tests set their own). */
 export function setGauges(gauges: Gauges): void {
   g.__iklGauges = gauges;
 }
 
-function withGauges(r: Registry): Registry {
-  const reg = [r.registry];
+/** A gauge filled when scraped. */
+function scraped<L extends string>(registry: Registry, name: string, help: string, labelNames: readonly L[], read: (g: Gauge<L>) => void | Promise<void>): void {
+  const gauge = registry.register(new Gauge<L>(name, help, labelNames));
+  gauge.collect = () => read(gauge);
+}
+
+function withGauges(m: Metrics): Metrics {
+  const reg = m.registry;
   const gauges = () => g.__iklGauges;
-  new Gauge({
-    name: "inkledger_db_pool_connections",
-    help: "Database pool connections by state",
-    labelNames: ["state"],
-    registers: reg,
-    collect() {
-      const p = gauges()?.pool();
-      if (!p) return;
-      this.set({ state: "total" }, p.total);
-      this.set({ state: "idle" }, p.idle);
-      this.set({ state: "waiting" }, p.waiting);
-    },
+  scraped(reg, "inkledger_db_pool_connections", "Database pool connections by state", ["state"], (gauge) => {
+    const p = gauges()?.pool();
+    if (!p) return;
+    gauge.set({ state: "total" }, p.total);
+    gauge.set({ state: "idle" }, p.idle);
+    gauge.set({ state: "waiting" }, p.waiting);
   });
-  new Gauge({
-    name: "inkledger_connections",
-    help: "Tracker connections (not archived) by provider type and status",
-    labelNames: ["provider", "status"],
-    registers: reg,
-    async collect() {
-      const read = gauges()?.connections;
-      if (!read) return;
-      this.reset();
-      for (const row of await read().catch(() => [])) this.set({ provider: row.type, status: row.status }, row.count);
-    },
+  scraped(reg, "inkledger_connections", "Tracker connections (not archived) by provider type and status", ["provider", "status"], async (gauge) => {
+    const read = gauges()?.connections;
+    if (!read) return;
+    const rows = await read();
+    gauge.reset();
+    for (const row of rows) gauge.set({ provider: row.type, status: row.status }, row.count);
   });
-  new Gauge({
-    name: "inkledger_outbox_depth",
-    help: "Time changes queued for trackers out of reach",
-    registers: reg,
-    async collect() {
-      const read = gauges()?.outbox;
-      if (read) this.set(await read().catch(() => 0));
-    },
+  scraped(reg, "inkledger_outbox_depth", "Time changes queued for trackers out of reach", [], async (gauge) => {
+    const read = gauges()?.outbox;
+    if (read) gauge.set({}, await read());
   });
-  new Gauge({
-    name: "inkledger_backup_last_success_timestamp_seconds",
-    help: "When the last backup succeeded (Unix time; 0 when none yet)",
-    registers: reg,
-    async collect() {
-      const read = gauges()?.backupLastOk;
-      if (read) this.set(((await read().catch(() => null)) ?? 0) / 1000);
-    },
+  scraped(reg, "inkledger_backup_last_success_timestamp_seconds", "When the last backup succeeded (Unix time; 0 when none yet)", [], async (gauge) => {
+    const read = gauges()?.backupLastOk;
+    if (read) gauge.set({}, ((await read()) ?? 0) / 1000);
   });
-  new Gauge({
-    name: "inkledger_sse_streams",
-    help: "Open live-event streams (server-sent events)",
-    registers: reg,
-    collect() {
-      const read = gauges()?.streams;
-      if (read) this.set(read());
-    },
+  scraped(reg, "inkledger_sse_streams", "Open live-event streams (server-sent events)", [], (gauge) => {
+    const read = gauges()?.streams;
+    if (read) gauge.set({}, read());
   });
-  return r;
+  // The process itself: memory, uptime, the event loop's delay (p99 since the last scrape).
+  const loop = monitorEventLoopDelay({ resolution: 20 });
+  loop.enable();
+  scraped(reg, "inkledger_process_resident_memory_bytes", "Resident memory of the server process", [], (gauge) => gauge.set({}, process.memoryUsage.rss()));
+  scraped(reg, "inkledger_nodejs_heap_used_bytes", "V8 heap in use", [], (gauge) => gauge.set({}, process.memoryUsage().heapUsed));
+  scraped(reg, "inkledger_process_uptime_seconds", "Seconds since the server process started", [], (gauge) => gauge.set({}, Math.round(process.uptime())));
+  scraped(reg, "inkledger_nodejs_eventloop_lag_p99_seconds", "Event loop delay, 99th percentile since the last scrape", [], (gauge) => {
+    gauge.set({}, loop.percentile(99) / 1e9);
+    loop.reset();
+  });
+  return m;
 }
 
 /** Prometheus' text exposition of every metric. */
 export async function renderMetrics(): Promise<{ body: string; contentType: string }> {
-  const r = metrics();
-  return { body: await r.registry.metrics(), contentType: r.registry.contentType };
+  return { body: await metrics().registry.render(), contentType: Registry.contentType };
 }
 
 export function observeHttp(method: string, route: string, status: number, seconds: number): void {

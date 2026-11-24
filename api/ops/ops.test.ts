@@ -131,8 +131,7 @@ describe("rate limits", () => {
 
   async function refusedCount(limiter: string): Promise<number> {
     const { metrics } = await import("./metrics");
-    const m = await metrics().rateLimited.get();
-    return m.values.find((v) => v.labels.limiter === limiter)?.value ?? 0;
+    return metrics().rateLimited.value({ limiter });
   }
 
   it("past the per-account limit: TOO_MANY_REQUESTS with Retry-After, counted; another account goes on", async () => {
@@ -182,7 +181,7 @@ describe("rate limits", () => {
   it("sign-ins refused are counted by reason", async () => {
     const { noteSignIn } = await import("./rateLimits");
     const { metrics } = await import("./metrics");
-    const read = async (reason: string) => (await metrics().loginFailures.get()).values.find((v) => v.labels.reason === reason)?.value ?? 0;
+    const read = async (reason: string) => Promise.resolve(metrics().loginFailures.value({ reason }));
     const [r0, t0] = [await read("refused"), await read("throttled")];
     noteSignIn("auth.login", "UNAUTHORIZED");
     noteSignIn("auth.login", "TOO_MANY_REQUESTS");
