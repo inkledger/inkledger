@@ -41,3 +41,42 @@ test("two admins turning each other off at once leave one of them on", async () 
     await app.stop();
   }
 });
+
+// Owners (E3): two owners each making the other an IT admin at once, through a role
+// change this time. One stays the owner, in users.role and in its role alike.
+test("two owners demoting each other at once leave one owner", async () => {
+  const app = await start({ bare: true });
+  try {
+    const { base, db } = app;
+    const port = new URL(base).port;
+    const now = Date.now();
+    const [{ id: ownerRole }] = await db.q("SELECT id FROM roles WHERE key = 'owner'");
+    const [{ id: itAdmin }] = await db.q("SELECT id FROM roles WHERE key = 'it-admin'");
+    const owner = async name => {
+      const [{ id }] = await db.q("INSERT INTO users (username, display_name, role, role_id, created_at) VALUES (?, ?, 'admin', ?, ?) RETURNING id", name, name, ownerRole, now);
+      const cookie = randomBytes(32).toString("base64url");
+      await db.q("INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)", createHash("sha256").update(cookie).digest("hex"), id, now + 86_400_000, now);
+      return { id, cookie: `ikl_session_${port}=${cookie}` };
+    };
+    for (let round = 0; round < 10; round++) {
+      await db.q("DELETE FROM sessions");
+      await db.q("DELETE FROM users");
+      const [a, b] = [await owner(`a${round}`), await owner(`b${round}`)];
+      const demote = (who, id) =>
+        fetch(`${base}/api/trpc/users.setAccess`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: who.cookie, origin: base },
+          body: JSON.stringify({ json: { id, roleId: itAdmin, permissions: [], modules: [] } }),
+        });
+      const answers = await Promise.all([demote(a, b.id), demote(b, a.id)]);
+      const owners = await db.q("SELECT username, role_id FROM users WHERE role = 'admin' AND disabled_at IS NULL");
+      assert.equal(owners.length, 1, `round ${round}: one owner stays (answers ${answers.map(r => r.status)})`);
+      assert.equal(owners[0].role_id, ownerRole, `round ${round}: its role says owner too`);
+      const [done, refused] = answers.map(r => r.status).sort();
+      assert.equal(done, 200, `round ${round}: one done`);
+      assert.ok([400, 401, 403].includes(refused), `round ${round}: the other refused (${refused})`);
+    }
+  } finally {
+    await app.stop();
+  }
+});
