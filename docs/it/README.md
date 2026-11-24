@@ -10,7 +10,7 @@ For the people who deploy, review and operate an inkledger server.
 | [Audit log](audit.md) | What is recorded, integrity, retention |
 | [Data protection notes](gdpr.md) | Controller role, categories, retention, export and erasure |
 | [Runbook: upgrade](runbook-upgrade.md) | Updating the Docker stack, rollback |
-| [Runbook: restore](runbook-restore.md) | Restoring a backup and checking the result |
+| [Runbook: restore](runbook-restore.md) | Restoring a backup (local or off-site), the restore drill, checking the result |
 | [Runbook: rotate keys](runbook-rotation.md) | Changing `CREDENTIALS_KEY` and `SESSION_SECRET` |
 | [Runbook: incident](runbook-incident.md) | Containing an account, signing out, rotating, exporting the audit |
 

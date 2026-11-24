@@ -38,6 +38,8 @@ export const notifications = {
     unreachable: "{name} has been out of reach for several syncs.",
     failures: "{name} failed {count} syncs in a row.",
     backup: "The last backup failed.",
+    offsite: "The last off-site copy failed.",
+    drill: "The restore drill of {name} failed.",
     licence: "The licence for {name} could not be renewed.",
     certificate: "The HTTPS certificate ends in {count} days.",
     certificateExpired: "The HTTPS certificate has ended.",

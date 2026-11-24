@@ -76,8 +76,32 @@
     "type": "mutation"
   },
   {
+    "path": "backup.drill",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.drillUpdate",
+    "type": "mutation"
+  },
+  {
     "path": "backup.get",
     "type": "query"
+  },
+  {
+    "path": "backup.offsiteList",
+    "type": "query"
+  },
+  {
+    "path": "backup.offsiteRestore",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.offsiteUpdate",
+    "type": "mutation"
+  },
+  {
+    "path": "backup.offsiteUpload",
+    "type": "mutation"
   },
   {
     "path": "backup.restore",

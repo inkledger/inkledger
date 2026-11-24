@@ -23,6 +23,20 @@ groups:
         annotations:
           summary: "No successful inkledger backup for more than two days"
 
+      - alert: InkledgerOffsiteStale
+        expr: inkledger_backup_offsite_last_success_timestamp_seconds > 0 and time() - inkledger_backup_offsite_last_success_timestamp_seconds > 2 * 86400
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "No inkledger backup copied off-site for more than two days"
+
+      - alert: InkledgerRestoreDrillFailed
+        expr: inkledger_backup_drill_success == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "The last inkledger restore drill failed (Settings → Backup)"
+
       - alert: InkledgerServerErrors
         expr: sum(rate(inkledger_http_requests_total{status=~"5.."}[10m])) / clamp_min(sum(rate(inkledger_http_requests_total[10m])), 1) > 0.05
         for: 10m

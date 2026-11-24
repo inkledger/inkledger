@@ -21,8 +21,9 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=47823 \
     MIGRATIONS_DIR=/app/drizzle
-# pg_dump / pg_restore: scheduled backups (Settings → Backup).
-RUN apk add --no-cache tzdata postgresql17-client && mkdir -p /app/data /backups && chown node:node /app/data /backups
+# pg_dump / pg_restore: scheduled backups (Settings → Backup); restic and GNU tar: off-site copies
+# (a restic repository, the /app/data archive beside each dump).
+RUN apk add --no-cache tzdata postgresql17-client restic tar && mkdir -p /app/data /backups && chown node:node /app/data /backups
 COPY --from=build --chown=node:node /app/package.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist

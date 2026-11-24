@@ -19,6 +19,10 @@ export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count">): str
       return t("settings.notifications.alert.failures", { name: a.name, count });
     case "backup":
       return t("settings.notifications.alert.backup");
+    case "offsite":
+      return t("settings.notifications.alert.offsite");
+    case "drill":
+      return t("settings.notifications.alert.drill", { name: a.name });
     case "licence":
       return t("settings.notifications.alert.licence", { name: a.name });
     case "certificate":
@@ -30,6 +34,8 @@ export function alertMessage(a: Pick<AlertRow, "alert" | "name" | "count">): str
 export function alertPath(a: Pick<AlertRow, "alert">): string {
   switch (a.alert) {
     case "backup":
+    case "offsite":
+    case "drill":
       return "/settings/backup";
     case "licence":
       return "/settings/store";

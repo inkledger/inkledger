@@ -29,6 +29,7 @@ flowchart LR
   S -. optional .-> W[Open-Meteo weather]
   S -. optional .-> OL[Ollama on your network]
   S -. optional .-> AW[Alert webhook / OTLP collector]
+  S -. optional, encrypted .-> OS[Off-site backups: S3 bucket or restic repository]
 ```
 
 Dotted lines are off until configured (or can be turned off): see [outbound.md](outbound.md). The server sends no telemetry.
@@ -59,11 +60,12 @@ Files outside the database:
 | Where | What | Personal | Protection | Retention |
 | --- | --- | --- | --- | --- |
 | `BACKUP_DIR` (`/backups`) | `pg_dump` files: a full copy of the database | Yes | Files readable by the server's user only (mode 0600); sealed values stay sealed. Not encrypted as files | The newest N (`keep`, 14 by default) |
+| Off-site (S3 bucket or restic repository; opt-in) | Each dump and an archive of `/app/data` | Yes | S3: AES-256-GCM on the server with `BACKUP_KEY` (kept outside the database) before upload; restic: encrypted by restic with `RESTIC_PASSWORD`. Optional S3 Object Lock | The newest of the last `keepDaily` days, `keepWeekly` weeks, `keepMonthly` months |
 | `/app/data/audit` | Daily `audit-YYYY-MM-DD.jsonl` copy of the audit log, restore records | Yes | File permissions | Until you rotate or ship them |
 | `/app/data` | Module licence identity (`instance.key`), installed modules, downloads | No | File permissions | Until removed |
 | HTTPS certificate folder | Local CA and server certificate | No | File permissions | Until renewed |
 
-Two copies matter for backups: the database dump holds everything above in the database, and `CREDENTIALS_KEY` is needed to open the sealed values. Keep them apart ([../../SECURITY.md](../../SECURITY.md)).
+Two copies matter for backups: the database dump holds everything above in the database, and `CREDENTIALS_KEY` is needed to open the sealed values; an off-site copy also needs `BACKUP_KEY` (or the restic password). Keep them apart ([../../SECURITY.md](../../SECURITY.md)).
 
 ## In transit
 

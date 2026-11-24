@@ -19,7 +19,7 @@ One page for a security review. Details are in the linked documents.
 ## Encryption
 
 - In transit: HTTPS to the server ([../https.md](../https.md)).
-- At rest: tracker credentials, webhook secrets, mailbox sign-ins, mail copies and idea pictures are sealed with AES-256-GCM, each bound to its record, with `CREDENTIALS_KEY` (rotation: [runbook-rotation.md](runbook-rotation.md)). Passwords are hashed, session and invite tokens are stored as hashes. The rest of the database is not encrypted by the application: use disk or volume encryption on the host if you need it. Backup files are not encrypted by the application either, but are written readable by the server's user only.
+- At rest: tracker credentials, webhook secrets, mailbox sign-ins, mail copies and idea pictures are sealed with AES-256-GCM, each bound to its record, with `CREDENTIALS_KEY` (rotation: [runbook-rotation.md](runbook-rotation.md)). Passwords are hashed, session and invite tokens are stored as hashes. The rest of the database is not encrypted by the application: use disk or volume encryption on the host if you need it. Backup files in `BACKUP_DIR` are not encrypted by the application either, but are written readable by the server's user only; off-site copies are encrypted before they leave.
 
 ## Permissions
 
@@ -31,7 +31,7 @@ Sign-ins, access changes, settings, connections, backups and restores, reads of 
 
 ## Backups
 
-Scheduled `pg_dump` files in `BACKUP_DIR`, a safety backup before every restore, restore refused for a backup from a newer version, sessions ended by a restore. Nothing is uploaded anywhere. See [runbook-restore.md](runbook-restore.md) and [runbook-upgrade.md](runbook-upgrade.md).
+Scheduled `pg_dump` files in `BACKUP_DIR`, a safety backup before every restore, restore refused for a backup from a newer version, sessions ended by a restore. Nothing is uploaded unless an admin turns on off-site copies: to S3, encrypted on the server with `BACKUP_KEY` (AES-256-GCM, a key kept outside the database), or to a restic repository (encrypted by restic). A weekly restore drill restores the newest backup into a scratch database, checks it and alerts when it fails. See [runbook-restore.md](runbook-restore.md) and [runbook-upgrade.md](runbook-upgrade.md).
 
 ## Other safeguards
 

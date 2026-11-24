@@ -50,6 +50,7 @@ import { ollamaRefusal } from "./ai/ollama";
 import { startSyncScheduler } from "./syncScheduler";
 import { settleInFlightSyncs } from "./sync/orchestrator";
 import { startBackupScheduler } from "./backup";
+import { startDrillScheduler } from "./backupDrill";
 import { t } from "@contracts/i18n";
 import { DEFAULT_ADMIN } from "@contracts/accounts";
 import { defaultAdminPending, ensureAdmin, purgeExpiredAccess } from "./queries/accounts";
@@ -249,6 +250,7 @@ if (env.isProduction || env.serveBuild) {
   const renewing = env.isProduction ? setInterval(renew, ACTIVATION_DEFAULTS.renewEveryMs) : undefined;
   renewing?.unref();
   const stopBackups = env.isProduction ? startBackupScheduler() : undefined;
+  const stopDrills = env.isProduction ? startDrillScheduler() : undefined;
   if (env.isProduction) {
     purge();
     // Module licences active on this server: renewed before they end (WP-19).
@@ -283,6 +285,7 @@ if (env.isProduction || env.serveBuild) {
     clearInterval(purging);
     clearInterval(renewing);
     stopBackups?.();
+    stopDrills?.();
     // Open event streams would keep server.close waiting forever.
     closeAllStreams();
     // Bounded: a pass stuck on Jira must not hold the exit until the hard kill.

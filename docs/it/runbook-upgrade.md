@@ -27,6 +27,7 @@ It targets the stack in `deploy/staging.yml` (compose project `inkledger`, conta
 2. Run `docker exec inkledger node dist/cli.js keys-status` and keep the output (see [key rotation](runbook-rotation.md)).
 3. Run `pnpm docker:update --dry-run` and read the steps.
 4. When building from a checkout, make sure the working tree is clean: uncommitted changes go into the image (the script warns about it).
+5. If off-site copies are on, Settings → Backup shows a recent last off-site copy and a passed last drill (run one if it is older than a week) ([restore](runbook-restore.md)).
 
 ## What happens, step by step
 

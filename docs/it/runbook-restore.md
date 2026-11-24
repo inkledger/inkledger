@@ -21,6 +21,30 @@ Restoring replaces the whole database with the contents of a backup file: accoun
 
 If the file holds migrations this version does not know, the restore stops with "This backup comes from a newer inkledger" and nothing is changed. Restore it on a server running that version or newer, or use a backup taken with this one. After a failed upgrade, use [runbook-upgrade.md](runbook-upgrade.md) instead: it restores the dump taken before the update.
 
+## Restore from an off-site copy
+
+When the backups folder is gone (a lost disk or host) but off-site copies are on (Settings → Backup → Off-site copy):
+
+1. Start a server of the same version or newer, with the same environment file: `CREDENTIALS_KEY` (and `_OLD`) as when the copy was taken, and `BACKUP_KEY` (S3; add `BACKUP_KEY_OLD` if the copy predates a key change) or `RESTIC_REPOSITORY`/`RESTIC_PASSWORD` (restic).
+2. Sign in as an owner (on a new server, the first admin) and set Settings → Backup → Off-site copy back to the same bucket and folder (or kind restic).
+3. Off-site copies → **Show the copies** → the copy → **Restore**, and confirm. Only an owner holding "restore backups" sees the button.
+4. The server downloads the copy into `BACKUP_DIR`, decrypts it and checks every byte before the file appears (a copy altered or cut short is refused, nothing changes), then restores it exactly as above: safety backup first, one transaction, sessions ended, `restore.completed` in the audit log.
+5. The data folder archive comes back beside it as `inkledger-<date>-<time>.data.tar.gz` (mode 0600). It holds `instance.key`, installed modules, downloads and the audit file copy. On a new host, stop the app, extract it into `/app/data` (`tar -xzf <file> -C /app/data`, as the container's user), start the app, then delete the archive. Restoring `instance.key` keeps module licences activated for this server.
+
+### Without the app (off-site)
+
+- **S3:** download `<prefix>inkledger-<date>-<time>.dump.enc` and `.data.tar.gz.enc` with any S3 client, then decrypt each with `BACKUP_KEY` set: `docker run --rm -e BACKUP_KEY -v "$PWD:/w" <image> node dist/cli.js decrypt-backup /w/<file>.enc /w/<file>`. The command writes the output only once every byte has verified. Restore the dump with `pg_restore` as below.
+- **restic:** `restic snapshots --host inkledger --tag inkledger`, then `restic dump <id> <path>/inkledger-<date>-<time>.dump > inkledger.dump` (the path is the one the snapshot lists).
+
+## Restore drill
+
+Settings → Backup → Restore drill restores the newest backup into a scratch database, `inkledger_drill`, on the same Postgres server. It never touches the live database, and refuses to run when the live database itself is named `inkledger_drill`. It then checks the copy: counts of accounts, worklogs and connections, the newest migration (no newer than this build), and that every sealed value opens with the keys configured now. Then it drops the scratch database. It runs once a week on the server (switch "Every week") and on **Run drill**.
+
+- The database role of `DATABASE_URL` needs `CREATEDB` (the default `POSTGRES_USER` of the compose stack has it). Without it the drill fails with "permission denied to create database".
+- A failed drill raises an alert (in-app, Settings → Network, the webhook) and is written to the audit log as `backup.drill`, with the result. A drill cut short leaves `inkledger_drill`: the next drill drops it first.
+- "sealed value(s) don't open": the keys in the environment would not open that backup's secrets after a restore. Fix the keys before you need the backup ([runbook-rotation.md](runbook-rotation.md)).
+- Before an upgrade, check that the last off-site copy and the last drill are both recent and passed ([runbook-upgrade.md](runbook-upgrade.md)).
+
 ## Without the app
 
 If the server cannot start, restore with `pg_restore` into an empty database of the same Postgres major version, using the same environment file and keys, then start the server (it applies any migrations it needs).

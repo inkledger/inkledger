@@ -18,6 +18,8 @@ This list covers the server only. Browsers and the native apps load the app from
 | Local AI (idea suggestions, Desk chat, planner) | The host of `OLLAMA_URL` | `OLLAMA_URL` unset (the default) |
 | Forecast sidecar | The host of `FORECAST_URL` | `FORECAST_URL` unset (the default) |
 | Alert webhook | The host of the webhook set in Settings → Network | No webhook set (the default); never sent by a read-only server |
+| Off-site backups (S3) | The endpoint set in Settings → Backup → Off-site copy | Kind "Off" (the default); never uploaded by a read-only server |
+| Off-site backups (restic) | The host of `RESTIC_REPOSITORY` (called by the `restic` binary, not by the server) | Kind "Off" (the default) |
 | Request traces (OpenTelemetry) | The host of `OTEL_EXPORTER_OTLP_ENDPOINT` | `OTEL_EXPORTER_OTLP_ENDPOINT` unset (the default) |
 
 `PROVIDERS_READ_ONLY=1` does not stop calls to trackers: it refuses every call that could change something on them. `SYNC_INTERVAL_MIN=0` stops the background sync; calls made while users work still go out.
@@ -78,8 +80,17 @@ Off by default. An admin may set a webhook URL in Settings → Network; each ale
 
 Off by default. With `OTEL_EXPORTER_OTLP_ENDPOINT`, the server sends one span per HTTP request (method, route template, status, timing; never a path, query, header or body) to `<endpoint>/v1/traces` over OTLP/HTTP JSON. The endpoint is checked at start like a tracker's address.
 
+## Off-site backups
+
+Off by default. An admin with "run backups" may send a copy of each backup off the host (Settings → Backup → Off-site copy):
+
+- **S3** (AWS S3 or any S3-compatible store: MinIO, Backblaze B2, Wasabi, Cloudflare R2). After each backup the server uploads the dump and an archive of its data folder (instance key, modules, downloads, audit file copy) to the endpoint and bucket set there, then deletes copies beyond the daily/weekly/monthly counts kept. Both are encrypted on the server with `BACKUP_KEY` before they leave (AES-256-GCM); without `BACKUP_KEY` nothing is uploaded. Calls are signed requests (AWS Signature V4) and go through the same egress guard as trackers and the alert webhook: the endpoint is checked when saved and before each call, no loopback, link-local or metadata addresses, no redirect to another site. A private address (a MinIO on your network) is allowed. Restoring from off-site downloads the copy from the same endpoint. A read-only server (`PROVIDERS_READ_ONLY=1`) never uploads.
+- **restic.** The server runs the `restic` binary in the image with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` from the environment; restic encrypts and connects to its repository on its own (its own networking and settings, **not** through the egress guard). Allow the repository's host in your firewall only if you use it.
+
+The access key id is stored in the database; the secret access key is sealed with `CREDENTIALS_KEY` (scope `backup:offsite`). Settings → Network lists the S3 endpoint's host like any other.
+
 ## Inbound only (no outbound traffic)
 
 - Tracker webhooks (off by default, per connection) are received, never sent.
 - `/api/health`, `/api/ready` and the app itself are served to clients; `/api/metrics` (off unless `METRICS_TOKEN` is set) is scraped by your Prometheus, nothing is pushed.
-- Backups are written to `BACKUP_DIR` on the host; nothing is uploaded.
+- Backups are written to `BACKUP_DIR` on the host; nothing is uploaded unless off-site copies are turned on (above).

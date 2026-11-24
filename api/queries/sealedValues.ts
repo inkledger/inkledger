@@ -167,6 +167,37 @@ const alertsWebhook: Column<WebhookSetting> = {
   },
 };
 
+/** The off-site backup secret (server_settings "backup.offsite"), sealed for "backup:offsite". One row, id 1. */
+type OffsiteSetting = { secret: string } & Record<string, unknown>;
+const BACKUP_OFFSITE = "backup.offsite";
+const OFFSITE_SCOPE = "backup:offsite";
+
+const offsiteSecret: Column<OffsiteSetting> = {
+  name: "server_settings.backup.offsite",
+  ids: async (db) => ((await offsiteSecret.read(db, 1)) ? [1] : []),
+  read: async (db) => {
+    const [row] = await db.select({ v: serverSettings.value }).from(serverSettings).where(eq(serverSettings.key, BACKUP_OFFSITE));
+    try {
+      const s = row ? (JSON.parse(row.v) as OffsiteSetting | null) : null;
+      return s && typeof s.secret === "string" && s.secret ? s : null;
+    } catch {
+      return null;
+    }
+  },
+  check: (v) => keyOfSealed(v.secret, OFFSITE_SCOPE),
+  reseal: async (db, _id, v) => {
+    const next = JSON.stringify({ ...v, secret: sealFor(openFor(v.secret, OFFSITE_SCOPE), OFFSITE_SCOPE) });
+    const [row] = await db.select({ v: serverSettings.value }).from(serverSettings).where(eq(serverSettings.key, BACKUP_OFFSITE));
+    if (!row || (JSON.parse(row.v) as OffsiteSetting).secret !== v.secret) return false;
+    const done = await db
+      .update(serverSettings)
+      .set({ value: next, updatedAt: new Date() })
+      .where(and(eq(serverSettings.key, BACKUP_OFFSITE), eq(serverSettings.value, row.v)))
+      .returning({ key: serverSettings.key });
+    return done.length > 0;
+  },
+};
+
 /** A column with its payload type hidden: each value's key check, and a way to seal it again. */
 type Sealed = {
   name: string;
@@ -184,7 +215,7 @@ const erased = <P>(col: Column<P>): Sealed => ({
 });
 
 /** Every sealed column (a new one is added here, or keys-status and reseal miss it). */
-const COLUMNS: readonly Sealed[] = [erased(encryptedSecret), erased(webhookSecret), erased(mailAccountSecret), erased(mailCopySealed), erased(ideaFileData), erased(alertsWebhook)];
+const COLUMNS: readonly Sealed[] = [erased(encryptedSecret), erased(webhookSecret), erased(mailAccountSecret), erased(mailCopySealed), erased(ideaFileData), erased(alertsWebhook), erased(offsiteSecret)];
 
 export type ColumnKeys = { column: string; total: number; unreadable: number } & Record<KeyName, number>;
 

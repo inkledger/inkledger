@@ -8,6 +8,8 @@ import { count, isNull, sql } from "drizzle-orm";
 import { connections, outbox } from "@db/schema";
 import { getDb, poolStats } from "../queries/connection";
 import { getBackupState } from "../backup";
+import { getOffsite, getOffsiteState } from "../backupOffsite";
+import { getLastDrill } from "../backupDrill";
 import { streamCount } from "../lib/userEvents";
 import { sameSecretHashed } from "../providers/core/webhooks";
 import { env } from "../lib/env";
@@ -94,6 +96,8 @@ export function registerOpsRoutes(app: App, o: { token?: string } = {}): void {
       ).map((r) => ({ type: r.type, status: r.status, count: Number(r.count) })),
     outbox: async () => Number((await getDb().select({ n: sql<number>`count(*)` }).from(outbox))[0]?.n ?? 0),
     backupLastOk: async () => (await getBackupState()).lastOkAt,
+    offsiteLastOk: async () => ((await getOffsite()).kind === "none" ? null : (await getOffsiteState()).lastOkAt),
+    drillOk: async () => (await getLastDrill())?.ok ?? null,
     streams: streamCount,
   });
 

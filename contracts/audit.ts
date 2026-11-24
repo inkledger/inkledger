@@ -107,6 +107,11 @@ export const AUDIT_ACTIONS = {
   "backup.run": ["name", "scheduled"],
   "backup.restore": ["name"],
   "backup.download": ["name", "size"],
+  "backup.offsiteUpdate": ["kind", "endpoint", "bucket", "prefix", "region", "accessKeyId", "keepDaily", "keepWeekly", "keepMonthly", "objectLockDays", "objectLockMode"],
+  "backup.offsiteUpload": ["name", "lastOkAt", "lastError"],
+  "backup.offsiteRestore": ["name", "data", "safety"],
+  "backup.drill": ["dump", "ok", "users", "worklogs", "connections", "migrationHead", "sealedUnreadable", "error", "scheduled"],
+  "backup.drillUpdate": ["weekly"],
   "restore.completed": ["name", "safety", "preRestoreLastHash"],
   // Reading other people's time
   "team.overview": ["from", "to"],
