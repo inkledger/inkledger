@@ -59,6 +59,28 @@ export function storeUrl(raw: string): string | null {
   }
 }
 
+/**
+ * The canonical external address (PUBLIC_URL): the one users and identity
+ * providers reach the server at, never read from a request's Host header.
+ * Unset: null. Set, it must be a plain http(s) URL (no user, query or
+ * fragment); anything else stops the start rather than being guessed.
+ * Returned without a trailing slash.
+ */
+export function publicUrl(raw: string | undefined): string | null {
+  const v = (raw ?? "").trim();
+  if (!v) return null;
+  let u: URL;
+  try {
+    u = new URL(v);
+  } catch {
+    throw new Error(`PUBLIC_URL must be an absolute http(s) URL, e.g. https://time.example.com (got "${v}")`);
+  }
+  if (!/^https?:$/.test(u.protocol)) throw new Error(`PUBLIC_URL must use https:// or http:// (got "${u.protocol}")`);
+  if (u.username || u.password) throw new Error("PUBLIC_URL must not contain a user name or password");
+  if (u.search || u.hash || v.includes("?") || v.includes("#")) throw new Error("PUBLIC_URL must not contain a query or a fragment");
+  return u.toString().replace(/\/+$/, "");
+}
+
 /** An http(s) address without trailing slash, or null for unset, "off" or unusable values. */
 const serviceUrl = (raw: string | undefined): string | null => storeUrl(raw ?? "");
 const yes = (raw: string | undefined) => ["1", "true", "yes"].includes((raw ?? "").trim().toLowerCase());
@@ -96,6 +118,8 @@ export const env = {
   forecastSimulator: (process.env.FORECAST_SIMULATOR ?? "").trim() === "1",
   isProduction,
   serveBuild,
+  /** The canonical external URL (PUBLIC_URL), for links and sign-in redirects; null when unset */
+  publicUrl: publicUrl(process.env.PUBLIC_URL),
   /** HTTP port for the production server */
   port: Number(process.env.PORT || 3000),
   /** Folder with server.crt and server.key: set, the server also answers over HTTPS */

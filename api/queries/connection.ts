@@ -36,11 +36,14 @@ let remigrate: (() => Promise<void>) | undefined;
 
 type Opened = { db: Db; close: () => Promise<void>; migrate: () => Promise<void> };
 
+/** reseal: false leaves connection secrets as they are at start (cli.ts keys-status and a reseal dry run only look). */
+type OpenOptions = { reseal?: boolean };
+
 /**
  * Schema migrations (guarded: see migrationGuard.ts), then the data
  * migrations. Also run again after a restore replaced the schema.
  */
-function migrator(db: Db, query: RawQuery, schemaUp: () => Promise<unknown>) {
+function migrator(db: Db, query: RawQuery, schemaUp: () => Promise<unknown>, { reseal = true }: OpenOptions = {}) {
   return async () => {
     const folder = migrationsFolder();
     const who = { production: env.isProduction, allowProductionDb: env.allowMigrateProductionDb };
@@ -59,12 +62,13 @@ function migrator(db: Db, query: RawQuery, schemaUp: () => Promise<unknown>) {
       return;
     }
     await runDataMigrations(db);
+    if (!reseal) return;
     const resealed = await resealCredentials(db);
     if (resealed > 0) console.log(`[credentials] ${resealed} connection secret(s) sealed again with the current key`);
   };
 }
 
-async function open(url: string): Promise<Opened> {
+async function open(url: string, options: OpenOptions): Promise<Opened> {
   // Under the tests only an in-process database: a test must never write to a real one.
   if (process.env.VITEST && !(url === ":memory:" || url.startsWith("pglite:"))) {
     throw new Error(`Tests may only use an in-process database, not ${url.replace(/\/\/[^@]*@/, "//***@")}`);
@@ -79,7 +83,7 @@ async function open(url: string): Promise<Opened> {
     const client = new PGlite({ dataDir: dir, extensions: { pg_trgm }, parsers: { 20: (v: string) => Number(v), 1700: (v: string) => Number(v) } });
     const db = drizzle(client, { schema: fullSchema }) as unknown as Db;
     const query: RawQuery = (text, params) => client.query(text, params);
-    const up = migrator(db, query, () => migrate(drizzle(client), { migrationsFolder: migrationsFolder() }));
+    const up = migrator(db, query, () => migrate(drizzle(client), { migrationsFolder: migrationsFolder() }), options);
     return { db, close: () => client.close(), migrate: up };
   }
   const { drizzle } = await import("drizzle-orm/node-postgres");
@@ -87,14 +91,14 @@ async function open(url: string): Promise<Opened> {
   const pool = new pg.Pool({ connectionString: url, max: 10 });
   const db = drizzle(pool, { schema: fullSchema }) as unknown as Db;
   const query: RawQuery = (text, params) => pool.query(text, params);
-  const up = migrator(db, query, () => migrate(drizzle(pool), { migrationsFolder: migrationsFolder() }));
+  const up = migrator(db, query, () => migrate(drizzle(pool), { migrationsFolder: migrationsFolder() }), options);
   return { db, close: () => pool.end(), migrate: up };
 }
 
 /** Connects and applies pending migrations (once). The server awaits it at start. */
-export function initDb(): Promise<Db> {
+export function initDb(options: OpenOptions = {}): Promise<Db> {
   if (instance) return Promise.resolve(instance);
-  pending ??= open(env.databaseUrl).then(async (o) => {
+  pending ??= open(env.databaseUrl, options).then(async (o) => {
     instance = o.db;
     close = o.close;
     remigrate = o.migrate;

@@ -98,7 +98,7 @@ More on the certificate tooling and on HTTPS for the dev server: [https.md](http
 
 Do this once, not after every deployment. Stop `pnpm dev` first so no new work is written after the dump. Keep the Docker stack read-only towards trackers until the imported data and connections have been checked.
 
-If dev has no explicit `CREDENTIALS_KEY`, temporarily set `CREDENTIALS_KEY_OLD` in `.env.inkledger` to dev's `SESSION_SECRET`; otherwise set it to dev's old credential key. At boot the server seals the imported tracker credentials again with the Docker stack's `CREDENTIALS_KEY`.
+Dev's sealed values (tracker credentials, webhook secrets, mailbox sign-ins, mail copies, idea pictures) must open on the Docker stack. If dev has an explicit `CREDENTIALS_KEY`, temporarily set `CREDENTIALS_KEY_OLD` in `.env.inkledger` to it. If dev has none, its values are sealed with a key derived from dev's `SESSION_SECRET`, and giving that secret as `CREDENTIALS_KEY_OLD` is not a reliable substitute: a 64-hex value (as `openssl rand -hex 32` makes) is read there as a raw key, so it opens only the oldest unbound connection secrets. Give dev a `CREDENTIALS_KEY` first instead: set it in `.env`, restart dev, run `pnpm exec tsx api/cli.ts reseal --apply` and check that `pnpm exec tsx api/cli.ts keys-status` shows nothing left on `SESSION_SECRET`; then use that key as `CREDENTIALS_KEY_OLD`. At boot the Docker stack seals the imported tracker credentials again with its own `CREDENTIALS_KEY`; run `docker exec inkledger node dist/cli.js reseal --apply` for the other columns, and remove `CREDENTIALS_KEY_OLD` once `keys-status` shows nothing needs it ([key rotation](it/runbook-rotation.md)).
 
 ```bash
 pnpm docker:from-dev --dry-run
@@ -114,8 +114,9 @@ From now on the Docker database is the only live copy. Development uses its own 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | — | Postgres connection string |
-| `SESSION_SECRET` | `pnpm dev`: fixed; prod, `dev:build`, `preview`, `dev:https`: **required** | Signs sessions and share links; seals tracker credentials when `CREDENTIALS_KEY` is unset |
-| `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals tracker credentials (AES-256-GCM, bound to their connection); after a rotation the next start seals them again |
+| `SESSION_SECRET` | `pnpm dev`: fixed; prod, `dev:build`, `preview`, `dev:https`: **required** | Keys module code tokens and module progress files; seals stored secrets and signs share links when `CREDENTIALS_KEY` is unset (sessions are random ids, not signed with it). To change it, see [key rotation](it/runbook-rotation.md) |
+| `CREDENTIALS_KEY` (and `CREDENTIALS_KEY_OLD` to rotate) | from `SESSION_SECRET` | Seals stored secrets (tracker credentials and webhook secrets, mailbox sign-ins, mail copies, idea pictures; AES-256-GCM, bound to what they belong to) and signs share links; after a rotation the next start seals tracker credentials again, `cli.js reseal --apply` the rest ([key rotation](it/runbook-rotation.md)) |
+| `PUBLIC_URL` | unset | The canonical external URL users reach the server at (e.g. `https://time.example.com`), used for sign-in redirects; never taken from the request's `Host` header. Must be an `https://` or `http://` URL without user, query or fragment, otherwise the server refuses to start |
 | `PORT` | `3000` | Production port (Docker: `47823`) |
 | `INKLEDGER_ADMIN_PASSWORD` | prod: random, in `INITIAL_ADMIN_PASSWORD_PATH` (`data/initial-admin-password`, mode 0600); dev: `admin` | The first admin's password on a new server (it must be changed at the first sign-in) |
 | `SESSION_DAYS` | `30` | Lifetime of an unused session (sessions in use are renewed) |

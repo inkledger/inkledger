@@ -261,6 +261,17 @@ describe("background Jira sync", () => {
     }
   });
 
+  it("skips a disabled account even while one of its sessions is still alive", async () => {
+    // Raw: turning an account off in Settings also ends its sessions, which would hide the check.
+    await q("UPDATE users SET disabled_at = ?", Date.now());
+    try {
+      expect(await mod.activeUsers()).toHaveLength(0);
+    } finally {
+      await q("UPDATE users SET disabled_at = NULL");
+    }
+    expect(await mod.activeUsers()).toHaveLength(1);
+  });
+
   it("skips users who logged out", async () => {
     await caller.auth.logout();
     expect(await mod.activeUsers()).toHaveLength(0);

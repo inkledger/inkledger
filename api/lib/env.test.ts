@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { env, parseAllowedHosts, positiveNumber, serviceEnv } from "./env";
+import { env, parseAllowedHosts, positiveNumber, publicUrl, serviceEnv } from "./env";
 
 describe("env", () => {
   it("accepts only positive finite numbers, else the fallback", () => {
@@ -38,6 +38,17 @@ describe("env", () => {
       process.env.DATABASE_URL = saved.url;
       if (saved.dir !== undefined) process.env.DOWNLOADS_DIR = saved.dir;
       vi.resetModules();
+    }
+  });
+
+  it("PUBLIC_URL: unset is null, a plain http(s) URL is kept without its trailing slash, anything else refuses to start", () => {
+    expect(publicUrl(undefined)).toBeNull();
+    expect(publicUrl("  ")).toBeNull();
+    expect(publicUrl("https://time.example.com/")).toBe("https://time.example.com");
+    expect(publicUrl(" https://Time.Example.com:8443/ikl/ ")).toBe("https://time.example.com:8443/ikl");
+    expect(publicUrl("http://10.0.0.5:47823")).toBe("http://10.0.0.5:47823");
+    for (const bad of ["time.example.com", "/relative", "ftp://time.example.com", "javascript:alert(1)", "https://u:p@time.example.com", "https://time.example.com/?a=1", "https://time.example.com/#x", "https://time.example.com/?"]) {
+      expect(() => publicUrl(bad), bad).toThrow(/PUBLIC_URL/);
     }
   });
 
