@@ -8,7 +8,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { start } from "./harness.mjs";
+import { ENGINE, start } from "./harness.mjs";
 import { signEnvelope } from "../api/vendor/seal/envelope.ts";
 import { sha256hex, signManifest } from "../api/vendor/seal/package.ts";
 
@@ -16,6 +16,11 @@ const KEY = generateKeyPairSync("ed25519");
 const PEM = KEY.publicKey.export({ type: "spki", format: "pem" }).toString();
 const TEMPLATE = readFileSync(new URL("./fixtures/modules/life/index.js", import.meta.url), "utf8");
 const PHONE = { viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" };
+// An engine workaround: on Playwright's Chromium 143 (headless shell and full), a synthetic tap on a
+// sandboxed frame in a process of its own brings no click (macOS: its touches reach the button; Linux:
+// the frame's page takes them); with the frame in the page's process it does, as the same test does on
+// Chrome 157. The tap still has to land on the module's button through the host's dock.
+const TAP_INTO_FRAMES = ENGINE === "chromium" ? ["--disable-features=IsolateSandboxedIframes"] : [];
 
 function install(modulesDir, id, slots, capabilities) {
   const code = Buffer.from(TEMPLATE.replace('id: "life"', `id: "${id}"`));
@@ -129,7 +134,7 @@ test("the phone's dock: room for the pill above the tab bar, the pointer only wh
       assert.equal(await page.locator(sel).evaluate(el => getComputedStyle(el).pointerEvents), "none");
       assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--dock-h").trim()), "0px");
     },
-    { device: PHONE },
+    { device: { ...PHONE, browserArgs: TAP_INTO_FRAMES } },
   ));
 
 test("no moveBefore (WebKit): a view removed with its box still runs its cleanup, as its document goes", () =>

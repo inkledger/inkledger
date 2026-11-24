@@ -1,4 +1,5 @@
 import type { FlowModality } from "@contracts/workspace/flowMap";
+import { CATALOG_V1 } from "@contracts/workspace/catalogV1";
 
 /** A click on a control FlowMap counts, read when it happens: the block may move or go right after. */
 export type FlowClick = {
@@ -49,6 +50,56 @@ export function flowKeyOf(event: Event): FlowClick | null {
   const detail = (event as CustomEvent<{ controlId?: string; path?: string } | undefined>).detail;
   if (!detail?.controlId) return null;
   return { controlId: detail.controlId, clientX: 0, clientY: 0, block: { left: 0, top: 0, width: 0, height: 0 }, modality: "keyboard", path: detail.path ?? location.pathname };
+}
+
+/** The page each counted control is on (its block's surface). */
+const surfaceOf = new Map(CATALOG_V1.controls.map(control => [control.id, CATALOG_V1.anchors.find(anchor => anchor.id === control.anchorId)?.surfaceId]));
+
+/** Clicks since the page's code ran, per page, until that page's first collection takes them. */
+const fromStart: FlowClick[] = [];
+const claimed = new Set<string>();
+let holdingFromStart = false;
+let dropped = false;
+let stopHoldingFromStart = () => {};
+
+/**
+ * Holds the clicks made from the page's first script on (before React takes the page over): a
+ * collection starts only once its layout has loaded, which a slow machine leaves well after a
+ * person's first clicks. In memory only, at most 50; nothing is sent unless a collection takes them,
+ * and all of it is dropped for good once FlowMap is known to be off (dropClicksFromStart).
+ */
+export function holdClicksFromStart(): void {
+  if (holdingFromStart || dropped || typeof document === "undefined") return;
+  holdingFromStart = true;
+  const hold = (read: FlowClick | null) => {
+    const surface = read && surfaceOf.get(read.controlId);
+    if (read && surface && !claimed.has(surface) && fromStart.length < 50) fromStart.push(read);
+  };
+  const click = (event: MouseEvent) => hold(flowClickOf(event));
+  const key = (event: Event) => hold(flowKeyOf(event));
+  document.addEventListener("click", click, true);
+  window.addEventListener("workspace:key", key);
+  stopHoldingFromStart = () => {
+    document.removeEventListener("click", click, true);
+    window.removeEventListener("workspace:key", key);
+  };
+}
+
+/** FlowMap is off: what was held goes, and nothing more is (turned on later, it counts from then on). */
+export function dropClicksFromStart(): void {
+  dropped = true;
+  fromStart.length = 0;
+  stopHoldingFromStart();
+}
+
+/** The clicks held from the page's start on `surfaceId`, once: from then on its collections count their own. */
+export function takeClicksFromStart(surfaceId: string): FlowClick[] {
+  claimed.add(surfaceId);
+  if (dropped) return [];
+  const taken = fromStart.filter(read => surfaceOf.get(read.controlId) === surfaceId);
+  const rest = fromStart.filter(read => surfaceOf.get(read.controlId) !== surfaceId);
+  fromStart.splice(0, fromStart.length, ...rest);
+  return taken;
 }
 
 /** Holds the clicks made while the collector's code is still loading; the returned function stops and hands them over. */

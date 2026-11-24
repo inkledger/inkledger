@@ -12,6 +12,8 @@ import { readSSRState } from "@/ssrState";
 import { SSRClockProvider } from "@/ssrClock";
 import { dayKey } from "@contracts/time";
 import { pageBuild, serviceWorkerUrl } from "@/lib/serviceWorker";
+import { holdClicksFromStart } from "@/lib/workspace/flowClick";
+import { holdCommandPaletteShortcut } from "@/lib/commandPalette";
 
 
 // After a redeploy, lazy chunks of the old build are gone (404): reload to
@@ -36,6 +38,9 @@ window.addEventListener("vite:preloadError", event => {
 });
 
 installNativeShell();
+// Before anything can be clicked: FlowMap counts the first clicks too, made before its layout loads.
+holdClicksFromStart();
+holdCommandPaletteShortcut();
 const ssr = readSSRState();
 
 // The chosen language's texts before the first paint (English is in the bundle; another one

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import type { PresentationDescriptor, Scope } from "@contracts/workspace/model";
-import { holdFlowClicks, type FlowClick } from "./flowClick";
+import { holdFlowClicks, takeClicksFromStart, type FlowClick } from "./flowClick";
 
 /** Clicks held by a collection that ended before its code arrived (its layout changed meanwhile): the next one of the scope counts them. */
 const carried = new Map<string, FlowClick[]>();
@@ -31,10 +31,12 @@ export function useWorkspaceTelemetry(
     let stop: ((options?: { optedOut?: boolean }) => void) | undefined;
     // The collector's code arrives after the page: clicks meanwhile are held, not lost.
     const handOver = holdFlowClicks();
+    // And those made before this could start (the page's first clicks, before its layout loaded).
+    const fromStart = takeClicksFromStart(scope.surfaceId);
     const key = `${scope.surfaceId}:${scope.deviceClass}`;
     void import("./collector").then(({ startFlowCollection }) => {
       if (cancelled) return;
-      const early = [...(carried.get(key) ?? []), ...handOver()];
+      const early = [...(carried.get(key) ?? []), ...fromStart, ...handOver()];
       carried.delete(key);
       const dispose = startFlowCollection({
         scope,
@@ -50,7 +52,7 @@ export function useWorkspaceTelemetry(
       cancelled = true;
       const held = handOver();
       if (!observing.current) carried.delete(key);
-      else if (!stop && held.length > 0) carried.set(key, [...(carried.get(key) ?? []), ...held].slice(-50));
+      else if (!stop && fromStart.length + held.length > 0) carried.set(key, [...(carried.get(key) ?? []), ...fromStart, ...held].slice(-50));
       stop?.({ optedOut: !observing.current });
     };
   }, [observe, scope, descriptor, presentation, effectiveRevision, workspaceFingerprint, epoch, clientInstanceId, send]);

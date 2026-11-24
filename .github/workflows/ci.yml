@@ -45,7 +45,8 @@ jobs:
     # ubuntu-latest is Ubuntu 26.04 since 2026-10-19, which Playwright 1.57 cannot install a browser on.
     runs-on: ubuntu-24.04
     needs: check
-    timeout-minutes: 45
+    # The whole suite takes about 45 minutes on the runner, one file at a time.
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17-alpine

@@ -17,6 +17,17 @@ export function useNow(active: boolean, periodMs = 1000): number {
   return useSyncExternalStore(subscribe, now, () => initial ?? now());
 }
 
+const noSubscribe = () => () => {};
+
+/**
+ * False while React hydrates the server's HTML, true from then on. The server draws no timers (they
+ * are not in its state); a boundary hydrating after the browser has fetched them must draw none too,
+ * or React throws the page's HTML away and redraws it (a click meanwhile is lost).
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscribe, () => true, () => false);
+}
+
 /**
  * Timers of the user; `fetchedAt` anchors the live ticking. Events bring
  * changes at once (useLiveSync); the poll is the fallback, quicker while the
@@ -29,8 +40,9 @@ export function useNow(active: boolean, periodMs = 1000): number {
 export function useTimers() {
   const live = useLiveState();
   const q = trpc.timers.list.useQuery(undefined, { refetchInterval: live === "live" ? 15_000 : 5_000, refetchOnWindowFocus: true });
+  const hydrated = useHydrated();
   return {
-    timers: q.data ?? [],
+    timers: (hydrated && q.data) || [],
     get fetchedAt() {
       return q.dataUpdatedAt;
     },

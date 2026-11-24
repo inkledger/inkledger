@@ -7,6 +7,7 @@ import type { PresentationDescriptor, ResolvedWorkspace, Scope } from "@contract
 import { workspaceClientInstanceId } from "./client";
 import { WorkspaceContext, type WorkspaceContextValue } from "./context";
 import { useWorkspaceTelemetry } from "./telemetry";
+import { dropClicksFromStart } from "./flowClick";
 import { useWorkspaceMutationGuard } from "./mutationGuard";
 
 function fallbackWorkspace(scope: Scope): ResolvedWorkspace {
@@ -54,6 +55,11 @@ export function WorkspaceScopeProvider({ scope: requestedScope, children, teleme
   const utils = trpc.useUtils();
   const usage = trpc.settings.get.useQuery(undefined, { select: settings => settings.workspace });
   const flowMap = usage.data?.flowMap === true;
+  // Known off: the clicks held since the page started are never counted, not even after turning it on.
+  const flowMapOff = usage.data !== undefined && !flowMap;
+  useEffect(() => {
+    if (flowMapOff) dropClicksFromStart();
+  }, [flowMapOff]);
   const enabled = live || flowMap || (usage.data?.scopes.includes(`${scope.surfaceId}:${scope.deviceClass}`) ?? false);
   const initialData = useMemo(() => utils.workspace.get.getData({ scope, clientInstanceId: "ssr" }), [utils, scope]);
   const query = trpc.workspace.get.useQuery({ scope, clientInstanceId }, {
