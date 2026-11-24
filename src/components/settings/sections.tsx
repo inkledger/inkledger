@@ -25,6 +25,7 @@ import {
   Hourglass,
   PanelsTopLeft,
   ScrollText,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import { formatDuration, startOfWeek } from "@contracts/time";
@@ -68,6 +69,7 @@ import { TimersSection } from "@/components/settings/sections/Timers";
 import { StoreSection } from "@/components/settings/sections/Store";
 import { UsersSection } from "@/components/settings/sections/Users";
 import { TeamsSection } from "@/components/settings/sections/Teams";
+import { SsoSection } from "@/components/settings/sections/Sso";
 import { ConnectionsSection } from "@/components/settings/sections/Connections";
 import { BucketsSection } from "@/components/settings/sections/Buckets";
 import { ClientsSection } from "@/components/settings/sections/Clients";
@@ -164,6 +166,19 @@ export const CATEGORIES: SettingsCategory[] = [
     Summary: function TeamsSummary() {
       const n = trpc.teams.list.useQuery(undefined, { staleTime: 60_000 }).data?.teams.length;
       return n === undefined ? null : t("settings.categories.teams.count", { count: n });
+    },
+  },
+  {
+    id: "sso",
+    get label() { return t("settings.categories.sso.label"); },
+    get description() { return t("settings.categories.sso.description"); },
+    icon: KeyRound,
+    get keywords() { return t("settings.categories.sso.keywords"); },
+    permission: "manageAuth",
+    Content: SsoSection,
+    Summary: function SsoSummary() {
+      const n = trpc.sso.list.useQuery(undefined, { staleTime: 60_000 }).data?.providers.length;
+      return n === undefined ? null : t("settings.categories.sso.count", { count: n });
     },
   },
   {

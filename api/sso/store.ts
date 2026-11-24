@@ -1,7 +1,8 @@
 // Identity providers as stored, and the short-lived state of a sign-in under way at one.
 import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
 import { identityProviders, ssoStates, type IdentityProvider } from "@db/schema";
-import { claimMapSchema, groupMapSchema, ssoAccessSchema, SSO_STATE_MINUTES, type ClaimMap, type GroupMapEntry, type SsoAccess } from "@contracts/sso";
+import { SSO_STATE_MINUTES } from "@contracts/sso";
+import { claimMapSchema, groupMapSchema, ssoAccessSchema, type ClaimMap, type GroupMapEntry, type SsoAccess } from "@contracts/ssoSchemas";
 import { getDb, type Db } from "../queries/connection";
 import { openFor, sealFor } from "../lib/crypto";
 import { sha256Hex } from "../lib/hash";
