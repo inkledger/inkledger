@@ -371,7 +371,8 @@ export const usersRouter = createRouter({
    * get past the identity provider). The last break-glass owner keeps it while enforcing.
    */
   setBreakGlass: permProcedure("manageAuth").input(z.object({ id: z.number().int(), breakGlass: z.boolean() })).mutation(async ({ input, ctx }) => {
-    const user = await target(input.id, ctx.user);
+    // One's own too: a single owner must be able to keep password sign-in before enforcing.
+    const user = input.id === ctx.user.id ? await actingNow(ctx.user) : await target(input.id, ctx.user);
     if (input.breakGlass && user.authSource !== "local") throw new TRPCError({ code: "FORBIDDEN", message: t("server.sso.passwordRefused") });
     const enforced = await ssoEnforced();
     const [updated] = await writeAccount(ctx.user, user, false, async (db, me) => {
