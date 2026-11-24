@@ -15,7 +15,12 @@
 // Seals every value that opens again with the current key and lists the rows
 // none opens (table, column, row id). A dry run unless --apply.
 // Neither seals anything at start (the server does that for connections at boot).
+//   node dist/cli.js decrypt-backup <copy.enc> <out>
+// Opens an off-site copy (S3) with BACKUP_KEY or BACKUP_KEY_OLD from the environment,
+// writing <out> only once every byte has verified. Needs no database: for a server
+// that can't start (docs/it/runbook-restore.md).
 import "./lib/tz";
+import fs from "node:fs";
 import { eq } from "drizzle-orm";
 import { users } from "@db/schema";
 import { closeDb, getDb, initDb } from "./queries/connection";
@@ -24,6 +29,14 @@ import { releaseClosuresFrom } from "./modules/closures";
 import { moduleIdSchema } from "@contracts/modulesSchema";
 import { hashPassword, temporaryPassword } from "./lib/password";
 import { keysStatus, resealAll } from "./queries/sealedValues";
+import { decryptToFile } from "./backupCrypto";
+
+async function decryptBackup([from, to]: string[]) {
+  if (!from || !to) throw new Error("usage: decrypt-backup <copy.enc> <out>");
+  if (fs.existsSync(to)) throw new Error(`${to} exists: give a new file name`);
+  await decryptToFile(fs.createReadStream(from), to);
+  console.log(`Decrypted into ${to}`);
+}
 
 async function resetPassword(username: string | undefined) {
   if (!username) throw new Error("usage: reset-password <username>");
@@ -82,17 +95,21 @@ async function reseal(rest: string[]) {
 }
 
 const COMMANDS =
-  "commands: reset-password <username> | closures-from <username|user id> <module> <YYYY-MM-DD> [--already <n>] [--apply] | keys-status | reseal [--apply]";
+  "commands: reset-password <username> | closures-from <username|user id> <module> <YYYY-MM-DD> [--already <n>] [--apply] | keys-status | reseal [--apply] | decrypt-backup <copy.enc> <out>";
 
 const [command, ...args] = process.argv.slice(2);
 try {
-  // Looking at the keys must not change what it looks at: no seal at start for these.
-  await initDb({ reseal: command !== "keys-status" && command !== "reseal" });
-  if (command === "reset-password") await resetPassword(args[0]);
-  else if (command === "closures-from") await closuresFrom(args);
-  else if (command === "keys-status") await printKeysStatus();
-  else if (command === "reseal") await reseal(args);
-  else throw new Error(COMMANDS);
+  // Off-site copies open without a database (a server that can't start).
+  if (command === "decrypt-backup") await decryptBackup(args);
+  else {
+    // Looking at the keys must not change what it looks at: no seal at start for these.
+    await initDb({ reseal: command !== "keys-status" && command !== "reseal" });
+    if (command === "reset-password") await resetPassword(args[0]);
+    else if (command === "closures-from") await closuresFrom(args);
+    else if (command === "keys-status") await printKeysStatus();
+    else if (command === "reseal") await reseal(args);
+    else throw new Error(COMMANDS);
+  }
 } catch (e) {
   console.error(e instanceof Error ? e.message : String(e));
   process.exitCode = 1;
