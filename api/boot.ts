@@ -50,6 +50,7 @@ import { startBackupScheduler } from "./backup";
 import { t } from "@contracts/i18n";
 import { DEFAULT_ADMIN } from "@contracts/accounts";
 import { defaultAdminPending, ensureAdmin, purgeExpiredAccess } from "./queries/accounts";
+import { registerOpsRoutes } from "./ops/routes";
 
 // Connect and migrate before answering anything (Postgres; PGlite in tests).
 await initDb();
@@ -177,6 +178,8 @@ app.onError((err, c) => {
   return c.json({ error: "Internal Server Error" }, 500);
 });
 
+// Readiness, Prometheus metrics, request timing and the global route limits (api/ops).
+registerOpsRoutes(app);
 app.get("/api/health", async (c) =>
   (await pingDb()) ? c.json({ status: "ok" }) : c.json({ status: "error" }, 503),
 );

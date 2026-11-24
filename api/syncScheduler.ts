@@ -11,6 +11,7 @@ import { isShuttingDown } from "./lib/shutdown";
 import { inMaintenance } from "./lib/maintenance";
 import { readDueHistories } from "./estimates/history";
 import { SYNC_STATES, needsReconnect } from "@contracts/sync";
+import { certificateCheck } from "./ops/alerts";
 
 /** States the background still syncs: working, or out of reach (retried within its backoff). */
 const RETRIED = SYNC_STATES.filter((s) => !needsReconnect(s));
@@ -123,6 +124,10 @@ async function readHistories(): Promise<void> {
   }
 }
 
+/** When the scheduler last showed life (armed, began or ended a pass), for /api/ready; null when not started. */
+let heartbeat: { at: number; minutes: number; running: boolean } | null = null;
+export const schedulerHeartbeat = () => heartbeat;
+
 /** First pass soon after boot, so a restart doesn't leave data stale for a whole interval. */
 export const FIRST_SYNC_DELAY_MS = 30_000;
 
@@ -138,7 +143,9 @@ export function startSyncScheduler(minutes: number): () => Promise<void> {
   let current: Promise<unknown> | null = null;
   let handle: ReturnType<typeof setTimeout>;
   const schedule = (ms: number) => {
+    heartbeat = { at: Date.now(), minutes, running: false };
     handle = setTimeout(() => {
+      heartbeat = { at: Date.now(), minutes, running: true };
       // Then the status histories the pass made due (estimates): read only, a bounded number per pass.
       current = syncActiveUsers()
         .then(() => (isShuttingDown() ? undefined : readHistories()))
@@ -146,6 +153,8 @@ export function startSyncScheduler(minutes: number): () => Promise<void> {
         .catch((e: unknown) => console.warn(`[sync] pass failed: ${e instanceof Error ? e.message : String(e)}`))
         .finally(() => {
           current = null;
+          // The certificate's end is looked at after a pass (at most daily): no timer of its own.
+          void certificateCheck().catch(() => undefined);
           if (!stopped) schedule(minutes * 60_000);
         });
     }, ms);
@@ -154,6 +163,7 @@ export function startSyncScheduler(minutes: number): () => Promise<void> {
   schedule(Math.min(FIRST_SYNC_DELAY_MS, minutes * 60_000));
   return async () => {
     stopped = true;
+    heartbeat = null;
     clearTimeout(handle);
     await current;
   };

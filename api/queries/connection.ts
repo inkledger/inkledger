@@ -33,6 +33,13 @@ let instance: Db | undefined;
 let close: (() => Promise<void>) | undefined;
 let pending: Promise<Db> | undefined;
 let remigrate: (() => Promise<void>) | undefined;
+/** The Postgres pool (none under PGlite), for /api/metrics. */
+let livePool: pg.Pool | undefined;
+
+/** The pool's connections now: open, idle, and requests waiting for one; null without a pool (PGlite). */
+export function poolStats(): { total: number; idle: number; waiting: number } | null {
+  return livePool ? { total: livePool.totalCount, idle: livePool.idleCount, waiting: livePool.waitingCount } : null;
+}
 
 type Opened = { db: Db; close: () => Promise<void>; migrate: () => Promise<void> };
 
@@ -89,6 +96,7 @@ async function open(url: string, options: OpenOptions): Promise<Opened> {
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const { migrate } = await import("drizzle-orm/node-postgres/migrator");
   const pool = new pg.Pool({ connectionString: url, max: 10 });
+  livePool = pool;
   const db = drizzle(pool, { schema: fullSchema }) as unknown as Db;
   const query: RawQuery = (text, params) => pool.query(text, params);
   const up = migrator(db, query, () => migrate(drizzle(pool), { migrationsFolder: migrationsFolder() }), options);
@@ -155,6 +163,7 @@ export async function closeDb() {
   pending = undefined;
   close = undefined;
   remigrate = undefined;
+  livePool = undefined;
   await c?.();
 }
 
