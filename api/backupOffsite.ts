@@ -177,7 +177,7 @@ export function dataRoot(): string {
   return process.env.DATA_DIR || path.dirname(env.instanceKeyPath);
 }
 
-function run(bin: string, args: string[], opts: { cwd?: string; stdout?: string } = {}): Promise<string> {
+function run(bin: string, args: string[], opts: { cwd?: string; stdout?: string; okCodes?: number[] } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const out = opts.stdout ? fs.openSync(opts.stdout, "w", 0o600) : null;
     const p = spawn(bin, args, { stdio: ["ignore", out ?? "pipe", "pipe"], env: process.env, ...(opts.cwd ? { cwd: opts.cwd } : {}) });
@@ -191,7 +191,7 @@ function run(bin: string, args: string[], opts: { cwd?: string; stdout?: string 
     });
     p.on("close", (code) => {
       if (out !== null) fs.closeSync(out);
-      if (code === 0) resolve(text);
+      if (code !== null && (opts.okCodes ?? [0]).includes(code)) resolve(text);
       else reject(new Error((err.trim() || `${path.basename(bin)} exited with ${code ?? "?"}`).slice(0, 500)));
     });
   });
@@ -205,7 +205,9 @@ export async function archiveData(file: string): Promise<string | null> {
   const rel = path.relative(root, backupDir());
   if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) args.push(`--exclude=./${rel}`, `--exclude=${rel}`);
   fs.closeSync(fs.openSync(file, "w", 0o600));
-  await run(process.env.TAR_BIN ?? "tar", [...args, "."]);
+  // GNU tar exits 1 when a file changed while it was read (the audit file copy is appended to
+  // as the server runs): the archive is whole all the same, only that file is as it was then.
+  await run(process.env.TAR_BIN ?? "tar", [...args, "."], { okCodes: [0, 1] });
   fs.chmodSync(file, 0o600);
   return file;
 }
@@ -223,7 +225,7 @@ function clientOf(s: Stored): S3Client {
   return offsiteDeps.transport ? s3Client(cfg, offsiteDeps.transport) : s3Client(cfg);
 }
 
-async function uploadS3(s: Stored, name: string, dump: string, data: string | null): Promise<number> {
+async function uploadS3(s: Stored, name: string, dump: string, archive: () => Promise<string | null>): Promise<number> {
   if (!backupKeySet()) throw new BackupKeyError("BACKUP_KEY is not set: off-site copies are encrypted with it, nothing was uploaded.");
   const key = currentBackupKey();
   const client = clientOf(s);
@@ -239,7 +241,9 @@ async function uploadS3(s: Stored, name: string, dump: string, data: string | nu
       fs.rmSync(tmp, { force: true });
     }
   };
+  // The dump first: an archive that fails never costs the database's copy.
   await send(dump, dumpObject(s.prefix, name));
+  const data = await archive();
   if (data) await send(data, dataObject(s.prefix, name));
   // Thinned after the new copy is in: a failed upload never costs an old one.
   const objects = await client.list(s.prefix);
@@ -264,8 +268,9 @@ export const resticConfigured = () => !!process.env.RESTIC_REPOSITORY && !!(proc
 const stageDir = () => path.join(backupDir(), ".restic-stage");
 const RESTIC_HOST = "inkledger";
 
-async function uploadRestic(s: Stored, name: string, dump: string, data: string | null): Promise<number> {
+async function uploadRestic(s: Stored, name: string, dump: string, archive: () => Promise<string | null>): Promise<number> {
   if (!resticConfigured()) throw new Error("restic needs RESTIC_REPOSITORY and RESTIC_PASSWORD in the server's environment.");
+  const data = await archive();
   // One snapshot per backup, from a folder of a fixed path: retention groups them by it.
   const stage = stageDir();
   fs.rmSync(stage, { recursive: true, force: true });
@@ -343,8 +348,8 @@ export async function uploadOffsite(name: string): Promise<OffsiteState | null> 
   const data = path.join(backupDir(), `.${dataArchiveName(name)}.partial`);
   try {
     if (!BACKUP_FILE.test(name) || !fs.existsSync(dump)) throw new OffsiteError("notFound", `Backup ${name} not found`);
-    const archived = await archiveData(data);
-    const bytes = s.kind === "s3" ? await uploadS3(s, name, dump, archived) : await uploadRestic(s, name, dump, archived);
+    const archive = () => archiveData(data);
+    const bytes = s.kind === "s3" ? await uploadS3(s, name, dump, archive) : await uploadRestic(s, name, dump, archive);
     const state: OffsiteState = { ...(await getOffsiteState()), lastOkAt: Date.now(), lastName: name, lastBytes: bytes };
     await setServerSetting(STATE_KEY, state);
     await resolveAlert("offsite").catch(() => undefined);

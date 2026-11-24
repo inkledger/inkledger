@@ -16,7 +16,15 @@ process.env.DATABASE_URL = ":memory:";
 process.env.BACKUP_DIR = DIR;
 process.env.DATA_DIR = DATA;
 process.env.AUDIT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "ikl-offsite-audit-"));
-process.env.PG_DUMP_BIN = "/nonexistent/pg_dump";
+// Fake pg_dump / pg_restore / psql (the real ones run in the container): a dump is a line, a restore reads it.
+for (const [bin, body] of [
+  ["pg_dump", `#!/bin/sh\nfor a in "$@"; do case "$a" in --file=*) echo dump > "\${a#--file=}";; esac; done\n`],
+  ["pg_restore", `#!/bin/sh\necho "-- the dump's SQL"\n`],
+  ["psql", `#!/bin/sh\ncat > /dev/null\n`],
+]) fs.writeFileSync(path.join(BIN, bin), body, { mode: 0o755 });
+process.env.PG_DUMP_BIN = path.join(BIN, "pg_dump");
+process.env.PG_RESTORE_BIN = path.join(BIN, "pg_restore");
+process.env.PSQL_BIN = path.join(BIN, "psql");
 fs.writeFileSync(path.join(DATA, "instance.key"), "INSTANCE-KEY-BYTES");
 fs.mkdirSync(path.join(DATA, "modules"));
 fs.writeFileSync(path.join(DATA, "modules", "m.json"), "{}");
@@ -363,6 +371,27 @@ describe("restore drill", () => {
     const [ev] = await q<{ action: string; actor_kind: string; outcome: string }>("SELECT action, actor_kind, outcome FROM audit_events WHERE action = 'backup.drill' ORDER BY id DESC LIMIT 1");
     expect(ev).toMatchObject({ action: "backup.drill", actor_kind: "system", outcome: "ok" });
   });
+});
+
+describe("after each backup", () => {
+  it("the new dump goes off-site on its own; the safety copy a restore takes first does not", async () => {
+    for (const f of fs.readdirSync(DIR)) fs.rmSync(path.join(DIR, f), { recursive: true, force: true });
+    const o = await import("./backupOffsite");
+    const b = await import("./backup");
+    const s3 = stubS3();
+    o.offsiteDeps.transport = s3.transport;
+    await o.setOffsite({ ...s3Settings, keepDaily: 30 });
+    const name = await b.runBackup();
+    await expect.poll(async () => (await o.getOffsiteState()).lastName, { timeout: 10_000 }).toBe(name);
+    expect(s3.objects.has(`srv1/${name}.enc`)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1100)); // a new second: a new safety file name
+    const { safety } = await b.restoreBackup(name);
+    expect(safety).not.toBe(name);
+    // Anything queued before this has run once it resolves.
+    await o.queueOffsite(name);
+    expect(s3.objects.has(`srv1/${safety}.enc`)).toBe(false);
+    await o.setOffsite({ kind: "none" });
+  }, 30_000);
 });
 
 describe("who may do what", () => {
