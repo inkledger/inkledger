@@ -162,7 +162,7 @@ export function TeamsSection() {
                         <span className="min-w-0 flex-1 truncate">{m.displayName}</span>
                         {m.role === "lead" && (
                           <Chip variant="dot" tone="info">
-                            {t("settings.teams.lead")}
+                            {t("settings.users.lead")}
                           </Chip>
                         )}
                         <DropdownMenu>
@@ -222,7 +222,7 @@ export function TeamsSection() {
             <AlertDialogDescription>{t("settings.teams.removeHint")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings.teams.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => removing && remove.mutate({ id: removing.id })}>{t("settings.teams.remove")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
