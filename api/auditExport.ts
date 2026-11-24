@@ -46,7 +46,8 @@ export function registerAuditRoutes(app: Hono<{ Bindings: HttpBindings }>) {
     const encoder = new TextEncoder();
     let rows = 0;
     const pages = auditPages(filters);
-    const done = () => record({ req: c.req.raw, remoteAddress: c.env?.incoming?.socket?.remoteAddress, user: who.user }, "audit.export", { target: { type: "audit" }, after: { format, rows, filters } });
+    // Recorded as it starts: a download cancelled halfway was still an export.
+    await record({ req: c.req.raw, remoteAddress: c.env?.incoming?.socket?.remoteAddress, user: who.user }, "audit.export", { target: { type: "audit" }, after: { format, filters } });
     // Pulled page by page: a slow download holds the next query back.
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -58,7 +59,6 @@ export function registerAuditRoutes(app: Hono<{ Bindings: HttpBindings }>) {
           if (next.done) {
             if (format === "json") controller.enqueue(encoder.encode("]"));
             controller.close();
-            await done();
             return;
           }
           const page = next.value;

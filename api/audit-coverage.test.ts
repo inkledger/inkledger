@@ -172,6 +172,10 @@ describe("every sign-in writes exactly one event", () => {
       expect.soft(events.map((e) => [e.action, e.outcome, e.actor_user_id]), what).toEqual([expected]);
       expect.soft(JSON.stringify(events), what).not.toContain("SECRET");
     }
+    // A name no account has may be a password typed in the wrong field: never kept.
+    const before = await lastId();
+    await run(async () => (await anonymous()).caller.auth.login({ username: "SECRET-typed-here", password: "x" }));
+    expect(JSON.stringify(await q("SELECT * FROM audit_events WHERE id > ?", before))).not.toContain("SECRET");
   });
 
   it("a remembered device resuming, and one the server no longer knows", async () => {

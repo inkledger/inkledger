@@ -154,7 +154,8 @@ export const authRouter = createRouter({
       // A missing account costs the same time as a wrong password.
       const ok = await verifyPassword(input.password, user?.passwordHash ?? (await decoyHash()));
       if (!user?.passwordHash || !ok) {
-        await recordSignIn(ctx, { ok: false, method: "password", username: key, reason: !user ? "unknownUser" : !user.passwordHash ? "noPassword" : "wrongPassword", userId: user?.id });
+        // An unknown name is not kept: it may be a password typed in the wrong field.
+        await recordSignIn(ctx, { ok: false, method: "password", username: user ? key : "", reason: !user ? "unknownUser" : !user.passwordHash ? "noPassword" : "wrongPassword", userId: user?.id });
         throw new TRPCError({ code: "UNAUTHORIZED", message: t("server.auth.wrongPassword") });
       }
       if (user.disabledAt) {

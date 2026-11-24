@@ -217,8 +217,9 @@ export function recordSignIn(
   if (outcome.ok) {
     return record({ ...who, user: outcome.user }, "auth.signIn", { target: { type: "user", id: outcome.user.id, ownerUserId: outcome.user.id }, after: { method: outcome.method, username: outcome.user.username } });
   }
-  const actor: AuditActor = { kind: outcome.method === "scim" ? "scim" : "user", userId: outcome.userId ?? null, label: outcome.username.slice(0, 64) };
-  return write(actor, "auth.signInFailed", { outcome: "failed", target: { type: "user", id: outcome.userId ?? null }, after: { method: outcome.method, username: outcome.username.slice(0, 64), reason: outcome.reason } }, fromRequest(who));
+  const username = outcome.username.slice(0, 64);
+  const actor: AuditActor = { kind: outcome.method === "scim" ? "scim" : "user", userId: outcome.userId ?? null, label: username };
+  return write(actor, "auth.signInFailed", { outcome: "failed", target: { type: "user", id: outcome.userId ?? null }, after: { method: outcome.method, ...(username ? { username } : {}), reason: outcome.reason } }, fromRequest(who));
 }
 
 /** Every event under way written (tests read the table right after a call). */
