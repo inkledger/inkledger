@@ -260,7 +260,8 @@ export async function sendWebhook(alert: Alert, o: { now?: number; network?: Net
 export async function testWebhook(): Promise<void> {
   const hook = await readWebhook();
   if (!hook) throw new Error(t("server.alerts.noWebhook"));
-  await sendWebhook({ key: "test", kind: "backup", name: "test" });
+  // Not "sent" when nothing went: a read-only server posts nothing, the test says so.
+  if (!(await sendWebhook({ key: "test", kind: "backup", name: "test" }))) throw new Error(t("server.alerts.readOnly"));
 }
 
 // ── Where alerts come from ─────────────────────────────────────────────────

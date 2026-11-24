@@ -87,6 +87,8 @@ export async function syncActiveUsers(): Promise<{ ok: number; failed: number }>
   }
   for (const user of due) {
     if (isShuttingDown() || inMaintenance()) break; // the rest waits for the next boot (or pass)
+    // A long pass (many accounts, a slow tracker) is alive while it moves on: /api/ready reads it.
+    if (heartbeat) heartbeat = { ...heartbeat, at: Date.now() };
     try {
       await syncUser(user, { full: await needsFullSync(user.id), background: true });
       // Time still waiting for the user's time sinks goes now too.

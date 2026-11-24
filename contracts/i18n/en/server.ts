@@ -137,6 +137,7 @@ export const server = {
     certificateExpired: "The HTTPS certificate has ended: browsers refuse the HTTPS address until it is renewed.",
     open: "Open",
     noWebhook: "No alert webhook is set.",
+    readOnly: "Not sent: this server is read-only (PROVIDERS_READ_ONLY), it posts no alert.",
   },
   rateLimit: {
     tooMany: "Too many requests: try again in {count} s.",

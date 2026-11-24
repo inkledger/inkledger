@@ -138,6 +138,7 @@ export const server: Shape<typeof en> = {
     certificateExpired: "Il certificato HTTPS è scaduto: i browser rifiutano l'indirizzo HTTPS finché non viene rinnovato.",
     open: "Apri",
     noWebhook: "Nessun webhook per gli avvisi impostato.",
+    readOnly: "Non inviato: questo server è in sola lettura (PROVIDERS_READ_ONLY), non invia avvisi.",
   },
   rateLimit: {
     tooMany: "Troppe richieste: riprova tra {count} s.",
